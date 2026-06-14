@@ -211,7 +211,7 @@ describe("getProviderModels", () => {
 
 		await createClineProviderService().getProviderModels("litellm");
 
-		expect(timeoutSpy).toHaveBeenCalledWith(2_500);
+		expect(timeoutSpy).toHaveBeenCalledWith(30_000);
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://127.0.0.1:4000/v1/models",
 			expect.objectContaining({
