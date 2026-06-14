@@ -77,14 +77,16 @@ export function formatClineContextBudgetDisplay(options: {
 	const overageText = overageTokens > 0 ? ` · over by ~${Math.round(overageTokens / 1000)}k` : "";
 	const budgetStateLabel =
 		overageTokens > 0 ? "overflow" : percent >= 92 ? "critical" : percent >= 85 ? "warning" : "healthy";
-	const nextPromptText =
+	const nextPromptTokens =
 		typeof options.estimatedNextPromptTokens === "number" && options.estimatedNextPromptTokens > 0
-			? ` · incl next prompt ~${Math.round(options.estimatedNextPromptTokens / 1000)}k`
-			: "";
+			? options.estimatedNextPromptTokens
+			: 0;
+	const visibleChatTokens = Math.max(0, options.estimatedContextTokens - nextPromptTokens);
+	const nextPromptText = nextPromptTokens > 0 ? ` · next prompt ~${Math.round(nextPromptTokens / 1000)}k` : "";
 	return {
 		limit,
 		percent: displayPercent,
-		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used${nextPromptText} · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
+		text: `~${Math.round(visibleChatTokens / 1000)}k visible chat${nextPromptText} · ${limitText} (projected ${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
 }
 
