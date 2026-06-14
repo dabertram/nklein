@@ -243,6 +243,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						apiKey: clineLaunchConfig.apiKey,
 						baseUrl: clineLaunchConfig.baseUrl,
 						reasoningEffort: clineLaunchConfig.reasoningEffort,
+						contextScope: body.clineSettings?.contextScope,
+						timeoutMode: body.clineSettings?.timeoutMode ?? scopedRuntimeConfig.agentTimeoutMode,
 					});
 
 					let nextSummary = summary;

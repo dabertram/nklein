@@ -90,10 +90,18 @@ export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewMode
 
 export const runtimeClineReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 export type RuntimeClineReasoningEffort = z.infer<typeof runtimeClineReasoningEffortSchema>;
+export const runtimeAgentTimeoutModeSchema = z.enum(["normal", "long", "very_long", "unlimited"]);
+export type RuntimeAgentTimeoutMode = z.infer<typeof runtimeAgentTimeoutModeSchema>;
+export const runtimeTaskClineContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
+export type RuntimeTaskClineContextScope = z.infer<typeof runtimeTaskClineContextScopeSchema>;
+export const runtimeTaskClineTimeoutModeSchema = z.enum(["normal", "long", "very_long", "unlimited"]);
+export type RuntimeTaskClineTimeoutMode = z.infer<typeof runtimeTaskClineTimeoutModeSchema>;
 export const runtimeTaskClineSettingsSchema = z.object({
 	providerId: z.string().optional(),
 	modelId: z.string().optional(),
 	reasoningEffort: runtimeClineReasoningEffortSchema.optional(),
+	contextScope: runtimeTaskClineContextScopeSchema.optional(),
+	timeoutMode: runtimeTaskClineTimeoutModeSchema.optional(),
 });
 export type RuntimeTaskClineSettings = z.infer<typeof runtimeTaskClineSettingsSchema>;
 export const runtimeTaskImageSchema = z.object({
@@ -942,6 +950,7 @@ export const runtimeConfigResponseSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema,
 	selectedShortcutLabel: z.string().nullable(),
 	agentAutonomousModeEnabled: z.boolean(),
+	agentTimeoutMode: runtimeAgentTimeoutModeSchema,
 	debugModeEnabled: z.boolean().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
@@ -962,6 +971,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema.optional(),
 	selectedShortcutLabel: z.string().nullable().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),
+	agentTimeoutMode: runtimeAgentTimeoutModeSchema.optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),

@@ -368,6 +368,9 @@ export function RuntimeSettingsDialog({
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
 	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("claude");
 	const [agentAutonomousModeEnabled, setAgentAutonomousModeEnabled] = useState(true);
+	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "very_long" | "unlimited">(
+		"normal",
+	);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [initialThemeId, setInitialThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
@@ -441,6 +444,7 @@ export function RuntimeSettingsDialog({
 	const fallbackAgentId = firstInstalledAgentId ?? displayedAgents[0]?.id ?? "claude";
 	const initialSelectedAgentId = configuredAgentId ?? fallbackAgentId;
 	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
+	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
@@ -465,6 +469,9 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (agentAutonomousModeEnabled !== initialAgentAutonomousModeEnabled) {
+			return true;
+		}
+		if (agentTimeoutMode !== initialAgentTimeoutMode) {
 			return true;
 		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
@@ -494,12 +501,14 @@ export function RuntimeSettingsDialog({
 		);
 	}, [
 		agentAutonomousModeEnabled,
+		agentTimeoutMode,
 		clineMcpSettings.hasUnsavedChanges,
 		clineSettings.hasUnsavedChanges,
 		commitPromptTemplate,
 		config,
 		draftThemeId,
 		initialAgentAutonomousModeEnabled,
+		initialAgentTimeoutMode,
 		initialCommitPromptTemplate,
 		initialOpenPrPromptTemplate,
 		initialReadyForReviewNotificationsEnabled,
@@ -518,6 +527,7 @@ export function RuntimeSettingsDialog({
 		}
 		setSelectedAgentId(configuredAgentId ?? fallbackAgentId);
 		setAgentAutonomousModeEnabled(config?.agentAutonomousModeEnabled ?? true);
+		setAgentTimeoutMode(config?.agentTimeoutMode ?? "normal");
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		setShortcuts(config?.shortcuts ?? []);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
@@ -525,6 +535,7 @@ export function RuntimeSettingsDialog({
 		setSaveError(null);
 	}, [
 		config?.agentAutonomousModeEnabled,
+		config?.agentTimeoutMode,
 		config?.commitPromptTemplate,
 		config?.openPrPromptTemplate,
 		config?.readyForReviewNotificationsEnabled,
@@ -700,6 +711,7 @@ export function RuntimeSettingsDialog({
 		const saved = await save({
 			selectedAgentId,
 			agentAutonomousModeEnabled,
+			agentTimeoutMode,
 			readyForReviewNotificationsEnabled,
 			shortcuts,
 			commitPromptTemplate,
@@ -812,6 +824,22 @@ export function RuntimeSettingsDialog({
 						<p className="text-text-secondary text-[13px] ml-6 mt-0 mb-0">
 							Allows agents to use tools without stopping for permission. Use at your own risk.
 						</p>
+						<div className="mt-2 ml-6 max-w-[220px]">
+							<p className="text-text-secondary text-[12px] mt-0 mb-1">Agent timeout</p>
+							<NativeSelect
+								fill
+								value={agentTimeoutMode}
+								onChange={(event) =>
+									setAgentTimeoutMode(event.target.value as "normal" | "long" | "very_long" | "unlimited")
+								}
+								disabled={controlsDisabled}
+							>
+								<option value="normal">Normal (5m)</option>
+								<option value="long">Long (15m)</option>
+								<option value="very_long">Very Long (30m)</option>
+								<option value="unlimited">Unlimited</option>
+							</NativeSelect>
+						</div>
 					</div>
 
 					{/* ---- Cline ---- */}
