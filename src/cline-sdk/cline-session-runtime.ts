@@ -2,6 +2,7 @@
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
+import { compactKanbanFocusedMessages } from "./cline-context-focus-policy";
 import { extractClineSessionId } from "./cline-event-adapter";
 import {
 	type ClineMcpRuntimeService,
@@ -315,6 +316,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				localRuntime: {
 					modelCatalogDefaults: CLINE_MODEL_CATALOG_DEFAULTS,
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
+					...(compaction ? { compaction: { ...compaction, compact: compactKanbanFocusedMessages } } : {}),
 					logger: createKanbanClineLogger({
 						runtime: "kanban",
 						taskId: request.taskId,
