@@ -1,7 +1,8 @@
 import { ALL_SPECIAL_TOKENS, countTokens } from "gpt-tokenizer";
 
-const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 8_000;
+const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 12_000;
 const READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS = 1_000;
+const FILE_CHUNK_SAFE_WORKING_BUDGET_RATIO = 0.35;
 
 export interface KanbanContextSafetyBudgets {
 	contextWindow: number | null;
@@ -28,7 +29,7 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 		? Math.max(0, contextWindow - outputReserveTokens - promptOverheadReserveTokens)
 		: null;
 	const fileChunkTokenBudget = safeWorkingBudget
-		? Math.max(4_000, Math.min(12_000, Math.round(safeWorkingBudget * 0.15)))
+		? Math.max(8_000, Math.min(32_000, Math.round(safeWorkingBudget * FILE_CHUNK_SAFE_WORKING_BUDGET_RATIO)))
 		: DEFAULT_FILE_CHUNK_TOKEN_BUDGET;
 	return {
 		contextWindow,

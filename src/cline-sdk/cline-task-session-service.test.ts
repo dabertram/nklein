@@ -9,9 +9,9 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			outputReserveTokens: 24_000,
 			promptOverheadReserveTokens: 12_000,
 			safeWorkingBudget: 44_000,
-			fileChunkTokenBudget: 6_600,
-			fileChunkContentTokenBudget: 5_600,
-			fileChunkCharBudget: 26_400,
+			fileChunkTokenBudget: 15_400,
+			fileChunkContentTokenBudget: 14_400,
+			fileChunkCharBudget: 61_600,
 		});
 	});
 
@@ -21,9 +21,9 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			outputReserveTokens: 24_000,
 			promptOverheadReserveTokens: 12_000,
 			safeWorkingBudget: null,
-			fileChunkTokenBudget: 8_000,
-			fileChunkContentTokenBudget: 7_000,
-			fileChunkCharBudget: 32_000,
+			fileChunkTokenBudget: 12_000,
+			fileChunkContentTokenBudget: 11_000,
+			fileChunkCharBudget: 48_000,
 		});
 	});
 });
@@ -62,7 +62,7 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("Backend approval tokenizes selected `read_files` content");
 		expect(rules).toContain("Backend approval will tokenize the selected text");
 		expect(rules).toContain("shrink the requested line count by at least half or to the suggested line count");
-		expect(rules).toContain("at or below about 6k tokens (7k total read budget including tool/result framing)");
+		expect(rules).toContain("at or below about 14k tokens (15k total read budget including tool/result framing)");
 		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
 		expect(rules).toContain("Prefer non-overlapping primary chunks");

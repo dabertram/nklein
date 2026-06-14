@@ -72,7 +72,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const largeFilePath = join(workspacePath, "big.txt");
-		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
+		const largeContent = createTokenDenseContent(500, 12);
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const result = await policy.requestToolApproval(
@@ -91,7 +91,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 	it("blocks explicit read_files chunks above the token budget", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
-		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const largeFilePath = join(workspacePath, "wide-lines.txt");
 		const largeContent = createTokenDenseContent(400, 80);
 		await writeFile(largeFilePath, largeContent, "utf-8");
@@ -111,13 +111,33 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("Retry one large file per call");
 	});
 
+	it("allows moderate read_files chunks on an 80k context model", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
+		const largeFilePath = join(workspacePath, "moderate-lines.txt");
+		const largeContent = createTokenDenseContent(500, 6);
+		await writeFile(largeFilePath, largeContent, "utf-8");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "read_files",
+				input: {
+					files: [{ path: largeFilePath, start_line: 1, end_line: 500 }],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(true);
+	});
+
 	it("blocks combined read_files chunks above the token budget", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const firstPath = join(workspacePath, "first.txt");
 		const secondPath = join(workspacePath, "second.txt");
-		const content = Array.from({ length: 200 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
+		const content = createTokenDenseContent(300, 6);
 		await writeFile(firstPath, content, "utf-8");
 		await writeFile(secondPath, content, "utf-8");
 
@@ -126,8 +146,8 @@ describe("createKanbanToolApprovalPolicy", () => {
 				toolName: "read_files",
 				input: {
 					files: [
-						{ path: firstPath, start_line: 1, end_line: 200 },
-						{ path: secondPath, start_line: 1, end_line: 200 },
+						{ path: firstPath, start_line: 1, end_line: 300 },
+						{ path: secondPath, start_line: 1, end_line: 300 },
 					],
 				},
 			}),
