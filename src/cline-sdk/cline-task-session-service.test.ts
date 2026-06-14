@@ -6,19 +6,19 @@ describe("buildKanbanContextSafetyBudgets", () => {
 	it("keeps file chunks safely below an 80k active context window", () => {
 		expect(buildKanbanContextSafetyBudgets(80_000)).toEqual({
 			contextWindow: 80_000,
-			outputReserveTokens: 24_000,
+			outputReserveTokens: 8_000,
 			promptOverheadReserveTokens: 12_000,
-			safeWorkingBudget: 44_000,
-			fileChunkTokenBudget: 15_400,
-			fileChunkContentTokenBudget: 14_400,
-			fileChunkCharBudget: 61_600,
+			safeWorkingBudget: 60_000,
+			fileChunkTokenBudget: 36_000,
+			fileChunkContentTokenBudget: 35_000,
+			fileChunkCharBudget: 144_000,
 		});
 	});
 
 	it("uses conservative chunk sizes when the model context is unknown", () => {
 		expect(buildKanbanContextSafetyBudgets(null)).toMatchObject({
 			contextWindow: null,
-			outputReserveTokens: 24_000,
+			outputReserveTokens: 8_000,
 			promptOverheadReserveTokens: 12_000,
 			safeWorkingBudget: null,
 			fileChunkTokenBudget: 12_000,
@@ -62,13 +62,13 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("Backend approval tokenizes selected `read_files` content");
 		expect(rules).toContain("Backend approval will tokenize the selected text");
 		expect(rules).toContain("shrink the requested line count by at least half or to the suggested line count");
-		expect(rules).toContain("at or below about 14k tokens (15k total read budget including tool/result framing)");
+		expect(rules).toContain("at or below about 35k tokens (36k total read budget including tool/result framing)");
 		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
 		expect(rules).toContain("Prefer non-overlapping primary chunks");
 		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
 		expect(rules).toContain(
-			"Safe working budget after output reserve and prompt overhead reserve: 44,000 tokens (~44k)",
+			"Safe working budget after output reserve and prompt overhead reserve: 60,000 tokens (~60k)",
 		);
 	});
 

@@ -72,7 +72,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const largeFilePath = join(workspacePath, "big.txt");
-		const largeContent = createTokenDenseContent(500, 12);
+		const largeContent = createTokenDenseContent(1000, 12);
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const result = await policy.requestToolApproval(
@@ -137,7 +137,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const firstPath = join(workspacePath, "first.txt");
 		const secondPath = join(workspacePath, "second.txt");
-		const content = createTokenDenseContent(300, 6);
+		const content = createTokenDenseContent(400, 12);
 		await writeFile(firstPath, content, "utf-8");
 		await writeFile(secondPath, content, "utf-8");
 
@@ -146,8 +146,8 @@ describe("createKanbanToolApprovalPolicy", () => {
 				toolName: "read_files",
 				input: {
 					files: [
-						{ path: firstPath, start_line: 1, end_line: 300 },
-						{ path: secondPath, start_line: 1, end_line: 300 },
+						{ path: firstPath, start_line: 1, end_line: 400 },
+						{ path: secondPath, start_line: 1, end_line: 400 },
 					],
 				},
 			}),
