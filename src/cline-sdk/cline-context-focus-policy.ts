@@ -9,6 +9,11 @@ type ClineSdkContextCompactionResult = ReturnType<NonNullable<ClineSdkContextCom
 
 const COMPACTED_TOOL_RESULT_PREVIEW_CHARS = 240;
 const COMPACTED_MESSAGE_PREVIEW_CHARS = 480;
+const MAX_FOCUS_BRIEF_PATHS = 24;
+const MAX_FOCUS_BRIEF_READS = 32;
+const FOCUS_BRIEF_START = "[Kanban context focus brief]";
+const FOCUS_BRIEF_END = "[/Kanban context focus brief]";
+const FOCUS_BRIEF_PATTERN = /\[Kanban context focus brief\][\s\S]*?\[\/Kanban context focus brief\]\n*/g;
 
 interface ToolResultReference {
 	messageIndex: number;
@@ -17,6 +22,19 @@ interface ToolResultReference {
 	toolName: string;
 	toolInput: Record<string, unknown>;
 	block: ClineSdkToolResultBlock;
+}
+
+interface ReadFilesLedgerEntry {
+	toolUseId: string;
+	inputSummary: string;
+	originalChars: number;
+	latest: boolean;
+	omitted: boolean;
+}
+
+interface FailedReadFilesEntry {
+	inputSummary: string;
+	errorPreview: string;
 }
 
 function normalizeToolName(name: string): string {
@@ -118,6 +136,99 @@ function summarizeText(text: string, maxChars: number): string {
 	return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars)}...`;
 }
 
+function addUniqueValue(values: string[], value: string): void {
+	const normalized = value.trim();
+	if (!normalized || values.includes(normalized)) {
+		return;
+	}
+	values.push(normalized);
+}
+
+function extractObservedPathsFromText(text: string): string[] {
+	const paths: string[] = [];
+	const textWithoutFocusBrief = stripFocusBrief(text);
+	const pathPattern = /(?:~|\/)[^\s"'`<>]+\.(?:txt|md|json|jsonl|yaml|yml|csv|ts|tsx|js|jsx|py|sh|log)/g;
+	for (const match of textWithoutFocusBrief.matchAll(pathPattern)) {
+		const path = match[0]?.replace(/[),.;:]+$/, "") ?? "";
+		if (path.includes("*")) {
+			continue;
+		}
+		addUniqueValue(paths, path);
+	}
+	return paths;
+}
+
+function extractMissingFilePathsFromText(text: string): string[] {
+	if (!/\bENOENT\b|no such file or directory|cannot find|not found/i.test(text)) {
+		return [];
+	}
+	return extractObservedPathsFromText(text);
+}
+
+function stripFocusBrief(text: string): string {
+	return text.replace(FOCUS_BRIEF_PATTERN, "").trimStart();
+}
+
+function collectObservedPaths(messages: readonly ClineSdkPersistedMessage[]): string[] {
+	const paths: string[] = [];
+	for (const message of messages) {
+		if (message.role === "assistant") {
+			continue;
+		}
+		const text =
+			typeof message.content === "string"
+				? message.content
+				: message.content
+						.map((block) => {
+							if (block.type === "text") {
+								return block.text;
+							}
+							if (block.type === "tool_use") {
+								return summarizeValue(block.input);
+							}
+							if (block.type === "tool_result") {
+								return stringifyToolResultContent(block.content);
+							}
+							if (block.type === "file") {
+								return block.path;
+							}
+							return "";
+						})
+						.join("\n");
+		for (const path of extractObservedPathsFromText(text)) {
+			addUniqueValue(paths, path);
+			if (paths.length >= MAX_FOCUS_BRIEF_PATHS) {
+				return paths;
+			}
+		}
+	}
+	return paths;
+}
+
+function collectMissingFilePaths(messages: readonly ClineSdkPersistedMessage[]): string[] {
+	const paths: string[] = [];
+	for (const message of messages) {
+		const text =
+			typeof message.content === "string"
+				? message.content
+				: message.content
+						.map((block) => {
+							if (block.type === "text") {
+								return block.text;
+							}
+							if (block.type === "tool_result") {
+								return stringifyToolResultContent(block.content);
+							}
+							return "";
+						})
+						.join("\n");
+		for (const path of extractMissingFilePathsFromText(text)) {
+			addUniqueValue(paths, path);
+		}
+	}
+	return paths;
+}
+
 function collectToolResults(messages: readonly ClineSdkPersistedMessage[]): ToolResultReference[] {
 	const toolUseById = new Map<string, ClineSdkToolUseBlock>();
 	const results: ToolResultReference[] = [];
@@ -193,6 +304,123 @@ function buildReadFilesSummary(reference: ToolResultReference): string {
 	].join("\n");
 }
 
+function buildFailedReadFilesSummary(reference: ToolResultReference): string {
+	const originalText = stringifyToolResultContent(reference.block.content);
+	return [
+		"[Kanban context focus: failed read_files result compacted before the next model request.]",
+		`Invalid or unreadable input: ${summarizeReadFileInput(reference.toolInput)}`,
+		`Error preview: ${summarizeText(originalText, COMPACTED_TOOL_RESULT_PREVIEW_CHARS)}`,
+		"Do not retry this path unless a directory listing confirms it exists.",
+	].join("\n");
+}
+
+function isMissingFileReadError(reference: ToolResultReference): boolean {
+	if (reference.block.is_error !== true) {
+		return false;
+	}
+	const errorText = stringifyToolResultContent(reference.block.content);
+	return /\bENOENT\b|no such file or directory|cannot find|not found/i.test(errorText);
+}
+
+function buildReadFilesLedgerEntry(
+	reference: ToolResultReference,
+	latestReadToolUseId: string | null,
+): ReadFilesLedgerEntry {
+	const originalText = stringifyToolResultContent(reference.block.content);
+	const latest = latestReadToolUseId === reference.toolUseId;
+	return {
+		toolUseId: reference.toolUseId,
+		inputSummary: summarizeReadFileInput(reference.toolInput),
+		originalChars: originalText.length,
+		latest,
+		omitted: !latest,
+	};
+}
+
+function buildFocusBrief(input: {
+	observedPaths: readonly string[];
+	readFilesLedger: readonly ReadFilesLedgerEntry[];
+	failedReadFiles: readonly FailedReadFilesEntry[];
+}): string | null {
+	const lines: string[] = [FOCUS_BRIEF_START];
+	if (input.observedPaths.length > 0) {
+		lines.push("Known existing paths observed in this session:");
+		for (const path of input.observedPaths.slice(0, MAX_FOCUS_BRIEF_PATHS)) {
+			lines.push(`- ${path}`);
+		}
+	}
+	if (input.readFilesLedger.length > 0) {
+		lines.push("read_files coverage ledger:");
+		for (const entry of input.readFilesLedger.slice(-MAX_FOCUS_BRIEF_READS)) {
+			const state = entry.latest ? "latest raw result retained below" : "older raw result omitted";
+			lines.push(`- ${entry.inputSummary} (${state}; original ${entry.originalChars.toLocaleString()} chars)`);
+		}
+	}
+	if (input.failedReadFiles.length > 0) {
+		lines.push("Invalid or missing read_files paths seen this session; do not retry unless re-listed:");
+		for (const entry of input.failedReadFiles.slice(-MAX_FOCUS_BRIEF_READS)) {
+			lines.push(`- ${entry.inputSummary} (${entry.errorPreview})`);
+		}
+	}
+	if (lines.length === 1) {
+		return null;
+	}
+	lines.push(
+		"Use only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.",
+		"Older file chunk bodies are intentionally excluded from request context. Re-read explicit path/ranges if verbatim text is needed.",
+		FOCUS_BRIEF_END,
+	);
+	return lines.join("\n");
+}
+
+function splitReadInputSummary(summary: string): string[] {
+	return summary
+		.split(",")
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0);
+}
+
+function basename(path: string): string {
+	const normalized = path.split(/[?#]/)[0] ?? path;
+	return normalized.split("/").filter(Boolean).pop() ?? normalized;
+}
+
+function filterInvalidObservedPaths(paths: readonly string[], invalidReadInputs: readonly string[]): string[] {
+	return paths.filter((path) => {
+		const pathBaseName = basename(path);
+		return !invalidReadInputs.some((invalidInput) => {
+			const invalidPath = invalidInput.split(":")[0]?.trim() ?? invalidInput;
+			return path === invalidPath || path.endsWith(`/${invalidPath}`) || pathBaseName === basename(invalidPath);
+		});
+	});
+}
+
+function prependFocusBriefToFirstUserMessage(messages: ClineSdkPersistedMessage[], focusBrief: string): boolean {
+	const firstUserIndex = messages.findIndex((message) => message.role === "user");
+	if (firstUserIndex < 0) {
+		return false;
+	}
+	const message = messages[firstUserIndex];
+	if (!message) {
+		return false;
+	}
+	if (typeof message.content === "string") {
+		messages[firstUserIndex] = {
+			...message,
+			content: `${focusBrief}\n\n${stripFocusBrief(message.content)}`,
+		};
+		return true;
+	}
+	const contentWithoutExistingBrief = message.content
+		.map((block) => (block.type === "text" ? { ...block, text: stripFocusBrief(block.text) } : block))
+		.filter((block) => block.type !== "text" || block.text.trim().length > 0);
+	messages[firstUserIndex] = {
+		...message,
+		content: [{ type: "text", text: focusBrief }, ...contentWithoutExistingBrief],
+	};
+	return true;
+}
+
 function buildGenericToolResultSummary(reference: ToolResultReference): string {
 	const originalText = stringifyToolResultContent(reference.block.content);
 	return [
@@ -238,6 +466,7 @@ function compactOlderTextMessages(
 	messages: ClineSdkPersistedMessage[],
 	targetTokens: number,
 	preserveMessageIndexes: ReadonlySet<number>,
+	changed: { value: boolean },
 ): void {
 	for (let index = 1; index < messages.length - 1 && estimateMessagesTokens(messages) > targetTokens; index += 1) {
 		if (preserveMessageIndexes.has(index)) {
@@ -257,30 +486,67 @@ function compactOlderTextMessages(
 				COMPACTED_MESSAGE_PREVIEW_CHARS,
 			)}`,
 		};
+		changed.value = true;
 	}
 }
 
-export function compactKanbanFocusedMessages(
-	context: ClineSdkContextCompactionContext,
-): ClineSdkContextCompactionResult {
-	const toolResults = collectToolResults(context.messages);
-	const readFileResults = toolResults.filter(
+export function compactKanbanMessagesForContextTarget(
+	messagesInput: readonly ClineSdkPersistedMessage[],
+	targetTokens: number,
+): ClineSdkPersistedMessage[] | null {
+	const toolResults = collectToolResults(messagesInput);
+	const readFileToolResults = toolResults.filter((result) => isReadFilesToolName(result.toolName));
+	const readFileResults = readFileToolResults.filter(
 		(result) => isReadFilesToolName(result.toolName) && result.block.is_error !== true,
 	);
+	const failedReadFileResults = readFileToolResults.filter(isMissingFileReadError);
 	const latestReadFileResult = readFileResults[readFileResults.length - 1] ?? null;
-	const targetTokens = Math.max(1, Math.min(context.triggerTokens, context.contextWindowTokens));
-	const messages = cloneMessages(context.messages);
-	let changed = false;
+	const latestReadToolUseId = latestReadFileResult?.toolUseId ?? null;
+	const normalizedTargetTokens = Math.max(1, Math.trunc(targetTokens));
+	const messages = cloneMessages(messagesInput);
+	const changed = { value: false };
+	const invalidReadInputs = failedReadFileResults.flatMap((result) =>
+		splitReadInputSummary(summarizeReadFileInput(result.toolInput)),
+	);
+	const invalidPathsFromErrors = collectMissingFilePaths(messagesInput);
+	const focusBrief = buildFocusBrief({
+		observedPaths: filterInvalidObservedPaths(collectObservedPaths(messagesInput), [
+			...invalidReadInputs,
+			...invalidPathsFromErrors,
+		]),
+		readFilesLedger: readFileResults.map((result) => buildReadFilesLedgerEntry(result, latestReadToolUseId)),
+		failedReadFiles: [
+			...failedReadFileResults.map((result) => ({
+				inputSummary: summarizeReadFileInput(result.toolInput),
+				errorPreview: summarizeText(
+					stringifyToolResultContent(result.block.content),
+					COMPACTED_TOOL_RESULT_PREVIEW_CHARS,
+				),
+			})),
+			...invalidPathsFromErrors.map((path) => ({
+				inputSummary: path,
+				errorPreview: "missing file error observed in transcript",
+			})),
+		],
+	});
+	if (focusBrief && prependFocusBriefToFirstUserMessage(messages, focusBrief)) {
+		changed.value = true;
+	}
 
 	for (const result of readFileResults) {
 		if (latestReadFileResult && result.toolUseId === latestReadFileResult.toolUseId) {
 			continue;
 		}
 		replaceToolResultContent(messages, result, buildReadFilesSummary(result));
-		changed = true;
+		changed.value = true;
 	}
 
-	if (estimateMessagesTokens(messages) > targetTokens) {
+	for (const result of failedReadFileResults) {
+		replaceToolResultContent(messages, result, buildFailedReadFilesSummary(result));
+		changed.value = true;
+	}
+
+	if (estimateMessagesTokens(messages) > normalizedTargetTokens) {
 		for (const result of toolResults) {
 			if (latestReadFileResult && result.toolUseId === latestReadFileResult.toolUseId) {
 				continue;
@@ -289,21 +555,29 @@ export function compactKanbanFocusedMessages(
 				continue;
 			}
 			replaceToolResultContent(messages, result, buildGenericToolResultSummary(result));
-			changed = true;
-			if (estimateMessagesTokens(messages) <= targetTokens) {
+			changed.value = true;
+			if (estimateMessagesTokens(messages) <= normalizedTargetTokens) {
 				break;
 			}
 		}
 	}
 
-	if (estimateMessagesTokens(messages) > targetTokens) {
+	if (estimateMessagesTokens(messages) > normalizedTargetTokens) {
 		compactOlderTextMessages(
 			messages,
-			targetTokens,
+			normalizedTargetTokens,
 			new Set(latestReadFileResult ? [latestReadFileResult.messageIndex] : []),
+			changed,
 		);
-		changed = true;
 	}
 
-	return changed ? { messages } : undefined;
+	return changed.value ? messages : null;
+}
+
+export function compactKanbanFocusedMessages(
+	context: ClineSdkContextCompactionContext,
+): ClineSdkContextCompactionResult {
+	const targetTokens = Math.max(1, Math.min(context.triggerTokens, context.contextWindowTokens));
+	const messages = compactKanbanMessagesForContextTarget(context.messages, targetTokens);
+	return messages ? { messages } : undefined;
 }

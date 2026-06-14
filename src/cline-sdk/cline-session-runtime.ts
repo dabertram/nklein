@@ -27,6 +27,7 @@ export { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
 const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 6;
 const MAX_SDK_API_TIMEOUT_MS = 2_147_483_647;
+const DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS = 80_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
@@ -111,10 +112,7 @@ function resolveContextWindowTokens(contextWindow: number | null | undefined): n
 export function buildClineContextCompactionConfig(
 	contextWindow: number | null | undefined,
 ): ClineSdkContextCompactionConfig | undefined {
-	const contextWindowTokens = resolveContextWindowTokens(contextWindow);
-	if (!contextWindowTokens) {
-		return undefined;
-	}
+	const contextWindowTokens = resolveContextWindowTokens(contextWindow) ?? DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS;
 	return {
 		enabled: true,
 		strategy: "basic",

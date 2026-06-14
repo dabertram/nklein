@@ -13,8 +13,20 @@ describe("buildClineContextCompactionConfig", () => {
 		});
 	});
 
-	it("does not enable context compaction when the model window is unknown", () => {
-		expect(buildClineContextCompactionConfig(null)).toBeUndefined();
-		expect(buildClineContextCompactionConfig(0)).toBeUndefined();
+	it("uses a conservative context window when the model window is unknown", () => {
+		expect(buildClineContextCompactionConfig(null)).toEqual({
+			enabled: true,
+			strategy: "basic",
+			contextWindowTokens: 80_000,
+			reserveTokens: 16_000,
+			preserveRecentTokens: 20_000,
+		});
+		expect(buildClineContextCompactionConfig(0)).toEqual({
+			enabled: true,
+			strategy: "basic",
+			contextWindowTokens: 80_000,
+			reserveTokens: 16_000,
+			preserveRecentTokens: 20_000,
+		});
 	});
 });

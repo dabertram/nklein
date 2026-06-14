@@ -1,3 +1,4 @@
+import { compactKanbanMessagesForContextTarget } from "./cline-context-focus-policy";
 import type { ClineSdkPersistedMessage } from "./sdk-runtime-boundary";
 
 /**
@@ -32,6 +33,7 @@ const CONTEXT_OVERFLOW_ERROR_PATTERNS = [
 	/input tokens?.*(exceed|exceeds).*(limit|maximum|context)/i,
 ];
 const CONTEXT_COMPACTION_PREVIEW_CHARS = 300;
+const CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS = 60_000;
 
 export function isContextOverflowError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
@@ -100,6 +102,11 @@ export function compactPersistedMessagesForContextOverflow(
 ): ClineSdkPersistedMessage[] | null {
 	if (messages.length < 2) {
 		return null;
+	}
+
+	const focusedMessages = compactKanbanMessagesForContextTarget(messages, CONTEXT_OVERFLOW_RECOVERY_TARGET_TOKENS);
+	if (focusedMessages) {
+		return focusedMessages;
 	}
 
 	const firstUserMessage = messages.find((message) => message.role === "user");
