@@ -56,6 +56,13 @@ import {
 
 export type { ClineTaskMessage } from "./cline-session-state";
 
+const CONTEXT_BUDGET_WARNING_RATIO = 0.85;
+const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
+const CONTEXT_BUDGET_BLOCK_RATIO = 0.97;
+const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
+const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
+const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
+
 export interface StartClineTaskSessionRequest {
 	taskId: string;
 	cwd: string;
@@ -126,6 +133,7 @@ export function buildKanbanEfficiencyRules(options: {
 		"2. Prefer concise summaries over dumping large outputs.",
 		"",
 		"Large file handling:",
+		"- Hard output guard rail: never create or edit files above 1,000 total lines; split content across multiple files when needed.",
 		"- If a file is large, do not rewrite the full file.",
 		"- Use chunked editing, section-level updates, and minimal diffs.",
 		"- Before summarizing or deriving requirements from txt/md/log/data files, establish the complete file set with targeted discovery and decide which files are source material.",
@@ -284,6 +292,7 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 export class InMemoryClineTaskSessionService implements ClineTaskSessionService {
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
+	private readonly contextWindowByTaskId = new Map<string, number | null>();
 	private readonly sessionRuntime: ClineSessionRuntime;
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
@@ -449,6 +458,93 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		};
 	}
 
+	private estimateTaskHistoryTokensBeforePendingUserPrompt(entry: ClineTaskSessionEntry): number {
+		const messages =
+			entry.messages.length > 0 && entry.messages[entry.messages.length - 1]?.role === "user"
+				? entry.messages.slice(0, -1)
+				: entry.messages;
+		const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
+		return Math.max(0, Math.round(totalChars / 4));
+	}
+
+	private estimateNextPromptTokens(prompt: string, images?: RuntimeTaskImage[]): number {
+		const promptTokens = Math.max(0, Math.round(prompt.trim().length / 4));
+		const imageTokens = (images?.length ?? 0) * CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS;
+		return Math.max(
+			CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
+			promptTokens + imageTokens + CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
+		);
+	}
+
+	private resolveContextWindowForTask(taskId: string, launchContextWindow?: number | null): number | null {
+		if (typeof launchContextWindow === "number" && Number.isFinite(launchContextWindow) && launchContextWindow > 0) {
+			const normalized = Math.trunc(launchContextWindow);
+			this.contextWindowByTaskId.set(taskId, normalized);
+			return normalized;
+		}
+		return this.contextWindowByTaskId.get(taskId) ?? null;
+	}
+
+	private async maybeCompactBeforeContextOverflow(input: {
+		taskId: string;
+		entry: ClineTaskSessionEntry;
+		prompt: string;
+		mode: RuntimeTaskSessionMode;
+		images?: RuntimeTaskImage[];
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		};
+		contextWindow: number;
+	}): Promise<{ result: unknown; warnings?: string[] } | null> {
+		const historyTokens = this.estimateTaskHistoryTokensBeforePendingUserPrompt(input.entry);
+		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const projectedTokens = historyTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
+		const usageRatio = projectedTokens / input.contextWindow;
+
+		if (usageRatio >= CONTEXT_BUDGET_WARNING_RATIO) {
+			this.emitSummary(
+				updateSummary(input.entry, {
+					warningMessage: `Context budget high (~${Math.round(usageRatio * 100)}%). Consider summarizing chat or narrowing scope.`,
+				}),
+			);
+		}
+
+		if (usageRatio < CONTEXT_BUDGET_COMPACT_RATIO) {
+			return null;
+		}
+
+		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
+		const compactedMessages = compactPersistedMessagesForContextOverflow(persistedSnapshot?.messages ?? []);
+		if (!compactedMessages) {
+			if (usageRatio >= CONTEXT_BUDGET_BLOCK_RATIO) {
+				throw new Error(
+					`Projected context usage (~${Math.round(usageRatio * 100)}%) is above the safe limit and no further compaction is available. Clear or summarize chat before sending.`,
+				);
+			}
+			return null;
+		}
+
+		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
+		const restartedSession = await this.sessionRuntime.restartTaskSession({
+			taskId: input.taskId,
+			prompt: input.prompt,
+			mode: input.mode,
+			images: input.images,
+			initialMessages: compactedMessages,
+			launchConfigOverrides: input.launchConfigOverrides,
+		});
+		return {
+			result: restartedSession.result,
+			warnings: restartedSession.warnings,
+		};
+	}
+
 	async startTaskSession(request: StartClineTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
 		const existing = this.messageRepository.getTaskEntry(request.taskId);
 		if (
@@ -462,6 +558,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 		const providerId = request.providerId?.trim().toLowerCase() || SDK_DEFAULT_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
+		this.resolveContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || SDK_DEFAULT_MODEL_ID;
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
 		const normalizedPrompt = request.prompt.trim();
@@ -615,6 +712,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			}
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
+		this.contextWindowByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
@@ -635,6 +733,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
+		this.contextWindowByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		const summary = updateSummary(entry, {
 			state: "interrupted",
@@ -745,7 +844,25 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			void this.ensureRuntimeSetup(entry.summary.workspacePath ?? "")
 				.then(async (runtimeSetup) => {
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
+					const resolvedContextWindow = this.resolveContextWindowForTask(
+						taskId,
+						launchConfigOverrides?.contextWindow,
+					);
 					try {
+						if (resolvedContextWindow && resolvedContextWindow > 0) {
+							const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
+								taskId,
+								entry,
+								prompt: resolvedPrompt,
+								mode: effectiveMode,
+								images,
+								launchConfigOverrides,
+								contextWindow: resolvedContextWindow,
+							});
+							if (proactiveCompaction) {
+								return proactiveCompaction;
+							}
+						}
 						return await this.dispatchResolvedTaskInput({
 							taskId,
 							prompt: resolvedPrompt,
@@ -854,6 +971,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const existingEntry = this.messageRepository.getTaskEntry(taskId);
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdByTaskId.delete(taskId);
+		this.contextWindowByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		this.messageRepository.clearHydratedTaskMessages(taskId);
 		if (!existingEntry) {
@@ -949,6 +1067,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	async dispose(): Promise<void> {
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
+		this.providerIdByTaskId.clear();
+		this.contextWindowByTaskId.clear();
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {
 				const lease = await leasePromise;

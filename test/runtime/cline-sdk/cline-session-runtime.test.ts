@@ -671,6 +671,65 @@ describe("InMemoryClineSessionRuntime", () => {
 		);
 	});
 
+	it("applies launch config overrides when restarting a session", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => undefined),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "anthropic",
+			modelId: "old-model",
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+		await runtime.restartTaskSession({
+			taskId: "task-1",
+			prompt: "Continue after restart",
+			launchConfigOverrides: {
+				providerId: "lmstudio",
+				modelId: "new-model",
+				apiKey: "local-key",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				reasoningEffort: null,
+				contextWindow: 80_000,
+			},
+		});
+
+		expect(fakeHost.start).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: "lmstudio",
+					modelId: "new-model",
+					apiKey: "local-key",
+					baseUrl: "http://127.0.0.1:1234/v1",
+					reasoningEffort: "none",
+					compaction: expect.objectContaining({
+						contextWindowTokens: 80_000,
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("uses filesystem-safe session ids when task ids include windows-invalid characters", async () => {
 		let requestedSessionId: string | null = null;
 		const fakeHost = {

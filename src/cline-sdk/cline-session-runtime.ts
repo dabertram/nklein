@@ -38,6 +38,16 @@ type ClineSdkSessionConfigWithTimeouts = ClineSdkStartSessionInput["config"] & {
 
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 
+type ClineSessionLaunchConfigOverrides = {
+	providerId: string;
+	modelId: string;
+	apiKey?: string | null;
+	baseUrl?: string | null;
+	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	contextWindow?: number | null;
+	apiTimeoutMs?: number | null;
+};
+
 interface ClineSessionHostBoundary {
 	start(input: ClineSdkStartSessionInput): Promise<{ sessionId: string; result?: unknown }>;
 	send(input: Parameters<ClineSdkSessionHost["send"]>[0]): Promise<unknown>;
@@ -165,6 +175,7 @@ export interface ClineSessionRuntime {
 		initialMessages?: ClineSdkPersistedMessage[];
 		images?: RuntimeTaskImage[];
 		mode?: RuntimeTaskSessionMode;
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides;
 	}): Promise<StartClineSessionRuntimeResult>;
 	sendTaskSessionInput(
 		taskId: string,
@@ -172,15 +183,7 @@ export interface ClineSessionRuntime {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		delivery?: "queue" | "steer",
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides,
 	): Promise<unknown>;
 	resumeTaskSession(taskId: string): Promise<ClinePersistedTaskSessionSnapshot | null>;
 	stopTaskSession(taskId: string): Promise<void>;
@@ -364,6 +367,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		initialMessages?: ClineSdkPersistedMessage[];
 		images?: RuntimeTaskImage[];
 		mode?: RuntimeTaskSessionMode;
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides;
 	}): Promise<StartClineSessionRuntimeResult> {
 		const lastStartRequest = this.lastStartRequestByTaskId.get(input.taskId);
 		if (!lastStartRequest) {
@@ -372,6 +376,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 
 		return await this.startTaskSession({
 			...lastStartRequest,
+			...(input.launchConfigOverrides ?? {}),
 			prompt: input.prompt,
 			initialMessages: input.initialMessages,
 			images: input.images,
@@ -385,15 +390,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		delivery?: "queue" | "steer",
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides,
 	): Promise<unknown> {
 		const sessionId = this.sessionIdByTaskId.get(taskId);
 		if (!sessionId) {
@@ -647,15 +644,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 	private async updateActiveSessionLaunchConfig(
 		sessionHost: ClineSessionHostBoundary,
 		sessionId: string,
-		launchConfigOverrides: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides: ClineSessionLaunchConfigOverrides,
 	): Promise<void> {
 		await sessionHost.updateSessionModel?.(sessionId, launchConfigOverrides.modelId);
 		const hostWithSessions = sessionHost as unknown as {
@@ -689,15 +678,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 
 	private updateLastStartRequestLaunchConfig(
 		taskId: string,
-		launchConfigOverrides: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides: ClineSessionLaunchConfigOverrides,
 	): void {
 		const lastStartRequest = this.lastStartRequestByTaskId.get(taskId);
 		if (!lastStartRequest) {

@@ -37,6 +37,107 @@ await ensureDependenciesInstalled();
 const { default: treeKill } = await import("tree-kill");
 const { default: open } = await import("open");
 
+const requestedDevFullArgs = process.argv.slice(2);
+const withShutdownCleanupFlag = "--with-shutdown-cleanup";
+const requestedRuntimeArgs = requestedDevFullArgs.filter((arg) => arg !== withShutdownCleanupFlag);
+
+function parseProcessList(output) {
+	return output
+		.split("\n")
+		.map((line) => {
+			const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/);
+			if (!match) {
+				return null;
+			}
+			return {
+				pid: Number(match[1]),
+				ppid: Number(match[2]),
+				command: match[3],
+			};
+		})
+		.filter(Boolean);
+}
+
+function treeKillAsync(pid, signal = "SIGTERM") {
+	return new Promise((resolve) => {
+		treeKill(pid, signal, () => resolve(undefined));
+	});
+}
+
+function isProcessRunning(pid) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function waitForProcessesToExit(pids, timeoutMs = 2500) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (pids.every((pid) => !isProcessRunning(pid))) {
+			return [];
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	return pids.filter((pid) => isProcessRunning(pid));
+}
+
+async function stopStaleDevProcesses() {
+	if (isWindows) {
+		return;
+	}
+
+	const result = spawnSync("ps", ["-axo", "pid=,ppid=,command="], {
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "ignore"],
+	});
+	if (result.status !== 0) {
+		return;
+	}
+
+	const repoRoot = process.cwd();
+	const currentPids = new Set([process.pid, process.ppid]);
+	const processes = parseProcessList(result.stdout);
+	const processesByPid = new Map(processes.map((processInfo) => [processInfo.pid, processInfo]));
+	const stalePids = new Set();
+	const isKillablePid = (pid) => pid > 1 && !currentPids.has(pid);
+
+	for (const processInfo of processes) {
+		if (!isKillablePid(processInfo.pid)) {
+			continue;
+		}
+		const isRuntimeChild =
+			processInfo.command.includes(`${repoRoot}/node_modules/tsx`) &&
+			processInfo.command.includes("src/cli.ts") &&
+			processInfo.command.includes("--no-open");
+		const isViteChild = processInfo.command.includes(`${repoRoot}/web-ui/node_modules/.bin/vite`);
+		const isDevFullChild = processInfo.command.includes(`${repoRoot}/scripts/dev-full.mjs`);
+		if (!isRuntimeChild && !isViteChild && !isDevFullChild) {
+			continue;
+		}
+
+		stalePids.add(processInfo.pid);
+		const parent = processesByPid.get(processInfo.ppid);
+		if (parent && isKillablePid(parent.pid)) {
+			stalePids.add(parent.pid);
+		}
+	}
+
+	if (stalePids.size === 0) {
+		return;
+	}
+
+	console.log(`Stopping stale Kanban dev process${stalePids.size === 1 ? "" : "es"}: ${[...stalePids].join(", ")}`);
+	await Promise.allSettled([...stalePids].map((pid) => treeKillAsync(pid)));
+	const remainingPids = await waitForProcessesToExit([...stalePids]);
+	if (remainingPids.length > 0) {
+		await Promise.allSettled(remainingPids.map((pid) => treeKillAsync(pid, "SIGKILL")));
+		await waitForProcessesToExit(remainingPids, 1000);
+	}
+}
+
 function findPort(start, reserved = new Set()) {
 	if (reserved.has(start)) {
 		return findPort(start + 1, reserved);
@@ -71,11 +172,69 @@ function waitForPort(port, timeout = 15000) {
 	});
 }
 
+async function waitForPreferredDevPortsToSettle(timeoutMs = 5000) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const runtimePortAvailable = await findPort(3484);
+		const webUiPortAvailable = await findPort(4173);
+		if (runtimePortAvailable === 3484 && webUiPortAvailable === 4173) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+}
+
+async function canReachExistingDevServer(timeoutMs = 3000) {
+	try {
+		const response = await fetch("http://127.0.0.1:4173/api/trpc/projects.list", {
+			signal: AbortSignal.timeout(timeoutMs),
+		});
+		if (!response.ok) {
+			return false;
+		}
+		await response.arrayBuffer();
+	} catch {
+		return false;
+	}
+
+	return await new Promise((resolve) => {
+		let settled = false;
+		const socket = new WebSocket("ws://127.0.0.1:4173/api/runtime/ws");
+		const timeout = setTimeout(() => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			socket.close();
+			resolve(false);
+		}, timeoutMs);
+		const finish = (result) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeout);
+			socket.close();
+			resolve(result);
+		};
+		socket.onmessage = () => finish(true);
+		socket.onerror = () => finish(false);
+		socket.onclose = () => finish(false);
+	});
+}
+
+if (await canReachExistingDevServer()) {
+	const url = "http://127.0.0.1:4173";
+	console.log(`Kanban dev server already running at ${url}`);
+	await open(url);
+	process.exit(0);
+}
+
+await stopStaleDevProcesses();
+await waitForPreferredDevPortsToSettle();
+
 const runtimePort = await findPort(3484);
 const webUiPort = await findPort(4173, new Set([runtimePort]));
-const requestedDevFullArgs = process.argv.slice(2);
-const withShutdownCleanupFlag = "--with-shutdown-cleanup";
-const requestedRuntimeArgs = requestedDevFullArgs.filter((arg) => arg !== withShutdownCleanupFlag);
 const hasExplicitSkipCleanupArg = requestedRuntimeArgs.some((arg) => arg === "--skip-shutdown-cleanup");
 const shouldDefaultSkipShutdownCleanup = !requestedDevFullArgs.includes(withShutdownCleanupFlag);
 const runtimeCliArgs = [

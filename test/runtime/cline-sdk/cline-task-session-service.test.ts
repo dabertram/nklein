@@ -142,6 +142,9 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 					mode: request.mode ?? "act",
 					apiKey: request.apiKey,
 					baseUrl: request.baseUrl,
+					reasoningEffort: request.reasoningEffort,
+					contextWindow: request.contextWindow,
+					apiTimeoutMs: request.apiTimeoutMs,
 					systemPrompt: request.systemPrompt,
 					userInstructionService: request.userInstructionService,
 					requestToolApproval: request.requestToolApproval,
@@ -169,6 +172,7 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 				}
 				return await this.startTaskSession({
 					...lastStartRequest,
+					...(input.launchConfigOverrides ?? {}),
 					prompt: input.prompt,
 					initialMessages: input.initialMessages,
 					images: input.images,
@@ -1638,6 +1642,109 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.listMessages("task-1").some((message) => message.content.includes("Cline SDK send failed"))).toBe(
 			false,
 		);
+	});
+
+	it("proactively compacts before sending when projected context budget is too high", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-1-live",
+				source: "core" as ClinePersistedTaskSessionSnapshot["record"]["source"],
+				status: "running",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "cline",
+				model: "model-1",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/tmp/workspace-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+			},
+			messages: [
+				{ role: "user", content: "Initial prompt" },
+				{ role: "assistant", content: "First response" },
+				{ role: "user", content: "Second request" },
+				{ role: "assistant", content: "Second response" },
+			],
+		});
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+			contextWindow: 2_000,
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		const summary = await service.sendTaskSessionInput("task-1", "x".repeat(5_000), undefined, undefined, {
+			providerId: "lmstudio",
+			modelId: "new-model",
+			apiKey: "local-key",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			reasoningEffort: null,
+			contextWindow: 2_000,
+		});
+		expect(summary?.state).toBe("running");
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
+		});
+		expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "new-model",
+				apiKey: "local-key",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				reasoningEffort: null,
+			}),
+		);
+		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+	});
+
+	it("fails early when context is critically over budget and compaction is unavailable", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-1-live",
+				source: "core" as ClinePersistedTaskSessionSnapshot["record"]["source"],
+				status: "running",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "cline",
+				model: "model-1",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/tmp/workspace-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+			},
+			messages: [{ role: "user", content: "Only one message means no compaction possible" }],
+		});
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+			contextWindow: 2_000,
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		await service.sendTaskSessionInput("task-1", "x".repeat(5_000));
+
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		});
+		expect(service.getSummary("task-1")?.warningMessage ?? "").toContain("Projected context usage");
 	});
 
 	it("restarts the live session from persisted history after the SDK ends the task on send failure", async () => {

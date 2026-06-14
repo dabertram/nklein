@@ -192,7 +192,9 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
-		expect(contextBudget.text).toBe("~87k used · incl next prompt ~6k · 80k available context (109% · over by ~7k)");
+		expect(contextBudget.text).toBe(
+			"~87k used · incl next prompt ~6k · 80k available context (100% · over by ~7k · overflow)",
+		);
 	});
 
 	it("formats waiting model activity before the first streamed token", () => {
