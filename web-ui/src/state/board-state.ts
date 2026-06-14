@@ -121,6 +121,11 @@ function normalizeTaskClineSettings(input: {
 			reasoningEffort?: unknown;
 			contextScope?: unknown;
 			timeoutMode?: unknown;
+			requestTimeoutMs?: unknown;
+			streamTimeoutMs?: unknown;
+			toolTimeoutMs?: unknown;
+			agentTimeoutMs?: unknown;
+			conversationTimeoutMs?: unknown;
 		};
 		const providerId = typeof settings.providerId === "string" ? settings.providerId.trim() : "";
 		const modelId = typeof settings.modelId === "string" ? settings.modelId.trim() : "";
@@ -135,9 +140,32 @@ function normalizeTaskClineSettings(input: {
 		const timeoutMode =
 			settings.timeoutMode === "normal" ||
 			settings.timeoutMode === "long" ||
+			settings.timeoutMode === "extended" ||
 			settings.timeoutMode === "very_long" ||
 			settings.timeoutMode === "unlimited"
-				? settings.timeoutMode
+				? settings.timeoutMode === "very_long"
+					? "extended"
+					: settings.timeoutMode
+				: undefined;
+		const requestTimeoutMs =
+			typeof settings.requestTimeoutMs === "number" && settings.requestTimeoutMs >= 0
+				? settings.requestTimeoutMs
+				: undefined;
+		const streamTimeoutMs =
+			typeof settings.streamTimeoutMs === "number" && settings.streamTimeoutMs >= 0
+				? settings.streamTimeoutMs
+				: undefined;
+		const toolTimeoutMs =
+			typeof settings.toolTimeoutMs === "number" && settings.toolTimeoutMs >= 0
+				? settings.toolTimeoutMs
+				: undefined;
+		const agentTimeoutMs =
+			typeof settings.agentTimeoutMs === "number" && settings.agentTimeoutMs >= 0
+				? settings.agentTimeoutMs
+				: undefined;
+		const conversationTimeoutMs =
+			typeof settings.conversationTimeoutMs === "number" && settings.conversationTimeoutMs >= 0
+				? settings.conversationTimeoutMs
 				: undefined;
 		return {
 			...(providerId ? { providerId } : {}),
@@ -145,6 +173,11 @@ function normalizeTaskClineSettings(input: {
 			...(reasoningEffort ? { reasoningEffort } : {}),
 			...(contextScope ? { contextScope } : {}),
 			...(timeoutMode ? { timeoutMode } : {}),
+			...(requestTimeoutMs !== undefined ? { requestTimeoutMs } : {}),
+			...(streamTimeoutMs !== undefined ? { streamTimeoutMs } : {}),
+			...(toolTimeoutMs !== undefined ? { toolTimeoutMs } : {}),
+			...(agentTimeoutMs !== undefined ? { agentTimeoutMs } : {}),
+			...(conversationTimeoutMs !== undefined ? { conversationTimeoutMs } : {}),
 		};
 	}
 
@@ -636,7 +669,12 @@ export function applyTaskDetailClineSettingsChange(
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
 		contextScope?: "full" | "smart" | "minimal" | "custom";
-		timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
+		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
+		requestTimeoutMs?: number;
+		streamTimeoutMs?: number;
+		toolTimeoutMs?: number;
+		agentTimeoutMs?: number;
+		conversationTimeoutMs?: number;
 	},
 	defaults: {
 		providerId?: string | null;
@@ -668,6 +706,13 @@ export function applyTaskDetailClineSettingsChange(
 			...(change.reasoningEffort ? { reasoningEffort: change.reasoningEffort } : {}),
 			...(change.contextScope ? { contextScope: change.contextScope } : {}),
 			...(change.timeoutMode ? { timeoutMode: change.timeoutMode } : {}),
+			...(change.requestTimeoutMs !== undefined ? { requestTimeoutMs: change.requestTimeoutMs } : {}),
+			...(change.streamTimeoutMs !== undefined ? { streamTimeoutMs: change.streamTimeoutMs } : {}),
+			...(change.toolTimeoutMs !== undefined ? { toolTimeoutMs: change.toolTimeoutMs } : {}),
+			...(change.agentTimeoutMs !== undefined ? { agentTimeoutMs: change.agentTimeoutMs } : {}),
+			...(change.conversationTimeoutMs !== undefined
+				? { conversationTimeoutMs: change.conversationTimeoutMs }
+				: {}),
 		},
 	});
 }

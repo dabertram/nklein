@@ -90,18 +90,32 @@ export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewMode
 
 export const runtimeClineReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 export type RuntimeClineReasoningEffort = z.infer<typeof runtimeClineReasoningEffortSchema>;
-export const runtimeAgentTimeoutModeSchema = z.enum(["normal", "long", "very_long", "unlimited"]);
+export const runtimeAgentTimeoutModeSchema = z.preprocess(
+	(value) => (value === "very_long" ? "extended" : value),
+	z.enum(["normal", "long", "extended", "unlimited"]),
+);
 export type RuntimeAgentTimeoutMode = z.infer<typeof runtimeAgentTimeoutModeSchema>;
+export const runtimeAgentTimeoutProfileSchema = z.enum(["cloud", "local", "custom"]);
+export type RuntimeAgentTimeoutProfile = z.infer<typeof runtimeAgentTimeoutProfileSchema>;
 export const runtimeTaskClineContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskClineContextScope = z.infer<typeof runtimeTaskClineContextScopeSchema>;
-export const runtimeTaskClineTimeoutModeSchema = z.enum(["normal", "long", "very_long", "unlimited"]);
+export const runtimeTaskClineTimeoutModeSchema = z.preprocess(
+	(value) => (value === "very_long" ? "extended" : value),
+	z.enum(["normal", "long", "extended", "unlimited"]),
+);
 export type RuntimeTaskClineTimeoutMode = z.infer<typeof runtimeTaskClineTimeoutModeSchema>;
+export const runtimeTimeoutMsSchema = z.number().int().nonnegative().nullable();
 export const runtimeTaskClineSettingsSchema = z.object({
 	providerId: z.string().optional(),
 	modelId: z.string().optional(),
 	reasoningEffort: runtimeClineReasoningEffortSchema.optional(),
 	contextScope: runtimeTaskClineContextScopeSchema.optional(),
 	timeoutMode: runtimeTaskClineTimeoutModeSchema.optional(),
+	requestTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	streamTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	toolTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	agentTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 });
 export type RuntimeTaskClineSettings = z.infer<typeof runtimeTaskClineSettingsSchema>;
 export const runtimeTaskImageSchema = z.object({
@@ -297,6 +311,9 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	startedAt: z.number().nullable(),
 	updatedAt: z.number(),
 	lastOutputAt: z.number().nullable(),
+	lastTokenAt: z.number().nullable().optional(),
+	lastHeartbeatAt: z.number().nullable().optional(),
+	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable().optional(),
 	reviewReason: runtimeTaskSessionReviewReasonSchema,
 	exitCode: z.number().nullable(),
 	lastHookAt: z.number().nullable().default(null),
@@ -951,6 +968,12 @@ export const runtimeConfigResponseSchema = z.object({
 	selectedShortcutLabel: z.string().nullable(),
 	agentAutonomousModeEnabled: z.boolean(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema,
+	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema,
+	requestTimeoutMs: runtimeTimeoutMsSchema,
+	streamTimeoutMs: runtimeTimeoutMsSchema,
+	toolTimeoutMs: runtimeTimeoutMsSchema,
+	agentTimeoutMs: runtimeTimeoutMsSchema,
+	conversationTimeoutMs: runtimeTimeoutMsSchema,
 	debugModeEnabled: z.boolean().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
@@ -972,6 +995,12 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	selectedShortcutLabel: z.string().nullable().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema.optional(),
+	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema.optional(),
+	requestTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	streamTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	toolTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	agentTimeoutMs: runtimeTimeoutMsSchema.optional(),
+	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),

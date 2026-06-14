@@ -91,6 +91,106 @@ async function resolveExistingTaskCwdOrEnsure(options: {
 	}
 }
 
+function getProfileTimeoutDefaults(profile: "cloud" | "local" | "custom"): {
+	requestTimeoutMs: number | null;
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	agentTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
+} {
+	if (profile === "cloud") {
+		return {
+			requestTimeoutMs: 5 * 60 * 1000,
+			streamTimeoutMs: 15 * 60 * 1000,
+			toolTimeoutMs: 15 * 60 * 1000,
+			agentTimeoutMs: 30 * 60 * 1000,
+			conversationTimeoutMs: 60 * 60 * 1000,
+		};
+	}
+	if (profile === "local") {
+		return {
+			requestTimeoutMs: 60 * 60 * 1000,
+			streamTimeoutMs: 24 * 60 * 60 * 1000,
+			toolTimeoutMs: 24 * 60 * 60 * 1000,
+			agentTimeoutMs: 24 * 60 * 60 * 1000,
+			conversationTimeoutMs: 7 * 24 * 60 * 60 * 1000,
+		};
+	}
+	return {
+		requestTimeoutMs: null,
+		streamTimeoutMs: null,
+		toolTimeoutMs: null,
+		agentTimeoutMs: null,
+		conversationTimeoutMs: null,
+	};
+}
+
+function scaleTimeoutMs(value: number | null, factor: number): number | null {
+	if (value === null) {
+		return null;
+	}
+	return Math.max(0, Math.trunc(value * factor));
+}
+
+function resolveEffectiveTaskTimeoutSettings(input: {
+	runtimeConfig: RuntimeConfigState;
+	taskSettings?: {
+		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
+		requestTimeoutMs?: number | null;
+		streamTimeoutMs?: number | null;
+		toolTimeoutMs?: number | null;
+		agentTimeoutMs?: number | null;
+		conversationTimeoutMs?: number | null;
+	};
+}): {
+	timeoutMode: "normal" | "long" | "extended" | "unlimited";
+	requestTimeoutMs: number | null;
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	agentTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
+	timeoutProfile: "cloud" | "local" | "custom";
+} {
+	const timeoutProfile = input.runtimeConfig.agentTimeoutProfile;
+	const timeoutMode = input.taskSettings?.timeoutMode ?? input.runtimeConfig.agentTimeoutMode;
+	const profileDefaults = getProfileTimeoutDefaults(timeoutProfile);
+	const requestTimeoutMs =
+		input.taskSettings?.requestTimeoutMs ?? input.runtimeConfig.requestTimeoutMs ?? profileDefaults.requestTimeoutMs;
+	const streamTimeoutMs =
+		input.taskSettings?.streamTimeoutMs ?? input.runtimeConfig.streamTimeoutMs ?? profileDefaults.streamTimeoutMs;
+	const toolTimeoutMs =
+		input.taskSettings?.toolTimeoutMs ?? input.runtimeConfig.toolTimeoutMs ?? profileDefaults.toolTimeoutMs;
+	const agentTimeoutMs =
+		input.taskSettings?.agentTimeoutMs ?? input.runtimeConfig.agentTimeoutMs ?? profileDefaults.agentTimeoutMs;
+	const conversationTimeoutMs =
+		input.taskSettings?.conversationTimeoutMs ??
+		input.runtimeConfig.conversationTimeoutMs ??
+		profileDefaults.conversationTimeoutMs;
+
+	if (timeoutMode === "unlimited") {
+		return {
+			timeoutMode,
+			timeoutProfile,
+			requestTimeoutMs: null,
+			streamTimeoutMs: null,
+			toolTimeoutMs: null,
+			agentTimeoutMs: null,
+			conversationTimeoutMs: null,
+		};
+	}
+
+	const scale = timeoutMode === "extended" ? 6 : timeoutMode === "long" ? 3 : 1;
+	return {
+		timeoutMode,
+		timeoutProfile,
+		requestTimeoutMs: scaleTimeoutMs(requestTimeoutMs, scale),
+		streamTimeoutMs: scaleTimeoutMs(streamTimeoutMs, scale),
+		toolTimeoutMs: scaleTimeoutMs(toolTimeoutMs, scale),
+		agentTimeoutMs: scaleTimeoutMs(agentTimeoutMs, scale),
+		conversationTimeoutMs: scaleTimeoutMs(conversationTimeoutMs, scale),
+	};
+}
+
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const clineProviderService = createClineProviderService();
 	const clineMcpSettingsService = createClineMcpSettingsService();
@@ -173,6 +273,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				}
 				const requestedClineTaskMode = body.mode ?? "act";
 				const scopedRuntimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
+				const effectiveTimeouts = resolveEffectiveTaskTimeoutSettings({
+					runtimeConfig: scopedRuntimeConfig,
+					taskSettings: body.clineSettings,
+				});
 				const taskCwd = isHomeAgentSessionId(body.taskId)
 					? workspaceScope.workspacePath
 					: await resolveExistingTaskCwdOrEnsure({
@@ -244,7 +348,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						baseUrl: clineLaunchConfig.baseUrl,
 						reasoningEffort: clineLaunchConfig.reasoningEffort,
 						contextScope: body.clineSettings?.contextScope,
-						timeoutMode: body.clineSettings?.timeoutMode ?? scopedRuntimeConfig.agentTimeoutMode,
+						timeoutMode: effectiveTimeouts.timeoutMode,
+						timeoutProfile: effectiveTimeouts.timeoutProfile,
+						requestTimeoutMs: effectiveTimeouts.requestTimeoutMs,
+						streamTimeoutMs: effectiveTimeouts.streamTimeoutMs,
+						toolTimeoutMs: effectiveTimeouts.toolTimeoutMs,
+						agentTimeoutMs: effectiveTimeouts.agentTimeoutMs,
+						conversationTimeoutMs: effectiveTimeouts.conversationTimeoutMs,
 					});
 
 					let nextSummary = summary;

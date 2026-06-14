@@ -5,7 +5,12 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
-import type { RuntimeAgentId, RuntimeAgentTimeoutMode, RuntimeProjectShortcut } from "../core/api-contract";
+import type {
+	RuntimeAgentId,
+	RuntimeAgentTimeoutMode,
+	RuntimeAgentTimeoutProfile,
+	RuntimeProjectShortcut,
+} from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
@@ -15,6 +20,12 @@ interface RuntimeGlobalConfigFileShape {
 	selectedShortcutLabel?: string;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
+	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
+	requestTimeoutMs?: number | null;
+	streamTimeoutMs?: number | null;
+	toolTimeoutMs?: number | null;
+	agentTimeoutMs?: number | null;
+	conversationTimeoutMs?: number | null;
 	readyForReviewNotificationsEnabled?: boolean;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -31,6 +42,12 @@ export interface RuntimeConfigState {
 	selectedShortcutLabel: string | null;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
+	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
+	requestTimeoutMs: number | null;
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	agentTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -44,6 +61,12 @@ export interface RuntimeConfigUpdateInput {
 	selectedShortcutLabel?: string | null;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
+	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
+	requestTimeoutMs?: number | null;
+	streamTimeoutMs?: number | null;
+	toolTimeoutMs?: number | null;
+	agentTimeoutMs?: number | null;
+	conversationTimeoutMs?: number | null;
 	readyForReviewNotificationsEnabled?: boolean;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
@@ -60,7 +83,18 @@ const DEFAULT_AGENT_ID: RuntimeAgentId = "cline";
 const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = ["claude", "codex", "droid", "kiro"];
 const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
+const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
+const DEFAULT_LOCAL_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
+const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_LOCAL_AGENT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_CLOUD_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_CLOUD_STREAM_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_CLOUD_TOOL_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_CLOUD_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_CLOUD_CONVERSATION_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in a worktree on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
@@ -137,10 +171,64 @@ function normalizeAgentId(agentId: RuntimeAgentId | string | null | undefined): 
 }
 
 function normalizeAgentTimeoutMode(value: unknown): RuntimeAgentTimeoutMode {
-	if (value === "normal" || value === "long" || value === "very_long" || value === "unlimited") {
+	if (value === "normal" || value === "long" || value === "extended" || value === "unlimited") {
 		return value;
 	}
+	if (value === "very_long") {
+		return "extended";
+	}
 	return DEFAULT_AGENT_TIMEOUT_MODE;
+}
+
+function normalizeAgentTimeoutProfile(value: unknown): RuntimeAgentTimeoutProfile {
+	if (value === "cloud" || value === "local" || value === "custom") {
+		return value;
+	}
+	return DEFAULT_AGENT_TIMEOUT_PROFILE;
+}
+
+function normalizeTimeoutMsValue(value: unknown): number | null {
+	if (value === null) {
+		return null;
+	}
+	if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+		return Math.trunc(value);
+	}
+	return null;
+}
+
+function resolveProfileTimeoutDefaults(profile: RuntimeAgentTimeoutProfile): {
+	requestTimeoutMs: number | null;
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	agentTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
+} {
+	if (profile === "cloud") {
+		return {
+			requestTimeoutMs: DEFAULT_CLOUD_REQUEST_TIMEOUT_MS,
+			streamTimeoutMs: DEFAULT_CLOUD_STREAM_TIMEOUT_MS,
+			toolTimeoutMs: DEFAULT_CLOUD_TOOL_TIMEOUT_MS,
+			agentTimeoutMs: DEFAULT_CLOUD_AGENT_TIMEOUT_MS,
+			conversationTimeoutMs: DEFAULT_CLOUD_CONVERSATION_TIMEOUT_MS,
+		};
+	}
+	if (profile === "local") {
+		return {
+			requestTimeoutMs: DEFAULT_LOCAL_REQUEST_TIMEOUT_MS,
+			streamTimeoutMs: DEFAULT_LOCAL_STREAM_TIMEOUT_MS,
+			toolTimeoutMs: DEFAULT_LOCAL_TOOL_TIMEOUT_MS,
+			agentTimeoutMs: DEFAULT_LOCAL_AGENT_TIMEOUT_MS,
+			conversationTimeoutMs: DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS,
+		};
+	}
+	return {
+		requestTimeoutMs: null,
+		streamTimeoutMs: null,
+		toolTimeoutMs: null,
+		agentTimeoutMs: null,
+		conversationTimeoutMs: null,
+	};
 }
 
 function pickBestInstalledAgentId(): RuntimeAgentId | null {
@@ -291,6 +379,12 @@ function toRuntimeConfigState({
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 		),
 		agentTimeoutMode: normalizeAgentTimeoutMode(globalConfig?.agentTimeoutMode),
+		agentTimeoutProfile: normalizeAgentTimeoutProfile(globalConfig?.agentTimeoutProfile),
+		requestTimeoutMs: normalizeTimeoutMsValue(globalConfig?.requestTimeoutMs),
+		streamTimeoutMs: normalizeTimeoutMsValue(globalConfig?.streamTimeoutMs),
+		toolTimeoutMs: normalizeTimeoutMsValue(globalConfig?.toolTimeoutMs),
+		agentTimeoutMs: normalizeTimeoutMsValue(globalConfig?.agentTimeoutMs),
+		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -322,6 +416,12 @@ async function writeRuntimeGlobalConfigFile(
 		selectedShortcutLabel?: string | null;
 		agentAutonomousModeEnabled?: boolean;
 		agentTimeoutMode?: RuntimeAgentTimeoutMode;
+		agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
+		requestTimeoutMs?: number | null;
+		streamTimeoutMs?: number | null;
+		toolTimeoutMs?: number | null;
+		agentTimeoutMs?: number | null;
+		conversationTimeoutMs?: number | null;
 		readyForReviewNotificationsEnabled?: boolean;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
@@ -345,6 +445,23 @@ async function writeRuntimeGlobalConfigFile(
 		config.agentTimeoutMode === undefined
 			? DEFAULT_AGENT_TIMEOUT_MODE
 			: normalizeAgentTimeoutMode(config.agentTimeoutMode);
+	const agentTimeoutProfile =
+		config.agentTimeoutProfile === undefined
+			? DEFAULT_AGENT_TIMEOUT_PROFILE
+			: normalizeAgentTimeoutProfile(config.agentTimeoutProfile);
+	const defaultTimeouts = resolveProfileTimeoutDefaults(agentTimeoutProfile);
+	const requestTimeoutMs =
+		config.requestTimeoutMs === undefined ? defaultTimeouts.requestTimeoutMs : normalizeTimeoutMsValue(config.requestTimeoutMs);
+	const streamTimeoutMs =
+		config.streamTimeoutMs === undefined ? defaultTimeouts.streamTimeoutMs : normalizeTimeoutMsValue(config.streamTimeoutMs);
+	const toolTimeoutMs =
+		config.toolTimeoutMs === undefined ? defaultTimeouts.toolTimeoutMs : normalizeTimeoutMsValue(config.toolTimeoutMs);
+	const agentTimeoutMs =
+		config.agentTimeoutMs === undefined ? defaultTimeouts.agentTimeoutMs : normalizeTimeoutMsValue(config.agentTimeoutMs);
+	const conversationTimeoutMs =
+		config.conversationTimeoutMs === undefined
+			? defaultTimeouts.conversationTimeoutMs
+			: normalizeTimeoutMsValue(config.conversationTimeoutMs);
 	const readyForReviewNotificationsEnabled =
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
@@ -381,6 +498,27 @@ async function writeRuntimeGlobalConfigFile(
 	}
 	if (hasOwnKey(existing, "agentTimeoutMode") || agentTimeoutMode !== DEFAULT_AGENT_TIMEOUT_MODE) {
 		payload.agentTimeoutMode = agentTimeoutMode;
+	}
+	if (hasOwnKey(existing, "agentTimeoutProfile") || agentTimeoutProfile !== DEFAULT_AGENT_TIMEOUT_PROFILE) {
+		payload.agentTimeoutProfile = agentTimeoutProfile;
+	}
+	if (hasOwnKey(existing, "requestTimeoutMs") || requestTimeoutMs !== defaultTimeouts.requestTimeoutMs) {
+		payload.requestTimeoutMs = requestTimeoutMs;
+	}
+	if (hasOwnKey(existing, "streamTimeoutMs") || streamTimeoutMs !== defaultTimeouts.streamTimeoutMs) {
+		payload.streamTimeoutMs = streamTimeoutMs;
+	}
+	if (hasOwnKey(existing, "toolTimeoutMs") || toolTimeoutMs !== defaultTimeouts.toolTimeoutMs) {
+		payload.toolTimeoutMs = toolTimeoutMs;
+	}
+	if (hasOwnKey(existing, "agentTimeoutMs") || agentTimeoutMs !== defaultTimeouts.agentTimeoutMs) {
+		payload.agentTimeoutMs = agentTimeoutMs;
+	}
+	if (
+		hasOwnKey(existing, "conversationTimeoutMs") ||
+		conversationTimeoutMs !== defaultTimeouts.conversationTimeoutMs
+	) {
+		payload.conversationTimeoutMs = conversationTimeoutMs;
 	}
 	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
@@ -473,6 +611,12 @@ function createRuntimeConfigStateFromValues(input: {
 	selectedShortcutLabel: string | null;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
+	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
+	requestTimeoutMs: number | null;
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	agentTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -488,6 +632,12 @@ function createRuntimeConfigStateFromValues(input: {
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 		),
 		agentTimeoutMode: normalizeAgentTimeoutMode(input.agentTimeoutMode),
+		agentTimeoutProfile: normalizeAgentTimeoutProfile(input.agentTimeoutProfile),
+		requestTimeoutMs: normalizeTimeoutMsValue(input.requestTimeoutMs),
+		streamTimeoutMs: normalizeTimeoutMsValue(input.streamTimeoutMs),
+		toolTimeoutMs: normalizeTimeoutMsValue(input.toolTimeoutMs),
+		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
+		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -508,6 +658,12 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		selectedShortcutLabel: current.selectedShortcutLabel,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
+		agentTimeoutProfile: current.agentTimeoutProfile,
+		requestTimeoutMs: current.requestTimeoutMs,
+		streamTimeoutMs: current.streamTimeoutMs,
+		toolTimeoutMs: current.toolTimeoutMs,
+		agentTimeoutMs: current.agentTimeoutMs,
+		conversationTimeoutMs: current.conversationTimeoutMs,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
@@ -544,6 +700,12 @@ export async function saveRuntimeConfig(
 		selectedShortcutLabel: string | null;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
+		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
+		requestTimeoutMs: number | null;
+		streamTimeoutMs: number | null;
+		toolTimeoutMs: number | null;
+		agentTimeoutMs: number | null;
+		conversationTimeoutMs: number | null;
 		readyForReviewNotificationsEnabled: boolean;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
@@ -557,6 +719,12 @@ export async function saveRuntimeConfig(
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
+			agentTimeoutProfile: config.agentTimeoutProfile,
+			requestTimeoutMs: config.requestTimeoutMs,
+			streamTimeoutMs: config.streamTimeoutMs,
+			toolTimeoutMs: config.toolTimeoutMs,
+			agentTimeoutMs: config.agentTimeoutMs,
+			conversationTimeoutMs: config.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
@@ -569,6 +737,12 @@ export async function saveRuntimeConfig(
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
+			agentTimeoutProfile: config.agentTimeoutProfile,
+			requestTimeoutMs: config.requestTimeoutMs,
+			streamTimeoutMs: config.streamTimeoutMs,
+			toolTimeoutMs: config.toolTimeoutMs,
+			agentTimeoutMs: config.agentTimeoutMs,
+			conversationTimeoutMs: config.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
@@ -590,6 +764,15 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.selectedShortcutLabel === undefined ? current.selectedShortcutLabel : updates.selectedShortcutLabel,
 			agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 			agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
+			agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
+			requestTimeoutMs: updates.requestTimeoutMs === undefined ? current.requestTimeoutMs : updates.requestTimeoutMs,
+			streamTimeoutMs: updates.streamTimeoutMs === undefined ? current.streamTimeoutMs : updates.streamTimeoutMs,
+			toolTimeoutMs: updates.toolTimeoutMs === undefined ? current.toolTimeoutMs : updates.toolTimeoutMs,
+			agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
+			conversationTimeoutMs:
+				updates.conversationTimeoutMs === undefined
+					? current.conversationTimeoutMs
+					: updates.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
@@ -602,6 +785,12 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
 			nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 			nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
+			nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
+			nextConfig.requestTimeoutMs !== current.requestTimeoutMs ||
+			nextConfig.streamTimeoutMs !== current.streamTimeoutMs ||
+			nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
+			nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
+			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
@@ -616,6 +805,12 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
+			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
+			requestTimeoutMs: nextConfig.requestTimeoutMs,
+			streamTimeoutMs: nextConfig.streamTimeoutMs,
+			toolTimeoutMs: nextConfig.toolTimeoutMs,
+			agentTimeoutMs: nextConfig.agentTimeoutMs,
+			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -630,6 +825,12 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
+			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
+			requestTimeoutMs: nextConfig.requestTimeoutMs,
+			streamTimeoutMs: nextConfig.streamTimeoutMs,
+			toolTimeoutMs: nextConfig.toolTimeoutMs,
+			agentTimeoutMs: nextConfig.agentTimeoutMs,
+			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
@@ -659,6 +860,16 @@ export async function updateGlobalRuntimeConfig(
 						: updates.selectedShortcutLabel,
 				agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 				agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
+				agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
+				requestTimeoutMs:
+					updates.requestTimeoutMs === undefined ? current.requestTimeoutMs : updates.requestTimeoutMs,
+				streamTimeoutMs: updates.streamTimeoutMs === undefined ? current.streamTimeoutMs : updates.streamTimeoutMs,
+				toolTimeoutMs: updates.toolTimeoutMs === undefined ? current.toolTimeoutMs : updates.toolTimeoutMs,
+				agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
+				conversationTimeoutMs:
+					updates.conversationTimeoutMs === undefined
+						? current.conversationTimeoutMs
+						: updates.conversationTimeoutMs,
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 				shortcuts: current.shortcuts,
@@ -671,6 +882,12 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
 				nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 				nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
+				nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
+				nextConfig.requestTimeoutMs !== current.requestTimeoutMs ||
+				nextConfig.streamTimeoutMs !== current.streamTimeoutMs ||
+				nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
+				nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
+				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
@@ -684,6 +901,12 @@ export async function updateGlobalRuntimeConfig(
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
+				agentTimeoutProfile: nextConfig.agentTimeoutProfile,
+				requestTimeoutMs: nextConfig.requestTimeoutMs,
+				streamTimeoutMs: nextConfig.streamTimeoutMs,
+				toolTimeoutMs: nextConfig.toolTimeoutMs,
+				agentTimeoutMs: nextConfig.agentTimeoutMs,
+				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -696,6 +919,12 @@ export async function updateGlobalRuntimeConfig(
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
+				agentTimeoutProfile: nextConfig.agentTimeoutProfile,
+				requestTimeoutMs: nextConfig.requestTimeoutMs,
+				streamTimeoutMs: nextConfig.streamTimeoutMs,
+				toolTimeoutMs: nextConfig.toolTimeoutMs,
+				agentTimeoutMs: nextConfig.agentTimeoutMs,
+				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,

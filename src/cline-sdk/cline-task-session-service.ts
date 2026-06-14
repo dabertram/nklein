@@ -74,13 +74,13 @@ export interface StartClineTaskSessionRequest {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextScope?: "full" | "smart" | "minimal" | "custom";
-	timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
+	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	systemPrompt?: string | null;
 }
 
 function buildKanbanEfficiencyRules(options: {
 	contextScope: "full" | "smart" | "minimal" | "custom";
-	timeoutMode: "normal" | "long" | "very_long" | "unlimited";
+	timeoutMode: "normal" | "long" | "extended" | "unlimited";
 }): string {
 	return [
 		"# Kanban Efficiency Rules",

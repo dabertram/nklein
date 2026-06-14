@@ -368,9 +368,15 @@ export function RuntimeSettingsDialog({
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
 	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("claude");
 	const [agentAutonomousModeEnabled, setAgentAutonomousModeEnabled] = useState(true);
-	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "very_long" | "unlimited">(
+	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">(
 		"normal",
 	);
+	const [agentTimeoutProfile, setAgentTimeoutProfile] = useState<"cloud" | "local" | "custom">("local");
+	const [requestTimeoutMs, setRequestTimeoutMs] = useState("");
+	const [streamTimeoutMs, setStreamTimeoutMs] = useState("");
+	const [toolTimeoutMs, setToolTimeoutMs] = useState("");
+	const [agentTimeoutMs, setAgentTimeoutMs] = useState("");
+	const [conversationTimeoutMs, setConversationTimeoutMs] = useState("");
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [initialThemeId, setInitialThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
@@ -445,6 +451,13 @@ export function RuntimeSettingsDialog({
 	const initialSelectedAgentId = configuredAgentId ?? fallbackAgentId;
 	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
 	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
+	const initialAgentTimeoutProfile = config?.agentTimeoutProfile ?? "local";
+	const initialRequestTimeoutMs = config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs);
+	const initialStreamTimeoutMs = config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs);
+	const initialToolTimeoutMs = config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs);
+	const initialAgentTimeoutMs = config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs);
+	const initialConversationTimeoutMs =
+		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
@@ -472,6 +485,24 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (agentTimeoutMode !== initialAgentTimeoutMode) {
+			return true;
+		}
+		if (agentTimeoutProfile !== initialAgentTimeoutProfile) {
+			return true;
+		}
+		if (requestTimeoutMs.trim() !== initialRequestTimeoutMs.trim()) {
+			return true;
+		}
+		if (streamTimeoutMs.trim() !== initialStreamTimeoutMs.trim()) {
+			return true;
+		}
+		if (toolTimeoutMs.trim() !== initialToolTimeoutMs.trim()) {
+			return true;
+		}
+		if (agentTimeoutMs.trim() !== initialAgentTimeoutMs.trim()) {
+			return true;
+		}
+		if (conversationTimeoutMs.trim() !== initialConversationTimeoutMs.trim()) {
 			return true;
 		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
@@ -502,23 +533,35 @@ export function RuntimeSettingsDialog({
 	}, [
 		agentAutonomousModeEnabled,
 		agentTimeoutMode,
+		agentTimeoutMs,
+		agentTimeoutProfile,
 		clineMcpSettings.hasUnsavedChanges,
 		clineSettings.hasUnsavedChanges,
 		commitPromptTemplate,
+		conversationTimeoutMs,
 		config,
 		draftThemeId,
 		initialAgentAutonomousModeEnabled,
+		initialAgentTimeoutMs,
 		initialAgentTimeoutMode,
+		initialAgentTimeoutProfile,
 		initialCommitPromptTemplate,
+		initialConversationTimeoutMs,
 		initialOpenPrPromptTemplate,
+		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
+		initialStreamTimeoutMs,
 		initialThemeId,
+		initialToolTimeoutMs,
 		openPrPromptTemplate,
+		requestTimeoutMs,
 		readyForReviewNotificationsEnabled,
 		selectedAgentId,
 		shortcuts,
+		streamTimeoutMs,
+		toolTimeoutMs,
 	]);
 
 	useEffect(() => {
@@ -528,6 +571,12 @@ export function RuntimeSettingsDialog({
 		setSelectedAgentId(configuredAgentId ?? fallbackAgentId);
 		setAgentAutonomousModeEnabled(config?.agentAutonomousModeEnabled ?? true);
 		setAgentTimeoutMode(config?.agentTimeoutMode ?? "normal");
+		setAgentTimeoutProfile(config?.agentTimeoutProfile ?? "local");
+		setRequestTimeoutMs(config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs));
+		setStreamTimeoutMs(config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs));
+		setToolTimeoutMs(config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs));
+		setAgentTimeoutMs(config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs));
+		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		setShortcuts(config?.shortcuts ?? []);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
@@ -536,11 +585,17 @@ export function RuntimeSettingsDialog({
 	}, [
 		config?.agentAutonomousModeEnabled,
 		config?.agentTimeoutMode,
+		config?.agentTimeoutMs,
+		config?.agentTimeoutProfile,
 		config?.commitPromptTemplate,
+		config?.conversationTimeoutMs,
 		config?.openPrPromptTemplate,
+		config?.requestTimeoutMs,
 		config?.readyForReviewNotificationsEnabled,
 		config?.selectedAgentId,
 		config?.shortcuts,
+		config?.streamTimeoutMs,
+		config?.toolTimeoutMs,
 		fallbackAgentId,
 		open,
 	]);
@@ -675,6 +730,32 @@ export function RuntimeSettingsDialog({
 
 	const handleSave = async () => {
 		setSaveError(null);
+		const parseTimeoutMsInput = (value: string): number | null | "invalid" => {
+			const trimmed = value.trim();
+			if (trimmed.length === 0) {
+				return null;
+			}
+			const parsed = Number(trimmed);
+			if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+				return "invalid";
+			}
+			return parsed;
+		};
+		const parsedRequestTimeout = parseTimeoutMsInput(requestTimeoutMs);
+		const parsedStreamTimeout = parseTimeoutMsInput(streamTimeoutMs);
+		const parsedToolTimeout = parseTimeoutMsInput(toolTimeoutMs);
+		const parsedAgentTimeout = parseTimeoutMsInput(agentTimeoutMs);
+		const parsedConversationTimeout = parseTimeoutMsInput(conversationTimeoutMs);
+		if (
+			parsedRequestTimeout === "invalid" ||
+			parsedStreamTimeout === "invalid" ||
+			parsedToolTimeout === "invalid" ||
+			parsedAgentTimeout === "invalid" ||
+			parsedConversationTimeout === "invalid"
+		) {
+			setSaveError("Timeout values must be integers >= 0 (leave blank for profile defaults). ");
+			return;
+		}
 		if (!config) {
 			setSaveError("Runtime settings are still loading. Try again in a moment.");
 			return;
@@ -712,6 +793,12 @@ export function RuntimeSettingsDialog({
 			selectedAgentId,
 			agentAutonomousModeEnabled,
 			agentTimeoutMode,
+			agentTimeoutProfile,
+			requestTimeoutMs: parsedRequestTimeout,
+			streamTimeoutMs: parsedStreamTimeout,
+			toolTimeoutMs: parsedToolTimeout,
+			agentTimeoutMs: parsedAgentTimeout,
+			conversationTimeoutMs: parsedConversationTimeout,
 			readyForReviewNotificationsEnabled,
 			shortcuts,
 			commitPromptTemplate,
@@ -830,15 +917,85 @@ export function RuntimeSettingsDialog({
 								fill
 								value={agentTimeoutMode}
 								onChange={(event) =>
-									setAgentTimeoutMode(event.target.value as "normal" | "long" | "very_long" | "unlimited")
+									setAgentTimeoutMode(event.target.value as "normal" | "long" | "extended" | "unlimited")
 								}
 								disabled={controlsDisabled}
 							>
 								<option value="normal">Normal (5m)</option>
 								<option value="long">Long (15m)</option>
-								<option value="very_long">Very Long (30m)</option>
+								<option value="extended">Extended (30m)</option>
 								<option value="unlimited">Unlimited</option>
 							</NativeSelect>
+						</div>
+						<div className="mt-2 ml-6 max-w-[260px]">
+							<p className="text-text-secondary text-[12px] mt-0 mb-1">Timeout profile</p>
+							<NativeSelect
+								fill
+								value={agentTimeoutProfile}
+								onChange={(event) =>
+									setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")
+								}
+								disabled={controlsDisabled}
+							>
+								<option value="cloud">Cloud</option>
+								<option value="local">Local</option>
+								<option value="custom">Custom</option>
+							</NativeSelect>
+							<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+								Unlimited timeout: requests may run indefinitely until manually cancelled.
+							</p>
+						</div>
+						<div className="mt-2 ml-6 grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+							<div>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">requestTimeoutMs</p>
+								<input
+									value={requestTimeoutMs}
+									onChange={(event) => setRequestTimeoutMs(event.target.value)}
+									placeholder="3600000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+							</div>
+							<div>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">streamTimeoutMs</p>
+								<input
+									value={streamTimeoutMs}
+									onChange={(event) => setStreamTimeoutMs(event.target.value)}
+									placeholder="86400000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+							</div>
+							<div>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">toolTimeoutMs</p>
+								<input
+									value={toolTimeoutMs}
+									onChange={(event) => setToolTimeoutMs(event.target.value)}
+									placeholder="86400000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+							</div>
+							<div>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">agentTimeoutMs</p>
+								<input
+									value={agentTimeoutMs}
+									onChange={(event) => setAgentTimeoutMs(event.target.value)}
+									placeholder="86400000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+							</div>
+							<div style={{ gridColumn: "1 / span 2" }}>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">conversationTimeoutMs</p>
+								<input
+									value={conversationTimeoutMs}
+									onChange={(event) => setConversationTimeoutMs(event.target.value)}
+									placeholder="604800000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+							</div>
 						</div>
 					</div>
 

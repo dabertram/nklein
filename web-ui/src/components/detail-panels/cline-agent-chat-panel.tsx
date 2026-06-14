@@ -79,7 +79,7 @@ export interface ClineAgentChatPanelProps {
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
 		contextScope: "full" | "smart" | "minimal" | "custom";
-		timeoutMode: "normal" | "long" | "very_long" | "unlimited";
+		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
 	onSendMessage?: (
 		taskId: string,
@@ -174,7 +174,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskClineSettings?.contextScope ?? "smart",
 		);
-		const [timeoutMode, setTimeoutMode] = useState<"normal" | "long" | "very_long" | "unlimited">(
+		const [timeoutMode, setTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">(
 			taskClineSettings?.timeoutMode ?? "normal",
 		);
 		const isCreditLimitNoticeVisible = summary?.latestHookActivity?.notificationType === "credit_limit";
@@ -316,7 +316,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			modelId?: string;
 			reasoningEffort?: RuntimeClineReasoningEffort | "";
 			contextScope?: "full" | "smart" | "minimal" | "custom";
-			timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
+			timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		};
 
 		const persistClineModelSettings = useCallback(
@@ -532,7 +532,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 							<NativeSelect
 								value={timeoutMode}
 								onChange={(event) => {
-									const nextValue = event.target.value as "normal" | "long" | "very_long" | "unlimited";
+									const nextValue = event.target.value as "normal" | "long" | "extended" | "unlimited";
 									setTimeoutMode(nextValue);
 									if (taskHasExplicitClineSettings) {
 										void persistClineModelSettings({ timeoutMode: nextValue });
@@ -542,7 +542,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 							>
 								<option value="normal">Timeout: Normal</option>
 								<option value="long">Timeout: Long</option>
-								<option value="very_long">Timeout: Very Long</option>
+								<option value="extended">Timeout: Extended</option>
 								<option value="unlimited">Timeout: Unlimited</option>
 							</NativeSelect>
 							<Button

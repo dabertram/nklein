@@ -44,7 +44,13 @@ export async function saveRuntimeConfig(
 		selectedAgentId?: RuntimeAgentId;
 		selectedShortcutLabel?: string | null;
 		agentAutonomousModeEnabled?: boolean;
-		agentTimeoutMode?: "normal" | "long" | "very_long" | "unlimited";
+		agentTimeoutMode?: "normal" | "long" | "extended" | "unlimited";
+		agentTimeoutProfile?: "cloud" | "local" | "custom";
+		requestTimeoutMs?: number | null;
+		streamTimeoutMs?: number | null;
+		toolTimeoutMs?: number | null;
+		agentTimeoutMs?: number | null;
+		conversationTimeoutMs?: number | null;
 		shortcuts?: RuntimeProjectShortcut[];
 		readyForReviewNotificationsEnabled?: boolean;
 		commitPromptTemplate?: string;

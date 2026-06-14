@@ -730,7 +730,7 @@ export default function App(): ReactElement {
 			modelId: string;
 			reasoningEffort: RuntimeClineReasoningEffort | "";
 			contextScope: "full" | "smart" | "minimal" | "custom";
-			timeoutMode: "normal" | "long" | "very_long" | "unlimited";
+			timeoutMode: "normal" | "long" | "extended" | "unlimited";
 		}) => {
 			if (!selectedCard) {
 				return;

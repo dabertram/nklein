@@ -139,6 +139,13 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTas
 		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
 		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
 		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
+		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
+		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
+		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
+		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
+		...(settings.conversationTimeoutMs !== undefined
+			? { conversationTimeoutMs: settings.conversationTimeoutMs }
+			: {}),
 	};
 }
 

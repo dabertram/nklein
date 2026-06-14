@@ -63,7 +63,7 @@ const LITELLM_MODELS_RESPONSE_SCHEMA = z.object({
 	data: z.array(z.object({ id: z.string().optional(), model_name: z.string().optional() }).passthrough()).optional(),
 });
 const LITELLM_MODEL_LIST_PATHNAMES = ["/models", "/model/info"] as const;
-const LITELLM_MODEL_LIST_TIMEOUT_MS = 2_500;
+const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const LOGGER = createKanbanClineLogger({ component: "cline-provider-service" });
 
 type ClineRemoteConfig = z.infer<typeof CLINE_REMOTE_CONFIG_SCHEMA>;
@@ -270,9 +270,10 @@ async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): 
 
 	const headers = resolveLiteLlmModelListHeaders(settings);
 	const timeoutMs =
-		typeof settings.timeout === "number" && settings.timeout > 0
-			? Math.min(settings.timeout, LITELLM_MODEL_LIST_TIMEOUT_MS)
-			: LITELLM_MODEL_LIST_TIMEOUT_MS;
+		typeof settings.timeout === "number" && settings.timeout >= 0
+			? Math.trunc(settings.timeout)
+			: DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS;
+	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
 	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
 	for (const pathname of LITELLM_MODEL_LIST_PATHNAMES) {
 		const url = `${normalizedBaseUrl}${pathname}`;
@@ -280,7 +281,7 @@ async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): 
 			const response = await globalThis.fetch(url, {
 				method: "GET",
 				headers,
-				signal: AbortSignal.timeout(timeoutMs),
+				...(signal ? { signal } : {}),
 			});
 			if (!response.ok) {
 				logLiteLlmModelListWarning("LiteLLM model list request returned an unsuccessful response.", {
