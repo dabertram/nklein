@@ -642,6 +642,8 @@ export function CardDetailView({
 			defaultMode="act"
 			showComposerModeToggle={false}
 			workspaceId={currentProjectId}
+			taskTitle={selection.card.title}
+			taskPrompt={selection.card.prompt}
 			runtimeConfig={runtimeConfig}
 			taskClineSettings={selection.card.clineSettings}
 			taskHasExplicitClineSettings={hasExplicitTaskClineSettings}

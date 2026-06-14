@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-
+import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
 	type ClineSdkStartSessionInput,
 	type ClineSdkToolApprovalRequest,
@@ -12,8 +12,10 @@ import {
 } from "./sdk-runtime-boundary";
 
 const MAX_AGENT_WRITABLE_FILE_LINES = 1000;
-const MAX_AGENT_READABLE_CHUNK_CHARS = 32_000;
-const MAX_AGENT_READABLE_CHUNK_TOKEN_ESTIMATE = Math.ceil(MAX_AGENT_READABLE_CHUNK_CHARS / 4);
+
+export interface KanbanToolApprovalOptions {
+	contextWindow?: number | null;
+}
 
 function countLines(text: string): number {
 	if (text.length === 0) {
@@ -192,40 +194,46 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 async function approveReadFilesTool(
 	workspacePath: string,
 	request: ClineSdkToolApprovalRequest,
+	options: KanbanToolApprovalOptions,
 ): Promise<ClineSdkToolApprovalResult> {
+	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow ?? null);
 	const readRequests = toReadFileRequests(request.input);
-	let totalRequestedChars = 0;
+	let totalRequestedTokens = 0;
+	let totalRequestedLines = 0;
 	for (const readRequest of readRequests) {
 		const absolutePath = resolveToolPath(workspacePath, readRequest.path);
 		const content = await readFileText(absolutePath);
 		if (content === null) {
 			continue;
 		}
-		const totalChars = content.length;
+		const totalTokens = countKanbanTextTokens(content);
 
 		const startLine = readRequest.startLine;
 		const endLine = readRequest.endLine;
-		if (totalChars > MAX_AGENT_READABLE_CHUNK_CHARS) {
+		if (totalTokens > budgets.fileChunkContentTokenBudget) {
 			if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: files above ${MAX_AGENT_READABLE_CHUNK_CHARS.toLocaleString()} characters require explicit start_line and end_line ranges.`,
+					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a conservative range based on wc -c / wc -l.`,
 				};
 			}
 		}
 
-		const requestedText =
+		const requestedLines =
 			typeof startLine === "number" && typeof endLine === "number"
-				? content
-						.split("\n")
-						.slice(Math.max(0, startLine - 1), Math.max(0, endLine))
-						.join("\n")
-				: content;
-		totalRequestedChars += requestedText.length;
-		if (totalRequestedChars > MAX_AGENT_READABLE_CHUNK_CHARS) {
+				? content.split("\n").slice(Math.max(0, startLine - 1), Math.max(0, endLine))
+				: content.split("\n");
+		const requestedText = requestedLines.join("\n");
+		totalRequestedLines += requestedLines.length;
+		totalRequestedTokens += countKanbanTextTokens(requestedText);
+		if (totalRequestedTokens > budgets.fileChunkContentTokenBudget) {
+			const suggestedTotalLines = Math.max(
+				1,
+				Math.floor((totalRequestedLines * budgets.fileChunkContentTokenBudget * 0.8) / totalRequestedTokens),
+			);
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: requested file content is ~${totalRequestedChars.toLocaleString()} characters, above the ${MAX_AGENT_READABLE_CHUNK_CHARS.toLocaleString()}-character read chunk budget (~${MAX_AGENT_READABLE_CHUNK_TOKEN_ESTIMATE.toLocaleString()} tokens before tool framing). Retry with smaller line ranges; do not rely on truncation.`,
+				reason: `Blocked ${request.toolName}: this request used ranges, but the selected source text is ~${totalRequestedTokens.toLocaleString()} tokens across ${totalRequestedLines.toLocaleString()} lines, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens (${budgets.fileChunkTokenBudget.toLocaleString()} total read budget minus tool-result overhead). Retry one large file per call with at most about ${suggestedTotalLines.toLocaleString()} total selected lines, then grow only after a successful read. Do not rely on truncation.`,
 			};
 		}
 	}
@@ -331,14 +339,17 @@ async function approveApplyPatchTool(
 	};
 }
 
-export function createKanbanToolApprovalPolicy(workspacePath: string): {
+export function createKanbanToolApprovalPolicy(
+	workspacePath: string,
+	options: KanbanToolApprovalOptions = {},
+): {
 	requestToolApproval: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 } {
 	return {
 		requestToolApproval: async (request: ClineSdkToolApprovalRequest) => {
 			switch (request.toolName) {
 				case "read_files":
-					return await approveReadFilesTool(workspacePath, request);
+					return await approveReadFilesTool(workspacePath, request, options);
 				case "editor":
 					return await approveEditorTool(workspacePath, request);
 				case "apply_patch":
@@ -367,6 +378,9 @@ export interface ClineRuntimeSetup {
 	loadRules: () => string;
 	toolPolicies: NonNullable<ClineSdkStartSessionInput["toolPolicies"]>;
 	requestToolApproval: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
+	createToolApproval: (
+		options?: KanbanToolApprovalOptions,
+	) => (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 	dispose: () => Promise<void>;
 }
 
@@ -383,6 +397,7 @@ export async function createClineRuntimeSetup(workspacePath: string): Promise<Cl
 		loadRules: () => loadClineSdkRulesForSystemPrompt(userInstructionService),
 		toolPolicies: createKanbanToolPolicies(),
 		requestToolApproval: toolApprovalPolicy.requestToolApproval,
+		createToolApproval: (options = {}) => createKanbanToolApprovalPolicy(workspacePath, options).requestToolApproval,
 		dispose: async () => {
 			try {
 				userInstructionService.stop();

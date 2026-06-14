@@ -12,6 +12,7 @@ import type {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
 import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
@@ -54,6 +55,8 @@ import {
 	resolveClineSdkSystemPrompt,
 } from "./sdk-runtime-boundary.js";
 
+export type { KanbanContextSafetyBudgets } from "./cline-context-budgets";
+export { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
 export type { ClineTaskMessage } from "./cline-session-state";
 
 const CONTEXT_BUDGET_WARNING_RATIO = 0.85;
@@ -94,6 +97,7 @@ export function buildKanbanEfficiencyRules(options: {
 }): string {
 	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow);
 	const chunkTokenBudgetText = Math.round(budgets.fileChunkTokenBudget / 1000);
+	const chunkContentTokenBudgetText = Math.round(budgets.fileChunkContentTokenBudget / 1000);
 	const chunkCharBudgetText = Math.round(budgets.fileChunkCharBudget / 1000);
 	const safeWorkingBudgetText = budgets.safeWorkingBudget
 		? `${budgets.safeWorkingBudget.toLocaleString()} tokens (~${Math.round(budgets.safeWorkingBudget / 1000)}k)`
@@ -139,8 +143,8 @@ export function buildKanbanEfficiencyRules(options: {
 		"- Before summarizing or deriving requirements from txt/md/log/data files, establish the complete file set with targeted discovery and decide which files are source material.",
 		"- For each source file, record `wc -l` and `wc -c` before reading, then read deterministic line ranges from line 1 through EOF.",
 		`- For any file larger than the suggested chunk size (~${chunkCharBudgetText}k characters) or about 100 KB, create a coverage ledger before reading: record total lines, total bytes, planned line ranges, completed line ranges, unread ranges, and the next exact line to resume from; keep reading until the final line is confirmed.`,
-		`- Before each large \`read_files\` call, estimate chunk tokens as ceil(chunk characters / 4) plus at least 2,000 tokens for tool/result framing. Keep that estimate at or below ${chunkTokenBudgetText}k tokens (~${chunkCharBudgetText}k raw characters), and reduce the line range if the estimate would exceed it.`,
-		"- Backend approval may reject a `read_files` range if the selected text is still too large. Treat that as a sizing signal: retry with smaller adjacent ranges rather than relying on provider-side truncation.",
+		`- Before each large \`read_files\` call, choose a conservative line range from measured bytes per line. Backend approval will tokenize the selected text and keep source content at or below about ${chunkContentTokenBudgetText}k tokens (${chunkTokenBudgetText}k total read budget including tool/result framing).`,
+		"- Backend approval tokenizes selected `read_files` content and may reject a range that is still too large for the model-derived read budget. Treat that as a sizing signal: retry one large file per call, shrink the requested line count by at least half or to the suggested line count, and only grow ranges after a successful read.",
 		"- Choose chunk line ranges from the measured average bytes per line: start with floor(chunk character budget / average bytes per line), cap at the file's remaining lines, and shrink the range when lines are unusually long.",
 		"- Every chunk must use explicit inclusive `start_line` and `end_line` values. Never rely on reading a whole large file when exact ranges are available.",
 		"- Prefer non-overlapping primary chunks for the full pass, then explicitly inspect stitching areas around each chunk boundary before synthesizing. Choose generous stitching ranges based on what the chunks contain, for example larger windows around ASCII UI diagrams, tables, stack traces, prose sections, or code blocks split at the boundary.",
@@ -165,38 +169,6 @@ export function buildKanbanEfficiencyRules(options: {
 		"- Summarize older conversation/tool output and continue from summaries.",
 		"- Keep the active context window healthy and focused.",
 	].join("\n");
-}
-
-export interface KanbanContextSafetyBudgets {
-	contextWindow: number | null;
-	outputReserveTokens: number;
-	promptOverheadReserveTokens: number;
-	safeWorkingBudget: number | null;
-	fileChunkTokenBudget: number;
-	fileChunkCharBudget: number;
-}
-
-export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | null): KanbanContextSafetyBudgets {
-	const contextWindow =
-		typeof contextWindowInput === "number" && Number.isFinite(contextWindowInput) && contextWindowInput > 0
-			? Math.trunc(contextWindowInput)
-			: null;
-	const outputReserveTokens = contextWindow ? Math.max(24_000, Math.round(contextWindow * 0.3)) : 24_000;
-	const promptOverheadReserveTokens = contextWindow ? Math.max(12_000, Math.round(contextWindow * 0.15)) : 12_000;
-	const safeWorkingBudget = contextWindow
-		? Math.max(0, contextWindow - outputReserveTokens - promptOverheadReserveTokens)
-		: null;
-	const fileChunkTokenBudget = safeWorkingBudget
-		? Math.max(4_000, Math.min(12_000, Math.round(safeWorkingBudget * 0.15)))
-		: 8_000;
-	return {
-		contextWindow,
-		outputReserveTokens,
-		promptOverheadReserveTokens,
-		safeWorkingBudget,
-		fileChunkTokenBudget,
-		fileChunkCharBudget: fileChunkTokenBudget * 4,
-	};
 }
 
 export interface ClineTaskSessionService {
@@ -669,7 +641,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					apiTimeoutMs: request.requestTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
-					requestToolApproval: runtimeSetup.requestToolApproval,
+					requestToolApproval: runtimeSetup.createToolApproval({ contextWindow: request.contextWindow ?? null }),
 					toolPolicies: runtimeSetup.toolPolicies,
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);

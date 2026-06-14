@@ -9,6 +9,14 @@ import { createKanbanToolApprovalPolicy, createKanbanToolPolicies } from "../../
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
 
+function createTokenDenseContent(lineCount: number, wordsPerLine: number): string {
+	return Array.from(
+		{ length: lineCount },
+		(_, lineIndex) =>
+			`${lineIndex}: ${Array.from({ length: wordsPerLine }, (_, wordIndex) => `word${lineIndex}_${wordIndex}`).join(" ")}`,
+	).join("\n");
+}
+
 function createApprovalRequest(input: Partial<ToolApprovalRequest>): ToolApprovalRequest {
 	return {
 		sessionId: "session-1",
@@ -59,10 +67,10 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
 	});
 
-	it("blocks oversized read_files requests without explicit ranges", async () => {
+	it("blocks token-oversized read_files requests without explicit ranges", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
-		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const largeFilePath = join(workspacePath, "big.txt");
 		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
 		await writeFile(largeFilePath, largeContent, "utf-8");
@@ -77,15 +85,15 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 
 		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("require explicit start_line and end_line");
+		expect(result.reason).toContain("Use explicit numeric start_line and end_line ranges");
 	});
 
-	it("blocks explicit read_files chunks above the character budget", async () => {
+	it("blocks explicit read_files chunks above the token budget", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
 		const largeFilePath = join(workspacePath, "wide-lines.txt");
-		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
+		const largeContent = createTokenDenseContent(400, 80);
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const result = await policy.requestToolApproval(
@@ -98,14 +106,15 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 
 		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("read chunk budget");
-		expect(result.reason).toContain("Retry with smaller line ranges");
+		expect(result.reason).toContain("this request used ranges");
+		expect(result.reason).toContain("per-read source budget");
+		expect(result.reason).toContain("Retry one large file per call");
 	});
 
-	it("blocks combined read_files chunks above the character budget", async () => {
+	it("blocks combined read_files chunks above the token budget", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
-		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const firstPath = join(workspacePath, "first.txt");
 		const secondPath = join(workspacePath, "second.txt");
 		const content = Array.from({ length: 200 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
@@ -125,13 +134,13 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 
 		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("read chunk budget");
+		expect(result.reason).toContain("per-read source budget");
 	});
 
 	it("allows adjacent explicit chunks for large read_files requests", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
-		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
 		const largeFilePath = join(workspacePath, "big.txt");
 		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
 		await writeFile(largeFilePath, largeContent, "utf-8");

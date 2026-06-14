@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ClineAgentChatPanel,
 	type ClineAgentChatPanelHandle,
+	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
 	formatClineModelActivityDisplay,
 } from "@/components/detail-panels/cline-agent-chat-panel";
@@ -179,6 +180,7 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(contextBudget.limit).toBe(256_000);
 		expect(contextBudget.text).toContain("256k available context");
+		expect(contextBudget.text).toContain("current request ~96k tokens");
 		expect(contextBudget.text).not.toContain("smart budget");
 	});
 
@@ -193,8 +195,18 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
 		expect(contextBudget.text).toBe(
-			"~81k visible chat · next prompt ~6k · 80k available context (projected 100% · over by ~7k · overflow)",
+			"current request ~87k tokens (visible chat ~81k + next prompt ~6k) · 80k available context (100% · over by ~7k · overflow)",
 		);
+	});
+
+	it("formats card content token estimates separately from request context", () => {
+		const text = formatClineCardContentDisplay({
+			taskTitle: "Konten Bilanzierungs Tool",
+			taskPrompt: "Build the reconciliation workflow.",
+		});
+
+		expect(text).toContain("Card content: ~");
+		expect(text).toContain("tokens");
 	});
 
 	it("formats waiting model activity before the first streamed token", () => {
@@ -209,6 +221,23 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(text).toBe("Model activity: waiting for response · request sent 1m 5s ago");
+	});
+
+	it("includes current request context in model activity", () => {
+		const text = formatClineModelActivityDisplay({
+			summary: createSummary("running", null, {
+				startedAt: 10_000,
+				updatedAt: 10_000,
+				lastTokenAt: null,
+			}),
+			messages: [],
+			nowMs: 75_000,
+			currentRequestContextText: "current request ~12k tokens · 80k available context (15% · healthy)",
+		});
+
+		expect(text).toBe(
+			"Model activity: waiting for response · request sent 1m 5s ago · current request ~12k tokens · 80k available context (15% · healthy)",
+		);
 	});
 
 	it("formats streaming model activity with generated text token estimates", () => {
@@ -235,7 +264,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~7 text tokens shown · request age 15s");
+		expect(text).toBe("Model activity: streaming · ~5 text tokens shown · request age 15s");
 	});
 
 	it("formats reasoning activity as streaming when it belongs to the current turn", () => {
@@ -268,7 +297,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~8 text tokens shown · request age 15s");
+		expect(text).toBe("Model activity: streaming · ~5 text tokens shown · request age 15s");
 	});
 
 	it("does not report streaming from stale previous-turn output", () => {

@@ -2,6 +2,7 @@
 // Rendering lives here, while session state and action wiring come from the
 // controller hook so multiple surfaces can share the same behavior.
 
+import { ALL_SPECIAL_TOKENS, countTokens } from "gpt-tokenizer";
 import { AlertTriangle } from "lucide-react";
 import React, {
 	type ReactElement,
@@ -41,6 +42,10 @@ import type { TaskImage } from "@/types";
 
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
 const CLINE_BUY_CREDITS_URL = "https://app.cline.bot/";
+
+function countClineDisplayTokens(text: string): number {
+	return countTokens(text, { allowedSpecial: ALL_SPECIAL_TOKENS });
+}
 
 export function formatClineContextBudgetDisplay(options: {
 	estimatedContextTokens: number;
@@ -82,12 +87,21 @@ export function formatClineContextBudgetDisplay(options: {
 			? options.estimatedNextPromptTokens
 			: 0;
 	const visibleChatTokens = Math.max(0, options.estimatedContextTokens - nextPromptTokens);
-	const nextPromptText = nextPromptTokens > 0 ? ` · next prompt ~${Math.round(nextPromptTokens / 1000)}k` : "";
+	const nextPromptText = nextPromptTokens > 0 ? ` + next prompt ~${Math.round(nextPromptTokens / 1000)}k` : "";
 	return {
 		limit,
 		percent: displayPercent,
-		text: `~${Math.round(visibleChatTokens / 1000)}k visible chat${nextPromptText} · ${limitText} (projected ${displayPercent}%${overageText} · ${budgetStateLabel})`,
+		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens (visible chat ~${Math.round(visibleChatTokens / 1000)}k${nextPromptText}) · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
+}
+
+export function formatClineCardContentDisplay(options: {
+	taskTitle?: string | null;
+	taskPrompt?: string | null;
+}): string {
+	const cardText = [options.taskTitle?.trim(), options.taskPrompt?.trim()].filter(Boolean).join("\n\n");
+	const estimatedTokens = countClineDisplayTokens(cardText);
+	return `Card content: ~${estimatedTokens.toLocaleString()} tokens`;
 }
 
 function formatCompactDuration(milliseconds: number): string {
@@ -123,23 +137,27 @@ function estimateGeneratedTextTokens(message: ClineChatMessage | null): number {
 	if (!message) {
 		return 0;
 	}
-	return Math.max(0, Math.round(message.content.length / 4));
+	return countClineDisplayTokens(message.content);
 }
 
 export function formatClineModelActivityDisplay(options: {
 	summary: RuntimeTaskSessionSummary | null;
 	messages: ClineChatMessage[];
 	nowMs: number;
+	currentRequestContextText?: string | null;
 }): string | null {
 	const summary = options.summary;
+	const contextText = options.currentRequestContextText?.trim()
+		? ` · ${options.currentRequestContextText.trim()}`
+		: "";
 	if (!summary) {
-		return null;
+		return contextText ? `Model activity: idle${contextText}` : null;
 	}
 	if (summary.state !== "running") {
 		if (!summary.lastTokenAt) {
-			return null;
+			return contextText ? `Model activity: idle${contextText}` : null;
 		}
-		return `Model activity: idle · last response ${formatCompactDuration(options.nowMs - summary.lastTokenAt)} ago`;
+		return `Model activity: idle · last response ${formatCompactDuration(options.nowMs - summary.lastTokenAt)} ago${contextText}`;
 	}
 
 	const latestUserCreatedAt = getLatestUserMessageCreatedAt(options.messages);
@@ -148,11 +166,11 @@ export function formatClineModelActivityDisplay(options: {
 
 	const latestGeneratedMessage = getLatestGeneratedTextForCurrentTurn(options.messages);
 	if (!latestGeneratedMessage) {
-		return `Model activity: waiting for response · request sent ${requestAgeText} ago`;
+		return `Model activity: waiting for response · request sent ${requestAgeText} ago${contextText}`;
 	}
 
 	const receivedTokens = estimateGeneratedTextTokens(latestGeneratedMessage);
-	return `Model activity: streaming · ~${receivedTokens} text tokens shown · request age ${requestAgeText}`;
+	return `Model activity: streaming · ~${receivedTokens} text tokens shown · request age ${requestAgeText}${contextText}`;
 }
 
 const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
@@ -183,6 +201,8 @@ export interface ClineAgentChatPanelProps {
 	composerPlaceholder?: string;
 	showComposerModeToggle?: boolean;
 	workspaceId?: string | null;
+	taskTitle?: string | null;
+	taskPrompt?: string | null;
 	runtimeConfig?: RuntimeConfigResponse | null;
 	taskClineSettings?: RuntimeTaskClineSettings;
 	taskHasExplicitClineSettings?: boolean;
@@ -230,6 +250,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			composerPlaceholder = "Ask Cline to add, edit, start, or link tasks",
 			showComposerModeToggle = true,
 			workspaceId = null,
+			taskTitle = null,
+			taskPrompt = null,
 			runtimeConfig = null,
 			taskClineSettings,
 			taskHasExplicitClineSettings = false,
@@ -362,14 +384,13 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 
 		const panelError = composerError ?? error;
 		const estimatedNextPromptTokens = useMemo(() => {
-			const draftTokens = Math.max(0, Math.round(draft.trim().length / 4));
+			const draftTokens = countClineDisplayTokens(draft.trim());
 			const imageOverheadTokens = draftImages.length * 1_200;
 			const framingOverheadTokens = 1_200;
 			return Math.max(1_200, draftTokens + imageOverheadTokens + framingOverheadTokens);
 		}, [draft, draftImages.length]);
 		const estimatedContextTokens = useMemo(() => {
-			const historyChars = messages.reduce((sum, message) => sum + message.content.length, 0);
-			const historyTokens = Math.max(0, Math.round(historyChars / 4));
+			const historyTokens = messages.reduce((sum, message) => sum + countClineDisplayTokens(message.content), 0);
 			return historyTokens + estimatedNextPromptTokens;
 		}, [estimatedNextPromptTokens, messages]);
 		const estimatedContextBudget = useMemo(
@@ -382,9 +403,19 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				}),
 			[contextScope, estimatedContextTokens, estimatedNextPromptTokens, selectedModel?.contextWindow],
 		);
+		const cardContentText = useMemo(
+			() => formatClineCardContentDisplay({ taskTitle, taskPrompt }),
+			[taskPrompt, taskTitle],
+		);
 		const modelActivityText = useMemo(
-			() => formatClineModelActivityDisplay({ summary, messages, nowMs }),
-			[summary, messages, nowMs],
+			() =>
+				formatClineModelActivityDisplay({
+					summary,
+					messages,
+					nowMs,
+					currentRequestContextText: estimatedContextBudget.text,
+				}),
+			[estimatedContextBudget.text, summary, messages, nowMs],
 		);
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
@@ -664,7 +695,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				) : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
-						<div className="text-[11px] text-text-secondary">Context Budget: {estimatedContextBudget.text}</div>
+						<div className="text-[11px] text-text-secondary">{cardContentText}</div>
 						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect

@@ -10,6 +10,7 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			promptOverheadReserveTokens: 12_000,
 			safeWorkingBudget: 44_000,
 			fileChunkTokenBudget: 6_600,
+			fileChunkContentTokenBudget: 5_600,
 			fileChunkCharBudget: 26_400,
 		});
 	});
@@ -21,6 +22,7 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			promptOverheadReserveTokens: 12_000,
 			safeWorkingBudget: null,
 			fileChunkTokenBudget: 8_000,
+			fileChunkContentTokenBudget: 7_000,
 			fileChunkCharBudget: 32_000,
 		});
 	});
@@ -57,12 +59,14 @@ describe("buildKanbanEfficiencyRules", () => {
 			timeoutMode: "long",
 		});
 
-		expect(rules).toContain("estimate chunk tokens as ceil(chunk characters / 4) plus at least 2,000 tokens");
-		expect(rules).toContain("at or below 7k tokens (~26k raw characters)");
+		expect(rules).toContain("Backend approval tokenizes selected `read_files` content");
+		expect(rules).toContain("Backend approval will tokenize the selected text");
+		expect(rules).toContain("shrink the requested line count by at least half or to the suggested line count");
+		expect(rules).toContain("at or below about 6k tokens (7k total read budget including tool/result framing)");
 		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
-		expect(rules).toContain("For code files, use overlapping chunks");
-		expect(rules).toContain("overlap of about 20 lines");
+		expect(rules).toContain("Prefer non-overlapping primary chunks");
+		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
 		expect(rules).toContain(
 			"Safe working budget after output reserve and prompt overhead reserve: 44,000 tokens (~44k)",
 		);

@@ -307,6 +307,7 @@ function createFakeRuntimeSetup(): FakeRuntimeSetupController {
 		approved: true,
 		reason: "approved in test",
 	}));
+	const createToolApprovalMock = vi.fn(() => requestToolApprovalMock);
 	const disposeMock = vi.fn(async () => {});
 	const refreshTypeMock = vi.fn(async () => {});
 	const listRecordsMock = vi.fn(() => []);
@@ -338,6 +339,7 @@ function createFakeRuntimeSetup(): FakeRuntimeSetupController {
 				apply_patch: { enabled: true, autoApprove: false },
 			},
 			requestToolApproval: requestToolApprovalMock,
+			createToolApproval: createToolApprovalMock,
 			dispose: disposeMock,
 		},
 		resolvePromptMock,
