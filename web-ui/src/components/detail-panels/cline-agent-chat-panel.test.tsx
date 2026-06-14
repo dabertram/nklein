@@ -2,7 +2,11 @@ import { act, createRef, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ClineAgentChatPanel, type ClineAgentChatPanelHandle } from "@/components/detail-panels/cline-agent-chat-panel";
+import {
+	ClineAgentChatPanel,
+	type ClineAgentChatPanelHandle,
+	formatClineContextBudgetDisplay,
+} from "@/components/detail-panels/cline-agent-chat-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import type { RuntimeConfigResponse, RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "@/runtime/types";
@@ -150,6 +154,31 @@ describe("ClineAgentChatPanel", () => {
 			(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
 				previousActEnvironment;
 		}
+	});
+
+	it("labels the smart fallback as a working budget when the model limit is unavailable", () => {
+		const contextBudget = formatClineContextBudgetDisplay({
+			estimatedContextTokens: 96_000,
+			contextScope: "smart",
+			modelContextWindow: null,
+		});
+
+		expect(contextBudget.limit).toBe(120_000);
+		expect(contextBudget.text).toContain("smart budget");
+		expect(contextBudget.text).toContain("model max unavailable");
+		expect(contextBudget.text).toContain("120k");
+	});
+
+	it("shows the loaded model context window when one is available", () => {
+		const contextBudget = formatClineContextBudgetDisplay({
+			estimatedContextTokens: 96_000,
+			contextScope: "smart",
+			modelContextWindow: 256_000,
+		});
+
+		expect(contextBudget.limit).toBe(256_000);
+		expect(contextBudget.text).toContain("256k model max");
+		expect(contextBudget.text).not.toContain("smart budget");
 	});
 
 	it("renders reasoning and tool messages with specialized UI", async () => {

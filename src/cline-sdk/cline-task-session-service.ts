@@ -79,7 +79,7 @@ export interface StartClineTaskSessionRequest {
 	systemPrompt?: string | null;
 }
 
-function buildKanbanEfficiencyRules(options: {
+export function buildKanbanEfficiencyRules(options: {
 	contextScope: "full" | "smart" | "minimal" | "custom";
 	contextWindow?: number | null;
 	timeoutMode: "normal" | "long" | "extended" | "unlimited";
@@ -130,13 +130,17 @@ function buildKanbanEfficiencyRules(options: {
 		"Large file handling:",
 		"- If a file is large, do not rewrite the full file.",
 		"- Use chunked editing, section-level updates, and minimal diffs.",
+		"- For any file larger than about 1,000 lines or 100 KB, create a coverage ledger before reading: record each chunk's line range, and keep reading until the final line is confirmed.",
+		"- Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
+		"- If the file is too large to finish in one sitting, resume from the last confirmed line rather than skipping ahead or guessing what remains.",
+		"- Treat an incomplete pass as incomplete work, even if the partial contents seem enough to draft a plan.",
 		contextWindow
-			? `- Model context window: ${contextWindow.toLocaleString()} tokens. Keep about ${reserveTokens.toLocaleString()} tokens in reserve for reasoning, tool chatter, and the final answer.`
+			? `- Model context window: ${contextWindow.toLocaleString()} tokens. Treat this as the authoritative upper bound for prompt planning, but keep about ${reserveTokens.toLocaleString()} tokens in reserve for reasoning, tool chatter, and the final answer.`
 			: "- If the model limit is unknown, keep conservative chunk sizes and leave a generous reserve for reasoning and output.",
 		contextBudget
-			? `- Rough working budget before reserve: ${contextBudget.toLocaleString()} tokens (~${Math.round(contextBudget / 1000)}k).`
+			? `- Rough working budget before reserve: ${contextBudget.toLocaleString()} tokens (~${Math.round(contextBudget / 1000)}k). Smaller slices are still better unless the task truly needs more context.`
 			: "- Work in the smallest practical slices when the budget is unknown.",
-		`- Suggested file-read chunk size: about ${Math.round(chunkTokenBudget / 1000)}k tokens (~${Math.round(chunkCharBudget / 1000)}k characters).`,
+		`- Suggested file-read chunk size: about ${Math.round(chunkTokenBudget / 1000)}k tokens (~${Math.round(chunkCharBudget / 1000)}k characters). Prefer the smallest slice that fully answers the immediate question.`,
 		"",
 		"When context becomes large:",
 		"- Summarize older conversation/tool output and continue from summaries.",

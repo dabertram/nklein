@@ -42,6 +42,41 @@ import type { TaskImage } from "@/types";
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
 const CLINE_BUY_CREDITS_URL = "https://app.cline.bot/";
 
+export function formatClineContextBudgetDisplay(options: {
+	estimatedContextTokens: number;
+	contextScope: "full" | "smart" | "minimal" | "custom";
+	modelContextWindow?: number | null;
+}): { limit: number; percent: number; text: string } {
+	const modelContextWindow =
+		typeof options.modelContextWindow === "number" &&
+		Number.isFinite(options.modelContextWindow) &&
+		options.modelContextWindow > 0
+			? Math.trunc(options.modelContextWindow)
+			: null;
+	const smartScopeBudget = (() => {
+		switch (options.contextScope) {
+			case "full":
+				return 200_000;
+			case "minimal":
+				return 80_000;
+			case "custom":
+				return 160_000;
+			default:
+				return 120_000;
+		}
+	})();
+	const limit = modelContextWindow ?? smartScopeBudget;
+	const percent = limit <= 0 ? 0 : Math.min(100, Math.round((options.estimatedContextTokens / limit) * 100));
+	const limitText = modelContextWindow
+		? `${Math.round(modelContextWindow / 1000)}k model max`
+		: `${Math.round(smartScopeBudget / 1000)}k smart budget (model max unavailable)`;
+	return {
+		limit,
+		percent,
+		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used · ${limitText} (${percent}%)`,
+	};
+}
+
 const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
 	return (
 		<div className="mx-1 flex items-start gap-2 rounded-md border border-status-orange/40 bg-status-orange/10 px-3 py-2 text-xs text-status-orange">
@@ -231,29 +266,15 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
 			return Math.max(0, Math.round(totalChars / 4));
 		}, [messages]);
-		const estimatedContextLimit = useMemo(() => {
-			const contextWindow = selectedModel?.contextWindow;
-			if (typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0) {
-				return Math.trunc(contextWindow);
-			}
-			switch (contextScope) {
-				case "full":
-					return 200_000;
-				case "minimal":
-					return 80_000;
-				case "custom":
-					return 160_000;
-				default:
-					return 120_000;
-			}
-		}, [contextScope, selectedModel?.contextWindow]);
-		const estimatedContextPercent = useMemo(() => {
-			if (estimatedContextLimit <= 0) {
-				return 0;
-			}
-			return Math.min(100, Math.round((estimatedContextTokens / estimatedContextLimit) * 100));
-		}, [estimatedContextLimit, estimatedContextTokens]);
-		const estimatedContextDisplay = `~${Math.round(estimatedContextTokens / 1000)}k / ${Math.round(estimatedContextLimit / 1000)}k (${estimatedContextPercent}%)`;
+		const estimatedContextBudget = useMemo(
+			() =>
+				formatClineContextBudgetDisplay({
+					estimatedContextTokens,
+					contextScope,
+					modelContextWindow: selectedModel?.contextWindow,
+				}),
+			[contextScope, estimatedContextTokens, selectedModel?.contextWindow],
+		);
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
@@ -519,7 +540,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				) : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
-						<div className="text-[11px] text-text-secondary">Context Usage: {estimatedContextDisplay}</div>
+						<div className="text-[11px] text-text-secondary">Context Budget: {estimatedContextBudget.text}</div>
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}

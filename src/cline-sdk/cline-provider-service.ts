@@ -62,13 +62,22 @@ const CLINE_REMOTE_CONFIG_SCHEMA = z.object({
 const LITELLM_MODELS_RESPONSE_SCHEMA = z.object({
 	data: z.array(z.object({ id: z.string().optional(), model_name: z.string().optional() }).passthrough()).optional(),
 });
+const LMSTUDIO_MODELS_RESPONSE_SCHEMA = z
+	.object({
+		data: z.array(z.unknown()).optional(),
+		models: z.array(z.unknown()).optional(),
+	})
+	.passthrough();
 const LITELLM_MODEL_LIST_PATHNAMES = ["/models", "/model/info"] as const;
+const LMSTUDIO_MODEL_LIST_PATHNAMES = ["/api/v0/models", "/api/v1/models"] as const;
 const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const LOGGER = createKanbanClineLogger({ component: "cline-provider-service" });
 
 type ClineRemoteConfig = z.infer<typeof CLINE_REMOTE_CONFIG_SCHEMA>;
 type LiteLlmModelListPathname = (typeof LITELLM_MODEL_LIST_PATHNAMES)[number];
 type LiteLlmModelListItem = NonNullable<z.infer<typeof LITELLM_MODELS_RESPONSE_SCHEMA>["data"]>[number];
+type LmStudioModelListPathname = (typeof LMSTUDIO_MODEL_LIST_PATHNAMES)[number];
 type SdkReasoningEffort = NonNullable<NonNullable<SdkProviderSettings["reasoning"]>["effort"]>;
 
 export interface ResolvedClineLaunchConfig {
@@ -264,6 +273,86 @@ function resolveLiteLlmModelListItemId(item: LiteLlmModelListItem, pathname: Lit
 	return modelId?.trim() ?? "";
 }
 
+function readObjectValue(value: unknown): Record<string, unknown> | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	return value as Record<string, unknown>;
+}
+
+function readStringField(value: Record<string, unknown>, keys: readonly string[]): string | null {
+	for (const key of keys) {
+		const fieldValue = value[key];
+		if (typeof fieldValue === "string") {
+			const normalized = fieldValue.trim();
+			if (normalized.length > 0) {
+				return normalized;
+			}
+		}
+	}
+	return null;
+}
+
+function readNumberField(value: Record<string, unknown>, keys: readonly string[]): number | null {
+	for (const key of keys) {
+		const fieldValue = value[key];
+		if (typeof fieldValue === "number" && Number.isFinite(fieldValue) && fieldValue > 0) {
+			return Math.trunc(fieldValue);
+		}
+	}
+	return null;
+}
+
+function normalizeContextWindow(value: number | null | undefined): number | null {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.trunc(value);
+	}
+	return null;
+}
+
+export function mergeProviderModelsWithContextWindowFallback(
+	models: RuntimeClineProviderModel[],
+	fallbackModels: RuntimeClineProviderModel[],
+): RuntimeClineProviderModel[] {
+	const fallbackById = new Map(fallbackModels.map((model) => [model.id, model] as const));
+	return models.map((model) => {
+		if (normalizeContextWindow(model.contextWindow) !== null) {
+			return model;
+		}
+		const fallbackContextWindow = normalizeContextWindow(fallbackById.get(model.id)?.contextWindow);
+		return fallbackContextWindow ? { ...model, contextWindow: fallbackContextWindow } : model;
+	});
+}
+
+function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): RuntimeClineProviderModel | null {
+	const record = readObjectValue(item);
+	if (!record) {
+		return null;
+	}
+	const id =
+		pathname === "/api/v0/models"
+			? readStringField(record, ["id"])
+			: readStringField(record, ["id", "model", "model_name", "name"]);
+	if (!id) {
+		return null;
+	}
+	const modelInfo = readObjectValue(record.model_info);
+	const contextWindow =
+		readNumberField(record, [
+			"max_context_length",
+			"context_length",
+			"contextWindow",
+			"context_window",
+			"max_input_tokens",
+		]) ??
+		(modelInfo ? readNumberField(modelInfo, ["context_length", "max_context_length", "max_input_tokens"]) : null);
+	return {
+		id,
+		name: readStringField(record, ["name", "display_name"]) ?? id,
+		...(contextWindow ? { contextWindow } : {}),
+	};
+}
+
 async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeClineProviderModel[]> {
 	const baseUrl = settings?.baseUrl?.trim() ?? "";
 	if (!settings || (settings.provider?.trim().toLowerCase() ?? "") !== "litellm" || !baseUrl) {
@@ -314,6 +403,94 @@ async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): 
 		}
 	}
 	return [];
+}
+
+async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeClineProviderModel[]> {
+	const baseUrl = settings?.baseUrl?.trim() ?? "";
+	if (!settings || (settings.provider?.trim().toLowerCase() ?? "") !== "lmstudio" || !baseUrl) {
+		return [];
+	}
+
+	const headers = resolveLiteLlmModelListHeaders(settings);
+	const timeoutMs =
+		typeof settings.timeout === "number" && settings.timeout >= 0
+			? Math.trunc(settings.timeout)
+			: DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS;
+	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
+	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+	for (const pathname of LMSTUDIO_MODEL_LIST_PATHNAMES) {
+		const url = `${normalizedBaseUrl}${pathname}`;
+		try {
+			const response = await globalThis.fetch(url, {
+				method: "GET",
+				headers,
+				...(signal ? { signal } : {}),
+			});
+			if (!response.ok) {
+				LOGGER.log("LM Studio model list request returned an unsuccessful response.", {
+					severity: "warn",
+					providerId: "lmstudio",
+					url,
+					status: response.status,
+				});
+				continue;
+			}
+
+			const parsed = LMSTUDIO_MODELS_RESPONSE_SCHEMA.safeParse((await response.json()) as unknown);
+			if (!parsed.success) {
+				LOGGER.log("LM Studio model list request returned an unexpected response.", {
+					severity: "warn",
+					providerId: "lmstudio",
+					url,
+				});
+				continue;
+			}
+
+			const items = parsed.data.data ?? parsed.data.models ?? [];
+			const models = items
+				.map((item) => toLmStudioModel(item, pathname))
+				.filter((model): model is RuntimeClineProviderModel => model !== null);
+			if (models.length > 0) {
+				return models;
+			}
+		} catch (error) {
+			LOGGER.log("LM Studio model list request failed.", {
+				severity: "warn",
+				providerId: "lmstudio",
+				url,
+				errorMessage: toErrorMessage(error),
+			});
+		}
+	}
+	return [];
+}
+
+export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeClineProviderModel[]> {
+	const normalizedProviderId = providerId.trim().toLowerCase();
+	if (!normalizedProviderId) {
+		return [];
+	}
+
+	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
+	if (
+		normalizedProviderId === "lmstudio" &&
+		providerModels.every((model) => normalizeContextWindow(model.contextWindow) !== null)
+	) {
+		return providerModels;
+	}
+	if (normalizedProviderId === "litellm") {
+		const liteLlmModels = await fetchLiteLlmBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
+		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
+		const existingModelIds = new Set(mergedModels.map((model) => model.id));
+		return [...mergedModels, ...liteLlmModels.filter((model) => !existingModelIds.has(model.id))];
+	}
+	if (normalizedProviderId === "lmstudio") {
+		return mergeProviderModelsWithContextWindowFallback(
+			providerModels,
+			await fetchLmStudioBaseUrlModels(getSdkProviderSettings(normalizedProviderId)),
+		);
+	}
+	return providerModels;
 }
 
 function createEmptyProviderSettingsSummary(): RuntimeClineProviderSettings {
@@ -815,7 +992,7 @@ export function createClineProviderService() {
 				overrides?.modelIdOverride?.trim() ||
 				resolvedSettings.model?.trim() ||
 				(await resolveDefaultModelIdForProvider(normalizedProviderId));
-			const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
+			const providerModels = await loadProviderModelsWithFallback(normalizedProviderId);
 			const resolvedModel = providerModels.find((candidate) => candidate.id === modelId) ?? null;
 			return {
 				providerId: normalizedProviderId,
@@ -878,21 +1055,12 @@ export function createClineProviderService() {
 
 		async getProviderModels(providerId: string): Promise<RuntimeClineProviderModelsResponse> {
 			const normalizedProviderId = providerId.trim().toLowerCase();
-			let providerModels =
+			const providerModels =
 				normalizedProviderId.length > 0
-					? await listSdkProviderModels(normalizedProviderId)
-							.then((sdkModels) => sdkModels.map((model) => toRuntimeProviderModel(model)))
-							.then((sdkModels) => sdkModels.sort((left, right) => left.name.localeCompare(right.name)))
-							.catch(() => [])
+					? (await loadProviderModelsWithFallback(normalizedProviderId))
+							.map((model) => toRuntimeProviderModel(model))
+							.sort((left, right) => left.name.localeCompare(right.name))
 					: [];
-			if (normalizedProviderId === "litellm") {
-				const liteLlmModels = await fetchLiteLlmBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
-				const existingModelIds = new Set(providerModels.map((model) => model.id));
-				providerModels = [
-					...providerModels,
-					...liteLlmModels.filter((model) => !existingModelIds.has(model.id)),
-				].sort((left, right) => left.name.localeCompare(right.name));
-			}
 
 			if (providerModels.length > 0) {
 				return {
