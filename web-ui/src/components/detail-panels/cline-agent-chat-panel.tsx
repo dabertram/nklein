@@ -87,14 +87,30 @@ function formatCompactDuration(milliseconds: number): string {
 	return `${minutes}m ${seconds}s`;
 }
 
-function estimateLatestGeneratedTextTokens(messages: ClineChatMessage[]): number {
-	const latestGeneratedMessage = [...messages]
-		.reverse()
-		.find((message) => message.role === "assistant" || message.role === "reasoning");
-	if (!latestGeneratedMessage) {
+function getLatestUserMessageCreatedAt(messages: ClineChatMessage[]): number | null {
+	const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
+	return latestUserMessage?.createdAt ?? null;
+}
+
+function getLatestAssistantTextForCurrentTurn(messages: ClineChatMessage[]): ClineChatMessage | null {
+	const latestUserCreatedAt = getLatestUserMessageCreatedAt(messages);
+	return (
+		[...messages]
+			.reverse()
+			.find(
+				(message) =>
+					message.role === "assistant" &&
+					message.content.trim().length > 0 &&
+					(latestUserCreatedAt === null || message.createdAt >= latestUserCreatedAt),
+			) ?? null
+	);
+}
+
+function estimateGeneratedTextTokens(message: ClineChatMessage | null): number {
+	if (!message) {
 		return 0;
 	}
-	return Math.max(0, Math.round(latestGeneratedMessage.content.length / 4));
+	return Math.max(0, Math.round(message.content.length / 4));
 }
 
 export function formatClineModelActivityDisplay(options: {
@@ -114,8 +130,13 @@ export function formatClineModelActivityDisplay(options: {
 		return `Model activity: waiting for first token · elapsed ${elapsedText}`;
 	}
 
-	const receivedTokens = estimateLatestGeneratedTextTokens(options.messages);
 	const lastTokenAgeText = formatCompactDuration(options.nowMs - lastTokenAt);
+	const latestAssistantMessage = getLatestAssistantTextForCurrentTurn(options.messages);
+	if (!latestAssistantMessage) {
+		return `Model activity: waiting for response text · elapsed ${elapsedText} · last model activity ${lastTokenAgeText} ago`;
+	}
+
+	const receivedTokens = estimateGeneratedTextTokens(latestAssistantMessage);
 	return `Model activity: streaming · ~${receivedTokens} text tokens shown · elapsed ${elapsedText} · last token ${lastTokenAgeText} ago`;
 }
 
