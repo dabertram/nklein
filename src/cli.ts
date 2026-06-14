@@ -85,6 +85,24 @@ interface ShutdownIndicator {
 	stop: (result?: ShutdownIndicatorResult) => void;
 }
 
+function isTerminalTeardownError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	const code = "code" in error && typeof error.code === "string" ? error.code : null;
+	return code === "EIO" || /setRawMode\s+EIO/i.test(error.message);
+}
+
+function safeShutdownIndicatorWrite(stream: NodeJS.WriteStream, text: string): void {
+	try {
+		stream.write(text);
+	} catch (error) {
+		if (!isTerminalTeardownError(error)) {
+			throw error;
+		}
+	}
+}
+
 /**
  * Decide whether this CLI invocation should auto-open a browser tab.
  *
@@ -135,13 +153,21 @@ function createShutdownIndicator(stream: NodeJS.WriteStream = process.stderr): S
 			}
 			running = true;
 			if (!stream.isTTY) {
-				stream.write("Cleaning up...\n");
+				safeShutdownIndicatorWrite(stream, "Cleaning up...\n");
 				return;
 			}
-			spinner = ora({
-				text: "Cleaning up...",
-				stream,
-			}).start();
+			try {
+				spinner = ora({
+					text: "Cleaning up...",
+					stream,
+				}).start();
+			} catch (error) {
+				if (!isTerminalTeardownError(error)) {
+					throw error;
+				}
+				spinner = null;
+				safeShutdownIndicatorWrite(stream, "Cleaning up...\n");
+			}
 		},
 		stop(result = "done") {
 			if (!running) {
@@ -149,19 +175,25 @@ function createShutdownIndicator(stream: NodeJS.WriteStream = process.stderr): S
 			}
 			running = false;
 			if (spinner) {
-				if (result === "done") {
-					spinner.succeed("Cleaning up... done");
-				} else if (result === "failed") {
-					spinner.fail("Cleaning up... failed");
-				} else {
-					spinner.warn("Cleaning up... interrupted");
+				try {
+					if (result === "done") {
+						spinner.succeed("Cleaning up... done");
+					} else if (result === "failed") {
+						spinner.fail("Cleaning up... failed");
+					} else {
+						spinner.warn("Cleaning up... interrupted");
+					}
+				} catch (error) {
+					if (!isTerminalTeardownError(error)) {
+						throw error;
+					}
 				}
 				spinner = null;
 				return;
 			}
 
 			const suffix = result === "done" ? "done" : result === "interrupted" ? "interrupted" : "failed";
-			stream.write(`Cleanup ${suffix}.\n`);
+			safeShutdownIndicatorWrite(stream, `Cleanup ${suffix}.\n`);
 		},
 	};
 }

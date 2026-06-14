@@ -108,8 +108,8 @@ let exiting = false;
 function cleanup(exitCode = 0) {
 	if (exiting) return;
 	exiting = true;
-	if (runtime.pid) treeKill(runtime.pid);
 	if (vite?.pid) treeKill(vite.pid);
+	if (runtime.pid) treeKill(runtime.pid);
 	process.exit(exitCode);
 }
 
