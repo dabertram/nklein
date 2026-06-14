@@ -182,6 +182,18 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.text).not.toContain("smart budget");
 	});
 
+	it("calls out when estimated context exceeds the loaded model window", () => {
+		const contextBudget = formatClineContextBudgetDisplay({
+			estimatedContextTokens: 87_000,
+			contextScope: "smart",
+			modelContextWindow: 80_000,
+		});
+
+		expect(contextBudget.limit).toBe(80_000);
+		expect(contextBudget.percent).toBe(100);
+		expect(contextBudget.text).toBe("~87k used · 80k available context (109% · over by ~7k)");
+	});
+
 	it("formats waiting model activity before the first streamed token", () => {
 		const text = formatClineModelActivityDisplay({
 			summary: createSummary("running", null, {

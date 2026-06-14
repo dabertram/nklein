@@ -66,14 +66,17 @@ export function formatClineContextBudgetDisplay(options: {
 		}
 	})();
 	const limit = modelContextWindow ?? smartScopeBudget;
-	const percent = limit <= 0 ? 0 : Math.min(100, Math.round((options.estimatedContextTokens / limit) * 100));
+	const rawPercent = limit <= 0 ? 0 : Math.round((options.estimatedContextTokens / limit) * 100);
+	const percent = Math.max(0, rawPercent);
 	const limitText = modelContextWindow
 		? `${Math.round(modelContextWindow / 1000)}k available context`
 		: `${Math.round(smartScopeBudget / 1000)}k smart budget (model max unavailable)`;
+	const overageTokens = Math.max(0, options.estimatedContextTokens - limit);
+	const overageText = overageTokens > 0 ? ` · over by ~${Math.round(overageTokens / 1000)}k` : "";
 	return {
 		limit,
-		percent,
-		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used · ${limitText} (${percent}%)`,
+		percent: Math.min(100, percent),
+		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used · ${limitText} (${percent}%${overageText})`,
 	};
 }
 

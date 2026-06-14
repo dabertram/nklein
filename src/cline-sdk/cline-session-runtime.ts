@@ -26,11 +26,17 @@ export { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
 const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 6;
 const MAX_SDK_API_TIMEOUT_MS = 2_147_483_647;
+const CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
+const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
+const CLINE_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
+const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
 
 type ClineSdkSessionConfigWithTimeouts = ClineSdkStartSessionInput["config"] & {
 	apiTimeoutMs?: number;
 	timeout?: number;
 };
+
+type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 
 interface ClineSessionHostBoundary {
 	start(input: ClineSdkStartSessionInput): Promise<{ sessionId: string; result?: unknown }>;
@@ -83,6 +89,41 @@ function resolveSdkApiTimeoutMs(timeoutMs: number | null | undefined): number | 
 	return Math.min(Math.trunc(timeoutMs), MAX_SDK_API_TIMEOUT_MS);
 }
 
+function resolveContextWindowTokens(contextWindow: number | null | undefined): number | null {
+	if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+		return null;
+	}
+	return Math.trunc(contextWindow);
+}
+
+export function buildClineContextCompactionConfig(
+	contextWindow: number | null | undefined,
+): ClineSdkContextCompactionConfig | undefined {
+	const contextWindowTokens = resolveContextWindowTokens(contextWindow);
+	if (!contextWindowTokens) {
+		return undefined;
+	}
+	return {
+		enabled: true,
+		strategy: "basic",
+		contextWindowTokens,
+		reserveTokens: Math.max(
+			1,
+			Math.min(
+				CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS,
+				Math.round(contextWindowTokens * CLINE_CONTEXT_COMPACTION_RESERVE_RATIO),
+			),
+		),
+		preserveRecentTokens: Math.max(
+			1,
+			Math.min(
+				CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS,
+				Math.round(contextWindowTokens * CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO),
+			),
+		),
+	};
+}
+
 export interface StartClineSessionRuntimeRequest {
 	taskId: string;
 	cwd: string;
@@ -97,6 +138,7 @@ export interface StartClineSessionRuntimeRequest {
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	contextWindow?: number | null;
 	apiTimeoutMs?: number | null;
 	systemPrompt: string;
 	userInstructionService?: ClineSdkUserInstructionService;
@@ -196,6 +238,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
+			contextWindow: request.contextWindow,
 			apiTimeoutMs: request.apiTimeoutMs,
 			systemPrompt: request.systemPrompt,
 			taskTitle: request.taskTitle,
@@ -223,6 +266,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const userImages = toSdkUserImages(request.images);
 		const shouldSendInitialTurn = request.prompt.trim().length > 0 || Boolean(userImages?.length);
 		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
+		const compaction = buildClineContextCompactionConfig(request.contextWindow);
 		const config: ClineSdkSessionConfigWithTimeouts = {
 			sessionId: requestedSessionId,
 			providerId: request.providerId,
@@ -240,6 +284,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			enableAgentTeams: false,
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
 			...(sdkApiTimeoutMs ? { apiTimeoutMs: sdkApiTimeoutMs, timeout: sdkApiTimeoutMs } : {}),
+			...(compaction ? { compaction } : {}),
 			execution: {
 				maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
 			},

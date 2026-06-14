@@ -511,6 +511,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					apiKey: request.apiKey,
 					baseUrl: request.baseUrl,
 					reasoningEffort: request.reasoningEffort,
+					contextWindow: request.contextWindow,
 					apiTimeoutMs: request.requestTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
