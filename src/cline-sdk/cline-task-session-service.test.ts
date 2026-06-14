@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { buildKanbanEfficiencyRules } from "./cline-task-session-service";
+import { buildKanbanContextSafetyBudgets, buildKanbanEfficiencyRules } from "./cline-task-session-service";
+
+describe("buildKanbanContextSafetyBudgets", () => {
+	it("keeps file chunks safely below an 80k active context window", () => {
+		expect(buildKanbanContextSafetyBudgets(80_000)).toEqual({
+			contextWindow: 80_000,
+			outputReserveTokens: 24_000,
+			promptOverheadReserveTokens: 12_000,
+			safeWorkingBudget: 44_000,
+			fileChunkTokenBudget: 6_600,
+			fileChunkCharBudget: 26_400,
+		});
+	});
+
+	it("uses conservative chunk sizes when the model context is unknown", () => {
+		expect(buildKanbanContextSafetyBudgets(null)).toMatchObject({
+			contextWindow: null,
+			outputReserveTokens: 24_000,
+			promptOverheadReserveTokens: 12_000,
+			safeWorkingBudget: null,
+			fileChunkTokenBudget: 8_000,
+			fileChunkCharBudget: 32_000,
+		});
+	});
+});
 
 describe("buildKanbanEfficiencyRules", () => {
 	it("requires EOF coverage before summarizing large files", () => {
@@ -22,7 +46,34 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("resume from the last confirmed line");
 		expect(rules).toContain("Treat an incomplete pass as incomplete work");
 		expect(rules).toContain("Treat this as the authoritative upper bound for prompt planning");
-		expect(rules).toContain("Smaller slices are still better unless the task truly needs more context");
+		expect(rules).toContain("Safe working budget after output reserve and prompt overhead reserve");
 		expect(rules).toContain("Prefer the smallest slice that fully answers the immediate question");
+	});
+
+	it("instructs agents to select deterministic line chunks from token estimates", () => {
+		const rules = buildKanbanEfficiencyRules({
+			contextScope: "smart",
+			contextWindow: 80_000,
+			timeoutMode: "long",
+		});
+
+		expect(rules).toContain("estimate chunk tokens as ceil(chunk characters / 4) plus at least 2,000 tokens");
+		expect(rules).toContain("at or below 7k tokens (~26k raw characters)");
+		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
+		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
+		expect(rules).toContain(
+			"Safe working budget after output reserve and prompt overhead reserve: 44,000 tokens (~44k)",
+		);
+	});
+
+	it("keeps the generated efficiency prompt itself small", () => {
+		const rules = buildKanbanEfficiencyRules({
+			contextScope: "smart",
+			contextWindow: 80_000,
+			timeoutMode: "long",
+		});
+		const estimatedPromptTokens = Math.ceil(rules.length / 4);
+
+		expect(estimatedPromptTokens).toBeLessThanOrEqual(1_500);
 	});
 });

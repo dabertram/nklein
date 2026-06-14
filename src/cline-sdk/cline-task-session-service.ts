@@ -85,16 +85,13 @@ export function buildKanbanEfficiencyRules(options: {
 	contextWindow?: number | null;
 	timeoutMode: "normal" | "long" | "extended" | "unlimited";
 }): string {
-	const contextWindow =
-		typeof options.contextWindow === "number" && Number.isFinite(options.contextWindow) && options.contextWindow > 0
-			? Math.trunc(options.contextWindow)
-			: null;
-	const reserveTokens = contextWindow ? Math.max(24_000, Math.round(contextWindow * 0.18)) : 24_000;
-	const contextBudget = contextWindow ? Math.max(0, contextWindow - reserveTokens) : null;
-	const chunkTokenBudget = contextBudget
-		? Math.max(8_000, Math.min(64_000, Math.round(contextBudget * 0.25)))
-		: 24_000;
-	const chunkCharBudget = chunkTokenBudget * 4;
+	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow);
+	const chunkTokenBudgetText = Math.round(budgets.fileChunkTokenBudget / 1000);
+	const chunkCharBudgetText = Math.round(budgets.fileChunkCharBudget / 1000);
+	const safeWorkingBudgetText = budgets.safeWorkingBudget
+		? `${budgets.safeWorkingBudget.toLocaleString()} tokens (~${Math.round(budgets.safeWorkingBudget / 1000)}k)`
+		: null;
+	const promptOverheadReserveText = budgets.promptOverheadReserveTokens.toLocaleString();
 	return [
 		"# Kanban Efficiency Rules",
 		"",
@@ -110,14 +107,14 @@ export function buildKanbanEfficiencyRules(options: {
 		"",
 		"Before reading files:",
 		"1. Start with targeted discovery (ripgrep/glob/tree) before opening files.",
-		`2. Read focused excerpts first; keep any single excerpt under about ${Math.round(chunkCharBudget / 1000)}k characters and expand only as needed.`,
+		`2. Read focused excerpts first; keep any single excerpt under about ${chunkCharBudgetText}k characters unless a smaller slice fully answers the immediate question.`,
 		"3. Do not repeatedly re-read the same files unless new context requires it.",
 		"4. Avoid loading generated files and lock files unless necessary.",
 		"",
 		"Before major changes:",
 		"1. Check repository state (git status, branch, relevant recent history).",
 		"2. Prefer surgical edits over rewriting whole files.",
-		`3. For large files, use chunked/section edits and targeted replacements; aim for roughly ${Math.round(chunkCharBudget / 1000)}k characters per read or edit chunk.`,
+		`3. For large files, use chunked/section edits and targeted replacements; aim for roughly ${chunkCharBudgetText}k characters per read or edit chunk.`,
 		"",
 		"For tool calls:",
 		"1. Validate parameter types and required fields before sending.",
@@ -133,25 +130,61 @@ export function buildKanbanEfficiencyRules(options: {
 		"- Use chunked editing, section-level updates, and minimal diffs.",
 		"- Before summarizing or deriving requirements from txt/md/log/data files, establish the complete file set with targeted discovery and decide which files are source material.",
 		"- For each source file, record `wc -l` and `wc -c` before reading, then read deterministic line ranges from line 1 through EOF.",
-		"- For any file larger than about 1,000 lines or 100 KB, create a coverage ledger before reading: record each chunk's line range, and keep reading until the final line is confirmed.",
+		`- For any file larger than about 1,000 lines or 100 KB, create a coverage ledger before reading: record total lines, total bytes, planned line ranges, completed line ranges, unread ranges, and the next exact line to resume from; keep reading until the final line is confirmed.`,
+		`- Before each large \`read_files\` call, estimate chunk tokens as ceil(chunk characters / 4) plus at least 2,000 tokens for tool/result framing. Keep that estimate at or below ${chunkTokenBudgetText}k tokens (~${chunkCharBudgetText}k raw characters), and reduce the line range if the estimate would exceed it.`,
+		"- Choose chunk line ranges from the measured average bytes per line: start with floor(chunk character budget / average bytes per line), cap at the file's remaining lines, and shrink the range when lines are unusually long.",
+		"- Every chunk must use explicit inclusive `start_line` and `end_line` values. Never rely on reading a whole large file when exact ranges are available.",
 		"- After every chunk, update the coverage ledger with read line ranges, unread line ranges, and the next exact line to resume from.",
 		"- If a tool output is truncated, clipped, summarized, or hits an output limit, mark that chunk incomplete and redo it with smaller ranges before using it as evidence.",
 		"- Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
 		"- When multiple source files are involved, do not produce the final synthesized plan until every included file has EOF-confirmed coverage or is explicitly excluded with a reason.",
 		"- If the file is too large to finish in one sitting, resume from the last confirmed line rather than skipping ahead or guessing what remains.",
 		"- Treat an incomplete pass as incomplete work, even if the partial contents seem enough to draft a plan.",
-		contextWindow
-			? `- Model context window: ${contextWindow.toLocaleString()} tokens. Treat this as the authoritative upper bound for prompt planning, but keep about ${reserveTokens.toLocaleString()} tokens in reserve for reasoning, tool chatter, and the final answer.`
+		budgets.contextWindow
+			? `- Model context window: ${budgets.contextWindow.toLocaleString()} tokens. Treat this as the authoritative upper bound for prompt planning, but keep about ${budgets.outputReserveTokens.toLocaleString()} tokens in reserve for reasoning, tool chatter, and the final answer.`
 			: "- If the model limit is unknown, keep conservative chunk sizes and leave a generous reserve for reasoning and output.",
-		contextBudget
-			? `- Rough working budget before reserve: ${contextBudget.toLocaleString()} tokens (~${Math.round(contextBudget / 1000)}k). Smaller slices are still better unless the task truly needs more context.`
+		safeWorkingBudgetText
+			? `- Safe working budget after output reserve and prompt overhead reserve: ${safeWorkingBudgetText}. This is the upper bound for active conversation plus the current tool result, not a target to fill.`
 			: "- Work in the smallest practical slices when the budget is unknown.",
-		`- Suggested file-read chunk size: about ${Math.round(chunkTokenBudget / 1000)}k tokens (~${Math.round(chunkCharBudget / 1000)}k characters). Prefer the smallest slice that fully answers the immediate question.`,
+		`- Keep an additional prompt/history/tool overhead reserve of about ${promptOverheadReserveText} tokens before adding file content. If the current conversation is already near the safe working budget, summarize/compact before reading more.`,
+		`- Suggested file-read chunk size: about ${chunkTokenBudgetText}k tokens (~${chunkCharBudgetText}k characters) including a safe margin. Prefer the smallest slice that fully answers the immediate question.`,
 		"",
 		"When context becomes large:",
 		"- Summarize older conversation/tool output and continue from summaries.",
 		"- Keep the active context window healthy and focused.",
 	].join("\n");
+}
+
+export interface KanbanContextSafetyBudgets {
+	contextWindow: number | null;
+	outputReserveTokens: number;
+	promptOverheadReserveTokens: number;
+	safeWorkingBudget: number | null;
+	fileChunkTokenBudget: number;
+	fileChunkCharBudget: number;
+}
+
+export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | null): KanbanContextSafetyBudgets {
+	const contextWindow =
+		typeof contextWindowInput === "number" && Number.isFinite(contextWindowInput) && contextWindowInput > 0
+			? Math.trunc(contextWindowInput)
+			: null;
+	const outputReserveTokens = contextWindow ? Math.max(24_000, Math.round(contextWindow * 0.3)) : 24_000;
+	const promptOverheadReserveTokens = contextWindow ? Math.max(12_000, Math.round(contextWindow * 0.15)) : 12_000;
+	const safeWorkingBudget = contextWindow
+		? Math.max(0, contextWindow - outputReserveTokens - promptOverheadReserveTokens)
+		: null;
+	const fileChunkTokenBudget = safeWorkingBudget
+		? Math.max(4_000, Math.min(12_000, Math.round(safeWorkingBudget * 0.15)))
+		: 8_000;
+	return {
+		contextWindow,
+		outputReserveTokens,
+		promptOverheadReserveTokens,
+		safeWorkingBudget,
+		fileChunkTokenBudget,
+		fileChunkCharBudget: fileChunkTokenBudget * 4,
+	};
 }
 
 export interface ClineTaskSessionService {
