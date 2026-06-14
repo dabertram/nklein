@@ -73,7 +73,56 @@ export interface StartClineTaskSessionRequest {
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	contextScope?: "full" | "smart" | "minimal" | "custom";
+	timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
 	systemPrompt?: string | null;
+}
+
+function buildKanbanEfficiencyRules(options: {
+	contextScope: "full" | "smart" | "minimal" | "custom";
+	timeoutMode: "normal" | "long" | "very_long" | "unlimited";
+}): string {
+	return [
+		"# Kanban Efficiency Rules",
+		"",
+		"Context is expensive.",
+		"",
+		`Context scope for this task: ${options.contextScope}.`,
+		"- Full: include broad context only when truly required.",
+		"- Smart: prioritize task description, recent conversation, modified files, and concise summaries.",
+		"- Minimal: include only strict essentials for the immediate step.",
+		"- Custom: follow user-specific scope instructions for this task.",
+		"",
+		`Timeout mode for this task: ${options.timeoutMode}. Prefer resilient, incremental progress for long operations.`,
+		"",
+		"Before reading files:",
+		"1. Start with targeted discovery (ripgrep/glob/tree) before opening files.",
+		"2. Read focused excerpts first; expand only as needed.",
+		"3. Do not repeatedly re-read the same files unless new context requires it.",
+		"4. Avoid loading generated files and lock files unless necessary.",
+		"",
+		"Before major changes:",
+		"1. Check repository state (git status, branch, relevant recent history).",
+		"2. Prefer surgical edits over rewriting whole files.",
+		"3. For large files, use chunked/section edits and targeted replacements.",
+		"",
+		"For tool calls:",
+		"1. Validate parameter types and required fields before sending.",
+		"2. Verify array vs string fields match schema exactly.",
+		"3. On validation failure, inspect the error, fix payload shape, and retry.",
+		"",
+		"After changes:",
+		"1. Re-check git status/diff and summarize what changed.",
+		"2. Prefer concise summaries over dumping large outputs.",
+		"",
+		"Large file handling:",
+		"- If a file is large, do not rewrite the full file.",
+		"- Use chunked editing, section-level updates, and minimal diffs.",
+		"",
+		"When context becomes large:",
+		"- Summarize older conversation/tool output and continue from summaries.",
+		"- Keep the active context window healthy and focused.",
+	].join("\n");
 }
 
 export interface ClineTaskSessionService {
@@ -414,6 +463,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				if (appendedSystemPrompt) {
 					systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 				}
+				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
+					contextScope: request.contextScope ?? "smart",
+					timeoutMode: request.timeoutMode ?? "normal",
+				})}`;
 
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,

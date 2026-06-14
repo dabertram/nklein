@@ -137,6 +137,8 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTas
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
 	};
 }
 

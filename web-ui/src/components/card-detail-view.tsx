@@ -431,6 +431,8 @@ export function CardDetailView({
 		providerId: string;
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
+		contextScope: "full" | "smart" | "minimal" | "custom";
+		timeoutMode: "normal" | "long" | "very_long" | "unlimited";
 	}) => void;
 }): React.ReactElement {
 	const isMobile = useIsMobile();

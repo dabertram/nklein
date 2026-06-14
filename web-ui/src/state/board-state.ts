@@ -119,14 +119,32 @@ function normalizeTaskClineSettings(input: {
 			providerId?: unknown;
 			modelId?: unknown;
 			reasoningEffort?: unknown;
+			contextScope?: unknown;
+			timeoutMode?: unknown;
 		};
 		const providerId = typeof settings.providerId === "string" ? settings.providerId.trim() : "";
 		const modelId = typeof settings.modelId === "string" ? settings.modelId.trim() : "";
 		const reasoningEffort = normalizeTaskClineReasoningEffort(settings.reasoningEffort);
+		const contextScope =
+			settings.contextScope === "full" ||
+			settings.contextScope === "smart" ||
+			settings.contextScope === "minimal" ||
+			settings.contextScope === "custom"
+				? settings.contextScope
+				: undefined;
+		const timeoutMode =
+			settings.timeoutMode === "normal" ||
+			settings.timeoutMode === "long" ||
+			settings.timeoutMode === "very_long" ||
+			settings.timeoutMode === "unlimited"
+				? settings.timeoutMode
+				: undefined;
 		return {
 			...(providerId ? { providerId } : {}),
 			...(modelId ? { modelId } : {}),
 			...(reasoningEffort ? { reasoningEffort } : {}),
+			...(contextScope ? { contextScope } : {}),
+			...(timeoutMode ? { timeoutMode } : {}),
 		};
 	}
 
@@ -617,6 +635,8 @@ export function applyTaskDetailClineSettingsChange(
 		providerId: string;
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
+		contextScope?: "full" | "smart" | "minimal" | "custom";
+		timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
 	},
 	defaults: {
 		providerId?: string | null;
@@ -646,6 +666,8 @@ export function applyTaskDetailClineSettingsChange(
 			providerId: nextTaskProviderId,
 			modelId: nextTaskModelId,
 			...(change.reasoningEffort ? { reasoningEffort: change.reasoningEffort } : {}),
+			...(change.contextScope ? { contextScope: change.contextScope } : {}),
+			...(change.timeoutMode ? { timeoutMode: change.timeoutMode } : {}),
 		},
 	});
 }

@@ -723,10 +723,14 @@ export default function App(): ReactElement {
 			providerId,
 			modelId,
 			reasoningEffort,
+			contextScope,
+			timeoutMode,
 		}: {
 			providerId: string;
 			modelId: string;
 			reasoningEffort: RuntimeClineReasoningEffort | "";
+			contextScope: "full" | "smart" | "minimal" | "custom";
+			timeoutMode: "normal" | "long" | "very_long" | "unlimited";
 		}) => {
 			if (!selectedCard) {
 				return;
@@ -740,6 +744,8 @@ export default function App(): ReactElement {
 						providerId,
 						modelId,
 						reasoningEffort,
+						contextScope,
+						timeoutMode,
 					},
 					{
 						providerId: defaultTaskClineProviderId,

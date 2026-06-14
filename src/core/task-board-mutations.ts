@@ -58,6 +58,8 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings | null): Run
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
 	};
 }
 

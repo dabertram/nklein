@@ -24,6 +24,7 @@ import {
 import { ClineThinkingIndicator } from "@/components/detail-panels/cline-thinking-indicator";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { useClineChatPanelController } from "@/hooks/use-cline-chat-panel-controller";
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
@@ -77,6 +78,8 @@ export interface ClineAgentChatPanelProps {
 		providerId: string;
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
+		contextScope: "full" | "smart" | "minimal" | "custom";
+		timeoutMode: "normal" | "long" | "very_long" | "unlimited";
 	}) => void;
 	onSendMessage?: (
 		taskId: string,
@@ -167,6 +170,13 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const [composerError, setComposerError] = useState<string | null>(null);
 		const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
 		const [isSavingModel, setIsSavingModel] = useState(false);
+		const [isClearingChat, setIsClearingChat] = useState(false);
+		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
+			taskClineSettings?.contextScope ?? "smart",
+		);
+		const [timeoutMode, setTimeoutMode] = useState<"normal" | "long" | "very_long" | "unlimited">(
+			taskClineSettings?.timeoutMode ?? "normal",
+		);
 		const isCreditLimitNoticeVisible = summary?.latestHookActivity?.notificationType === "credit_limit";
 		const [mode, setMode] = useState<RuntimeTaskSessionMode>(() => {
 			const persistedMode = modeByTaskIdRef.current.get(taskId);
@@ -217,6 +227,29 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		);
 
 		const panelError = composerError ?? error;
+		const estimatedContextTokens = useMemo(() => {
+			const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
+			return Math.max(0, Math.round(totalChars / 4));
+		}, [messages]);
+		const estimatedContextLimit = useMemo(() => {
+			switch (contextScope) {
+				case "full":
+					return 200_000;
+				case "minimal":
+					return 80_000;
+				case "custom":
+					return 160_000;
+				case "smart":
+				default:
+					return 120_000;
+			}
+		}, [contextScope]);
+		const estimatedContextPercent = useMemo(() => {
+			if (estimatedContextLimit <= 0) {
+				return 0;
+			}
+			return Math.min(100, Math.round((estimatedContextTokens / estimatedContextLimit) * 100));
+		}, [estimatedContextLimit, estimatedContextTokens]);
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
@@ -267,6 +300,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			modeByTaskIdRef.current.set(taskId, nextMode);
 			setMode(nextMode);
 			setDraftImages([]);
+			setContextScope(taskClineSettings?.contextScope ?? "smart");
+			setTimeoutMode(taskClineSettings?.timeoutMode ?? "normal");
 		}, [defaultMode, summary?.mode, taskId]);
 
 		const handleModeChange = useCallback(
@@ -280,6 +315,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		type PersistClineModelSettingsOverrides = {
 			modelId?: string;
 			reasoningEffort?: RuntimeClineReasoningEffort | "";
+			contextScope?: "full" | "smart" | "minimal" | "custom";
+			timeoutMode?: "normal" | "long" | "very_long" | "unlimited";
 		};
 
 		const persistClineModelSettings = useCallback(
@@ -300,11 +337,15 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 						overrides && "reasoningEffort" in overrides
 							? overrides.reasoningEffort || ""
 							: clineSettings.reasoningEffort;
+					const nextContextScope = overrides?.contextScope ?? contextScope;
+					const nextTimeoutMode = overrides?.timeoutMode ?? timeoutMode;
 					if (taskHasExplicitClineSettings) {
 						onTaskClineSettingsChanged?.({
 							providerId: clineSettings.providerId,
 							modelId: nextModelId,
 							reasoningEffort: nextReasoningEffort,
+							contextScope: nextContextScope,
+							timeoutMode: nextTimeoutMode,
 						});
 						return true;
 					}
@@ -322,7 +363,15 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					setIsSavingModel(false);
 				}
 			},
-			[clineSettings, onClineSettingsSaved, onTaskClineSettingsChanged, taskHasExplicitClineSettings, workspaceId],
+			[
+				clineSettings,
+				contextScope,
+				onClineSettingsSaved,
+				onTaskClineSettingsChanged,
+				taskHasExplicitClineSettings,
+				timeoutMode,
+				workspaceId,
+			],
 		);
 
 		const handleSelectModel = useCallback(
@@ -410,6 +459,35 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			persistClineModelSettings,
 		]);
 
+		const handleClearChat = useCallback(
+			async (includeSummary: boolean) => {
+				if (isClearingChat || isSending) {
+					return;
+				}
+				setComposerError(null);
+				setIsClearingChat(true);
+				try {
+					if (includeSummary) {
+						const summarized = await handleSendText(
+							"Summarize this task conversation into key decisions, modified files, open risks, and exact next steps in 8-12 bullets.",
+							"plan",
+						);
+						if (!summarized) {
+							setComposerError("Could not summarize chat before clearing.");
+							return;
+						}
+					}
+					const cleared = await handleSendText("/clear", "act");
+					if (!cleared) {
+						setComposerError("Could not clear chat history.");
+					}
+				} finally {
+					setIsClearingChat(false);
+				}
+			},
+			[handleSendText, isClearingChat, isSending],
+		);
+
 		return (
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				<div
@@ -428,6 +506,68 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 						{panelError}
 					</div>
 				) : null}
+				<div className="px-2 pt-2">
+					<div className="flex flex-wrap items-center gap-2">
+						<div className="text-[11px] text-text-secondary">
+							Context Usage: ~{Math.round(estimatedContextTokens / 1000)}k / {Math.round(estimatedContextLimit / 1000)}k
+							 ({estimatedContextPercent}%)
+						</div>
+						<div className="ml-auto flex flex-wrap items-center gap-2">
+							<NativeSelect
+								value={contextScope}
+								onChange={(event) => {
+									const nextValue = event.target.value as "full" | "smart" | "minimal" | "custom";
+									setContextScope(nextValue);
+									if (taskHasExplicitClineSettings) {
+										void persistClineModelSettings({ contextScope: nextValue });
+									}
+								}}
+								disabled={isSavingModel || isClearingChat}
+							>
+								<option value="full">Context: Full</option>
+								<option value="smart">Context: Smart</option>
+								<option value="minimal">Context: Minimal</option>
+								<option value="custom">Context: Custom</option>
+							</NativeSelect>
+							<NativeSelect
+								value={timeoutMode}
+								onChange={(event) => {
+									const nextValue = event.target.value as "normal" | "long" | "very_long" | "unlimited";
+									setTimeoutMode(nextValue);
+									if (taskHasExplicitClineSettings) {
+										void persistClineModelSettings({ timeoutMode: nextValue });
+									}
+								}}
+								disabled={isSavingModel || isClearingChat}
+							>
+								<option value="normal">Timeout: Normal</option>
+								<option value="long">Timeout: Long</option>
+								<option value="very_long">Timeout: Very Long</option>
+								<option value="unlimited">Timeout: Unlimited</option>
+							</NativeSelect>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									void handleClearChat(false);
+								}}
+								disabled={isClearingChat || isSending}
+							>
+								Clear Chat
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									void handleClearChat(true);
+								}}
+								disabled={isClearingChat || isSending}
+							>
+								Clear Chat + Summarize
+							</Button>
+						</div>
+					</div>
+				</div>
 				<div className="px-2 py-3">
 					<ClineChatComposer
 						taskId={taskId}
