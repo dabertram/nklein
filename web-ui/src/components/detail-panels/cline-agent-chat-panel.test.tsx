@@ -178,7 +178,7 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(contextBudget.limit).toBe(256_000);
-		expect(contextBudget.text).toContain("256k model max");
+		expect(contextBudget.text).toContain("256k available context");
 		expect(contextBudget.text).not.toContain("smart budget");
 	});
 

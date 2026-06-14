@@ -135,6 +135,34 @@ describe("loadProviderModelsWithFallback", () => {
 		]);
 	});
 
+	it("prefers LM Studio loaded context length over the model maximum", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([]);
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				object: "list",
+				data: [
+					{
+						id: "qwen/qwen3.5-9b-mtp-m1",
+						name: "Qwen3.5 9B MTP",
+						loaded_context_length: 80_000,
+						max_context_length: 262_144,
+					},
+				],
+			}),
+		})) as unknown as typeof globalThis.fetch;
+
+		const models = await loadProviderModelsWithFallback("lmstudio");
+
+		expect(models).toEqual([
+			{
+				id: "qwen/qwen3.5-9b-mtp-m1",
+				name: "Qwen3.5 9B MTP",
+				contextWindow: 80_000,
+			},
+		]);
+	});
+
 	it("discovers LM Studio metadata from the server root when the configured base URL ends with v1", async () => {
 		getSdkProviderSettingsMock.mockReturnValue({
 			provider: "lmstudio",
@@ -216,5 +244,52 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.id).toBe("qwen/qwen3.5-9b-legion5pro");
 		expect(models[0]?.contextWindow).toBe(262144);
+	});
+
+	it("uses LM Studio v1 loaded instance active context over the model maximum", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "qwen/qwen3.5-9b-mtp-m1",
+				name: "Qwen3.5 9B MTP",
+				contextWindow: null,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		globalThis.fetch = vi.fn(async (input) => {
+			if (input.toString().endsWith("/api/v0/models")) {
+				return {
+					ok: true,
+					json: async () => ({ data: [] }),
+				};
+			}
+			return {
+				ok: true,
+				json: async () => ({
+					models: [
+						{
+							key: "qwen/qwen3.5-9b",
+							display_name: "Qwen3.5 9B MTP",
+							max_context_length: 262_144,
+							loaded_instances: [
+								{
+									id: "qwen/qwen3.5-9b-mtp-m1",
+									config: {
+										loaded_context_length: 80_000,
+										context_length: 262_144,
+									},
+								},
+							],
+						},
+					],
+				}),
+			};
+		}) as unknown as typeof globalThis.fetch;
+
+		const models = await loadProviderModelsWithFallback("lmstudio");
+
+		expect(models[0]?.id).toBe("qwen/qwen3.5-9b-mtp-m1");
+		expect(models[0]?.contextWindow).toBe(80_000);
 	});
 });

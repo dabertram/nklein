@@ -339,13 +339,25 @@ function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): Ru
 	const modelInfo = readObjectValue(record.model_info);
 	const contextWindow =
 		readNumberField(record, [
+			"loaded_context_length",
+			"loadedContextLength",
+			"loaded_context_window",
 			"max_context_length",
 			"context_length",
 			"contextWindow",
 			"context_window",
 			"max_input_tokens",
 		]) ??
-		(modelInfo ? readNumberField(modelInfo, ["context_length", "max_context_length", "max_input_tokens"]) : null);
+		(modelInfo
+			? readNumberField(modelInfo, [
+					"loaded_context_length",
+					"loadedContextLength",
+					"loaded_context_window",
+					"context_length",
+					"max_context_length",
+					"max_input_tokens",
+				])
+			: null);
 	return {
 		id,
 		name: readStringField(record, ["name", "display_name"]) ?? id,
@@ -375,8 +387,16 @@ function toLmStudioModels(item: unknown, pathname: LmStudioModelListPathname): R
 		}
 		const config = readObjectValue(loadedRecord.config);
 		const contextWindow =
-			(config ? readNumberField(config, ["context_length", "max_context_length", "max_input_tokens"]) : null) ??
-			model.contextWindow;
+			(config
+				? readNumberField(config, [
+						"loaded_context_length",
+						"loadedContextLength",
+						"loaded_context_window",
+						"context_length",
+						"max_context_length",
+						"max_input_tokens",
+					])
+				: null) ?? model.contextWindow;
 		return [
 			{
 				...model,

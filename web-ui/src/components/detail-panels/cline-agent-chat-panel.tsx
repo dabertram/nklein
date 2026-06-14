@@ -68,7 +68,7 @@ export function formatClineContextBudgetDisplay(options: {
 	const limit = modelContextWindow ?? smartScopeBudget;
 	const percent = limit <= 0 ? 0 : Math.min(100, Math.round((options.estimatedContextTokens / limit) * 100));
 	const limitText = modelContextWindow
-		? `${Math.round(modelContextWindow / 1000)}k model max`
+		? `${Math.round(modelContextWindow / 1000)}k available context`
 		: `${Math.round(smartScopeBudget / 1000)}k smart budget (model max unavailable)`;
 	return {
 		limit,
