@@ -580,6 +580,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				mode: "act",
 				startInPlanMode: true,
 				resumeFromTrash: undefined,
+				requestTimeoutMs: 300_000,
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();

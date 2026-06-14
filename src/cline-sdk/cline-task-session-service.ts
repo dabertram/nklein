@@ -76,6 +76,7 @@ export interface StartClineTaskSessionRequest {
 	contextScope?: "full" | "smart" | "minimal" | "custom";
 	contextWindow?: number | null;
 	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
+	requestTimeoutMs?: number | null;
 	systemPrompt?: string | null;
 }
 
@@ -505,6 +506,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					apiKey: request.apiKey,
 					baseUrl: request.baseUrl,
 					reasoningEffort: request.reasoningEffort,
+					apiTimeoutMs: request.requestTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
 					requestToolApproval: runtimeSetup.requestToolApproval,

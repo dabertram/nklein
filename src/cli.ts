@@ -24,6 +24,7 @@ import {
 	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
 	getRuntimeFetch,
+	installKanbanFetchTimeoutPolicy,
 	isKanbanRemoteHost,
 	parseRuntimePort,
 	setKanbanRuntimeHost,
@@ -376,6 +377,8 @@ async function startServer(): Promise<{
 	close: () => Promise<void>;
 	shutdown: (options?: { skipSessionCleanup?: boolean }) => Promise<void>;
 }> {
+	installKanbanFetchTimeoutPolicy();
+
 	/*
 		Server-only modules are loaded lazily because task-oriented subcommands like
 		`kanban task create` and `kanban hooks ingest` do not need the runtime server.

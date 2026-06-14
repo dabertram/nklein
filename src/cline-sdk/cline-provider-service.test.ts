@@ -107,4 +107,77 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.contextWindow).toBe(131072);
 	});
+
+	it("loads LM Studio metadata when the SDK model list is empty", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([]);
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				object: "list",
+				data: [
+					{
+						id: "qwen/qwen3.5-9b-legion5pro",
+						name: "Qwen3.5 9B",
+						max_context_length: 262144,
+					},
+				],
+			}),
+		})) as unknown as typeof globalThis.fetch;
+
+		const models = await loadProviderModelsWithFallback("lmstudio");
+
+		expect(models).toEqual([
+			{
+				id: "qwen/qwen3.5-9b-legion5pro",
+				name: "Qwen3.5 9B",
+				contextWindow: 262144,
+			},
+		]);
+	});
+
+	it("uses LM Studio v1 loaded instance context windows", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "qwen/qwen3.5-9b-legion5pro",
+				name: "Qwen3.5 9B",
+				contextWindow: null,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		globalThis.fetch = vi.fn(async (input) => {
+			if (input.toString().endsWith("/api/v0/models")) {
+				return {
+					ok: true,
+					json: async () => ({ data: [] }),
+				};
+			}
+			return {
+				ok: true,
+				json: async () => ({
+					models: [
+						{
+							key: "qwen/qwen3.5-9b",
+							display_name: "Qwen3.5 9B",
+							max_context_length: 262144,
+							loaded_instances: [
+								{
+									id: "qwen/qwen3.5-9b-legion5pro",
+									config: {
+										context_length: 262144,
+									},
+								},
+							],
+						},
+					],
+				}),
+			};
+		}) as unknown as typeof globalThis.fetch;
+
+		const models = await loadProviderModelsWithFallback("lmstudio");
+
+		expect(models[0]?.id).toBe("qwen/qwen3.5-9b-legion5pro");
+		expect(models[0]?.contextWindow).toBe(262144);
+	});
 });

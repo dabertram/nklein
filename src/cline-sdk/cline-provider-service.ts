@@ -332,7 +332,7 @@ function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): Ru
 	const id =
 		pathname === "/api/v0/models"
 			? readStringField(record, ["id"])
-			: readStringField(record, ["id", "model", "model_name", "name"]);
+			: readStringField(record, ["id", "key", "model", "model_name", "name"]);
 	if (!id) {
 		return null;
 	}
@@ -351,6 +351,51 @@ function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): Ru
 		name: readStringField(record, ["name", "display_name"]) ?? id,
 		...(contextWindow ? { contextWindow } : {}),
 	};
+}
+
+function readArrayValue(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function toLmStudioModels(item: unknown, pathname: LmStudioModelListPathname): RuntimeClineProviderModel[] {
+	const model = toLmStudioModel(item, pathname);
+	if (pathname !== "/api/v1/models" || !model) {
+		return model ? [model] : [];
+	}
+
+	const record = readObjectValue(item);
+	const loadedInstanceModels = readArrayValue(record?.loaded_instances).flatMap((loadedInstance) => {
+		const loadedRecord = readObjectValue(loadedInstance);
+		if (!loadedRecord) {
+			return [];
+		}
+		const id = readStringField(loadedRecord, ["id"]);
+		if (!id) {
+			return [];
+		}
+		const config = readObjectValue(loadedRecord.config);
+		const contextWindow =
+			(config ? readNumberField(config, ["context_length", "max_context_length", "max_input_tokens"]) : null) ??
+			model.contextWindow;
+		return [
+			{
+				...model,
+				id,
+				name: model.name,
+				...(contextWindow ? { contextWindow } : {}),
+			},
+		];
+	});
+
+	return [model, ...loadedInstanceModels];
+}
+
+function appendMissingModels(
+	models: RuntimeClineProviderModel[],
+	fallbackModels: RuntimeClineProviderModel[],
+): RuntimeClineProviderModel[] {
+	const existingModelIds = new Set(models.map((model) => model.id));
+	return [...models, ...fallbackModels.filter((model) => !existingModelIds.has(model.id))];
 }
 
 async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeClineProviderModel[]> {
@@ -447,9 +492,7 @@ async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null):
 			}
 
 			const items = parsed.data.data ?? parsed.data.models ?? [];
-			const models = items
-				.map((item) => toLmStudioModel(item, pathname))
-				.filter((model): model is RuntimeClineProviderModel => model !== null);
+			const models = items.flatMap((item) => toLmStudioModels(item, pathname));
 			if (models.length > 0) {
 				return models;
 			}
@@ -474,6 +517,7 @@ export async function loadProviderModelsWithFallback(providerId: string): Promis
 	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
 	if (
 		normalizedProviderId === "lmstudio" &&
+		providerModels.length > 0 &&
 		providerModels.every((model) => normalizeContextWindow(model.contextWindow) !== null)
 	) {
 		return providerModels;
@@ -481,14 +525,12 @@ export async function loadProviderModelsWithFallback(providerId: string): Promis
 	if (normalizedProviderId === "litellm") {
 		const liteLlmModels = await fetchLiteLlmBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
-		const existingModelIds = new Set(mergedModels.map((model) => model.id));
-		return [...mergedModels, ...liteLlmModels.filter((model) => !existingModelIds.has(model.id))];
+		return appendMissingModels(mergedModels, liteLlmModels);
 	}
 	if (normalizedProviderId === "lmstudio") {
-		return mergeProviderModelsWithContextWindowFallback(
-			providerModels,
-			await fetchLmStudioBaseUrlModels(getSdkProviderSettings(normalizedProviderId)),
-		);
+		const lmStudioModels = await fetchLmStudioBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
+		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, lmStudioModels);
+		return appendMissingModels(mergedModels, lmStudioModels);
 	}
 	return providerModels;
 }

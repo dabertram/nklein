@@ -25,6 +25,12 @@ import {
 export { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
 const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 6;
+const MAX_SDK_API_TIMEOUT_MS = 2_147_483_647;
+
+type ClineSdkSessionConfigWithTimeouts = ClineSdkStartSessionInput["config"] & {
+	apiTimeoutMs?: number;
+	timeout?: number;
+};
 
 interface ClineSessionHostBoundary {
 	start(input: ClineSdkStartSessionInput): Promise<{ sessionId: string; result?: unknown }>;
@@ -64,6 +70,19 @@ function toSdkUserImages(images?: RuntimeTaskImage[]): string[] | undefined {
 	return userImages.length > 0 ? userImages : undefined;
 }
 
+function resolveSdkApiTimeoutMs(timeoutMs: number | null | undefined): number | undefined {
+	if (timeoutMs === undefined) {
+		return undefined;
+	}
+	if (timeoutMs === null || timeoutMs === 0) {
+		return MAX_SDK_API_TIMEOUT_MS;
+	}
+	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
+		return undefined;
+	}
+	return Math.min(Math.trunc(timeoutMs), MAX_SDK_API_TIMEOUT_MS);
+}
+
 export interface StartClineSessionRuntimeRequest {
 	taskId: string;
 	cwd: string;
@@ -78,6 +97,7 @@ export interface StartClineSessionRuntimeRequest {
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	apiTimeoutMs?: number | null;
 	systemPrompt: string;
 	userInstructionService?: ClineSdkUserInstructionService;
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
@@ -176,6 +196,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
+			apiTimeoutMs: request.apiTimeoutMs,
 			systemPrompt: request.systemPrompt,
 			taskTitle: request.taskTitle,
 			userInstructionService: request.userInstructionService,
@@ -201,31 +222,34 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const sessionHost = await this.ensureSessionHost();
 		const userImages = toSdkUserImages(request.images);
 		const shouldSendInitialTurn = request.prompt.trim().length > 0 || Boolean(userImages?.length);
+		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
+		const config: ClineSdkSessionConfigWithTimeouts = {
+			sessionId: requestedSessionId,
+			providerId: request.providerId,
+			modelId: request.modelId,
+			apiKey: request.apiKey?.trim() || undefined,
+			baseUrl: request.baseUrl?.trim() || undefined,
+			reasoningEffort:
+				request.reasoningEffort === null
+					? ("none" as ClineSdkStartSessionInput["config"]["reasoningEffort"])
+					: (request.reasoningEffort ?? undefined),
+			cwd: request.cwd,
+			mode: resolvedMode,
+			enableTools: true,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
+			...(sdkApiTimeoutMs ? { apiTimeoutMs: sdkApiTimeoutMs, timeout: sdkApiTimeoutMs } : {}),
+			execution: {
+				maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
+			},
+			systemPrompt: request.systemPrompt,
+		};
 		let startResult: Awaited<ReturnType<ClineSessionHostBoundary["start"]>>;
 		try {
 			// Hub-backed SDK hosts create the interactive session in start; the first turn runs through send.
 			startResult = await sessionHost.start({
-				config: {
-					sessionId: requestedSessionId,
-					providerId: request.providerId,
-					modelId: request.modelId,
-					apiKey: request.apiKey?.trim() || undefined,
-					baseUrl: request.baseUrl?.trim() || undefined,
-					reasoningEffort:
-						request.reasoningEffort === null
-							? ("none" as ClineSdkStartSessionInput["config"]["reasoningEffort"])
-							: (request.reasoningEffort ?? undefined),
-					cwd: request.cwd,
-					mode: resolvedMode,
-					enableTools: true,
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
-					...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
-					execution: {
-						maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
-					},
-					systemPrompt: request.systemPrompt,
-				},
+				config,
 				initialMessages: request.initialMessages,
 				interactive: true,
 				localRuntime: {

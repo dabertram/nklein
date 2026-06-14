@@ -1,5 +1,5 @@
 import { rootCertificates } from "node:tls";
-import { Agent } from "undici";
+import { Agent, setGlobalDispatcher } from "undici";
 import { getInternalToken } from "../security/passcode-manager";
 
 export const DEFAULT_KANBAN_RUNTIME_HOST = "127.0.0.1";
@@ -92,6 +92,20 @@ export function isKanbanRuntimeHttps(): boolean {
 }
 
 const LOCALHOST_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+let kanbanFetchTimeoutPolicyInstalled = false;
+
+export function installKanbanFetchTimeoutPolicy(): void {
+	if (kanbanFetchTimeoutPolicyInstalled) {
+		return;
+	}
+	setGlobalDispatcher(
+		new Agent({
+			bodyTimeout: 0,
+			headersTimeout: 0,
+		}),
+	);
+	kanbanFetchTimeoutPolicyInstalled = true;
+}
 
 /**
  * Returns true when Kanban is bound to a non-localhost host, meaning it is
