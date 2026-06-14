@@ -87,6 +87,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("Use explicit numeric start_line and end_line ranges");
 		expect(result.reason).toContain("No lines were read by this failed attempt");
+		expect(result.reason).toContain("target about 70% of the character chunk budget");
 	});
 
 	it("blocks explicit read_files chunks above the token budget", async () => {

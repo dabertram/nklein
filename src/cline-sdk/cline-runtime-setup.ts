@@ -214,7 +214,7 @@ async function approveReadFilesTool(
 			if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. No lines were read by this failed attempt; do not mark this file or requested range as covered. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a conservative range based on wc -c / wc -l.`,
+					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. No lines were read by this failed attempt; do not mark this file or requested range as covered. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a measured range based on wc -c / wc -l; target about 70% of the character chunk budget rather than an arbitrary tiny starter range.`,
 				};
 			}
 		}

@@ -37,9 +37,9 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 
 		expect(rules).toContain("coverage ledger");
-		expect(rules).toContain("record `wc -l` and `wc -c` before reading");
+		expect(rules).toContain("record `wc -l` and `wc -c`");
 		expect(rules).toContain("unread line ranges");
-		expect(rules).toContain("If a tool output is truncated, clipped, summarized, or hits an output limit");
+		expect(rules).toContain("If tool output is truncated, clipped, summarized, or hits a limit");
 		expect(rules).toContain("final line is confirmed");
 		expect(rules).toContain(
 			"Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
@@ -60,13 +60,15 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 
 		expect(rules).toContain("Backend approval will tokenize the selected text");
+		expect(rules).toContain("target about 70% of the 144k character budget");
+		expect(rules).toContain("Do not default to tiny 300-line starters");
 		expect(rules).toContain("A rejected read covers zero lines");
 		expect(rules).toContain("shrinking by at least half or to the suggested line count");
 		expect(rules).toContain("set the next unread line to the successful `end_line + 1`");
 		expect(rules).toContain("Never skip from a failed 1-N attempt to N+1");
 		expect(rules).toContain("Grow chunk sizes slowly from the last successful read");
 		expect(rules).toContain("at or below about 35k tokens (36k total read budget including tool/result framing)");
-		expect(rules).toContain("Choose chunk ranges from average bytes per line");
+		expect(rules).toContain("floor(0.7 * chunk character budget / bytes per line)");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
 		expect(rules).toContain("Prefer non-overlapping primary chunks");
 		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
