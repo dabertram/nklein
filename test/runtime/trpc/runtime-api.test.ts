@@ -1432,6 +1432,58 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(clineTaskSessionService.cancelTaskTurn).toHaveBeenCalledWith("task-1");
 	});
 
+	it("forwards selected Cline model settings through chat sends", async () => {
+		setSelectedProviderSettings({
+			provider: "lmstudio",
+			model: "old-model",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			apiKey: "local-key",
+			reasoning: {
+				effort: "high",
+			},
+		});
+		const summary = createSummary({ agentId: "cline", pid: null });
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.sendTaskChatMessage(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				text: "hello",
+				providerId: "lmstudio",
+				modelId: "new-model",
+				reasoningEffort: null,
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+			"task-1",
+			"hello",
+			undefined,
+			undefined,
+			{
+				providerId: "lmstudio",
+				modelId: "new-model",
+				apiKey: "local-key",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				reasoningEffort: null,
+				contextWindow: null,
+			},
+		);
+	});
+
 	it("handles clear slash commands without sending them to the model", async () => {
 		const summary = createSummary({ agentId: "cline", pid: null, state: "idle" });
 		const clineTaskSessionService = createClineTaskSessionServiceMock();

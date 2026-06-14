@@ -134,6 +134,8 @@ export function buildKanbanEfficiencyRules(options: {
 		`- Before each large \`read_files\` call, estimate chunk tokens as ceil(chunk characters / 4) plus at least 2,000 tokens for tool/result framing. Keep that estimate at or below ${chunkTokenBudgetText}k tokens (~${chunkCharBudgetText}k raw characters), and reduce the line range if the estimate would exceed it.`,
 		"- Choose chunk line ranges from the measured average bytes per line: start with floor(chunk character budget / average bytes per line), cap at the file's remaining lines, and shrink the range when lines are unusually long.",
 		"- Every chunk must use explicit inclusive `start_line` and `end_line` values. Never rely on reading a whole large file when exact ranges are available.",
+		"- For code files, use overlapping chunks so boundaries are not missed: keep an overlap of about 20 lines (or ~5% of the prior chunk, whichever is larger) and deduplicate overlap lines when building your final understanding.",
+		"- When a chunk ends mid-function/class/type definition, expand or re-read with overlap until the full syntactic block is captured before making conclusions.",
 		"- After every chunk, update the coverage ledger with read line ranges, unread line ranges, and the next exact line to resume from.",
 		"- If a tool output is truncated, clipped, summarized, or hits an output limit, mark that chunk incomplete and redo it with smaller ranges before using it as evidence.",
 		"- Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
@@ -199,6 +201,15 @@ export interface ClineTaskSessionService {
 		text: string,
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
 	): Promise<RuntimeTaskSessionSummary | null>;
 	reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
@@ -363,6 +374,15 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		mode?: RuntimeTaskSessionMode;
 		images?: RuntimeTaskImage[];
 		delivery?: "queue" | "steer";
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		};
 	}): Promise<{
 		result: unknown;
 		warnings?: string[];
@@ -375,6 +395,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					input.mode,
 					input.images,
 					input.delivery,
+					input.launchConfigOverrides,
 				),
 			};
 		}
@@ -493,6 +514,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				reviewReason: null,
 				lastOutputAt: now(),
 				lastHookAt: now(),
+				lastTokenAt: null,
 				latestHookActivity: {
 					activityText: "Agent active",
 					toolName: null,
@@ -660,6 +682,15 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		text: string,
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
 	): Promise<RuntimeTaskSessionSummary | null> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -698,6 +729,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				warningMessage: null,
 				lastOutputAt: now(),
 				lastHookAt: now(),
+				lastTokenAt: null,
 				latestHookActivity: {
 					activityText: "Agent active",
 					toolName: null,
@@ -720,6 +752,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 							mode: effectiveMode,
 							images,
 							delivery: queueDelivery ? "queue" : undefined,
+							launchConfigOverrides,
 						});
 					} catch (error) {
 						const recovered = await this.retryAfterContextOverflow({

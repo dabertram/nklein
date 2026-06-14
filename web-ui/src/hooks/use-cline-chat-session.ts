@@ -3,7 +3,12 @@
 // switches so chat surfaces can stay reactive without duplicating logic.
 import { useCallback, useEffect, useState } from "react";
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
-import type { RuntimeTaskChatMessage, RuntimeTaskImage, RuntimeTaskSessionMode } from "@/runtime/types";
+import type {
+	RuntimeClineReasoningEffort,
+	RuntimeTaskChatMessage,
+	RuntimeTaskImage,
+	RuntimeTaskSessionMode,
+} from "@/runtime/types";
 
 export type ClineChatMessage = RuntimeTaskChatMessage;
 
@@ -12,7 +17,13 @@ interface UseClineChatSessionInput {
 	onSendMessage?: (
 		taskId: string,
 		text: string,
-		options?: { mode?: RuntimeTaskSessionMode; images?: RuntimeTaskImage[] },
+		options?: {
+			mode?: RuntimeTaskSessionMode;
+			images?: RuntimeTaskImage[];
+			providerId?: string;
+			modelId?: string;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+		},
 	) => Promise<ClineChatActionResult>;
 	onCancelTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
@@ -27,7 +38,13 @@ interface UseClineChatSessionResult {
 	error: string | null;
 	sendMessage: (
 		text: string,
-		options?: { mode?: RuntimeTaskSessionMode; images?: RuntimeTaskImage[] },
+		options?: {
+			mode?: RuntimeTaskSessionMode;
+			images?: RuntimeTaskImage[];
+			providerId?: string;
+			modelId?: string;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+		},
 	) => Promise<boolean>;
 	cancelTurn: () => Promise<boolean>;
 }

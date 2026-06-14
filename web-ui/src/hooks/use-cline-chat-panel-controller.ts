@@ -5,7 +5,12 @@ import { useCallback, useState } from "react";
 
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
 import { type ClineChatMessage, useClineChatSession } from "@/hooks/use-cline-chat-session";
-import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "@/runtime/types";
+import type {
+	RuntimeClineReasoningEffort,
+	RuntimeTaskImage,
+	RuntimeTaskSessionMode,
+	RuntimeTaskSessionSummary,
+} from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
 
 interface UseClineChatPanelControllerInput {
@@ -15,7 +20,13 @@ interface UseClineChatPanelControllerInput {
 	onSendMessage?: (
 		taskId: string,
 		text: string,
-		options?: { mode?: RuntimeTaskSessionMode; images?: RuntimeTaskImage[] },
+		options?: {
+			mode?: RuntimeTaskSessionMode;
+			images?: RuntimeTaskImage[];
+			providerId?: string;
+			modelId?: string;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+		},
 	) => Promise<ClineChatActionResult>;
 	onCancelTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;

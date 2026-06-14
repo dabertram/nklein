@@ -104,18 +104,79 @@ const runtime = spawn(tsxBin, ["watch", "src/cli.ts", ...runtimeCliArgs], {
 
 let vite;
 let exiting = false;
+let cleanupPromise = null;
+let openBrowserTimeoutId = null;
 
-function cleanup(exitCode = 0) {
-	if (exiting) return;
-	exiting = true;
-	if (vite?.pid) treeKill(vite.pid);
-	if (runtime.pid) treeKill(runtime.pid);
-	process.exit(exitCode);
+function waitForChildExit(child, timeoutMs = 2500) {
+	if (!child || child.exitCode !== null || child.killed) {
+		return Promise.resolve();
+	}
+	return new Promise((resolve) => {
+		let settled = false;
+		const finish = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			resolve();
+		};
+		child.once("exit", finish);
+		setTimeout(finish, timeoutMs);
+	});
 }
 
-process.on("SIGTERM", () => cleanup(0));
-process.on("SIGINT", () => cleanup(0));
-runtime.on("exit", () => cleanup(1));
+async function cleanup(exitCode = 0) {
+	if (cleanupPromise) {
+		return await cleanupPromise;
+	}
+	cleanupPromise = (async () => {
+		if (exiting) {
+			return;
+		}
+		exiting = true;
+
+		if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+			process.stdin.setRawMode(false);
+		}
+		if (openBrowserTimeoutId !== null) {
+			clearTimeout(openBrowserTimeoutId);
+			openBrowserTimeoutId = null;
+		}
+
+		const killPromises = [];
+		if (vite?.pid) {
+			killPromises.push(
+				new Promise((resolve) => {
+					treeKill(vite.pid, "SIGTERM", () => resolve(undefined));
+				}),
+			);
+		}
+		if (runtime.pid) {
+			killPromises.push(
+				new Promise((resolve) => {
+					treeKill(runtime.pid, "SIGTERM", () => resolve(undefined));
+				}),
+			);
+		}
+		await Promise.allSettled(killPromises);
+		await Promise.allSettled([waitForChildExit(vite), waitForChildExit(runtime)]);
+
+		process.exitCode = exitCode;
+		process.stdout.write("\n");
+		process.exit(exitCode);
+	})();
+	return await cleanupPromise;
+}
+
+process.on("SIGTERM", () => {
+	void cleanup(0);
+});
+process.on("SIGINT", () => {
+	void cleanup(0);
+});
+runtime.on("exit", () => {
+	void cleanup(1);
+});
 
 // Wait for runtime to accept connections before starting Vite
 try {
@@ -123,7 +184,7 @@ try {
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
 	console.error(`Failed to start runtime: ${message}`);
-	cleanup(1);
+	await cleanup(1);
 }
 
 vite = spawn("npm", ["run", "web:dev"], {
@@ -132,9 +193,11 @@ vite = spawn("npm", ["run", "web:dev"], {
 	shell: isWindows,
 });
 
-vite.on("exit", () => cleanup(1));
+vite.on("exit", () => {
+	void cleanup(1);
+});
 
 // Auto-open browser after a short delay for Vite to start
-setTimeout(() => {
+openBrowserTimeoutId = setTimeout(() => {
 	open(`http://127.0.0.1:${webUiPort}`);
 }, 2000);

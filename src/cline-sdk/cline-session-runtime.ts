@@ -55,6 +55,7 @@ interface ClineSessionHostBoundary {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }>;
+	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;
 	readMessages(sessionId: string): Promise<ClineSdkPersistedMessage[]>;
 	subscribe(listener: (event: unknown) => void): () => void;
 }
@@ -171,6 +172,15 @@ export interface ClineSessionRuntime {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		delivery?: "queue" | "steer",
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
 	): Promise<unknown>;
 	resumeTaskSession(taskId: string): Promise<ClinePersistedTaskSessionSnapshot | null>;
 	stopTaskSession(taskId: string): Promise<void>;
@@ -375,12 +385,25 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
 		delivery?: "queue" | "steer",
+		launchConfigOverrides?: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
 	): Promise<unknown> {
 		const sessionId = this.sessionIdByTaskId.get(taskId);
 		if (!sessionId) {
 			throw new Error(`No active Cline session for task ${taskId}.`);
 		}
 		const sessionHost = await this.ensureSessionHost();
+		if (launchConfigOverrides) {
+			await this.updateActiveSessionLaunchConfig(sessionHost, sessionId, launchConfigOverrides);
+			this.updateLastStartRequestLaunchConfig(taskId, launchConfigOverrides);
+		}
 		if (mode) {
 			this.updateActiveSessionMode(sessionHost, sessionId, mode);
 			this.updateLastStartRequestMode(taskId, mode);
@@ -618,6 +641,77 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		this.lastStartRequestByTaskId.set(taskId, {
 			...lastStartRequest,
 			mode,
+		});
+	}
+
+	private async updateActiveSessionLaunchConfig(
+		sessionHost: ClineSessionHostBoundary,
+		sessionId: string,
+		launchConfigOverrides: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
+	): Promise<void> {
+		await sessionHost.updateSessionModel?.(sessionId, launchConfigOverrides.modelId);
+		const hostWithSessions = sessionHost as unknown as {
+			sessions?: Map<
+				string,
+				{
+					config?: ClineSdkSessionConfigWithTimeouts;
+				}
+			>;
+		};
+		const activeSession = hostWithSessions.sessions?.get(sessionId);
+		if (!activeSession?.config) {
+			return;
+		}
+		activeSession.config.providerId = launchConfigOverrides.providerId;
+		activeSession.config.modelId = launchConfigOverrides.modelId;
+		activeSession.config.apiKey = launchConfigOverrides.apiKey?.trim() || undefined;
+		activeSession.config.baseUrl = launchConfigOverrides.baseUrl?.trim() || undefined;
+		activeSession.config.reasoningEffort =
+			launchConfigOverrides.reasoningEffort === null
+				? ("none" as ClineSdkStartSessionInput["config"]["reasoningEffort"])
+				: (launchConfigOverrides.reasoningEffort ?? undefined);
+		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(launchConfigOverrides.apiTimeoutMs);
+		if (sdkApiTimeoutMs) {
+			activeSession.config.apiTimeoutMs = sdkApiTimeoutMs;
+			activeSession.config.timeout = sdkApiTimeoutMs;
+		}
+		const compaction = buildClineContextCompactionConfig(launchConfigOverrides.contextWindow);
+		activeSession.config.compaction = compaction;
+	}
+
+	private updateLastStartRequestLaunchConfig(
+		taskId: string,
+		launchConfigOverrides: {
+			providerId: string;
+			modelId: string;
+			apiKey?: string | null;
+			baseUrl?: string | null;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+			contextWindow?: number | null;
+			apiTimeoutMs?: number | null;
+		},
+	): void {
+		const lastStartRequest = this.lastStartRequestByTaskId.get(taskId);
+		if (!lastStartRequest) {
+			return;
+		}
+		this.lastStartRequestByTaskId.set(taskId, {
+			...lastStartRequest,
+			providerId: launchConfigOverrides.providerId,
+			modelId: launchConfigOverrides.modelId,
+			apiKey: launchConfigOverrides.apiKey,
+			baseUrl: launchConfigOverrides.baseUrl,
+			reasoningEffort: launchConfigOverrides.reasoningEffort,
+			contextWindow: launchConfigOverrides.contextWindow,
+			apiTimeoutMs: launchConfigOverrides.apiTimeoutMs,
 		});
 	}
 

@@ -61,6 +61,8 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("at or below 7k tokens (~26k raw characters)");
 		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
+		expect(rules).toContain("For code files, use overlapping chunks");
+		expect(rules).toContain("overlap of about 20 lines");
 		expect(rules).toContain(
 			"Safe working budget after output reserve and prompt overhead reserve: 44,000 tokens (~44k)",
 		);

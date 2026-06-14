@@ -1097,6 +1097,9 @@ export const runtimeTaskChatSendRequestSchema = z.object({
 	text: z.string(),
 	images: z.array(runtimeTaskImageSchema).optional(),
 	mode: runtimeTaskSessionModeSchema.optional(),
+	providerId: z.string().optional(),
+	modelId: z.string().optional(),
+	reasoningEffort: runtimeClineReasoningEffortSchema.nullable().optional(),
 });
 export type RuntimeTaskChatSendRequest = z.infer<typeof runtimeTaskChatSendRequestSchema>;
 

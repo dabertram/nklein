@@ -185,13 +185,14 @@ describe("ClineAgentChatPanel", () => {
 	it("calls out when estimated context exceeds the loaded model window", () => {
 		const contextBudget = formatClineContextBudgetDisplay({
 			estimatedContextTokens: 87_000,
+			estimatedNextPromptTokens: 6_000,
 			contextScope: "smart",
 			modelContextWindow: 80_000,
 		});
 
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
-		expect(contextBudget.text).toBe("~87k used · 80k available context (109% · over by ~7k)");
+		expect(contextBudget.text).toBe("~87k used · incl next prompt ~6k · 80k available context (109% · over by ~7k)");
 	});
 
 	it("formats waiting model activity before the first streamed token", () => {
@@ -205,7 +206,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: waiting for first token · elapsed 1m 5s");
+		expect(text).toBe("Model activity: waiting for response · request sent 1m 5s ago");
 	});
 
 	it("formats streaming model activity with generated text token estimates", () => {
@@ -232,7 +233,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~7 text tokens shown · elapsed 1m 5s · last token 5s ago");
+		expect(text).toBe("Model activity: streaming · ~7 text tokens shown · request age 15s");
 	});
 
 	it("formats reasoning activity as streaming when it belongs to the current turn", () => {
@@ -265,7 +266,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~8 text tokens shown · elapsed 1m 5s · last token 5s ago");
+		expect(text).toBe("Model activity: streaming · ~8 text tokens shown · request age 15s");
 	});
 
 	it("does not report streaming from stale previous-turn output", () => {
@@ -298,7 +299,19 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: waiting for response text · elapsed 1m 5s · last model activity 5s ago");
+		expect(text).toBe("Model activity: waiting for response · request sent 15s ago");
+	});
+
+	it("reports idle model activity after a response when the task is not running", () => {
+		const text = formatClineModelActivityDisplay({
+			summary: createSummary("idle", null, {
+				lastTokenAt: 70_000,
+			}),
+			messages: [],
+			nowMs: 75_000,
+		});
+
+		expect(text).toBe("Model activity: idle · last response 5s ago");
 	});
 
 	it("renders reasoning and tool messages with specialized UI", async () => {
@@ -931,6 +944,63 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(onCancelTurn).toHaveBeenCalledWith("task-1");
+	});
+
+	it("sends the selected Cline provider and model with each chat message", async () => {
+		const onSendMessage = vi.fn(async () => ({ ok: true }));
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("idle")}
+					taskClineSettings={{
+						providerId: "lmstudio",
+						modelId: "new-model",
+						reasoningEffort: "high",
+					}}
+					taskHasExplicitClineSettings
+					onLoadMessages={async () => []}
+					onSendMessage={onSendMessage}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const textarea = container.querySelector("textarea");
+		expect(textarea).toBeInstanceOf(HTMLTextAreaElement);
+		if (!(textarea instanceof HTMLTextAreaElement)) {
+			throw new Error("Expected composer textarea");
+		}
+
+		await act(async () => {
+			const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+			if (!valueSetter) {
+				throw new Error("Expected textarea value setter");
+			}
+			valueSetter.call(textarea, "Use the new model");
+			textarea.dispatchEvent(new Event("input", { bubbles: true }));
+			await Promise.resolve();
+		});
+
+		await act(async () => {
+			textarea.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+			await Promise.resolve();
+		});
+
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Use the new model", {
+			mode: "act",
+			providerId: "lmstudio",
+			modelId: "new-model",
+			reasoningEffort: "high",
+		});
 	});
 
 	it("defaults the composer mode from the task and sends using the selected mode", async () => {

@@ -5,6 +5,7 @@ import { useCallback } from "react";
 
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeClineReasoningEffort,
 	RuntimeTaskChatMessage,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
@@ -20,6 +21,9 @@ export interface ClineChatActionResult {
 export interface SendClineChatMessageOptions {
 	mode?: RuntimeTaskSessionMode;
 	images?: RuntimeTaskImage[];
+	providerId?: string;
+	modelId?: string;
+	reasoningEffort?: RuntimeClineReasoningEffort | null;
 }
 
 interface UseClineChatRuntimeActionsInput {
@@ -52,11 +56,16 @@ export function useClineChatRuntimeActions({
 				return { ok: false, message: "No project selected." };
 			}
 			try {
+				const providerId = options?.providerId?.trim() || undefined;
+				const modelId = options?.modelId?.trim() || undefined;
 				const payload = await getRuntimeTrpcClient(currentProjectId).runtime.sendTaskChatMessage.mutate({
 					taskId,
 					text,
 					...(options?.images && options.images.length > 0 ? { images: options.images } : {}),
 					...(options?.mode ? { mode: options.mode } : {}),
+					...(providerId ? { providerId } : {}),
+					...(modelId ? { modelId } : {}),
+					...(options && "reasoningEffort" in options ? { reasoningEffort: options.reasoningEffort ?? null } : {}),
 				});
 				if (!payload.ok) {
 					return { ok: false, message: payload.error ?? "Task chat message failed." };

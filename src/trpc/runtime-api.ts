@@ -698,6 +698,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			try {
 				const body = parseTaskChatSendRequest(input);
 				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+				const providerIdOverride = body.providerId?.trim() || undefined;
+				const modelIdOverride = body.modelId?.trim() || undefined;
+				const hasReasoningEffortOverride = Object.hasOwn(body, "reasoningEffort");
+				const launchConfigOverrides =
+					providerIdOverride || modelIdOverride || hasReasoningEffortOverride
+						? await clineProviderService.resolveLaunchConfig({
+								providerIdOverride,
+								modelIdOverride,
+								...(hasReasoningEffortOverride
+									? { reasoningEffortOverride: body.reasoningEffort ?? null }
+									: {}),
+							})
+						: null;
+				const sessionLaunchConfigOverrides = launchConfigOverrides?.modelId
+					? {
+							providerId: launchConfigOverrides.providerId,
+							modelId: launchConfigOverrides.modelId,
+							apiKey: launchConfigOverrides.apiKey,
+							baseUrl: launchConfigOverrides.baseUrl,
+							reasoningEffort: launchConfigOverrides.reasoningEffort,
+							contextWindow: launchConfigOverrides.contextWindow,
+						}
+					: undefined;
 				if (isClineClearSlashCommand(body.text)) {
 					const summary = await clineTaskSessionService.clearTaskSession(body.taskId);
 					deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
@@ -708,22 +731,33 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					};
 				}
 				const requestedMode = body.mode;
-				let summary = await clineTaskSessionService.sendTaskSessionInput(
-					body.taskId,
-					body.text,
-					requestedMode,
-					body.images,
-				);
+				let summary = sessionLaunchConfigOverrides
+					? await clineTaskSessionService.sendTaskSessionInput(
+							body.taskId,
+							body.text,
+							requestedMode,
+							body.images,
+							sessionLaunchConfigOverrides,
+						)
+					: await clineTaskSessionService.sendTaskSessionInput(body.taskId, body.text, requestedMode, body.images);
 				if (!summary) {
 					if (!isHomeAgentSessionId(body.taskId)) {
 						const reboundSummary = await clineTaskSessionService.rebindPersistedTaskSession(body.taskId);
 						if (reboundSummary) {
-							summary = await clineTaskSessionService.sendTaskSessionInput(
-								body.taskId,
-								body.text,
-								requestedMode,
-								body.images,
-							);
+							summary = sessionLaunchConfigOverrides
+								? await clineTaskSessionService.sendTaskSessionInput(
+										body.taskId,
+										body.text,
+										requestedMode,
+										body.images,
+										sessionLaunchConfigOverrides,
+									)
+								: await clineTaskSessionService.sendTaskSessionInput(
+										body.taskId,
+										body.text,
+										requestedMode,
+										body.images,
+									);
 						}
 						if (!summary) {
 							return {
@@ -733,7 +767,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							};
 						}
 					} else {
-						const clineLaunchConfig = await clineProviderService.resolveLaunchConfig();
+						const clineLaunchConfig = launchConfigOverrides ?? (await clineProviderService.resolveLaunchConfig());
 						summary = await clineTaskSessionService.startTaskSession({
 							taskId: body.taskId,
 							cwd: workspaceScope.workspacePath,

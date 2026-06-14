@@ -44,6 +44,7 @@ const CLINE_BUY_CREDITS_URL = "https://app.cline.bot/";
 
 export function formatClineContextBudgetDisplay(options: {
 	estimatedContextTokens: number;
+	estimatedNextPromptTokens?: number;
 	contextScope: "full" | "smart" | "minimal" | "custom";
 	modelContextWindow?: number | null;
 }): { limit: number; percent: number; text: string } {
@@ -73,10 +74,14 @@ export function formatClineContextBudgetDisplay(options: {
 		: `${Math.round(smartScopeBudget / 1000)}k smart budget (model max unavailable)`;
 	const overageTokens = Math.max(0, options.estimatedContextTokens - limit);
 	const overageText = overageTokens > 0 ? ` · over by ~${Math.round(overageTokens / 1000)}k` : "";
+	const nextPromptText =
+		typeof options.estimatedNextPromptTokens === "number" && options.estimatedNextPromptTokens > 0
+			? ` · incl next prompt ~${Math.round(options.estimatedNextPromptTokens / 1000)}k`
+			: "";
 	return {
 		limit,
 		percent: Math.min(100, percent),
-		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used · ${limitText} (${percent}%${overageText})`,
+		text: `~${Math.round(options.estimatedContextTokens / 1000)}k used${nextPromptText} · ${limitText} (${percent}%${overageText})`,
 	};
 }
 
@@ -122,25 +127,27 @@ export function formatClineModelActivityDisplay(options: {
 	nowMs: number;
 }): string | null {
 	const summary = options.summary;
-	if (summary?.state !== "running") {
+	if (!summary) {
 		return null;
 	}
-
-	const startedAt = summary.startedAt ?? summary.updatedAt;
-	const elapsedText = formatCompactDuration(options.nowMs - startedAt);
-	const lastTokenAt = summary.lastTokenAt ?? null;
-	if (!lastTokenAt) {
-		return `Model activity: waiting for first token · elapsed ${elapsedText}`;
+	if (summary.state !== "running") {
+		if (!summary.lastTokenAt) {
+			return null;
+		}
+		return `Model activity: idle · last response ${formatCompactDuration(options.nowMs - summary.lastTokenAt)} ago`;
 	}
 
-	const lastTokenAgeText = formatCompactDuration(options.nowMs - lastTokenAt);
+	const latestUserCreatedAt = getLatestUserMessageCreatedAt(options.messages);
+	const requestStartedAt = latestUserCreatedAt ?? summary.startedAt ?? summary.updatedAt;
+	const requestAgeText = formatCompactDuration(options.nowMs - requestStartedAt);
+
 	const latestGeneratedMessage = getLatestGeneratedTextForCurrentTurn(options.messages);
 	if (!latestGeneratedMessage) {
-		return `Model activity: waiting for response text · elapsed ${elapsedText} · last model activity ${lastTokenAgeText} ago`;
+		return `Model activity: waiting for response · request sent ${requestAgeText} ago`;
 	}
 
 	const receivedTokens = estimateGeneratedTextTokens(latestGeneratedMessage);
-	return `Model activity: streaming · ~${receivedTokens} text tokens shown · elapsed ${elapsedText} · last token ${lastTokenAgeText} ago`;
+	return `Model activity: streaming · ~${receivedTokens} text tokens shown · request age ${requestAgeText}`;
 }
 
 const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
@@ -185,7 +192,13 @@ export interface ClineAgentChatPanelProps {
 	onSendMessage?: (
 		taskId: string,
 		text: string,
-		options?: { mode?: RuntimeTaskSessionMode; images?: TaskImage[] },
+		options?: {
+			mode?: RuntimeTaskSessionMode;
+			images?: TaskImage[];
+			providerId?: string;
+			modelId?: string;
+			reasoningEffort?: RuntimeClineReasoningEffort | null;
+		},
 	) => Promise<ClineChatActionResult>;
 	onCancelTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
@@ -234,6 +247,13 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		},
 		ref,
 	): ReactElement {
+		const clineSettings = useRuntimeSettingsClineController({
+			open: true,
+			workspaceId,
+			selectedAgentId: "cline",
+			config: runtimeConfig,
+			taskClineSettings,
+		});
 		const {
 			draft,
 			setDraft,
@@ -253,7 +273,21 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			taskId,
 			summary,
 			taskColumnId,
-			onSendMessage,
+			onSendMessage:
+				onSendMessage === undefined
+					? undefined
+					: (sendTaskId, text, options) => {
+							const providerId = clineSettings.providerId.trim();
+							const modelId = clineSettings.modelId.trim();
+							const hasLaunchSelection =
+								providerId.length > 0 || modelId.length > 0 || clineSettings.reasoningEffort.length > 0;
+							return onSendMessage(sendTaskId, text, {
+								...options,
+								...(providerId.length > 0 ? { providerId } : {}),
+								...(modelId.length > 0 ? { modelId } : {}),
+								...(hasLaunchSelection ? { reasoningEffort: clineSettings.reasoningEffort || null } : {}),
+							});
+						},
 			onCancelTurn,
 			onLoadMessages,
 			incomingMessages,
@@ -285,13 +319,6 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			return persistedMode ?? summary?.mode ?? defaultMode;
 		});
 		const [draftImages, setDraftImages] = useState<TaskImage[]>([]);
-		const clineSettings = useRuntimeSettingsClineController({
-			open: true,
-			workspaceId,
-			selectedAgentId: "cline",
-			config: runtimeConfig,
-			taskClineSettings,
-		});
 
 		const modelPickerOptions = useMemo(
 			() => buildClineAgentModelPickerOptions(clineSettings.providerId, clineSettings.providerModels),
@@ -329,18 +356,26 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		);
 
 		const panelError = composerError ?? error;
+		const estimatedNextPromptTokens = useMemo(() => {
+			const draftTokens = Math.max(0, Math.round(draft.trim().length / 4));
+			const imageOverheadTokens = draftImages.length * 1_200;
+			const framingOverheadTokens = 1_200;
+			return Math.max(1_200, draftTokens + imageOverheadTokens + framingOverheadTokens);
+		}, [draft, draftImages.length]);
 		const estimatedContextTokens = useMemo(() => {
-			const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
-			return Math.max(0, Math.round(totalChars / 4));
-		}, [messages]);
+			const historyChars = messages.reduce((sum, message) => sum + message.content.length, 0);
+			const historyTokens = Math.max(0, Math.round(historyChars / 4));
+			return historyTokens + estimatedNextPromptTokens;
+		}, [estimatedNextPromptTokens, messages]);
 		const estimatedContextBudget = useMemo(
 			() =>
 				formatClineContextBudgetDisplay({
 					estimatedContextTokens,
+					estimatedNextPromptTokens,
 					contextScope,
 					modelContextWindow: selectedModel?.contextWindow,
 				}),
-			[contextScope, estimatedContextTokens, selectedModel?.contextWindow],
+			[contextScope, estimatedContextTokens, estimatedNextPromptTokens, selectedModel?.contextWindow],
 		);
 		const modelActivityText = useMemo(
 			() => formatClineModelActivityDisplay({ summary, messages, nowMs }),
