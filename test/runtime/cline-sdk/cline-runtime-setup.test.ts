@@ -86,6 +86,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("Use explicit numeric start_line and end_line ranges");
+		expect(result.reason).toContain("No lines were read by this failed attempt");
 	});
 
 	it("blocks explicit read_files chunks above the token budget", async () => {
@@ -109,6 +110,8 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("this request used ranges");
 		expect(result.reason).toContain("per-read source budget");
 		expect(result.reason).toContain("Retry one large file per call");
+		expect(result.reason).toContain("the next unread line is the successful end_line + 1");
+		expect(result.reason).toContain("never skip line gaps");
 	});
 
 	it("allows moderate read_files chunks on an 80k context model", async () => {

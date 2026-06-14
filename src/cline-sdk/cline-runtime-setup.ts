@@ -214,7 +214,7 @@ async function approveReadFilesTool(
 			if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a conservative range based on wc -c / wc -l.`,
+					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. No lines were read by this failed attempt; do not mark this file or requested range as covered. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a conservative range based on wc -c / wc -l.`,
 				};
 			}
 		}
@@ -233,7 +233,7 @@ async function approveReadFilesTool(
 			);
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: this request used ranges, but the selected source text is ~${totalRequestedTokens.toLocaleString()} tokens across ${totalRequestedLines.toLocaleString()} lines, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens (${budgets.fileChunkTokenBudget.toLocaleString()} total read budget minus tool-result overhead). Retry one large file per call with at most about ${suggestedTotalLines.toLocaleString()} total selected lines, then grow only after a successful read. Do not rely on truncation.`,
+				reason: `Blocked ${request.toolName}: this request used ranges, but the selected source text is ~${totalRequestedTokens.toLocaleString()} tokens across ${totalRequestedLines.toLocaleString()} lines, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens (${budgets.fileChunkTokenBudget.toLocaleString()} total read budget minus tool-result overhead). No lines were read by this failed attempt; do not mark the failed range as covered. Retry one large file per call with at most about ${suggestedTotalLines.toLocaleString()} total selected lines. If the smaller retry succeeds, the next unread line is the successful end_line + 1, not the failed end_line + 1. Grow only gradually after successful reads and never skip line gaps. Do not rely on truncation.`,
 			};
 		}
 	}

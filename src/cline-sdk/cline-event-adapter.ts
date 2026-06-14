@@ -244,6 +244,10 @@ export function extractClineSessionId(event: unknown): string | null {
 	return payload && typeof payload.sessionId === "string" ? payload.sessionId : null;
 }
 
+function isRecoverableToolCallFailure(message: string | null): boolean {
+	return Boolean(message?.includes("tool call(s) failed:"));
+}
+
 // Translate raw SDK events into Kanban summary and chat mutations so the session service can stay focused on host ownership.
 export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void {
 	const { entry, event, taskId } = input;
@@ -265,7 +269,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		if (!recoverable) {
 			clearActiveTurnState(entry);
 		}
-		if (recoverable && errorMessage) {
+		if (recoverable && errorMessage && !isRecoverableToolCallFailure(errorMessage)) {
 			const retryMsg = createMessage(taskId, "system", `Retrying: ${errorMessage}`);
 			entry.messages.push(retryMsg);
 			input.emitMessage(taskId, retryMsg);
@@ -274,29 +278,29 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			input,
 			withHeartbeat(
 				{
-			...(recoverable
-				? {}
-				: {
-						state: "awaiting_review",
-						reviewReason: "error",
-						warningMessage: creditLimitError ? null : (errorMessage ?? "Unknown agent error"),
-					}),
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			latestHookActivity: {
-				activityText: recoverable
-					? `Retrying after error: ${errorMessage ?? "Unknown agent error"}`
-					: `Agent error: ${errorMessage ?? "Unknown agent error"}`,
-				toolName: retainedToolActivity.toolName,
-				toolInputSummary: retainedToolActivity.toolInputSummary,
-				finalMessage: recoverable ? null : (errorMessage ?? "Unknown agent error"),
-				hookEventName: "agent_error",
-				notificationType: creditLimitError ? "credit_limit" : null,
-				source: "cline-sdk",
-			},
-			},
-			{ status: recoverable ? "stale" : "lost" },
-		),
+					...(recoverable
+						? {}
+						: {
+								state: "awaiting_review",
+								reviewReason: "error",
+								warningMessage: creditLimitError ? null : (errorMessage ?? "Unknown agent error"),
+							}),
+					lastOutputAt: now(),
+					lastHookAt: now(),
+					latestHookActivity: {
+						activityText: recoverable
+							? `Retrying after error: ${errorMessage ?? "Unknown agent error"}`
+							: `Agent error: ${errorMessage ?? "Unknown agent error"}`,
+						toolName: retainedToolActivity.toolName,
+						toolInputSummary: retainedToolActivity.toolInputSummary,
+						finalMessage: recoverable ? null : (errorMessage ?? "Unknown agent error"),
+						hookEventName: "agent_error",
+						notificationType: creditLimitError ? "credit_limit" : null,
+						source: "cline-sdk",
+					},
+				},
+				{ status: recoverable ? "stale" : "lost" },
+			),
 		);
 		return;
 	}
@@ -313,23 +317,23 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			input,
 			withHeartbeat(
 				{
-			state: "awaiting_review",
-			reviewReason: "error",
-			warningMessage: errorMessage ?? "Unknown agent error",
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			latestHookActivity: {
-				activityText: `Agent error: ${errorMessage ?? "Unknown agent error"}`,
-				toolName: retainedToolActivity.toolName,
-				toolInputSummary: retainedToolActivity.toolInputSummary,
-				finalMessage: errorMessage ?? "Unknown agent error",
-				hookEventName: "agent_error",
-				notificationType: input.isClineProvider && isCreditLimitError(errorMessage) ? "credit_limit" : null,
-				source: "cline-sdk",
-			},
-			},
-			{ status: "lost" },
-		),
+					state: "awaiting_review",
+					reviewReason: "error",
+					warningMessage: errorMessage ?? "Unknown agent error",
+					lastOutputAt: now(),
+					lastHookAt: now(),
+					latestHookActivity: {
+						activityText: `Agent error: ${errorMessage ?? "Unknown agent error"}`,
+						toolName: retainedToolActivity.toolName,
+						toolInputSummary: retainedToolActivity.toolInputSummary,
+						finalMessage: errorMessage ?? "Unknown agent error",
+						hookEventName: "agent_error",
+						notificationType: input.isClineProvider && isCreditLimitError(errorMessage) ? "credit_limit" : null,
+						source: "cline-sdk",
+					},
+				},
+				{ status: "lost" },
+			),
 		);
 		return;
 	}
@@ -499,11 +503,11 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				input,
 				withHeartbeat(
 					{
-				state: "running",
-				lastOutputAt: now(),
-				},
-				{ token: true },
-			),
+						state: "running",
+						lastOutputAt: now(),
+					},
+					{ token: true },
+				),
 			);
 		}
 		return;
@@ -540,11 +544,11 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				input,
 				withHeartbeat(
 					{
-				state: "running",
-				lastOutputAt: now(),
-				},
-				{ token: true },
-			),
+						state: "running",
+						lastOutputAt: now(),
+					},
+					{ token: true },
+				),
 			);
 		}
 		return;
@@ -748,21 +752,21 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			input,
 			withHeartbeat(
 				{
-			state: "running",
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			latestHookActivity: {
-				activityText: previewText ?? "Agent active",
-				toolName: retainedToolActivity.toolName,
-				toolInputSummary: retainedToolActivity.toolInputSummary,
-				finalMessage: fullPreviewText,
-				hookEventName: "assistant_delta",
-				notificationType: null,
-				source: "cline-sdk",
-			},
-			},
-			{ token: true },
-		),
+					state: "running",
+					lastOutputAt: now(),
+					lastHookAt: now(),
+					latestHookActivity: {
+						activityText: previewText ?? "Agent active",
+						toolName: retainedToolActivity.toolName,
+						toolInputSummary: retainedToolActivity.toolInputSummary,
+						finalMessage: fullPreviewText,
+						hookEventName: "assistant_delta",
+						notificationType: null,
+						source: "cline-sdk",
+					},
+				},
+				{ token: true },
+			),
 		);
 		return;
 	}
@@ -772,18 +776,21 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			typeof hookEvent.payload.hookEventName === "string" ? hookEvent.payload.hookEventName : null;
 		const toolName = typeof hookEvent.payload.toolName === "string" ? hookEvent.payload.toolName : null;
 		const activityText = hookEventName && toolName ? `${hookEventName}: ${toolName}` : hookEventName;
-		emitSummary(input, withHeartbeat({
-			lastHookAt: now(),
-			latestHookActivity: {
-				activityText,
-				toolName,
-				toolInputSummary: null,
-				finalMessage: null,
-				hookEventName,
-				notificationType: null,
-				source: "cline-sdk",
-			},
-		}));
+		emitSummary(
+			input,
+			withHeartbeat({
+				lastHookAt: now(),
+				latestHookActivity: {
+					activityText,
+					toolName,
+					toolInputSummary: null,
+					finalMessage: null,
+					hookEventName,
+					notificationType: null,
+					source: "cline-sdk",
+				},
+			}),
+		);
 		return;
 	}
 
@@ -795,11 +802,17 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			return;
 		}
 		clearActiveTurnState(entry);
-		emitSummary(input, withHeartbeat({
-			state: interrupted ? "interrupted" : "awaiting_review",
-			reviewReason: interrupted ? "interrupted" : "exit",
-			lastOutputAt: now(),
-		}, { status: "lost" }));
+		emitSummary(
+			input,
+			withHeartbeat(
+				{
+					state: interrupted ? "interrupted" : "awaiting_review",
+					reviewReason: interrupted ? "interrupted" : "exit",
+					lastOutputAt: now(),
+				},
+				{ status: "lost" },
+			),
+		);
 		return;
 	}
 
@@ -807,14 +820,20 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		if (statusEvent.payload.status !== "running") {
 			clearActiveTurnState(entry);
 		}
-		emitSummary(input, withHeartbeat({
-			state:
-				statusEvent.payload.status === "running" &&
-				!(entry.summary.state === "awaiting_review" && canReturnToRunning(entry.summary.reviewReason))
-					? "running"
-					: entry.summary.state,
-			lastOutputAt: now(),
-		}, { status: statusEvent.payload.status === "running" ? "healthy" : "stale" }));
+		emitSummary(
+			input,
+			withHeartbeat(
+				{
+					state:
+						statusEvent.payload.status === "running" &&
+						!(entry.summary.state === "awaiting_review" && canReturnToRunning(entry.summary.reviewReason))
+							? "running"
+							: entry.summary.state,
+					lastOutputAt: now(),
+				},
+				{ status: statusEvent.payload.status === "running" ? "healthy" : "stale" },
+			),
+		);
 	}
 }
 

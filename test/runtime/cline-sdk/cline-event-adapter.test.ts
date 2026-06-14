@@ -564,6 +564,32 @@ describe("applyClineSessionEvent", () => {
 		expect(result.messages[0]?.content).toContain("Missing API key");
 	});
 
+	it("keeps recoverable tool-call failure retries out of chat messages", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "error",
+						error: new Error('1 tool call(s) failed: [read_files] {"error":"Blocked read_files"}'),
+						recoverable: true,
+						iteration: 1,
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("running");
+		expect(result.entry.summary.latestHookActivity?.hookEventName).toBe("agent_error");
+		expect(result.entry.summary.latestHookActivity?.activityText).toContain("Retrying after error");
+		expect(result.messages).toHaveLength(0);
+	});
+
 	it("sets credit_limit notificationType and suppresses warningMessage for insufficient-balance errors from SDK", () => {
 		const entry = createEntry("task-1");
 		entry.summary.state = "running";

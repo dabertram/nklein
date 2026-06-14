@@ -59,11 +59,14 @@ describe("buildKanbanEfficiencyRules", () => {
 			timeoutMode: "long",
 		});
 
-		expect(rules).toContain("Backend approval tokenizes selected `read_files` content");
 		expect(rules).toContain("Backend approval will tokenize the selected text");
-		expect(rules).toContain("shrink the requested line count by at least half or to the suggested line count");
+		expect(rules).toContain("A rejected read covers zero lines");
+		expect(rules).toContain("shrinking by at least half or to the suggested line count");
+		expect(rules).toContain("set the next unread line to the successful `end_line + 1`");
+		expect(rules).toContain("Never skip from a failed 1-N attempt to N+1");
+		expect(rules).toContain("Grow chunk sizes slowly from the last successful read");
 		expect(rules).toContain("at or below about 35k tokens (36k total read budget including tool/result framing)");
-		expect(rules).toContain("Choose chunk line ranges from the measured average bytes per line");
+		expect(rules).toContain("Choose chunk ranges from average bytes per line");
 		expect(rules).toContain("explicit inclusive `start_line` and `end_line` values");
 		expect(rules).toContain("Prefer non-overlapping primary chunks");
 		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
