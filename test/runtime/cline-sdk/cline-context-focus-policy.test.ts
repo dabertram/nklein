@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	compactKanbanFocusedMessages,
 	compactKanbanMessagesForContextTarget,
+	countKanbanPersistedMessagesTokens,
 } from "../../../src/cline-sdk/cline-context-focus-policy";
 import type { ClineSdkPersistedMessage } from "../../../src/cline-sdk/sdk-runtime-boundary";
 
@@ -49,7 +50,7 @@ function createReadFilesMessages(input: {
 }
 
 describe("compactKanbanFocusedMessages", () => {
-	it("summarizes older read_files results while preserving the latest chunk verbatim", async () => {
+	it("summarizes all read_files results before the next model request", async () => {
 		const olderChunk = "old chunk line\n".repeat(2_000);
 		const latestChunk = "latest chunk must remain verbatim\n".repeat(20);
 		const messages: ClineSdkPersistedMessage[] = [
@@ -88,19 +89,15 @@ describe("compactKanbanFocusedMessages", () => {
 
 		expect(result).toBeDefined();
 		const compactedText = JSON.stringify(result?.messages);
-		const latestResultMessage = result?.messages[4];
-		const latestResultContent =
-			latestResultMessage && typeof latestResultMessage.content !== "string" ? latestResultMessage.content[0] : null;
 		expect(compactedText).toContain("previous read_files result compacted");
 		expect(compactedText).toContain("src/large.ts:1-1000");
+		expect(compactedText).toContain("src/large.ts:1001-2000");
+		expect(compactedText).toContain("latest raw result omitted");
+		expect(compactedText).toContain("Per-file read coverage");
+		expect(compactedText).toContain("covered through line 2000; next unread line 2001");
+		expect(compactedText).toContain("Do not restart a file from line 1");
 		expect(compactedText).not.toContain(olderChunk.trim());
-		expect(latestResultContent).toEqual(
-			expect.objectContaining({
-				type: "tool_result",
-				tool_use_id: "read-2",
-				content: latestChunk,
-			}),
-		);
+		expect(compactedText).not.toContain(latestChunk.trim());
 	});
 
 	it("keeps earlier chunk bodies out of the current chunk context", () => {
@@ -137,23 +134,16 @@ describe("compactKanbanFocusedMessages", () => {
 
 		expect(compactedMessages).not.toBeNull();
 		const compactedText = JSON.stringify(compactedMessages);
-		const latestResultContent = compactedMessages
-			?.flatMap((message) => (typeof message.content === "string" ? [] : message.content))
-			.find((block) => block.type === "tool_result" && block.tool_use_id === "read-2");
 		expect(compactedText).toContain("card1_raw_discussion.txt:1-2500");
+		expect(compactedText).toContain("card1_raw_discussion.txt:2501-5000");
 		expect(compactedText).toContain("previous read_files result compacted");
 		expect(compactedText).toContain("Known existing paths observed in this session");
 		expect(compactedText).toContain("card2_raw_discussion.txt");
 		expect(compactedText).toContain("card3_raw_discussion.txt");
 		expect(compactedText).toContain("plan.md");
 		expect(compactedText).not.toContain(firstChunk.trim());
-		expect(latestResultContent).toEqual(
-			expect.objectContaining({
-				type: "tool_result",
-				tool_use_id: "read-2",
-				content: secondChunk,
-			}),
-		);
+		expect(compactedText).not.toContain(secondChunk.trim());
+		expect(countKanbanPersistedMessagesTokens(compactedMessages ?? [])).toBeLessThan(60_000);
 	});
 
 	it("marks hallucinated missing read paths as invalid instead of known files", () => {

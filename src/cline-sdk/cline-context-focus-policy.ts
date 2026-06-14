@@ -1,3 +1,4 @@
+import { countKanbanTextTokens } from "./cline-context-budgets";
 import type { ClineSdkPersistedMessage, ClineSdkStartSessionInput } from "./sdk-runtime-boundary";
 
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
@@ -333,7 +334,7 @@ function buildReadFilesLedgerEntry(
 		inputSummary: summarizeReadFileInput(reference.toolInput),
 		originalChars: originalText.length,
 		latest,
-		omitted: !latest,
+		omitted: true,
 	};
 }
 
@@ -352,8 +353,15 @@ function buildFocusBrief(input: {
 	if (input.readFilesLedger.length > 0) {
 		lines.push("read_files coverage ledger:");
 		for (const entry of input.readFilesLedger.slice(-MAX_FOCUS_BRIEF_READS)) {
-			const state = entry.latest ? "latest raw result retained below" : "older raw result omitted";
+			const state = entry.latest ? "latest raw result omitted" : "older raw result omitted";
 			lines.push(`- ${entry.inputSummary} (${state}; original ${entry.originalChars.toLocaleString()} chars)`);
+		}
+		const coverage = buildReadCoverageByPath(input.readFilesLedger);
+		if (coverage.length > 0) {
+			lines.push("Per-file read coverage — resume from the next unread line; do NOT restart from line 1:");
+			for (const entry of coverage) {
+				lines.push(`- ${entry.path}: covered through line ${entry.maxEnd}; next unread line ${entry.maxEnd + 1}`);
+			}
 		}
 	}
 	if (input.failedReadFiles.length > 0) {
@@ -367,7 +375,8 @@ function buildFocusBrief(input: {
 	}
 	lines.push(
 		"Use only the known paths above or re-list the directory before reading another file; do not invent replacement filenames.",
-		"Older file chunk bodies are intentionally excluded from request context. Re-read explicit path/ranges if verbatim text is needed.",
+		"Older file chunk bodies were summarized out of request context to save space; rely on your own running notes for their content.",
+		"Do not restart a file from line 1 or re-read already-covered ranges. Continue from the next unread line above; only read small stitching windows around prior chunk boundaries when continuity is unclear, then summarize from your notes.",
 		FOCUS_BRIEF_END,
 	);
 	return lines.join("\n");
@@ -378,6 +387,38 @@ function splitReadInputSummary(summary: string): string[] {
 		.split(",")
 		.map((part) => part.trim())
 		.filter((part) => part.length > 0);
+}
+
+function parseReadCoveragePart(part: string): { path: string; end: number } | null {
+	const colonIndex = part.lastIndexOf(":");
+	if (colonIndex <= 0) {
+		return null;
+	}
+	const path = part.slice(0, colonIndex).trim();
+	const range = part.slice(colonIndex + 1).trim();
+	const match = /^[\d?]*-(\d+)$/.exec(range);
+	if (!path || !match?.[1]) {
+		return null;
+	}
+	const end = Number.parseInt(match[1], 10);
+	return Number.isFinite(end) ? { path, end } : null;
+}
+
+function buildReadCoverageByPath(ledger: readonly ReadFilesLedgerEntry[]): { path: string; maxEnd: number }[] {
+	const maxEndByPath = new Map<string, number>();
+	for (const entry of ledger) {
+		for (const part of splitReadInputSummary(entry.inputSummary)) {
+			const parsed = parseReadCoveragePart(part);
+			if (!parsed) {
+				continue;
+			}
+			const current = maxEndByPath.get(parsed.path);
+			if (current === undefined || parsed.end > current) {
+				maxEndByPath.set(parsed.path, parsed.end);
+			}
+		}
+	}
+	return [...maxEndByPath.entries()].map(([path, maxEnd]) => ({ path, maxEnd }));
 }
 
 function basename(path: string): string {
@@ -455,10 +496,10 @@ function estimateMessageTokens(message: ClineSdkPersistedMessage): number {
 						return "";
 					})
 					.join("\n");
-	return Math.max(1, Math.ceil(contentText.length / 4));
+	return Math.max(1, countKanbanTextTokens(contentText));
 }
 
-function estimateMessagesTokens(messages: readonly ClineSdkPersistedMessage[]): number {
+export function countKanbanPersistedMessagesTokens(messages: readonly ClineSdkPersistedMessage[]): number {
 	return messages.reduce((total, message) => total + estimateMessageTokens(message), 0);
 }
 
@@ -468,7 +509,11 @@ function compactOlderTextMessages(
 	preserveMessageIndexes: ReadonlySet<number>,
 	changed: { value: boolean },
 ): void {
-	for (let index = 1; index < messages.length - 1 && estimateMessagesTokens(messages) > targetTokens; index += 1) {
+	for (
+		let index = 1;
+		index < messages.length - 1 && countKanbanPersistedMessagesTokens(messages) > targetTokens;
+		index += 1
+	) {
 		if (preserveMessageIndexes.has(index)) {
 			continue;
 		}
@@ -534,9 +579,6 @@ export function compactKanbanMessagesForContextTarget(
 	}
 
 	for (const result of readFileResults) {
-		if (latestReadFileResult && result.toolUseId === latestReadFileResult.toolUseId) {
-			continue;
-		}
 		replaceToolResultContent(messages, result, buildReadFilesSummary(result));
 		changed.value = true;
 	}
@@ -546,29 +588,21 @@ export function compactKanbanMessagesForContextTarget(
 		changed.value = true;
 	}
 
-	if (estimateMessagesTokens(messages) > normalizedTargetTokens) {
+	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
 		for (const result of toolResults) {
-			if (latestReadFileResult && result.toolUseId === latestReadFileResult.toolUseId) {
-				continue;
-			}
 			if (isReadFilesToolName(result.toolName) && result.block.is_error !== true) {
 				continue;
 			}
 			replaceToolResultContent(messages, result, buildGenericToolResultSummary(result));
 			changed.value = true;
-			if (estimateMessagesTokens(messages) <= normalizedTargetTokens) {
+			if (countKanbanPersistedMessagesTokens(messages) <= normalizedTargetTokens) {
 				break;
 			}
 		}
 	}
 
-	if (estimateMessagesTokens(messages) > normalizedTargetTokens) {
-		compactOlderTextMessages(
-			messages,
-			normalizedTargetTokens,
-			new Set(latestReadFileResult ? [latestReadFileResult.messageIndex] : []),
-			changed,
-		);
+	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
+		compactOlderTextMessages(messages, normalizedTargetTokens, new Set(), changed);
 	}
 
 	return changed.value ? messages : null;

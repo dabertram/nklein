@@ -47,6 +47,38 @@ function countClineDisplayTokens(text: string): number {
 	return countTokens(text, { allowedSpecial: ALL_SPECIAL_TOKENS });
 }
 
+// Approximate token cost of the short summary the host substitutes for a compacted
+// read_files result body (header + tool input recap + guidance lines).
+const READ_FILES_COMPACTED_OVERHEAD_TOKENS = 64;
+
+function normalizeClineToolName(name: string | null | undefined): string {
+	return typeof name === "string" ? name.toLowerCase().replace(/[^a-z]/g, "") : "";
+}
+
+function getClineMessageToolName(message: ClineChatMessage): string {
+	const metaToolName = normalizeClineToolName(message.meta?.toolName);
+	if (metaToolName) {
+		return metaToolName;
+	}
+	const toolLine = message.content.split("\n").find((line) => line.startsWith("Tool:"));
+	return toolLine ? normalizeClineToolName(toolLine.slice("Tool:".length)) : "";
+}
+
+/**
+ * Estimates a message's contribution to the actual outbound model request.
+ * The Kanban host compacts raw `read_files` result bodies out of request context
+ * before each model call, so their large output must not be counted here — only the
+ * retained tool header/input plus the small compaction summary the host substitutes.
+ */
+export function estimateClineRequestMessageTokens(message: ClineChatMessage): number {
+	if (message.role !== "tool" || getClineMessageToolName(message) !== "readfiles") {
+		return countClineDisplayTokens(message.content);
+	}
+	const outputIndex = message.content.indexOf("\nOutput:");
+	const retained = outputIndex >= 0 ? message.content.slice(0, outputIndex) : message.content;
+	return countClineDisplayTokens(retained) + READ_FILES_COMPACTED_OVERHEAD_TOKENS;
+}
+
 export function formatClineContextBudgetDisplay(options: {
 	estimatedContextTokens: number;
 	estimatedNextPromptTokens?: number;
@@ -86,12 +118,12 @@ export function formatClineContextBudgetDisplay(options: {
 		typeof options.estimatedNextPromptTokens === "number" && options.estimatedNextPromptTokens > 0
 			? options.estimatedNextPromptTokens
 			: 0;
-	const visibleChatTokens = Math.max(0, options.estimatedContextTokens - nextPromptTokens);
+	const requestHistoryTokens = Math.max(0, options.estimatedContextTokens - nextPromptTokens);
 	const nextPromptText = nextPromptTokens > 0 ? ` + next prompt ~${Math.round(nextPromptTokens / 1000)}k` : "";
 	return {
 		limit,
 		percent: displayPercent,
-		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens (visible chat ~${Math.round(visibleChatTokens / 1000)}k${nextPromptText}) · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
+		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens (request history ~${Math.round(requestHistoryTokens / 1000)}k${nextPromptText}) · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
 }
 
@@ -390,7 +422,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			return Math.max(1_200, draftTokens + imageOverheadTokens + framingOverheadTokens);
 		}, [draft, draftImages.length]);
 		const estimatedContextTokens = useMemo(() => {
-			const historyTokens = messages.reduce((sum, message) => sum + countClineDisplayTokens(message.content), 0);
+			const historyTokens = messages.reduce((sum, message) => sum + estimateClineRequestMessageTokens(message), 0);
 			return historyTokens + estimatedNextPromptTokens;
 		}, [estimatedNextPromptTokens, messages]);
 		const estimatedContextBudget = useMemo(

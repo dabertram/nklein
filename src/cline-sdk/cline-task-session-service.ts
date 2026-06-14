@@ -12,7 +12,11 @@ import type {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
-import { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
+import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
+import {
+	compactKanbanMessagesForContextTarget,
+	countKanbanPersistedMessagesTokens,
+} from "./cline-context-focus-policy";
 import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
@@ -59,9 +63,9 @@ export type { KanbanContextSafetyBudgets } from "./cline-context-budgets";
 export { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
 export type { ClineTaskMessage } from "./cline-session-state";
 
-const CONTEXT_BUDGET_WARNING_RATIO = 0.85;
+const DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS = 80_000;
+const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
-const CONTEXT_BUDGET_BLOCK_RATIO = 0.97;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
 const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
@@ -123,6 +127,9 @@ export function buildKanbanEfficiencyRules(options: {
 		"Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
 		"every included file has EOF-confirmed coverage or an explicit exclusion reason.",
 		"If a pass cannot finish now, resume from the last confirmed line. Treat an incomplete pass as incomplete work.",
+		"Raw chunk bodies are removed from request context after each read, so immediately distill every chunk's salient facts into your own durable running notes (or append them incrementally to the output file) before reading the next chunk; your notes are the only lasting record.",
+		"Do not restart a file you have already covered. When a Kanban context-focus brief or coverage ledger reports ranges read through line N, resume at N+1 and never re-read 1..N from line 1.",
+		"To re-confirm continuity across a covered file, read only a small stitching window around the relevant chunk boundary, then synthesize from your running notes rather than re-reading the whole file.",
 		budgets.contextWindow
 			? `Model context window: ${budgets.contextWindow.toLocaleString()} tokens. Treat this as the authoritative upper bound for prompt planning and reserve about ${budgets.outputReserveTokens.toLocaleString()} tokens for reasoning/tool chatter/final answer.`
 			: "If the model limit is unknown, keep conservative chunk sizes and leave a generous reserve for reasoning/output.",
@@ -351,12 +358,23 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
+		const contextWindow = this.resolveKnownContextWindowForTask(
+			input.taskId,
+			input.launchConfigOverrides?.contextWindow,
+		);
+		const initialMessages = this.prepareMessagesForKnownContextWindow({
+			messages: persistedSnapshot?.messages,
+			prompt: input.prompt,
+			images: input.images,
+			contextWindow,
+		});
 		const restartedSession = await this.sessionRuntime.restartTaskSession({
 			taskId: input.taskId,
 			prompt: input.prompt,
 			mode: input.mode,
 			images: input.images,
-			initialMessages: persistedSnapshot?.messages,
+			initialMessages,
+			launchConfigOverrides: input.launchConfigOverrides,
 		});
 		return {
 			result: restartedSession.result,
@@ -395,17 +413,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		};
 	}
 
-	private estimateTaskHistoryTokensBeforePendingUserPrompt(entry: ClineTaskSessionEntry): number {
-		const messages =
-			entry.messages.length > 0 && entry.messages[entry.messages.length - 1]?.role === "user"
-				? entry.messages.slice(0, -1)
-				: entry.messages;
-		const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
-		return Math.max(0, Math.round(totalChars / 4));
-	}
-
 	private estimateNextPromptTokens(prompt: string, images?: RuntimeTaskImage[]): number {
-		const promptTokens = Math.max(0, Math.round(prompt.trim().length / 4));
+		const promptTokens = countKanbanTextTokens(prompt.trim());
 		const imageTokens = (images?.length ?? 0) * CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS;
 		return Math.max(
 			CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
@@ -420,6 +429,41 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return normalized;
 		}
 		return this.contextWindowByTaskId.get(taskId) ?? null;
+	}
+
+	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
+		return this.resolveContextWindowForTask(taskId, launchContextWindow) ?? DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS;
+	}
+
+	private prepareMessagesForKnownContextWindow(input: {
+		messages?: ClineSdkPersistedMessage[] | null;
+		prompt: string;
+		images?: RuntimeTaskImage[];
+		contextWindow: number;
+	}): ClineSdkPersistedMessage[] | undefined {
+		const messages = input.messages ?? [];
+		if (messages.length === 0) {
+			return undefined;
+		}
+
+		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
+		const historyTargetTokens = Math.max(
+			1,
+			Math.min(
+				budgets.safeWorkingBudget ?? input.contextWindow,
+				input.contextWindow - nextPromptTokens - CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
+			),
+		);
+		const compactedMessages = compactKanbanMessagesForContextTarget(messages, historyTargetTokens) ?? messages;
+		const projectedTokens =
+			countKanbanPersistedMessagesTokens(compactedMessages) + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
+		if (projectedTokens > input.contextWindow) {
+			throw new Error(
+				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after Kanban compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
+			);
+		}
+		return compactedMessages;
 	}
 
 	private async maybeCompactBeforeContextOverflow(input: {
@@ -439,9 +483,18 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		};
 		contextWindow: number;
 	}): Promise<{ result: unknown; warnings?: string[] } | null> {
-		const historyTokens = this.estimateTaskHistoryTokensBeforePendingUserPrompt(input.entry);
 		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
-		const projectedTokens = historyTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
+		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
+		const compactedMessages = this.prepareMessagesForKnownContextWindow({
+			messages: persistedSnapshot?.messages,
+			prompt: input.prompt,
+			images: input.images,
+			contextWindow: input.contextWindow,
+		});
+		const projectedTokens =
+			(compactedMessages ? countKanbanPersistedMessagesTokens(compactedMessages) : 0) +
+			nextPromptTokens +
+			CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
 		const usageRatio = projectedTokens / input.contextWindow;
 
 		if (usageRatio >= CONTEXT_BUDGET_WARNING_RATIO) {
@@ -452,18 +505,12 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			);
 		}
 
-		if (usageRatio < CONTEXT_BUDGET_COMPACT_RATIO) {
+		if (!compactedMessages) {
 			return null;
 		}
 
-		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
-		const compactedMessages = compactPersistedMessagesForContextOverflow(persistedSnapshot?.messages ?? []);
-		if (!compactedMessages) {
-			if (usageRatio >= CONTEXT_BUDGET_BLOCK_RATIO) {
-				throw new Error(
-					`Projected context usage (~${Math.round(usageRatio * 100)}%) is above the safe limit and no further compaction is available. Clear or summarize chat before sending.`,
-				);
-			}
+		const originalMessages = persistedSnapshot?.messages ?? [];
+		if (compactedMessages === originalMessages && usageRatio < CONTEXT_BUDGET_COMPACT_RATIO) {
 			return null;
 		}
 
@@ -495,7 +542,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 		const providerId = request.providerId?.trim().toLowerCase() || SDK_DEFAULT_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
-		this.resolveContextWindowForTask(request.taskId, request.contextWindow ?? null);
+		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || SDK_DEFAULT_MODEL_ID;
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
 		const normalizedPrompt = request.prompt.trim();
@@ -587,12 +634,18 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					timeoutMode: request.timeoutMode ?? "normal",
 				})}`;
 
+				const initialMessages = this.prepareMessagesForKnownContextWindow({
+					messages: persistedResumeSnapshot?.messages ?? request.initialMessages,
+					prompt: runtimePrompt,
+					images: request.images,
+					contextWindow: requestContextWindow,
+				});
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
 					cwd: request.cwd,
 					prompt: runtimePrompt,
 					taskTitle: request.taskTitle,
-					initialMessages: persistedResumeSnapshot?.messages ?? request.initialMessages,
+					initialMessages,
 					images: request.images,
 					providerId,
 					modelId,
@@ -782,24 +835,22 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			void this.ensureRuntimeSetup(entry.summary.workspacePath ?? "")
 				.then(async (runtimeSetup) => {
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
-					const resolvedContextWindow = this.resolveContextWindowForTask(
+					const resolvedContextWindow = this.resolveKnownContextWindowForTask(
 						taskId,
 						launchConfigOverrides?.contextWindow,
 					);
 					try {
-						if (resolvedContextWindow && resolvedContextWindow > 0) {
-							const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
-								taskId,
-								entry,
-								prompt: resolvedPrompt,
-								mode: effectiveMode,
-								images,
-								launchConfigOverrides,
-								contextWindow: resolvedContextWindow,
-							});
-							if (proactiveCompaction) {
-								return proactiveCompaction;
-							}
+						const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
+							taskId,
+							entry,
+							prompt: resolvedPrompt,
+							mode: effectiveMode,
+							images,
+							launchConfigOverrides,
+							contextWindow: resolvedContextWindow,
+						});
+						if (proactiveCompaction) {
+							return proactiveCompaction;
 						}
 						return await this.dispatchResolvedTaskInput({
 							taskId,

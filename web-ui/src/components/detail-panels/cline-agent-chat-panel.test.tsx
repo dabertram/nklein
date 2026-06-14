@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ClineAgentChatPanel,
 	type ClineAgentChatPanelHandle,
+	estimateClineRequestMessageTokens,
 	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
 	formatClineModelActivityDisplay,
@@ -195,7 +196,7 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
 		expect(contextBudget.text).toBe(
-			"current request ~87k tokens (visible chat ~81k + next prompt ~6k) · 80k available context (100% · over by ~7k · overflow)",
+			"current request ~87k tokens (request history ~81k + next prompt ~6k) · 80k available context (100% · over by ~7k · overflow)",
 		);
 	});
 
@@ -207,6 +208,32 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(text).toContain("Card content: ~");
 		expect(text).toContain("tokens");
+	});
+
+	it("excludes compacted read_files output from the request size estimate", () => {
+		const hugeOutput = "line of source text\n".repeat(5_000);
+		const readFilesMessage: ClineChatMessage = {
+			id: "m1",
+			role: "tool",
+			content: `Tool: read_files\nInput: src/big.ts:1-1500\nOutput:\n${hugeOutput}`,
+			createdAt: Date.now(),
+			meta: { toolName: "read_files" },
+		};
+		const assistantMessage: ClineChatMessage = {
+			id: "m2",
+			role: "assistant",
+			content: hugeOutput,
+			createdAt: Date.now(),
+			meta: null,
+		};
+
+		const readFilesTokens = estimateClineRequestMessageTokens(readFilesMessage);
+		const assistantTokens = estimateClineRequestMessageTokens(assistantMessage);
+
+		// The raw read_files body is compacted out of the request, so its estimate stays tiny
+		// even though the same text counted verbatim for the assistant message is large.
+		expect(readFilesTokens).toBeLessThan(200);
+		expect(assistantTokens).toBeGreaterThan(1_000);
 	});
 
 	it("formats waiting model activity before the first streamed token", () => {
