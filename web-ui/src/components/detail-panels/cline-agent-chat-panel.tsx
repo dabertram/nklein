@@ -92,14 +92,14 @@ function getLatestUserMessageCreatedAt(messages: ClineChatMessage[]): number | n
 	return latestUserMessage?.createdAt ?? null;
 }
 
-function getLatestAssistantTextForCurrentTurn(messages: ClineChatMessage[]): ClineChatMessage | null {
+function getLatestGeneratedTextForCurrentTurn(messages: ClineChatMessage[]): ClineChatMessage | null {
 	const latestUserCreatedAt = getLatestUserMessageCreatedAt(messages);
 	return (
 		[...messages]
 			.reverse()
 			.find(
 				(message) =>
-					message.role === "assistant" &&
+					(message.role === "assistant" || message.role === "reasoning") &&
 					message.content.trim().length > 0 &&
 					(latestUserCreatedAt === null || message.createdAt >= latestUserCreatedAt),
 			) ?? null
@@ -131,12 +131,12 @@ export function formatClineModelActivityDisplay(options: {
 	}
 
 	const lastTokenAgeText = formatCompactDuration(options.nowMs - lastTokenAt);
-	const latestAssistantMessage = getLatestAssistantTextForCurrentTurn(options.messages);
-	if (!latestAssistantMessage) {
+	const latestGeneratedMessage = getLatestGeneratedTextForCurrentTurn(options.messages);
+	if (!latestGeneratedMessage) {
 		return `Model activity: waiting for response text · elapsed ${elapsedText} · last model activity ${lastTokenAgeText} ago`;
 	}
 
-	const receivedTokens = estimateGeneratedTextTokens(latestAssistantMessage);
+	const receivedTokens = estimateGeneratedTextTokens(latestGeneratedMessage);
 	return `Model activity: streaming · ~${receivedTokens} text tokens shown · elapsed ${elapsedText} · last token ${lastTokenAgeText} ago`;
 }
 

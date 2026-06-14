@@ -223,7 +223,7 @@ describe("ClineAgentChatPanel", () => {
 		expect(text).toBe("Model activity: streaming · ~7 text tokens shown · elapsed 1m 5s · last token 5s ago");
 	});
 
-	it("does not report streaming from stale assistant text or reasoning-only activity", () => {
+	it("formats reasoning activity as streaming when it belongs to the current turn", () => {
 		const text = formatClineModelActivityDisplay({
 			summary: createSummary("running", null, {
 				startedAt: 10_000,
@@ -248,6 +248,39 @@ describe("ClineAgentChatPanel", () => {
 					role: "reasoning",
 					content: "Thinking through the next step",
 					createdAt: 70_000,
+				},
+			],
+			nowMs: 75_000,
+		});
+
+		expect(text).toBe("Model activity: streaming · ~8 text tokens shown · elapsed 1m 5s · last token 5s ago");
+	});
+
+	it("does not report streaming from stale previous-turn output", () => {
+		const text = formatClineModelActivityDisplay({
+			summary: createSummary("running", null, {
+				startedAt: 10_000,
+				updatedAt: 10_000,
+				lastTokenAt: 70_000,
+			}),
+			messages: [
+				{
+					id: "assistant-previous",
+					role: "assistant",
+					content: "Previous answer",
+					createdAt: 20_000,
+				},
+				{
+					id: "reasoning-previous",
+					role: "reasoning",
+					content: "Previous reasoning",
+					createdAt: 30_000,
+				},
+				{
+					id: "user-2",
+					role: "user",
+					content: "Please continue",
+					createdAt: 60_000,
 				},
 			],
 			nowMs: 75_000,
