@@ -34,6 +34,64 @@ interface CardSessionActivity {
 	text: string;
 }
 
+function formatShortAge(timestamp: number | null | undefined): string | null {
+	if (timestamp == null) {
+		return null;
+	}
+	const elapsedMs = Math.max(0, Date.now() - timestamp);
+	const seconds = Math.floor(elapsedMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) {
+		return `${hours}h`;
+	}
+	const days = Math.floor(hours / 24);
+	return `${days}d`;
+}
+
+function formatRunDuration(startedAt: number | null | undefined): string | null {
+	if (startedAt == null) {
+		return null;
+	}
+	const elapsedMs = Math.max(0, Date.now() - startedAt);
+	const totalSeconds = Math.floor(elapsedMs / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	return `${minutes}m`;
+}
+
+function buildSessionTelemetryLine(summary: RuntimeTaskSessionSummary | undefined): string | null {
+	if (!summary) {
+		return null;
+	}
+	const parts: string[] = [];
+	const runDuration = formatRunDuration(summary.startedAt);
+	if (summary.state === "running" && runDuration) {
+		parts.push(`Run ${runDuration}`);
+	}
+	const lastActivityAge = formatShortAge(summary.lastOutputAt);
+	if (lastActivityAge) {
+		parts.push(`Active ${lastActivityAge} ago`);
+	}
+	const tokenAge = formatShortAge(summary.lastTokenAt ?? null);
+	if (tokenAge) {
+		parts.push(`Token ${tokenAge} ago`);
+	}
+	if (summary.heartbeatStatus) {
+		parts.push(`HB ${summary.heartbeatStatus}`);
+	}
+	return parts.length > 0 ? parts.join(" • ") : null;
+}
+
 const SESSION_ACTIVITY_COLOR = {
 	thinking: "var(--color-status-blue)",
 	success: "var(--color-status-green)",
@@ -274,6 +332,7 @@ export function BoardCard({
 	const isCardInteractive = !isTrashCard;
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
 	const rawSessionActivity = useMemo(() => getCardSessionActivity(sessionSummary), [sessionSummary]);
+	const sessionTelemetryLine = useMemo(() => buildSessionTelemetryLine(sessionSummary), [sessionSummary]);
 	const lastSessionActivityRef = useRef<CardSessionActivity | null>(null);
 	const lastSessionActivityCardIdRef = useRef<string | null>(null);
 	if (lastSessionActivityCardIdRef.current !== card.id) {
@@ -745,6 +804,11 @@ export function BoardCard({
 										<p className="m-0 font-mono truncate" style={{ fontSize: 12 }}>
 											{sessionActivity.text}
 										</p>
+										{sessionTelemetryLine ? (
+											<p className="m-0 mt-0.5 font-mono truncate text-text-tertiary" style={{ fontSize: 10 }}>
+												{sessionTelemetryLine}
+											</p>
+										) : null}
 									</div>
 								</div>
 							) : null}

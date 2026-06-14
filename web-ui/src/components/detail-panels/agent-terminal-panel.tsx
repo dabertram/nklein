@@ -89,6 +89,65 @@ function getStateTagStyle(summary: RuntimeTaskSessionSummary | null): StatusTagS
 	return "neutral";
 }
 
+function formatAgeLabel(timestamp: number | null | undefined): string | null {
+	if (timestamp == null) {
+		return null;
+	}
+	const elapsedMs = Math.max(0, Date.now() - timestamp);
+	const totalSeconds = Math.floor(elapsedMs / 1000);
+	if (totalSeconds < 60) {
+		return `${totalSeconds}s ago`;
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m ago`;
+	}
+	const hours = Math.floor(minutes / 60);
+	const remMinutes = minutes % 60;
+	if (hours < 24) {
+		return `${hours}h ${remMinutes}m ago`;
+	}
+	const days = Math.floor(hours / 24);
+	return `${days}d ago`;
+}
+
+function formatRuntimeDuration(startedAt: number | null | undefined): string | null {
+	if (startedAt == null) {
+		return null;
+	}
+	const elapsedMs = Math.max(0, Date.now() - startedAt);
+	const totalSeconds = Math.floor(elapsedMs / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	return `${minutes}m`;
+}
+
+function buildSessionTelemetry(summary: RuntimeTaskSessionSummary | null): string | null {
+	if (!summary) {
+		return null;
+	}
+	const parts: string[] = [];
+	const duration = formatRuntimeDuration(summary.startedAt);
+	if (summary.state === "running" && duration) {
+		parts.push(`Run ${duration}`);
+	}
+	const lastActivity = formatAgeLabel(summary.lastOutputAt);
+	if (lastActivity) {
+		parts.push(`Last activity ${lastActivity}`);
+	}
+	const lastToken = formatAgeLabel(summary.lastTokenAt ?? null);
+	if (lastToken) {
+		parts.push(`Last token ${lastToken}`);
+	}
+	if (summary.heartbeatStatus) {
+		parts.push(`Heartbeat ${summary.heartbeatStatus}`);
+	}
+	return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 const statusTagColors: Record<StatusTagStyle, string> = {
 	neutral: "bg-surface-3 text-text-secondary",
 	success: "bg-status-green/15 text-status-green",
@@ -176,6 +235,7 @@ function AgentTerminalPanelLayout({
 	const canStop = summary?.state === "running" || summary?.state === "awaiting_review";
 	const statusLabel = useMemo(() => describeState(summary), [summary]);
 	const statusTagStyle = useMemo(() => getStateTagStyle(summary), [summary]);
+	const telemetryLabel = useMemo(() => buildSessionTelemetry(summary), [summary]);
 	const agentLabel = useMemo(() => {
 		const normalizedCommand = agentCommand?.trim();
 		if (!normalizedCommand) {
@@ -212,6 +272,11 @@ function AgentTerminalPanelLayout({
 							>
 								{statusLabel}
 							</span>
+							{telemetryLabel ? (
+								<span className="truncate font-mono text-text-tertiary" style={{ fontSize: 11 }} title={telemetryLabel}>
+									{telemetryLabel}
+								</span>
+							) : null}
 						</div>
 						<div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
 							<Button variant="default" size="sm" onClick={clearTerminal}>

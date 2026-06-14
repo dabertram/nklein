@@ -163,13 +163,17 @@ function extractAgentErrorMessage(error: unknown): string | null {
 }
 
 function emitAssistantTextSummary(input: ApplyClineSessionEventInput, text: string | null): void {
+	const currentTime = now();
 	const fullPreviewText = normalizePreviewText(text);
 	const previewText = toPreviewText(fullPreviewText);
 	const retainedToolActivity = getRetainedClineToolActivity(input.entry);
 	emitSummary(input, {
 		state: "running",
-		lastOutputAt: now(),
-		lastHookAt: now(),
+		lastOutputAt: currentTime,
+		lastHookAt: currentTime,
+		lastTokenAt: currentTime,
+		lastHeartbeatAt: currentTime,
+		heartbeatStatus: "healthy",
 		latestHookActivity: {
 			activityText: previewText ?? "Agent active",
 			toolName: retainedToolActivity.toolName,
@@ -180,6 +184,19 @@ function emitAssistantTextSummary(input: ApplyClineSessionEventInput, text: stri
 			source: "cline-sdk",
 		},
 	});
+}
+
+function withHeartbeat(
+	patch: Partial<RuntimeTaskSessionSummary>,
+	options: { token?: boolean; status?: "healthy" | "stale" | "lost" } = {},
+): Partial<RuntimeTaskSessionSummary> {
+	const currentTime = now();
+	return {
+		...patch,
+		lastHeartbeatAt: currentTime,
+		heartbeatStatus: options.status ?? "healthy",
+		...(options.token ? { lastTokenAt: currentTime } : {}),
+	};
 }
 
 function readMessagePartText(message: unknown, partType: "text" | "reasoning"): string | null {
@@ -253,7 +270,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			entry.messages.push(retryMsg);
 			input.emitMessage(taskId, retryMsg);
 		}
-		emitSummary(input, {
+		emitSummary(
+			input,
+			withHeartbeat(
+				{
 			...(recoverable
 				? {}
 				: {
@@ -274,7 +294,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				notificationType: creditLimitError ? "credit_limit" : null,
 				source: "cline-sdk",
 			},
-		});
+			},
+			{ status: recoverable ? "stale" : "lost" },
+		),
+		);
 		return;
 	}
 
@@ -286,7 +309,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const errorMessage = "error" in agentEvent ? extractAgentErrorMessage(agentEvent.error) : null;
 		const retainedToolActivity = getRetainedClineToolActivity(entry);
 		clearActiveTurnState(entry);
-		emitSummary(input, {
+		emitSummary(
+			input,
+			withHeartbeat(
+				{
 			state: "awaiting_review",
 			reviewReason: "error",
 			warningMessage: errorMessage ?? "Unknown agent error",
@@ -301,7 +327,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				notificationType: input.isClineProvider && isCreditLimitError(errorMessage) ? "credit_limit" : null,
 				source: "cline-sdk",
 			},
-		});
+			},
+			{ status: "lost" },
+		),
+		);
 		return;
 	}
 
@@ -409,7 +438,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		}
 
 		clearActiveTurnState(entry);
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch, { status: "lost" }));
 		return;
 	}
 
@@ -458,7 +487,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		}
 
 		clearActiveTurnState(entry);
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch, { status: "lost" }));
 		return;
 	}
 
@@ -466,10 +495,16 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const reasoning = typeof agentEvent.text === "string" ? agentEvent.text : null;
 		if (reasoning && reasoning.length > 0) {
 			input.emitMessage(taskId, appendReasoningChunk(entry, taskId, reasoning));
-			emitSummary(input, {
+			emitSummary(
+				input,
+				withHeartbeat(
+					{
 				state: "running",
 				lastOutputAt: now(),
-			});
+				},
+				{ token: true },
+			),
+			);
 		}
 		return;
 	}
@@ -492,9 +527,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				createReasoningMessage(entry, taskId, reasoning, "reasoning_end");
 			input.emitMessage(taskId, message);
 			entry.activeReasoningMessageId = null;
-			emitSummary(input, {
-				lastOutputAt: now(),
-			});
+			emitSummary(input, withHeartbeat({ lastOutputAt: now() }, { token: true }));
 		}
 		return;
 	}
@@ -503,10 +536,16 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const reasoning = typeof agentEvent.reasoning === "string" ? agentEvent.reasoning : null;
 		if (reasoning && reasoning.length > 0) {
 			input.emitMessage(taskId, appendReasoningChunk(entry, taskId, reasoning));
-			emitSummary(input, {
+			emitSummary(
+				input,
+				withHeartbeat(
+					{
 				state: "running",
 				lastOutputAt: now(),
-			});
+				},
+				{ token: true },
+			),
+			);
 		}
 		return;
 	}
@@ -561,7 +600,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch));
 		return;
 	}
 
@@ -600,7 +639,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch));
 		return;
 	}
 
@@ -638,7 +677,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch));
 		return;
 	}
 
@@ -678,7 +717,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, summaryPatch);
+		emitSummary(input, withHeartbeat(summaryPatch));
 		return;
 	}
 
@@ -690,9 +729,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			input.emitMessage(taskId, message);
 			emitAssistantTextSummary(input, text);
 		} else {
-			emitSummary(input, {
-				lastOutputAt: now(),
-			});
+			emitSummary(input, withHeartbeat({ lastOutputAt: now() }, { token: true }));
 		}
 		entry.activeAssistantMessageId = null;
 		return;
@@ -707,7 +744,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const fullPreviewText = normalizePreviewText(chunk);
 		const previewText = toPreviewText(fullPreviewText);
 		const retainedToolActivity = getRetainedClineToolActivity(entry);
-		emitSummary(input, {
+		emitSummary(
+			input,
+			withHeartbeat(
+				{
 			state: "running",
 			lastOutputAt: now(),
 			lastHookAt: now(),
@@ -720,7 +760,10 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				notificationType: null,
 				source: "cline-sdk",
 			},
-		});
+			},
+			{ token: true },
+		),
+		);
 		return;
 	}
 
@@ -729,7 +772,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			typeof hookEvent.payload.hookEventName === "string" ? hookEvent.payload.hookEventName : null;
 		const toolName = typeof hookEvent.payload.toolName === "string" ? hookEvent.payload.toolName : null;
 		const activityText = hookEventName && toolName ? `${hookEventName}: ${toolName}` : hookEventName;
-		emitSummary(input, {
+		emitSummary(input, withHeartbeat({
 			lastHookAt: now(),
 			latestHookActivity: {
 				activityText,
@@ -740,7 +783,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				notificationType: null,
 				source: "cline-sdk",
 			},
-		});
+		}));
 		return;
 	}
 
@@ -752,11 +795,11 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 			return;
 		}
 		clearActiveTurnState(entry);
-		emitSummary(input, {
+		emitSummary(input, withHeartbeat({
 			state: interrupted ? "interrupted" : "awaiting_review",
 			reviewReason: interrupted ? "interrupted" : "exit",
 			lastOutputAt: now(),
-		});
+		}, { status: "lost" }));
 		return;
 	}
 
@@ -764,14 +807,14 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		if (statusEvent.payload.status !== "running") {
 			clearActiveTurnState(entry);
 		}
-		emitSummary(input, {
+		emitSummary(input, withHeartbeat({
 			state:
 				statusEvent.payload.status === "running" &&
 				!(entry.summary.state === "awaiting_review" && canReturnToRunning(entry.summary.reviewReason))
 					? "running"
 					: entry.summary.state,
 			lastOutputAt: now(),
-		});
+		}, { status: statusEvent.payload.status === "running" ? "healthy" : "stale" }));
 	}
 }
 
@@ -787,6 +830,8 @@ function emitTurnCanceled(input: ApplyClineSessionEventInput): void {
 		reviewReason: null,
 		lastOutputAt: now(),
 		lastHookAt: now(),
+		lastHeartbeatAt: now(),
+		heartbeatStatus: "lost",
 		latestHookActivity: {
 			activityText: "Turn canceled",
 			toolName: null,
