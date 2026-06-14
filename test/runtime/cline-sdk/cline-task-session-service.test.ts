@@ -10,7 +10,10 @@ import type {
 } from "../../../src/cline-sdk/cline-session-runtime";
 import { createSessionId } from "../../../src/cline-sdk/cline-session-state";
 import type { ClineTaskSessionService } from "../../../src/cline-sdk/cline-task-session-service";
-import { createInMemoryClineTaskSessionService } from "../../../src/cline-sdk/cline-task-session-service";
+import {
+	buildKanbanEfficiencyRules,
+	createInMemoryClineTaskSessionService,
+} from "../../../src/cline-sdk/cline-task-session-service";
 import { createClineWatcherRegistry } from "../../../src/cline-sdk/cline-watcher-registry";
 import type { RuntimeTaskImage, RuntimeTaskSessionMode } from "../../../src/core/api-contract";
 
@@ -362,6 +365,19 @@ function setKanbanProcessContext(): void {
 
 describe("InMemoryClineTaskSessionService", () => {
 	const services: ClineTaskSessionService[] = [];
+
+	it("instructs large-file readers to verify stitching areas without requiring overlap", () => {
+		const rules = buildKanbanEfficiencyRules({
+			contextScope: "smart",
+			contextWindow: 80_000,
+			timeoutMode: "normal",
+		});
+
+		expect(rules).toContain("Prefer non-overlapping primary chunks");
+		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
+		expect(rules).toContain("deduplicate those lines when merging, summarizing, or deriving requirements");
+		expect(rules).not.toContain("use overlapping chunks");
+	});
 
 	beforeEach(() => {
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockReset();

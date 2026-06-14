@@ -13,17 +13,6 @@ import {
 
 const MAX_AGENT_WRITABLE_FILE_LINES = 1000;
 const LARGE_FILE_THRESHOLD_LINES = 1000;
-const CODE_OVERLAP_MIN_LINES = 20;
-const CODE_OVERLAP_MIN_RATIO = 0.05;
-
-type ReadRange = {
-	startLine: number;
-	endLine: number;
-};
-
-interface ToolApprovalPolicyState {
-	lastReadRangeBySessionAndFile: Map<string, ReadRange>;
-}
 
 function countLines(text: string): number {
 	if (text.length === 0) {
@@ -192,7 +181,6 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 
 async function approveReadFilesTool(
 	workspacePath: string,
-	state: ToolApprovalPolicyState,
 	request: ClineSdkToolApprovalRequest,
 ): Promise<ClineSdkToolApprovalResult> {
 	const readRequests = toReadFileRequests(request.input);
@@ -211,28 +199,6 @@ async function approveReadFilesTool(
 				reason: `Blocked ${request.toolName}: large files (> ${LARGE_FILE_THRESHOLD_LINES} lines) require explicit start_line and end_line ranges.`,
 			};
 		}
-
-		const key = `${request.sessionId}:${absolutePath}`;
-		const previousRange = state.lastReadRangeBySessionAndFile.get(key);
-		if (previousRange && startLine > previousRange.startLine) {
-			const previousRangeLength = Math.max(1, previousRange.endLine - previousRange.startLine + 1);
-			const requiredOverlap = Math.max(
-				CODE_OVERLAP_MIN_LINES,
-				Math.ceil(previousRangeLength * CODE_OVERLAP_MIN_RATIO),
-			);
-			const actualOverlap = Math.max(0, previousRange.endLine - startLine + 1);
-			if (actualOverlap < requiredOverlap) {
-				return {
-					approved: false,
-					reason: `Blocked ${request.toolName}: insufficient chunk overlap (${actualOverlap} lines). Keep at least ${requiredOverlap} overlapping lines for large-file reads.`,
-				};
-			}
-		}
-
-		state.lastReadRangeBySessionAndFile.set(key, {
-			startLine,
-			endLine,
-		});
 	}
 
 	return {
@@ -339,15 +305,11 @@ async function approveApplyPatchTool(
 export function createKanbanToolApprovalPolicy(workspacePath: string): {
 	requestToolApproval: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 } {
-	const state: ToolApprovalPolicyState = {
-		lastReadRangeBySessionAndFile: new Map<string, ReadRange>(),
-	};
-
 	return {
 		requestToolApproval: async (request: ClineSdkToolApprovalRequest) => {
 			switch (request.toolName) {
 				case "read_files":
-					return await approveReadFilesTool(workspacePath, state, request);
+					return await approveReadFilesTool(workspacePath, request);
 				case "editor":
 					return await approveEditorTool(workspacePath, request);
 				case "apply_patch":

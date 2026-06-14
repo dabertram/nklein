@@ -80,7 +80,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("require explicit start_line and end_line");
 	});
 
-	it("enforces overlapping chunks for large read_files requests", async () => {
+	it("allows adjacent explicit chunks for large read_files requests", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
@@ -98,7 +98,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 		expect(firstRead.approved).toBe(true);
 
-		const insufficientOverlapRead = await policy.requestToolApproval(
+		const adjacentRead = await policy.requestToolApproval(
 			createApprovalRequest({
 				toolName: "read_files",
 				input: {
@@ -106,18 +106,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 				},
 			}),
 		);
-		expect(insufficientOverlapRead.approved).toBe(false);
-		expect(insufficientOverlapRead.reason).toContain("insufficient chunk overlap");
-
-		const validOverlapRead = await policy.requestToolApproval(
-			createApprovalRequest({
-				toolName: "read_files",
-				input: {
-					files: [{ path: largeFilePath, start_line: 181, end_line: 380 }],
-				},
-			}),
-		);
-		expect(validOverlapRead.approved).toBe(true);
+		expect(adjacentRead.approved).toBe(true);
 	});
 
 	it("blocks apply_patch updates that push a file over 1000 lines", async () => {
