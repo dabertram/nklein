@@ -12,7 +12,8 @@ import {
 } from "./sdk-runtime-boundary";
 
 const MAX_AGENT_WRITABLE_FILE_LINES = 1000;
-const LARGE_FILE_THRESHOLD_LINES = 1000;
+const MAX_AGENT_READABLE_CHUNK_CHARS = 32_000;
+const MAX_AGENT_READABLE_CHUNK_TOKEN_ESTIMATE = Math.ceil(MAX_AGENT_READABLE_CHUNK_CHARS / 4);
 
 function countLines(text: string): number {
 	if (text.length === 0) {
@@ -26,6 +27,15 @@ async function readFileLineCount(path: string): Promise<number | null> {
 		await access(path);
 		const content = await readFile(path, "utf-8");
 		return countLines(content);
+	} catch {
+		return null;
+	}
+}
+
+async function readFileText(path: string): Promise<string | null> {
+	try {
+		await access(path);
+		return await readFile(path, "utf-8");
 	} catch {
 		return null;
 	}
@@ -184,19 +194,38 @@ async function approveReadFilesTool(
 	request: ClineSdkToolApprovalRequest,
 ): Promise<ClineSdkToolApprovalResult> {
 	const readRequests = toReadFileRequests(request.input);
+	let totalRequestedChars = 0;
 	for (const readRequest of readRequests) {
 		const absolutePath = resolveToolPath(workspacePath, readRequest.path);
-		const totalLines = await readFileLineCount(absolutePath);
-		if (!totalLines || totalLines <= LARGE_FILE_THRESHOLD_LINES) {
+		const content = await readFileText(absolutePath);
+		if (content === null) {
 			continue;
 		}
+		const totalChars = content.length;
 
 		const startLine = readRequest.startLine;
 		const endLine = readRequest.endLine;
-		if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
+		if (totalChars > MAX_AGENT_READABLE_CHUNK_CHARS) {
+			if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
+				return {
+					approved: false,
+					reason: `Blocked ${request.toolName}: files above ${MAX_AGENT_READABLE_CHUNK_CHARS.toLocaleString()} characters require explicit start_line and end_line ranges.`,
+				};
+			}
+		}
+
+		const requestedText =
+			typeof startLine === "number" && typeof endLine === "number"
+				? content
+						.split("\n")
+						.slice(Math.max(0, startLine - 1), Math.max(0, endLine))
+						.join("\n")
+				: content;
+		totalRequestedChars += requestedText.length;
+		if (totalRequestedChars > MAX_AGENT_READABLE_CHUNK_CHARS) {
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: large files (> ${LARGE_FILE_THRESHOLD_LINES} lines) require explicit start_line and end_line ranges.`,
+				reason: `Blocked ${request.toolName}: requested file content is ~${totalRequestedChars.toLocaleString()} characters, above the ${MAX_AGENT_READABLE_CHUNK_CHARS.toLocaleString()}-character read chunk budget (~${MAX_AGENT_READABLE_CHUNK_TOKEN_ESTIMATE.toLocaleString()} tokens before tool framing). Retry with smaller line ranges; do not rely on truncation.`,
 			};
 		}
 	}

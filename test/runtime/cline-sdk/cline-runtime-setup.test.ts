@@ -59,12 +59,12 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
 	});
 
-	it("blocks large read_files requests without explicit ranges", async () => {
+	it("blocks oversized read_files requests without explicit ranges", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
-		const largeFilePath = join(workspacePath, "big.ts");
-		const largeContent = Array.from({ length: 1200 }, (_, index) => `const line${index} = ${index};`).join("\n");
+		const largeFilePath = join(workspacePath, "big.txt");
+		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const result = await policy.requestToolApproval(
@@ -80,19 +80,67 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("require explicit start_line and end_line");
 	});
 
+	it("blocks explicit read_files chunks above the character budget", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const largeFilePath = join(workspacePath, "wide-lines.txt");
+		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
+		await writeFile(largeFilePath, largeContent, "utf-8");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "read_files",
+				input: {
+					files: [{ path: largeFilePath, start_line: 1, end_line: 400 }],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("read chunk budget");
+		expect(result.reason).toContain("Retry with smaller line ranges");
+	});
+
+	it("blocks combined read_files chunks above the character budget", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+		const firstPath = join(workspacePath, "first.txt");
+		const secondPath = join(workspacePath, "second.txt");
+		const content = Array.from({ length: 200 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
+		await writeFile(firstPath, content, "utf-8");
+		await writeFile(secondPath, content, "utf-8");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "read_files",
+				input: {
+					files: [
+						{ path: firstPath, start_line: 1, end_line: 200 },
+						{ path: secondPath, start_line: 1, end_line: 200 },
+					],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("read chunk budget");
+	});
+
 	it("allows adjacent explicit chunks for large read_files requests", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
 		const largeFilePath = join(workspacePath, "big.txt");
-		const largeContent = Array.from({ length: 1500 }, (_, index) => `transcript line ${index}`).join("\n");
+		const largeContent = Array.from({ length: 400 }, (_, index) => `${index}: ${"x".repeat(100)}`).join("\n");
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const firstRead = await policy.requestToolApproval(
 			createApprovalRequest({
 				toolName: "read_files",
 				input: {
-					files: [{ path: largeFilePath, start_line: 1, end_line: 200 }],
+					files: [{ path: largeFilePath, start_line: 1, end_line: 150 }],
 				},
 			}),
 		);
@@ -102,7 +150,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 			createApprovalRequest({
 				toolName: "read_files",
 				input: {
-					files: [{ path: largeFilePath, start_line: 201, end_line: 400 }],
+					files: [{ path: largeFilePath, start_line: 151, end_line: 300 }],
 				},
 			}),
 		);
