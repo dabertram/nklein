@@ -722,6 +722,7 @@ export type RuntimeClineProviderModelsRequest = z.infer<typeof runtimeClineProvi
 export const runtimeClineProviderModelSchema = z.object({
 	id: z.string(),
 	name: z.string(),
+	contextWindow: z.number().int().nonnegative().optional(),
 	supportsVision: z.boolean().optional(),
 	supportsAttachments: z.boolean().optional(),
 	supportsReasoningEffort: z.boolean().optional(),

@@ -348,6 +348,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						baseUrl: clineLaunchConfig.baseUrl,
 						reasoningEffort: clineLaunchConfig.reasoningEffort,
 						contextScope: body.clineSettings?.contextScope,
+						contextWindow: clineLaunchConfig.contextWindow ?? null,
 						timeoutMode: effectiveTimeouts.timeoutMode,
 					});
 

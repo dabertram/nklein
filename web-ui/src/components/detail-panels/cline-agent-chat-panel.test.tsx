@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClineAgentChatPanel, type ClineAgentChatPanelHandle } from "@/components/detail-panels/cline-agent-chat-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
-import type { RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "@/runtime/types";
+import type { RuntimeConfigResponse, RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { resetWorkspaceMetadataStore, setTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 
 function createSummary(
@@ -34,6 +34,44 @@ function createSummary(
 
 function renderPanel(root: Root, panel: ReactElement): void {
 	root.render(<TooltipProvider>{panel}</TooltipProvider>);
+}
+
+function createRuntimeConfig(agentTimeoutMode: RuntimeConfigResponse["agentTimeoutMode"]): RuntimeConfigResponse {
+	return {
+		selectedAgentId: "cline",
+		selectedShortcutLabel: null,
+		agentAutonomousModeEnabled: true,
+		agentTimeoutMode,
+		agentTimeoutProfile: "local",
+		requestTimeoutMs: null,
+		streamTimeoutMs: null,
+		toolTimeoutMs: null,
+		agentTimeoutMs: null,
+		conversationTimeoutMs: null,
+		effectiveCommand: null,
+		globalConfigPath: "/tmp/global-config",
+		projectConfigPath: null,
+		readyForReviewNotificationsEnabled: true,
+		detectedCommands: [],
+		agents: [],
+		shortcuts: [],
+		clineProviderSettings: {
+			providerId: null,
+			modelId: null,
+			baseUrl: null,
+			reasoningEffort: null,
+			apiKeyConfigured: false,
+			oauthProvider: null,
+			oauthAccessTokenConfigured: false,
+			oauthRefreshTokenConfigured: false,
+			oauthAccountId: null,
+			oauthExpiresAt: null,
+		},
+		commitPromptTemplate: "",
+		openPrPromptTemplate: "",
+		commitPromptTemplateDefault: "",
+		openPrPromptTemplateDefault: "",
+	};
 }
 
 function getMessageList(container: HTMLElement): HTMLDivElement {
@@ -285,6 +323,30 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(container.textContent).toContain('Failed to load MCP server "linear"');
+	});
+
+	it("defaults the task timeout from the global unlimited setting", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running")}
+					runtimeConfig={createRuntimeConfig("unlimited")}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const timeoutSelect = Array.from(container.querySelectorAll("select")).find((select) =>
+			select.textContent?.includes("Timeout: Unlimited"),
+		);
+		expect(timeoutSelect).toBeInstanceOf(HTMLSelectElement);
+		if (!(timeoutSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected timeout select.");
+		}
+		expect(timeoutSelect.value).toBe("unlimited");
 	});
 
 	it("renders a chat-level out-of-credits notice when credit-limit metadata is present", async () => {

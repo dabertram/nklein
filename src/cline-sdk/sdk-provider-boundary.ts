@@ -73,6 +73,7 @@ export interface SdkProviderCatalogItem {
 export interface SdkProviderModel {
 	id: string;
 	name: string;
+	contextWindow?: number;
 	supportsVision?: boolean;
 	supportsAttachments?: boolean;
 	supportsReasoningEffort?: boolean;
@@ -200,7 +201,9 @@ export interface SdkMcpManager {
 }
 
 export type SdkCreateMcpToolsOptions = CreateMcpToolsOptions;
-type SdkLocalProviderModel = Awaited<ReturnType<typeof getLocalProviderModels>>["models"][number];
+type SdkLocalProviderModel = Awaited<ReturnType<typeof getLocalProviderModels>>["models"][number] & {
+	contextWindow?: number;
+};
 type SdkResolvedProviderConfig = Awaited<ReturnType<typeof resolveProviderConfig>>;
 type SdkResolvedProviderModel = NonNullable<NonNullable<SdkResolvedProviderConfig>["knownModels"]>[string];
 type SdkProviderConfig = ReturnType<ProviderSettingsManager["getProviderConfig"]>;
@@ -322,6 +325,7 @@ function toSdkProviderModel(model: SdkLocalProviderModel): SdkProviderModel {
 	return {
 		id: model.id,
 		name: model.name,
+		contextWindow: model.contextWindow,
 		supportsVision: model.supportsVision,
 		supportsAttachments: model.supportsAttachments,
 		supportsReasoningEffort: model.supportsReasoning,
@@ -333,6 +337,7 @@ function toSdkProviderModelFromCatalog(modelId: string, model: SdkResolvedProvid
 	return {
 		id: modelId,
 		name: model.name?.trim() || modelId,
+		contextWindow: model.contextWindow,
 		supportsVision: capabilities.includes("images") || undefined,
 		supportsAttachments: capabilities.includes("files") || undefined,
 		supportsReasoningEffort: capabilities.includes("reasoning") || model.thinkingConfig !== undefined || undefined,

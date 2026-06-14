@@ -74,6 +74,7 @@ type SdkReasoningEffort = NonNullable<NonNullable<SdkProviderSettings["reasoning
 export interface ResolvedClineLaunchConfig {
 	providerId: string;
 	modelId: string | null;
+	contextWindow?: number | null;
 	apiKey: string | null;
 	baseUrl: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
@@ -230,6 +231,7 @@ function toRuntimeProviderModel(model: RuntimeClineProviderModel): RuntimeClineP
 	return {
 		id: model.id,
 		name: model.name?.trim() || model.id,
+		contextWindow: model.contextWindow,
 		supportsVision: model.supportsVision || undefined,
 		supportsAttachments: model.supportsAttachments || undefined,
 		supportsReasoningEffort: model.supportsReasoningEffort || undefined,
@@ -813,9 +815,12 @@ export function createClineProviderService() {
 				overrides?.modelIdOverride?.trim() ||
 				resolvedSettings.model?.trim() ||
 				(await resolveDefaultModelIdForProvider(normalizedProviderId));
+			const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
+			const resolvedModel = providerModels.find((candidate) => candidate.id === modelId) ?? null;
 			return {
 				providerId: normalizedProviderId,
 				modelId,
+				contextWindow: resolvedModel?.contextWindow ?? null,
 				apiKey,
 				baseUrl: resolvedSettings.baseUrl?.trim() || null,
 				reasoningEffort:

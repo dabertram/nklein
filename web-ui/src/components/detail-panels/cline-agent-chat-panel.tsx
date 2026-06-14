@@ -175,7 +175,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			taskClineSettings?.contextScope ?? "smart",
 		);
 		const [timeoutMode, setTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">(
-			taskClineSettings?.timeoutMode ?? "normal",
+			taskClineSettings?.timeoutMode ?? runtimeConfig?.agentTimeoutMode ?? "normal",
 		);
 		const isCreditLimitNoticeVisible = summary?.latestHookActivity?.notificationType === "credit_limit";
 		const [mode, setMode] = useState<RuntimeTaskSessionMode>(() => {
@@ -232,6 +232,10 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			return Math.max(0, Math.round(totalChars / 4));
 		}, [messages]);
 		const estimatedContextLimit = useMemo(() => {
+			const contextWindow = selectedModel?.contextWindow;
+			if (typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0) {
+				return Math.trunc(contextWindow);
+			}
 			switch (contextScope) {
 				case "full":
 					return 200_000;
@@ -239,17 +243,17 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					return 80_000;
 				case "custom":
 					return 160_000;
-				case "smart":
 				default:
 					return 120_000;
 			}
-		}, [contextScope]);
+		}, [contextScope, selectedModel?.contextWindow]);
 		const estimatedContextPercent = useMemo(() => {
 			if (estimatedContextLimit <= 0) {
 				return 0;
 			}
 			return Math.min(100, Math.round((estimatedContextTokens / estimatedContextLimit) * 100));
 		}, [estimatedContextLimit, estimatedContextTokens]);
+		const estimatedContextDisplay = `~${Math.round(estimatedContextTokens / 1000)}k / ${Math.round(estimatedContextLimit / 1000)}k (${estimatedContextPercent}%)`;
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
@@ -301,8 +305,15 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			setMode(nextMode);
 			setDraftImages([]);
 			setContextScope(taskClineSettings?.contextScope ?? "smart");
-			setTimeoutMode(taskClineSettings?.timeoutMode ?? "normal");
-		}, [defaultMode, summary?.mode, taskId]);
+			setTimeoutMode(taskClineSettings?.timeoutMode ?? runtimeConfig?.agentTimeoutMode ?? "normal");
+		}, [
+			defaultMode,
+			runtimeConfig?.agentTimeoutMode,
+			summary?.mode,
+			taskClineSettings?.contextScope,
+			taskClineSettings?.timeoutMode,
+			taskId,
+		]);
 
 		const handleModeChange = useCallback(
 			(nextMode: RuntimeTaskSessionMode) => {
@@ -508,10 +519,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				) : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
-						<div className="text-[11px] text-text-secondary">
-							Context Usage: ~{Math.round(estimatedContextTokens / 1000)}k / {Math.round(estimatedContextLimit / 1000)}k
-							 ({estimatedContextPercent}%)
-						</div>
+						<div className="text-[11px] text-text-secondary">Context Usage: {estimatedContextDisplay}</div>
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}

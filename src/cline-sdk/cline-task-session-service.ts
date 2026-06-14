@@ -74,14 +74,26 @@ export interface StartClineTaskSessionRequest {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextScope?: "full" | "smart" | "minimal" | "custom";
+	contextWindow?: number | null;
 	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	systemPrompt?: string | null;
 }
 
 function buildKanbanEfficiencyRules(options: {
 	contextScope: "full" | "smart" | "minimal" | "custom";
+	contextWindow?: number | null;
 	timeoutMode: "normal" | "long" | "extended" | "unlimited";
 }): string {
+	const contextWindow =
+		typeof options.contextWindow === "number" && Number.isFinite(options.contextWindow) && options.contextWindow > 0
+			? Math.trunc(options.contextWindow)
+			: null;
+	const reserveTokens = contextWindow ? Math.max(24_000, Math.round(contextWindow * 0.18)) : 24_000;
+	const contextBudget = contextWindow ? Math.max(0, contextWindow - reserveTokens) : null;
+	const chunkTokenBudget = contextBudget
+		? Math.max(8_000, Math.min(64_000, Math.round(contextBudget * 0.25)))
+		: 24_000;
+	const chunkCharBudget = chunkTokenBudget * 4;
 	return [
 		"# Kanban Efficiency Rules",
 		"",
@@ -97,14 +109,14 @@ function buildKanbanEfficiencyRules(options: {
 		"",
 		"Before reading files:",
 		"1. Start with targeted discovery (ripgrep/glob/tree) before opening files.",
-		"2. Read focused excerpts first; expand only as needed.",
+		`2. Read focused excerpts first; keep any single excerpt under about ${Math.round(chunkCharBudget / 1000)}k characters and expand only as needed.`,
 		"3. Do not repeatedly re-read the same files unless new context requires it.",
 		"4. Avoid loading generated files and lock files unless necessary.",
 		"",
 		"Before major changes:",
 		"1. Check repository state (git status, branch, relevant recent history).",
 		"2. Prefer surgical edits over rewriting whole files.",
-		"3. For large files, use chunked/section edits and targeted replacements.",
+		`3. For large files, use chunked/section edits and targeted replacements; aim for roughly ${Math.round(chunkCharBudget / 1000)}k characters per read or edit chunk.`,
 		"",
 		"For tool calls:",
 		"1. Validate parameter types and required fields before sending.",
@@ -118,6 +130,13 @@ function buildKanbanEfficiencyRules(options: {
 		"Large file handling:",
 		"- If a file is large, do not rewrite the full file.",
 		"- Use chunked editing, section-level updates, and minimal diffs.",
+		contextWindow
+			? `- Model context window: ${contextWindow.toLocaleString()} tokens. Keep about ${reserveTokens.toLocaleString()} tokens in reserve for reasoning, tool chatter, and the final answer.`
+			: "- If the model limit is unknown, keep conservative chunk sizes and leave a generous reserve for reasoning and output.",
+		contextBudget
+			? `- Rough working budget before reserve: ${contextBudget.toLocaleString()} tokens (~${Math.round(contextBudget / 1000)}k).`
+			: "- Work in the smallest practical slices when the budget is unknown.",
+		`- Suggested file-read chunk size: about ${Math.round(chunkTokenBudget / 1000)}k tokens (~${Math.round(chunkCharBudget / 1000)}k characters).`,
 		"",
 		"When context becomes large:",
 		"- Summarize older conversation/tool output and continue from summaries.",
@@ -465,6 +484,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				}
 				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 					contextScope: request.contextScope ?? "smart",
+					contextWindow: request.contextWindow ?? null,
 					timeoutMode: request.timeoutMode ?? "normal",
 				})}`;
 
