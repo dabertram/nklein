@@ -668,6 +668,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
 					requestToolApproval: runtimeSetup.requestToolApproval,
+					toolPolicies: runtimeSetup.toolPolicies,
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);
 				if (warningMessage) {

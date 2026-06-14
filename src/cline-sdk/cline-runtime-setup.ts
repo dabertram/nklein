@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 import {
+	type ClineSdkStartSessionInput,
 	type ClineSdkToolApprovalRequest,
 	type ClineSdkToolApprovalResult,
 	type ClineSdkUserInstructionService,
@@ -14,44 +15,6 @@ const MAX_AGENT_WRITABLE_FILE_LINES = 1000;
 const LARGE_FILE_THRESHOLD_LINES = 1000;
 const CODE_OVERLAP_MIN_LINES = 20;
 const CODE_OVERLAP_MIN_RATIO = 0.05;
-
-const CODE_FILE_EXTENSIONS = new Set([
-	".ts",
-	".tsx",
-	".js",
-	".jsx",
-	".mjs",
-	".cjs",
-	".py",
-	".go",
-	".rs",
-	".java",
-	".kt",
-	".swift",
-	".cpp",
-	".cc",
-	".cxx",
-	".c",
-	".h",
-	".hpp",
-	".cs",
-	".rb",
-	".php",
-	".scala",
-	".sh",
-	".zsh",
-	".bash",
-	".sql",
-	".json",
-	".yaml",
-	".yml",
-	".toml",
-	".xml",
-	".html",
-	".css",
-	".scss",
-	".md",
-]);
 
 type ReadRange = {
 	startLine: number;
@@ -81,20 +44,6 @@ async function readFileLineCount(path: string): Promise<number | null> {
 
 function resolveToolPath(workspacePath: string, rawPath: string): string {
 	return isAbsolute(rawPath) ? rawPath : resolve(workspacePath, rawPath);
-}
-
-function getPathExtension(path: string): string {
-	const lastSlash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-	const fileName = lastSlash >= 0 ? path.slice(lastSlash + 1) : path;
-	const dotIndex = fileName.lastIndexOf(".");
-	if (dotIndex < 0) {
-		return "";
-	}
-	return fileName.slice(dotIndex).toLowerCase();
-}
-
-function isLikelyCodeFile(path: string): boolean {
-	return CODE_FILE_EXTENSIONS.has(getPathExtension(path));
 }
 
 function asNumber(value: unknown): number | null {
@@ -263,15 +212,6 @@ async function approveReadFilesTool(
 			};
 		}
 
-		if (!isLikelyCodeFile(absolutePath)) {
-			const key = `${request.sessionId}:${absolutePath}`;
-			state.lastReadRangeBySessionAndFile.set(key, {
-				startLine,
-				endLine,
-			});
-			continue;
-		}
-
 		const key = `${request.sessionId}:${absolutePath}`;
 		const previousRange = state.lastReadRangeBySessionAndFile.get(key);
 		if (previousRange && startLine > previousRange.startLine) {
@@ -284,7 +224,7 @@ async function approveReadFilesTool(
 			if (actualOverlap < requiredOverlap) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: insufficient code-chunk overlap (${actualOverlap} lines). Keep at least ${requiredOverlap} overlapping lines for large-file reads.`,
+					reason: `Blocked ${request.toolName}: insufficient chunk overlap (${actualOverlap} lines). Keep at least ${requiredOverlap} overlapping lines for large-file reads.`,
 				};
 			}
 		}
@@ -422,10 +362,19 @@ export function createKanbanToolApprovalPolicy(workspacePath: string): {
 	};
 }
 
+export function createKanbanToolPolicies(): NonNullable<ClineSdkStartSessionInput["toolPolicies"]> {
+	return {
+		read_files: { enabled: true, autoApprove: false },
+		editor: { enabled: true, autoApprove: false },
+		apply_patch: { enabled: true, autoApprove: false },
+	};
+}
+
 export interface ClineRuntimeSetup {
 	userInstructionService: ClineSdkUserInstructionService;
 	resolvePrompt: (prompt: string) => string;
 	loadRules: () => string;
+	toolPolicies: NonNullable<ClineSdkStartSessionInput["toolPolicies"]>;
 	requestToolApproval: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 	dispose: () => Promise<void>;
 }
@@ -441,6 +390,7 @@ export async function createClineRuntimeSetup(workspacePath: string): Promise<Cl
 		userInstructionService,
 		resolvePrompt: (prompt: string) => resolveClineSdkWorkflowSlashCommand(prompt, userInstructionService),
 		loadRules: () => loadClineSdkRulesForSystemPrompt(userInstructionService),
+		toolPolicies: createKanbanToolPolicies(),
 		requestToolApproval: toolApprovalPolicy.requestToolApproval,
 		dispose: async () => {
 			try {

@@ -147,6 +147,7 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 					apiTimeoutMs: request.apiTimeoutMs,
 					systemPrompt: request.systemPrompt,
 					userInstructionService: request.userInstructionService,
+					toolPolicies: request.toolPolicies,
 					requestToolApproval: request.requestToolApproval,
 				});
 				bindTaskSession(request.taskId, requestedSessionId);
@@ -328,6 +329,11 @@ function createFakeRuntimeSetup(): FakeRuntimeSetupController {
 			} as unknown as ClineRuntimeSetup["userInstructionService"],
 			resolvePrompt: resolvePromptMock,
 			loadRules: loadRulesMock,
+			toolPolicies: {
+				read_files: { enabled: true, autoApprove: false },
+				editor: { enabled: true, autoApprove: false },
+				apply_patch: { enabled: true, autoApprove: false },
+			},
 			requestToolApproval: requestToolApprovalMock,
 			dispose: disposeMock,
 		},

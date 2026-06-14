@@ -153,6 +153,7 @@ export interface StartClineSessionRuntimeRequest {
 	apiTimeoutMs?: number | null;
 	systemPrompt: string;
 	userInstructionService?: ClineSdkUserInstructionService;
+	toolPolicies?: ClineSdkStartSessionInput["toolPolicies"];
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 }
 
@@ -256,6 +257,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			systemPrompt: request.systemPrompt,
 			taskTitle: request.taskTitle,
 			userInstructionService: request.userInstructionService,
+			toolPolicies: request.toolPolicies,
 			requestToolApproval: request.requestToolApproval,
 		});
 		this.bindTaskSession(request.taskId, requestedSessionId);
@@ -325,6 +327,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				...(request.requestToolApproval
 					? { capabilities: { requestToolApproval: request.requestToolApproval } }
 					: {}),
+				...(request.toolPolicies ? { toolPolicies: request.toolPolicies } : {}),
 			});
 		} catch (error) {
 			this.clearTaskSessionBinding(request.taskId, requestedSessionId);

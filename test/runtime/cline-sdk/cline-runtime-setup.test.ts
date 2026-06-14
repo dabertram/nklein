@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { ToolApprovalRequest } from "@clinebot/core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createKanbanToolApprovalPolicy } from "../../../src/cline-sdk/cline-runtime-setup";
+import { createKanbanToolApprovalPolicy, createKanbanToolPolicies } from "../../../src/cline-sdk/cline-runtime-setup";
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
 
@@ -51,6 +51,14 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("1000-line file limit");
 	});
 
+	it("marks guarded tools as approval-required", () => {
+		const policies = createKanbanToolPolicies();
+
+		expect(policies.read_files).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.editor).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
+	});
+
 	it("blocks large read_files requests without explicit ranges", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
@@ -72,12 +80,12 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("require explicit start_line and end_line");
 	});
 
-	it("enforces overlapping code chunks for large read_files requests", async () => {
+	it("enforces overlapping chunks for large read_files requests", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const policy = createKanbanToolApprovalPolicy(workspacePath);
-		const largeFilePath = join(workspacePath, "big.ts");
-		const largeContent = Array.from({ length: 1500 }, (_, index) => `const line${index} = ${index};`).join("\n");
+		const largeFilePath = join(workspacePath, "big.txt");
+		const largeContent = Array.from({ length: 1500 }, (_, index) => `transcript line ${index}`).join("\n");
 		await writeFile(largeFilePath, largeContent, "utf-8");
 
 		const firstRead = await policy.requestToolApproval(
@@ -99,7 +107,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 			}),
 		);
 		expect(insufficientOverlapRead.approved).toBe(false);
-		expect(insufficientOverlapRead.reason).toContain("insufficient code-chunk overlap");
+		expect(insufficientOverlapRead.reason).toContain("insufficient chunk overlap");
 
 		const validOverlapRead = await policy.requestToolApproval(
 			createApprovalRequest({
