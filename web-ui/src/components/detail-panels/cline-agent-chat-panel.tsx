@@ -77,6 +77,48 @@ export function formatClineContextBudgetDisplay(options: {
 	};
 }
 
+function formatCompactDuration(milliseconds: number): string {
+	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	if (minutes <= 0) {
+		return `${seconds}s`;
+	}
+	return `${minutes}m ${seconds}s`;
+}
+
+function estimateLatestGeneratedTextTokens(messages: ClineChatMessage[]): number {
+	const latestGeneratedMessage = [...messages]
+		.reverse()
+		.find((message) => message.role === "assistant" || message.role === "reasoning");
+	if (!latestGeneratedMessage) {
+		return 0;
+	}
+	return Math.max(0, Math.round(latestGeneratedMessage.content.length / 4));
+}
+
+export function formatClineModelActivityDisplay(options: {
+	summary: RuntimeTaskSessionSummary | null;
+	messages: ClineChatMessage[];
+	nowMs: number;
+}): string | null {
+	const summary = options.summary;
+	if (summary?.state !== "running") {
+		return null;
+	}
+
+	const startedAt = summary.startedAt ?? summary.updatedAt;
+	const elapsedText = formatCompactDuration(options.nowMs - startedAt);
+	const lastTokenAt = summary.lastTokenAt ?? null;
+	if (!lastTokenAt) {
+		return `Model activity: waiting for first token · elapsed ${elapsedText}`;
+	}
+
+	const receivedTokens = estimateLatestGeneratedTextTokens(options.messages);
+	const lastTokenAgeText = formatCompactDuration(options.nowMs - lastTokenAt);
+	return `Model activity: streaming · ~${receivedTokens} text tokens shown · elapsed ${elapsedText} · last token ${lastTokenAgeText} ago`;
+}
+
 const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
 	return (
 		<div className="mx-1 flex items-start gap-2 rounded-md border border-status-orange/40 bg-status-orange/10 px-3 py-2 text-xs text-status-orange">
@@ -206,6 +248,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
 		const [isSavingModel, setIsSavingModel] = useState(false);
 		const [isClearingChat, setIsClearingChat] = useState(false);
+		const [nowMs, setNowMs] = useState(() => Date.now());
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskClineSettings?.contextScope ?? "smart",
 		);
@@ -275,6 +318,10 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				}),
 			[contextScope, estimatedContextTokens, selectedModel?.contextWindow],
 		);
+		const modelActivityText = useMemo(
+			() => formatClineModelActivityDisplay({ summary, messages, nowMs }),
+			[summary, messages, nowMs],
+		);
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
@@ -318,6 +365,19 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		useEffect(() => {
 			setIsAutoScrollEnabled(true);
 		}, [taskId]);
+
+		useEffect(() => {
+			if (summary?.state !== "running") {
+				return;
+			}
+			setNowMs(Date.now());
+			const intervalId = window.setInterval(() => {
+				setNowMs(Date.now());
+			}, 1000);
+			return () => {
+				window.clearInterval(intervalId);
+			};
+		}, [summary?.state]);
 
 		useEffect(() => {
 			const persistedMode = modeByTaskIdRef.current.get(taskId);
@@ -541,6 +601,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
 						<div className="text-[11px] text-text-secondary">Context Budget: {estimatedContextBudget.text}</div>
+						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}

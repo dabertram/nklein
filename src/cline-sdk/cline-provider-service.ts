@@ -462,7 +462,7 @@ async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null):
 			? Math.trunc(settings.timeout)
 			: DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS;
 	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
-	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+	const normalizedBaseUrl = normalizeLmStudioModelListBaseUrl(baseUrl);
 	for (const pathname of LMSTUDIO_MODEL_LIST_PATHNAMES) {
 		const url = `${normalizedBaseUrl}${pathname}`;
 		try {
@@ -506,6 +506,21 @@ async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null):
 		}
 	}
 	return [];
+}
+
+function normalizeLmStudioModelListBaseUrl(baseUrl: string): string {
+	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+	try {
+		const parsedUrl = new URL(trimmedBaseUrl);
+		if (parsedUrl.pathname.endsWith("/v1")) {
+			parsedUrl.pathname = parsedUrl.pathname.slice(0, -"/v1".length) || "/";
+		}
+		parsedUrl.search = "";
+		parsedUrl.hash = "";
+		return parsedUrl.toString().replace(/\/+$/, "");
+	} catch {
+		return trimmedBaseUrl.replace(/\/v1$/i, "");
+	}
 }
 
 export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeClineProviderModel[]> {

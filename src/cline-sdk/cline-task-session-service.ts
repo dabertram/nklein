@@ -131,8 +131,13 @@ export function buildKanbanEfficiencyRules(options: {
 		"Large file handling:",
 		"- If a file is large, do not rewrite the full file.",
 		"- Use chunked editing, section-level updates, and minimal diffs.",
+		"- Before summarizing or deriving requirements from txt/md/log/data files, establish the complete file set with targeted discovery and decide which files are source material.",
+		"- For each source file, record `wc -l` and `wc -c` before reading, then read deterministic line ranges from line 1 through EOF.",
 		"- For any file larger than about 1,000 lines or 100 KB, create a coverage ledger before reading: record each chunk's line range, and keep reading until the final line is confirmed.",
+		"- After every chunk, update the coverage ledger with read line ranges, unread line ranges, and the next exact line to resume from.",
+		"- If a tool output is truncated, clipped, summarized, or hits an output limit, mark that chunk incomplete and redo it with smaller ranges before using it as evidence.",
 		"- Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
+		"- When multiple source files are involved, do not produce the final synthesized plan until every included file has EOF-confirmed coverage or is explicitly excluded with a reason.",
 		"- If the file is too large to finish in one sitting, resume from the last confirmed line rather than skipping ahead or guessing what remains.",
 		"- Treat an incomplete pass as incomplete work, even if the partial contents seem enough to draft a plan.",
 		contextWindow

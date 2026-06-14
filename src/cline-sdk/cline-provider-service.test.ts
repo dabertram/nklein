@@ -135,6 +135,43 @@ describe("loadProviderModelsWithFallback", () => {
 		]);
 	});
 
+	it("discovers LM Studio metadata from the server root when the configured base URL ends with v1", async () => {
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "lmstudio",
+			baseUrl: "http://linked-host.local:1234/v1",
+			timeout: 1000,
+		} as never);
+		listSdkProviderModelsMock.mockResolvedValue([]);
+		globalThis.fetch = vi.fn(async (input) => {
+			if (input.toString() !== "http://linked-host.local:1234/api/v0/models") {
+				throw new Error(`unexpected metadata URL: ${input.toString()}`);
+			}
+			return {
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "qwen/qwen3.5-9b-mtp-m1",
+							name: "Qwen3.5 9B MTP",
+							max_context_length: 262144,
+						},
+					],
+				}),
+			};
+		}) as unknown as typeof globalThis.fetch;
+
+		const models = await loadProviderModelsWithFallback("lmstudio");
+
+		expect(models).toEqual([
+			{
+				id: "qwen/qwen3.5-9b-mtp-m1",
+				name: "Qwen3.5 9B MTP",
+				contextWindow: 262144,
+			},
+		]);
+		expect(globalThis.fetch).toHaveBeenCalledWith("http://linked-host.local:1234/api/v0/models", expect.any(Object));
+	});
+
 	it("uses LM Studio v1 loaded instance context windows", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{

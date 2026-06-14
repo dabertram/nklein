@@ -6,6 +6,7 @@ import {
 	ClineAgentChatPanel,
 	type ClineAgentChatPanelHandle,
 	formatClineContextBudgetDisplay,
+	formatClineModelActivityDisplay,
 } from "@/components/detail-panels/cline-agent-chat-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
@@ -179,6 +180,41 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.limit).toBe(256_000);
 		expect(contextBudget.text).toContain("256k model max");
 		expect(contextBudget.text).not.toContain("smart budget");
+	});
+
+	it("formats waiting model activity before the first streamed token", () => {
+		const text = formatClineModelActivityDisplay({
+			summary: createSummary("running", null, {
+				startedAt: 10_000,
+				updatedAt: 10_000,
+				lastTokenAt: null,
+			}),
+			messages: [],
+			nowMs: 75_000,
+		});
+
+		expect(text).toBe("Model activity: waiting for first token · elapsed 1m 5s");
+	});
+
+	it("formats streaming model activity with generated text token estimates", () => {
+		const text = formatClineModelActivityDisplay({
+			summary: createSummary("running", null, {
+				startedAt: 10_000,
+				updatedAt: 10_000,
+				lastTokenAt: 70_000,
+			}),
+			messages: [
+				{
+					id: "assistant-1",
+					role: "assistant",
+					content: "Streaming text from the model",
+					createdAt: 1,
+				},
+			],
+			nowMs: 75_000,
+		});
+
+		expect(text).toBe("Model activity: streaming · ~7 text tokens shown · elapsed 1m 5s · last token 5s ago");
 	});
 
 	it("renders reasoning and tool messages with specialized UI", async () => {
