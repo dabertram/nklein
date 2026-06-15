@@ -463,6 +463,35 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists the configurable agent writable file line limit", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-write-limit-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-write-limit-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const updated = await updateRuntimeConfig(tempProject, {
+					maxAgentWritableFileLines: 2500,
+				});
+				expect(updated.maxAgentWritableFileLines).toBe(2500);
+
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+				) as {
+					maxAgentWritableFileLines?: number;
+				};
+				expect(globalPayload.maxAgentWritableFileLines).toBe(2500);
+
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.maxAgentWritableFileLines).toBe(2500);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("preserves concurrent config updates across processes", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-concurrent-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-concurrent-");

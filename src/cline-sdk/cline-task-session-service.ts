@@ -2,6 +2,8 @@
 // runtime-api.ts uses this service to start sessions, send messages, load
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
+
+import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	RuntimeClineReasoningEffort,
 	RuntimeTaskImage,
@@ -103,6 +105,7 @@ export interface StartClineTaskSessionRequest {
 	streamTimeoutMs?: number | null;
 	toolTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
+	maxAgentWritableFileLines?: number | null;
 	systemPrompt?: string | null;
 }
 
@@ -121,6 +124,7 @@ export function buildKanbanEfficiencyRules(options: {
 	contextScope: "full" | "smart" | "minimal" | "custom";
 	contextWindow?: number | null;
 	timeoutMode: "normal" | "long" | "extended" | "unlimited";
+	maxAgentWritableFileLines?: number | null;
 }): string {
 	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow);
 	const chunkTokenBudgetText = Math.round(budgets.fileChunkTokenBudget / 1000);
@@ -130,13 +134,28 @@ export function buildKanbanEfficiencyRules(options: {
 		? `${budgets.safeWorkingBudget.toLocaleString()} tokens (~${Math.round(budgets.safeWorkingBudget / 1000)}k)`
 		: null;
 	const promptOverheadReserveText = budgets.promptOverheadReserveTokens.toLocaleString();
+	const maxAgentWritableFileLines = normalizeMaxAgentWritableFileLines(options.maxAgentWritableFileLines);
 	return [
 		"# Kanban Efficiency Rules",
 		"",
+		"## Adaptive Prompt Selection",
+		"Before acting, briefly decide which optional rule packs fit the user's task. Apply a pack only when its description matches the requested work; ignore packs that do not fit. Do not keyword-match mechanically: reason from the task intent, source shape, and expected output.",
+		"Available optional pack: Requirements Extraction Rules. Use it when the task asks you to reconstruct, consolidate, summarize, or derive requirements/specifications/plans from discussions, prior drafts, logs, notes, or other evolving source material.",
+		"",
+		"## Requirements Extraction Rules",
+		"When this pack applies, reconstruct the latest agreed requirements from the sources instead of creating an idealized new spec. Treat user corrections, answers, and refinements as higher authority than agent suggestions; agent-generated drafts become requirements only when accepted, corrected, or built on by the user.",
+		"Maintain a compact requirements ledger while reading: explicit source facts, latest accepted requirements, superseded older requirements, open decisions or unresolved clarifications, and implementation inferences or recommendations.",
+		"When later source material revises earlier details, merge into the latest requirement or mark the older detail superseded; do not duplicate both as active requirements. If conflict remains unresolved, preserve it as an open decision.",
+		"Do not invent concrete details such as dates, versions, sample people, paths, records, thresholds, schemas, dependencies, timelines, or import formats. If a source leaves something undecided, label it open instead of silently choosing.",
+		"Preserve important conceptual boundaries: immutable raw data versus editable interpretation, imported data versus manual input, accepted decisions versus uncertain or review states, current scope versus future or superseded ideas, and domain categories that use different rules.",
+		"Before writing a synthesized spec or plan, self-audit for hallucinated details, unresolved decisions presented as final, duplicated superseded requirements, collapsed domain distinctions, and recommendations not labeled as recommendations.",
+		"",
+		"## Tool And Context Rules",
 		`Scope: ${options.contextScope}. Timeout: ${options.timeoutMode}. Use targeted discovery and focused excerpts; avoid generated/lock files unless needed.`,
-		"Hard output guard rail: never create or edit files above 1,000 total lines; split large outputs across files.",
+		"When the exact source file set is unclear, first use `list_files` or `find_files`, then `get_file_size` for candidate files before choosing `read_files` or `read_large_file`. Treat discovery output as metadata only, not source content.",
+		`Hard output guard rail: never create or edit files above ${maxAgentWritableFileLines.toLocaleString()} total lines; split large outputs across files. Use \`write_file\` for one generated artifact and \`write_files\` for batches that fit this limit.`,
 		"For ordinary code and small files, use `read_files` normally. Do not turn focused code inspection into a large-file workflow.",
-		`For files above ~${chunkCharBudgetText}k characters or 100 KB that must be read completely, use \`read_large_file\` with a workflow cursor. First call: {"path":"...","cursor":"start"}. Then reuse \`nextCursor\` from each result for the next call (cursor format includes a monotonic counter, e.g. \`read:<line>:<n>\` or \`stitch:<left>/<right>:<n>\`); never replay a stale cursor. Do not include \`read_files\` in the same assistant response as \`read_large_file\`; finish the active large-file workflow first. It owns chunk sizing, line-1-through-EOF coverage, stitching verification, and the final synthesis phase; continue until the final line is confirmed.`,
+		`For files above ~${chunkCharBudgetText}k characters or 100 KB that must be read completely, use \`read_large_file\` with a workflow cursor. First call: {"path":"...","cursor":"start"}. Then reuse \`nextCursor\` from each result for the next call (cursor format includes a monotonic counter, e.g. \`read:<line>:<n>\` or \`stitch:<left>/<right>:<n>\`); never replay a stale cursor. Make exactly one \`read_large_file\` call per assistant response and wait for its result before making the next call; never call it in parallel. Do not include \`read_files\` in the same assistant response as \`read_large_file\`; finish the active large-file workflow first. It owns chunk sizing, line-1-through-EOF coverage, batched stitching verification, and the final synthesis phase; continue until the final line is confirmed.`,
 		`Choose initial read lines from bytes/line: target about 70% of the ${chunkCharBudgetText}k character budget, capped to remaining lines. Do not default to tiny 300-line starters when larger ranges measure safe.`,
 		`Backend approval will tokenize the selected text and keep source content at or below about ${chunkContentTokenBudgetText}k tokens (${chunkTokenBudgetText}k total read budget including tool/result framing).`,
 		"A rejected read covers zero lines: do not record it, advance past it, or call it successful. Retry one large file per call, shrinking by at least half or to the suggested line count.",
@@ -755,6 +774,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					contextScope: request.contextScope ?? "smart",
 					contextWindow: request.contextWindow ?? null,
 					timeoutMode: request.timeoutMode ?? "normal",
+					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 				})}`;
 
 				const initialMessages = this.prepareMessagesForKnownContextWindow({
@@ -785,7 +805,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
-					requestToolApproval: runtimeSetup.createToolApproval({ contextWindow: request.contextWindow ?? null }),
+					requestToolApproval: runtimeSetup.createToolApproval({
+						contextWindow: request.contextWindow ?? null,
+						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+					}),
 					toolPolicies: runtimeSetup.toolPolicies,
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);

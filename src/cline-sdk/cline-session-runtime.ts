@@ -4,6 +4,7 @@
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { extractClineSessionId } from "./cline-event-adapter";
+import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
 import {
 	createReadLargeFileTool,
 	getClineLargeFileWorkflow,
@@ -17,6 +18,7 @@ import {
 } from "./cline-mcp-runtime-service";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
+import { createWriteFilesTool, createWriteFileTool } from "./cline-write-files-tool";
 import { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
 	type ClineSdkPersistedMessage,
@@ -75,6 +77,7 @@ type ClineSessionLaunchConfigOverrides = {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
+	maxAgentWritableFileLines?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
 };
@@ -175,6 +178,7 @@ export interface StartClineSessionRuntimeRequest {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
+	maxAgentWritableFileLines?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
 	systemPrompt: string;
@@ -366,10 +370,22 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
 		const extraTools = [
+			...createFileDiscoveryTools({
+				workspacePath: request.cwd,
+				contextWindow: request.contextWindow,
+			}),
 			createReadLargeFileTool({
 				sessionId: requestedSessionId,
 				workspacePath: request.cwd,
 				contextWindow: request.contextWindow,
+			}),
+			createWriteFilesTool({
+				workspacePath: request.cwd,
+				maxFileLines: request.maxAgentWritableFileLines,
+			}),
+			createWriteFileTool({
+				workspacePath: request.cwd,
+				maxFileLines: request.maxAgentWritableFileLines,
 			}),
 			...(mcpToolBundle?.tools ?? []),
 		];

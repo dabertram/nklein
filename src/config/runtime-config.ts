@@ -5,6 +5,7 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
+import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	RuntimeAgentId,
 	RuntimeAgentTimeoutMode,
@@ -26,6 +27,7 @@ interface RuntimeGlobalConfigFileShape {
 	toolTimeoutMs?: number | null;
 	agentTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
+	maxAgentWritableFileLines?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -48,6 +50,7 @@ export interface RuntimeConfigState {
 	toolTimeoutMs: number | null;
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
+	maxAgentWritableFileLines: number;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -67,6 +70,7 @@ export interface RuntimeConfigUpdateInput {
 	toolTimeoutMs?: number | null;
 	agentTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
+	maxAgentWritableFileLines?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
@@ -387,6 +391,7 @@ function toRuntimeConfigState({
 		toolTimeoutMs: normalizeTimeoutMsValue(globalConfig?.toolTimeoutMs),
 		agentTimeoutMs: normalizeTimeoutMsValue(globalConfig?.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
+		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -424,6 +429,7 @@ async function writeRuntimeGlobalConfigFile(
 		toolTimeoutMs?: number | null;
 		agentTimeoutMs?: number | null;
 		conversationTimeoutMs?: number | null;
+		maxAgentWritableFileLines?: number;
 		readyForReviewNotificationsEnabled?: boolean;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
@@ -472,6 +478,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.conversationTimeoutMs === undefined
 			? defaultTimeouts.conversationTimeoutMs
 			: normalizeTimeoutMsValue(config.conversationTimeoutMs);
+	const maxAgentWritableFileLines =
+		config.maxAgentWritableFileLines === undefined
+			? DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
+			: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines);
 	const readyForReviewNotificationsEnabled =
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
@@ -529,6 +539,12 @@ async function writeRuntimeGlobalConfigFile(
 		conversationTimeoutMs !== defaultTimeouts.conversationTimeoutMs
 	) {
 		payload.conversationTimeoutMs = conversationTimeoutMs;
+	}
+	if (
+		hasOwnKey(existing, "maxAgentWritableFileLines") ||
+		maxAgentWritableFileLines !== DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
+	) {
+		payload.maxAgentWritableFileLines = maxAgentWritableFileLines;
 	}
 	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
@@ -627,6 +643,7 @@ function createRuntimeConfigStateFromValues(input: {
 	toolTimeoutMs: number | null;
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
+	maxAgentWritableFileLines: number;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -648,6 +665,7 @@ function createRuntimeConfigStateFromValues(input: {
 		toolTimeoutMs: normalizeTimeoutMsValue(input.toolTimeoutMs),
 		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
+		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -674,6 +692,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		toolTimeoutMs: current.toolTimeoutMs,
 		agentTimeoutMs: current.agentTimeoutMs,
 		conversationTimeoutMs: current.conversationTimeoutMs,
+		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
@@ -716,6 +735,7 @@ export async function saveRuntimeConfig(
 		toolTimeoutMs: number | null;
 		agentTimeoutMs: number | null;
 		conversationTimeoutMs: number | null;
+		maxAgentWritableFileLines?: number;
 		readyForReviewNotificationsEnabled: boolean;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
@@ -735,6 +755,7 @@ export async function saveRuntimeConfig(
 			toolTimeoutMs: config.toolTimeoutMs,
 			agentTimeoutMs: config.agentTimeoutMs,
 			conversationTimeoutMs: config.conversationTimeoutMs,
+			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
@@ -753,6 +774,7 @@ export async function saveRuntimeConfig(
 			toolTimeoutMs: config.toolTimeoutMs,
 			agentTimeoutMs: config.agentTimeoutMs,
 			conversationTimeoutMs: config.conversationTimeoutMs,
+			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
@@ -781,6 +803,10 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
 			conversationTimeoutMs:
 				updates.conversationTimeoutMs === undefined ? current.conversationTimeoutMs : updates.conversationTimeoutMs,
+			maxAgentWritableFileLines:
+				updates.maxAgentWritableFileLines === undefined
+					? current.maxAgentWritableFileLines
+					: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
@@ -799,6 +825,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
 			nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
 			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
+			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
@@ -819,6 +846,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			toolTimeoutMs: nextConfig.toolTimeoutMs,
 			agentTimeoutMs: nextConfig.agentTimeoutMs,
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
+			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -839,6 +867,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			toolTimeoutMs: nextConfig.toolTimeoutMs,
 			agentTimeoutMs: nextConfig.agentTimeoutMs,
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
+			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
@@ -878,6 +907,10 @@ export async function updateGlobalRuntimeConfig(
 					updates.conversationTimeoutMs === undefined
 						? current.conversationTimeoutMs
 						: updates.conversationTimeoutMs,
+				maxAgentWritableFileLines:
+					updates.maxAgentWritableFileLines === undefined
+						? current.maxAgentWritableFileLines
+						: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 				shortcuts: current.shortcuts,
@@ -896,6 +929,7 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
 				nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
 				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
+				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
@@ -915,6 +949,7 @@ export async function updateGlobalRuntimeConfig(
 				toolTimeoutMs: nextConfig.toolTimeoutMs,
 				agentTimeoutMs: nextConfig.agentTimeoutMs,
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
+				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -933,6 +968,7 @@ export async function updateGlobalRuntimeConfig(
 				toolTimeoutMs: nextConfig.toolTimeoutMs,
 				agentTimeoutMs: nextConfig.agentTimeoutMs,
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
+				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,

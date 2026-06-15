@@ -375,6 +375,7 @@ export function RuntimeSettingsDialog({
 	const [toolTimeoutMs, setToolTimeoutMs] = useState("");
 	const [agentTimeoutMs, setAgentTimeoutMs] = useState("");
 	const [conversationTimeoutMs, setConversationTimeoutMs] = useState("");
+	const [maxAgentWritableFileLines, setMaxAgentWritableFileLines] = useState("1000");
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [initialThemeId, setInitialThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
@@ -456,6 +457,7 @@ export function RuntimeSettingsDialog({
 	const initialAgentTimeoutMs = config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs);
 	const initialConversationTimeoutMs =
 		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
+	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
@@ -503,6 +505,9 @@ export function RuntimeSettingsDialog({
 		if (conversationTimeoutMs.trim() !== initialConversationTimeoutMs.trim()) {
 			return true;
 		}
+		if (maxAgentWritableFileLines.trim() !== initialMaxAgentWritableFileLines.trim()) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -545,6 +550,7 @@ export function RuntimeSettingsDialog({
 		initialAgentTimeoutProfile,
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
+		initialMaxAgentWritableFileLines,
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
@@ -553,6 +559,7 @@ export function RuntimeSettingsDialog({
 		initialStreamTimeoutMs,
 		initialThemeId,
 		initialToolTimeoutMs,
+		maxAgentWritableFileLines,
 		openPrPromptTemplate,
 		requestTimeoutMs,
 		readyForReviewNotificationsEnabled,
@@ -575,6 +582,7 @@ export function RuntimeSettingsDialog({
 		setToolTimeoutMs(config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs));
 		setAgentTimeoutMs(config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs));
 		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
+		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		setShortcuts(config?.shortcuts ?? []);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
@@ -587,6 +595,7 @@ export function RuntimeSettingsDialog({
 		config?.agentTimeoutProfile,
 		config?.commitPromptTemplate,
 		config?.conversationTimeoutMs,
+		config?.maxAgentWritableFileLines,
 		config?.openPrPromptTemplate,
 		config?.requestTimeoutMs,
 		config?.readyForReviewNotificationsEnabled,
@@ -744,14 +753,21 @@ export function RuntimeSettingsDialog({
 		const parsedToolTimeout = parseTimeoutMsInput(toolTimeoutMs);
 		const parsedAgentTimeout = parseTimeoutMsInput(agentTimeoutMs);
 		const parsedConversationTimeout = parseTimeoutMsInput(conversationTimeoutMs);
+		const parsedMaxAgentWritableFileLines = parseTimeoutMsInput(maxAgentWritableFileLines);
 		if (
 			parsedRequestTimeout === "invalid" ||
 			parsedStreamTimeout === "invalid" ||
 			parsedToolTimeout === "invalid" ||
 			parsedAgentTimeout === "invalid" ||
-			parsedConversationTimeout === "invalid"
+			parsedConversationTimeout === "invalid" ||
+			parsedMaxAgentWritableFileLines === "invalid" ||
+			parsedMaxAgentWritableFileLines === null
 		) {
-			setSaveError("Timeout values must be integers >= 0 (leave blank for profile defaults). ");
+			setSaveError("Timeout values must be integers >= 0; max writable file lines must be an integer >= 1.");
+			return;
+		}
+		if (parsedMaxAgentWritableFileLines < 1) {
+			setSaveError("Max writable file lines must be an integer >= 1.");
 			return;
 		}
 		if (!config) {
@@ -797,6 +813,7 @@ export function RuntimeSettingsDialog({
 			toolTimeoutMs: parsedToolTimeout,
 			agentTimeoutMs: parsedAgentTimeout,
 			conversationTimeoutMs: parsedConversationTimeout,
+			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled,
 			shortcuts,
 			commitPromptTemplate,
@@ -991,6 +1008,19 @@ export function RuntimeSettingsDialog({
 									disabled={controlsDisabled}
 									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
 								/>
+							</div>
+							<div style={{ gridColumn: "1 / span 2" }}>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">maxAgentWritableFileLines</p>
+								<input
+									value={maxAgentWritableFileLines}
+									onChange={(event) => setMaxAgentWritableFileLines(event.target.value)}
+									placeholder="1000"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									Maximum lines any agent write tool may create in a single file.
+								</p>
 							</div>
 						</div>
 					</div>

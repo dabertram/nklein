@@ -29,6 +29,26 @@ describe("buildKanbanContextSafetyBudgets", () => {
 });
 
 describe("buildKanbanEfficiencyRules", () => {
+	it("offers requirements extraction as an optional reasoning-selected prompt pack", () => {
+		const rules = buildKanbanEfficiencyRules({
+			contextScope: "smart",
+			contextWindow: 80_000,
+			timeoutMode: "long",
+		});
+
+		expect(rules).toContain("## Adaptive Prompt Selection");
+		expect(rules).toContain("Apply a pack only when its description matches the requested work");
+		expect(rules).toContain("Do not keyword-match mechanically");
+		expect(rules).toContain("Available optional pack: Requirements Extraction Rules");
+		expect(rules).toContain("## Requirements Extraction Rules");
+		expect(rules).toContain("reconstruct the latest agreed requirements");
+		expect(rules).toContain("Maintain a compact requirements ledger");
+		expect(rules).toContain("explicit source facts, latest accepted requirements, superseded older requirements");
+		expect(rules).toContain("Do not invent concrete details");
+		expect(rules).toContain("Preserve important conceptual boundaries");
+		expect(rules).toContain("self-audit for hallucinated details");
+	});
+
 	it("requires EOF coverage before summarizing large files", () => {
 		const rules = buildKanbanEfficiencyRules({
 			contextScope: "smart",
@@ -37,7 +57,9 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 
 		expect(rules).toContain("coverage ledger");
-		expect(rules).toContain("use `read_large_file` repeatedly");
+		expect(rules).toContain("use `read_large_file` with a workflow cursor");
+		expect(rules).toContain("Make exactly one `read_large_file` call per assistant response");
+		expect(rules).toContain("never call it in parallel");
 		expect(rules).toContain("stitching verification");
 		expect(rules).toContain("If tool output is truncated, clipped, summarized, or hits a limit");
 		expect(rules).toContain("final line is confirmed");
@@ -50,6 +72,8 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("Treat this as the authoritative upper bound for prompt planning");
 		expect(rules).toContain("Safe working budget after output reserve and prompt overhead reserve");
 		expect(rules).toContain("Prefer the smallest slice that fully answers the immediate question");
+		expect(rules).toContain("first use `list_files` or `find_files`, then `get_file_size`");
+		expect(rules).toContain("Treat discovery output as metadata only");
 	});
 
 	it("instructs agents to select deterministic line chunks from token estimates", () => {
@@ -85,6 +109,6 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 		const estimatedPromptTokens = Math.ceil(rules.length / 4);
 
-		expect(estimatedPromptTokens).toBeLessThanOrEqual(1_500);
+		expect(estimatedPromptTokens).toBeLessThanOrEqual(2_300);
 	});
 });

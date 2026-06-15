@@ -51,6 +51,7 @@ export async function saveRuntimeConfig(
 		toolTimeoutMs?: number | null;
 		agentTimeoutMs?: number | null;
 		conversationTimeoutMs?: number | null;
+		maxAgentWritableFileLines?: number;
 		shortcuts?: RuntimeProjectShortcut[];
 		readyForReviewNotificationsEnabled?: boolean;
 		commitPromptTemplate?: string;

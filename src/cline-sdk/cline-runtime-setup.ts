@@ -1,7 +1,13 @@
 import { access, readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import {
+	countTextLines,
+	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
+	normalizeMaxAgentWritableFileLines,
+} from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
+import { parseWriteFilesRequests } from "./cline-write-files-tool";
 import {
 	type ClineSdkStartSessionInput,
 	type ClineSdkToolApprovalRequest,
@@ -12,24 +18,16 @@ import {
 	resolveClineSdkWorkflowSlashCommand,
 } from "./sdk-runtime-boundary";
 
-const MAX_AGENT_WRITABLE_FILE_LINES = 1000;
-
 export interface KanbanToolApprovalOptions {
 	contextWindow?: number | null;
-}
-
-function countLines(text: string): number {
-	if (text.length === 0) {
-		return 0;
-	}
-	return text.split("\n").length;
+	maxAgentWritableFileLines?: number | null;
 }
 
 async function readFileLineCount(path: string): Promise<number | null> {
 	try {
 		await access(path);
 		const content = await readFile(path, "utf-8");
-		return countLines(content);
+		return countTextLines(content);
 	} catch {
 		return null;
 	}
@@ -223,6 +221,7 @@ async function approveReadFilesTool(
 async function approveEditorTool(
 	workspacePath: string,
 	request: ClineSdkToolApprovalRequest,
+	maxAgentWritableFileLines: number,
 ): Promise<ClineSdkToolApprovalResult> {
 	if (!request.input || typeof request.input !== "object") {
 		return {
@@ -240,7 +239,7 @@ async function approveEditorTool(
 	}
 	const path = resolveToolPath(workspacePath, rawPath);
 	const currentText = (await readFile(path, "utf-8").catch(() => "")) as string;
-	const currentLines = countLines(currentText);
+	const currentLines = countTextLines(currentText);
 
 	const newText = typeof input.new_text === "string" ? input.new_text : "";
 	const oldText = typeof input.old_text === "string" ? input.old_text : null;
@@ -259,11 +258,11 @@ async function approveEditorTool(
 		nextText = newText;
 	}
 
-	const nextLines = countLines(nextText);
-	if (nextLines > MAX_AGENT_WRITABLE_FILE_LINES) {
+	const nextLines = countTextLines(nextText);
+	if (nextLines > maxAgentWritableFileLines) {
 		return {
 			approved: false,
-			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${MAX_AGENT_WRITABLE_FILE_LINES}-line file limit. Split content across multiple files.`,
+			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
 		};
 	}
 
@@ -273,9 +272,36 @@ async function approveEditorTool(
 	};
 }
 
+async function approveWriteFilesTool(
+	request: ClineSdkToolApprovalRequest,
+	maxAgentWritableFileLines: number,
+): Promise<ClineSdkToolApprovalResult> {
+	const writeRequests = parseWriteFilesRequests(request.input);
+	if (writeRequests.length === 0) {
+		return {
+			approved: false,
+			reason: `Blocked ${request.toolName}: no files with path and content fields were provided.`,
+		};
+	}
+	for (const writeRequest of writeRequests) {
+		const lineCount = countTextLines(writeRequest.content);
+		if (lineCount > maxAgentWritableFileLines) {
+			return {
+				approved: false,
+				reason: `Blocked ${request.toolName}: writing ${lineCount} lines to ${writeRequest.path} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
+			};
+		}
+	}
+	return {
+		approved: true,
+		reason: `Approved by Kanban runtime for ${request.toolName}.`,
+	};
+}
+
 async function approveApplyPatchTool(
 	workspacePath: string,
 	request: ClineSdkToolApprovalRequest,
+	maxAgentWritableFileLines: number,
 ): Promise<ClineSdkToolApprovalResult> {
 	const targets = parseApplyPatchTargets(request.input);
 	if (targets.length === 0) {
@@ -290,10 +316,10 @@ async function approveApplyPatchTool(
 		}
 		const path = resolveToolPath(workspacePath, target.path);
 		if (target.type === "add") {
-			if (target.addedLines > MAX_AGENT_WRITABLE_FILE_LINES) {
+			if (target.addedLines > maxAgentWritableFileLines) {
 				return {
 					approved: false,
-					reason: `Blocked ${request.toolName}: new file ${target.path} would exceed the ${MAX_AGENT_WRITABLE_FILE_LINES}-line file limit.`,
+					reason: `Blocked ${request.toolName}: new file ${target.path} would exceed the ${maxAgentWritableFileLines}-line file limit.`,
 				};
 			}
 			continue;
@@ -301,10 +327,10 @@ async function approveApplyPatchTool(
 
 		const currentLines = (await readFileLineCount(path)) ?? 0;
 		const nextLines = currentLines + target.delta;
-		if (nextLines > MAX_AGENT_WRITABLE_FILE_LINES) {
+		if (nextLines > maxAgentWritableFileLines) {
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: patch would grow ${target.path} to ${nextLines} lines, above the ${MAX_AGENT_WRITABLE_FILE_LINES}-line file limit.`,
+				reason: `Blocked ${request.toolName}: patch would grow ${target.path} to ${nextLines} lines, above the ${maxAgentWritableFileLines}-line file limit.`,
 			};
 		}
 	}
@@ -323,13 +349,19 @@ export function createKanbanToolApprovalPolicy(
 } {
 	return {
 		requestToolApproval: async (request: ClineSdkToolApprovalRequest) => {
+			const maxAgentWritableFileLines = normalizeMaxAgentWritableFileLines(
+				options.maxAgentWritableFileLines ?? DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
+			);
 			switch (request.toolName) {
 				case "read_files":
 					return await approveReadFilesTool(workspacePath, request, options);
 				case "editor":
-					return await approveEditorTool(workspacePath, request);
+					return await approveEditorTool(workspacePath, request, maxAgentWritableFileLines);
+				case "write_file":
+				case "write_files":
+					return await approveWriteFilesTool(request, maxAgentWritableFileLines);
 				case "apply_patch":
-					return await approveApplyPatchTool(workspacePath, request);
+					return await approveApplyPatchTool(workspacePath, request, maxAgentWritableFileLines);
 				default:
 					return {
 						approved: true,
@@ -342,8 +374,13 @@ export function createKanbanToolApprovalPolicy(
 
 export function createKanbanToolPolicies(): NonNullable<ClineSdkStartSessionInput["toolPolicies"]> {
 	return {
+		find_files: { enabled: true, autoApprove: false },
+		list_files: { enabled: true, autoApprove: false },
+		get_file_size: { enabled: true, autoApprove: false },
 		read_files: { enabled: true, autoApprove: false },
 		read_large_file: { enabled: true, autoApprove: false },
+		write_file: { enabled: true, autoApprove: false },
+		write_files: { enabled: true, autoApprove: false },
 		editor: { enabled: true, autoApprove: false },
 		apply_patch: { enabled: true, autoApprove: false },
 	};

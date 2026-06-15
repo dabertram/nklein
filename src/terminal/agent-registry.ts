@@ -118,6 +118,7 @@ export function buildRuntimeConfigResponse(
 		toolTimeoutMs: runtimeConfig.toolTimeoutMs,
 		agentTimeoutMs: runtimeConfig.agentTimeoutMs,
 		conversationTimeoutMs: runtimeConfig.conversationTimeoutMs,
+		maxAgentWritableFileLines: runtimeConfig.maxAgentWritableFileLines,
 		debugModeEnabled: isRuntimeDebugModeEnabled(),
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,

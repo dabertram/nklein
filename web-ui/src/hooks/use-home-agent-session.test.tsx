@@ -71,6 +71,7 @@ function createRuntimeConfig(overrides: Partial<RuntimeConfigResponse> = {}): Ru
 		toolTimeoutMs: 600_000,
 		agentTimeoutMs: 3_600_000,
 		conversationTimeoutMs: 7_200_000,
+		maxAgentWritableFileLines: 1000,
 		effectiveCommand: "codex --dangerously-bypass-approvals-and-sandbox",
 		globalConfigPath: "/tmp/global-config.json",
 		projectConfigPath: "/tmp/project-config.json",

@@ -355,6 +355,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						streamTimeoutMs: effectiveTimeouts.streamTimeoutMs,
 						toolTimeoutMs: effectiveTimeouts.toolTimeoutMs,
 						conversationTimeoutMs: effectiveTimeouts.conversationTimeoutMs,
+						maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
 					});
 
 					let nextSummary = summary;

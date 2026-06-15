@@ -62,10 +62,54 @@ describe("createKanbanToolApprovalPolicy", () => {
 	it("marks guarded tools as approval-required", () => {
 		const policies = createKanbanToolPolicies();
 
+		expect(policies.find_files).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.list_files).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.get_file_size).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.read_files).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.read_large_file).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.write_file).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.write_files).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.editor).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
+	});
+
+	it("blocks write_file payloads above the configured line limit", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { maxAgentWritableFileLines: 3 });
+		const content = ["one", "two", "three", "four"].join("\n");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: {
+					path: "large.txt",
+					content,
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("3-line file limit");
+	});
+
+	it("blocks write_files payloads above the configured line limit", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { maxAgentWritableFileLines: 3 });
+		const content = ["one", "two", "three", "four"].join("\n");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_files",
+				input: {
+					files: [{ path: "large.txt", content }],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("3-line file limit");
 	});
 
 	it("blocks token-oversized read_files requests without explicit ranges", async () => {

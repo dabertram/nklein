@@ -260,7 +260,22 @@ describe("InMemoryClineSessionRuntime", () => {
 					]),
 					extraTools: expect.arrayContaining([
 						expect.objectContaining({
+							name: "find_files",
+						}),
+						expect.objectContaining({
+							name: "list_files",
+						}),
+						expect.objectContaining({
+							name: "get_file_size",
+						}),
+						expect.objectContaining({
 							name: "read_large_file",
+						}),
+						expect.objectContaining({
+							name: "write_files",
+						}),
+						expect.objectContaining({
+							name: "write_file",
 						}),
 					]),
 				}),

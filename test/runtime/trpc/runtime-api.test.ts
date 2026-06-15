@@ -188,6 +188,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		toolTimeoutMs: null,
 		agentTimeoutMs: null,
 		conversationTimeoutMs: null,
+		maxAgentWritableFileLines: 1000,
 		readyForReviewNotificationsEnabled: true,
 		shortcuts: [],
 		commitPromptTemplate: "commit",

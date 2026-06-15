@@ -96,11 +96,13 @@ describe("ClineLargeFileWorkflow", () => {
 		tempDirs.length = 0;
 	});
 
-	it("reads through EOF, returns every stitching window, then requires synthesis", async () => {
+	it("reads through EOF, parks verified coverage, and allows reading another source file", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const sourcePath = join(workspacePath, "large.txt");
+		const secondSourcePath = join(workspacePath, "second-large.txt");
 		await writeFile(sourcePath, createLargeContent(4_000), "utf8");
+		await writeFile(secondSourcePath, createLargeContent(4_000), "utf8");
 		const workflow = new ClineLargeFileWorkflow("session-rails", workspacePath, join(workspacePath, ".runtime"));
 		expect(await workflow.getReadFilesBlockingReason()).toBeNull();
 		let cursor = "start";
@@ -122,6 +124,13 @@ describe("ClineLargeFileWorkflow", () => {
 		expect(primaryResults.length).toBeGreaterThan(1);
 		expect(primaryResults.at(0)?.startLine).toBe(1);
 		expect(primaryResults.at(-1)?.endLine).toBe(4_000);
+		const stitchingRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("separate pending stitching areas");
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("laid over its own primary-chunk boundary");
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("one continuous read");
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("Make one read_large_file call");
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("Do not call each boundary separately");
+		expect(JSON.stringify(stitchingRequest?.messages)).toContain("Never issue parallel read_large_file calls");
 
 		const stitchResults: Array<Record<string, unknown>> = [];
 		for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -131,8 +140,31 @@ describe("ClineLargeFileWorkflow", () => {
 				break;
 			}
 			stitchResults.push(result);
+			expect(result.startLine).toBeUndefined();
+			expect(result.endLine).toBeUndefined();
+			expect(result.content).toContain("discontiguous boundary windows");
+			expect(result.content).toContain("STITCH BOUNDARY");
+			expect(result.instruction).toContain("Do not call read_large_file in parallel");
+			expect(result.instruction).toMatch(/exactly one read_large_file call|make another read_large_file call now/);
+			expect(result.stitchingAreas).toEqual(result.windows);
+			const stitchingAreas = Array.isArray(result.stitchingAreas) ? result.stitchingAreas : [];
+			expect(stitchingAreas.length).toBeGreaterThan(0);
+			expect(stitchingAreas[0]).toMatchObject({
+				boundary: expect.stringMatching(/^\d+\/\d+$/),
+				stitchLocation: {
+					leftLine: expect.any(Number),
+					rightLine: expect.any(Number),
+					leftPrimaryRange: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) }),
+					rightPrimaryRange: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) }),
+				},
+			});
 			cursor = String(result.nextCursor ?? cursor);
-			expect(await workflow.getReadFilesBlockingReason()).toContain("read_large_file");
+			const blockingReason = await workflow.getReadFilesBlockingReason();
+			if (cursor === "synthesis") {
+				expect(blockingReason).toBeNull();
+			} else {
+				expect(blockingReason).toContain("read_large_file");
+			}
 		}
 
 		const stitchWindowCount = stitchResults.reduce((count, result) => {
@@ -141,20 +173,30 @@ describe("ClineLargeFileWorkflow", () => {
 		}, 0);
 		expect(stitchWindowCount).toBe(primaryResults.length - 1);
 		expect(stitchResults.some((result) => Array.isArray(result.windows) && result.windows.length > 1)).toBe(true);
-		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
-		const synthesisRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
-		expect(JSON.stringify(synthesisRequest?.messages)).toContain("SYNTHESIS NOW");
-		expect(JSON.stringify(synthesisRequest?.messages)).toContain("persisted read_large_file context");
-		expect(synthesisRequest?.tools?.map((tool) => tool.name)).toEqual([]);
-		expect(await workflow.getReadLargeFileBlockingReason()).toContain("final synthesis is still required");
+		expect(await workflow.getReadFilesBlockingReason()).toBeNull();
+		expect(await workflow.getReadLargeFileBlockingReason()).toBeNull();
+		const parkedRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
+		expect(JSON.stringify(parkedRequest?.messages)).toContain("verified coverage parked");
+		expect(JSON.stringify(parkedRequest?.messages)).toContain("persisted read_large_file context");
+		expect(JSON.stringify(parkedRequest?.messages)).toContain("continue with discovery or the next exact file");
+		expect(JSON.stringify(parkedRequest?.messages)).toContain("reconciling each marked stitching boundary in place");
+		expect(JSON.stringify(parkedRequest?.messages)).toContain(
+			"without treating discontiguous stitching areas as one continuous source range",
+		);
+		expect(parkedRequest?.tools?.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
+
+		const secondFile = await workflow.readNext("second-large.txt", 16_000, "start");
+		expect(secondFile.phase).toBe("reading");
+		expect(secondFile.path).toBe("second-large.txt");
 
 		await workflow.afterModel(createAfterModelToolCallContext());
-		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
+		expect(await workflow.getReadFilesBlockingReason()).toContain("second-large.txt");
 
 		await workflow.afterModel(createAfterModelContext());
-		expect(await workflow.getReadFilesBlockingReason()).toBeNull();
-		const completed = await workflow.readNext("large.txt", 16_000, "synthesis");
-		expect(completed.phase).toBe("complete");
+		expect(await workflow.getReadFilesBlockingReason()).toContain("second-large.txt");
+		const parked = await workflow.readNext("large.txt", 16_000, "synthesis");
+		expect(parked.phase).toBe("synthesis");
+		expect(parked.instruction).toContain("covered");
 	});
 
 	it("hides read_files while a large-file workflow is active", async () => {

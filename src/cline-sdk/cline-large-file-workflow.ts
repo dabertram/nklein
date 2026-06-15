@@ -34,6 +34,19 @@ interface StitchBoundary {
 	verified: boolean;
 }
 
+interface StitchingArea {
+	boundary: string;
+	startLine: number;
+	endLine: number;
+	stitchLocation: {
+		leftLine: number;
+		rightLine: number;
+		leftPrimaryRange: LineRange | null;
+		rightPrimaryRange: LineRange | null;
+	};
+	content: string;
+}
+
 interface LargeFileState {
 	path: string;
 	absolutePath: string;
@@ -255,6 +268,45 @@ function formatOutputHeader(output: {
 	return `### ${output.kind} ${output.sourcePath}:${output.startLine}-${output.endLine}`;
 }
 
+function findRangeContainingLine(ranges: readonly LineRange[], line: number): LineRange | null {
+	return ranges.find((range) => range.start <= line && range.end >= line) ?? null;
+}
+
+function formatRange(range: LineRange | null): string {
+	return range ? `${range.start}-${range.end}` : "unknown";
+}
+
+function formatStitchingAreaContent(options: {
+	path: string;
+	boundary: StitchBoundary;
+	startLine: number;
+	endLine: number;
+	lines: readonly string[];
+	leftPrimaryRange: LineRange | null;
+	rightPrimaryRange: LineRange | null;
+}): string {
+	const formattedLines: string[] = [];
+	for (let lineNumber = options.startLine; lineNumber <= options.endLine; lineNumber += 1) {
+		if (lineNumber === options.boundary.rightLine) {
+			formattedLines.push(
+				`----- STITCH BOUNDARY ${options.boundary.leftLine}/${options.boundary.rightLine}: primary range ${formatRange(options.leftPrimaryRange)} joins ${formatRange(options.rightPrimaryRange)} -----`,
+			);
+		}
+		formattedLines.push(`${lineNumber}: ${options.lines[lineNumber - 1] ?? ""}`);
+	}
+	return [
+		`${formatOutputHeader({
+			kind: "stitch",
+			sourcePath: options.path,
+			startLine: options.startLine,
+			endLine: options.endLine,
+		})}`,
+		`Stitch location: line ${options.boundary.leftLine} -> line ${options.boundary.rightLine}; overlays primary ranges ${formatRange(options.leftPrimaryRange)} and ${formatRange(options.rightPrimaryRange)}.`,
+		"This is one discontiguous stitching area from the batch; do not merge it with other areas as one continuous file range.",
+		...formattedLines,
+	].join("\n");
+}
+
 export class ClineLargeFileWorkflow {
 	private readonly index: LargeFileWorkflowIndex;
 	private loadPromise: Promise<void> | null = null;
@@ -307,17 +359,21 @@ export class ClineLargeFileWorkflow {
 			file.stitchBoundaries.some((boundary) => !boundary.verified),
 		);
 		if (filesWithPendingStitches.length > 0) {
-			const instructions = filesWithPendingStitches.flatMap((file) =>
-				file.stitchBoundaries
-					.filter((boundary) => !boundary.verified)
-					.map((boundary, pendingIndex) => {
+			const instructions = filesWithPendingStitches.map((file) => {
+				const pendingBoundaries = file.stitchBoundaries.filter((boundary) => !boundary.verified);
+				const stitchedBefore = file.stitchBoundaries.filter((entry) => entry.verified).length;
+				const cursor = stitchBoundaryCursor(pendingBoundaries[0] ?? file.stitchBoundaries[0], stitchedBefore + 1);
+				const previews = pendingBoundaries
+					.slice(0, 8)
+					.map((boundary) => {
 						const startLine = Math.max(1, boundary.leftLine - STITCH_CONTEXT_LINES + 1);
 						const endLine = Math.min(file.totalLines, boundary.rightLine + STITCH_CONTEXT_LINES - 1);
-						const stitchedBefore = file.stitchBoundaries.filter((entry) => entry.verified).length;
-						const cursor = stitchBoundaryCursor(boundary, stitchedBefore + pendingIndex + 1);
-						return `- Verify boundary ${boundary.leftLine}/${boundary.rightLine} in ${file.path} (lines ${startLine}-${endLine}): call read_large_file with cursor \`${cursor}\` — do NOT use read_files.`;
-					}),
-			);
+						return `${boundary.leftLine}/${boundary.rightLine} (${startLine}-${endLine})`;
+					})
+					.join(", ");
+				const remainingText = pendingBoundaries.length > 8 ? `, +${pendingBoundaries.length - 8} more` : "";
+				return `- ${file.path}: ${pendingBoundaries.length} pending stitching area${pendingBoundaries.length === 1 ? "" : "s"} [${previews}${remainingText}]. Make one read_large_file call with cursor \`${cursor}\`; the tool will return as many pending areas as fit. Do not call each boundary separately.`;
+			});
 			return {
 				messages: [
 					...context.request.messages,
@@ -325,8 +381,10 @@ export class ClineLargeFileWorkflow {
 						[
 							"[Kanban large-file workflow: stitching required before synthesis]",
 							...instructions,
-							"Call read_large_file (not read_files) once for the file path. The tool automatically returns as many pending stitching windows as fit the current context budget and advances the workflow state.",
-							"Do not produce the final synthesis until every stitching window has been verified through read_large_file.",
+							"Call read_large_file (not read_files) exactly once in this assistant response. Never issue parallel read_large_file calls for stitching boundaries.",
+							"The tool automatically returns as many separate pending stitching areas as fit the current context budget and advances the workflow state.",
+							"Each returned stitching area is laid over its own primary-chunk boundary with an explicit boundary marker. Analyze each area independently against the running notes; do not treat the first area start through the last area end as one continuous read.",
+							"Do not produce the final synthesis until every stitching area has been verified through read_large_file.",
 						].join("\n"),
 					),
 				],
@@ -336,7 +394,7 @@ export class ClineLargeFileWorkflow {
 
 		const coverageSummary = files.map(
 			(file) =>
-				`  - ${file.path}: ${file.totalLines} lines covered across ${file.primaryRanges.length} primary chunk${file.primaryRanges.length === 1 ? "" : "s"} and ${file.stitchBoundaries.length} stitching window${file.stitchBoundaries.length === 1 ? "" : "s"}`,
+				`  - ${file.path}: ${file.totalLines} lines covered across ${file.primaryRanges.length} primary chunk${file.primaryRanges.length === 1 ? "" : "s"} and ${file.stitchBoundaries.length} stitching area${file.stitchBoundaries.length === 1 ? "" : "s"}`,
 		);
 		const persistedContext = await this.buildPersistedSynthesisContext();
 		return {
@@ -344,17 +402,16 @@ export class ClineLargeFileWorkflow {
 				...context.request.messages,
 				createRailMessage(
 					[
-						"[Kanban large-file workflow: SYNTHESIS NOW — stop reading]",
-						"Complete coverage verified for:",
+						"[Kanban large-file workflow: verified coverage parked]",
+						"Complete large-file coverage is verified and persisted for:",
 						...coverageSummary,
 						...persistedContext,
-						"DO NOT call read_large_file, read_files, or any other file-reading tool. Use the running notes and the persisted read_large_file context above.",
-						"Write the final synthesis now as your response text: consolidate the running notes and the persisted read_large_file context above, deduplicate overlapping content, reconcile boundary-spanning statements, and preserve all distinct requirements.",
-						"Your immediate output must be the complete synthesis — not a tool call.",
+						"If the user's task mentions additional source files that are not covered yet, continue with discovery or the next exact file now; do not synthesize early.",
+						"If all required source files are covered, write the final synthesis now from running notes plus persisted read_large_file context, reconciling each marked stitching boundary in place without treating discontiguous stitching areas as one continuous source range.",
 					].join("\n"),
 				),
 			],
-			tools: [],
+			tools: context.request.tools,
 		};
 	}
 
@@ -393,24 +450,12 @@ export class ClineLargeFileWorkflow {
 			const paths = pendingStitches.map((file) => file.path).join(", ");
 			return `Blocked read_files: finish read_large_file stitching verification first (${paths}). Continue with read_large_file; no read_files content was read.`;
 		}
-		const paths = files.map((file) => file.path).join(", ");
-		return `Blocked read_files: read_large_file coverage is complete for ${paths}, but final synthesis is still required. Produce the synthesis before reading other files; no read_files content was read.`;
+		return null;
 	}
 
 	async getReadLargeFileBlockingReason(): Promise<string | null> {
 		await this.ensureLoaded();
-		const files = Object.values(this.index.files).filter((file) => !file.synthesisCompleted);
-		if (files.length === 0) {
-			return null;
-		}
-		const readyForSynthesis = files.every(
-			(file) => file.eofCovered && file.stitchBoundaries.every((boundary) => boundary.verified),
-		);
-		if (!readyForSynthesis) {
-			return null;
-		}
-		const paths = files.map((file) => file.path).join(", ");
-		return `Blocked read_large_file: coverage is complete for ${paths}, but final synthesis is still required. Produce the synthesis now; no file content was read.`;
+		return null;
 	}
 
 	async readNext(
@@ -467,59 +512,63 @@ export class ClineLargeFileWorkflow {
 		const pendingBoundary = file.stitchBoundaries.find((boundary) => !boundary.verified);
 		if (file.eofCovered && pendingBoundary) {
 			const budgets = buildKanbanContextSafetyBudgets(contextWindow);
-			const windows: Array<{
-				boundary: string;
-				startLine: number;
-				endLine: number;
-				content: string;
-			}> = [];
+			const stitchingAreas: StitchingArea[] = [];
 			let usedTokens = 0;
 			for (const boundary of file.stitchBoundaries.filter((entry) => !entry.verified)) {
 				const startLine = Math.max(1, boundary.leftLine - STITCH_CONTEXT_LINES + 1);
 				const endLine = Math.min(file.totalLines, boundary.rightLine + STITCH_CONTEXT_LINES - 1);
-				const content = lines.slice(startLine - 1, endLine).join("\n");
-				const windowTokens = countKanbanTextTokens(content);
-				if (windows.length > 0 && usedTokens + windowTokens > budgets.fileChunkContentTokenBudget) {
+				const leftPrimaryRange = findRangeContainingLine(file.primaryRanges, boundary.leftLine);
+				const rightPrimaryRange = findRangeContainingLine(file.primaryRanges, boundary.rightLine);
+				const content = formatStitchingAreaContent({
+					path,
+					boundary,
+					startLine,
+					endLine,
+					lines,
+					leftPrimaryRange,
+					rightPrimaryRange,
+				});
+				const areaTokens = countKanbanTextTokens(content);
+				if (stitchingAreas.length > 0 && usedTokens + areaTokens > budgets.fileChunkContentTokenBudget) {
 					break;
 				}
-				windows.push({
+				stitchingAreas.push({
 					boundary: `${boundary.leftLine}/${boundary.rightLine}`,
 					startLine,
 					endLine,
+					stitchLocation: {
+						leftLine: boundary.leftLine,
+						rightLine: boundary.rightLine,
+						leftPrimaryRange,
+						rightPrimaryRange,
+					},
 					content,
 				});
-				usedTokens += windowTokens;
+				usedTokens += areaTokens;
 				boundary.verified = true;
 				await this.persistToolOutput("stitch", path, startLine, endLine, content);
 			}
-			const firstWindow = windows[0];
-			if (!firstWindow) {
+			const firstArea = stitchingAreas[0];
+			if (!firstArea) {
 				throw new Error(`Unable to build stitching window for ${path}.`);
 			}
-			const chunk = windows
-				.map(
-					(window) =>
-						`${formatOutputHeader({
-							kind: "stitch",
-							sourcePath: path,
-							startLine: window.startLine,
-							endLine: window.endLine,
-						})}\n${window.content}`,
-				)
-				.join("\n\n");
+			const chunk = [
+				"[Kanban stitching areas: discontiguous boundary windows]",
+				`Returned ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"}. Each area is laid over its own primary-chunk boundary; do not treat the first start line through the last end line as one continuous read.`,
+				...stitchingAreas.map((area) => area.content),
+			].join("\n\n");
 			return {
 				phase: "stitching",
 				path,
-				startLine: firstWindow.startLine,
-				endLine: windows.at(-1)?.endLine ?? firstWindow.endLine,
 				totalLines: file.totalLines,
-				boundary: firstWindow.boundary,
-				windows,
+				boundary: firstArea.boundary,
+				stitchingAreas,
+				windows: stitchingAreas,
 				nextCursor: nextStitchCursor(file) ?? "synthesis",
 				content: chunk,
 				instruction: file.stitchBoundaries.some((boundary) => !boundary.verified)
-					? `Analyze these ${windows.length} stitching window${windows.length === 1 ? "" : "s"} against the running notes, then call read_large_file again with cursor \`${nextStitchCursor(file)}\` for the next batch.`
-					: `Analyze these ${windows.length} final stitching window${windows.length === 1 ? "" : "s"} against the running notes. The next model request will require final synthesis.`,
+					? `Analyze these ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"} against the running notes, reconcile only the marked boundary in each area, then wait until the next assistant response before making exactly one read_large_file call with cursor \`${nextStitchCursor(file)}\` for the next batch. Do not call read_large_file in parallel.`
+					: `Analyze these ${stitchingAreas.length} final separate stitching area${stitchingAreas.length === 1 ? "" : "s"} against the running notes and reconcile only the marked boundary in each area. Do not call read_large_file in parallel or make another read_large_file call now; the next model request will require final synthesis.`,
 			};
 		}
 
@@ -735,7 +784,7 @@ export function createReadLargeFileTool(options: {
 	return {
 		name: "read_large_file",
 		description:
-			"Read and analyze a large text file through Kanban's enforced workflow. Repeated calls automatically advance through safe primary chunks, required stitching windows, then final synthesis.",
+			"Read and analyze a large text file through Kanban's enforced workflow. Make one call at a time with the current cursor; each stitching call may return a batch of separate stitching areas, so never call this tool in parallel for boundaries.",
 		inputSchema: {
 			type: "object",
 			properties: {
