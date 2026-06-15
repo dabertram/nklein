@@ -113,7 +113,9 @@ Steps:
 6. If cherry-pick conflicts, resolve carefully, preserving both the intended task changes and existing user edits.
 7. If step 4 created a new stash entry, restore that stash with: git -C P stash pop <stash-ref>
 8. If stash pop conflicts, resolve them while preserving pre-existing user edits.
-9. Report:
+9. Before reporting success, run git -C P status --short and verify there are no unmerged paths or unresolved conflict markers.
+10. If a conflict cannot be resolved with high confidence, stop. Keep the repository recoverable, list every conflicted file, state whether a cherry-pick or stash operation remains active, and tell the user that manual merge attention is required. Never report a successful integration while conflicts remain.
+11. Report:
    - Final commit hash
    - Final commit message
    - Whether stash was used
@@ -451,13 +453,21 @@ async function writeRuntimeGlobalConfigFile(
 			: normalizeAgentTimeoutProfile(config.agentTimeoutProfile);
 	const defaultTimeouts = resolveProfileTimeoutDefaults(agentTimeoutProfile);
 	const requestTimeoutMs =
-		config.requestTimeoutMs === undefined ? defaultTimeouts.requestTimeoutMs : normalizeTimeoutMsValue(config.requestTimeoutMs);
+		config.requestTimeoutMs === undefined
+			? defaultTimeouts.requestTimeoutMs
+			: normalizeTimeoutMsValue(config.requestTimeoutMs);
 	const streamTimeoutMs =
-		config.streamTimeoutMs === undefined ? defaultTimeouts.streamTimeoutMs : normalizeTimeoutMsValue(config.streamTimeoutMs);
+		config.streamTimeoutMs === undefined
+			? defaultTimeouts.streamTimeoutMs
+			: normalizeTimeoutMsValue(config.streamTimeoutMs);
 	const toolTimeoutMs =
-		config.toolTimeoutMs === undefined ? defaultTimeouts.toolTimeoutMs : normalizeTimeoutMsValue(config.toolTimeoutMs);
+		config.toolTimeoutMs === undefined
+			? defaultTimeouts.toolTimeoutMs
+			: normalizeTimeoutMsValue(config.toolTimeoutMs);
 	const agentTimeoutMs =
-		config.agentTimeoutMs === undefined ? defaultTimeouts.agentTimeoutMs : normalizeTimeoutMsValue(config.agentTimeoutMs);
+		config.agentTimeoutMs === undefined
+			? defaultTimeouts.agentTimeoutMs
+			: normalizeTimeoutMsValue(config.agentTimeoutMs);
 	const conversationTimeoutMs =
 		config.conversationTimeoutMs === undefined
 			? defaultTimeouts.conversationTimeoutMs
@@ -770,9 +780,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			toolTimeoutMs: updates.toolTimeoutMs === undefined ? current.toolTimeoutMs : updates.toolTimeoutMs,
 			agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
 			conversationTimeoutMs:
-				updates.conversationTimeoutMs === undefined
-					? current.conversationTimeoutMs
-					: updates.conversationTimeoutMs,
+				updates.conversationTimeoutMs === undefined ? current.conversationTimeoutMs : updates.conversationTimeoutMs,
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,

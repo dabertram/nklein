@@ -368,9 +368,7 @@ export function RuntimeSettingsDialog({
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
 	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("claude");
 	const [agentAutonomousModeEnabled, setAgentAutonomousModeEnabled] = useState(true);
-	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">(
-		"normal",
-	);
+	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">("normal");
 	const [agentTimeoutProfile, setAgentTimeoutProfile] = useState<"cloud" | "local" | "custom">("local");
 	const [requestTimeoutMs, setRequestTimeoutMs] = useState("");
 	const [streamTimeoutMs, setStreamTimeoutMs] = useState("");
@@ -761,7 +759,7 @@ export function RuntimeSettingsDialog({
 			return;
 		}
 		const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
-		if (!selectedAgent || selectedAgent.installed !== true) {
+		if (selectedAgent?.installed !== true) {
 			setSaveError("Selected agent is not installed. Install it first or choose an installed agent.");
 			return;
 		}
@@ -921,9 +919,9 @@ export function RuntimeSettingsDialog({
 								}
 								disabled={controlsDisabled}
 							>
-								<option value="normal">Normal (5m)</option>
-								<option value="long">Long (15m)</option>
-								<option value="extended">Extended (30m)</option>
+								<option value="normal">Normal (1x)</option>
+								<option value="long">Long (3x)</option>
+								<option value="extended">Extended (6x)</option>
 								<option value="unlimited">Unlimited</option>
 							</NativeSelect>
 						</div>
@@ -932,9 +930,7 @@ export function RuntimeSettingsDialog({
 							<NativeSelect
 								fill
 								value={agentTimeoutProfile}
-								onChange={(event) =>
-									setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")
-								}
+								onChange={(event) => setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")}
 								disabled={controlsDisabled}
 							>
 								<option value="cloud">Cloud</option>

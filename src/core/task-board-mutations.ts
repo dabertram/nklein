@@ -195,7 +195,12 @@ function resolveDependencyEndpoints(
 	if (!firstColumnId || !secondColumnId) {
 		return { reason: "missing_task" };
 	}
-	if (firstColumnId === "trash" || secondColumnId === "trash") {
+	if (
+		firstColumnId === "completed" ||
+		firstColumnId === "trash" ||
+		secondColumnId === "completed" ||
+		secondColumnId === "trash"
+	) {
 		return { reason: "trash_task" };
 	}
 	const firstIsBacklog = firstColumnId === "backlog";
@@ -423,6 +428,20 @@ export function getReadyLinkedTaskIdsForTaskInTrash(board: RuntimeBoardData, tas
 	return getLinkedBacklogTaskIdsReadyAfterTaskTrashed(board, taskId, getTaskColumnId(board, taskId));
 }
 
+export function completeTaskAndGetReadyLinkedTaskIds(
+	board: RuntimeBoardData,
+	taskId: string,
+	now: number = Date.now(),
+): RuntimeTrashTaskResult {
+	const fromColumnId = getTaskColumnId(board, taskId);
+	const readyTaskIds = getLinkedBacklogTaskIdsReadyAfterTaskTrashed(board, taskId, fromColumnId);
+	const movedToCompleted = moveTaskToColumn(board, taskId, "completed", now);
+	return {
+		...movedToCompleted,
+		readyTaskIds: movedToCompleted.moved ? readyTaskIds : [],
+	};
+}
+
 export function trashTaskAndGetReadyLinkedTaskIds(
 	board: RuntimeBoardData,
 	taskId: string,
@@ -554,7 +573,9 @@ export function moveTaskToColumn(
 		updatedAt: now,
 	};
 	const targetCards =
-		targetColumnId === "trash" ? [movedTask, ...targetColumn.cards] : [...targetColumn.cards, movedTask];
+		targetColumnId === "completed" || targetColumnId === "trash"
+			? [movedTask, ...targetColumn.cards]
+			: [...targetColumn.cards, movedTask];
 
 	const columns = board.columns.map((column, index) => {
 		if (index === found.columnIndex) {

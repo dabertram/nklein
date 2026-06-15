@@ -256,9 +256,15 @@ const env = {
 };
 
 const tsxBin = isWindows ? "node_modules/.bin/tsx.cmd" : "node_modules/.bin/tsx";
-const runtime = spawn(tsxBin, ["watch", "src/cli.ts", ...runtimeCliArgs], {
+const runtime = spawn(tsxBin, ["src/cli.ts", ...runtimeCliArgs], {
 	env,
 	stdio: "inherit",
+	// Detach the runtime from the terminal's process group on Unix so dev-full.mjs
+	// owns signal handling and forwards one shutdown signal to the full process
+	// tree. The runtime is intentionally not started through `tsx watch`; dev
+	// mode must not restart active task sessions because a watched source file was
+	// touched by an editor or formatter.
+	...(isWindows ? {} : { detached: true }),
 });
 
 let vite;
@@ -266,7 +272,7 @@ let exiting = false;
 let cleanupPromise = null;
 let openBrowserTimeoutId = null;
 
-function waitForChildExit(child, timeoutMs = 2500) {
+function waitForChildExit(child, timeoutMs = 10000) {
 	if (!child || child.exitCode !== null || child.killed) {
 		return Promise.resolve();
 	}
@@ -330,7 +336,18 @@ async function cleanup(exitCode = 0) {
 process.on("SIGTERM", () => {
 	void cleanup(0);
 });
+
+let sigintCount = 0;
 process.on("SIGINT", () => {
+	sigintCount++;
+	if (sigintCount >= 2) {
+		process.stderr.write("\nForce stopping...\n");
+		const forceKills = [];
+		if (vite?.pid) forceKills.push(treeKillAsync(vite.pid, "SIGKILL"));
+		if (runtime.pid) forceKills.push(treeKillAsync(runtime.pid, "SIGKILL"));
+		void Promise.allSettled(forceKills).then(() => process.exit(1));
+		return;
+	}
 	void cleanup(0);
 });
 runtime.on("exit", () => {

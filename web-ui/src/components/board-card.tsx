@@ -329,6 +329,7 @@ export function BoardCard({
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 	const reviewWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(card.id);
 	const isTrashCard = columnId === "trash";
+	const isCompletedCard = columnId === "completed";
 	const isCardInteractive = !isTrashCard;
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
 	const rawSessionActivity = useMemo(() => getCardSessionActivity(sessionSummary), [sessionSummary]);
@@ -679,14 +680,14 @@ export function BoardCard({
 										variant="ghost"
 										size="sm"
 										disabled={isMoveToTrashLoading}
-										aria-label="Move task to done"
+										aria-label="Move task to trash"
 										onMouseDown={stopEvent}
 										onClick={(event) => {
 											stopEvent(event);
 											onMoveToTrash?.(card.id);
 										}}
 									/>
-								) : columnId === "trash" ? (
+								) : isTrashCard ? (
 									<Tooltip
 										side="bottom"
 										content={
@@ -701,7 +702,7 @@ export function BoardCard({
 											icon={<RotateCcw size={12} />}
 											variant="ghost"
 											size="sm"
-											aria-label="Restore task from done"
+											aria-label="Restore task from trash"
 											onMouseDown={stopEvent}
 											onClick={(event) => {
 												stopEvent(event);
@@ -709,7 +710,7 @@ export function BoardCard({
 											}}
 										/>
 									</Tooltip>
-								) : null}
+								) : isCompletedCard ? null : null}
 							</div>
 							{displayDescription ? (
 								<div ref={descriptionContainerRef}>
@@ -805,7 +806,10 @@ export function BoardCard({
 											{sessionActivity.text}
 										</p>
 										{sessionTelemetryLine ? (
-											<p className="m-0 mt-0.5 font-mono truncate text-text-tertiary" style={{ fontSize: 10 }}>
+											<p
+												className="m-0 mt-0.5 font-mono truncate text-text-tertiary"
+												style={{ fontSize: 10 }}
+											>
 												{sessionTelemetryLine}
 											</p>
 										) : null}

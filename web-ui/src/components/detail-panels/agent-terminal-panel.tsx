@@ -273,7 +273,11 @@ function AgentTerminalPanelLayout({
 								{statusLabel}
 							</span>
 							{telemetryLabel ? (
-								<span className="truncate font-mono text-text-tertiary" style={{ fontSize: 11 }} title={telemetryLabel}>
+								<span
+									className="truncate font-mono text-text-tertiary"
+									style={{ fontSize: 11 }}
+									title={telemetryLabel}
+								>
 									{telemetryLabel}
 								</span>
 							) : null}

@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { access, lstat, mkdir, readdir, readFile, rm, symlink } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import type {
 	RuntimeTaskWorkspaceInfoResponse,
@@ -10,6 +12,7 @@ import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath, getTaskWorktreesHomePath, loadWorkspaceContext } from "../state/workspace-state";
 import { getGitCommandErrorMessage, getGitStdout, readGitHeadInfo, runGit } from "./git-utils";
 import { getWorkspaceFolderLabelForWorktreePath, normalizeTaskIdForWorktreePath } from "./task-worktree-path";
+import { deleteTaskWorktreeSyncState, syncWorkspaceChangesIntoTaskWorktree } from "./task-worktree-sync";
 import { listTurbopackNodeModulesSymlinkSkipPaths } from "./task-worktree-turbopack";
 
 const KANBAN_MANAGED_EXCLUDE_BLOCK_START = "# kanban-managed-symlinked-ignored-paths:start";
@@ -133,43 +136,63 @@ function getTaskWorktreePath(repoPath: string, taskId: string): string {
 	return join(getWorktreesRootPath(taskId), workspaceLabel);
 }
 
-function getTaskPatchFilePrefix(taskId: string): string {
-	return `${normalizeTaskIdForWorktreePath(taskId)}.`;
+function getTaskPatchFilePrefix(repoPath: string, taskId: string): string {
+	let canonicalRepoPath: string;
+	try {
+		canonicalRepoPath = realpathSync(repoPath);
+	} catch {
+		canonicalRepoPath = resolve(repoPath);
+	}
+	const repoKey = createHash("sha256").update(canonicalRepoPath).digest("hex").slice(0, 12);
+	return `${normalizeTaskIdForWorktreePath(taskId)}.${repoKey}.`;
 }
 
-function parseTaskPatchCommit(taskId: string, filename: string): string | null {
-	const prefix = getTaskPatchFilePrefix(taskId);
-	if (!filename.startsWith(prefix) || !filename.endsWith(TASK_PATCH_FILE_SUFFIX)) {
+function parseTaskPatchCommit(repoPath: string, taskId: string, filename: string): string | null {
+	if (!filename.endsWith(TASK_PATCH_FILE_SUFFIX)) {
 		return null;
 	}
-	const commit = filename.slice(prefix.length, -TASK_PATCH_FILE_SUFFIX.length).trim();
+	const scopedPrefix = getTaskPatchFilePrefix(repoPath, taskId);
+	if (filename.startsWith(scopedPrefix)) {
+		const commit = filename.slice(scopedPrefix.length, -TASK_PATCH_FILE_SUFFIX.length).trim();
+		return commit.length > 0 ? commit : null;
+	}
+	const legacyPrefix = `${normalizeTaskIdForWorktreePath(taskId)}.`;
+	if (!filename.startsWith(legacyPrefix)) {
+		return null;
+	}
+	const commit = filename.slice(legacyPrefix.length, -TASK_PATCH_FILE_SUFFIX.length).trim();
+	if (commit.includes(".")) {
+		return null;
+	}
 	return commit.length > 0 ? commit : null;
 }
 
-async function listTaskPatchFiles(taskId: string): Promise<string[]> {
+async function listTaskPatchFiles(repoPath: string, taskId: string): Promise<string[]> {
 	const patchesRootPath = getTrashedTaskPatchesRootPath();
 	try {
 		const entries = await readdir(patchesRootPath);
-		return entries.filter((entry) => parseTaskPatchCommit(taskId, entry) !== null);
+		return entries.filter((entry) => parseTaskPatchCommit(repoPath, taskId, entry) !== null);
 	} catch {
 		return [];
 	}
 }
 
-async function deleteTaskPatchFiles(taskId: string): Promise<void> {
+async function deleteTaskPatchFiles(repoPath: string, taskId: string): Promise<void> {
 	const patchesRootPath = getTrashedTaskPatchesRootPath();
-	const filenames = await listTaskPatchFiles(taskId);
+	const filenames = await listTaskPatchFiles(repoPath, taskId);
 	await Promise.all(filenames.map((filename) => rm(join(patchesRootPath, filename), { force: true })));
 }
 
-async function findTaskPatch(taskId: string): Promise<{ path: string; commit: string } | null> {
+async function findTaskPatch(repoPath: string, taskId: string): Promise<{ path: string; commit: string } | null> {
 	const patchesRootPath = getTrashedTaskPatchesRootPath();
-	const filenames = await listTaskPatchFiles(taskId);
-	const filename = filenames.sort().at(-1);
+	const filenames = await listTaskPatchFiles(repoPath, taskId);
+	const scopedPrefix = getTaskPatchFilePrefix(repoPath, taskId);
+	const scopedFilenames = filenames.filter((filename) => filename.startsWith(scopedPrefix));
+	const filename = (scopedFilenames.length > 0 ? scopedFilenames : filenames).sort().at(-1);
 	if (!filename) {
 		return null;
 	}
-	const commit = parseTaskPatchCommit(taskId, filename);
+	const commit = parseTaskPatchCommit(repoPath, taskId, filename);
 	if (!commit) {
 		return null;
 	}
@@ -219,7 +242,7 @@ async function captureTaskPatch(options: { repoPath: string; taskId: string; wor
 		}
 	}
 
-	await deleteTaskPatchFiles(options.taskId);
+	await deleteTaskPatchFiles(options.repoPath, options.taskId);
 	if (patchChunks.length === 0) {
 		return;
 	}
@@ -228,7 +251,7 @@ async function captureTaskPatch(options: { repoPath: string; taskId: string; wor
 	await mkdir(patchesRootPath, { recursive: true });
 	const patchPath = join(
 		patchesRootPath,
-		`${normalizeTaskIdForWorktreePath(options.taskId)}.${headCommit}${TASK_PATCH_FILE_SUFFIX}`,
+		`${getTaskPatchFilePrefix(options.repoPath, options.taskId)}${headCommit}${TASK_PATCH_FILE_SUFFIX}`,
 	);
 	await lockedFileSystem.writeTextFileAtomic(patchPath, patchChunks.join(""));
 }
@@ -443,6 +466,30 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 		const context = await loadWorkspaceContext(options.cwd);
 		const taskId = normalizeTaskIdForWorktreePath(options.taskId);
 		const worktreePath = getTaskWorktreePath(context.repoPath, taskId);
+		const requestedBaseRef = options.baseRef.trim();
+		if (!requestedBaseRef) {
+			return {
+				ok: false,
+				path: null,
+				baseRef: requestedBaseRef,
+				baseCommit: null,
+				error: "Task base branch is required for worktree creation.",
+			};
+		}
+		const baseRefResult = await runGit(context.repoPath, ["rev-parse", "--verify", `${requestedBaseRef}^{commit}`]);
+		if (!baseRefResult.ok) {
+			return {
+				ok: false,
+				path: null,
+				baseRef: requestedBaseRef,
+				baseCommit: null,
+				error: getWorktreeBaseRefResolutionErrorMessage(
+					requestedBaseRef,
+					baseRefResult.stderr || baseRefResult.output,
+				),
+			};
+		}
+		const requestedBaseCommit = baseRefResult.stdout;
 		// Investigation note: ensure is called on every task start. The previous implementation
 		// compared the worktree HEAD to the latest baseRef commit and recreated the worktree
 		// when the base branch advanced, which could destroy valid task progress. Existing
@@ -450,11 +497,19 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 		const existingResult = await runGit(worktreePath, ["rev-parse", "HEAD"]);
 		if (existingResult.ok && existingResult.stdout) {
 			await syncIgnoredPathsIntoWorktree(context.repoPath, worktreePath);
+			const warning = await syncWorkspaceChangesIntoTaskWorktree({
+				repoPath: context.repoPath,
+				worktreePath,
+				taskId,
+				requestedBaseRef,
+				requestedBaseCommit,
+			});
 			return {
 				ok: true,
 				path: worktreePath,
-				baseRef: options.baseRef.trim(),
+				baseRef: requestedBaseRef,
 				baseCommit: existingResult.stdout,
+				warning,
 			};
 		}
 
@@ -462,47 +517,25 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 			const lockedExistingCommit = await tryRunGit(worktreePath, ["rev-parse", "HEAD"]);
 			if (lockedExistingCommit) {
 				await syncIgnoredPathsIntoWorktree(context.repoPath, worktreePath);
+				const warning = await syncWorkspaceChangesIntoTaskWorktree({
+					repoPath: context.repoPath,
+					worktreePath,
+					taskId,
+					requestedBaseRef,
+					requestedBaseCommit,
+				});
 				return {
 					ok: true,
 					path: worktreePath,
-					baseRef: options.baseRef.trim(),
+					baseRef: requestedBaseRef,
 					baseCommit: lockedExistingCommit,
+					warning,
 				};
 			}
 
-			const requestedBaseRef = options.baseRef.trim();
-			if (!requestedBaseRef) {
-				return {
-					ok: false,
-					path: null,
-					baseRef: requestedBaseRef,
-					baseCommit: null,
-					error: "Task base branch is required for worktree creation.",
-				};
-			}
-
-			const baseRefResult = await runGit(context.repoPath, [
-				"rev-parse",
-				"--verify",
-				`${requestedBaseRef}^{commit}`,
-			]);
-			if (!baseRefResult.ok) {
-				return {
-					ok: false,
-					path: null,
-					baseRef: requestedBaseRef,
-					baseCommit: null,
-					error: getWorktreeBaseRefResolutionErrorMessage(
-						requestedBaseRef,
-						baseRefResult.stderr || baseRefResult.output,
-					),
-				};
-			}
-			const requestedBaseCommit = baseRefResult.stdout;
-
-			const storedPatch = await findTaskPatch(taskId);
+			const storedPatch = await findTaskPatch(context.repoPath, taskId);
 			let baseCommit = storedPatch?.commit ?? requestedBaseCommit;
-			let warning: string | undefined;
+			const warnings: string[] = [];
 
 			if (await pathExists(worktreePath)) {
 				await removeTaskWorktreeInternal(context.repoPath, worktreePath);
@@ -527,8 +560,9 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 				}
 
 				baseCommit = requestedBaseCommit;
-				warning =
-					"Could not restore the saved task patch onto its original commit. Started from the task base ref instead.";
+				warnings.push(
+					"Could not restore the saved task patch onto its original commit. Started from the task base ref instead.",
+				);
 				await getGitStdout(["worktree", "add", "--detach", worktreePath, baseCommit], context.repoPath);
 			}
 			await prepareNewTaskWorktree(context.repoPath, worktreePath);
@@ -538,8 +572,20 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 					await applyTaskPatch(storedPatch.path, worktreePath);
 					await rm(storedPatch.path, { force: true });
 				} catch (error) {
-					warning = `Saved task changes could not be reapplied automatically. ${getGitCommandErrorMessage(error)}`;
+					warnings.push(
+						`Saved task changes could not be reapplied automatically. ${getGitCommandErrorMessage(error)}`,
+					);
 				}
+			}
+			const workspaceSyncWarning = await syncWorkspaceChangesIntoTaskWorktree({
+				repoPath: context.repoPath,
+				worktreePath,
+				taskId,
+				requestedBaseRef,
+				requestedBaseCommit,
+			});
+			if (workspaceSyncWarning) {
+				warnings.push(workspaceSyncWarning);
 			}
 
 			return {
@@ -547,7 +593,7 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 				path: worktreePath,
 				baseRef: requestedBaseRef,
 				baseCommit,
-				warning,
+				warning: warnings.length > 0 ? warnings.join(" ") : undefined,
 			};
 		});
 	} catch (error) {
@@ -565,13 +611,16 @@ export async function ensureTaskWorktreeIfDoesntExist(options: {
 export async function deleteTaskWorktree(options: {
 	repoPath: string;
 	taskId: string;
+	preserveChanges?: boolean;
 }): Promise<RuntimeWorktreeDeleteResponse> {
 	try {
 		const taskId = normalizeTaskIdForWorktreePath(options.taskId);
+		const preserveChanges = options.preserveChanges ?? true;
 		const rootPath = getWorktreesBaseRootPath();
 		const worktreePath = getTaskWorktreePath(options.repoPath, taskId);
 		if (!(await pathExists(worktreePath))) {
-			await deleteTaskPatchFiles(taskId);
+			await deleteTaskPatchFiles(options.repoPath, taskId);
+			await deleteTaskWorktreeSyncState(options.repoPath, taskId);
 			await pruneEmptyParents(rootPath, dirname(worktreePath));
 			return {
 				ok: true,
@@ -579,17 +628,22 @@ export async function deleteTaskWorktree(options: {
 			};
 		}
 
-		try {
-			await captureTaskPatch({
-				repoPath: options.repoPath,
-				taskId,
-				worktreePath,
-			});
-		} catch {
-			// Patch capture is best-effort. A corrupted or partially-created
-			// worktree (e.g. plain directory, no git init) should still be removed.
+		if (preserveChanges) {
+			try {
+				await captureTaskPatch({
+					repoPath: options.repoPath,
+					taskId,
+					worktreePath,
+				});
+			} catch {
+				// Patch capture is best-effort. A corrupted or partially-created
+				// worktree (e.g. plain directory, no git init) should still be removed.
+			}
+		} else {
+			await deleteTaskPatchFiles(options.repoPath, taskId);
 		}
 		const removed = await removeTaskWorktreeInternal(options.repoPath, worktreePath);
+		await deleteTaskWorktreeSyncState(options.repoPath, taskId);
 		await pruneEmptyParents(rootPath, dirname(worktreePath));
 
 		return {

@@ -200,6 +200,7 @@ export function parseProjectRemoveRequest(value: unknown): RuntimeProjectRemoveR
 	}
 	return {
 		projectId,
+		deleteGitRepository: parsed.deleteGitRepository,
 	};
 }
 

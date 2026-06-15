@@ -25,7 +25,7 @@ interface UseReviewAutoActionsOptions {
 	board: BoardData;
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
-	requestMoveTaskToTrash: (
+	requestMoveTaskToCompleted: (
 		taskId: string,
 		fromColumnId: BoardColumnId,
 		options?: RequestMoveTaskToTrashOptions,
@@ -37,17 +37,17 @@ export function useReviewAutoActions({
 	board,
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
-	requestMoveTaskToTrash,
+	requestMoveTaskToCompleted,
 	resetKey,
 }: UseReviewAutoActionsOptions): void {
 	const boardRef = useRef<BoardData>(board);
 	const runAutoReviewGitActionRef = useRef(runAutoReviewGitAction);
-	const requestMoveTaskToTrashRef = useRef(requestMoveTaskToTrash);
+	const requestMoveTaskToCompletedRef = useRef(requestMoveTaskToCompleted);
 	const awaitingCleanActionByTaskIdRef = useRef<Record<string, TaskGitAction>>({});
 	const timerByTaskIdRef = useRef<Record<string, number>>({});
 	type ScheduledAutoReviewAction = TaskAutoReviewMode | "move_to_done_after_git_action";
 	const scheduledActionByTaskIdRef = useRef<Record<string, ScheduledAutoReviewAction>>({});
-	const moveToTrashInFlightTaskIdsRef = useRef<Set<string>>(new Set());
+	const moveToCompletedInFlightTaskIdsRef = useRef<Set<string>>(new Set());
 
 	useEffect(() => {
 		boardRef.current = board;
@@ -58,8 +58,8 @@ export function useReviewAutoActions({
 	}, [runAutoReviewGitAction]);
 
 	useEffect(() => {
-		requestMoveTaskToTrashRef.current = requestMoveTaskToTrash;
-	}, [requestMoveTaskToTrash]);
+		requestMoveTaskToCompletedRef.current = requestMoveTaskToCompleted;
+	}, [requestMoveTaskToCompleted]);
 
 	const clearAutoReviewTimer = useCallback((taskId: string) => {
 		const timer = timerByTaskIdRef.current[taskId];
@@ -77,7 +77,7 @@ export function useReviewAutoActions({
 		awaitingCleanActionByTaskIdRef.current = {};
 		timerByTaskIdRef.current = {};
 		scheduledActionByTaskIdRef.current = {};
-		moveToTrashInFlightTaskIdsRef.current.clear();
+		moveToCompletedInFlightTaskIdsRef.current.clear();
 	}, []);
 
 	const scheduleAutoReviewAction = useCallback(
@@ -125,16 +125,16 @@ export function useReviewAutoActions({
 
 			for (const taskId of Object.keys(awaitingCleanActionByTaskIdRef.current)) {
 				const columnId = columnByTaskId.get(taskId);
-				if (!columnId || columnId === "trash") {
+				if (!columnId || columnId === "completed" || columnId === "trash") {
 					delete awaitingCleanActionByTaskIdRef.current[taskId];
 					clearAutoReviewTimer(taskId);
-					moveToTrashInFlightTaskIdsRef.current.delete(taskId);
+					moveToCompletedInFlightTaskIdsRef.current.delete(taskId);
 				}
 			}
 
-			for (const taskId of moveToTrashInFlightTaskIdsRef.current) {
+			for (const taskId of moveToCompletedInFlightTaskIdsRef.current) {
 				if (columnByTaskId.get(taskId) !== "review") {
-					moveToTrashInFlightTaskIdsRef.current.delete(taskId);
+					moveToCompletedInFlightTaskIdsRef.current.delete(taskId);
 				}
 			}
 
@@ -172,11 +172,11 @@ export function useReviewAutoActions({
 					if (
 						changedFiles === 0 &&
 						!isGitActionInFlight &&
-						!moveToTrashInFlightTaskIdsRef.current.has(reviewTask.id)
+						!moveToCompletedInFlightTaskIdsRef.current.has(reviewTask.id)
 					) {
 						scheduleAutoReviewAction(reviewTask.id, "move_to_done_after_git_action", () => {
 							const latestSelection = findCardSelection(boardRef.current, reviewTask.id);
-							if (!latestSelection || latestSelection.column.id !== "review") {
+							if (latestSelection?.column.id !== "review") {
 								return;
 							}
 							if (!isTaskAutoReviewEnabled(latestSelection.card)) {
@@ -186,14 +186,14 @@ export function useReviewAutoActions({
 							if (latestMode !== autoReviewMode) {
 								return;
 							}
-							moveToTrashInFlightTaskIdsRef.current.add(reviewTask.id);
-							void requestMoveTaskToTrashRef
+							moveToCompletedInFlightTaskIdsRef.current.add(reviewTask.id);
+							void requestMoveTaskToCompletedRef
 								.current(reviewTask.id, "review", {
 									skipWorkingChangeWarning: true,
 								})
 								.finally(() => {
 									delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
-									moveToTrashInFlightTaskIdsRef.current.delete(reviewTask.id);
+									moveToCompletedInFlightTaskIdsRef.current.delete(reviewTask.id);
 								});
 						});
 					} else {
@@ -209,7 +209,7 @@ export function useReviewAutoActions({
 
 				scheduleAutoReviewAction(reviewTask.id, autoReviewMode, () => {
 					const latestSelection = findCardSelection(boardRef.current, reviewTask.id);
-					if (!latestSelection || latestSelection.column.id !== "review") {
+					if (latestSelection?.column.id !== "review") {
 						return;
 					}
 					if (!isTaskAutoReviewEnabled(latestSelection.card)) {
@@ -240,7 +240,7 @@ export function useReviewAutoActions({
 	useEffect(() => {
 		return subscribeToAnyTaskMetadata((taskId) => {
 			const selection = findCardSelection(boardRef.current, taskId);
-			if (!selection || selection.column.id !== "review") {
+			if (selection?.column.id !== "review") {
 				return;
 			}
 			evaluateAutoReview({

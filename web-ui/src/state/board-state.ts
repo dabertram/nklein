@@ -60,7 +60,10 @@ function withUpdatedColumns(board: BoardData, columns: BoardColumn[]): BoardData
 }
 
 function normalizeColumnId(id: string): BoardColumnId | null {
-	if (id === "backlog" || id === "in_progress" || id === "review" || id === "trash") {
+	if (id === "done") {
+		return "completed";
+	}
+	if (id === "backlog" || id === "in_progress" || id === "review" || id === "completed" || id === "trash") {
 		return id;
 	}
 	return null;
@@ -156,9 +159,7 @@ function normalizeTaskClineSettings(input: {
 				? settings.streamTimeoutMs
 				: undefined;
 		const toolTimeoutMs =
-			typeof settings.toolTimeoutMs === "number" && settings.toolTimeoutMs >= 0
-				? settings.toolTimeoutMs
-				: undefined;
+			typeof settings.toolTimeoutMs === "number" && settings.toolTimeoutMs >= 0 ? settings.toolTimeoutMs : undefined;
 		const agentTimeoutMs =
 			typeof settings.agentTimeoutMs === "number" && settings.agentTimeoutMs >= 0
 				? settings.agentTimeoutMs
@@ -710,9 +711,7 @@ export function applyTaskDetailClineSettingsChange(
 			...(change.streamTimeoutMs !== undefined ? { streamTimeoutMs: change.streamTimeoutMs } : {}),
 			...(change.toolTimeoutMs !== undefined ? { toolTimeoutMs: change.toolTimeoutMs } : {}),
 			...(change.agentTimeoutMs !== undefined ? { agentTimeoutMs: change.agentTimeoutMs } : {}),
-			...(change.conversationTimeoutMs !== undefined
-				? { conversationTimeoutMs: change.conversationTimeoutMs }
-				: {}),
+			...(change.conversationTimeoutMs !== undefined ? { conversationTimeoutMs: change.conversationTimeoutMs } : {}),
 		},
 	});
 }

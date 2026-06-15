@@ -234,6 +234,20 @@ describe.sequential("task-worktree serialization", () => {
 						};
 					}
 
+					if (command[0] === "diff") {
+						return {
+							stdout: "",
+							stderr: "",
+						};
+					}
+
+					if (command[0] === "merge-base") {
+						return {
+							stdout: "base-commit\n",
+							stderr: "",
+						};
+					}
+
 					if (command[0] === "rev-parse" && command[1] === "--git-path") {
 						return {
 							stdout: ".git/info/exclude\n",

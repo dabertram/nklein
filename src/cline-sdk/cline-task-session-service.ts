@@ -69,6 +69,14 @@ const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
 const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
+const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
+
+interface ClineTaskTimeoutSettings {
+	streamTimeoutMs: number | null;
+	toolTimeoutMs: number | null;
+	conversationTimeoutMs: number | null;
+}
 
 export interface StartClineTaskSessionRequest {
 	taskId: string;
@@ -91,7 +99,22 @@ export interface StartClineTaskSessionRequest {
 	contextWindow?: number | null;
 	timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	requestTimeoutMs?: number | null;
+	turnTimeoutMs?: number | null;
+	streamTimeoutMs?: number | null;
+	toolTimeoutMs?: number | null;
+	conversationTimeoutMs?: number | null;
 	systemPrompt?: string | null;
+}
+
+export interface ClineTaskLaunchConfigOverrides {
+	providerId: string;
+	modelId: string;
+	apiKey?: string | null;
+	baseUrl?: string | null;
+	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	contextWindow?: number | null;
+	apiTimeoutMs?: number | null;
+	turnTimeoutMs?: number | null;
 }
 
 export function buildKanbanEfficiencyRules(options: {
@@ -112,22 +135,22 @@ export function buildKanbanEfficiencyRules(options: {
 		"",
 		`Scope: ${options.contextScope}. Timeout: ${options.timeoutMode}. Use targeted discovery and focused excerpts; avoid generated/lock files unless needed.`,
 		"Hard output guard rail: never create or edit files above 1,000 total lines; split large outputs across files.",
-		"For large reads/summaries, first record `wc -l` and `wc -c`, then maintain a coverage ledger with planned/read/unread line ranges and next resume line.",
-		`For files above ~${chunkCharBudgetText}k characters or 100 KB, read deterministic explicit line ranges from line 1 through EOF; keep reading until the final line is confirmed before summarizing.`,
+		"For ordinary code and small files, use `read_files` normally. Do not turn focused code inspection into a large-file workflow.",
+		`For files above ~${chunkCharBudgetText}k characters or 100 KB that must be read completely, use \`read_large_file\` repeatedly for the same path. It owns chunk sizing, line-1-through-EOF coverage, stitching verification, and the final synthesis phase; continue until the final line is confirmed.`,
 		`Choose initial read lines from bytes/line: target about 70% of the ${chunkCharBudgetText}k character budget, capped to remaining lines. Do not default to tiny 300-line starters when larger ranges measure safe.`,
 		`Backend approval will tokenize the selected text and keep source content at or below about ${chunkContentTokenBudgetText}k tokens (${chunkTokenBudgetText}k total read budget including tool/result framing).`,
 		"A rejected read covers zero lines: do not record it, advance past it, or call it successful. Retry one large file per call, shrinking by at least half or to the suggested line count.",
 		"After a retry succeeds, set the next unread line to the successful `end_line + 1`. Never skip from a failed 1-N attempt to N+1 unless a later successful read reached N.",
 		"Grow chunk sizes slowly from the last successful read, about 25% at a time unless measured token density clearly allows more.",
 		"Chunk formula: floor(0.7 * chunk character budget / bytes per line), capped to remaining lines; shrink unusually long lines.",
-		"Every chunk must use explicit inclusive `start_line` and `end_line` values.",
+		"When using `read_files` for a focused large-file excerpt, every chunk must use explicit inclusive `start_line` and `end_line` values.",
 		"Prefer non-overlapping primary chunks, then explicitly inspect stitching areas around each chunk boundary before synthesizing; expand around split code blocks, tables, logs, diagrams, prose, functions, classes, types, and imports.",
 		"Treat stitching reads as verification, not duplicated source material; deduplicate those lines when merging, summarizing, or deriving requirements.",
 		"If tool output is truncated, clipped, summarized, or hits a limit, mark that chunk incomplete and redo it smaller before using it as evidence.",
 		"Never summarize, infer a spec, or move on from a source file until the ledger shows the file has been read through EOF.",
 		"every included file has EOF-confirmed coverage or an explicit exclusion reason.",
 		"If a pass cannot finish now, resume from the last confirmed line. Treat an incomplete pass as incomplete work.",
-		"Raw chunk bodies are removed from request context after each read, so immediately distill every chunk's salient facts into your own durable running notes (or append them incrementally to the output file) before reading the next chunk; your notes are the only lasting record.",
+		"The newest successful chunk remains verbatim for its immediate analysis request. Before reading the next chunk, distill its salient facts into durable running notes (or append them incrementally to the output file); once a newer chunk arrives, older raw chunk bodies are removed from request context.",
 		"Do not restart a file you have already covered. When a Kanban context-focus brief or coverage ledger reports ranges read through line N, resume at N+1 and never re-read 1..N from line 1.",
 		"To re-confirm continuity across a covered file, read only a small stitching window around the relevant chunk boundary, then synthesize from your running notes rather than re-reading the whole file.",
 		budgets.contextWindow
@@ -153,15 +176,7 @@ export interface ClineTaskSessionService {
 		text: string,
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides?: ClineTaskLaunchConfigOverrides,
 	): Promise<RuntimeTaskSessionSummary | null>;
 	reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
@@ -237,6 +252,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
+	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
+	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
+	private readonly activeToolTaskIds = new Set<string>();
 	private readonly sessionRuntime: ClineSessionRuntime;
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
@@ -290,6 +308,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		context: "start" | "send",
 		error: unknown,
 	): void {
+		this.clearTaskTimeout(taskId, "stream");
+		this.clearTaskTimeout(taskId, "tool");
+		this.clearTaskTimeout(taskId, "conversation");
+		this.activeToolTaskIds.delete(taskId);
 		const errorMessage = toErrorMessage(error);
 		const creditLimitError = this.isClineProviderForTask(taskId) && isCreditLimitError(errorMessage);
 		if (!creditLimitError) {
@@ -321,26 +343,99 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.emitSummary(errorSummary);
 	}
 
+	private clearTaskTimeout(taskId: string, kind: ClineTaskTimeoutKind): void {
+		const handles = this.timeoutHandlesByTaskId.get(taskId);
+		const handle = handles?.get(kind);
+		if (handle) {
+			clearTimeout(handle);
+			handles?.delete(kind);
+		}
+		if (handles?.size === 0) {
+			this.timeoutHandlesByTaskId.delete(taskId);
+		}
+	}
+
+	private clearTaskTimeouts(taskId: string): void {
+		const handles = this.timeoutHandlesByTaskId.get(taskId);
+		if (handles) {
+			for (const handle of handles.values()) {
+				clearTimeout(handle);
+			}
+		}
+		this.timeoutHandlesByTaskId.delete(taskId);
+		this.activeToolTaskIds.delete(taskId);
+	}
+
+	private scheduleTaskTimeout(taskId: string, kind: ClineTaskTimeoutKind, timeoutMs: number | null): void {
+		this.clearTaskTimeout(taskId, kind);
+		if (timeoutMs === null || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+			return;
+		}
+		const deadline = Date.now() + timeoutMs;
+		const scheduleRemaining = (): void => {
+			const remainingMs = deadline - Date.now();
+			if (remainingMs <= 0) {
+				void this.handleTaskTimeout(taskId, kind, timeoutMs);
+				return;
+			}
+			const handle = setTimeout(scheduleRemaining, Math.min(remainingMs, MAX_NODE_TIMER_DELAY_MS));
+			handle.unref();
+			const handles = this.timeoutHandlesByTaskId.get(taskId) ?? new Map<ClineTaskTimeoutKind, NodeJS.Timeout>();
+			handles.set(kind, handle);
+			this.timeoutHandlesByTaskId.set(taskId, handles);
+		};
+		scheduleRemaining();
+	}
+
+	private scheduleStreamTimeout(taskId: string): void {
+		const settings = this.timeoutSettingsByTaskId.get(taskId);
+		if (!settings || this.activeToolTaskIds.has(taskId)) {
+			return;
+		}
+		this.scheduleTaskTimeout(taskId, "stream", settings.streamTimeoutMs);
+	}
+
+	private scheduleConversationTimeout(taskId: string): void {
+		const settings = this.timeoutSettingsByTaskId.get(taskId);
+		if (!settings) {
+			return;
+		}
+		this.scheduleTaskTimeout(taskId, "conversation", settings.conversationTimeoutMs);
+	}
+
+	private async handleTaskTimeout(taskId: string, kind: ClineTaskTimeoutKind, timeoutMs: number): Promise<void> {
+		this.clearTaskTimeout(taskId, kind);
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (entry?.summary.state !== "running") {
+			return;
+		}
+		this.clearTaskTimeouts(taskId);
+		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
+		const timeoutLabel =
+			kind === "stream" ? "stream inactivity" : kind === "tool" ? "tool execution" : "conversation";
+		this.emitTaskFailure(
+			taskId,
+			entry,
+			"send",
+			new Error(`Cline ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`),
+		);
+	}
+
 	private async dispatchResolvedTaskInput(input: {
 		taskId: string;
 		prompt: string;
 		mode?: RuntimeTaskSessionMode;
 		images?: RuntimeTaskImage[];
 		delivery?: "queue" | "steer";
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		};
+		launchConfigOverrides?: ClineTaskLaunchConfigOverrides;
 	}): Promise<{
 		result: unknown;
 		warnings?: string[];
 	}> {
-		if (this.sessionRuntime.getTaskSessionId(input.taskId)) {
+		if (
+			this.sessionRuntime.getTaskSessionId(input.taskId) &&
+			!this.sessionRuntime.requiresTaskSessionRestart(input.taskId, input.mode, input.launchConfigOverrides)
+		) {
 			return {
 				result: await this.sessionRuntime.sendTaskSessionInput(
 					input.taskId,
@@ -350,6 +445,36 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					input.delivery,
 					input.launchConfigOverrides,
 				),
+			};
+		}
+
+		if (this.sessionRuntime.getTaskSessionId(input.taskId)) {
+			const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
+			const contextWindow = this.resolveKnownContextWindowForTask(
+				input.taskId,
+				input.launchConfigOverrides?.contextWindow,
+			);
+			const initialMessages = this.prepareMessagesForKnownContextWindow({
+				messages: persistedSnapshot?.messages,
+				prompt: input.prompt,
+				images: input.images,
+				contextWindow,
+			});
+			await this.sessionRuntime.stopTaskSession(input.taskId);
+			const restartedSession = await this.sessionRuntime.restartTaskSession({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages,
+				launchConfigOverrides: input.launchConfigOverrides,
+			});
+			if (input.launchConfigOverrides) {
+				this.providerIdByTaskId.set(input.taskId, input.launchConfigOverrides.providerId.trim().toLowerCase());
+			}
+			return {
+				result: restartedSession.result,
+				warnings: restartedSession.warnings,
 			};
 		}
 
@@ -472,15 +597,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		prompt: string;
 		mode: RuntimeTaskSessionMode;
 		images?: RuntimeTaskImage[];
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		};
+		launchConfigOverrides?: ClineTaskLaunchConfigOverrides;
 		contextWindow: number;
 	}): Promise<{ result: unknown; warnings?: string[] } | null> {
 		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
@@ -585,6 +702,12 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				} satisfies ClineTaskSessionEntry);
 		this.messageRepository.setTaskEntry(request.taskId, entry);
 		this.pendingTurnCancelTaskIds.delete(request.taskId);
+		this.clearTaskTimeouts(request.taskId);
+		this.timeoutSettingsByTaskId.set(request.taskId, {
+			streamTimeoutMs: request.streamTimeoutMs ?? null,
+			toolTimeoutMs: request.toolTimeoutMs ?? null,
+			conversationTimeoutMs: request.conversationTimeoutMs ?? null,
+		});
 
 		if (!request.resumeFromTrash && (normalizedPrompt.length > 0 || hasRequestImages)) {
 			const message = createMessage(request.taskId, "user", normalizedPrompt, request.images);
@@ -640,6 +763,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					images: request.images,
 					contextWindow: requestContextWindow,
 				});
+				if (entry.summary.state === "running") {
+					this.scheduleStreamTimeout(request.taskId);
+					this.scheduleConversationTimeout(request.taskId);
+				}
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
 					cwd: request.cwd,
@@ -655,6 +782,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					reasoningEffort: request.reasoningEffort,
 					contextWindow: request.contextWindow,
 					apiTimeoutMs: request.requestTimeoutMs,
+					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
 					requestToolApproval: runtimeSetup.createToolApproval({ contextWindow: request.contextWindow ?? null }),
@@ -681,6 +809,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					this.emitMessage(request.taskId, agentMessage);
 				}
 			} catch (error) {
+				this.clearTaskTimeouts(request.taskId);
 				this.emitTaskFailure(request.taskId, entry, "start", error);
 			}
 		})();
@@ -704,6 +833,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.clearTaskTimeouts(taskId);
+		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
@@ -725,6 +856,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.clearTaskTimeouts(taskId);
+		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		const summary = updateSummary(entry, {
 			state: "interrupted",
@@ -745,6 +878,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.add(taskId);
+		this.clearTaskTimeout(taskId, "stream");
+		this.clearTaskTimeout(taskId, "tool");
+		this.activeToolTaskIds.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		clearActiveTurnState(entry);
 		const summary = updateSummary(entry, {
@@ -772,15 +908,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		text: string,
 		mode?: RuntimeTaskSessionMode,
 		images?: RuntimeTaskImage[],
-		launchConfigOverrides?: {
-			providerId: string;
-			modelId: string;
-			apiKey?: string | null;
-			baseUrl?: string | null;
-			reasoningEffort?: RuntimeClineReasoningEffort | null;
-			contextWindow?: number | null;
-			apiTimeoutMs?: number | null;
-		},
+		launchConfigOverrides?: ClineTaskLaunchConfigOverrides,
 	): Promise<RuntimeTaskSessionSummary | null> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -798,6 +926,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const normalized = text.trim();
 		const hasImages = Boolean(images && images.length > 0);
 		const effectiveMode: RuntimeTaskSessionMode = mode ?? entry.summary.mode ?? "act";
+		const queueDelivery = entry.summary.state === "running";
 		if (normalized.length === 0 && !hasImages) {
 			return null;
 		}
@@ -806,12 +935,19 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				return null;
 			}
 		}
+		if (
+			queueDelivery &&
+			this.sessionRuntime.requiresTaskSessionRestart(taskId, effectiveMode, launchConfigOverrides)
+		) {
+			throw new Error(
+				"Finish or cancel the active Cline turn before changing its mode, provider, endpoint, reasoning, context, or timeout settings.",
+			);
+		}
 		{
 			const message = createMessage(taskId, "user", normalized, images);
 			entry.messages.push(message);
 			this.emitMessage(taskId, message);
 			clearActiveTurnState(entry);
-			const queueDelivery = entry.summary.state === "running";
 			const waitingSummary = updateSummary(entry, {
 				state: "running",
 				mode: effectiveMode,
@@ -831,6 +967,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				},
 			});
 			this.emitSummary(waitingSummary);
+			this.scheduleStreamTimeout(taskId);
+			this.scheduleConversationTimeout(taskId);
 			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
 			void this.ensureRuntimeSetup(entry.summary.workspacePath ?? "")
 				.then(async (runtimeSetup) => {
@@ -840,17 +978,19 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						launchConfigOverrides?.contextWindow,
 					);
 					try {
-						const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
-							taskId,
-							entry,
-							prompt: resolvedPrompt,
-							mode: effectiveMode,
-							images,
-							launchConfigOverrides,
-							contextWindow: resolvedContextWindow,
-						});
-						if (proactiveCompaction) {
-							return proactiveCompaction;
+						if (!queueDelivery) {
+							const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
+								taskId,
+								entry,
+								prompt: resolvedPrompt,
+								mode: effectiveMode,
+								images,
+								launchConfigOverrides,
+								contextWindow: resolvedContextWindow,
+							});
+							if (proactiveCompaction) {
+								return proactiveCompaction;
+							}
 						}
 						return await this.dispatchResolvedTaskInput({
 							taskId,
@@ -961,6 +1101,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdByTaskId.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.clearTaskTimeouts(taskId);
+		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		this.messageRepository.clearHydratedTaskMessages(taskId);
 		if (!existingEntry) {
@@ -1054,6 +1196,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	async dispose(): Promise<void> {
+		for (const taskId of this.timeoutHandlesByTaskId.keys()) {
+			this.clearTaskTimeouts(taskId);
+		}
+		this.timeoutSettingsByTaskId.clear();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdByTaskId.clear();
@@ -1153,6 +1299,23 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			previousSummary?.latestHookActivity?.notificationType !== "credit_limit";
 		if (this.shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
+		}
+		const hookEventName = entry.summary.latestHookActivity?.hookEventName;
+		if (entry.summary.state !== "running") {
+			this.clearTaskTimeout(taskId, "stream");
+			this.clearTaskTimeout(taskId, "tool");
+			this.clearTaskTimeout(taskId, "conversation");
+			this.activeToolTaskIds.delete(taskId);
+		} else if (hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
+			this.activeToolTaskIds.add(taskId);
+			this.clearTaskTimeout(taskId, "stream");
+			this.scheduleTaskTimeout(taskId, "tool", this.timeoutSettingsByTaskId.get(taskId)?.toolTimeoutMs ?? null);
+		} else if (hookEventName === "tool_result") {
+			this.activeToolTaskIds.delete(taskId);
+			this.clearTaskTimeout(taskId, "tool");
+			this.scheduleStreamTimeout(taskId);
+		} else if (entry.summary.state === "running" && !this.activeToolTaskIds.has(taskId)) {
+			this.scheduleStreamTimeout(taskId);
 		}
 		if (shouldAbortForCreditLimit) {
 			void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);

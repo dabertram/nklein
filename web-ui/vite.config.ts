@@ -94,6 +94,7 @@ export default defineConfig({
 		host: "127.0.0.1",
 		port: Number(process.env.KANBAN_WEB_UI_PORT || "4173"),
 		strictPort: true,
+		hmr: false,
 		proxy: {
 			"/api": {
 				target: `http://127.0.0.1:${process.env.KANBAN_RUNTIME_PORT || "3484"}`,

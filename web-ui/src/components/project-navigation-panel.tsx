@@ -77,7 +77,7 @@ export function ProjectNavigationPanel({
 	clineProviderSettings?: RuntimeClineProviderSettings | null;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 	onSelectProject: (projectId: string) => void;
-	onRemoveProject: (projectId: string) => Promise<boolean>;
+	onRemoveProject: (projectId: string, options?: { deleteGitRepository?: boolean }) => Promise<boolean>;
 	onAddProject: () => void;
 	sidebarWidth: number;
 	setExpandedSidebarWidth: (width: number) => void;
@@ -92,11 +92,13 @@ export function ProjectNavigationPanel({
 	});
 
 	const [pendingProjectRemoval, setPendingProjectRemoval] = useState<RuntimeProjectSummary | null>(null);
+	const [deleteGitRepository, setDeleteGitRepository] = useState(false);
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
 	const pendingProjectTaskCount = pendingProjectRemoval
 		? pendingProjectRemoval.taskCounts.backlog +
 			pendingProjectRemoval.taskCounts.in_progress +
 			pendingProjectRemoval.taskCounts.review +
+			pendingProjectRemoval.taskCounts.completed +
 			pendingProjectRemoval.taskCounts.trash
 		: 0;
 
@@ -376,6 +378,7 @@ export function ProjectNavigationPanel({
 									if (!found) {
 										return;
 									}
+									setDeleteGitRepository(false);
 									setPendingProjectRemoval(found);
 								}}
 							/>
@@ -417,6 +420,7 @@ export function ProjectNavigationPanel({
 				onOpenChange={(open) => {
 					if (!open && !isProjectRemovalPending) {
 						setPendingProjectRemoval(null);
+						setDeleteGitRepository(false);
 					}
 				}}
 			>
@@ -432,6 +436,26 @@ export function ProjectNavigationPanel({
 								workspaces/worktrees, and stop any running processes for this project.
 							</p>
 							<p className="text-text-primary">This action cannot be undone.</p>
+							{pendingProjectRemoval?.gitRepositoryCreatedByKanban ? (
+								<label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-surface-2 p-3">
+									<input
+										type="checkbox"
+										checked={deleteGitRepository}
+										onChange={(event) => setDeleteGitRepository(event.target.checked)}
+										disabled={isProjectRemovalPending}
+										className="mt-0.5 accent-accent"
+									/>
+									<span>
+										<span className="block text-text-primary">
+											Also remove Git metadata created by Kanban
+										</span>
+										<span className="mt-1 block text-[12px] text-text-secondary">
+											Deletes the project folder&apos;s .git directory and history. Project files remain in
+											place.
+										</span>
+									</span>
+								</label>
+							) : null}
 						</div>
 					</AlertDialogDescription>
 				</AlertDialogBody>
@@ -443,6 +467,7 @@ export function ProjectNavigationPanel({
 							onClick={() => {
 								if (!isProjectRemovalPending) {
 									setPendingProjectRemoval(null);
+									setDeleteGitRepository(false);
 								}
 							}}
 						>
@@ -457,9 +482,12 @@ export function ProjectNavigationPanel({
 								if (!pendingProjectRemoval) {
 									return;
 								}
-								const removed = await onRemoveProject(pendingProjectRemoval.id);
+								const removed = await onRemoveProject(pendingProjectRemoval.id, {
+									deleteGitRepository,
+								});
 								if (removed) {
 									setPendingProjectRemoval(null);
+									setDeleteGitRepository(false);
 								}
 							}}
 						>
@@ -728,9 +756,16 @@ function ProjectRow({
 			count: project.taskCounts.review,
 		},
 		{
+			id: "completed",
+			title: "Completed",
+			shortLabel: "C",
+			toneClassName: "bg-status-green/20 text-status-green",
+			count: project.taskCounts.completed,
+		},
+		{
 			id: "trash",
-			title: "Done",
-			shortLabel: "D",
+			title: "Trash",
+			shortLabel: "T",
 			toneClassName: "bg-status-red/20 text-status-red",
 			count: project.taskCounts.trash,
 		},

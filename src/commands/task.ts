@@ -27,7 +27,7 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
-const LIST_TASK_COLUMNS = ["backlog", "in_progress", "review", "trash"] as const;
+const LIST_TASK_COLUMNS = ["backlog", "in_progress", "review", "completed", "trash"] as const;
 type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
 type TaskCommandTarget = { taskId?: string; column?: ListTaskColumn };
 
@@ -64,9 +64,15 @@ function parseListColumn(value: string | undefined): ListTaskColumn | undefined 
 		return undefined;
 	}
 	if (value === "done") {
-		return "trash";
+		return "completed";
 	}
-	if (value === "backlog" || value === "in_progress" || value === "review" || value === "trash") {
+	if (
+		value === "backlog" ||
+		value === "in_progress" ||
+		value === "review" ||
+		value === "completed" ||
+		value === "trash"
+	) {
 		return value;
 	}
 	throw new Error(`Invalid column "${value}". Expected one of: ${LIST_TASK_COLUMNS.join(", ")}, done.`);
@@ -702,7 +708,7 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 	}
 
 	const existingSession = runtimeState.sessions[task.id] ?? null;
-	const shouldStartSession = !existingSession || existingSession.state !== "running";
+	const shouldStartSession = existingSession?.state !== "running";
 
 	if (shouldStartSession) {
 		const ensured = await runtimeClient.workspace.ensureWorktree.mutate({

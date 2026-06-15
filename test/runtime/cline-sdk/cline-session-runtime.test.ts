@@ -100,6 +100,19 @@ describe("InMemoryClineSessionRuntime", () => {
 					compaction: expect.objectContaining({
 						compact: expect.any(Function),
 					}),
+					extensions: expect.arrayContaining([
+						expect.objectContaining({
+							name: "kanban-context-focus",
+							manifest: {
+								capabilities: ["messageBuilders", "hooks"],
+							},
+						}),
+					]),
+					extraTools: expect.arrayContaining([
+						expect.objectContaining({
+							name: "read_large_file",
+						}),
+					]),
 				}),
 			}),
 		);
@@ -248,14 +261,15 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(fakeHost.start).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					apiTimeoutMs: 3_600_000,
-					timeout: 3_600_000,
+					providerConfig: expect.objectContaining({
+						timeoutMs: 3_600_000,
+					}),
 				}),
 			}),
 		);
 	});
 
-	it("maps unlimited request timeouts to the maximum safe SDK timer", async () => {
+	it("leaves the SDK request timeout unset for unlimited mode", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 				sessionId: input.config?.sessionId ?? "session-1",
@@ -290,8 +304,9 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(fakeHost.start).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					apiTimeoutMs: 2_147_483_647,
-					timeout: 2_147_483_647,
+					providerConfig: expect.not.objectContaining({
+						timeoutMs: expect.anything(),
+					}),
 				}),
 			}),
 		);
@@ -598,6 +613,7 @@ describe("InMemoryClineSessionRuntime", () => {
 			prompt: "Investigate startup",
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
+			turnTimeoutMs: 30_000,
 			systemPrompt: "You are a helpful coding assistant.",
 		});
 
@@ -608,10 +624,11 @@ describe("InMemoryClineSessionRuntime", () => {
 			prompt: "Queue this",
 			userImages: undefined,
 			delivery: "queue",
+			timeoutMs: 30_000,
 		});
 	});
 
-	it("restarts using the latest mode selected on follow-up input", async () => {
+	it("requires a restart before applying a new mode", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 				sessionId: input.config?.sessionId ?? "session-1",
@@ -642,10 +659,11 @@ describe("InMemoryClineSessionRuntime", () => {
 			mode: "act",
 			systemPrompt: "You are a helpful coding assistant.",
 		});
-		await runtime.sendTaskSessionInput("task-1", "Switch to planning", "plan");
+		expect(runtime.requiresTaskSessionRestart("task-1", "plan")).toBe(true);
 		await runtime.restartTaskSession({
 			taskId: "task-1",
 			prompt: "Continue after restart",
+			mode: "plan",
 		});
 
 		expect(fakeHost.start).toHaveBeenNthCalledWith(
@@ -732,16 +750,16 @@ describe("InMemoryClineSessionRuntime", () => {
 			prompt: "Investigate startup",
 			providerId: "lmstudio",
 			modelId: "old-model",
+			apiKey: "local-key",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			reasoningEffort: null,
+			contextWindow: 80_000,
 			systemPrompt: "You are a helpful coding assistant.",
 		});
 
 		await runtime.sendTaskSessionInput("task-1", "Continue", undefined, undefined, undefined, {
 			providerId: "lmstudio",
 			modelId: "new-model",
-			apiKey: "local-key",
-			baseUrl: "http://127.0.0.1:1234/v1",
-			reasoningEffort: null,
-			contextWindow: 80_000,
 		});
 
 		expect(fakeHost.updateSessionModel).toHaveBeenCalledWith(startResult.sessionId, "new-model");

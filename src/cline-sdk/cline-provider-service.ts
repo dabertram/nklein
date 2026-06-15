@@ -313,13 +313,17 @@ function normalizeContextWindow(value: number | null | undefined): number | null
 export function mergeProviderModelsWithContextWindowFallback(
 	models: RuntimeClineProviderModel[],
 	fallbackModels: RuntimeClineProviderModel[],
+	options?: { preferFallbackContextWindow?: boolean },
 ): RuntimeClineProviderModel[] {
 	const fallbackById = new Map(fallbackModels.map((model) => [model.id, model] as const));
 	return models.map((model) => {
+		const fallbackContextWindow = normalizeContextWindow(fallbackById.get(model.id)?.contextWindow);
+		if (options?.preferFallbackContextWindow && fallbackContextWindow !== null) {
+			return { ...model, contextWindow: fallbackContextWindow };
+		}
 		if (normalizeContextWindow(model.contextWindow) !== null) {
 			return model;
 		}
-		const fallbackContextWindow = normalizeContextWindow(fallbackById.get(model.id)?.contextWindow);
 		return fallbackContextWindow ? { ...model, contextWindow: fallbackContextWindow } : model;
 	});
 }
@@ -550,13 +554,6 @@ export async function loadProviderModelsWithFallback(providerId: string): Promis
 	}
 
 	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
-	if (
-		normalizedProviderId === "lmstudio" &&
-		providerModels.length > 0 &&
-		providerModels.every((model) => normalizeContextWindow(model.contextWindow) !== null)
-	) {
-		return providerModels;
-	}
 	if (normalizedProviderId === "litellm") {
 		const liteLlmModels = await fetchLiteLlmBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
@@ -564,7 +561,9 @@ export async function loadProviderModelsWithFallback(providerId: string): Promis
 	}
 	if (normalizedProviderId === "lmstudio") {
 		const lmStudioModels = await fetchLmStudioBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
-		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, lmStudioModels);
+		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, lmStudioModels, {
+			preferFallbackContextWindow: true,
+		});
 		return appendMissingModels(mergedModels, lmStudioModels);
 	}
 	return providerModels;

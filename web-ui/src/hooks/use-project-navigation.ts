@@ -28,7 +28,7 @@ function isDirectoryPickerUnavailableError(message: string | null | undefined): 
 }
 
 export function parseRemovedProjectPathFromStreamError(streamError: string | null): string | null {
-	if (!streamError || !streamError.startsWith(REMOVED_PROJECT_ERROR_PREFIX)) {
+	if (!streamError?.startsWith(REMOVED_PROJECT_ERROR_PREFIX)) {
 		return null;
 	}
 	return streamError.slice(REMOVED_PROJECT_ERROR_PREFIX.length).trim();
@@ -62,7 +62,7 @@ export interface UseProjectNavigationResult {
 	handleSelectProject: (projectId: string) => void;
 	handleAddProject: () => void;
 	handleAddProjectSuccess: (projectId: string) => void;
-	handleRemoveProject: (projectId: string) => Promise<boolean>;
+	handleRemoveProject: (projectId: string, options?: { deleteGitRepository?: boolean }) => Promise<boolean>;
 	resetProjectNavigationState: () => void;
 }
 
@@ -165,14 +165,17 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 	}, [currentProjectId, handleAddProjectSuccess]);
 
 	const handleRemoveProject = useCallback(
-		async (projectId: string): Promise<boolean> => {
+		async (projectId: string, options?: { deleteGitRepository?: boolean }): Promise<boolean> => {
 			if (removingProjectId) {
 				return false;
 			}
 			setRemovingProjectId(projectId);
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const payload = await trpcClient.projects.remove.mutate({ projectId });
+				const payload = await trpcClient.projects.remove.mutate({
+					projectId,
+					...(options?.deleteGitRepository ? { deleteGitRepository: true } : {}),
+				});
 				if (!payload.ok) {
 					throw new Error(payload.error ?? "Could not remove project.");
 				}

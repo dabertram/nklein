@@ -72,6 +72,7 @@ export interface WorkspaceRegistry {
 		workspaceId: string;
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
+		gitRepositoryCreatedByKanban: boolean;
 	}) => RuntimeProjectSummary;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
 	buildProjectsPayload: (preferredCurrentProjectId: string | null) => Promise<{
@@ -96,6 +97,7 @@ function createEmptyProjectTaskCounts(): RuntimeProjectTaskCounts {
 		backlog: 0,
 		in_progress: 0,
 		review: 0,
+		completed: 0,
 		trash: 0,
 	};
 }
@@ -114,6 +116,9 @@ function countTasksByColumn(board: RuntimeBoardData): RuntimeProjectTaskCounts {
 			case "review":
 				counts.review += count;
 				break;
+			case "completed":
+				counts.completed += count;
+				break;
 			case "trash":
 				counts.trash += count;
 				break;
@@ -125,9 +130,6 @@ function countTasksByColumn(board: RuntimeBoardData): RuntimeProjectTaskCounts {
 export function collectProjectWorktreeTaskIdsForRemoval(board: RuntimeBoardData): Set<string> {
 	const taskIds = new Set<string>();
 	for (const column of board.columns) {
-		if (column.id === "backlog" || column.id === "trash") {
-			continue;
-		}
 		for (const card of column.cards) {
 			taskIds.add(card.id);
 		}
@@ -157,11 +159,6 @@ function applyLiveSessionStateToProjectTaskCounts(
 		if (summary.state === "awaiting_review" && columnId === "in_progress") {
 			next.in_progress = Math.max(0, next.in_progress - 1);
 			next.review += 1;
-			continue;
-		}
-		if (summary.state === "interrupted" && columnId !== "trash") {
-			next[columnId] = Math.max(0, next[columnId] - 1);
-			next.trash += 1;
 		}
 	}
 	return next;
@@ -171,6 +168,7 @@ function toProjectSummary(project: {
 	workspaceId: string;
 	repoPath: string;
 	taskCounts: RuntimeProjectTaskCounts;
+	gitRepositoryCreatedByKanban: boolean;
 }): RuntimeProjectSummary {
 	const normalized = project.repoPath.replaceAll("\\", "/").replace(/\/+$/g, "");
 	const segments = normalized.split("/").filter((segment) => segment.length > 0);
@@ -180,6 +178,7 @@ function toProjectSummary(project: {
 		path: project.repoPath,
 		name,
 		taskCounts: project.taskCounts,
+		gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 	};
 }
 
@@ -342,6 +341,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					workspaceId: project.workspaceId,
 					repoPath: project.repoPath,
 					taskCounts,
+					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 				});
 			}),
 		);

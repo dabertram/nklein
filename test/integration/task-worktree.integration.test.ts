@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -81,6 +81,98 @@ describe.sequential("task-worktree integration", () => {
 				expect(ensured.ok).toBe(false);
 				expect(ensured.error).toContain("does not have an initial commit yet");
 				expect(ensured.error).toContain(`base ref "${currentBranch}"`);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("mirrors current project folder changes and refreshes paths untouched by the agent", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-task-worktree-external-sync-");
+			try {
+				const repoPath = join(sandboxRoot, "repo");
+				mkdirSync(repoPath, { recursive: true });
+				runGit(repoPath, ["init"]);
+				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+
+				writeFileSync(join(repoPath, "card1.txt"), "x".repeat(568_000), "utf8");
+				runGit(repoPath, ["add", "card1.txt"]);
+				runGit(repoPath, ["commit", "-m", "init"]);
+				writeFileSync(join(repoPath, "card1.txt"), "y".repeat(368_000), "utf8");
+				writeFileSync(join(repoPath, "external.txt"), "first external value\n", "utf8");
+
+				const taskId = `task-external-sync-${Date.now()}`;
+				const ensured = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+				expect(ensured.ok).toBe(true);
+				if (!ensured.ok || !ensured.path) {
+					throw new Error("Task worktree was not created");
+				}
+				expect(readFileSync(join(ensured.path, "card1.txt"), "utf8")).toHaveLength(368_000);
+				expect(readFileSync(join(ensured.path, "external.txt"), "utf8")).toBe("first external value\n");
+
+				writeFileSync(join(repoPath, "card1.txt"), "z".repeat(128_000), "utf8");
+				writeFileSync(join(repoPath, "external.txt"), "second external value\n", "utf8");
+				const refreshed = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+				expect(refreshed.ok).toBe(true);
+				expect(readFileSync(join(ensured.path, "card1.txt"), "utf8")).toHaveLength(128_000);
+				expect(readFileSync(join(ensured.path, "external.txt"), "utf8")).toBe("second external value\n");
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("keeps agent changes isolated when external project changes overlap", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-task-worktree-external-conflict-");
+			try {
+				const repoPath = join(sandboxRoot, "repo");
+				mkdirSync(repoPath, { recursive: true });
+				runGit(repoPath, ["init"]);
+				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+
+				writeFileSync(join(repoPath, "shared.txt"), "base\n", "utf8");
+				runGit(repoPath, ["add", "shared.txt"]);
+				runGit(repoPath, ["commit", "-m", "init"]);
+				writeFileSync(join(repoPath, "shared.txt"), "external one\n", "utf8");
+
+				const taskId = `task-external-conflict-${Date.now()}`;
+				const ensured = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+				expect(ensured.ok).toBe(true);
+				if (!ensured.ok || !ensured.path) {
+					throw new Error("Task worktree was not created");
+				}
+
+				writeFileSync(join(ensured.path, "shared.txt"), "agent change\n", "utf8");
+				writeFileSync(join(repoPath, "shared.txt"), "external two\n", "utf8");
+				const refreshed = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+
+				expect(refreshed.ok).toBe(true);
+				if (!refreshed.ok) {
+					throw new Error(refreshed.error ?? "Task worktree refresh failed");
+				}
+				expect(refreshed.warning).toContain("External project changes overlap agent workspace changes");
+				expect(refreshed.warning).toContain("shared.txt");
+				expect(readFileSync(join(ensured.path, "shared.txt"), "utf8")).toBe("agent change\n");
 			} finally {
 				cleanup();
 			}
@@ -335,13 +427,14 @@ describe.sequential("task-worktree integration", () => {
 				expect(deleted.ok).toBe(true);
 				expect(deleted.removed).toBe(true);
 
-				const patchPath = join(
-					process.env.HOME ?? sandboxRoot,
-					".cline",
-					"kanban",
-					"trashed-task-patches",
-					`${taskId}.${createdCommit}.patch`,
+				const patchesDir = join(process.env.HOME ?? sandboxRoot, ".cline", "kanban", "trashed-task-patches");
+				const patchFilename = readdirSync(patchesDir).find(
+					(filename) => filename.startsWith(`${taskId}.`) && filename.endsWith(`.${createdCommit}.patch`),
 				);
+				if (!patchFilename) {
+					throw new Error("Expected saved task patch");
+				}
+				const patchPath = join(patchesDir, patchFilename);
 				expect(existsSync(patchPath)).toBe(true);
 				expect(readFileSync(patchPath, "utf8")).toContain("tracked.txt");
 				expect(readFileSync(patchPath, "utf8")).toContain("notes.txt");
@@ -367,6 +460,56 @@ describe.sequential("task-worktree integration", () => {
 				expect(readFileSync(join(restored.path, "tracked.txt"), "utf8")).toBe("base\nlocal change\n");
 				expect(readFileSync(join(restored.path, "notes.txt"), "utf8")).toBe("untracked\n");
 				expect(existsSync(patchPath)).toBe(false);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("discards saved task content when deleting a worktree for project removal", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-task-worktree-project-removal-");
+			try {
+				const repoPath = join(sandboxRoot, "repo");
+				mkdirSync(repoPath, { recursive: true });
+				runGit(repoPath, ["init"]);
+				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+
+				writeFileSync(join(repoPath, "card1.txt"), "base\n", "utf8");
+				runGit(repoPath, ["add", "card1.txt"]);
+				runGit(repoPath, ["commit", "-m", "init"]);
+
+				const taskId = `task-project-removal-${Date.now()}`;
+				const ensured = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+				expect(ensured.ok).toBe(true);
+				if (!ensured.ok || !ensured.path) {
+					throw new Error("Task worktree was not created");
+				}
+				writeFileSync(join(ensured.path, "card1.txt"), "stale agent content\n", "utf8");
+
+				const deleted = await deleteTaskWorktree({
+					repoPath,
+					taskId,
+					preserveChanges: false,
+				});
+				expect(deleted.ok).toBe(true);
+
+				writeFileSync(join(repoPath, "card1.txt"), "fresh project content\n", "utf8");
+				const recreated = await ensureTaskWorktreeIfDoesntExist({
+					cwd: repoPath,
+					taskId,
+					baseRef: "HEAD",
+				});
+				expect(recreated.ok).toBe(true);
+				if (!recreated.ok || !recreated.path) {
+					throw new Error("Task worktree was not recreated");
+				}
+				expect(readFileSync(join(recreated.path, "card1.txt"), "utf8")).toBe("fresh project content\n");
 			} finally {
 				cleanup();
 			}

@@ -148,6 +148,7 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 					reasoningEffort: request.reasoningEffort,
 					contextWindow: request.contextWindow,
 					apiTimeoutMs: request.apiTimeoutMs,
+					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt: request.systemPrompt,
 					userInstructionService: request.userInstructionService,
 					toolPolicies: request.toolPolicies,
@@ -189,20 +190,40 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 				mode?: RuntimeTaskSessionMode,
 				images?: RuntimeTaskImage[],
 				delivery?: "queue" | "steer",
+				launchConfigOverrides?,
 			): Promise<unknown> {
-				if (mode) {
-					const lastStartRequest = lastStartRequestByTaskId.get(taskId);
-					if (lastStartRequest) {
-						lastStartRequestByTaskId.set(taskId, {
-							...lastStartRequest,
-							mode,
-						});
-					}
+				const lastStartRequest = lastStartRequestByTaskId.get(taskId);
+				if (lastStartRequest && launchConfigOverrides) {
+					lastStartRequestByTaskId.set(taskId, {
+						...lastStartRequest,
+						...launchConfigOverrides,
+					});
 				}
 				if (delivery) {
 					return await sendTaskSessionInputMock(taskId, prompt, mode, images, delivery);
 				}
 				return await sendTaskSessionInputMock(taskId, prompt, mode, images);
+			},
+			requiresTaskSessionRestart(taskId, mode, launchConfigOverrides): boolean {
+				const lastStartRequest = lastStartRequestByTaskId.get(taskId);
+				if (!lastStartRequest) {
+					return false;
+				}
+				if (mode && mode !== lastStartRequest.mode) {
+					return true;
+				}
+				if (!launchConfigOverrides) {
+					return false;
+				}
+				return (
+					launchConfigOverrides.providerId !== lastStartRequest.providerId ||
+					(launchConfigOverrides.apiKey ?? null) !== (lastStartRequest.apiKey ?? null) ||
+					(launchConfigOverrides.baseUrl ?? null) !== (lastStartRequest.baseUrl ?? null) ||
+					(launchConfigOverrides.reasoningEffort ?? null) !== (lastStartRequest.reasoningEffort ?? null) ||
+					(launchConfigOverrides.contextWindow ?? null) !== (lastStartRequest.contextWindow ?? null) ||
+					(launchConfigOverrides.apiTimeoutMs ?? null) !== (lastStartRequest.apiTimeoutMs ?? null) ||
+					(launchConfigOverrides.turnTimeoutMs ?? null) !== (lastStartRequest.turnTimeoutMs ?? null)
+				);
 			},
 			async resumeTaskSession(taskId: string): Promise<ClinePersistedTaskSessionSnapshot | null> {
 				const snapshot = await readPersistedTaskSessionMock(taskId);
@@ -440,6 +461,89 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary.state).toBe("running");
 		expect(summary.workspacePath).toBe("/tmp/worktree");
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
+	});
+
+	it("aborts a stalled stream and surfaces the configured timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			const { service, runtime } = createTrackedService();
+			await service.startTaskSession({
+				taskId: "task-1",
+				cwd: "/tmp/worktree",
+				prompt: "Investigate startup",
+				streamTimeoutMs: 1_000,
+			});
+
+			await vi.advanceTimersByTimeAsync(1_001);
+
+			expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+			expect(service.getSummary("task-1")?.warningMessage).toContain(
+				"Cline stream inactivity timeout after 1 seconds",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("clears the conversation timeout when a turn completes", async () => {
+		vi.useFakeTimers();
+		try {
+			const { service, runtime } = createTrackedService();
+			await service.startTaskSession({
+				taskId: "task-1",
+				cwd: "/tmp/worktree",
+				prompt: "Investigate startup",
+				conversationTimeoutMs: 1_000,
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			const sessionId = runtime.getTaskSessionId("task-1");
+			expect(sessionId).toBeTruthy();
+
+			runtime.emitAgentEvent(sessionId ?? "session-1", {
+				type: "done",
+				reason: "completed",
+				text: "Done.",
+			});
+			await vi.advanceTimersByTimeAsync(1_001);
+
+			expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not extend a tool timeout for unrelated stream events", async () => {
+		vi.useFakeTimers();
+		try {
+			const { service, runtime } = createTrackedService();
+			await service.startTaskSession({
+				taskId: "task-1",
+				cwd: "/tmp/worktree",
+				prompt: "Investigate startup",
+				toolTimeoutMs: 1_000,
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			const sessionId = runtime.getTaskSessionId("task-1");
+			expect(sessionId).toBeTruthy();
+
+			runtime.emitAgentEvent(sessionId ?? "session-1", {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "tool-1",
+				toolName: "read_file",
+				input: { path: "README.md" },
+			});
+			await vi.advanceTimersByTimeAsync(500);
+			runtime.emitChunk(sessionId ?? "session-1", "still working");
+			await vi.advanceTimersByTimeAsync(501);
+
+			expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+			expect(service.getSummary("task-1")?.warningMessage).toContain("Cline tool execution timeout after 1 seconds");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("disposes cached runtime setups when the service shuts down", async () => {
@@ -911,7 +1015,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.getSummary("task-1")?.mode).toBe("act");
 	});
 
-	it("keeps the most recent mode for subsequent follow-up input", async () => {
+	it("restarts an idle session to apply a mode change and rejects changing an active turn", async () => {
 		const { service, runtime } = createTrackedService();
 
 		await service.startTaskSession({
@@ -923,20 +1027,34 @@ describe("InMemoryClineTaskSessionService", () => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
+		await expect(service.sendTaskSessionInput("task-1", "Switch while running", "plan")).rejects.toThrow(
+			"Finish or cancel the active Cline turn",
+		);
+		expect(service.listMessages("task-1").some((message) => message.content === "Switch while running")).toBe(false);
+
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		});
+
 		await service.sendTaskSessionInput("task-1", "Switch mode", "plan");
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
+		});
 		await service.sendTaskSessionInput("task-1", "Keep going");
 
 		await vi.waitFor(() => {
-			expect(runtime.sendTaskSessionInputMock).toHaveBeenNthCalledWith(
-				1,
-				"task-1",
-				"resolved:Switch mode",
-				"plan",
-				undefined,
-				"queue",
+			expect(runtime.startTaskSessionMock).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					prompt: "resolved:Switch mode",
+					mode: "plan",
+				}),
 			);
-			expect(runtime.sendTaskSessionInputMock).toHaveBeenNthCalledWith(
-				2,
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
 				"task-1",
 				"resolved:Keep going",
 				"plan",
@@ -1688,10 +1806,10 @@ describe("InMemoryClineTaskSessionService", () => {
 				isSubagent: false,
 			},
 			messages: [
-				{ role: "user", content: "Initial prompt" },
-				{ role: "assistant", content: "First response" },
-				{ role: "user", content: "Second request" },
-				{ role: "assistant", content: "Second response" },
+				{ role: "user", content: `Initial prompt ${"a".repeat(10_000)}` },
+				{ role: "assistant", content: `First response ${"b".repeat(10_000)}` },
+				{ role: "user", content: `Second request ${"c".repeat(10_000)}` },
+				{ role: "assistant", content: `Second response ${"d".repeat(10_000)}` },
 			],
 		});
 
@@ -1699,19 +1817,27 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
-			contextWindow: 2_000,
+			contextWindow: 8_000,
 		});
 		await vi.waitFor(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			reason: "completed",
+		});
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		});
 
-		const summary = await service.sendTaskSessionInput("task-1", "x".repeat(5_000), undefined, undefined, {
+		const summary = await service.sendTaskSessionInput("task-1", "x".repeat(1_000), undefined, undefined, {
 			providerId: "lmstudio",
 			modelId: "new-model",
 			apiKey: "local-key",
 			baseUrl: "http://127.0.0.1:1234/v1",
 			reasoningEffort: null,
-			contextWindow: 2_000,
+			contextWindow: 8_000,
 		});
 		expect(summary?.state).toBe("running");
 
@@ -1731,7 +1857,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 	});
 
-	it("fails early when context is critically over budget and compaction is unavailable", async () => {
+	it("does not interrupt an active turn to compact a critically large queued prompt", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
 			record: {
@@ -1766,9 +1892,16 @@ describe("InMemoryClineTaskSessionService", () => {
 		await service.sendTaskSessionInput("task-1", "x".repeat(5_000));
 
 		await vi.waitFor(() => {
-			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				expect.stringContaining("x"),
+				"act",
+				undefined,
+				"queue",
+			);
 		});
-		expect(service.getSummary("task-1")?.warningMessage ?? "").toContain("Projected context usage");
+		expect(runtime.stopTaskSessionMock).not.toHaveBeenCalled();
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("restarts the live session from persisted history after the SDK ends the task on send failure", async () => {

@@ -78,7 +78,7 @@ describe("loadProviderModelsWithFallback", () => {
 		expect(models[0]?.contextWindow).toBe(256000);
 	});
 
-	it("does not replace an SDK supplied context window", async () => {
+	it("prefers the currently loaded LM Studio context window over SDK catalog metadata", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "model-b",
@@ -105,7 +105,7 @@ describe("loadProviderModelsWithFallback", () => {
 
 		const models = await loadProviderModelsWithFallback("lmstudio");
 
-		expect(models[0]?.contextWindow).toBe(131072);
+		expect(models[0]?.contextWindow).toBe(256000);
 	});
 
 	it("loads LM Studio metadata when the SDK model list is empty", async () => {

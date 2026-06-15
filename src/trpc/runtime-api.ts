@@ -351,6 +351,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						contextWindow: clineLaunchConfig.contextWindow ?? null,
 						timeoutMode: effectiveTimeouts.timeoutMode,
 						requestTimeoutMs: effectiveTimeouts.requestTimeoutMs,
+						turnTimeoutMs: effectiveTimeouts.agentTimeoutMs,
+						streamTimeoutMs: effectiveTimeouts.streamTimeoutMs,
+						toolTimeoutMs: effectiveTimeouts.toolTimeoutMs,
+						conversationTimeoutMs: effectiveTimeouts.conversationTimeoutMs,
 					});
 
 					let nextSummary = summary;

@@ -64,19 +64,55 @@ function getClineMessageToolName(message: ClineChatMessage): string {
 	return toolLine ? normalizeClineToolName(toolLine.slice("Tool:".length)) : "";
 }
 
+function isClineFileReadToolName(name: string): boolean {
+	return name === "readfiles" || name === "readlargefile";
+}
+
 /**
  * Estimates a message's contribution to the actual outbound model request.
- * The Kanban host compacts raw `read_files` result bodies out of request context
- * before each model call, so their large output must not be counted here — only the
- * retained tool header/input plus the small compaction summary the host substitutes.
+ * Older `read_files` results are compacted by the Kanban host. The newest
+ * successful result remains verbatim for the request that analyzes it.
  */
-export function estimateClineRequestMessageTokens(message: ClineChatMessage): number {
-	if (message.role !== "tool" || getClineMessageToolName(message) !== "readfiles") {
+export function estimateClineRequestMessageTokens(
+	message: ClineChatMessage,
+	options: { retainReadFilesOutput?: boolean } = {},
+): number {
+	if (
+		message.role !== "tool" ||
+		!isClineFileReadToolName(getClineMessageToolName(message)) ||
+		options.retainReadFilesOutput
+	) {
 		return countClineDisplayTokens(message.content);
 	}
 	const outputIndex = message.content.indexOf("\nOutput:");
 	const retained = outputIndex >= 0 ? message.content.slice(0, outputIndex) : message.content;
 	return countClineDisplayTokens(retained) + READ_FILES_COMPACTED_OVERHEAD_TOKENS;
+}
+
+function findLatestCompletedReadFilesMessageIndex(messages: readonly ClineChatMessage[]): number {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (
+			message?.role === "tool" &&
+			isClineFileReadToolName(getClineMessageToolName(message)) &&
+			message.content.includes("\nOutput:")
+		) {
+			return index;
+		}
+	}
+	return -1;
+}
+
+export function estimateClineRequestHistoryTokens(messages: readonly ClineChatMessage[]): number {
+	const latestReadFilesMessageIndex = findLatestCompletedReadFilesMessageIndex(messages);
+	return messages.reduce(
+		(sum, message, index) =>
+			sum +
+			estimateClineRequestMessageTokens(message, {
+				retainReadFilesOutput: index === latestReadFilesMessageIndex,
+			}),
+		0,
+	);
 }
 
 export function formatClineContextBudgetDisplay(options: {
@@ -114,16 +150,10 @@ export function formatClineContextBudgetDisplay(options: {
 	const overageText = overageTokens > 0 ? ` · over by ~${Math.round(overageTokens / 1000)}k` : "";
 	const budgetStateLabel =
 		overageTokens > 0 ? "overflow" : percent >= 92 ? "critical" : percent >= 85 ? "warning" : "healthy";
-	const nextPromptTokens =
-		typeof options.estimatedNextPromptTokens === "number" && options.estimatedNextPromptTokens > 0
-			? options.estimatedNextPromptTokens
-			: 0;
-	const requestHistoryTokens = Math.max(0, options.estimatedContextTokens - nextPromptTokens);
-	const nextPromptText = nextPromptTokens > 0 ? ` + next prompt ~${Math.round(nextPromptTokens / 1000)}k` : "";
 	return {
 		limit,
 		percent: displayPercent,
-		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens (request history ~${Math.round(requestHistoryTokens / 1000)}k${nextPromptText}) · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
+		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
 }
 
@@ -165,13 +195,6 @@ function getLatestGeneratedTextForCurrentTurn(messages: ClineChatMessage[]): Cli
 	);
 }
 
-function estimateGeneratedTextTokens(message: ClineChatMessage | null): number {
-	if (!message) {
-		return 0;
-	}
-	return countClineDisplayTokens(message.content);
-}
-
 export function formatClineModelActivityDisplay(options: {
 	summary: RuntimeTaskSessionSummary | null;
 	messages: ClineChatMessage[];
@@ -198,11 +221,10 @@ export function formatClineModelActivityDisplay(options: {
 
 	const latestGeneratedMessage = getLatestGeneratedTextForCurrentTurn(options.messages);
 	if (!latestGeneratedMessage) {
-		return `Model activity: waiting for response · request sent ${requestAgeText} ago${contextText}`;
+		return `Model activity: waiting for response${contextText} · processing since ${requestAgeText}`;
 	}
 
-	const receivedTokens = estimateGeneratedTextTokens(latestGeneratedMessage);
-	return `Model activity: streaming · ~${receivedTokens} text tokens shown · request age ${requestAgeText}${contextText}`;
+	return `Model activity: streaming${contextText} · processing since ${requestAgeText}`;
 }
 
 const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
@@ -416,13 +438,16 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 
 		const panelError = composerError ?? error;
 		const estimatedNextPromptTokens = useMemo(() => {
+			if (summary?.state === "running") {
+				return 0;
+			}
 			const draftTokens = countClineDisplayTokens(draft.trim());
 			const imageOverheadTokens = draftImages.length * 1_200;
 			const framingOverheadTokens = 1_200;
 			return Math.max(1_200, draftTokens + imageOverheadTokens + framingOverheadTokens);
-		}, [draft, draftImages.length]);
+		}, [draft, draftImages.length, summary?.state]);
 		const estimatedContextTokens = useMemo(() => {
-			const historyTokens = messages.reduce((sum, message) => sum + estimateClineRequestMessageTokens(message), 0);
+			const historyTokens = estimateClineRequestHistoryTokens(messages);
 			return historyTokens + estimatedNextPromptTokens;
 		}, [estimatedNextPromptTokens, messages]);
 		const estimatedContextBudget = useMemo(

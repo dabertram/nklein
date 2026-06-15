@@ -7,6 +7,7 @@ import { useLinkedBacklogTaskActions } from "@/hooks/use-linked-backlog-task-act
 import { useProgrammaticCardMoves } from "@/hooks/use-programmatic-card-moves";
 import { useReviewAutoActions } from "@/hooks/use-review-auto-actions";
 import type { UseTaskSessionsResult } from "@/hooks/use-task-sessions";
+import { getDetailTerminalTaskId } from "@/hooks/use-terminal-panels";
 import type { RuntimeTaskSessionSummary, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
 import {
 	applyDragResult,
@@ -21,7 +22,6 @@ import { clearTaskWorkspaceInfo, setTaskWorkspaceInfo } from "@/stores/workspace
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
 import type { BoardCard, BoardColumnId, BoardData } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
-import { getNextDetailTaskIdAfterTrashMove } from "@/utils/detail-view-task-order";
 import {
 	getBrowserNotificationPermission,
 	hasPromptedForBrowserNotificationPermission,
@@ -363,13 +363,13 @@ export function useBoardInteractions({
 	const startBacklogTaskImmediately = useCallback(
 		async (task: BoardCard): Promise<boolean> => {
 			const selection = findCardSelection(board, task.id);
-			if (!selection || selection.column.id !== "backlog") {
+			if (selection?.column.id !== "backlog") {
 				return false;
 			}
 
 			setBoard((currentBoard) => {
 				const currentSelection = findCardSelection(currentBoard, task.id);
-				if (!currentSelection || currentSelection.column.id !== "backlog") {
+				if (currentSelection?.column.id !== "backlog") {
 					return currentBoard;
 				}
 				const moved = moveTaskToColumn(currentBoard, task.id, "in_progress", { insertAtTop: true });
@@ -433,7 +433,6 @@ export function useBoardInteractions({
 		setBoard((currentBoard) => {
 			let nextBoard = currentBoard;
 			const previousSessions = previousSessionsRef.current;
-			const blockedInterruptedTaskIds = new Set<string>();
 			for (const summary of Object.values(sessions)) {
 				const previous = previousSessions[summary.taskId];
 				if (previous && previous.updatedAt > summary.updatedAt) {
@@ -462,46 +461,9 @@ export function useBoardInteractions({
 					if (moved.moved) {
 						nextBoard = moved.board;
 					}
-					continue;
-				}
-				if (
-					summary.state === "interrupted" &&
-					previous?.state !== "interrupted" &&
-					columnId &&
-					columnId !== "trash"
-				) {
-					const nextTaskId = getNextDetailTaskIdAfterTrashMove(nextBoard, summary.taskId);
-					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "trash", {
-						skipTrashWorkflow: true,
-					});
-					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
-						if (programmaticMoveAttempt === "blocked") {
-							blockedInterruptedTaskIds.add(summary.taskId);
-						}
-						setSelectedTaskId((currentSelectedTaskId) =>
-							currentSelectedTaskId === summary.taskId ? nextTaskId : currentSelectedTaskId,
-						);
-						continue;
-					}
-					const moved = moveTaskToColumn(nextBoard, summary.taskId, "trash", { insertAtTop: true });
-					if (moved.moved) {
-						setSelectedTaskId((currentSelectedTaskId) =>
-							currentSelectedTaskId === summary.taskId ? nextTaskId : currentSelectedTaskId,
-						);
-						nextBoard = moved.board;
-					}
 				}
 			}
-			const nextPreviousSessions = { ...sessions };
-			for (const taskId of blockedInterruptedTaskIds) {
-				const previousSession = previousSessions[taskId];
-				if (previousSession) {
-					nextPreviousSessions[taskId] = previousSession;
-					continue;
-				}
-				delete nextPreviousSessions[taskId];
-			}
-			previousSessionsRef.current = nextPreviousSessions;
+			previousSessionsRef.current = { ...sessions };
 			return nextBoard;
 		});
 	}, [programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, tryProgrammaticCardMove]);
@@ -523,11 +485,27 @@ export function useBoardInteractions({
 		setRequestMoveTaskToTrashHandler(requestMoveTaskToTrash);
 	}, [requestMoveTaskToTrash, setRequestMoveTaskToTrashHandler]);
 
+	const requestMoveTaskToCompleted = useCallback(
+		async (taskId: string, fromColumnId: BoardColumnId): Promise<void> => {
+			setBoard((currentBoard) => {
+				const selection = findCardSelection(currentBoard, taskId);
+				if (!selection || selection.column.id !== fromColumnId || selection.column.id !== "review") {
+					return currentBoard;
+				}
+				const moved = moveTaskToColumn(currentBoard, taskId, "completed", { insertAtTop: true });
+				return moved.moved ? moved.board : currentBoard;
+			});
+			await Promise.all([stopTaskSession(taskId), stopTaskSession(getDetailTerminalTaskId(taskId))]);
+			await cleanupTaskWorkspace(taskId);
+		},
+		[cleanupTaskWorkspace, setBoard, stopTaskSession],
+	);
+
 	useReviewAutoActions({
 		board,
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
-		requestMoveTaskToTrash: requestMoveTaskToTrashWithAnimation,
+		requestMoveTaskToCompleted,
 		resetKey: currentProjectId,
 	});
 
@@ -671,7 +649,7 @@ export function useBoardInteractions({
 	const handleStartTask = useCallback(
 		(taskId: string) => {
 			const selection = findCardSelection(board, taskId);
-			if (!selection || selection.column.id !== "backlog") {
+			if (selection?.column.id !== "backlog") {
 				return;
 			}
 			maybeRequestNotificationPermissionForTaskStart();
@@ -697,7 +675,7 @@ export function useBoardInteractions({
 					continue;
 				}
 				const selection = findCardSelection(nextBoard, taskId);
-				if (!selection || selection.column.id !== "backlog") {
+				if (selection?.column.id !== "backlog") {
 					continue;
 				}
 				const moved = moveTaskToColumn(nextBoard, taskId, "in_progress", { insertAtTop: true });
@@ -779,7 +757,7 @@ export function useBoardInteractions({
 			}
 
 			const selection = findCardSelection(board, taskId);
-			if (!selection || selection.column.id !== "trash") {
+			if (selection?.column.id !== "trash") {
 				return;
 			}
 
@@ -801,7 +779,7 @@ export function useBoardInteractions({
 		(taskId: string) => {
 			setBoard((currentBoard) => {
 				const selection = findCardSelection(currentBoard, taskId);
-				if (!selection || selection.card.autoReviewEnabled !== true) {
+				if (selection?.card.autoReviewEnabled !== true) {
 					return currentBoard;
 				}
 				const updated = updateTask(currentBoard, taskId, {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useLinkedBacklogTaskActions } from "@/hooks/use-linked-backlog-task-actions";
 import { getDetailTerminalTaskId } from "@/hooks/use-terminal-panels";
-import type { BoardCard, BoardData, BoardDependency } from "@/types";
+import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
 
 const trackTaskDependencyCreatedMock = vi.hoisted(() => vi.fn());
 const trackTasksAutoStartedFromDependencyMock = vi.hoisted(() => vi.fn());
@@ -85,7 +85,7 @@ function HookHarness({
 	kickoffTaskInProgress?: (
 		task: BoardCard,
 		taskId: string,
-		fromColumnId: "backlog" | "in_progress" | "review" | "trash",
+		fromColumnId: BoardColumnId,
 		options?: { optimisticMove?: boolean },
 	) => Promise<boolean>;
 	startBacklogTaskWithAnimation?: (task: BoardCard) => Promise<boolean>;
@@ -101,7 +101,7 @@ function HookHarness({
 		stopTaskSession: stopTaskSession ?? (async () => {}),
 		cleanupTaskWorkspace: cleanupTaskWorkspace ?? (async () => null),
 		maybeRequestNotificationPermissionForTaskStart: () => {},
-		kickoffTaskInProgress: kickoffTaskInProgress ?? (async (_task: BoardCard, _taskId: string) => true),
+		kickoffTaskInProgress: kickoffTaskInProgress ?? (async () => true),
 		startBacklogTaskWithAnimation,
 		waitForBacklogStartAnimationAvailability,
 	});

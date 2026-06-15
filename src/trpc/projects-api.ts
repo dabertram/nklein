@@ -1,5 +1,5 @@
-import { readdir, stat } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { readdir, rm, stat } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
 	RuntimeBoardData,
 	RuntimeDirectoryListResponse,
@@ -18,7 +18,12 @@ import {
 } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { cloneGitRepository } from "../workspace/git-clone";
-import { ensureInitialCommit, initializeGitRepository } from "../workspace/initialize-repo";
+import {
+	ensureInitialCommit,
+	initializeGitRepository,
+	isGitRepositoryCreatedByKanban,
+	markGitRepositoryCreatedByKanban,
+} from "../workspace/initialize-repo";
 import { isPathWithinRoot } from "../workspace/path-sandbox";
 import { deleteTaskWorktree } from "../workspace/task-worktree";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -41,6 +46,7 @@ export interface CreateProjectsApiDependencies {
 		workspaceId: string;
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
+		gitRepositoryCreatedByKanban: boolean;
 	}) => RuntimeProjectSummary;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
 	getTerminalManagerForWorkspace: (workspaceId: string) => TerminalSessionManager | null;
@@ -77,6 +83,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 			const resolveBasePath = preferredWorkspaceContext?.repoPath ?? deps.getActiveWorkspacePath() ?? process.cwd();
 			try {
 				let projectPath: string;
+				let gitRepositoryCreatedByKanban = false;
 				if (body.gitUrl) {
 					// Clone from Git URL. If a custom path is provided alongside
 					// gitUrl, use it as the clone destination. Otherwise derive
@@ -94,6 +101,15 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						} satisfies RuntimeProjectAddResponse;
 					}
 					projectPath = cloneResult.clonedPath;
+					const markerResult = await markGitRepositoryCreatedByKanban(projectPath);
+					if (!markerResult.ok) {
+						return {
+							ok: false,
+							project: null,
+							error: markerResult.error ?? "Failed to record Git repository ownership.",
+						} satisfies RuntimeProjectAddResponse;
+					}
+					gitRepositoryCreatedByKanban = true;
 				} else {
 					// path is guaranteed to exist here by the schema refine and the gitUrl branch above.
 					projectPath = deps.resolveProjectInputPath(body.path as string, resolveBasePath);
@@ -116,7 +132,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 							error: initResult.error ?? "Failed to initialize git repository.",
 						} satisfies RuntimeProjectAddResponse;
 					}
+					gitRepositoryCreatedByKanban = true;
 				} else {
+					gitRepositoryCreatedByKanban = await isGitRepositoryCreatedByKanban(projectPath);
 					const commitResult = await ensureInitialCommit(projectPath);
 					if (!commitResult.ok) {
 						return {
@@ -126,7 +144,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						} satisfies RuntimeProjectAddResponse;
 					}
 				}
-				const context = await loadWorkspaceContext(projectPath);
+				const context = await loadWorkspaceContext(projectPath, {
+					gitRepositoryCreatedByKanban,
+				});
 				deps.rememberWorkspace(context.workspaceId, context.repoPath);
 				const projectsAfterAdd = await listWorkspaceIndexEntries();
 				const activeWorkspaceId = deps.getActiveWorkspaceId();
@@ -144,6 +164,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						workspaceId: context.workspaceId,
 						repoPath: context.repoPath,
 						taskCounts,
+						gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
 					}),
 				} satisfies RuntimeProjectAddResponse;
 			} catch (error) {
@@ -166,6 +187,12 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						error: `Unknown project ID: ${body.projectId}`,
 					};
 				}
+				if (body.deleteGitRepository && !projectToRemove.gitRepositoryCreatedByKanban) {
+					return {
+						ok: false,
+						error: "Kanban did not create this Git repository, so its .git metadata will not be deleted.",
+					};
+				}
 
 				const taskIdsToCleanup = new Set<string>();
 				try {
@@ -182,6 +209,34 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					removedTerminalManager.markInterruptedAndStopAll();
 				}
 
+				if (taskIdsToCleanup.size > 0) {
+					const deletions = await Promise.all(
+						Array.from(taskIdsToCleanup).map(async (taskId) => ({
+							taskId,
+							deleted: await deleteTaskWorktree({
+								repoPath: projectToRemove.repoPath,
+								taskId,
+								preserveChanges: false,
+							}),
+						})),
+					);
+					for (const { taskId, deleted } of deletions) {
+						if (deleted.ok) {
+							continue;
+						}
+						const message = deleted.error ?? `Could not delete task workspace for task "${taskId}".`;
+						deps.warn(message);
+						if (body.deleteGitRepository) {
+							throw new Error(`Could not remove all task worktrees, so the Git repository was kept. ${message}`);
+						}
+					}
+				}
+				if (body.deleteGitRepository) {
+					await rm(join(projectToRemove.repoPath, ".git"), {
+						recursive: true,
+						force: true,
+					});
+				}
 				const removed = await removeWorkspaceIndexEntry(body.projectId);
 				if (!removed) {
 					throw new Error(`Could not remove project index entry for "${body.projectId}".`);
@@ -200,28 +255,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						deps.clearActiveWorkspace();
 					}
 				}
-				void deps.broadcastRuntimeProjectsUpdated(deps.getActiveWorkspaceId());
-				if (taskIdsToCleanup.size > 0) {
-					const cleanupTaskIds = Array.from(taskIdsToCleanup);
-					void (async () => {
-						const deletions = await Promise.all(
-							cleanupTaskIds.map(async (taskId) => ({
-								taskId,
-								deleted: await deleteTaskWorktree({
-									repoPath: projectToRemove.repoPath,
-									taskId,
-								}),
-							})),
-						);
-						for (const { taskId, deleted } of deletions) {
-							if (deleted.ok) {
-								continue;
-							}
-							const message = deleted.error ?? `Could not delete task workspace for task "${taskId}".`;
-							deps.warn(message);
-						}
-					})();
-				}
+				await deps.broadcastRuntimeProjectsUpdated(deps.getActiveWorkspaceId());
 				return {
 					ok: true,
 				};

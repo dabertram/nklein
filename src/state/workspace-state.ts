@@ -35,17 +35,20 @@ const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> = [
 	{ id: "backlog", title: "Backlog" },
 	{ id: "in_progress", title: "In Progress" },
 	{ id: "review", title: "Review" },
-	{ id: "trash", title: "Done" },
+	{ id: "completed", title: "Completed" },
+	{ id: "trash", title: "Trash" },
 ];
 
 interface WorkspaceIndexEntry {
 	workspaceId: string;
 	repoPath: string;
+	gitRepositoryCreatedByKanban?: boolean;
 }
 
 export interface RuntimeWorkspaceIndexEntry {
 	workspaceId: string;
 	repoPath: string;
+	gitRepositoryCreatedByKanban: boolean;
 }
 
 interface WorkspaceIndexFile {
@@ -67,6 +70,7 @@ const workspaceStateMetaSchema = z.object({
 const workspaceIndexEntrySchema = z.object({
 	workspaceId: z.string().min(1, "Workspace ID cannot be empty."),
 	repoPath: z.string().min(1, "Workspace repository path cannot be empty."),
+	gitRepositoryCreatedByKanban: z.boolean().optional(),
 });
 
 const workspaceIndexFileSchema = z
@@ -133,10 +137,12 @@ export interface RuntimeWorkspaceContext {
 	workspaceId: string;
 	statePath: string;
 	git: RuntimeGitRepositoryInfo;
+	gitRepositoryCreatedByKanban?: boolean;
 }
 
 export interface LoadWorkspaceContextOptions {
 	autoCreateIfMissing?: boolean;
+	gitRepositoryCreatedByKanban?: boolean;
 }
 
 function createEmptyBoard(): RuntimeBoardData {
@@ -375,11 +381,29 @@ function createWorkspaceId(index: WorkspaceIndexFile, repoPath: string): string 
 function ensureWorkspaceEntry(
 	index: WorkspaceIndexFile,
 	repoPath: string,
+	gitRepositoryCreatedByKanban: boolean,
 ): { index: WorkspaceIndexFile; entry: WorkspaceIndexEntry; changed: boolean } {
 	const existingWorkspaceId = index.repoPathToId[repoPath];
 	if (existingWorkspaceId) {
 		const existingEntry = index.entries[existingWorkspaceId];
 		if (existingEntry && existingEntry.repoPath === repoPath) {
+			if (gitRepositoryCreatedByKanban && !existingEntry.gitRepositoryCreatedByKanban) {
+				const updatedEntry = {
+					...existingEntry,
+					gitRepositoryCreatedByKanban: true,
+				};
+				return {
+					index: {
+						...index,
+						entries: {
+							...index.entries,
+							[existingWorkspaceId]: updatedEntry,
+						},
+					},
+					entry: updatedEntry,
+					changed: true,
+				};
+			}
 			return {
 				index,
 				entry: existingEntry,
@@ -393,6 +417,7 @@ function ensureWorkspaceEntry(
 	const entry: WorkspaceIndexEntry = {
 		workspaceId,
 		repoPath,
+		...(gitRepositoryCreatedByKanban ? { gitRepositoryCreatedByKanban: true } : {}),
 	};
 
 	return {
@@ -565,15 +590,13 @@ export async function loadWorkspaceContext(
 			workspaceId: existingEntry.workspaceId,
 			statePath: getWorkspaceDirectoryPath(existingEntry.workspaceId),
 			git: detectGitRepositoryInfo(repoPath),
+			gitRepositoryCreatedByKanban: existingEntry.gitRepositoryCreatedByKanban === true,
 		};
 	}
 
 	return await lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
 		let index = await readWorkspaceIndex();
-		const existingEntry = findWorkspaceEntry(index, repoPath);
-		const ensured = existingEntry
-			? { index, entry: existingEntry, changed: false }
-			: ensureWorkspaceEntry(index, repoPath);
+		const ensured = ensureWorkspaceEntry(index, repoPath, options.gitRepositoryCreatedByKanban === true);
 		index = ensured.index;
 		if (ensured.changed) {
 			await writeWorkspaceIndex(index);
@@ -584,6 +607,7 @@ export async function loadWorkspaceContext(
 			workspaceId: ensured.entry.workspaceId,
 			statePath: getWorkspaceDirectoryPath(ensured.entry.workspaceId),
 			git: detectGitRepositoryInfo(repoPath),
+			gitRepositoryCreatedByKanban: ensured.entry.gitRepositoryCreatedByKanban === true,
 		};
 	});
 }
@@ -607,6 +631,7 @@ export async function listWorkspaceIndexEntries(): Promise<RuntimeWorkspaceIndex
 		.map((entry) => ({
 			workspaceId: entry.workspaceId,
 			repoPath: entry.repoPath,
+			gitRepositoryCreatedByKanban: entry.gitRepositoryCreatedByKanban === true,
 		}))
 		.sort((left, right) => left.repoPath.localeCompare(right.repoPath));
 }

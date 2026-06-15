@@ -85,9 +85,28 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 
 		expect(result.approved).toBe(false);
-		expect(result.reason).toContain("Use explicit numeric start_line and end_line ranges");
+		expect(result.reason).toContain("Use read_large_file");
 		expect(result.reason).toContain("No lines were read by this failed attempt");
-		expect(result.reason).toContain("target about 70% of the character chunk budget");
+		expect(result.reason).toContain("stitching verification");
+	});
+
+	it("keeps ordinary full-file read_files requests unchanged", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
+		const sourcePath = join(workspacePath, "small.ts");
+		await writeFile(sourcePath, "export const value = 42;\n", "utf8");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "read_files",
+				input: {
+					files: [{ path: sourcePath }],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(true);
 	});
 
 	it("blocks explicit read_files chunks above the token budget", async () => {

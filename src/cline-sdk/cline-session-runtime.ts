@@ -2,8 +2,14 @@
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
-import { compactKanbanFocusedMessages } from "./cline-context-focus-policy";
+import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { extractClineSessionId } from "./cline-event-adapter";
+import {
+	createReadLargeFileTool,
+	getClineLargeFileWorkflow,
+	releaseAllClineLargeFileWorkflows,
+	releaseClineLargeFileWorkflow,
+} from "./cline-large-file-workflow";
 import {
 	type ClineMcpRuntimeService,
 	type ClineMcpToolBundle,
@@ -26,19 +32,42 @@ import {
 export { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
 const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 6;
-const MAX_SDK_API_TIMEOUT_MS = 2_147_483_647;
 const DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS = 80_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
 
-type ClineSdkSessionConfigWithTimeouts = ClineSdkStartSessionInput["config"] & {
-	apiTimeoutMs?: number;
-	timeout?: number;
-};
-
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
+type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
+type ClineSdkRuntimeExtension = NonNullable<ClineSdkLocalRuntimeOptions["extensions"]>[number];
+
+function createKanbanContextFocusExtension(sessionId: string, workspacePath: string): ClineSdkRuntimeExtension {
+	const largeFileWorkflow = getClineLargeFileWorkflow(sessionId, workspacePath);
+	return {
+		name: "kanban-context-focus",
+		manifest: {
+			capabilities: ["messageBuilders", "hooks"],
+		},
+		hooks: {
+			async beforeModel(context) {
+				const messages = await largeFileWorkflow.beforeModel(context);
+				return messages ? { messages } : undefined;
+			},
+			async afterModel(context) {
+				return await largeFileWorkflow.afterModel(context);
+			},
+		},
+		setup(api) {
+			api.registerMessageBuilder({
+				name: "kanban-read-files-focus",
+				build(messages) {
+					return focusKanbanReadFilesForNextRequest(messages) ?? messages;
+				},
+			});
+		},
+	};
+}
 
 type ClineSessionLaunchConfigOverrides = {
 	providerId: string;
@@ -48,6 +77,7 @@ type ClineSessionLaunchConfigOverrides = {
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
 	apiTimeoutMs?: number | null;
+	turnTimeoutMs?: number | null;
 };
 
 interface ClineSessionHostBoundary {
@@ -90,16 +120,13 @@ function toSdkUserImages(images?: RuntimeTaskImage[]): string[] | undefined {
 }
 
 function resolveSdkApiTimeoutMs(timeoutMs: number | null | undefined): number | undefined {
-	if (timeoutMs === undefined) {
+	if (timeoutMs === undefined || timeoutMs === null || timeoutMs === 0) {
 		return undefined;
-	}
-	if (timeoutMs === null || timeoutMs === 0) {
-		return MAX_SDK_API_TIMEOUT_MS;
 	}
 	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
 		return undefined;
 	}
-	return Math.min(Math.trunc(timeoutMs), MAX_SDK_API_TIMEOUT_MS);
+	return Math.trunc(timeoutMs);
 }
 
 function resolveContextWindowTokens(contextWindow: number | null | undefined): number | null {
@@ -150,6 +177,7 @@ export interface StartClineSessionRuntimeRequest {
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
 	apiTimeoutMs?: number | null;
+	turnTimeoutMs?: number | null;
 	systemPrompt: string;
 	userInstructionService?: ClineSdkUserInstructionService;
 	toolPolicies?: ClineSdkStartSessionInput["toolPolicies"];
@@ -185,6 +213,11 @@ export interface ClineSessionRuntime {
 		delivery?: "queue" | "steer",
 		launchConfigOverrides?: ClineSessionLaunchConfigOverrides,
 	): Promise<unknown>;
+	requiresTaskSessionRestart(
+		taskId: string,
+		mode?: RuntimeTaskSessionMode,
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides,
+	): boolean;
 	resumeTaskSession(taskId: string): Promise<ClinePersistedTaskSessionSnapshot | null>;
 	stopTaskSession(taskId: string): Promise<void>;
 	abortTaskSession(taskId: string): Promise<void>;
@@ -253,6 +286,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			reasoningEffort: request.reasoningEffort,
 			contextWindow: request.contextWindow,
 			apiTimeoutMs: request.apiTimeoutMs,
+			turnTimeoutMs: request.turnTimeoutMs,
 			systemPrompt: request.systemPrompt,
 			taskTitle: request.taskTitle,
 			userInstructionService: request.userInstructionService,
@@ -274,14 +308,50 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			}
 		}
 		this.replaceTaskMcpToolBundle(request.taskId, mcpToolBundle);
+		const largeFileWorkflow = getClineLargeFileWorkflow(requestedSessionId, request.cwd);
+		const baseRequestToolApproval = request.requestToolApproval;
+		const requestToolApproval = baseRequestToolApproval
+			? async (approvalRequest: ClineSdkToolApprovalRequest): Promise<ClineSdkToolApprovalResult> => {
+					if (approvalRequest.toolName === "read_files") {
+						const blockedReason = await largeFileWorkflow.getReadFilesBlockingReason();
+						if (blockedReason) {
+							return {
+								approved: false,
+								reason: blockedReason,
+							};
+						}
+					}
+					return await baseRequestToolApproval(approvalRequest);
+				}
+			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
+		const extraTools = [
+			createReadLargeFileTool({
+				sessionId: requestedSessionId,
+				workspacePath: request.cwd,
+				contextWindow: request.contextWindow,
+			}),
+			...(mcpToolBundle?.tools ?? []),
+		];
 
 		const sessionHost = await this.ensureSessionHost();
 		const userImages = toSdkUserImages(request.images);
 		const shouldSendInitialTurn = request.prompt.trim().length > 0 || Boolean(userImages?.length);
 		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
 		const compaction = buildClineContextCompactionConfig(request.contextWindow);
-		const config: ClineSdkSessionConfigWithTimeouts = {
+		const providerConfig: NonNullable<ClineSdkStartSessionInput["config"]["providerConfig"]> = {
+			providerId: request.providerId,
+			modelId: request.modelId,
+			...(request.apiKey?.trim() ? { apiKey: request.apiKey.trim() } : {}),
+			...(request.baseUrl?.trim() ? { baseUrl: request.baseUrl.trim() } : {}),
+			...(request.reasoningEffort === null
+				? { reasoningEffort: "none" as NonNullable<ClineSdkStartSessionInput["config"]["reasoningEffort"]> }
+				: request.reasoningEffort
+					? { reasoningEffort: request.reasoningEffort }
+					: {}),
+			...(sdkApiTimeoutMs ? { timeoutMs: sdkApiTimeoutMs } : {}),
+		};
+		const config: ClineSdkStartSessionInput["config"] = {
 			sessionId: requestedSessionId,
 			providerId: request.providerId,
 			modelId: request.modelId,
@@ -297,7 +367,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
-			...(sdkApiTimeoutMs ? { apiTimeoutMs: sdkApiTimeoutMs, timeout: sdkApiTimeoutMs } : {}),
+			providerConfig,
 			...(compaction ? { compaction } : {}),
 			execution: {
 				maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
@@ -313,6 +383,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: CLINE_MODEL_CATALOG_DEFAULTS,
+					extensions: [createKanbanContextFocusExtension(requestedSessionId, request.cwd)],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
 					...(compaction ? { compaction: { ...compaction, compact: compactKanbanFocusedMessages } } : {}),
 					logger: createKanbanClineLogger({
@@ -322,11 +393,9 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 						providerId: request.providerId,
 						modelId: request.modelId,
 					}),
-					...(hasMcpExtraTools ? { extraTools: mcpToolBundle?.tools ?? [] } : {}),
+					extraTools,
 				},
-				...(request.requestToolApproval
-					? { capabilities: { requestToolApproval: request.requestToolApproval } }
-					: {}),
+				...(requestToolApproval ? { capabilities: { requestToolApproval } } : {}),
 				...(request.toolPolicies ? { toolPolicies: request.toolPolicies } : {}),
 			});
 		} catch (error) {
@@ -347,6 +416,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 					sessionId: startResult.sessionId,
 					prompt: request.prompt,
 					userImages,
+					...(request.turnTimeoutMs ? { timeoutMs: request.turnTimeoutMs } : {}),
 				});
 			} catch (error) {
 				this.clearTaskSessionBinding(request.taskId, startResult.sessionId);
@@ -401,19 +471,57 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		}
 		const sessionHost = await this.ensureSessionHost();
 		if (launchConfigOverrides) {
-			await this.updateActiveSessionLaunchConfig(sessionHost, sessionId, launchConfigOverrides);
+			if (this.requiresTaskSessionRestart(taskId, mode, launchConfigOverrides)) {
+				throw new Error(
+					"The active Cline session must be restarted before applying the selected launch configuration.",
+				);
+			}
+			await this.updateActiveSessionModel(sessionHost, sessionId, launchConfigOverrides.modelId);
 			this.updateLastStartRequestLaunchConfig(taskId, launchConfigOverrides);
 		}
-		if (mode) {
-			this.updateActiveSessionMode(sessionHost, sessionId, mode);
-			this.updateLastStartRequestMode(taskId, mode);
-		}
+		const turnTimeoutMs =
+			launchConfigOverrides && Object.hasOwn(launchConfigOverrides, "turnTimeoutMs")
+				? launchConfigOverrides.turnTimeoutMs
+				: this.lastStartRequestByTaskId.get(taskId)?.turnTimeoutMs;
 		return await sessionHost.send({
 			sessionId,
 			prompt,
 			userImages: toSdkUserImages(images),
 			...(delivery ? { delivery } : {}),
+			...(turnTimeoutMs ? { timeoutMs: turnTimeoutMs } : {}),
 		});
+	}
+
+	requiresTaskSessionRestart(
+		taskId: string,
+		mode?: RuntimeTaskSessionMode,
+		launchConfigOverrides?: ClineSessionLaunchConfigOverrides,
+	): boolean {
+		const lastStartRequest = this.lastStartRequestByTaskId.get(taskId);
+		if (!lastStartRequest) {
+			return false;
+		}
+		if (mode && mode !== lastStartRequest.mode) {
+			return true;
+		}
+		if (!launchConfigOverrides) {
+			return false;
+		}
+		return (
+			launchConfigOverrides.providerId.trim().toLowerCase() !== lastStartRequest.providerId.trim().toLowerCase() ||
+			(Object.hasOwn(launchConfigOverrides, "apiKey") &&
+				(launchConfigOverrides.apiKey?.trim() || null) !== (lastStartRequest.apiKey?.trim() || null)) ||
+			(Object.hasOwn(launchConfigOverrides, "baseUrl") &&
+				(launchConfigOverrides.baseUrl?.trim() || null) !== (lastStartRequest.baseUrl?.trim() || null)) ||
+			(Object.hasOwn(launchConfigOverrides, "reasoningEffort") &&
+				(launchConfigOverrides.reasoningEffort ?? null) !== (lastStartRequest.reasoningEffort ?? null)) ||
+			(Object.hasOwn(launchConfigOverrides, "contextWindow") &&
+				(launchConfigOverrides.contextWindow ?? null) !== (lastStartRequest.contextWindow ?? null)) ||
+			(Object.hasOwn(launchConfigOverrides, "apiTimeoutMs") &&
+				(launchConfigOverrides.apiTimeoutMs ?? null) !== (lastStartRequest.apiTimeoutMs ?? null)) ||
+			(Object.hasOwn(launchConfigOverrides, "turnTimeoutMs") &&
+				(launchConfigOverrides.turnTimeoutMs ?? null) !== (lastStartRequest.turnTimeoutMs ?? null))
+		);
 	}
 
 	async resumeTaskSession(taskId: string): Promise<ClinePersistedTaskSessionSnapshot | null> {
@@ -488,6 +596,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		for (const sessionId of matchingSessionIds) {
 			await sessionHost.delete(sessionId).catch(() => false);
 			this.taskIdBySessionId.delete(sessionId);
+			releaseClineLargeFileWorkflow(sessionId);
 		}
 		this.clearTaskSessionBinding(taskId);
 		await this.releaseTaskMcpToolBundle(taskId);
@@ -532,6 +641,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		this.sessionIdByTaskId.clear();
 		this.taskIdBySessionId.clear();
 		this.lastStartRequestByTaskId.clear();
+		releaseAllClineLargeFileWorkflows();
 
 		const mcpBundles = [...this.mcpToolBundleByTaskId.values()];
 		this.mcpToolBundleByTaskId.clear();
@@ -619,64 +729,12 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		return await this.sessionHostPromise;
 	}
 
-	private updateActiveSessionMode(
+	private async updateActiveSessionModel(
 		sessionHost: ClineSessionHostBoundary,
 		sessionId: string,
-		mode: RuntimeTaskSessionMode,
-	): void {
-		const hostWithSessions = sessionHost as unknown as {
-			sessions?: Map<string, { config?: { mode?: RuntimeTaskSessionMode } }>;
-		};
-		const activeSession = hostWithSessions.sessions?.get(sessionId);
-		if (activeSession?.config) {
-			activeSession.config.mode = mode;
-		}
-	}
-
-	private updateLastStartRequestMode(taskId: string, mode: RuntimeTaskSessionMode): void {
-		const lastStartRequest = this.lastStartRequestByTaskId.get(taskId);
-		if (!lastStartRequest) {
-			return;
-		}
-		this.lastStartRequestByTaskId.set(taskId, {
-			...lastStartRequest,
-			mode,
-		});
-	}
-
-	private async updateActiveSessionLaunchConfig(
-		sessionHost: ClineSessionHostBoundary,
-		sessionId: string,
-		launchConfigOverrides: ClineSessionLaunchConfigOverrides,
+		modelId: string,
 	): Promise<void> {
-		await sessionHost.updateSessionModel?.(sessionId, launchConfigOverrides.modelId);
-		const hostWithSessions = sessionHost as unknown as {
-			sessions?: Map<
-				string,
-				{
-					config?: ClineSdkSessionConfigWithTimeouts;
-				}
-			>;
-		};
-		const activeSession = hostWithSessions.sessions?.get(sessionId);
-		if (!activeSession?.config) {
-			return;
-		}
-		activeSession.config.providerId = launchConfigOverrides.providerId;
-		activeSession.config.modelId = launchConfigOverrides.modelId;
-		activeSession.config.apiKey = launchConfigOverrides.apiKey?.trim() || undefined;
-		activeSession.config.baseUrl = launchConfigOverrides.baseUrl?.trim() || undefined;
-		activeSession.config.reasoningEffort =
-			launchConfigOverrides.reasoningEffort === null
-				? ("none" as ClineSdkStartSessionInput["config"]["reasoningEffort"])
-				: (launchConfigOverrides.reasoningEffort ?? undefined);
-		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(launchConfigOverrides.apiTimeoutMs);
-		if (sdkApiTimeoutMs) {
-			activeSession.config.apiTimeoutMs = sdkApiTimeoutMs;
-			activeSession.config.timeout = sdkApiTimeoutMs;
-		}
-		const compaction = buildClineContextCompactionConfig(launchConfigOverrides.contextWindow);
-		activeSession.config.compaction = compaction;
+		await sessionHost.updateSessionModel?.(sessionId, modelId);
 	}
 
 	private updateLastStartRequestLaunchConfig(
@@ -691,11 +749,20 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			...lastStartRequest,
 			providerId: launchConfigOverrides.providerId,
 			modelId: launchConfigOverrides.modelId,
-			apiKey: launchConfigOverrides.apiKey,
-			baseUrl: launchConfigOverrides.baseUrl,
-			reasoningEffort: launchConfigOverrides.reasoningEffort,
-			contextWindow: launchConfigOverrides.contextWindow,
-			apiTimeoutMs: launchConfigOverrides.apiTimeoutMs,
+			...(Object.hasOwn(launchConfigOverrides, "apiKey") ? { apiKey: launchConfigOverrides.apiKey } : {}),
+			...(Object.hasOwn(launchConfigOverrides, "baseUrl") ? { baseUrl: launchConfigOverrides.baseUrl } : {}),
+			...(Object.hasOwn(launchConfigOverrides, "reasoningEffort")
+				? { reasoningEffort: launchConfigOverrides.reasoningEffort }
+				: {}),
+			...(Object.hasOwn(launchConfigOverrides, "contextWindow")
+				? { contextWindow: launchConfigOverrides.contextWindow }
+				: {}),
+			...(Object.hasOwn(launchConfigOverrides, "apiTimeoutMs")
+				? { apiTimeoutMs: launchConfigOverrides.apiTimeoutMs }
+				: {}),
+			...(Object.hasOwn(launchConfigOverrides, "turnTimeoutMs")
+				? { turnTimeoutMs: launchConfigOverrides.turnTimeoutMs }
+				: {}),
 		});
 	}
 

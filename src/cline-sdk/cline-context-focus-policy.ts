@@ -30,7 +30,6 @@ interface ReadFilesLedgerEntry {
 	inputSummary: string;
 	originalChars: number;
 	latest: boolean;
-	omitted: boolean;
 }
 
 interface FailedReadFilesEntry {
@@ -43,7 +42,8 @@ function normalizeToolName(name: string): string {
 }
 
 function isReadFilesToolName(name: string): boolean {
-	return normalizeToolName(name) === "readfiles";
+	const normalized = normalizeToolName(name);
+	return normalized === "readfiles" || normalized === "readlargefile";
 }
 
 function toContentBlocks(message: ClineSdkPersistedMessage): ClineSdkContentBlock[] | null {
@@ -334,7 +334,6 @@ function buildReadFilesLedgerEntry(
 		inputSummary: summarizeReadFileInput(reference.toolInput),
 		originalChars: originalText.length,
 		latest,
-		omitted: true,
 	};
 }
 
@@ -353,14 +352,15 @@ function buildFocusBrief(input: {
 	if (input.readFilesLedger.length > 0) {
 		lines.push("read_files coverage ledger:");
 		for (const entry of input.readFilesLedger.slice(-MAX_FOCUS_BRIEF_READS)) {
-			const state = entry.latest ? "latest raw result omitted" : "older raw result omitted";
+			const state = entry.latest ? "latest raw result retained for immediate analysis" : "older raw result omitted";
 			lines.push(`- ${entry.inputSummary} (${state}; original ${entry.originalChars.toLocaleString()} chars)`);
 		}
 		const coverage = buildReadCoverageByPath(input.readFilesLedger);
 		if (coverage.length > 0) {
 			lines.push("Per-file read coverage — resume from the next unread line; do NOT restart from line 1:");
 			for (const entry of coverage) {
-				lines.push(`- ${entry.path}: covered through line ${entry.maxEnd}; next unread line ${entry.maxEnd + 1}`);
+				const ranges = entry.ranges.map((range) => `${range.start}-${range.end}`).join(", ");
+				lines.push(`- ${entry.path}: covered ranges ${ranges}; next unread line ${entry.nextUnreadLine}`);
 			}
 		}
 	}
@@ -389,36 +389,65 @@ function splitReadInputSummary(summary: string): string[] {
 		.filter((part) => part.length > 0);
 }
 
-function parseReadCoveragePart(part: string): { path: string; end: number } | null {
+function parseReadCoveragePart(part: string): { path: string; start: number; end: number } | null {
 	const colonIndex = part.lastIndexOf(":");
 	if (colonIndex <= 0) {
 		return null;
 	}
 	const path = part.slice(0, colonIndex).trim();
 	const range = part.slice(colonIndex + 1).trim();
-	const match = /^[\d?]*-(\d+)$/.exec(range);
-	if (!path || !match?.[1]) {
+	const match = /^(\d+)-(\d+)$/.exec(range);
+	if (!path || !match?.[1] || !match[2]) {
 		return null;
 	}
-	const end = Number.parseInt(match[1], 10);
-	return Number.isFinite(end) ? { path, end } : null;
+	const start = Number.parseInt(match[1], 10);
+	const end = Number.parseInt(match[2], 10);
+	return Number.isFinite(start) && Number.isFinite(end) && start > 0 && end >= start ? { path, start, end } : null;
 }
 
-function buildReadCoverageByPath(ledger: readonly ReadFilesLedgerEntry[]): { path: string; maxEnd: number }[] {
-	const maxEndByPath = new Map<string, number>();
+interface ReadCoverageByPath {
+	path: string;
+	ranges: Array<{ start: number; end: number }>;
+	nextUnreadLine: number;
+}
+
+function buildReadCoverageByPath(ledger: readonly ReadFilesLedgerEntry[]): ReadCoverageByPath[] {
+	const rangesByPath = new Map<string, Array<{ start: number; end: number }>>();
 	for (const entry of ledger) {
 		for (const part of splitReadInputSummary(entry.inputSummary)) {
 			const parsed = parseReadCoveragePart(part);
 			if (!parsed) {
 				continue;
 			}
-			const current = maxEndByPath.get(parsed.path);
-			if (current === undefined || parsed.end > current) {
-				maxEndByPath.set(parsed.path, parsed.end);
-			}
+			const ranges = rangesByPath.get(parsed.path) ?? [];
+			ranges.push({ start: parsed.start, end: parsed.end });
+			rangesByPath.set(parsed.path, ranges);
 		}
 	}
-	return [...maxEndByPath.entries()].map(([path, maxEnd]) => ({ path, maxEnd }));
+	return [...rangesByPath.entries()].map(([path, ranges]) => {
+		const sortedRanges = [...ranges].sort((left, right) => left.start - right.start || left.end - right.end);
+		const mergedRanges: Array<{ start: number; end: number }> = [];
+		for (const range of sortedRanges) {
+			const previous = mergedRanges.at(-1);
+			if (previous && range.start <= previous.end + 1) {
+				previous.end = Math.max(previous.end, range.end);
+				continue;
+			}
+			mergedRanges.push({ ...range });
+		}
+		let nextUnreadLine = 1;
+		for (const range of mergedRanges) {
+			if (range.start > nextUnreadLine) {
+				break;
+			}
+			nextUnreadLine = Math.max(nextUnreadLine, range.end + 1);
+		}
+		return {
+			path,
+			ranges: mergedRanges,
+			nextUnreadLine,
+		};
+	});
 }
 
 function basename(path: string): string {
@@ -535,6 +564,134 @@ function compactOlderTextMessages(
 	}
 }
 
+function compactStructuredContentBlock(block: ClineSdkContentBlock): ClineSdkContentBlock {
+	if (block.type === "text" && block.text.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
+		return {
+			...block,
+			text: `[Kanban context focus: older text block compacted.] ${summarizeText(
+				block.text,
+				COMPACTED_MESSAGE_PREVIEW_CHARS,
+			)}`,
+		};
+	}
+	if (block.type === "thinking" && block.thinking.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
+		return {
+			...block,
+			thinking: `[Kanban context focus: older reasoning compacted.] ${summarizeText(
+				block.thinking,
+				COMPACTED_MESSAGE_PREVIEW_CHARS,
+			)}`,
+		};
+	}
+	if (block.type === "file" && block.content.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
+		return {
+			...block,
+			content: `[Kanban context focus: older attached file content compacted.] ${summarizeText(
+				block.content,
+				COMPACTED_MESSAGE_PREVIEW_CHARS,
+			)}`,
+		};
+	}
+	if (block.type === "tool_use") {
+		const inputText = summarizeValue(block.input);
+		if (inputText.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
+			return {
+				...block,
+				input: {
+					summary: summarizeText(inputText, COMPACTED_MESSAGE_PREVIEW_CHARS),
+				},
+			};
+		}
+	}
+	return block;
+}
+
+function compactStructuredMessages(
+	messages: ClineSdkPersistedMessage[],
+	targetTokens: number,
+	changed: { value: boolean },
+): void {
+	for (
+		let index = 1;
+		index < messages.length && countKanbanPersistedMessagesTokens(messages) > targetTokens;
+		index += 1
+	) {
+		const message = messages[index];
+		if (!message || typeof message.content === "string") {
+			continue;
+		}
+		const compactedContent = message.content.map(compactStructuredContentBlock);
+		if (compactedContent.some((block, blockIndex) => block !== message.content[blockIndex])) {
+			messages[index] = {
+				...message,
+				content: compactedContent,
+			};
+			changed.value = true;
+		}
+	}
+}
+
+function buildEmergencyCompactionMessage(
+	messages: readonly ClineSdkPersistedMessage[],
+	targetTokens: number,
+): ClineSdkPersistedMessage[] {
+	const firstUserMessage = messages.find((message) => message.role === "user");
+	const recentPreviews = messages.slice(-6).map((message) => {
+		const preview =
+			typeof message.content === "string"
+				? message.content
+				: message.content
+						.map((block) => {
+							if (block.type === "text") {
+								return block.text;
+							}
+							if (block.type === "thinking") {
+								return block.thinking;
+							}
+							if (block.type === "file") {
+								return `Attached file: ${block.path}`;
+							}
+							if (block.type === "tool_use") {
+								return `Tool ${block.name}: ${summarizeValue(block.input)}`;
+							}
+							if (block.type === "tool_result") {
+								return stringifyToolResultContent(block.content);
+							}
+							return "";
+						})
+						.join("\n");
+		return `${message.role}: ${summarizeText(preview, COMPACTED_MESSAGE_PREVIEW_CHARS)}`;
+	});
+	const firstUserPreview = firstUserMessage
+		? summarizeText(
+				typeof firstUserMessage.content === "string"
+					? firstUserMessage.content
+					: firstUserMessage.content
+							.map((block) => (block.type === "text" ? block.text : ""))
+							.filter(Boolean)
+							.join("\n"),
+				COMPACTED_MESSAGE_PREVIEW_CHARS,
+			)
+		: "unavailable";
+	let summary = [
+		"[Kanban context focus: earlier conversation history was compacted to prevent context overflow.]",
+		`Initial user request preview: ${firstUserPreview}`,
+		"Recent transcript previews:",
+		...recentPreviews,
+	].join("\n");
+	while (countKanbanTextTokens(summary) > targetTokens && summary.length > 1) {
+		summary = summary.slice(0, Math.max(1, Math.floor(summary.length * 0.75)));
+	}
+	const baseMessage = firstUserMessage ?? messages[0];
+	return [
+		{
+			...(baseMessage ?? {}),
+			role: "user",
+			content: summary,
+		},
+	];
+}
+
 export function compactKanbanMessagesForContextTarget(
 	messagesInput: readonly ClineSdkPersistedMessage[],
 	targetTokens: number,
@@ -579,6 +736,9 @@ export function compactKanbanMessagesForContextTarget(
 	}
 
 	for (const result of readFileResults) {
+		if (result.toolUseId === latestReadToolUseId) {
+			continue;
+		}
 		replaceToolResultContent(messages, result, buildReadFilesSummary(result));
 		changed.value = true;
 	}
@@ -604,8 +764,20 @@ export function compactKanbanMessagesForContextTarget(
 	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
 		compactOlderTextMessages(messages, normalizedTargetTokens, new Set(), changed);
 	}
+	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
+		compactStructuredMessages(messages, normalizedTargetTokens, changed);
+	}
+	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
+		return buildEmergencyCompactionMessage(messages, normalizedTargetTokens);
+	}
 
 	return changed.value ? messages : null;
+}
+
+export function focusKanbanReadFilesForNextRequest(
+	messages: readonly ClineSdkPersistedMessage[],
+): ClineSdkPersistedMessage[] | null {
+	return compactKanbanMessagesForContextTarget(messages, Number.MAX_SAFE_INTEGER);
 }
 
 export function compactKanbanFocusedMessages(

@@ -190,7 +190,7 @@ export function useTaskEditor({
 			return;
 		}
 		const selection = findCardSelection(board, editingTaskId);
-		if (!selection || selection.column.id !== "backlog") {
+		if (selection?.column.id !== "backlog") {
 			setEditingTaskId(null);
 
 			setEditTaskPrompt("");

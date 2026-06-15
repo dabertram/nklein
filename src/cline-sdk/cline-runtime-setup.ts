@@ -1,6 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
+import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import {
 	type ClineSdkStartSessionInput,
 	type ClineSdkToolApprovalRequest,
@@ -52,70 +53,6 @@ function asNumber(value: unknown): number | null {
 		return null;
 	}
 	return Math.trunc(value);
-}
-
-function toReadFileRequests(input: unknown): Array<{ path: string; startLine: number | null; endLine: number | null }> {
-	const toRequest = (value: unknown): { path: string; startLine: number | null; endLine: number | null } | null => {
-		if (typeof value === "string") {
-			const trimmed = value.trim();
-			if (!trimmed) {
-				return null;
-			}
-			return { path: trimmed, startLine: null, endLine: null };
-		}
-		if (!value || typeof value !== "object") {
-			return null;
-		}
-		const record = value as Record<string, unknown>;
-		const path = typeof record.path === "string" ? record.path.trim() : "";
-		if (!path) {
-			return null;
-		}
-		return {
-			path,
-			startLine: asNumber(record.start_line),
-			endLine: asNumber(record.end_line),
-		};
-	};
-
-	if (typeof input === "string") {
-		const request = toRequest(input);
-		return request ? [request] : [];
-	}
-	if (Array.isArray(input)) {
-		return input
-			.map((value) => toRequest(value))
-			.filter((value): value is NonNullable<typeof value> => Boolean(value));
-	}
-	if (!input || typeof input !== "object") {
-		return [];
-	}
-	const record = input as Record<string, unknown>;
-	if (Array.isArray(record.files)) {
-		return record.files
-			.map((value) => toRequest(value))
-			.filter((value): value is NonNullable<typeof value> => Boolean(value));
-	}
-	if (Array.isArray(record.file_paths)) {
-		return record.file_paths
-			.map((value) => toRequest(value))
-			.filter((value): value is NonNullable<typeof value> => Boolean(value));
-	}
-	if (typeof record.file_paths === "string") {
-		const request = toRequest(record.file_paths);
-		return request ? [request] : [];
-	}
-	if (Array.isArray(record.paths)) {
-		return record.paths
-			.map((value) => toRequest(value))
-			.filter((value): value is NonNullable<typeof value> => Boolean(value));
-	}
-	if (record.paths) {
-		const request = toRequest(record.paths);
-		return request ? [request] : [];
-	}
-	const request = toRequest(record);
-	return request ? [request] : [];
 }
 
 type ApplyPatchTarget =
@@ -197,7 +134,7 @@ async function approveReadFilesTool(
 	options: KanbanToolApprovalOptions,
 ): Promise<ClineSdkToolApprovalResult> {
 	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow ?? null);
-	const readRequests = toReadFileRequests(request.input);
+	const readRequests = parseReadFileRequests(request.input);
 	let totalRequestedTokens = 0;
 	let totalRequestedLines = 0;
 	for (const readRequest of readRequests) {
@@ -210,13 +147,16 @@ async function approveReadFilesTool(
 
 		const startLine = readRequest.startLine;
 		const endLine = readRequest.endLine;
-		if (totalTokens > budgets.fileChunkContentTokenBudget) {
-			if (typeof startLine !== "number" || typeof endLine !== "number" || startLine <= 0 || endLine < startLine) {
-				return {
-					approved: false,
-					reason: `Blocked ${request.toolName}: ${readRequest.path} is ~${totalTokens.toLocaleString()} tokens, above the per-read source budget of ${budgets.fileChunkContentTokenBudget.toLocaleString()} tokens. No lines were read by this failed attempt; do not mark this file or requested range as covered. Use explicit numeric start_line and end_line ranges, read one large source file per call, and start with a measured range based on wc -c / wc -l; target about 70% of the character chunk budget rather than an arbitrary tiny starter range.`,
-				};
-			}
+		const hasValidRange =
+			typeof startLine === "number" && typeof endLine === "number" && startLine > 0 && endLine >= startLine;
+		if (
+			!hasValidRange &&
+			isLargeFileForWorkflow(Buffer.byteLength(content, "utf8"), totalTokens, budgets.fileChunkContentTokenBudget)
+		) {
+			return {
+				approved: false,
+				reason: `Blocked ${request.toolName}: ${readRequest.path} is a large file (${Buffer.byteLength(content, "utf8").toLocaleString()} bytes, ~${totalTokens.toLocaleString()} tokens). No lines were read by this failed attempt. Use read_large_file for automatic chunk coverage, stitching verification, and final synthesis, or provide an explicit numeric start_line/end_line range for a focused excerpt.`,
+			};
 		}
 
 		const requestedLines =

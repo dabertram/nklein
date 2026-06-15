@@ -154,11 +154,19 @@ describe.sequential("workspace-state integration", () => {
 				initGitRepository(workspaceAPath);
 				initGitRepository(workspaceBPath);
 
-				const contextA = await loadWorkspaceContext(workspaceAPath);
+				const contextA = await loadWorkspaceContext(workspaceAPath, {
+					gitRepositoryCreatedByKanban: true,
+				});
 				const contextB = await loadWorkspaceContext(workspaceBPath);
 
 				const entries = await listWorkspaceIndexEntries();
 				expect(entries).toHaveLength(2);
+				expect(
+					entries.find((entry) => entry.workspaceId === contextA.workspaceId)?.gitRepositoryCreatedByKanban,
+				).toBe(true);
+				expect(
+					entries.find((entry) => entry.workspaceId === contextB.workspaceId)?.gitRepositoryCreatedByKanban,
+				).toBe(false);
 				expect(entries.map((entry) => entry.workspaceId).sort()).toEqual(
 					[contextA.workspaceId, contextB.workspaceId].sort(),
 				);

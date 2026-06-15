@@ -50,18 +50,18 @@ const workspaceSnapshots: Record<string, ReviewTaskWorkspaceSnapshot> = {
 function HookHarness({
 	board,
 	runAutoReviewGitAction,
-	requestMoveTaskToTrash,
+	requestMoveTaskToCompleted,
 }: {
 	board: BoardData;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
-	requestMoveTaskToTrash: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
+	requestMoveTaskToCompleted: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
 }): null {
 	setTaskWorkspaceSnapshot(workspaceSnapshots["task-1"] ?? null);
 	useReviewAutoActions({
 		board,
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction,
-		requestMoveTaskToTrash,
+		requestMoveTaskToCompleted,
 	});
 	return null;
 }
@@ -98,14 +98,14 @@ describe("useReviewAutoActions", () => {
 
 	it("cancels a scheduled auto review action when autoReviewEnabled is turned off", async () => {
 		const runAutoReviewGitAction = vi.fn(async () => true);
-		const requestMoveTaskToTrash = vi.fn(async () => {});
+		const requestMoveTaskToCompleted = vi.fn(async () => {});
 
 		await act(async () => {
 			root.render(
 				<HookHarness
 					board={createBoard(true)}
 					runAutoReviewGitAction={runAutoReviewGitAction}
-					requestMoveTaskToTrash={requestMoveTaskToTrash}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
 				/>,
 			);
 		});
@@ -115,7 +115,7 @@ describe("useReviewAutoActions", () => {
 				<HookHarness
 					board={createBoard(false)}
 					runAutoReviewGitAction={runAutoReviewGitAction}
-					requestMoveTaskToTrash={requestMoveTaskToTrash}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
 				/>,
 			);
 		});
@@ -125,6 +125,6 @@ describe("useReviewAutoActions", () => {
 		});
 
 		expect(runAutoReviewGitAction).not.toHaveBeenCalled();
-		expect(requestMoveTaskToTrash).not.toHaveBeenCalled();
+		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
 	});
 });

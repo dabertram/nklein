@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ClineAgentChatPanel,
 	type ClineAgentChatPanelHandle,
+	estimateClineRequestHistoryTokens,
 	estimateClineRequestMessageTokens,
 	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
@@ -196,7 +197,7 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
 		expect(contextBudget.text).toBe(
-			"current request ~87k tokens (request history ~81k + next prompt ~6k) · 80k available context (100% · over by ~7k · overflow)",
+			"current request ~87k tokens · 80k available context (100% · over by ~7k · overflow)",
 		);
 	});
 
@@ -210,30 +211,56 @@ describe("ClineAgentChatPanel", () => {
 		expect(text).toContain("tokens");
 	});
 
-	it("excludes compacted read_files output from the request size estimate", () => {
+	it("counts the newest read_files output while treating older chunks as compacted", () => {
 		const hugeOutput = "line of source text\n".repeat(5_000);
-		const readFilesMessage: ClineChatMessage = {
+		const olderReadFilesMessage: ClineChatMessage = {
 			id: "m1",
 			role: "tool",
 			content: `Tool: read_files\nInput: src/big.ts:1-1500\nOutput:\n${hugeOutput}`,
 			createdAt: Date.now(),
 			meta: { toolName: "read_files" },
 		};
-		const assistantMessage: ClineChatMessage = {
+		const newestReadFilesMessage: ClineChatMessage = {
 			id: "m2",
-			role: "assistant",
-			content: hugeOutput,
+			role: "tool",
+			content: `Tool: read_files\nInput: src/big.ts:1501-3000\nOutput:\n${hugeOutput}`,
 			createdAt: Date.now(),
-			meta: null,
+			meta: { toolName: "read_files" },
 		};
 
-		const readFilesTokens = estimateClineRequestMessageTokens(readFilesMessage);
-		const assistantTokens = estimateClineRequestMessageTokens(assistantMessage);
+		const compactedReadTokens = estimateClineRequestMessageTokens(olderReadFilesMessage);
+		const retainedReadTokens = estimateClineRequestMessageTokens(newestReadFilesMessage, {
+			retainReadFilesOutput: true,
+		});
+		const historyTokens = estimateClineRequestHistoryTokens([olderReadFilesMessage, newestReadFilesMessage]);
 
-		// The raw read_files body is compacted out of the request, so its estimate stays tiny
-		// even though the same text counted verbatim for the assistant message is large.
-		expect(readFilesTokens).toBeLessThan(200);
-		expect(assistantTokens).toBeGreaterThan(1_000);
+		expect(compactedReadTokens).toBeLessThan(200);
+		expect(retainedReadTokens).toBeGreaterThan(1_000);
+		expect(historyTokens).toBe(compactedReadTokens + retainedReadTokens);
+	});
+
+	it("counts read_large_file output with the same newest-chunk policy", () => {
+		const olderMessage: ClineChatMessage = {
+			id: "large-read-1",
+			role: "tool",
+			content: `Tool: read_large_file\nOutput:\n${"older source ".repeat(1_000)}`,
+			createdAt: Date.now(),
+			meta: { toolName: "read_large_file" },
+		};
+		const newestMessage: ClineChatMessage = {
+			id: "large-read-2",
+			role: "tool",
+			content: `Tool: read_large_file\nOutput:\n${"current source ".repeat(1_000)}`,
+			createdAt: Date.now(),
+			meta: { toolName: "read_large_file" },
+		};
+
+		const compactedTokens = estimateClineRequestMessageTokens(olderMessage);
+		const retainedTokens = estimateClineRequestMessageTokens(newestMessage, {
+			retainReadFilesOutput: true,
+		});
+
+		expect(estimateClineRequestHistoryTokens([olderMessage, newestMessage])).toBe(compactedTokens + retainedTokens);
 	});
 
 	it("formats waiting model activity before the first streamed token", () => {
@@ -247,7 +274,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: waiting for response · request sent 1m 5s ago");
+		expect(text).toBe("Model activity: waiting for response · processing since 1m 5s");
 	});
 
 	it("includes current request context in model activity", () => {
@@ -263,7 +290,7 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(text).toBe(
-			"Model activity: waiting for response · request sent 1m 5s ago · current request ~12k tokens · 80k available context (15% · healthy)",
+			"Model activity: waiting for response · current request ~12k tokens · 80k available context (15% · healthy) · processing since 1m 5s",
 		);
 	});
 
@@ -291,7 +318,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~5 text tokens shown · request age 15s");
+		expect(text).toBe("Model activity: streaming · processing since 15s");
 	});
 
 	it("formats reasoning activity as streaming when it belongs to the current turn", () => {
@@ -324,7 +351,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: streaming · ~5 text tokens shown · request age 15s");
+		expect(text).toBe("Model activity: streaming · processing since 15s");
 	});
 
 	it("does not report streaming from stale previous-turn output", () => {
@@ -357,7 +384,7 @@ describe("ClineAgentChatPanel", () => {
 			nowMs: 75_000,
 		});
 
-		expect(text).toBe("Model activity: waiting for response · request sent 15s ago");
+		expect(text).toBe("Model activity: waiting for response · processing since 15s");
 	});
 
 	it("reports idle model activity after a response when the task is not running", () => {

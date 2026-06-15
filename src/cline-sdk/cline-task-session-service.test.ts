@@ -37,8 +37,8 @@ describe("buildKanbanEfficiencyRules", () => {
 		});
 
 		expect(rules).toContain("coverage ledger");
-		expect(rules).toContain("record `wc -l` and `wc -c`");
-		expect(rules).toContain("unread line ranges");
+		expect(rules).toContain("use `read_large_file` repeatedly");
+		expect(rules).toContain("stitching verification");
 		expect(rules).toContain("If tool output is truncated, clipped, summarized, or hits a limit");
 		expect(rules).toContain("final line is confirmed");
 		expect(rules).toContain(

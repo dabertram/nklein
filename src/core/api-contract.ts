@@ -74,9 +74,9 @@ export type RuntimeSlashCommandsResponse = z.infer<typeof runtimeSlashCommandsRe
 export const runtimeAgentIdSchema = z.enum(["claude", "codex", "gemini", "opencode", "droid", "kiro", "cline"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
-const runtimeBoardColumnIdEnum = z.enum(["backlog", "in_progress", "review", "trash"]);
+const runtimeBoardColumnIdEnum = z.enum(["backlog", "in_progress", "review", "completed", "trash"]);
 export const runtimeBoardColumnIdSchema = z.preprocess(
-	(val) => (val === "done" ? "trash" : val),
+	(val) => (val === "done" ? "completed" : val),
 	runtimeBoardColumnIdEnum,
 );
 export type RuntimeBoardColumnId = z.infer<typeof runtimeBoardColumnIdEnum>;
@@ -356,6 +356,7 @@ export const runtimeProjectTaskCountsSchema = z.object({
 	backlog: z.number(),
 	in_progress: z.number(),
 	review: z.number(),
+	completed: z.number(),
 	trash: z.number(),
 });
 export type RuntimeProjectTaskCounts = z.infer<typeof runtimeProjectTaskCountsSchema>;
@@ -365,6 +366,7 @@ export const runtimeProjectSummarySchema = z.object({
 	path: z.string(),
 	name: z.string(),
 	taskCounts: runtimeProjectTaskCountsSchema,
+	gitRepositoryCreatedByKanban: z.boolean().optional(),
 });
 export type RuntimeProjectSummary = z.infer<typeof runtimeProjectSummarySchema>;
 
@@ -553,6 +555,7 @@ export type RuntimeDirectoryListResponse = z.infer<typeof runtimeDirectoryListRe
 
 export const runtimeProjectRemoveRequestSchema = z.object({
 	projectId: z.string(),
+	deleteGitRepository: z.boolean().optional(),
 });
 export type RuntimeProjectRemoveRequest = z.infer<typeof runtimeProjectRemoveRequestSchema>;
 
