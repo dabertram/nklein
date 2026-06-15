@@ -310,14 +310,36 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		this.replaceTaskMcpToolBundle(request.taskId, mcpToolBundle);
 		const largeFileWorkflow = getClineLargeFileWorkflow(requestedSessionId, request.cwd);
 		const baseRequestToolApproval = request.requestToolApproval;
+		const readLargeFileTurns = new Set<string>();
+		const approvalTurnKey = (approvalRequest: ClineSdkToolApprovalRequest): string =>
+			[
+				approvalRequest.sessionId,
+				approvalRequest.agentId,
+				approvalRequest.conversationId,
+				approvalRequest.iteration,
+			].join(":");
 		const requestToolApproval = baseRequestToolApproval
 			? async (approvalRequest: ClineSdkToolApprovalRequest): Promise<ClineSdkToolApprovalResult> => {
+					if (approvalRequest.toolName === "read_large_file") {
+						const approval = await baseRequestToolApproval(approvalRequest);
+						if (approval.approved) {
+							readLargeFileTurns.add(approvalTurnKey(approvalRequest));
+						}
+						return approval;
+					}
 					if (approvalRequest.toolName === "read_files") {
 						const blockedReason = await largeFileWorkflow.getReadFilesBlockingReason();
 						if (blockedReason) {
 							return {
 								approved: false,
 								reason: blockedReason,
+							};
+						}
+						if (readLargeFileTurns.has(approvalTurnKey(approvalRequest))) {
+							return {
+								approved: false,
+								reason:
+									"Blocked read_files: this assistant turn already requested read_large_file. Analyze the read_large_file chunk, update durable notes, and continue that workflow before reading other files.",
 							};
 						}
 					}

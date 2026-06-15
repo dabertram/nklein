@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createInMemoryClineSessionRuntime } from "../../../src/cline-sdk/cline-session-runtime";
-import type { ClineSdkSessionRecord } from "../../../src/cline-sdk/sdk-runtime-boundary";
+import type { ClineSdkSessionRecord, ClineSdkStartSessionInput } from "../../../src/cline-sdk/sdk-runtime-boundary";
 
 function createNoopMcpRuntimeService() {
 	return {
@@ -54,6 +54,72 @@ function createPersistedRecord(input: {
 }
 
 describe("InMemoryClineSessionRuntime", () => {
+	it("blocks read_files after read_large_file is requested in the same turn", async () => {
+		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+			requestToolApproval: baseApproval,
+		});
+
+		const requestToolApproval = fakeHost.start.mock.calls[0]?.[0].capabilities?.requestToolApproval;
+		expect(requestToolApproval).toBeTruthy();
+		if (!requestToolApproval) {
+			throw new Error("Expected requestToolApproval to be wired");
+		}
+
+		const commonRequest = {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			policy: { autoApprove: false },
+		};
+		const largeFileApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-1",
+			toolName: "read_large_file",
+			input: { path: "large.txt", cursor: "start" },
+		});
+		expect(largeFileApproval.approved).toBe(true);
+
+		const readFilesApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-2",
+			toolName: "read_files",
+			input: { files: [{ path: "small.txt" }] },
+		});
+
+		expect(readFilesApproval.approved).toBe(false);
+		expect(readFilesApproval.reason).toContain("already requested read_large_file");
+		expect(baseApproval).toHaveBeenCalledTimes(1);
+	});
+
 	it("wires Kanban focused context compaction into SDK local runtime", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({

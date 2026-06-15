@@ -343,6 +343,7 @@ export function createKanbanToolApprovalPolicy(
 export function createKanbanToolPolicies(): NonNullable<ClineSdkStartSessionInput["toolPolicies"]> {
 	return {
 		read_files: { enabled: true, autoApprove: false },
+		read_large_file: { enabled: true, autoApprove: false },
 		editor: { enabled: true, autoApprove: false },
 		apply_patch: { enabled: true, autoApprove: false },
 	};

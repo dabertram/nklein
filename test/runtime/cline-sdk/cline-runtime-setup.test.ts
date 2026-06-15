@@ -63,6 +63,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		const policies = createKanbanToolPolicies();
 
 		expect(policies.read_files).toEqual({ enabled: true, autoApprove: false });
+		expect(policies.read_large_file).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.editor).toEqual({ enabled: true, autoApprove: false });
 		expect(policies.apply_patch).toEqual({ enabled: true, autoApprove: false });
 	});
