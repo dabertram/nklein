@@ -165,6 +165,46 @@ function nextUnreadLine(file: LargeFileState): number {
 	return Math.min(nextLine, file.totalLines);
 }
 
+function readCursor(file: LargeFileState): string {
+	return `read:${nextUnreadLine(file)}:${file.primaryRanges.length + 1}`;
+}
+
+function stitchBoundaryCursor(boundary: StitchBoundary, stitchCallIndex: number): string {
+	return `stitch:${boundary.leftLine}/${boundary.rightLine}:${stitchCallIndex}`;
+}
+
+function nextStitchCursor(file: LargeFileState): string | null {
+	const pendingBoundary = file.stitchBoundaries.find((boundary) => !boundary.verified);
+	if (!pendingBoundary) {
+		return null;
+	}
+	const verifiedCount = file.stitchBoundaries.filter((boundary) => boundary.verified).length;
+	return stitchBoundaryCursor(pendingBoundary, verifiedCount + 1);
+}
+
+function toLegacyCursor(cursor: string): string {
+	if (cursor.startsWith("read:")) {
+		const [_, line] = cursor.split(":");
+		return line ? `read:${line}` : cursor;
+	}
+	if (cursor.startsWith("stitch:")) {
+		const [_, boundary] = cursor.split(":");
+		return boundary ? `stitch:${boundary}` : cursor;
+	}
+	return cursor;
+}
+
+function expectedCursorForFile(file: LargeFileState): string {
+	if (!file.eofCovered) {
+		return readCursor(file);
+	}
+	const pendingStitchCursor = nextStitchCursor(file);
+	if (pendingStitchCursor) {
+		return pendingStitchCursor;
+	}
+	return file.synthesisCompleted ? "complete" : "synthesis";
+}
+
 function createRailMessage(text: string): AgentMessage {
 	return {
 		id: `kanban-large-file-rail-${Date.now()}`,
@@ -207,7 +247,7 @@ export class ClineLargeFileWorkflow {
 		if (incompleteFiles.length > 0) {
 			const instructions = incompleteFiles.map(
 				(file) =>
-					`- Continue ${file.path} from line ${nextUnreadLine(file)} through line ${file.totalLines}; do not summarize yet.`,
+					`- Continue ${file.path} from line ${nextUnreadLine(file)} through line ${file.totalLines}; call read_large_file with cursor \`${expectedCursorForFile(file)}\`; do not summarize yet.`,
 			);
 			return [
 				...context.request.messages,
@@ -228,10 +268,12 @@ export class ClineLargeFileWorkflow {
 			const instructions = filesWithPendingStitches.flatMap((file) =>
 				file.stitchBoundaries
 					.filter((boundary) => !boundary.verified)
-					.map((boundary) => {
+					.map((boundary, pendingIndex) => {
 						const startLine = Math.max(1, boundary.leftLine - STITCH_CONTEXT_LINES + 1);
 						const endLine = Math.min(file.totalLines, boundary.rightLine + STITCH_CONTEXT_LINES - 1);
-						return `- Verify boundary ${boundary.leftLine}/${boundary.rightLine} in ${file.path} (lines ${startLine}-${endLine}): call read_large_file with the file path — do NOT use read_files.`;
+						const stitchedBefore = file.stitchBoundaries.filter((entry) => entry.verified).length;
+						const cursor = stitchBoundaryCursor(boundary, stitchedBefore + pendingIndex + 1);
+						return `- Verify boundary ${boundary.leftLine}/${boundary.rightLine} in ${file.path} (lines ${startLine}-${endLine}): call read_large_file with cursor \`${cursor}\` — do NOT use read_files.`;
 					}),
 			);
 			return [
@@ -305,7 +347,11 @@ export class ClineLargeFileWorkflow {
 		return `Blocked read_files: read_large_file coverage is complete for ${paths}, but final synthesis is still required. Produce the synthesis before reading other files; no read_files content was read.`;
 	}
 
-	async readNext(pathInput: string, contextWindow?: number | null): Promise<Record<string, unknown>> {
+	async readNext(
+		pathInput: string,
+		contextWindow?: number | null,
+		cursorInput?: string | null,
+	): Promise<Record<string, unknown>> {
 		await this.ensureLoaded();
 		const path = pathInput.trim();
 		if (!path) {
@@ -335,6 +381,22 @@ export class ClineLargeFileWorkflow {
 			this.index.files[absolutePath] = file;
 		}
 
+		const expectedCursor = expectedCursorForFile(file);
+		const providedCursor =
+			typeof cursorInput === "string" && cursorInput.trim().length > 0 ? cursorInput.trim() : "start";
+		const normalizedExpectedCursor = expectedCursor.startsWith("read:1:") ? "start" : expectedCursor;
+		const legacyExpectedCursor = toLegacyCursor(normalizedExpectedCursor);
+		const allowsLegacySynthesisCursor = normalizedExpectedCursor === "complete" && providedCursor === "synthesis";
+		if (
+			providedCursor !== normalizedExpectedCursor &&
+			providedCursor !== legacyExpectedCursor &&
+			!allowsLegacySynthesisCursor
+		) {
+			throw new Error(
+				`read_large_file expected cursor "${normalizedExpectedCursor}" for ${path}. Retry with {"path":"${path}","cursor":"${normalizedExpectedCursor}"}.`,
+			);
+		}
+
 		const pendingBoundary = file.stitchBoundaries.find((boundary) => !boundary.verified);
 		if (file.eofCovered && pendingBoundary) {
 			const startLine = Math.max(1, pendingBoundary.leftLine - STITCH_CONTEXT_LINES + 1);
@@ -349,9 +411,10 @@ export class ClineLargeFileWorkflow {
 				endLine,
 				totalLines: file.totalLines,
 				boundary: `${pendingBoundary.leftLine}/${pendingBoundary.rightLine}`,
+				nextCursor: nextStitchCursor(file) ?? "synthesis",
 				content: chunk,
 				instruction: file.stitchBoundaries.some((boundary) => !boundary.verified)
-					? "Analyze this stitching window against the running notes, then call read_large_file again for the next boundary."
+					? `Analyze this stitching window against the running notes, then call read_large_file again with cursor \`${nextStitchCursor(file)}\` for the next boundary.`
 					: "Analyze this final stitching window against the running notes. The next model request will require final synthesis.",
 			};
 		}
@@ -362,6 +425,7 @@ export class ClineLargeFileWorkflow {
 				phase: file.synthesisCompleted ? "complete" : "synthesis",
 				path,
 				totalLines: file.totalLines,
+				nextCursor: file.synthesisCompleted ? "complete" : "synthesis",
 				instruction: file.synthesisCompleted
 					? "This large-file workflow is complete. Re-open it only if the source changes or the user asks for a new analysis."
 					: "All primary chunks and stitching windows are covered. Produce the final deduplicated synthesis now.",
@@ -390,18 +454,21 @@ export class ClineLargeFileWorkflow {
 			file.stitchBoundaries = buildStitchBoundaries(file.primaryRanges);
 		}
 		await this.persistToolOutput("primary", path, startLine, endLine, chunk);
+		const nextCursor = expectedCursorForFile(file);
+		const normalizedNextCursor = nextCursor.startsWith("read:1:") ? "start" : nextCursor;
 		return {
 			phase: "reading",
 			path,
 			startLine,
 			endLine,
 			totalLines: file.totalLines,
+			nextCursor: normalizedNextCursor,
 			content: chunk,
 			instruction: file.eofCovered
 				? file.stitchBoundaries.length > 0
-					? "EOF is covered. Analyze this chunk, update running notes, then call read_large_file again to begin stitching verification."
+					? `EOF is covered. Analyze this chunk, update running notes, then call read_large_file again with cursor \`${normalizedNextCursor}\` to begin stitching verification.`
 					: "EOF is covered in one chunk. Analyze it; the next model request will require final synthesis."
-				: `Analyze this chunk and update durable running notes, then call read_large_file again. Next unread line: ${endLine + 1}.`,
+				: `Analyze this chunk and update durable running notes, then call read_large_file again with cursor \`${normalizedNextCursor}\`. Next unread line: ${endLine + 1}.`,
 		};
 	}
 
@@ -528,15 +595,29 @@ export function createReadLargeFileTool(options: {
 					type: "string",
 					description: "Absolute path or workspace-relative path to the large text file.",
 				},
+				cursor: {
+					type: "string",
+					description:
+						"Workflow cursor from the previous read_large_file result (`nextCursor`). Use `start` for the first call on a file.",
+				},
 			},
-			required: ["path"],
+			required: ["path", "cursor"],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			if (!input || typeof input !== "object" || typeof (input as Record<string, unknown>).path !== "string") {
-				throw new Error("read_large_file requires a string path.");
+			if (
+				!input ||
+				typeof input !== "object" ||
+				typeof (input as Record<string, unknown>).path !== "string" ||
+				typeof (input as Record<string, unknown>).cursor !== "string"
+			) {
+				throw new Error("read_large_file requires string path and cursor fields.");
 			}
-			return await workflow.readNext((input as Record<string, unknown>).path as string, options.contextWindow);
+			return await workflow.readNext(
+				(input as Record<string, unknown>).path as string,
+				options.contextWindow,
+				(input as Record<string, unknown>).cursor as string,
+			);
 		},
 	};
 }
