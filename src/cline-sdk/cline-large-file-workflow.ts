@@ -1,13 +1,22 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import type { AgentAfterModelContext, AgentBeforeModelContext, AgentMessage, AgentTool } from "@clinebot/shared";
+import type {
+	AgentAfterModelContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentMessage,
+	AgentTool,
+	AgentToolDefinition,
+} from "@clinebot/shared";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 
 const LARGE_FILE_BYTES = 100 * 1024;
 const STITCH_CONTEXT_LINES = 20;
+const FILE_READING_TOOL_NAMES = new Set(["read_file", "read_files", "read_large_file"]);
+const ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES = new Set(["read_file", "read_files"]);
 
 export interface ReadFileRequest {
 	path: string;
@@ -217,6 +226,26 @@ function createRailMessage(text: string): AgentMessage {
 	};
 }
 
+function filterTools(
+	tools: readonly AgentToolDefinition[],
+	blockedToolNames: ReadonlySet<string>,
+): readonly AgentToolDefinition[] {
+	return tools.filter((tool) => !blockedToolNames.has(tool.name));
+}
+
+function hasSynthesisText(message: AgentMessage): boolean {
+	let hasText = false;
+	for (const part of message.content) {
+		if (part.type === "tool-call") {
+			return false;
+		}
+		if (part.type === "text" && part.text.trim().length > 0) {
+			hasText = true;
+		}
+	}
+	return hasText;
+}
+
 export class ClineLargeFileWorkflow {
 	private readonly index: LargeFileWorkflowIndex;
 	private loadPromise: Promise<void> | null = null;
@@ -237,7 +266,7 @@ export class ClineLargeFileWorkflow {
 		};
 	}
 
-	async beforeModel(context: AgentBeforeModelContext): Promise<AgentMessage[] | null> {
+	async beforeModel(context: AgentBeforeModelContext): Promise<AgentBeforeModelResult | null> {
 		await this.ensureLoaded();
 		const files = Object.values(this.index.files);
 		if (files.length === 0 || files.every((file) => file.synthesisCompleted)) {
@@ -249,16 +278,19 @@ export class ClineLargeFileWorkflow {
 				(file) =>
 					`- Continue ${file.path} from line ${nextUnreadLine(file)} through line ${file.totalLines}; call read_large_file with cursor \`${expectedCursorForFile(file)}\`; do not summarize yet.`,
 			);
-			return [
-				...context.request.messages,
-				createRailMessage(
-					[
-						"[Kanban large-file workflow: reading incomplete]",
-						...instructions,
-						"Call read_large_file again for the same path and update durable running notes after analyzing each returned chunk.",
-					].join("\n"),
-				),
-			];
+			return {
+				messages: [
+					...context.request.messages,
+					createRailMessage(
+						[
+							"[Kanban large-file workflow: reading incomplete]",
+							...instructions,
+							"Call read_large_file again for the same path and update durable running notes after analyzing each returned chunk.",
+						].join("\n"),
+					),
+				],
+				tools: filterTools(context.request.tools, ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES),
+			};
 		}
 
 		const filesWithPendingStitches = files.filter((file) =>
@@ -276,41 +308,47 @@ export class ClineLargeFileWorkflow {
 						return `- Verify boundary ${boundary.leftLine}/${boundary.rightLine} in ${file.path} (lines ${startLine}-${endLine}): call read_large_file with cursor \`${cursor}\` — do NOT use read_files.`;
 					}),
 			);
-			return [
-				...context.request.messages,
-				createRailMessage(
-					[
-						"[Kanban large-file workflow: stitching required before synthesis]",
-						...instructions,
-						"Call read_large_file (not read_files) once for the file path. The tool automatically returns the next stitching window and advances the workflow state.",
-						"Do not produce the final synthesis until every stitching window has been verified through read_large_file.",
-					].join("\n"),
-				),
-			];
+			return {
+				messages: [
+					...context.request.messages,
+					createRailMessage(
+						[
+							"[Kanban large-file workflow: stitching required before synthesis]",
+							...instructions,
+							"Call read_large_file (not read_files) once for the file path. The tool automatically returns the next stitching window and advances the workflow state.",
+							"Do not produce the final synthesis until every stitching window has been verified through read_large_file.",
+						].join("\n"),
+					),
+				],
+				tools: filterTools(context.request.tools, ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES),
+			};
 		}
 
 		const coverageSummary = files.map(
 			(file) =>
 				`  - ${file.path}: ${file.totalLines} lines covered across ${file.primaryRanges.length} primary chunk${file.primaryRanges.length === 1 ? "" : "s"} and ${file.stitchBoundaries.length} stitching window${file.stitchBoundaries.length === 1 ? "" : "s"}`,
 		);
-		return [
-			...context.request.messages,
-			createRailMessage(
-				[
-					"[Kanban large-file workflow: SYNTHESIS NOW — stop reading]",
-					"Complete coverage verified for:",
-					...coverageSummary,
-					"DO NOT call read_large_file, read_files, or any other file-reading tool. All content is already in your context from the chunks above.",
-					"Write the final synthesis now as your response text: consolidate your running notes, deduplicate overlapping content, reconcile boundary-spanning statements, and preserve all distinct requirements.",
-					"Your immediate output must be the complete synthesis — not a tool call.",
-				].join("\n"),
-			),
-		];
+		return {
+			messages: [
+				...context.request.messages,
+				createRailMessage(
+					[
+						"[Kanban large-file workflow: SYNTHESIS NOW — stop reading]",
+						"Complete coverage verified for:",
+						...coverageSummary,
+						"DO NOT call read_large_file, read_files, or any other file-reading tool. All content is already in your context from the chunks above.",
+						"Write the final synthesis now as your response text: consolidate your running notes, deduplicate overlapping content, reconcile boundary-spanning statements, and preserve all distinct requirements.",
+						"Your immediate output must be the complete synthesis — not a tool call.",
+					].join("\n"),
+				),
+			],
+			tools: filterTools(context.request.tools, FILE_READING_TOOL_NAMES),
+		};
 	}
 
 	async afterModel(context: AgentAfterModelContext): Promise<undefined> {
 		await this.ensureLoaded();
-		if (context.finishReason !== "stop") {
+		if (context.finishReason !== "stop" || !hasSynthesisText(context.assistantMessage)) {
 			return undefined;
 		}
 		const files = Object.values(this.index.files);
@@ -345,6 +383,22 @@ export class ClineLargeFileWorkflow {
 		}
 		const paths = files.map((file) => file.path).join(", ");
 		return `Blocked read_files: read_large_file coverage is complete for ${paths}, but final synthesis is still required. Produce the synthesis before reading other files; no read_files content was read.`;
+	}
+
+	async getReadLargeFileBlockingReason(): Promise<string | null> {
+		await this.ensureLoaded();
+		const files = Object.values(this.index.files).filter((file) => !file.synthesisCompleted);
+		if (files.length === 0) {
+			return null;
+		}
+		const readyForSynthesis = files.every(
+			(file) => file.eofCovered && file.stitchBoundaries.every((boundary) => boundary.verified),
+		);
+		if (!readyForSynthesis) {
+			return null;
+		}
+		const paths = files.map((file) => file.path).join(", ");
+		return `Blocked read_large_file: coverage is complete for ${paths}, but final synthesis is still required. Produce the synthesis now; no file content was read.`;
 	}
 
 	async readNext(

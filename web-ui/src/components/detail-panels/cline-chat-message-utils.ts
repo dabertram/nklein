@@ -13,16 +13,16 @@ export interface ParsedToolMessageContent {
  * Extracts a short, human-readable summary from the tool's input parameters.
  * Uses tool-specific logic for known Cline SDK tools, then falls back to generic extraction.
  */
-export function getToolSummary(toolName: string, input: string | null): string | null {
-	return getClineToolCallDisplay(toolName, input).inputSummary;
+export function getToolSummary(toolName: string, input: string | null, output?: string | null): string | null {
+	return getClineToolCallDisplay(toolName, input, output).inputSummary;
 }
 
 /**
  * Returns the full display object for a tool call, including a display-friendly
  * tool name (e.g. "Creating task" for kanban commands) and input summary.
  */
-export function getToolDisplay(toolName: string, input: string | null): ClineToolCallDisplay {
-	return getClineToolCallDisplay(toolName, input);
+export function getToolDisplay(toolName: string, input: string | null, output?: string | null): ClineToolCallDisplay {
+	return getClineToolCallDisplay(toolName, input, output);
 }
 
 /**

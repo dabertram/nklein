@@ -127,7 +127,40 @@ function extractReadFileSummaries(input: unknown): string[] {
 	return Array.from(new Set(summaries));
 }
 
-function parseToolInput(input: unknown): unknown {
+function readNumber(value: unknown): number | null {
+	return Number.isInteger(value) ? Number(value) : null;
+}
+
+function readPath(record: Record<string, unknown>): string {
+	return typeof record.path === "string"
+		? record.path.trim()
+		: typeof record.file_path === "string"
+			? record.file_path.trim()
+			: typeof record.filePath === "string"
+				? record.filePath.trim()
+				: "";
+}
+
+function summarizeReadLargeFileInput(input: unknown, output: unknown): string | null {
+	if (!isRecord(input)) {
+		return typeof input === "string" ? summarizeStringInput(input) : null;
+	}
+
+	const path = readPath(input);
+	if (!path) {
+		return null;
+	}
+
+	if (!isRecord(output)) {
+		return path;
+	}
+
+	const startLine = readNumber(output.startLine) ?? readNumber(output.start_line);
+	const endLine = readNumber(output.endLine) ?? readNumber(output.end_line);
+	return startLine !== null && endLine !== null ? `${path}:${startLine}-${endLine}` : path;
+}
+
+function parseToolPayload(input: unknown): unknown {
 	if (typeof input !== "string") {
 		return input;
 	}
@@ -227,12 +260,16 @@ function shortId(id: string): string {
 	return trimmed.length > 6 ? trimmed.slice(0, 6) : trimmed;
 }
 
-function summarizeParsedToolInput(toolName: string, input: unknown): string | null {
+function summarizeParsedToolInput(toolName: string, input: unknown, output?: unknown): string | null {
 	if (input === null || input === undefined) {
 		return null;
 	}
 
 	const normalizedToolName = normalizeToolName(toolName);
+
+	if (normalizedToolName === "readlargefile") {
+		return summarizeReadLargeFileInput(input, output);
+	}
 
 	if (normalizedToolName === "readfiles") {
 		const readFileSummaries = extractReadFileSummaries(input);
@@ -325,9 +362,14 @@ function resolveKanbanRunCommandDisplay(input: unknown): ClineToolCallDisplay | 
 	return null;
 }
 
-export function getClineToolCallDisplay(toolName: string | null | undefined, input: unknown): ClineToolCallDisplay {
+export function getClineToolCallDisplay(
+	toolName: string | null | undefined,
+	input: unknown,
+	output?: unknown,
+): ClineToolCallDisplay {
 	const normalizedToolName = normalizeDisplayToolName(toolName);
-	const parsedInput = parseToolInput(input);
+	const parsedInput = parseToolPayload(input);
+	const parsedOutput = parseToolPayload(output);
 
 	if (normalizeToolName(normalizedToolName) === "runcommands") {
 		const kanbanDisplay = resolveKanbanRunCommandDisplay(parsedInput);
@@ -338,7 +380,7 @@ export function getClineToolCallDisplay(toolName: string | null | undefined, inp
 
 	return {
 		toolName: normalizedToolName,
-		inputSummary: summarizeParsedToolInput(normalizedToolName, parsedInput),
+		inputSummary: summarizeParsedToolInput(normalizedToolName, parsedInput, parsedOutput),
 	};
 }
 

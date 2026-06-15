@@ -16,7 +16,7 @@ function createLargeContent(lineCount: number): string {
 	).join("\n");
 }
 
-function createBeforeModelContext(): AgentBeforeModelContext {
+function createBeforeModelContext(tools: AgentBeforeModelContext["request"]["tools"] = []): AgentBeforeModelContext {
 	return {
 		snapshot: {
 			agentId: "agent-1",
@@ -33,7 +33,7 @@ function createBeforeModelContext(): AgentBeforeModelContext {
 		},
 		request: {
 			messages: [],
-			tools: [],
+			tools,
 		},
 	};
 }
@@ -62,6 +62,31 @@ function createAfterModelContext(): AgentAfterModelContext {
 		finishReason: "stop",
 	};
 }
+
+function createAfterModelToolCallContext(): AgentAfterModelContext {
+	return {
+		...createAfterModelContext(),
+		assistantMessage: {
+			id: "assistant-tool-call",
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					toolCallId: "tool-1",
+					toolName: "read_files",
+					input: { files: [{ path: "other.txt" }] },
+				},
+			],
+			createdAt: Date.now(),
+		},
+	};
+}
+
+const TOOL_DEFINITIONS = [
+	{ name: "read_files", description: "Read files", inputSchema: {} },
+	{ name: "read_large_file", description: "Read large files", inputSchema: {} },
+	{ name: "run_commands", description: "Run commands", inputSchema: {} },
+];
 
 describe("ClineLargeFileWorkflow", () => {
 	const tempDirs: string[] = [];
@@ -112,13 +137,37 @@ describe("ClineLargeFileWorkflow", () => {
 
 		expect(stitchResults).toHaveLength(primaryResults.length - 1);
 		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
-		const messages = await workflow.beforeModel(createBeforeModelContext());
-		expect(JSON.stringify(messages)).toContain("SYNTHESIS NOW");
+		const synthesisRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
+		expect(JSON.stringify(synthesisRequest?.messages)).toContain("SYNTHESIS NOW");
+		expect(synthesisRequest?.tools?.map((tool) => tool.name)).toEqual(["run_commands"]);
+		expect(await workflow.getReadLargeFileBlockingReason()).toContain("final synthesis is still required");
+
+		await workflow.afterModel(createAfterModelToolCallContext());
+		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
 
 		await workflow.afterModel(createAfterModelContext());
 		expect(await workflow.getReadFilesBlockingReason()).toBeNull();
 		const completed = await workflow.readNext("large.txt", 16_000, "synthesis");
 		expect(completed.phase).toBe("complete");
+	});
+
+	it("hides read_files while a large-file workflow is active", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const sourcePath = join(workspacePath, "large.txt");
+		await writeFile(sourcePath, createLargeContent(4_000), "utf8");
+		const workflow = new ClineLargeFileWorkflow(
+			"session-tool-filtering",
+			workspacePath,
+			join(workspacePath, ".runtime"),
+		);
+
+		await workflow.readNext("large.txt", 16_000, "start");
+
+		const result = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
+
+		expect(result?.tools?.map((tool) => tool.name)).toEqual(["read_large_file", "run_commands"]);
+		expect(JSON.stringify(result?.messages)).toContain("reading incomplete");
 	});
 
 	it("rejects stale cursors and reports the expected next cursor", async () => {

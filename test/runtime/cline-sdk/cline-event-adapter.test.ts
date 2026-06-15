@@ -399,6 +399,52 @@ describe("applyClineSessionEvent", () => {
 		expect(result.summaries.at(-1)?.latestHookActivity?.toolInputSummary).toBe("src/index.ts:3-8, src/app.ts");
 	});
 
+	it("summarizes completed read_large_file calls with returned line ranges", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolCallId: "tool-1",
+						toolName: "read_large_file",
+						input: { path: "/tmp/card1_raw_discussion.txt", cursor: "read:1318:2" },
+					},
+				},
+			},
+		});
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolCallId: "tool-1",
+						toolName: "read_large_file",
+						output: { phase: "reading", startLine: 1318, endLine: 2634, content: "chunk" },
+					},
+				},
+			},
+		});
+
+		expect(result.summaries.at(-1)?.latestHookActivity?.activityText).toBe(
+			"Completed read_large_file(/tmp/card1_raw_discussion.txt:1318-2634)",
+		);
+		expect(result.summaries.at(-1)?.latestHookActivity?.toolInputSummary).toBe(
+			"/tmp/card1_raw_discussion.txt:1318-2634",
+		);
+	});
+
 	it("converts aborted done events with pending cancel state back to idle", () => {
 		const entry = createEntry("task-1");
 		entry.summary.state = "running";

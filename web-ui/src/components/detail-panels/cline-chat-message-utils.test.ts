@@ -96,6 +96,16 @@ describe("getToolSummary", () => {
 		).toBe("/tmp/a.ts:3-5, /tmp/b.ts:1-20");
 	});
 
+	it("shows read_large_file line ranges from tool output", () => {
+		expect(
+			getToolSummary(
+				"read_large_file",
+				JSON.stringify({ path: "/tmp/card1_raw_discussion.txt", cursor: "start" }),
+				JSON.stringify({ phase: "reading", startLine: 1318, endLine: 2634 }),
+			),
+		).toBe("/tmp/card1_raw_discussion.txt:1318-2634");
+	});
+
 	it("accepts filePath aliases in read_files requests", () => {
 		expect(
 			getToolSummary(

@@ -614,7 +614,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const toolCallId = typeof toolCall?.toolCallId === "string" ? toolCall.toolCallId : null;
 		const { output: toolOutput, error: toolError } = readToolResult(agentEvent.message);
 		const toolInput = toolCallId ? entry.toolInputByToolCallId.get(toolCallId) : undefined;
-		const toolDisplay = getClineToolCallDisplay(toolName, toolInput);
+		const toolDisplay = getClineToolCallDisplay(toolName, toolInput, toolOutput);
 		const isUserAttentionTool = isClineUserAttentionTool(toolName);
 		input.emitMessage(
 			taskId,
@@ -692,7 +692,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const toolError = typeof agentEvent.error === "string" ? agentEvent.error : null;
 		const durationMs = typeof agentEvent.durationMs === "number" ? agentEvent.durationMs : null;
 		const toolInput = toolCallId ? entry.toolInputByToolCallId.get(toolCallId) : undefined;
-		const toolDisplay = getClineToolCallDisplay(toolName, toolInput);
+		const toolDisplay = getClineToolCallDisplay(toolName, toolInput, toolOutput);
 		const isUserAttentionTool = isClineUserAttentionTool(toolName);
 		input.emitMessage(
 			taskId,

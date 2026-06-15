@@ -51,8 +51,7 @@ function createKanbanContextFocusExtension(sessionId: string, workspacePath: str
 		},
 		hooks: {
 			async beforeModel(context) {
-				const messages = await largeFileWorkflow.beforeModel(context);
-				return messages ? { messages } : undefined;
+				return (await largeFileWorkflow.beforeModel(context)) ?? undefined;
 			},
 			async afterModel(context) {
 				return await largeFileWorkflow.afterModel(context);
@@ -321,6 +320,13 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const requestToolApproval = baseRequestToolApproval
 			? async (approvalRequest: ClineSdkToolApprovalRequest): Promise<ClineSdkToolApprovalResult> => {
 					if (approvalRequest.toolName === "read_large_file") {
+						const blockedReason = await largeFileWorkflow.getReadLargeFileBlockingReason();
+						if (blockedReason) {
+							return {
+								approved: false,
+								reason: blockedReason,
+							};
+						}
 						const approval = await baseRequestToolApproval(approvalRequest);
 						if (approval.approved) {
 							readLargeFileTurns.add(approvalTurnKey(approvalRequest));

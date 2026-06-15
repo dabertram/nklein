@@ -19,7 +19,10 @@ function ToolMessageBlock({ message }: { message: ClineChatMessage }): ReactElem
 	const hasError = Boolean(parsed.error);
 	const [expanded, setExpanded] = useState(false);
 
-	const toolDisplay = useMemo(() => getToolDisplay(parsed.toolName, parsed.input), [parsed.toolName, parsed.input]);
+	const toolDisplay = useMemo(
+		() => getToolDisplay(parsed.toolName, parsed.input, parsed.output),
+		[parsed.toolName, parsed.input, parsed.output],
+	);
 	const toolOutput = useMemo(() => (parsed.output ? parseToolOutput(parsed.output) : null), [parsed.output]);
 	const fullInput = useMemo(
 		() => formatToolInputForDisplay(parsed.toolName, parsed.input),
