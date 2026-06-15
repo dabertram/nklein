@@ -50,6 +50,7 @@ interface LargeFileWorkflowIndex {
 	version: 1;
 	sessionId: string;
 	workspacePath: string;
+	contextWindow: number | null;
 	updatedAt: number;
 	files: Record<string, LargeFileState>;
 	outputs: Array<{
@@ -245,6 +246,15 @@ function hasSynthesisText(message: AgentMessage): boolean {
 	return hasText;
 }
 
+function formatOutputHeader(output: {
+	kind: "primary" | "stitch";
+	sourcePath: string;
+	startLine: number;
+	endLine: number;
+}): string {
+	return `### ${output.kind} ${output.sourcePath}:${output.startLine}-${output.endLine}`;
+}
+
 export class ClineLargeFileWorkflow {
 	private readonly index: LargeFileWorkflowIndex;
 	private loadPromise: Promise<void> | null = null;
@@ -259,6 +269,7 @@ export class ClineLargeFileWorkflow {
 			version: 1,
 			sessionId,
 			workspacePath,
+			contextWindow: null,
 			updatedAt: Date.now(),
 			files: {},
 			outputs: [],
@@ -314,7 +325,7 @@ export class ClineLargeFileWorkflow {
 						[
 							"[Kanban large-file workflow: stitching required before synthesis]",
 							...instructions,
-							"Call read_large_file (not read_files) once for the file path. The tool automatically returns the next stitching window and advances the workflow state.",
+							"Call read_large_file (not read_files) once for the file path. The tool automatically returns as many pending stitching windows as fit the current context budget and advances the workflow state.",
 							"Do not produce the final synthesis until every stitching window has been verified through read_large_file.",
 						].join("\n"),
 					),
@@ -327,6 +338,7 @@ export class ClineLargeFileWorkflow {
 			(file) =>
 				`  - ${file.path}: ${file.totalLines} lines covered across ${file.primaryRanges.length} primary chunk${file.primaryRanges.length === 1 ? "" : "s"} and ${file.stitchBoundaries.length} stitching window${file.stitchBoundaries.length === 1 ? "" : "s"}`,
 		);
+		const persistedContext = await this.buildPersistedSynthesisContext();
 		return {
 			messages: [
 				...context.request.messages,
@@ -335,8 +347,9 @@ export class ClineLargeFileWorkflow {
 						"[Kanban large-file workflow: SYNTHESIS NOW — stop reading]",
 						"Complete coverage verified for:",
 						...coverageSummary,
-						"DO NOT call read_large_file, read_files, or any other file-reading tool. All content is already in your context from the chunks above.",
-						"Write the final synthesis now as your response text: consolidate your running notes, deduplicate overlapping content, reconcile boundary-spanning statements, and preserve all distinct requirements.",
+						...persistedContext,
+						"DO NOT call read_large_file, read_files, or any other file-reading tool. Use the running notes and the persisted read_large_file context above.",
+						"Write the final synthesis now as your response text: consolidate the running notes and the persisted read_large_file context above, deduplicate overlapping content, reconcile boundary-spanning statements, and preserve all distinct requirements.",
 						"Your immediate output must be the complete synthesis — not a tool call.",
 					].join("\n"),
 				),
@@ -410,6 +423,7 @@ export class ClineLargeFileWorkflow {
 		if (!path) {
 			throw new Error("read_large_file requires a non-empty path.");
 		}
+		this.recordContextWindow(contextWindow);
 		const absolutePath = isAbsolute(path) ? path : resolve(this.workspacePath, path);
 		const content = await readFile(absolutePath, "utf8");
 		const lines = content.split("\n");
@@ -452,23 +466,60 @@ export class ClineLargeFileWorkflow {
 
 		const pendingBoundary = file.stitchBoundaries.find((boundary) => !boundary.verified);
 		if (file.eofCovered && pendingBoundary) {
-			const startLine = Math.max(1, pendingBoundary.leftLine - STITCH_CONTEXT_LINES + 1);
-			const endLine = Math.min(file.totalLines, pendingBoundary.rightLine + STITCH_CONTEXT_LINES - 1);
-			const chunk = lines.slice(startLine - 1, endLine).join("\n");
-			pendingBoundary.verified = true;
-			await this.persistToolOutput("stitch", path, startLine, endLine, chunk);
+			const budgets = buildKanbanContextSafetyBudgets(contextWindow);
+			const windows: Array<{
+				boundary: string;
+				startLine: number;
+				endLine: number;
+				content: string;
+			}> = [];
+			let usedTokens = 0;
+			for (const boundary of file.stitchBoundaries.filter((entry) => !entry.verified)) {
+				const startLine = Math.max(1, boundary.leftLine - STITCH_CONTEXT_LINES + 1);
+				const endLine = Math.min(file.totalLines, boundary.rightLine + STITCH_CONTEXT_LINES - 1);
+				const content = lines.slice(startLine - 1, endLine).join("\n");
+				const windowTokens = countKanbanTextTokens(content);
+				if (windows.length > 0 && usedTokens + windowTokens > budgets.fileChunkContentTokenBudget) {
+					break;
+				}
+				windows.push({
+					boundary: `${boundary.leftLine}/${boundary.rightLine}`,
+					startLine,
+					endLine,
+					content,
+				});
+				usedTokens += windowTokens;
+				boundary.verified = true;
+				await this.persistToolOutput("stitch", path, startLine, endLine, content);
+			}
+			const firstWindow = windows[0];
+			if (!firstWindow) {
+				throw new Error(`Unable to build stitching window for ${path}.`);
+			}
+			const chunk = windows
+				.map(
+					(window) =>
+						`${formatOutputHeader({
+							kind: "stitch",
+							sourcePath: path,
+							startLine: window.startLine,
+							endLine: window.endLine,
+						})}\n${window.content}`,
+				)
+				.join("\n\n");
 			return {
 				phase: "stitching",
 				path,
-				startLine,
-				endLine,
+				startLine: firstWindow.startLine,
+				endLine: windows.at(-1)?.endLine ?? firstWindow.endLine,
 				totalLines: file.totalLines,
-				boundary: `${pendingBoundary.leftLine}/${pendingBoundary.rightLine}`,
+				boundary: firstWindow.boundary,
+				windows,
 				nextCursor: nextStitchCursor(file) ?? "synthesis",
 				content: chunk,
 				instruction: file.stitchBoundaries.some((boundary) => !boundary.verified)
-					? `Analyze this stitching window against the running notes, then call read_large_file again with cursor \`${nextStitchCursor(file)}\` for the next boundary.`
-					: "Analyze this final stitching window against the running notes. The next model request will require final synthesis.",
+					? `Analyze these ${windows.length} stitching window${windows.length === 1 ? "" : "s"} against the running notes, then call read_large_file again with cursor \`${nextStitchCursor(file)}\` for the next batch.`
+					: `Analyze these ${windows.length} final stitching window${windows.length === 1 ? "" : "s"} against the running notes. The next model request will require final synthesis.`,
 			};
 		}
 
@@ -523,6 +574,50 @@ export class ClineLargeFileWorkflow {
 					: "EOF is covered in one chunk. Analyze it; the next model request will require final synthesis."
 				: `Analyze this chunk and update durable running notes, then call read_large_file again with cursor \`${normalizedNextCursor}\`. Next unread line: ${endLine + 1}.`,
 		};
+	}
+
+	private recordContextWindow(contextWindow?: number | null): void {
+		if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+			return;
+		}
+		this.index.contextWindow = Math.trunc(contextWindow);
+	}
+
+	private async buildPersistedSynthesisContext(): Promise<string[]> {
+		if (this.index.outputs.length === 0) {
+			return [];
+		}
+		const budgets = buildKanbanContextSafetyBudgets(this.index.contextWindow);
+		const maxTokens = Math.max(
+			budgets.fileChunkContentTokenBudget,
+			budgets.safeWorkingBudget ? Math.floor(budgets.safeWorkingBudget * 0.75) : budgets.fileChunkContentTokenBudget,
+		);
+		const sections: string[] = [];
+		let usedTokens = countKanbanTextTokens("[Kanban persisted read_large_file context]\n");
+		for (const output of this.index.outputs) {
+			const content = await readFile(join(this.getWorkflowRoot(), output.path), "utf8").catch(() => null);
+			if (!content) {
+				continue;
+			}
+			const section = `${formatOutputHeader(output)}\n${content}`;
+			const sectionTokens = countKanbanTextTokens(section);
+			if (sections.length > 0 && usedTokens + sectionTokens > maxTokens) {
+				break;
+			}
+			sections.push(section);
+			usedTokens += sectionTokens;
+		}
+		if (sections.length === 0) {
+			return [
+				"[Kanban persisted read_large_file context]",
+				"No persisted read outputs fit the current synthesis budget; use the running notes already in context.",
+			];
+		}
+		return [
+			"[Kanban persisted read_large_file context]",
+			`Included ${sections.length} of ${this.index.outputs.length} persisted read_large_file output${this.index.outputs.length === 1 ? "" : "s"} within the synthesis budget.`,
+			...sections,
+		];
 	}
 
 	private async persistToolOutput(

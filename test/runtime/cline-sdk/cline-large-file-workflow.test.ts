@@ -135,10 +135,16 @@ describe("ClineLargeFileWorkflow", () => {
 			expect(await workflow.getReadFilesBlockingReason()).toContain("read_large_file");
 		}
 
-		expect(stitchResults).toHaveLength(primaryResults.length - 1);
+		const stitchWindowCount = stitchResults.reduce((count, result) => {
+			const windows = Array.isArray(result.windows) ? result.windows : [];
+			return count + Math.max(1, windows.length);
+		}, 0);
+		expect(stitchWindowCount).toBe(primaryResults.length - 1);
+		expect(stitchResults.some((result) => Array.isArray(result.windows) && result.windows.length > 1)).toBe(true);
 		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
 		const synthesisRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
 		expect(JSON.stringify(synthesisRequest?.messages)).toContain("SYNTHESIS NOW");
+		expect(JSON.stringify(synthesisRequest?.messages)).toContain("persisted read_large_file context");
 		expect(synthesisRequest?.tools?.map((tool) => tool.name)).toEqual([]);
 		expect(await workflow.getReadLargeFileBlockingReason()).toContain("final synthesis is still required");
 
@@ -218,7 +224,7 @@ describe("ClineLargeFileWorkflow", () => {
 			throw new Error("Expected to reach stitching phase");
 		}
 
-		expect(stitchCursor).toMatch(/^stitch:\d+\/\d+:2$/);
+		expect(stitchCursor).toMatch(/^stitch:\d+\/\d+:\d+$/);
 	});
 
 	it("accepts legacy no-counter cursor forms for compatibility", async () => {
