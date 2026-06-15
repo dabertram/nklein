@@ -90,6 +90,30 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("stitching verification");
 	});
 
+	it("includes requested file inventory when a mixed read_files request is blocked", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { contextWindow: 80_000 });
+		const largeFilePath = join(workspacePath, "card1_raw_discussion.txt");
+		const smallFilePath = join(workspacePath, "card2_raw_discussion.txt");
+		await writeFile(largeFilePath, createTokenDenseContent(1000, 12), "utf-8");
+		await writeFile(smallFilePath, "small discussion\n", "utf-8");
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "read_files",
+				input: {
+					files: [{ path: largeFilePath }, { path: smallFilePath }],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("card1_raw_discussion.txt");
+		expect(result.reason).toContain("card2_raw_discussion.txt");
+		expect(result.reason).toContain("Requested file inventory");
+	});
+
 	it("keeps ordinary full-file read_files requests unchanged", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

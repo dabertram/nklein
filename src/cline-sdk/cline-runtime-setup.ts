@@ -44,6 +44,21 @@ async function readFileText(path: string): Promise<string | null> {
 	}
 }
 
+function formatReadFilesInventory(
+	entries: Array<{ path: string; sizeBytes: number; tokenCount: number; readable: boolean }>,
+): string {
+	if (entries.length === 0) {
+		return "";
+	}
+	return ` Requested file inventory: ${entries
+		.map((entry) =>
+			entry.readable
+				? `${entry.path} (${entry.sizeBytes.toLocaleString()} bytes, ~${entry.tokenCount.toLocaleString()} tokens)`
+				: `${entry.path} (not readable)`,
+		)
+		.join("; ")}.`;
+}
+
 function resolveToolPath(workspacePath: string, rawPath: string): string {
 	return isAbsolute(rawPath) ? rawPath : resolve(workspacePath, rawPath);
 }
@@ -135,27 +150,48 @@ async function approveReadFilesTool(
 ): Promise<ClineSdkToolApprovalResult> {
 	const budgets = buildKanbanContextSafetyBudgets(options.contextWindow ?? null);
 	const readRequests = parseReadFileRequests(request.input);
+	const resolvedReadRequests = await Promise.all(
+		readRequests.map(async (readRequest) => {
+			const absolutePath = resolveToolPath(workspacePath, readRequest.path);
+			const content = await readFileText(absolutePath);
+			if (content === null) {
+				return {
+					readRequest,
+					content: null,
+					sizeBytes: 0,
+					tokenCount: 0,
+				};
+			}
+			const sizeBytes = Buffer.byteLength(content, "utf8");
+			return {
+				readRequest,
+				content,
+				sizeBytes,
+				tokenCount: countKanbanTextTokens(content),
+			};
+		}),
+	);
+	const inventory = resolvedReadRequests.map(({ readRequest, content, sizeBytes, tokenCount }) => ({
+		path: readRequest.path,
+		sizeBytes,
+		tokenCount,
+		readable: content !== null,
+	}));
 	let totalRequestedTokens = 0;
 	let totalRequestedLines = 0;
-	for (const readRequest of readRequests) {
-		const absolutePath = resolveToolPath(workspacePath, readRequest.path);
-		const content = await readFileText(absolutePath);
+	for (const { readRequest, content, sizeBytes, tokenCount: totalTokens } of resolvedReadRequests) {
 		if (content === null) {
 			continue;
 		}
-		const totalTokens = countKanbanTextTokens(content);
 
 		const startLine = readRequest.startLine;
 		const endLine = readRequest.endLine;
 		const hasValidRange =
 			typeof startLine === "number" && typeof endLine === "number" && startLine > 0 && endLine >= startLine;
-		if (
-			!hasValidRange &&
-			isLargeFileForWorkflow(Buffer.byteLength(content, "utf8"), totalTokens, budgets.fileChunkContentTokenBudget)
-		) {
+		if (!hasValidRange && isLargeFileForWorkflow(sizeBytes, totalTokens, budgets.fileChunkContentTokenBudget)) {
 			return {
 				approved: false,
-				reason: `Blocked ${request.toolName}: ${readRequest.path} is a large file (${Buffer.byteLength(content, "utf8").toLocaleString()} bytes, ~${totalTokens.toLocaleString()} tokens). No lines were read by this failed attempt. Use read_large_file for automatic chunk coverage, stitching verification, and final synthesis, or provide an explicit numeric start_line/end_line range for a focused excerpt.`,
+				reason: `Blocked ${request.toolName}: ${readRequest.path} is a large file (${sizeBytes.toLocaleString()} bytes, ~${totalTokens.toLocaleString()} tokens).${formatReadFilesInventory(inventory)} No lines were read by this failed attempt. Use read_large_file for automatic chunk coverage, stitching verification, and final synthesis, or provide an explicit numeric start_line/end_line range for a focused excerpt.`,
 			};
 		}
 
