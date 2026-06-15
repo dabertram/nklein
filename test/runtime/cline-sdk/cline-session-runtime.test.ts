@@ -54,7 +54,7 @@ function createPersistedRecord(input: {
 }
 
 describe("InMemoryClineSessionRuntime", () => {
-	it("blocks read_files after read_large_file is requested in the same turn", async () => {
+	it("allows only one file-reading tool to start in an assistant turn", async () => {
 		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
 		const fakeHost = {
 			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
@@ -116,7 +116,91 @@ describe("InMemoryClineSessionRuntime", () => {
 		});
 
 		expect(readFilesApproval.approved).toBe(false);
-		expect(readFilesApproval.reason).toContain("already requested read_large_file");
+		expect(readFilesApproval.reason).toContain("already started read_large_file");
+
+		const applyPatchApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-3",
+			toolName: "apply_patch",
+			input: "*** Begin Patch\n*** End Patch",
+		});
+		expect(applyPatchApproval.approved).toBe(false);
+		expect(applyPatchApproval.reason).toContain("already started read_large_file");
+		expect(baseApproval).toHaveBeenCalledTimes(1);
+	});
+
+	it("blocks read_large_file after read_files is requested in the same turn", async () => {
+		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+			requestToolApproval: baseApproval,
+		});
+
+		const requestToolApproval = fakeHost.start.mock.calls[0]?.[0].capabilities?.requestToolApproval;
+		expect(requestToolApproval).toBeTruthy();
+		if (!requestToolApproval) {
+			throw new Error("Expected requestToolApproval to be wired");
+		}
+
+		const commonRequest = {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			policy: { autoApprove: false },
+		};
+		const readFilesApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-1",
+			toolName: "read_files",
+			input: { files: [{ path: "small.txt" }] },
+		});
+		expect(readFilesApproval.approved).toBe(true);
+
+		const secondReadFilesApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-2",
+			toolName: "read_files",
+			input: { files: [{ path: "other.txt" }] },
+		});
+		expect(secondReadFilesApproval.approved).toBe(false);
+		expect(secondReadFilesApproval.reason).toContain("already started read_files");
+
+		const largeFileApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-3",
+			toolName: "read_large_file",
+			input: { path: "large.txt", cursor: "start" },
+		});
+
+		expect(largeFileApproval.approved).toBe(false);
+		expect(largeFileApproval.reason).toContain("already started read_files");
 		expect(baseApproval).toHaveBeenCalledTimes(1);
 	});
 

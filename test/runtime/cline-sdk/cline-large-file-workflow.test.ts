@@ -139,7 +139,7 @@ describe("ClineLargeFileWorkflow", () => {
 		expect(await workflow.getReadFilesBlockingReason()).toContain("final synthesis is still required");
 		const synthesisRequest = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
 		expect(JSON.stringify(synthesisRequest?.messages)).toContain("SYNTHESIS NOW");
-		expect(synthesisRequest?.tools?.map((tool) => tool.name)).toEqual(["run_commands"]);
+		expect(synthesisRequest?.tools?.map((tool) => tool.name)).toEqual([]);
 		expect(await workflow.getReadLargeFileBlockingReason()).toContain("final synthesis is still required");
 
 		await workflow.afterModel(createAfterModelToolCallContext());
@@ -166,7 +166,7 @@ describe("ClineLargeFileWorkflow", () => {
 
 		const result = await workflow.beforeModel(createBeforeModelContext(TOOL_DEFINITIONS));
 
-		expect(result?.tools?.map((tool) => tool.name)).toEqual(["read_large_file", "run_commands"]);
+		expect(result?.tools?.map((tool) => tool.name)).toEqual(["read_large_file"]);
 		expect(JSON.stringify(result?.messages)).toContain("reading incomplete");
 	});
 

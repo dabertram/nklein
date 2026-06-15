@@ -309,7 +309,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		this.replaceTaskMcpToolBundle(request.taskId, mcpToolBundle);
 		const largeFileWorkflow = getClineLargeFileWorkflow(requestedSessionId, request.cwd);
 		const baseRequestToolApproval = request.requestToolApproval;
-		const readLargeFileTurns = new Set<string>();
+		const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
 		const approvalTurnKey = (approvalRequest: ClineSdkToolApprovalRequest): string =>
 			[
 				approvalRequest.sessionId,
@@ -319,6 +319,14 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			].join(":");
 		const requestToolApproval = baseRequestToolApproval
 			? async (approvalRequest: ClineSdkToolApprovalRequest): Promise<ClineSdkToolApprovalResult> => {
+					const turnKey = approvalTurnKey(approvalRequest);
+					const claimedFileReadTool = fileReadToolByTurn.get(turnKey);
+					if (claimedFileReadTool && claimedFileReadTool.toolCallId !== approvalRequest.toolCallId) {
+						return {
+							approved: false,
+							reason: `Blocked ${approvalRequest.toolName}: this assistant turn already started ${claimedFileReadTool.toolName}. Wait for that tool result, analyze it, then start the next tool call in a later model request. No tool content was read.`,
+						};
+					}
 					if (approvalRequest.toolName === "read_large_file") {
 						const blockedReason = await largeFileWorkflow.getReadLargeFileBlockingReason();
 						if (blockedReason) {
@@ -329,7 +337,10 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 						}
 						const approval = await baseRequestToolApproval(approvalRequest);
 						if (approval.approved) {
-							readLargeFileTurns.add(approvalTurnKey(approvalRequest));
+							fileReadToolByTurn.set(turnKey, {
+								toolName: approvalRequest.toolName,
+								toolCallId: approvalRequest.toolCallId,
+							});
 						}
 						return approval;
 					}
@@ -341,13 +352,14 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 								reason: blockedReason,
 							};
 						}
-						if (readLargeFileTurns.has(approvalTurnKey(approvalRequest))) {
-							return {
-								approved: false,
-								reason:
-									"Blocked read_files: this assistant turn already requested read_large_file. Analyze the read_large_file chunk, update durable notes, and continue that workflow before reading other files.",
-							};
+						const approval = await baseRequestToolApproval(approvalRequest);
+						if (approval.approved) {
+							fileReadToolByTurn.set(turnKey, {
+								toolName: approvalRequest.toolName,
+								toolCallId: approvalRequest.toolCallId,
+							});
 						}
+						return approval;
 					}
 					return await baseRequestToolApproval(approvalRequest);
 				}

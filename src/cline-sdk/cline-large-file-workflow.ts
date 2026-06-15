@@ -15,8 +15,7 @@ import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-
 
 const LARGE_FILE_BYTES = 100 * 1024;
 const STITCH_CONTEXT_LINES = 20;
-const FILE_READING_TOOL_NAMES = new Set(["read_file", "read_files", "read_large_file"]);
-const ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES = new Set(["read_file", "read_files"]);
+const READ_LARGE_FILE_TOOL_NAME = "read_large_file";
 
 export interface ReadFileRequest {
 	path: string;
@@ -226,11 +225,11 @@ function createRailMessage(text: string): AgentMessage {
 	};
 }
 
-function filterTools(
+function filterToolsByName(
 	tools: readonly AgentToolDefinition[],
-	blockedToolNames: ReadonlySet<string>,
+	allowedToolNames: ReadonlySet<string>,
 ): readonly AgentToolDefinition[] {
-	return tools.filter((tool) => !blockedToolNames.has(tool.name));
+	return tools.filter((tool) => allowedToolNames.has(tool.name));
 }
 
 function hasSynthesisText(message: AgentMessage): boolean {
@@ -289,7 +288,7 @@ export class ClineLargeFileWorkflow {
 						].join("\n"),
 					),
 				],
-				tools: filterTools(context.request.tools, ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES),
+				tools: filterToolsByName(context.request.tools, new Set([READ_LARGE_FILE_TOOL_NAME])),
 			};
 		}
 
@@ -320,7 +319,7 @@ export class ClineLargeFileWorkflow {
 						].join("\n"),
 					),
 				],
-				tools: filterTools(context.request.tools, ACTIVE_WORKFLOW_BLOCKED_TOOL_NAMES),
+				tools: filterToolsByName(context.request.tools, new Set([READ_LARGE_FILE_TOOL_NAME])),
 			};
 		}
 
@@ -342,7 +341,7 @@ export class ClineLargeFileWorkflow {
 					].join("\n"),
 				),
 			],
-			tools: filterTools(context.request.tools, FILE_READING_TOOL_NAMES),
+			tools: [],
 		};
 	}
 
