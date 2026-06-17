@@ -1,11 +1,12 @@
-import { access, readFile } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
 import {
 	countTextLines,
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
+import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import { parseWriteFilesRequests } from "./cline-write-files-tool";
 import {
@@ -15,6 +16,7 @@ import {
 	type ClineSdkUserInstructionService,
 	createClineSdkUserInstructionService,
 	loadClineSdkRulesForSystemPrompt,
+	resolveClineSdkWorkflowSearchPaths,
 	resolveClineSdkWorkflowSlashCommand,
 } from "./sdk-runtime-boundary";
 
@@ -398,7 +400,40 @@ export interface ClineRuntimeSetup {
 	dispose: () => Promise<void>;
 }
 
+function isNodeErrorWithCode(error: unknown, code: string): boolean {
+	return error instanceof Error && "code" in error && error.code === code;
+}
+
+function resolveWorkspaceWorkflowDirectory(workspacePath: string): string {
+	const resolvedWorkspacePath = resolve(workspacePath);
+	const workspacePathWithSeparator = `${resolvedWorkspacePath}/`;
+	const searchPaths = resolveClineSdkWorkflowSearchPaths(workspacePath);
+	return (
+		searchPaths.find((searchPath) => {
+			const resolvedSearchPath = resolve(searchPath);
+			return (
+				resolvedSearchPath === resolvedWorkspacePath || resolvedSearchPath.startsWith(workspacePathWithSeparator)
+			);
+		}) ?? join(workspacePath, ".cline", "workflows")
+	);
+}
+
+export async function ensureKanbanDefaultWorkflows(workspacePath: string): Promise<string> {
+	const workflowDirectory = resolveWorkspaceWorkflowDirectory(workspacePath);
+	const workflowPath = join(workflowDirectory, "kanban-decompose.md");
+	await mkdir(workflowDirectory, { recursive: true });
+	try {
+		await writeFile(workflowPath, KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN, { encoding: "utf8", flag: "wx" });
+	} catch (error) {
+		if (!isNodeErrorWithCode(error, "EEXIST")) {
+			throw error;
+		}
+	}
+	return workflowPath;
+}
+
 export async function createClineRuntimeSetup(workspacePath: string): Promise<ClineRuntimeSetup> {
+	await ensureKanbanDefaultWorkflows(workspacePath);
 	const userInstructionService = createClineSdkUserInstructionService(workspacePath);
 	const toolApprovalPolicy = createKanbanToolApprovalPolicy(workspacePath);
 	try {

@@ -17,6 +17,7 @@ import {
 	type MessageWithMetadata,
 	type RuleConfig,
 	resolveClineDataDir,
+	resolveWorkflowsConfigSearchPaths,
 	type SessionHistoryRecord,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -65,6 +66,10 @@ export function createClineSdkUserInstructionService(workspacePath: string): Cli
 		rules: { workspacePath },
 		workflows: { workspacePath },
 	});
+}
+
+export function resolveClineSdkWorkflowSearchPaths(workspacePath: string): string[] {
+	return resolveWorkflowsConfigSearchPaths(workspacePath);
 }
 
 export function listClineSdkWorkflowSlashCommands(service?: ClineSdkUserInstructionService): ClineSdkSlashCommand[] {

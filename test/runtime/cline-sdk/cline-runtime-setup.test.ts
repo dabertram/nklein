@@ -1,11 +1,15 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ToolApprovalRequest } from "@clinebot/core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createKanbanToolApprovalPolicy, createKanbanToolPolicies } from "../../../src/cline-sdk/cline-runtime-setup";
+import {
+	createKanbanToolApprovalPolicy,
+	createKanbanToolPolicies,
+	ensureKanbanDefaultWorkflows,
+} from "../../../src/cline-sdk/cline-runtime-setup";
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
 
@@ -57,6 +61,20 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("1000-line file limit");
+	});
+
+	it("seeds the Kanban decomposition workflow without overwriting user edits", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+
+		const workflowPath = await ensureKanbanDefaultWorkflows(workspacePath);
+		const seeded = await readFile(workflowPath, "utf8");
+		expect(seeded).toContain("name: kanban-decompose");
+		expect(seeded).toContain("kanban task decompose --slug <slug>");
+
+		await writeFile(workflowPath, "user custom workflow", "utf8");
+		await expect(ensureKanbanDefaultWorkflows(workspacePath)).resolves.toBe(workflowPath);
+		await expect(readFile(workflowPath, "utf8")).resolves.toBe("user custom workflow");
 	});
 
 	it("marks guarded tools as approval-required", () => {
