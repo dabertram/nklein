@@ -5,11 +5,11 @@ export const KANBAN_DECOMPOSE_PROMPT = `You are decomposing a project-scale idea
 Use Kanban's decomposition workflow instead of editing Kanban internals directly:
 - Do not manually create or edit \`.cline/kanban/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state.
 - Prepare a concise spec, implementation plan, and task graph in your reasoning.
-- Call the \`decompose_project\` tool with slug, spec, plan, and taskGraph. The tool validates the graph and persists the approved Kanban artifacts.
+- Call the \`decompose_project\` tool with slug, spec, plan, title, tasks, and defaultAcceptanceCommand when useful. The tool wraps the tasks into the internal graph, validates dependencies/sizing, and persists the approved Kanban artifacts.
 - After the tool succeeds, use the command it returns, or tell the user the exact \`kanban task decompose --slug <slug> --project-path <workspace_path>\` command to apply the task graph.
 
-Each task in the tool's \`taskGraph\` input must include:
-- id, title, prompt, dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, acceptanceTestPrompt.
+Each task in the tool's \`tasks\` input must include id, title, and prompt. Add these fields when relevant:
+- dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, acceptanceTestPrompt.
 - A self-contained prompt with the relevant slice of the spec and exact acceptance criteria.
 - Complexity <= 75.
 - No more than 3 likely files.

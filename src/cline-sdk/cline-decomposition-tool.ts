@@ -10,6 +10,7 @@ import {
 	type ClinePlanTask,
 	type ClinePlanTaskGraph,
 	clinePlanTaskGraphSchema,
+	clinePlanTaskSchema,
 	writeClinePlanArtifacts,
 } from "./cline-plan-artifacts";
 import { type ClineTaskRoutingCandidate, routeClineTask } from "./cline-task-router";
@@ -45,6 +46,29 @@ export interface ValidateClinePlanTaskGraphResult {
 	taskCount: number;
 	dependencyCount: number;
 }
+
+const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
+	.pick({
+		title: true,
+		tasks: true,
+	})
+	.partial()
+	.extend({
+		slug: clinePlanTaskGraphSchema.shape.slug,
+		spec: clinePlanTaskSchema.shape.prompt.describe("Concise requirements markdown."),
+		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
+		taskGraph: clinePlanTaskGraphSchema.optional(),
+		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
+	});
+type DecomposeProjectToolInput = {
+	slug: string;
+	spec: string;
+	plan: string;
+	title?: string;
+	tasks?: ClinePlanTask[];
+	taskGraph: ClinePlanTaskGraph;
+	defaultAcceptanceCommand?: string | null;
+};
 
 function slugifyTaskId(input: string): string {
 	const slug = input
@@ -167,6 +191,34 @@ export function validateClinePlanTaskGraph(input: {
 	};
 }
 
+function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
+	const parsed = decomposeProjectToolInputSchema.parse(input);
+	const defaultAcceptanceCommand = parsed.defaultAcceptanceCommand?.trim() || null;
+	if (!parsed.taskGraph && (!parsed.tasks || parsed.tasks.length === 0)) {
+		throw new Error("decompose_project requires either a taskGraph or a non-empty tasks list.");
+	}
+	const taskGraph = parsed.taskGraph
+		? parsed.taskGraph
+		: {
+				schemaVersion: 1 as const,
+				slug: parsed.slug,
+				title: parsed.title?.trim() || parsed.slug,
+				tasks: (parsed.tasks ?? []).map((task) => ({
+					...task,
+					acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
+				})),
+			};
+	return {
+		slug: parsed.slug,
+		spec: parsed.spec,
+		plan: parsed.plan,
+		title: parsed.title,
+		tasks: parsed.tasks,
+		taskGraph,
+		defaultAcceptanceCommand,
+	};
+}
+
 function resolveTaskRoleSettings(
 	task: ClinePlanTask,
 	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
@@ -272,20 +324,46 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 		inputSchema: {
 			type: "object",
 			properties: {
-				slug: { type: "string", description: "Plan slug under .cline/kanban/plans/<slug>." },
-				spec: { type: "string", description: "Approved concise specification markdown." },
+				slug: { type: "string", description: "Short stable plan slug, for example habit-insights." },
+				spec: { type: "string", description: "Approved concise specification markdown, not a file path." },
 				plan: { type: "string", description: "Implementation plan markdown." },
-				taskGraph: { type: "object", description: "Task graph JSON with schemaVersion, slug, title, tasks." },
+				title: { type: "string", description: "Project/task graph title. Required when using tasks." },
+				tasks: {
+					type: "array",
+					description:
+						"Preferred simple input: task leaves. Kanban adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
+					items: {
+						type: "object",
+						properties: {
+							id: { type: "string" },
+							title: { type: "string" },
+							prompt: { type: "string" },
+							dependsOn: { type: "array", items: { type: "string" } },
+							complexity: { type: "number" },
+							suggestedRole: { type: "string" },
+							filesLikelyTouched: { type: "array", items: { type: "string" } },
+							acceptanceCommand: { type: "string" },
+							testFirst: { type: "boolean" },
+							acceptanceTestPrompt: { type: "string" },
+						},
+						required: ["id", "title", "prompt"],
+						additionalProperties: false,
+					},
+				},
+				defaultAcceptanceCommand: {
+					type: "string",
+					description: "Optional acceptance command applied to tasks that omit acceptanceCommand.",
+				},
+				taskGraph: {
+					type: "object",
+					description: "Compatibility input for callers that already have a full schemaVersion/title/tasks graph.",
+				},
 			},
-			required: ["slug", "spec", "plan", "taskGraph"],
+			required: ["slug", "spec", "plan"],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const slug = typeof record.slug === "string" ? record.slug : "";
-			const spec = typeof record.spec === "string" ? record.spec : "";
-			const plan = typeof record.plan === "string" ? record.plan : "";
-			const taskGraph = clinePlanTaskGraphSchema.parse(record.taskGraph);
+			const { slug, spec, plan, taskGraph } = normalizeDecomposeProjectToolInput(input);
 			const validation = validateClinePlanTaskGraph({ taskGraph });
 			const artifacts = await writeClinePlanArtifacts({
 				workspacePath,

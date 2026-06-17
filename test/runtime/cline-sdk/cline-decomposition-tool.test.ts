@@ -405,6 +405,50 @@ describe("cline decomposition tools", () => {
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});
 
+	it("accepts simplified task lists in decompose_project", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-simple-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				defaultAcceptanceCommand: "npm test",
+				tasks: [
+					{
+						id: "storage",
+						title: "Build storage",
+						prompt: "Implement the storage slice.",
+						complexity: 35,
+						filesLikelyTouched: ["src/storage.ts"],
+					},
+					{
+						id: "ui",
+						title: "Build UI",
+						prompt: "Implement the UI slice.",
+						dependsOn: ["storage"],
+						complexity: 45,
+						filesLikelyTouched: ["src/ui.ts"],
+					},
+				],
+			},
+			undefined as never,
+		)) as {
+			ok: boolean;
+			taskCount: number;
+			taskGraphPath: string;
+		};
+
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(2);
+		const taskGraph = await readFile(result.taskGraphPath, "utf8");
+		expect(taskGraph).toContain('"schemaVersion": 1');
+		expect(taskGraph).toContain('"acceptanceCommand": "npm test"');
+		expect(taskGraph).toContain('"dependsOn": [');
+	});
+
 	it("validates expanded replacement task graphs", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-expand-task-"));
 		const tool = getTool("expand_task", workspacePath);
