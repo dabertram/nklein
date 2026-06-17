@@ -73,6 +73,7 @@ const NOOP_RUN_AUTO_REVIEW = async (): Promise<boolean> => false;
 interface HookSnapshot {
 	handleRestoreTaskFromTrash: (taskId: string) => void;
 	handleStartTask: (taskId: string) => void;
+	handleStartAllBacklogTasks: (taskIds?: string[]) => void;
 	handleCardSelect: (taskId: string) => void;
 }
 
@@ -97,6 +98,8 @@ function HookHarness({
 	startTaskSession,
 	selectedCard = null,
 	setSelectedTaskIdOverride,
+	activeTaskSessionCount = 0,
+	maxConcurrentTasks = 3,
 	onSnapshot,
 }: {
 	board: BoardData;
@@ -108,6 +111,8 @@ function HookHarness({
 		column: { id: "backlog" | "planning" | "in_progress" | "review" | "trash" };
 	} | null;
 	setSelectedTaskIdOverride?: Dispatch<SetStateAction<string | null>>;
+	activeTaskSessionCount?: number;
+	maxConcurrentTasks?: number;
 	onSnapshot?: (snapshot: HookSnapshot) => void;
 }): null {
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
@@ -132,8 +137,8 @@ function HookHarness({
 		startTaskSession,
 		fetchTaskWorkspaceInfo: NOOP_FETCH_WORKSPACE_INFO,
 		sendTaskSessionInput: NOOP_SEND_TASK_INPUT,
-		activeTaskSessionCount: 0,
-		maxConcurrentTasks: 3,
+		activeTaskSessionCount,
+		maxConcurrentTasks,
 		readyForReviewNotificationsEnabled: false,
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction: NOOP_RUN_AUTO_REVIEW,
@@ -143,9 +148,16 @@ function HookHarness({
 		onSnapshot?.({
 			handleRestoreTaskFromTrash: actions.handleRestoreTaskFromTrash,
 			handleStartTask: actions.handleStartTask,
+			handleStartAllBacklogTasks: actions.handleStartAllBacklogTasks,
 			handleCardSelect: actions.handleCardSelect,
 		});
-	}, [actions.handleCardSelect, actions.handleRestoreTaskFromTrash, actions.handleStartTask, onSnapshot]);
+	}, [
+		actions.handleCardSelect,
+		actions.handleRestoreTaskFromTrash,
+		actions.handleStartAllBacklogTasks,
+		actions.handleStartTask,
+		onSnapshot,
+	]);
 
 	return null;
 }
@@ -332,6 +344,86 @@ describe("useBoardInteractions", () => {
 		expect(backlogTask?.blockedKind).toBe("needs_decomposition");
 		expect(backlogTask?.blockedReason).toBe("Task start blocked: this card needs decomposition.");
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
+	});
+
+	it("caps manual start-all by available task capacity", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						createTask("task-1", "Backlog task 1", 1),
+						createTask("task-2", "Backlog task 2", 2),
+						createTask("task-3", "Backlog task 3", 3),
+					],
+				},
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					activeTaskSessionCount={1}
+					maxConcurrentTasks={2}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartAllBacklogTasks();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(startTaskSession).toHaveBeenCalledTimes(1);
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
+			"task-1",
+		]);
+		expect(currentBoard.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id)).toEqual([
+			"task-2",
+			"task-3",
+		]);
 	});
 
 	it("waits for a new backlog card height to settle before starting animation", async () => {

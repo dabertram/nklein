@@ -683,6 +683,10 @@ export function useBoardInteractions({
 			if (requestedTaskIds.length === 0) {
 				return;
 			}
+			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
+			if (availableStartSlots === 0) {
+				return;
+			}
 
 			let nextBoard = board;
 			const pendingStarts: BoardCard[] = [];
@@ -691,6 +695,9 @@ export function useBoardInteractions({
 			for (const taskId of requestedTaskIds) {
 				if (!taskId || startedTaskIds.has(taskId)) {
 					continue;
+				}
+				if (pendingStarts.length >= availableStartSlots) {
+					break;
 				}
 				const selection = findCardSelection(nextBoard, taskId);
 				if (selection?.column.id !== "backlog") {
@@ -721,7 +728,14 @@ export function useBoardInteractions({
 				void kickoffTaskInProgress(task, task.id, "backlog");
 			}
 		},
-		[board, kickoffTaskInProgress, maybeRequestNotificationPermissionForTaskStart, setBoard],
+		[
+			activeTaskSessionCount,
+			board,
+			kickoffTaskInProgress,
+			maxConcurrentTasks,
+			maybeRequestNotificationPermissionForTaskStart,
+			setBoard,
+		],
 	);
 
 	const handleDetailTaskDragEnd = useCallback(
