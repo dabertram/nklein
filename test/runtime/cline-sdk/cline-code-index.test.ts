@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -43,5 +43,34 @@ describe("cline code index", () => {
 			lineStart: 1,
 		});
 		expect(result.matches[0]?.text).toContain("PersistenceDriver");
+	});
+
+	it("persists and reuses local chunk embedding vectors", async () => {
+		const workspacePath = await createWorkspace();
+		const cachePath = join(workspacePath, ".cline", "kanban", "code-index-test.json");
+
+		const first = await searchClineCodeIndex({
+			workspacePath,
+			query: "storage persistence",
+			maxResults: 2,
+			chunkLines: 20,
+			cachePath,
+		});
+		const second = await searchClineCodeIndex({
+			workspacePath,
+			query: "storage persistence",
+			maxResults: 2,
+			chunkLines: 20,
+			cachePath,
+		});
+
+		expect(first.index.embeddingModel).toBe("kanban-local-hash-embedding-v1");
+		expect(first.index.cacheMissCount).toBeGreaterThan(0);
+		expect(second.index.cacheHitCount).toBeGreaterThan(0);
+		expect(JSON.parse(await readFile(cachePath, "utf8"))).toEqual(
+			expect.objectContaining({
+				embeddingModel: "kanban-local-hash-embedding-v1",
+			}),
+		);
 	});
 });
