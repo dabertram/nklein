@@ -63,8 +63,8 @@ import {
 	resolveClineSdkSystemPrompt,
 } from "./sdk-runtime-boundary.js";
 
-export type { KanbanContextSafetyBudgets } from "./cline-context-budgets";
-export { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
+export type { KanbanContextPressurePolicy, KanbanContextSafetyBudgets } from "./cline-context-budgets";
+export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
 export type { ClineTaskMessage } from "./cline-session-state";
 
 const DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS = 80_000;

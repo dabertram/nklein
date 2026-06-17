@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildKanbanContextSafetyBudgets, buildKanbanEfficiencyRules } from "./cline-task-session-service";
+import {
+	buildKanbanContextPressurePolicy,
+	buildKanbanContextSafetyBudgets,
+	buildKanbanEfficiencyRules,
+} from "./cline-task-session-service";
 
 describe("buildKanbanContextSafetyBudgets", () => {
 	it("keeps file chunks safely below an 80k active context window", () => {
@@ -25,6 +29,32 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			fileChunkContentTokenBudget: 11_000,
 			fileChunkCharBudget: 48_000,
 		});
+	});
+});
+
+describe("buildKanbanContextPressurePolicy", () => {
+	it("keeps richer retrieval budgets for large fast windows", () => {
+		const policy = buildKanbanContextPressurePolicy({
+			contextWindow: 80_000,
+			wallTimeMsPer1kPromptTokens: 250,
+		});
+
+		expect(policy.pressure).toBe("low");
+		expect(policy.repoMapTokenBudget).toBeGreaterThanOrEqual(1_000);
+		expect(policy.retrievalResultTokenBudget).toBeGreaterThanOrEqual(3_000);
+		expect(policy.compactionTriggerRatio).toBeGreaterThan(0.7);
+	});
+
+	it("tightens retrieval and compaction pressure for small or slow models", () => {
+		const policy = buildKanbanContextPressurePolicy({
+			contextWindow: 8_000,
+			wallTimeMsPer1kPromptTokens: 3_500,
+		});
+
+		expect(policy.pressure).toBe("high");
+		expect(policy.repoMapTokenBudget).toBeLessThanOrEqual(500);
+		expect(policy.retrievalResultTokenBudget).toBeLessThanOrEqual(900);
+		expect(policy.compactionTriggerRatio).toBeLessThanOrEqual(0.62);
 	});
 });
 
@@ -86,7 +116,7 @@ describe("buildKanbanEfficiencyRules", () => {
 
 		expect(rules).toContain("Backend approval will tokenize the selected text");
 		expect(rules).toContain("target about 70% of the 144k character budget");
-		expect(rules).toContain("Do not default to tiny 300-line starters");
+		expect(rules).toContain("do not default to tiny 300-line starters");
 		expect(rules).toContain("A rejected read covers zero lines");
 		expect(rules).toContain("shrinking by at least half or to the suggested line count");
 		expect(rules).toContain("set the next unread line to the successful `end_line + 1`");

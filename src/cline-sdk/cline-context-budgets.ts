@@ -18,8 +18,26 @@ export interface KanbanContextSafetyBudgets {
 	fileChunkCharBudget: number;
 }
 
+export interface KanbanContextPressurePolicy {
+	contextWindow: number | null;
+	wallTimeMsPer1kPromptTokens: number | null;
+	repoMapTokenBudget: number;
+	retrievalResultTokenBudget: number;
+	compactionTriggerRatio: number;
+	pressure: "low" | "medium" | "high";
+}
+
+export interface BuildKanbanContextPressurePolicyOptions {
+	contextWindow?: number | null;
+	wallTimeMsPer1kPromptTokens?: number | null;
+}
+
 export function countKanbanTextTokens(text: string): number {
 	return countTokens(text, { allowedSpecial: ALL_SPECIAL_TOKENS });
+}
+
+function normalizePositiveNumber(value: number | null | undefined): number | null {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
 export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | null): KanbanContextSafetyBudgets {
@@ -55,5 +73,36 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 		fileChunkTokenBudget,
 		fileChunkContentTokenBudget: Math.max(1_000, fileChunkTokenBudget - READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS),
 		fileChunkCharBudget: fileChunkTokenBudget * 4,
+	};
+}
+
+export function buildKanbanContextPressurePolicy(
+	options: BuildKanbanContextPressurePolicyOptions = {},
+): KanbanContextPressurePolicy {
+	const contextWindow = normalizePositiveNumber(options.contextWindow);
+	const wallTimeMsPer1kPromptTokens = normalizePositiveNumber(options.wallTimeMsPer1kPromptTokens);
+	const windowPressure = contextWindow ? Math.max(0, Math.min(1, (24_000 - contextWindow) / 16_000)) : 0.35;
+	const speedPressure = wallTimeMsPer1kPromptTokens
+		? Math.max(0, Math.min(1, (wallTimeMsPer1kPromptTokens - 750) / 2_500))
+		: 0;
+	const pressureScore = Math.max(windowPressure, speedPressure);
+	const pressure = pressureScore >= 0.66 ? "high" : pressureScore >= 0.33 ? "medium" : "low";
+	const repoMapBaseBudget = contextWindow ? Math.round(contextWindow * 0.015) : 800;
+	const repoMapTokenBudget = Math.max(
+		250,
+		Math.min(1_500, Math.round(repoMapBaseBudget * (1 - pressureScore * 0.45))),
+	);
+	const retrievalResultTokenBudget = Math.max(
+		600,
+		Math.min(4_000, Math.round((contextWindow ? contextWindow * 0.04 : 2_000) * (1 - pressureScore * 0.35))),
+	);
+	const compactionTriggerRatio = Math.max(0.55, Math.min(0.82, 0.78 - pressureScore * 0.18));
+	return {
+		contextWindow: contextWindow ? Math.trunc(contextWindow) : null,
+		wallTimeMsPer1kPromptTokens,
+		repoMapTokenBudget,
+		retrievalResultTokenBudget,
+		compactionTriggerRatio,
+		pressure,
 	};
 }

@@ -3,6 +3,7 @@
 // stopping native Cline sessions without exposing SDK details upstream.
 import type { AgentBeforeModelContext, AgentBeforeModelResult, AgentMessage } from "@clinebot/shared";
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
+import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { extractClineSessionId } from "./cline-event-adapter";
 import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
@@ -102,10 +103,11 @@ function createKanbanContextFocusExtension(
 ): ClineSdkRuntimeExtension {
 	const largeFileWorkflow = getClineLargeFileWorkflow(sessionId, workspacePath);
 	let cachedRepoMap: Promise<string | null> | null = null;
+	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
 	const getCachedRepoMap = async () => {
 		cachedRepoMap ??= buildClineRepoMap({
 			workspacePath,
-			tokenBudget: contextWindow ? Math.max(300, Math.min(1_200, Math.round(contextWindow * 0.015))) : 800,
+			tokenBudget: contextPressure.repoMapTokenBudget,
 		})
 			.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
 			.catch(() => null);
