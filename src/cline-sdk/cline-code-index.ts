@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, join, relative } from "node:path";
+import {
+	type ClineCodeEmbeddingProvider,
+	type ClineCodeEmbeddingVector,
+	createClineCodeEmbeddingProvider,
+} from "./cline-code-embeddings";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
 const DEFAULT_CHUNK_LINES = 80;
 const MAX_FILE_BYTES = 512_000;
 const CODE_INDEX_SCHEMA_VERSION = 1;
-const LOCAL_EMBEDDING_MODEL = "kanban-local-hash-embedding-v1";
 const SOURCE_EXTENSIONS = new Set([
 	".ts",
 	".tsx",
@@ -57,6 +61,7 @@ export interface ClineCodeIndexSearchResult {
 	truncated: boolean;
 	index: {
 		embeddingModel: string;
+		embeddingProvider: string;
 		cachePath: string | null;
 		cacheHitCount: number;
 		cacheMissCount: number;
@@ -71,6 +76,7 @@ export interface SearchClineCodeIndexOptions {
 	chunkLines?: number;
 	cachePath?: string | null;
 	useCache?: boolean;
+	embeddingProvider?: ClineCodeEmbeddingProvider;
 }
 
 interface SourceFile {
@@ -78,7 +84,7 @@ interface SourceFile {
 	content: string;
 }
 
-type SparseVector = Map<string, number>;
+type SparseVector = ClineCodeEmbeddingVector;
 
 interface CachedCodeIndexEntry {
 	hash: string;
@@ -98,7 +104,9 @@ interface CachedCodeIndexFile {
 
 interface CachedCodeIndex {
 	schemaVersion: number;
+	embeddingProvider: string;
 	embeddingModel: string;
+	embeddingCacheKey: string;
 	chunkLines: number;
 	files: CachedCodeIndexFile[];
 	embeddings: CachedCodeIndexEntry[];
@@ -151,21 +159,13 @@ async function listSourceFiles(rootPath: string, maxFiles: number): Promise<stri
 	return results;
 }
 
-function tokenize(text: string): string[] {
+function tokenizeForLexicalScore(text: string): string[] {
 	return text
 		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
 		.toLowerCase()
 		.split(/[^a-z0-9_$.-]+/g)
 		.map((token) => token.trim())
 		.filter((token) => token.length >= 2);
-}
-
-function vectorize(text: string): SparseVector {
-	const vector: SparseVector = new Map();
-	for (const token of tokenize(text)) {
-		vector.set(token, (vector.get(token) ?? 0) + 1);
-	}
-	return vector;
 }
 
 function vectorToEntries(vector: SparseVector): Array<[string, number]> {
@@ -191,7 +191,9 @@ function isCachedCodeIndex(value: unknown): value is CachedCodeIndex {
 	const record = value as Record<string, unknown>;
 	return (
 		record.schemaVersion === CODE_INDEX_SCHEMA_VERSION &&
-		record.embeddingModel === LOCAL_EMBEDDING_MODEL &&
+		typeof record.embeddingProvider === "string" &&
+		typeof record.embeddingModel === "string" &&
+		typeof record.embeddingCacheKey === "string" &&
 		typeof record.chunkLines === "number" &&
 		Array.isArray(record.files) &&
 		Array.isArray(record.embeddings)
@@ -203,6 +205,7 @@ async function loadVectorCache(options: {
 	chunkLines: number;
 	cachePath?: string | null;
 	useCache: boolean;
+	embeddingProvider: ClineCodeEmbeddingProvider;
 }): Promise<VectorCache> {
 	if (!options.useCache || options.cachePath === null) {
 		return {
@@ -215,7 +218,11 @@ async function loadVectorCache(options: {
 	const cachePath = options.cachePath ?? defaultCachePath(options.workspacePath);
 	try {
 		const parsed: unknown = JSON.parse(await readFile(cachePath, "utf8"));
-		if (!isCachedCodeIndex(parsed) || parsed.chunkLines !== options.chunkLines) {
+		if (
+			!isCachedCodeIndex(parsed) ||
+			parsed.chunkLines !== options.chunkLines ||
+			parsed.embeddingCacheKey !== options.embeddingProvider.cacheKey
+		) {
 			return {
 				cachePath,
 				entries: new Map(),
@@ -239,14 +246,19 @@ async function loadVectorCache(options: {
 	}
 }
 
-function getCachedVector(cache: VectorCache, hash: string, text: string): SparseVector {
+async function getCachedVector(
+	cache: VectorCache,
+	embeddingProvider: ClineCodeEmbeddingProvider,
+	hash: string,
+	text: string,
+): Promise<SparseVector> {
 	const cached = cache.entries.get(hash);
 	if (cached) {
 		cache.hitCount += 1;
 		return cached;
 	}
 	cache.missCount += 1;
-	const vector = vectorize(text);
+	const vector = await embeddingProvider.embed(text);
 	cache.entries.set(hash, vector);
 	return vector;
 }
@@ -257,6 +269,7 @@ async function persistVectorCache(options: {
 	chunksByFile: Map<string, ClineCodeIndexChunk[]>;
 	chunkLines: number;
 	workspacePath: string;
+	embeddingProvider: ClineCodeEmbeddingProvider;
 }): Promise<void> {
 	if (!options.cache.cachePath) {
 		return;
@@ -278,7 +291,9 @@ async function persistVectorCache(options: {
 	}
 	const payload: CachedCodeIndex = {
 		schemaVersion: CODE_INDEX_SCHEMA_VERSION,
-		embeddingModel: LOCAL_EMBEDDING_MODEL,
+		embeddingProvider: options.embeddingProvider.kind,
+		embeddingModel: options.embeddingProvider.model,
+		embeddingCacheKey: options.embeddingProvider.cacheKey,
 		chunkLines: options.chunkLines,
 		files,
 		embeddings: [...options.cache.entries.entries()]
@@ -313,7 +328,7 @@ function lexicalScore(chunkText: string, query: string): number {
 	const lowerText = chunkText.toLowerCase();
 	const lowerQuery = query.toLowerCase();
 	let score = lowerText.includes(lowerQuery) ? 50 : 0;
-	for (const token of new Set(tokenize(query))) {
+	for (const token of new Set(tokenizeForLexicalScore(query))) {
 		if (lowerText.includes(token)) {
 			score += 8;
 		}
@@ -351,11 +366,13 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 	const maxFiles = asPositiveInteger(options.maxFiles, DEFAULT_MAX_FILES);
 	const maxResults = asPositiveInteger(options.maxResults, DEFAULT_MAX_RESULTS);
 	const chunkLines = Math.min(asPositiveInteger(options.chunkLines, DEFAULT_CHUNK_LINES), 200);
+	const embeddingProvider = options.embeddingProvider ?? createClineCodeEmbeddingProvider();
 	const vectorCache = await loadVectorCache({
 		workspacePath: options.workspacePath,
 		chunkLines,
 		cachePath: options.cachePath ?? undefined,
 		useCache: options.useCache !== false,
+		embeddingProvider,
 	});
 	const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
 	const files: SourceFile[] = [];
@@ -366,25 +383,26 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 		});
 	}
 
-	const queryVector = vectorize(query);
+	const queryVector = await embeddingProvider.embed(query);
 	const chunksByFile = new Map<string, ClineCodeIndexChunk[]>();
 	const chunks = files.flatMap((file) => {
 		const fileChunks = chunkFile(file, chunkLines);
 		chunksByFile.set(file.path, fileChunks);
 		return fileChunks;
 	});
-	const rankedMatches = chunks
-		.map((chunk) => {
-			const vectorText = `${chunk.path}\n${chunk.text}`;
-			const similarity = cosineSimilarity(
-				queryVector,
-				getCachedVector(vectorCache, hashText(vectorText), vectorText),
-			);
-			return {
-				...chunk,
-				score: Math.round(similarity * 100) + lexicalScore(`${chunk.path}\n${chunk.text}`, query),
-			};
-		})
+	const scoredMatches: ClineCodeIndexSearchMatch[] = [];
+	for (const chunk of chunks) {
+		const vectorText = `${chunk.path}\n${chunk.text}`;
+		const similarity = cosineSimilarity(
+			queryVector,
+			await getCachedVector(vectorCache, embeddingProvider, hashText(vectorText), vectorText),
+		);
+		scoredMatches.push({
+			...chunk,
+			score: Math.round(similarity * 100) + lexicalScore(`${chunk.path}\n${chunk.text}`, query),
+		});
+	}
+	const rankedMatches = scoredMatches
 		.filter((match) => match.score > 0)
 		.sort((left, right) => {
 			const scoreDelta = right.score - left.score;
@@ -399,6 +417,7 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 		chunksByFile,
 		chunkLines,
 		workspacePath: options.workspacePath,
+		embeddingProvider,
 	});
 
 	return {
@@ -407,7 +426,8 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 		matches: rankedMatches.slice(0, maxResults),
 		truncated: rankedMatches.length > maxResults,
 		index: {
-			embeddingModel: LOCAL_EMBEDDING_MODEL,
+			embeddingModel: embeddingProvider.model,
+			embeddingProvider: embeddingProvider.kind,
 			cachePath: vectorCache.cachePath,
 			cacheHitCount: vectorCache.hitCount,
 			cacheMissCount: vectorCache.missCount,

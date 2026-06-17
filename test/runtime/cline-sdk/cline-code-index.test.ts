@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { ClineCodeEmbeddingProvider } from "../../../src/cline-sdk/cline-code-embeddings";
 import { searchClineCodeIndex } from "../../../src/cline-sdk/cline-code-index";
 
 async function createWorkspace(): Promise<string> {
@@ -65,11 +66,54 @@ describe("cline code index", () => {
 		});
 
 		expect(first.index.embeddingModel).toBe("kanban-local-hash-embedding-v1");
+		expect(first.index.embeddingProvider).toBe("local_hash");
 		expect(first.index.cacheMissCount).toBeGreaterThan(0);
 		expect(second.index.cacheHitCount).toBeGreaterThan(0);
 		expect(JSON.parse(await readFile(cachePath, "utf8"))).toEqual(
 			expect.objectContaining({
+				embeddingProvider: "local_hash",
 				embeddingModel: "kanban-local-hash-embedding-v1",
+			}),
+		);
+	});
+
+	it("separates cache entries by embedding provider cache key", async () => {
+		const workspacePath = await createWorkspace();
+		const cachePath = join(workspacePath, ".cline", "kanban", "code-index-provider-test.json");
+		const provider: ClineCodeEmbeddingProvider = {
+			kind: "openai_compatible",
+			model: "test-embedding",
+			cacheKey: "openai-compatible:test-embedding",
+			async embed(text) {
+				return new Map([
+					["dim:0", text.includes("storage") ? 1 : 0],
+					["dim:1", text.length],
+				]);
+			},
+		};
+
+		const first = await searchClineCodeIndex({
+			workspacePath,
+			query: "storage",
+			chunkLines: 20,
+			cachePath,
+		});
+		const second = await searchClineCodeIndex({
+			workspacePath,
+			query: "storage",
+			chunkLines: 20,
+			cachePath,
+			embeddingProvider: provider,
+		});
+
+		expect(first.index.embeddingProvider).toBe("local_hash");
+		expect(second.index.embeddingProvider).toBe("openai_compatible");
+		expect(second.index.cacheMissCount).toBeGreaterThan(0);
+		expect(JSON.parse(await readFile(cachePath, "utf8"))).toEqual(
+			expect.objectContaining({
+				embeddingProvider: "openai_compatible",
+				embeddingModel: "test-embedding",
+				embeddingCacheKey: "openai-compatible:test-embedding",
 			}),
 		);
 	});
