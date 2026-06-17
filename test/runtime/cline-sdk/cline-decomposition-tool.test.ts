@@ -1,5 +1,11 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyClinePlanTaskGraphToBoard } from "../../../src/cline-sdk/cline-decomposition-tool";
+import {
+	applyClinePlanTaskGraphToBoard,
+	createClineDecompositionTools,
+} from "../../../src/cline-sdk/cline-decomposition-tool";
 import type { ClinePlanTaskGraph } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
@@ -276,5 +282,63 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 				],
 			}),
 		).toThrow("failed the model feasibility guard");
+	});
+});
+
+describe("cline decomposition tools", () => {
+	function getTool(name: string, workspacePath: string) {
+		const tool = createClineDecompositionTools({ workspacePath }).find((candidate) => candidate.name === name);
+		if (!tool) {
+			throw new Error(`Missing tool ${name}`);
+		}
+		return tool;
+	}
+
+	it("writes validated plan artifacts from decompose_project", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-tools-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				taskGraph: createTaskGraph(),
+			},
+			undefined as never,
+		)) as {
+			ok: boolean;
+			slug: string;
+			taskCount: number;
+			taskGraphPath: string;
+			instruction: string;
+		};
+
+		expect(result.ok).toBe(true);
+		expect(result.slug).toBe("habit-tracker");
+		expect(result.taskCount).toBe(2);
+		expect(result.instruction).toContain("kanban task decompose --slug habit-tracker");
+		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
+	});
+
+	it("validates expanded replacement task graphs", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-expand-task-"));
+		const tool = getTool("expand_task", workspacePath);
+		const oversized = createTaskGraph();
+		const task = oversized.tasks[0];
+		if (!task) {
+			throw new Error("Expected task.");
+		}
+		oversized.tasks[0] = {
+			...task,
+			complexity: 95,
+		};
+
+		await expect(tool.execute({ taskGraph: oversized }, undefined as never)).rejects.toThrow("split it below");
+		await expect(tool.execute({ taskGraph: createTaskGraph() }, undefined as never)).resolves.toMatchObject({
+			ok: true,
+			taskCount: 2,
+			dependencyCount: 1,
+		});
 	});
 });

@@ -266,6 +266,12 @@ describe("InMemoryClineSessionRuntime", () => {
 					]),
 					extraTools: expect.arrayContaining([
 						expect.objectContaining({
+							name: "decompose_project",
+						}),
+						expect.objectContaining({
+							name: "expand_task",
+						}),
+						expect.objectContaining({
 							name: "repo_map",
 						}),
 						expect.objectContaining({

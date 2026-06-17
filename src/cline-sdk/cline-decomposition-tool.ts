@@ -1,3 +1,4 @@
+import type { AgentTool } from "@clinebot/shared";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
@@ -5,7 +6,12 @@ import type {
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
-import type { ClinePlanTask, ClinePlanTaskGraph } from "./cline-plan-artifacts";
+import {
+	type ClinePlanTask,
+	type ClinePlanTaskGraph,
+	clinePlanTaskGraphSchema,
+	writeClinePlanArtifacts,
+} from "./cline-plan-artifacts";
 import { type ClineTaskRoutingCandidate, routeClineTask } from "./cline-task-router";
 import {
 	estimateClineStartDifficulty,
@@ -32,6 +38,12 @@ export interface ApplyClinePlanTaskGraphResult {
 	createdTasks: RuntimeBoardCard[];
 	createdDependencies: RuntimeBoardDependency[];
 	taskIdByPlanTaskId: Record<string, string>;
+}
+
+export interface ValidateClinePlanTaskGraphResult {
+	taskGraph: ClinePlanTaskGraph;
+	taskCount: number;
+	dependencyCount: number;
 }
 
 function slugifyTaskId(input: string): string {
@@ -74,6 +86,26 @@ function validateTaskSizingContract(task: ClinePlanTask): void {
 	}
 }
 
+function validateTaskGraphReferences(taskGraph: ClinePlanTaskGraph): number {
+	const taskIds = new Set<string>();
+	let dependencyCount = 0;
+	for (const task of taskGraph.tasks) {
+		if (taskIds.has(task.id)) {
+			throw new Error(`Task graph contains duplicate task id ${task.id}.`);
+		}
+		taskIds.add(task.id);
+	}
+	for (const task of taskGraph.tasks) {
+		for (const dependencyPlanTaskId of task.dependsOn) {
+			dependencyCount += 1;
+			if (!taskIds.has(dependencyPlanTaskId)) {
+				throw new Error(`Task ${task.id} depends on unknown task ${dependencyPlanTaskId}.`);
+			}
+		}
+	}
+	return dependencyCount;
+}
+
 function validateTaskRoutingFeasibility(
 	task: ClinePlanTask,
 	taskPrompt: string,
@@ -109,6 +141,22 @@ function validateTaskRoutingFeasibility(
 	}
 }
 
+export function validateClinePlanTaskGraph(input: {
+	taskGraph: ClinePlanTaskGraph;
+	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+}): ValidateClinePlanTaskGraphResult {
+	const taskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
+	for (const task of taskGraph.tasks) {
+		validateTaskSizingContract(task);
+		validateTaskRoutingFeasibility(task, buildTaskPrompt(task), input.routingCandidates);
+	}
+	return {
+		taskGraph,
+		taskCount: taskGraph.tasks.length,
+		dependencyCount: validateTaskGraphReferences(taskGraph),
+	};
+}
+
 function resolveTaskRoleSettings(
 	task: ClinePlanTask,
 	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
@@ -139,16 +187,18 @@ function resolveTaskRoleSettings(
 
 export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInput): ApplyClinePlanTaskGraphResult {
 	let board = input.board;
+	const taskGraph = validateClinePlanTaskGraph({
+		taskGraph: input.taskGraph,
+		routingCandidates: input.routingCandidates,
+	}).taskGraph;
 	const createdTasks: RuntimeBoardCard[] = [];
 	const createdDependencies: RuntimeBoardDependency[] = [];
 	const taskIdByPlanTaskId: Record<string, string> = {};
 	const now = input.now ?? Date.now();
 
-	for (const task of input.taskGraph.tasks) {
-		validateTaskSizingContract(task);
+	for (const task of taskGraph.tasks) {
 		const taskPrompt = buildTaskPrompt(task);
-		validateTaskRoutingFeasibility(task, taskPrompt, input.routingCandidates);
-		const taskId = `${slugifyTaskId(input.taskGraph.slug)}-${slugifyTaskId(task.id)}`;
+		const taskId = `${slugifyTaskId(taskGraph.slug)}-${slugifyTaskId(task.id)}`;
 		const created = addTaskToColumn(
 			board,
 			"backlog",
@@ -171,7 +221,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 		taskIdByPlanTaskId[task.id] = created.task.id;
 	}
 
-	for (const task of input.taskGraph.tasks) {
+	for (const task of taskGraph.tasks) {
 		const waitingTaskId = taskIdByPlanTaskId[task.id];
 		if (!waitingTaskId) {
 			continue;
@@ -196,4 +246,81 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 		createdDependencies,
 		taskIdByPlanTaskId,
 	};
+}
+
+function createDecomposeProjectTool(workspacePath: string): AgentTool {
+	return {
+		name: "decompose_project",
+		description:
+			"Write Kanban spec, plan, and task graph artifacts for a project-scale idea. Use this after planning and before telling the user to run task decompose.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				slug: { type: "string", description: "Plan slug under .cline/kanban/plans/<slug>." },
+				spec: { type: "string", description: "Approved concise specification markdown." },
+				plan: { type: "string", description: "Implementation plan markdown." },
+				taskGraph: { type: "object", description: "Task graph JSON with schemaVersion, slug, title, tasks." },
+			},
+			required: ["slug", "spec", "plan", "taskGraph"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			const slug = typeof record.slug === "string" ? record.slug : "";
+			const spec = typeof record.spec === "string" ? record.spec : "";
+			const plan = typeof record.plan === "string" ? record.plan : "";
+			const taskGraph = clinePlanTaskGraphSchema.parse(record.taskGraph);
+			const validation = validateClinePlanTaskGraph({ taskGraph });
+			const artifacts = await writeClinePlanArtifacts({
+				workspacePath,
+				slug,
+				spec,
+				plan,
+				taskGraph: validation.taskGraph,
+			});
+			return {
+				ok: true,
+				slug: artifacts.taskGraph.slug,
+				taskCount: validation.taskCount,
+				dependencyCount: validation.dependencyCount,
+				specPath: artifacts.specPath,
+				planPath: artifacts.planPath,
+				taskGraphPath: artifacts.taskGraphPath,
+				instruction: `Artifacts are ready. Run: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}`,
+			};
+		},
+	};
+}
+
+function createExpandTaskTool(): AgentTool {
+	return {
+		name: "expand_task",
+		description:
+			"Validate a recursively split replacement task graph for an oversized task. Use this when a task fails the decomposition sizing or model-fit guard.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				taskGraph: { type: "object", description: "Replacement task graph with small executable leaves." },
+			},
+			required: ["taskGraph"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			const taskGraph = clinePlanTaskGraphSchema.parse(record.taskGraph);
+			const validation = validateClinePlanTaskGraph({ taskGraph });
+			return {
+				ok: true,
+				taskGraph: validation.taskGraph,
+				taskCount: validation.taskCount,
+				dependencyCount: validation.dependencyCount,
+				instruction:
+					"Replacement graph passes the Kanban sizing contract. Merge these leaves into the plan artifacts or call decompose_project with the full graph.",
+			};
+		},
+	};
+}
+
+export function createClineDecompositionTools(options: { workspacePath: string }): AgentTool[] {
+	return [createDecomposeProjectTool(options.workspacePath), createExpandTaskTool()];
 }

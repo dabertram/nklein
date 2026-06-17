@@ -5,6 +5,7 @@ import type { AgentBeforeModelContext, AgentBeforeModelResult, AgentMessage } fr
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
+import { createClineDecompositionTools } from "./cline-decomposition-tool";
 import { extractClineSessionId } from "./cline-event-adapter";
 import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
 import {
@@ -447,6 +448,9 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
 		const extraTools = [
+			...createClineDecompositionTools({
+				workspacePath: request.cwd,
+			}),
 			...createClineRetrievalTools({
 				workspacePath: request.cwd,
 			}),
