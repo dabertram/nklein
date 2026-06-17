@@ -6,6 +6,7 @@ import {
 	DEFAULT_CLINE_DEV_TEST_SCENARIO,
 	scaffoldClineDevTestProject,
 } from "./cline-dev-test-project";
+import { type ClineModelRegistryCapabilityObservation, getDefaultClineModelRegistry } from "./cline-model-registry";
 
 const execFileAsync = promisify(execFile);
 
@@ -14,6 +15,8 @@ export interface ClineEvalHarnessOptions {
 	parentDir?: string;
 	evidenceRootDir?: string;
 	initializeGit?: boolean;
+	modelObservation?: Omit<ClineModelRegistryCapabilityObservation, "passed" | "score" | "createdAt">;
+	recordCapability?: (observation: ClineModelRegistryCapabilityObservation) => Promise<unknown>;
 	now?: () => number;
 }
 
@@ -92,6 +95,16 @@ export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}
 	const startedAt = options.now?.() ?? Date.now();
 	const acceptance = await runAcceptanceCommand(project.acceptanceCommand, project.workspacePath);
 	const finishedAt = options.now?.() ?? Date.now();
+	const capabilityScore = acceptance.passed ? 100 : 0;
+	if (options.modelObservation) {
+		const modelRegistry = getDefaultClineModelRegistry();
+		await (options.recordCapability ?? modelRegistry.recordCapability.bind(modelRegistry))({
+			...options.modelObservation,
+			passed: acceptance.passed,
+			score: capabilityScore,
+			createdAt: finishedAt,
+		});
+	}
 	const diffPatch = await readGitDiff(project.workspacePath);
 	const evidenceBundle = await createEvidenceBundle({
 		rootDir: options.evidenceRootDir,
@@ -103,6 +116,7 @@ export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}
 		models: [],
 		metrics: [
 			{ label: "exit code", value: acceptance.exitCode },
+			{ label: "capability score", value: capabilityScore },
 			{ label: "workspace", value: project.workspacePath },
 		],
 		diffPatch,
@@ -115,6 +129,7 @@ export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}
 			status: acceptance.passed ? "passed" : "failed",
 			command: project.acceptanceCommand,
 			exitCode: acceptance.exitCode,
+			capabilityScore,
 			output: acceptance.output,
 		},
 	});

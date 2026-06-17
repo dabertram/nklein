@@ -18,6 +18,7 @@ export interface EvidenceBundleEvalResult {
 	status: "passed" | "failed" | "skipped";
 	command?: string | null;
 	exitCode?: number | null;
+	capabilityScore?: number | null;
 	output?: string | null;
 }
 
