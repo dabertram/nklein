@@ -3,6 +3,7 @@
 // shared API contract, and fans out workspace-scoped snapshots and deltas.
 import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
+import { runClineAcceptanceAutoRepair } from "../cline-sdk/cline-acceptance-auto-repair";
 import type { ClineTaskMessage, ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type {
 	RuntimeClineMcpServerAuthStatus,
@@ -67,6 +68,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 	const clinePreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const pendingTaskSessionSummariesByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const taskSessionBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
+	const acceptanceRepairAttemptStoreByWorkspaceId = new Map<string, Map<string, number>>();
 	const runtimeStateClientsByWorkspaceId = new Map<string, Set<WebSocket>>();
 	const runtimeStateClients = new Set<WebSocket>();
 	const runtimeStateWorkspaceIdByClient = new Map<WebSocket, string>();
@@ -258,6 +260,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 		clineSummaryUnsubscribeByWorkspaceId.delete(workspaceId);
 		clinePreviousSummaryByWorkspaceId.delete(workspaceId);
+		acceptanceRepairAttemptStoreByWorkspaceId.delete(workspaceId);
 		const unsubscribeClineMessage = clineMessageUnsubscribeByWorkspaceId.get(workspaceId);
 		if (unsubscribeClineMessage) {
 			try {
@@ -336,6 +339,46 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		for (const client of runtimeClients) {
 			sendRuntimeStateMessage(client, payload);
 		}
+	};
+
+	const getAcceptanceRepairAttemptStore = (workspaceId: string) => {
+		let attempts = acceptanceRepairAttemptStoreByWorkspaceId.get(workspaceId);
+		if (!attempts) {
+			attempts = new Map<string, number>();
+			acceptanceRepairAttemptStoreByWorkspaceId.set(workspaceId, attempts);
+		}
+		return {
+			get: (taskId: string) => attempts.get(taskId),
+			set: (taskId: string, attempt: number) => {
+				attempts.set(taskId, attempt);
+			},
+			delete: (taskId: string) => {
+				attempts.delete(taskId);
+			},
+		};
+	};
+
+	const verifyClineTaskBeforeReady = (
+		workspaceId: string,
+		workspacePath: string,
+		service: ClineTaskSessionService,
+		summary: RuntimeTaskSessionSummary,
+	) => {
+		void runClineAcceptanceAutoRepair({
+			workspacePath,
+			taskId: summary.taskId,
+			summary,
+			service,
+			attemptStore: getAcceptanceRepairAttemptStore(workspaceId),
+		})
+			.then((outcome) => {
+				if (outcome.type !== "repair_sent") {
+					broadcastTaskReadyForReview(workspaceId, summary.taskId);
+				}
+			})
+			.catch(() => {
+				broadcastTaskReadyForReview(workspaceId, summary.taskId);
+			});
 	};
 
 	runtimeStateWebSocketServer.on("connection", async (client: WebSocket, context: unknown) => {
@@ -530,7 +573,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 						summary.reviewReason === "attention" ||
 						summary.reviewReason === "error")
 				) {
-					broadcastTaskReadyForReview(workspaceId, summary.taskId);
+					verifyClineTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
 			});
 			clineSummaryUnsubscribeByWorkspaceId.set(workspaceId, unsubscribe);
@@ -575,6 +618,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			}
 			clineSummaryUnsubscribeByWorkspaceId.clear();
 			clinePreviousSummaryByWorkspaceId.clear();
+			acceptanceRepairAttemptStoreByWorkspaceId.clear();
 			for (const unsubscribe of clineMessageUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();
