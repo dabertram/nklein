@@ -2,6 +2,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
+import { buildClineAcceptanceRepairPlan } from "../cline-sdk/cline-acceptance-repair";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
 import { loadRuntimeConfig } from "../config/runtime-config";
@@ -59,6 +60,7 @@ interface VerifyTaskAcceptanceDependencies {
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	resolveTaskCwd?: typeof resolveTaskCwd;
 	runAcceptanceGate?: typeof runClineAcceptanceGate;
+	loadRuntimeConfig?: typeof loadRuntimeConfig;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -731,6 +733,8 @@ export async function runVerifyTaskAcceptanceCommand(
 		workspaceRoot?: boolean;
 		ensureWorktree?: boolean;
 		timeoutMs?: number;
+		repairAttempt?: number;
+		maxRepairAttempts?: number;
 	},
 	deps: VerifyTaskAcceptanceDependencies = {},
 ): Promise<JsonRecord> {
@@ -764,12 +768,24 @@ export async function runVerifyTaskAcceptanceCommand(
 	});
 
 	const ok = result.present === true && result.passed === true;
+	const repair = ok
+		? null
+		: buildClineAcceptanceRepairPlan({
+				taskId: input.taskId,
+				taskTitle: taskRecord.task.title,
+				taskPrompt: taskRecord.task.prompt,
+				acceptance: result,
+				attempt: input.repairAttempt ?? 1,
+				maxAttempts: input.maxRepairAttempts,
+				modelRoles: (await (deps.loadRuntimeConfig ?? loadRuntimeConfig)(workspaceRepoPath)).modelRoles,
+			});
 	return {
 		ok,
 		workspacePath: workspaceRepoPath,
 		taskWorkspacePath,
 		task: formatTaskRecord(state, taskRecord.task, taskRecord.columnId),
 		acceptance: result,
+		...(repair ? { repair } : {}),
 		...(ok
 			? {}
 			: {
@@ -1524,6 +1540,20 @@ export function registerTaskCommand(program: Command): void {
 			}
 			return timeoutMs;
 		})
+		.option("--repair-attempt <n>", "Repair attempt number to include in failure guidance.", (value: string) => {
+			const attempt = Number(value);
+			if (!Number.isInteger(attempt) || attempt <= 0) {
+				throw new Error("Invalid repair attempt. Expected a positive integer.");
+			}
+			return attempt;
+		})
+		.option("--max-repair-attempts <n>", "Maximum repair attempts before escalation guidance.", (value: string) => {
+			const maxAttempts = Number(value);
+			if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
+				throw new Error("Invalid max repair attempts. Expected a positive integer.");
+			}
+			return maxAttempts;
+		})
 		.action(
 			async (options: {
 				taskId: string;
@@ -1531,6 +1561,8 @@ export function registerTaskCommand(program: Command): void {
 				workspaceRoot?: boolean;
 				ensureWorktree?: boolean;
 				timeoutMs?: number;
+				repairAttempt?: number;
+				maxRepairAttempts?: number;
 			}) => {
 				await runTaskCommand(
 					async () =>
@@ -1541,6 +1573,8 @@ export function registerTaskCommand(program: Command): void {
 							workspaceRoot: options.workspaceRoot === true,
 							ensureWorktree: options.ensureWorktree === true,
 							timeoutMs: options.timeoutMs,
+							repairAttempt: options.repairAttempt,
+							maxRepairAttempts: options.maxRepairAttempts,
 						}),
 				);
 			},

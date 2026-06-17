@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { runVerifyTaskAcceptanceCommand } from "../../../src/commands/task";
+import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
 
 const COLUMN_IDS: RuntimeBoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
@@ -39,6 +40,31 @@ function createWorkspaceState(prompt: string): RuntimeWorkspaceStateResponse {
 		},
 		sessions: {},
 		revision: 1,
+	};
+}
+
+function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] = {}): RuntimeConfigState {
+	return {
+		selectedAgentId: "cline",
+		selectedShortcutLabel: null,
+		agentAutonomousModeEnabled: true,
+		agentTimeoutMode: "normal",
+		agentTimeoutProfile: "local",
+		requestTimeoutMs: null,
+		streamTimeoutMs: null,
+		toolTimeoutMs: null,
+		agentTimeoutMs: null,
+		conversationTimeoutMs: null,
+		maxAgentWritableFileLines: 1000,
+		readyForReviewNotificationsEnabled: true,
+		modelRoles,
+		shortcuts: [],
+		commitPromptTemplate: "",
+		openPrPromptTemplate: "",
+		commitPromptTemplateDefault: "",
+		openPrPromptTemplateDefault: "",
+		globalConfigPath: "/repo/global.json",
+		projectConfigPath: "/repo/project.json",
 	};
 }
 
@@ -94,6 +120,14 @@ describe("task verify command helper", () => {
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
 				resolveTaskCwd: vi.fn(async () => "/worktree"),
+				loadRuntimeConfig: vi.fn(async () =>
+					createRuntimeConfigState({
+						reviewer: {
+							providerId: "anthropic",
+							modelId: "claude-sonnet",
+						},
+					}),
+				),
 				runAcceptanceGate: vi.fn(async () => ({
 					present: true,
 					command: "npm test",
@@ -113,6 +147,57 @@ describe("task verify command helper", () => {
 				exitCode: 1,
 				output: "failed",
 			},
+			repair: {
+				action: "repair",
+				attempt: 1,
+				maxAttempts: 2,
+			},
+		});
+	});
+
+	it("returns escalation guidance after repair attempts are exhausted", async () => {
+		const result = await runVerifyTaskAcceptanceCommand(
+			{
+				cwd: "/repo",
+				taskId: "task-1",
+				repairAttempt: 3,
+				maxRepairAttempts: 2,
+			},
+			{
+				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
+				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
+				resolveTaskCwd: vi.fn(async () => "/worktree"),
+				loadRuntimeConfig: vi.fn(async () =>
+					createRuntimeConfigState({
+						reviewer: {
+							providerId: "anthropic",
+							modelId: "claude-sonnet",
+						},
+					}),
+				),
+				runAcceptanceGate: vi.fn(async () => ({
+					present: true,
+					command: "npm test",
+					passed: false,
+					exitCode: 1,
+					output: "failed",
+					durationMs: 5,
+				})),
+			},
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			repair: {
+				action: "escalate",
+				attempt: 3,
+				maxAttempts: 2,
+				escalatedRole: "reviewer",
+				escalatedSettings: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet",
+				},
+			},
 		});
 	});
 
@@ -127,6 +212,7 @@ describe("task verify command helper", () => {
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Implement the task.")),
 				resolveTaskCwd: vi.fn(async () => "/worktree"),
+				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				runAcceptanceGate: vi.fn(async () => ({
 					present: false,
 					command: null,
