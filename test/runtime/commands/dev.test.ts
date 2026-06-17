@@ -25,6 +25,7 @@ vi.mock("../../../src/cline-sdk/cline-model-research", () => ({
 
 import {
 	runDevAdvisorPromptCommand,
+	runDevAdvisorShortcutCommand,
 	runDevCheckModelsCommand,
 	runDevDogfoodBacklogCommand,
 	runDevSmokeEvalCommand,
@@ -178,6 +179,39 @@ describe("dev command", () => {
 		expect(JSON.parse(writes[0] ?? "{}")).toMatchObject({
 			title: "Check For Better Models",
 			prompt: "Compare current roster",
+		});
+	});
+
+	it("prints explicit advisor shortcut prompts", async () => {
+		evalHarnessMocks.buildClineAdvisorRequest.mockReturnValue({
+			kind: "mcp_discovery",
+			title: "Find Useful MCP Plugins",
+			prompt: "Research MCP",
+			requiresWebResearch: true,
+			recommendedSources: ["https://mcp.so/"],
+		});
+		const writes: string[] = [];
+
+		await runDevAdvisorShortcutCommand("mcp_discovery", {
+			json: true,
+			repoSummary: "TypeScript app",
+			write: (text) => {
+				writes.push(text);
+			},
+		});
+
+		expect(evalHarnessMocks.buildClineAdvisorRequest).toHaveBeenCalledWith("mcp_discovery", {
+			workspacePath: undefined,
+			repoSummary: "TypeScript app",
+			modelRegistrySummary: undefined,
+			runtimeConfigSummary: undefined,
+			telemetrySummary: undefined,
+			taskSummary: undefined,
+			userQuestion: undefined,
+		});
+		expect(JSON.parse(writes[0] ?? "{}")).toMatchObject({
+			title: "Find Useful MCP Plugins",
+			requiresWebResearch: true,
 		});
 	});
 });

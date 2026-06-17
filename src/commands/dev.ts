@@ -38,6 +38,8 @@ interface DevAdvisorPromptOptions {
 	write?: (text: string) => void;
 }
 
+type DevAdvisorShortcutOptions = Omit<DevAdvisorPromptOptions, "kind">;
+
 const DEFAULT_TELEMETRY_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
 
 function parseAdvisorKind(value: string): ClineAdvisorKind {
@@ -113,6 +115,16 @@ export async function runDevAdvisorPromptCommand(options: DevAdvisorPromptOption
 	write(`# ${request.title}\n\n${request.prompt}\n`);
 }
 
+export async function runDevAdvisorShortcutCommand(
+	kind: ClineAdvisorKind,
+	options: DevAdvisorShortcutOptions = {},
+): Promise<void> {
+	await runDevAdvisorPromptCommand({
+		...options,
+		kind,
+	});
+}
+
 export async function runDevCheckModelsCommand(
 	options: { json?: boolean; write?: (text: string) => void } = {},
 ): Promise<void> {
@@ -127,6 +139,18 @@ export async function runDevCheckModelsCommand(
 
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only Kanban diagnostics and smoke tests.");
+
+	const addAdvisorContextOptions = (command: ReturnType<Command["command"]>) => {
+		return command
+			.option("--json", "Print machine-readable JSON.")
+			.option("--workspace-path <path>", "Workspace path context.")
+			.option("--repo-summary <text>", "Repo summary context.")
+			.option("--model-registry-summary <text>", "Model registry context.")
+			.option("--runtime-config-summary <text>", "Runtime config context.")
+			.option("--telemetry-summary <text>", "Telemetry/log summary context.")
+			.option("--task-summary <text>", "Task-specific context.")
+			.option("--user-question <text>", "User question or pain point.");
+	};
 
 	dev.command("smoke-eval")
 		.description("Run the bundled dev smoke eval and write an evidence bundle.")
@@ -167,6 +191,30 @@ export function registerDevCommand(program: Command): void {
 		.action(async (options: DevAdvisorPromptOptions) => {
 			await runDevAdvisorPromptCommand(options);
 		});
+
+	addAdvisorContextOptions(
+		dev.command("find-mcp-plugins").description("Build a user-triggered MCP discovery prompt."),
+	).action(async (options: DevAdvisorShortcutOptions) => {
+		await runDevAdvisorShortcutCommand("mcp_discovery", options);
+	});
+
+	addAdvisorContextOptions(
+		dev.command("explain-config").description("Build a user-triggered runtime config advisor prompt."),
+	).action(async (options: DevAdvisorShortcutOptions) => {
+		await runDevAdvisorShortcutCommand("config_explainer", options);
+	});
+
+	addAdvisorContextOptions(
+		dev.command("analyze-logs").description("Build a user-triggered Kanban logs advisor prompt."),
+	).action(async (options: DevAdvisorShortcutOptions) => {
+		await runDevAdvisorShortcutCommand("log_analysis", options);
+	});
+
+	addAdvisorContextOptions(
+		dev.command("explain-task-failure").description("Build a user-triggered task failure advisor prompt."),
+	).action(async (options: DevAdvisorShortcutOptions) => {
+		await runDevAdvisorShortcutCommand("task_failure", options);
+	});
 
 	dev.command("check-models")
 		.description("Build a user-triggered model freshness advisor prompt from the local model registry.")
