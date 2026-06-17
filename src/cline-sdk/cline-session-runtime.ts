@@ -1,6 +1,7 @@
 // Owns the live SDK session host plus taskId to sessionId bindings.
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
+import type { AgentBeforeModelContext, AgentBeforeModelResult, AgentMessage } from "@clinebot/shared";
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { extractClineSessionId } from "./cline-event-adapter";
@@ -16,6 +17,7 @@ import {
 	type ClineMcpToolBundle,
 	createClineMcpRuntimeService,
 } from "./cline-mcp-runtime-service";
+import { buildClineRepoMap } from "./cline-repo-map";
 import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
@@ -45,8 +47,70 @@ type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["co
 type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
 type ClineSdkRuntimeExtension = NonNullable<ClineSdkLocalRuntimeOptions["extensions"]>[number];
 
-function createKanbanContextFocusExtension(sessionId: string, workspacePath: string): ClineSdkRuntimeExtension {
+function createRepoMapRailMessage(text: string): AgentMessage {
+	return {
+		id: `kanban-repo-map-rail-${Date.now()}`,
+		role: "user",
+		content: [{ type: "text", text }],
+		createdAt: Date.now(),
+		metadata: {
+			kind: "kanban_repo_map_rail",
+		},
+	};
+}
+
+async function appendRepoMapBeforeModel(
+	context: AgentBeforeModelContext,
+	workspacePath: string,
+	contextWindow: number | null | undefined,
+	baseResult: AgentBeforeModelResult | null | undefined,
+	getCachedRepoMap: () => Promise<string | null>,
+): Promise<AgentBeforeModelResult | undefined> {
+	if (baseResult?.stop) {
+		return baseResult;
+	}
+	const repoMap = await getCachedRepoMap();
+	if (!repoMap) {
+		return baseResult ?? undefined;
+	}
+	const messages = baseResult?.messages ?? context.request.messages;
+	const alreadyInjected = messages.some((message) => message.metadata?.kind === "kanban_repo_map_rail");
+	if (alreadyInjected) {
+		return baseResult ?? undefined;
+	}
+	return {
+		...baseResult,
+		messages: [
+			...messages,
+			createRepoMapRailMessage(
+				[
+					"[Kanban repo map: compact codebase orientation]",
+					`Workspace: ${workspacePath}`,
+					`Context window: ${contextWindow ?? "unknown"} tokens`,
+					repoMap,
+					"Use this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.",
+				].join("\n"),
+			),
+		],
+	};
+}
+
+function createKanbanContextFocusExtension(
+	sessionId: string,
+	workspacePath: string,
+	contextWindow?: number | null,
+): ClineSdkRuntimeExtension {
 	const largeFileWorkflow = getClineLargeFileWorkflow(sessionId, workspacePath);
+	let cachedRepoMap: Promise<string | null> | null = null;
+	const getCachedRepoMap = async () => {
+		cachedRepoMap ??= buildClineRepoMap({
+			workspacePath,
+			tokenBudget: contextWindow ? Math.max(300, Math.min(1_200, Math.round(contextWindow * 0.015))) : 800,
+		})
+			.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
+			.catch(() => null);
+		return await cachedRepoMap;
+	};
 	return {
 		name: "kanban-context-focus",
 		manifest: {
@@ -54,7 +118,13 @@ function createKanbanContextFocusExtension(sessionId: string, workspacePath: str
 		},
 		hooks: {
 			async beforeModel(context) {
-				return (await largeFileWorkflow.beforeModel(context)) ?? undefined;
+				return await appendRepoMapBeforeModel(
+					context,
+					workspacePath,
+					contextWindow,
+					await largeFileWorkflow.beforeModel(context),
+					getCachedRepoMap,
+				);
 			},
 			async afterModel(context) {
 				return await largeFileWorkflow.afterModel(context);
@@ -443,7 +513,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: CLINE_MODEL_CATALOG_DEFAULTS,
-					extensions: [createKanbanContextFocusExtension(requestedSessionId, request.cwd)],
+					extensions: [createKanbanContextFocusExtension(requestedSessionId, request.cwd, request.contextWindow)],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
 					...(compaction ? { compaction: { ...compaction, compact: compactKanbanFocusedMessages } } : {}),
 					logger: createKanbanClineLogger({
