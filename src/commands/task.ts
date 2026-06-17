@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
+import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
@@ -676,6 +677,7 @@ async function decomposeTaskGraph(input: {
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
 	const artifacts = await readClinePlanArtifacts(workspaceRepoPath, input.slug);
+	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
 	const applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
 		const resolvedBaseRef = (input.baseRef ?? "").trim() || resolveTaskBaseRef(runtimeState);
 		if (!resolvedBaseRef) {
@@ -686,6 +688,7 @@ async function decomposeTaskGraph(input: {
 			taskGraph: artifacts.taskGraph,
 			baseRef: resolvedBaseRef,
 			randomUuid: () => globalThis.crypto.randomUUID(),
+			modelRoleSettings: runtimeConfig.modelRoles,
 		});
 		const nextState: RuntimeWorkspaceStateResponse = {
 			...runtimeState,
