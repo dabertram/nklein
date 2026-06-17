@@ -7,6 +7,7 @@ import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
 import { disposeCliTelemetryService } from "./cline-sdk/cline-telemetry-service.js";
+import { registerDevCommand } from "./commands/dev";
 import { registerHooksCommand } from "./commands/hooks";
 import { registerTaskCommand } from "./commands/task";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
@@ -733,6 +734,7 @@ function createProgram(invocationArgs: string[]): Command {
 
 	registerTaskCommand(program);
 	registerHooksCommand(program);
+	registerDevCommand(program);
 
 	program
 		.command("mcp")
