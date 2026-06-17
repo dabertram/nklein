@@ -804,6 +804,24 @@ export const runtimeClineModelRegistryResponseSchema = z.object({
 });
 export type RuntimeClineModelRegistryResponse = z.infer<typeof runtimeClineModelRegistryResponseSchema>;
 
+export const runtimeClineAdvisorKindSchema = z.enum([
+	"model_freshness",
+	"mcp_discovery",
+	"config_explainer",
+	"log_analysis",
+	"task_failure",
+]);
+export type RuntimeClineAdvisorKind = z.infer<typeof runtimeClineAdvisorKindSchema>;
+
+export const runtimeClineAdvisorRequestSchema = z.object({
+	kind: runtimeClineAdvisorKindSchema,
+	title: z.string(),
+	prompt: z.string(),
+	requiresWebResearch: z.boolean(),
+	recommendedSources: z.array(z.string()),
+});
+export type RuntimeClineAdvisorRequest = z.infer<typeof runtimeClineAdvisorRequestSchema>;
+
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",

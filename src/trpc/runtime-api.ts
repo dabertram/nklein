@@ -11,6 +11,7 @@ import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-schedule
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
+import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
 import { routeClineTask } from "../cline-sdk/cline-task-router";
@@ -753,6 +754,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
 				}),
 			};
+		},
+		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {
+			return await buildClineModelFreshnessAdvisorRequest();
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {
 			const statuses = await clineMcpRuntimeService.getAuthStatuses();

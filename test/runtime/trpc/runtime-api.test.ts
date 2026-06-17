@@ -2284,6 +2284,79 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.models[1]?.speed.prefillTokensPerSecondEwma).toBe(800);
 	});
 
+	it("builds a model freshness advisor request from the runtime model registry", async () => {
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 40,
+			models: {
+				"ollama:qwen:local": {
+					key: "ollama:qwen:local",
+					providerId: "ollama",
+					modelId: "qwen",
+					endpoint: "http://127.0.0.1:11434",
+					contextWindow: {
+						advertised: 16_000,
+						observed: null,
+						userOverride: null,
+						effective: 16_000,
+					},
+					speed: {
+						samples: 1,
+						promptTokensEwma: 2_000,
+						outputTokensEwma: 100,
+						totalTokensEwma: 2_100,
+						prefillTokensPerSecondEwma: 500,
+						decodeTokensPerSecondEwma: 40,
+						ttftMsEwma: 500,
+						wallTimeMsEwma: 3_000,
+						wallTimeMsPer1kPromptTokensEwma: 1_500,
+						lastPromptTokens: 2_000,
+						lastOutputTokens: 100,
+						lastWallTimeMs: 3_000,
+						lastObservedAt: 40,
+					},
+					capability: {
+						samples: 1,
+						staticPrior: 35,
+						evalScore: 70,
+						externalScore: null,
+						observedPassRate: 1,
+						effectiveScore: 70,
+						lastObservedAt: 40,
+					},
+					constraints: {
+						sharedEndpointId: "ollama:local",
+						inputCostPerMillionTokens: null,
+						outputCostPerMillionTokens: null,
+					},
+					createdAt: 20,
+					updatedAt: 40,
+				},
+			},
+		});
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.buildClineModelFreshnessAdvisor({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/repo",
+		});
+
+		expect(response.kind).toBe("model_freshness");
+		expect(response.requiresWebResearch).toBe(true);
+		expect(response.recommendedSources).toContain("https://openrouter.ai/models");
+		expect(response.prompt).toContain("ollama:qwen");
+		expect(response.prompt).toContain("16,000 tokens");
+		expect(response.prompt).toContain("70/100 capability");
+	});
+
 	it("loads provider models through the SDK local-provider resolver with saved config", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
