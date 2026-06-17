@@ -21,6 +21,7 @@ import {
 import { buildClineRepoMap } from "./cline-repo-map";
 import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
+import { reviewClineAfterModelCompletion } from "./cline-self-review-hook";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
 import { createWebResearchTool } from "./cline-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./cline-write-files-tool";
@@ -130,7 +131,8 @@ function createKanbanContextFocusExtension(
 				);
 			},
 			async afterModel(context) {
-				return await largeFileWorkflow.afterModel(context);
+				const largeFileControl = await largeFileWorkflow.afterModel(context);
+				return largeFileControl ?? reviewClineAfterModelCompletion(context);
 			},
 		},
 		setup(api) {
