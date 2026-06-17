@@ -115,4 +115,63 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			}),
 		).toThrow("depends on unknown task");
 	});
+
+	it("rejects tasks without acceptance checks", () => {
+		const graph = createTaskGraph();
+		const storageTask = graph.tasks[0];
+		if (!storageTask) {
+			throw new Error("Expected storage task.");
+		}
+		graph.tasks[0] = {
+			...storageTask,
+			acceptanceCommand: null,
+		};
+
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: graph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+			}),
+		).toThrow("missing an acceptanceCommand");
+	});
+
+	it("rejects oversized task leaves by complexity and likely file count", () => {
+		const complexGraph = createTaskGraph();
+		const storageTask = complexGraph.tasks[0];
+		if (!storageTask) {
+			throw new Error("Expected storage task.");
+		}
+		complexGraph.tasks[0] = {
+			...storageTask,
+			complexity: 90,
+		};
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: complexGraph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+			}),
+		).toThrow("split it below 75/100");
+
+		const broadGraph = createTaskGraph();
+		const uiTask = broadGraph.tasks[1];
+		if (!uiTask) {
+			throw new Error("Expected UI task.");
+		}
+		broadGraph.tasks[1] = {
+			...uiTask,
+			filesLikelyTouched: ["src/App.tsx", "src/storage.ts", "src/sync.ts", "src/styles.css"],
+		};
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: broadGraph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+			}),
+		).toThrow("3 files or fewer");
+	});
 });

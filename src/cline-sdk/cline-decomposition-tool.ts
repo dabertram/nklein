@@ -7,6 +7,9 @@ import type {
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import type { ClinePlanTask, ClinePlanTaskGraph } from "./cline-plan-artifacts";
 
+const MAX_DECOMPOSED_TASK_COMPLEXITY = 75;
+const MAX_DECOMPOSED_TASK_LIKELY_FILES = 3;
+
 export interface ApplyClinePlanTaskGraphInput {
 	board: RuntimeBoardData;
 	taskGraph: ClinePlanTaskGraph;
@@ -47,6 +50,22 @@ function buildTaskPrompt(task: ClinePlanTask): string {
 	return sections.join("\n\n");
 }
 
+function validateTaskSizingContract(task: ClinePlanTask): void {
+	if (!task.acceptanceCommand?.trim()) {
+		throw new Error(`Task ${task.id} is missing an acceptanceCommand; split or specify an objective check.`);
+	}
+	if (task.complexity > MAX_DECOMPOSED_TASK_COMPLEXITY) {
+		throw new Error(
+			`Task ${task.id} has complexity ${Math.round(task.complexity)}/100; split it below ${MAX_DECOMPOSED_TASK_COMPLEXITY}/100 before decomposing.`,
+		);
+	}
+	if (task.filesLikelyTouched.length > MAX_DECOMPOSED_TASK_LIKELY_FILES) {
+		throw new Error(
+			`Task ${task.id} touches ${task.filesLikelyTouched.length} likely files; split it to ${MAX_DECOMPOSED_TASK_LIKELY_FILES} files or fewer before decomposing.`,
+		);
+	}
+}
+
 function resolveTaskRoleSettings(
 	task: ClinePlanTask,
 	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
@@ -83,6 +102,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const now = input.now ?? Date.now();
 
 	for (const task of input.taskGraph.tasks) {
+		validateTaskSizingContract(task);
 		const taskId = `${slugifyTaskId(input.taskGraph.slug)}-${slugifyTaskId(task.id)}`;
 		const created = addTaskToColumn(
 			board,

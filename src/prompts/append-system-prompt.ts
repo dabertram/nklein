@@ -306,6 +306,7 @@ Notes:
 - Use this after a planning session has written \`spec.md\`, \`plan.md\`, and \`tasks.json\` under \`.cline/kanban/plans/<slug>\`.
 - Each generated task is created in backlog with Cline as its agent and auto-review enabled.
 - Dependency links from \`tasks.json\` are applied automatically.
+- Each task graph leaf must include \`acceptanceCommand\`, stay at complexity <= 75, and list no more than 3 likely files. Split or expand oversized leaves before running this command.
 
 ## task verify
 
