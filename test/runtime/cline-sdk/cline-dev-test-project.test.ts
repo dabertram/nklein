@@ -1,0 +1,60 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
+import {
+	DEFAULT_CLINE_DEV_TEST_SCENARIO,
+	resolveClineDevTestTemplatePath,
+	scaffoldClineDevTestProject,
+} from "../../../src/cline-sdk/cline-dev-test-project";
+
+const execFileAsync = promisify(execFile);
+
+async function createParentDir(): Promise<string> {
+	return await mkdtemp(join(tmpdir(), "kanban-dev-test-project-"));
+}
+
+describe("cline dev test project", () => {
+	it("resolves the bundled smoke fixture template", async () => {
+		const templatePath = resolveClineDevTestTemplatePath();
+		await expect(readFile(join(templatePath, "package.json"), "utf8")).resolves.toContain("kanban-smoke-ts-cli");
+	});
+
+	it("scaffolds a throwaway workspace with scenario metadata", async () => {
+		const parentDir = await createParentDir();
+		const project = await scaffoldClineDevTestProject({
+			parentDir,
+			initializeGit: false,
+			now: () => 1_700_000_000_000,
+		});
+
+		expect(project.workspacePath.startsWith(parentDir)).toBe(true);
+		expect(project.gitInitialized).toBe(false);
+		expect(project.scenario).toEqual(DEFAULT_CLINE_DEV_TEST_SCENARIO);
+		await expect(readFile(join(project.workspacePath, "src", "habit-score.ts"), "utf8")).resolves.toContain(
+			"calculateHabitScore",
+		);
+		await expect(readFile(join(project.workspacePath, "kanban-dev-scenario.json"), "utf8")).resolves.toContain(
+			DEFAULT_CLINE_DEV_TEST_SCENARIO.acceptanceCommand,
+		);
+	});
+
+	it("initializes git with Kanban ownership metadata", async () => {
+		const parentDir = await createParentDir();
+		const project = await scaffoldClineDevTestProject({
+			parentDir,
+			initializeGit: true,
+		});
+
+		const { stdout } = await execFileAsync("git", ["config", "--get", "kanban.repositoryCreatedByKanban"], {
+			cwd: project.workspacePath,
+		});
+		expect(stdout.trim()).toBe("true");
+		const head = await execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
+			cwd: project.workspacePath,
+		});
+		expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
+	});
+});
