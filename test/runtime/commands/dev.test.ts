@@ -101,6 +101,7 @@ describe("dev command", () => {
 			projectPath: "/repo",
 			telemetryRoot: "/telemetry",
 			slug: "dogfood",
+			suggestion: "Improve stalled task diagnostics.",
 			write: (text) => {
 				writes.push(text);
 			},
@@ -110,6 +111,7 @@ describe("dev command", () => {
 			workspacePath: "/repo",
 			telemetryRootDir: "/telemetry",
 			slug: "dogfood",
+			userSuggestions: ["Improve stalled task diagnostics."],
 		});
 		expect(writes.join("")).toContain("task decompose --slug dogfood");
 	});

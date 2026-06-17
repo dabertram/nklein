@@ -19,6 +19,7 @@ interface DevDogfoodBacklogOptions {
 	projectPath?: string;
 	telemetryRoot?: string;
 	slug?: string;
+	suggestion?: string;
 	write?: (text: string) => void;
 	cwd?: string;
 }
@@ -81,6 +82,7 @@ export async function runDevDogfoodBacklogCommand(options: DevDogfoodBacklogOpti
 		workspacePath,
 		telemetryRootDir: options.telemetryRoot ?? DEFAULT_TELEMETRY_ROOT,
 		slug: options.slug,
+		userSuggestions: options.suggestion ? [options.suggestion] : undefined,
 	});
 	if (options.json) {
 		write(`${JSON.stringify(result, null, 2)}\n`);
@@ -129,6 +131,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--project-path <path>", "Kanban repo path where .cline/kanban/plans should be written.")
 		.option("--telemetry-root <path>", "Telemetry JSONL root. Defaults to ~/.cline/kanban/telemetry.")
 		.option("--slug <slug>", "Plan slug under .cline/kanban/plans/<slug>.")
+		.option("--suggestion <text>", "Seed the dogfood backlog with a user-described improvement.")
 		.action(async (options: DevDogfoodBacklogOptions) => {
 			await runDevDogfoodBacklogCommand(options);
 		});

@@ -59,6 +59,7 @@ export interface BuildClineDogfoodBacklogOptions {
 	now?: () => number;
 	maxCandidates?: number;
 	acceptanceCommand?: string;
+	userSuggestions?: string[];
 }
 
 export interface WriteClineDogfoodBacklogOptions extends Omit<BuildClineDogfoodBacklogOptions, "events"> {
@@ -238,6 +239,36 @@ function buildCandidate(input: {
 	};
 }
 
+function buildUserSuggestionCandidate(input: {
+	index: number;
+	suggestion: string;
+	acceptanceCommand: string;
+}): ClineDogfoodImprovementCandidate {
+	const suggestion = input.suggestion.trim();
+	return {
+		id: `suggestion-${input.index + 1}`,
+		title: "Dogfood: user suggested improvement",
+		prompt: [
+			"Investigate and implement a narrowly scoped Kanban self-improvement suggested by the user.",
+			"",
+			"User suggestion:",
+			suggestion,
+			"",
+			"Turn this into a concrete, safe change against the Kanban codebase. Keep the scope tight, add or update focused tests, and preserve existing safety guardrails.",
+		].join("\n"),
+		acceptanceCommand: input.acceptanceCommand,
+		score: 50,
+		occurrences: 1,
+		severity: "warning",
+		signals: ["custom"],
+		workspacePath: null,
+		filesLikelyTouched: [],
+		protectedPaths: [],
+		requiresHumanApproval: false,
+		examples: [suggestion],
+	};
+}
+
 export async function readClineDogfoodTelemetry(rootDir: string): Promise<SelfObservationEventRecord[]> {
 	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
 	const logFiles = entries
@@ -277,6 +308,12 @@ export function buildClineDogfoodBacklog(options: BuildClineDogfoodBacklogOption
 	}
 	const candidates = [...clusters.entries()]
 		.map(([key, events], index) => buildCandidate({ index, key, events, acceptanceCommand }))
+		.concat(
+			(options.userSuggestions ?? [])
+				.map((suggestion) => suggestion.trim())
+				.filter((suggestion) => suggestion.length > 0)
+				.map((suggestion, index) => buildUserSuggestionCandidate({ index, suggestion, acceptanceCommand })),
+		)
 		.sort((left, right) => right.score - left.score || right.occurrences - left.occurrences)
 		.slice(0, options.maxCandidates ?? 10);
 	return {

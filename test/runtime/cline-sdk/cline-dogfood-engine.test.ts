@@ -99,6 +99,27 @@ describe("cline dogfood engine", () => {
 		});
 	});
 
+	it("turns user suggestions into dogfood task candidates", () => {
+		const backlog = buildClineDogfoodBacklog({
+			events: [],
+			userSuggestions: ["Make stalled task diagnostics easier to understand."],
+		});
+
+		expect(backlog.candidates).toHaveLength(1);
+		expect(backlog.candidates[0]).toMatchObject({
+			id: "suggestion-1",
+			title: "Dogfood: user suggested improvement",
+			signals: ["custom"],
+			severity: "warning",
+		});
+		expect(backlog.taskGraph.tasks[0]).toMatchObject({
+			id: "suggestion-1",
+			suggestedRole: "worker",
+			acceptanceCommand: "npm run typecheck && npm run test:fast",
+		});
+		expect(backlog.taskGraph.tasks[0]?.prompt).toContain("Make stalled task diagnostics easier to understand.");
+	});
+
 	it("writes dogfood plan artifacts that existing decomposition can consume", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-dogfood-workspace-"));
 		const telemetryRootDir = await mkdtemp(join(tmpdir(), "kanban-dogfood-telemetry-"));
