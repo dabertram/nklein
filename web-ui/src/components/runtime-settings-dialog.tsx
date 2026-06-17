@@ -406,6 +406,8 @@ const CLINE_ADVISOR_ACTIONS: ReadonlyArray<{
 }> = [
 	{ kind: "model_freshness", label: "Check models", icon: <Sparkles size={14} /> },
 	{ kind: "mcp_discovery", label: "Find MCP plugins", icon: <Search size={14} /> },
+	{ kind: "config_explainer", label: "Explain config", icon: <SlidersHorizontal size={14} /> },
+	{ kind: "log_analysis", label: "Analyze logs", icon: <Clipboard size={14} /> },
 ];
 
 interface ParsedMcpSuggestion {
@@ -485,11 +487,13 @@ function ClineAdvisorActions({
 	workspaceId,
 	disabled,
 	mcpController,
+	runtimeConfigSummary,
 	onError,
 }: {
 	workspaceId: string | null;
 	disabled: boolean;
 	mcpController: UseRuntimeSettingsClineMcpControllerResult;
+	runtimeConfigSummary: string;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [activeKind, setActiveKind] = useState<RuntimeClineAdvisorKind | null>(null);
@@ -510,7 +514,10 @@ function ClineAdvisorActions({
 		(kind: RuntimeClineAdvisorKind) => {
 			onError(null);
 			setActiveKind(kind);
-			void buildClineAdvisorRequest(workspaceId, { kind })
+			void buildClineAdvisorRequest(workspaceId, {
+				kind,
+				...(kind === "config_explainer" ? { runtimeConfigSummary } : {}),
+			})
 				.then((request) => {
 					setAdvisorRequest(request);
 					if (kind !== "mcp_discovery") {
@@ -526,7 +533,7 @@ function ClineAdvisorActions({
 					setActiveKind(null);
 				});
 		},
-		[onError, workspaceId],
+		[onError, runtimeConfigSummary, workspaceId],
 	);
 
 	const handleParseMcpSuggestions = useCallback(() => {
@@ -1021,6 +1028,31 @@ export function RuntimeSettingsDialog({
 		selectedAgentId,
 		liveAuthStatuses: liveMcpAuthStatuses,
 	});
+	const advisorRuntimeConfigSummary = useMemo(
+		() =>
+			[
+				`selectedAgentId=${selectedAgentId}`,
+				`autonomousMode=${agentAutonomousModeEnabled}`,
+				`timeoutMode=${agentTimeoutMode}`,
+				`timeoutProfile=${agentTimeoutProfile}`,
+				`maxConcurrentTasks=${maxConcurrentTasks}`,
+				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
+				`clineProvider=${clineSettings.providerId || "default"}`,
+				`clineModel=${clineSettings.modelId || "default"}`,
+				`clineBaseUrl=${clineSettings.baseUrl || "default"}`,
+			].join("\n"),
+		[
+			agentAutonomousModeEnabled,
+			agentTimeoutMode,
+			agentTimeoutProfile,
+			clineSettings.baseUrl,
+			clineSettings.modelId,
+			clineSettings.providerId,
+			maxConcurrentTasks,
+			readyForReviewNotificationsEnabled,
+			selectedAgentId,
+		],
+	);
 	const hasUnsavedChanges = useMemo(() => {
 		if (!config) {
 			return false;
@@ -1667,6 +1699,7 @@ export function RuntimeSettingsDialog({
 									workspaceId={workspaceId}
 									disabled={controlsDisabled}
 									mcpController={clineMcpSettings}
+									runtimeConfigSummary={advisorRuntimeConfigSummary}
 									onError={setSaveError}
 								/>
 								<ClineSmokeEvalTrial

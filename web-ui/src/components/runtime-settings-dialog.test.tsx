@@ -501,6 +501,8 @@ describe("RuntimeSettingsDialog", () => {
 
 		const checkModelsButton = findButtonByText(document.body, "Check models");
 		expect(checkModelsButton).toBeInstanceOf(HTMLButtonElement);
+		expect(findButtonByText(document.body, "Explain config")).toBeInstanceOf(HTMLButtonElement);
+		expect(findButtonByText(document.body, "Analyze logs")).toBeInstanceOf(HTMLButtonElement);
 
 		await act(async () => {
 			checkModelsButton?.click();
@@ -518,6 +520,19 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Compare connected models.");
+
+		const explainConfigButton = findButtonByText(document.body, "Explain config");
+		await act(async () => {
+			explainConfigButton?.click();
+		});
+
+		expect(buildClineAdvisorRequestMock).toHaveBeenLastCalledWith(
+			"workspace-1",
+			expect.objectContaining({
+				kind: "config_explainer",
+				runtimeConfigSummary: expect.stringContaining("selectedAgentId=cline"),
+			}),
+		);
 	});
 
 	it("adds a pasted MCP advisor suggestion to Cline MCP settings", async () => {
