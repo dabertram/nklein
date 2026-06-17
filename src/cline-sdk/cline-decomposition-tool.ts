@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { AgentTool } from "@clinebot/shared";
+import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
@@ -6,6 +8,7 @@ import type {
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
+import { mutateWorkspaceState } from "../state/workspace-state";
 import {
 	type ClinePlanTask,
 	type ClinePlanTaskGraph,
@@ -45,6 +48,19 @@ export interface ValidateClinePlanTaskGraphResult {
 	taskGraph: ClinePlanTaskGraph;
 	taskCount: number;
 	dependencyCount: number;
+}
+
+export interface ApplyDecomposeProjectArtifactsResult {
+	applied: boolean;
+	createdTaskCount: number;
+	createdDependencyCount: number;
+	taskIdByPlanTaskId: Record<string, string>;
+	baseRef: string | null;
+	message: string;
+}
+
+function pluralizeCount(count: number, singular: string, plural = `${singular}s`): string {
+	return `${count} ${count === 1 ? singular : plural}`;
 }
 
 const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
@@ -243,6 +259,10 @@ function resolveTaskRoleSettings(
 	};
 }
 
+function collectBoardTaskIds(board: RuntimeBoardData): Set<string> {
+	return new Set(board.columns.flatMap((column) => column.cards.map((card) => card.id)));
+}
+
 export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInput): ApplyClinePlanTaskGraphResult {
 	let board = input.board;
 	const taskGraph = validateClinePlanTaskGraph({
@@ -252,7 +272,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const createdTasks: RuntimeBoardCard[] = [];
 	const createdDependencies: RuntimeBoardDependency[] = [];
 	const taskIdByPlanTaskId: Record<string, string> = {};
-	const usedBoardTaskIds = new Set<string>();
+	const usedBoardTaskIds = collectBoardTaskIds(board);
 	const now = input.now ?? Date.now();
 
 	for (const task of taskGraph.tasks) {
@@ -312,6 +332,61 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	};
 }
 
+async function applyDecomposeProjectArtifactsToWorkspace(input: {
+	workspacePath: string;
+	taskGraph: ClinePlanTaskGraph;
+}): Promise<ApplyDecomposeProjectArtifactsResult> {
+	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
+	try {
+		const result = await mutateWorkspaceState<ApplyDecomposeProjectArtifactsResult>(input.workspacePath, (state) => {
+			const baseRef = state.git.currentBranch ?? state.git.defaultBranch;
+			if (!baseRef) {
+				return {
+					board: state.board,
+					save: false,
+					value: {
+						applied: false,
+						createdTaskCount: 0,
+						createdDependencyCount: 0,
+						taskIdByPlanTaskId: {},
+						baseRef: null,
+						message: "Could not determine a base branch, so the task graph was persisted but not applied.",
+					},
+				};
+			}
+			const applied = applyClinePlanTaskGraphToBoard({
+				board: state.board,
+				taskGraph: input.taskGraph,
+				baseRef,
+				randomUuid: randomUUID,
+				modelRoleSettings: runtimeConfig?.modelRoles,
+			});
+			return {
+				board: applied.board,
+				value: {
+					applied: true,
+					createdTaskCount: applied.createdTasks.length,
+					createdDependencyCount: applied.createdDependencies.length,
+					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+					baseRef,
+					message: `Applied task graph to Kanban: created ${pluralizeCount(applied.createdTasks.length, "backlog card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
+				},
+			};
+		});
+		return result.value;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			applied: false,
+			createdTaskCount: 0,
+			createdDependencyCount: 0,
+			taskIdByPlanTaskId: {},
+			baseRef: null,
+			message: `Could not apply the task graph automatically: ${message}`,
+		};
+	}
+}
+
 function createDecomposeProjectTool(workspacePath: string): AgentTool {
 	return {
 		name: "decompose_project",
@@ -364,15 +439,25 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				plan,
 				taskGraph: validation.taskGraph,
 			});
+			const applied = await applyDecomposeProjectArtifactsToWorkspace({
+				workspacePath,
+				taskGraph: validation.taskGraph,
+			});
 			return {
 				ok: true,
 				slug: artifacts.taskGraph.slug,
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
+				applied: applied.applied,
+				createdTaskCount: applied.createdTaskCount,
+				createdDependencyCount: applied.createdDependencyCount,
+				taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
 				taskGraphPath: artifacts.taskGraphPath,
-				instruction: `Artifacts passed schema and sizing validation. Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply.`,
+				instruction: applied.applied
+					? `${applied.message} Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
+					: `Artifacts passed schema and sizing validation but were not applied automatically. ${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply.`,
 			};
 		},
 	};

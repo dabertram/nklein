@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
 	applyClinePlanTaskGraphToBoard,
@@ -9,6 +11,9 @@ import {
 import type { ClinePlanTaskGraph } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
+import { loadWorkspaceState } from "../../../src/state/workspace-state";
+
+const execFileAsync = promisify(execFile);
 
 function createBoard(): RuntimeBoardData {
 	return {
@@ -160,6 +165,33 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.createdDependencies[0]).toMatchObject({
 			fromTaskId: "habit-tracker-build-ui-2",
 			toTaskId: "habit-tracker-build-ui",
+		});
+	});
+
+	it("keeps board task ids unique when a graph is applied more than once", () => {
+		const firstApply = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		const secondApply = applyClinePlanTaskGraphToBoard({
+			board: firstApply.board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 200,
+		});
+
+		expect(secondApply.createdTasks.map((task) => task.id)).toEqual([
+			"habit-tracker-storage-2",
+			"habit-tracker-ui-2",
+		]);
+		expect(secondApply.createdDependencies[0]).toMatchObject({
+			fromTaskId: "habit-tracker-ui-2",
+			toTaskId: "habit-tracker-storage-2",
 		});
 	});
 
@@ -393,6 +425,8 @@ describe("cline decomposition tools", () => {
 			ok: boolean;
 			slug: string;
 			taskCount: number;
+			applied: boolean;
+			createdTaskCount: number;
 			taskGraphPath: string;
 			instruction: string;
 		};
@@ -400,10 +434,75 @@ describe("cline decomposition tools", () => {
 		expect(result.ok).toBe(true);
 		expect(result.slug).toBe("habit-tracker");
 		expect(result.taskCount).toBe(2);
+		expect(result.applied).toBe(false);
+		expect(result.createdTaskCount).toBe(0);
 		expect(result.instruction).toContain("kanban task decompose --slug habit-tracker");
 		expect(result.instruction).toContain("Apply them through Kanban, not by editing task files");
 		expect(result.instruction).toContain("connected-model fit is checked during apply");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
+	});
+
+	it("applies decompose_project artifacts to a Git-backed Kanban workspace", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-apply-"));
+		const homePath = await mkdtemp(join(tmpdir(), "kanban-decompose-home-"));
+		const previousHome = process.env.HOME;
+		process.env.HOME = homePath;
+		try {
+			await execFileAsync("git", ["init"], { cwd: workspacePath });
+			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
+				cwd: workspacePath,
+				env: {
+					...process.env,
+					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
+					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
+				},
+			});
+			const tool = getTool("decompose_project", workspacePath);
+
+			const result = (await tool.execute(
+				{
+					slug: "Habit Tracker",
+					title: "Habit Tracker",
+					spec: "Track habits.",
+					plan: "Build storage before UI.",
+					tasks: createTaskGraph().tasks,
+				},
+				undefined as never,
+			)) as {
+				ok: boolean;
+				applied: boolean;
+				createdTaskCount: number;
+				createdDependencyCount: number;
+				taskIdByPlanTaskId: Record<string, string>;
+				instruction: string;
+			};
+
+			expect(result.ok).toBe(true);
+			expect(result.applied).toBe(true);
+			expect(result.createdTaskCount).toBe(2);
+			expect(result.createdDependencyCount).toBe(1);
+			expect(result.taskIdByPlanTaskId).toMatchObject({
+				storage: "habit-tracker-storage",
+				ui: "habit-tracker-ui",
+			});
+			expect(result.instruction).toContain("created 2 backlog cards and 1 dependency");
+			expect(result.instruction).not.toContain("kanban task decompose");
+
+			const state = await loadWorkspaceState(workspacePath);
+			const backlogCards = state.board.columns.find((column) => column.id === "backlog")?.cards ?? [];
+			expect(new Set(backlogCards.map((card) => card.id))).toEqual(
+				new Set(["habit-tracker-storage", "habit-tracker-ui"]),
+			);
+			expect(state.board.dependencies).toHaveLength(1);
+		} finally {
+			if (previousHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = previousHome;
+			}
+		}
 	});
 
 	it("accepts simplified task lists in decompose_project", async () => {
