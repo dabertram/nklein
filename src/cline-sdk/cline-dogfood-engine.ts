@@ -6,21 +6,15 @@ import type {
 	SelfObservationSignal,
 } from "../telemetry/self-observation-sink";
 import { type ClinePlanArtifacts, type ClinePlanTaskGraph, writeClinePlanArtifacts } from "./cline-plan-artifacts";
+import {
+	evaluateTrustedAutoMerge,
+	isTrustedAutoMergeProtectedPath,
+	type TrustedAutoMergeDecision,
+} from "./cline-trusted-auto-merge";
 
 const DEFAULT_ACCEPTANCE_COMMAND = "npm run typecheck && npm run test:fast";
 const MAX_EXAMPLES_PER_CLUSTER = 5;
 const MAX_MESSAGE_KEY_LENGTH = 140;
-const PROTECTED_PATH_PREFIXES = [
-	"src/security/",
-	"src/workspace/path-sandbox.ts",
-	"src/workspace/task-worktree.ts",
-	"src/workspace/task-worktree-sync.ts",
-	"src/telemetry/self-observation-sink.ts",
-	"src/cline-sdk/cline-dogfood-engine.ts",
-	"src/permissions/",
-	"src/sandbox/",
-];
-
 const SEVERITY_WEIGHT: Record<SelfObservationSeverity, number> = {
 	debug: 1,
 	info: 2,
@@ -41,6 +35,7 @@ export interface ClineDogfoodImprovementCandidate {
 	filesLikelyTouched: string[];
 	protectedPaths: string[];
 	requiresHumanApproval: boolean;
+	trustedAutoMerge: TrustedAutoMergeDecision;
 	examples: string[];
 }
 
@@ -176,11 +171,6 @@ function collectFileHintsFromMetadata(metadata: Record<string, unknown> | undefi
 	return [...hints].map((hint) => hint.trim()).filter(Boolean);
 }
 
-function isProtectedPath(path: string): boolean {
-	const normalized = path.replace(/\\/g, "/").replace(/^\.?\//, "");
-	return PROTECTED_PATH_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(prefix));
-}
-
 function highestSeverity(events: SelfObservationEventRecord[]): SelfObservationSeverity {
 	return events.reduce<SelfObservationSeverity>((highest, event) => {
 		return SEVERITY_WEIGHT[event.severity] > SEVERITY_WEIGHT[highest] ? event.severity : highest;
@@ -199,7 +189,14 @@ function buildCandidate(input: {
 	const filesLikelyTouched = [
 		...new Set(input.events.flatMap((event) => collectFileHintsFromMetadata(event.metadata))),
 	].sort();
-	const protectedPaths = filesLikelyTouched.filter(isProtectedPath);
+	const protectedPaths = filesLikelyTouched.filter(isTrustedAutoMergeProtectedPath);
+	const trustedAutoMerge = evaluateTrustedAutoMerge({
+		requested: false,
+		evalPassed: false,
+		testsPassed: false,
+		changedFiles: filesLikelyTouched,
+		regressionDelta: null,
+	});
 	const examples = input.events
 		.slice(0, MAX_EXAMPLES_PER_CLUSTER)
 		.map((event) => `${new Date(event.createdAt).toISOString()} ${event.signal}: ${event.message}`);
@@ -235,6 +232,7 @@ function buildCandidate(input: {
 		filesLikelyTouched,
 		protectedPaths,
 		requiresHumanApproval: protectedPaths.length > 0,
+		trustedAutoMerge,
 		examples,
 	};
 }
@@ -245,6 +243,13 @@ function buildUserSuggestionCandidate(input: {
 	acceptanceCommand: string;
 }): ClineDogfoodImprovementCandidate {
 	const suggestion = input.suggestion.trim();
+	const trustedAutoMerge = evaluateTrustedAutoMerge({
+		requested: false,
+		evalPassed: false,
+		testsPassed: false,
+		changedFiles: [],
+		regressionDelta: null,
+	});
 	return {
 		id: `suggestion-${input.index + 1}`,
 		title: "Dogfood: user suggested improvement",
@@ -265,6 +270,7 @@ function buildUserSuggestionCandidate(input: {
 		filesLikelyTouched: [],
 		protectedPaths: [],
 		requiresHumanApproval: false,
+		trustedAutoMerge,
 		examples: [suggestion],
 	};
 }
@@ -349,6 +355,7 @@ function formatCandidatePlan(candidate: ClineDogfoodImprovementCandidate): strin
 		`- Severity: ${candidate.severity}`,
 		`- Signals: ${candidate.signals.join(", ")}`,
 		`- Requires human approval: ${candidate.requiresHumanApproval ? "yes" : "no"}`,
+		`- Trusted auto-merge: ${candidate.trustedAutoMerge.allowed ? "eligible" : "blocked"} (${candidate.trustedAutoMerge.reason})`,
 	].join("\n");
 }
 

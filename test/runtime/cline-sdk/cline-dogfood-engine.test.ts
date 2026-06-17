@@ -92,6 +92,9 @@ describe("cline dogfood engine", () => {
 		expect(backlog.candidates[0]).toMatchObject({
 			requiresHumanApproval: true,
 			protectedPaths: ["src/security/passcode-manager.ts"],
+			trustedAutoMerge: expect.objectContaining({
+				allowed: false,
+			}),
 		});
 		expect(backlog.taskGraph.tasks[0]).toMatchObject({
 			complexity: 80,
@@ -137,6 +140,9 @@ describe("cline dogfood engine", () => {
 		});
 
 		expect(artifacts.taskGraph.tasks).toHaveLength(1);
+		await expect(
+			readFile(join(workspacePath, ".cline/kanban/plans/dogfood-output/plan.md"), "utf8"),
+		).resolves.toContain("Trusted auto-merge: blocked");
 		await expect(
 			readFile(join(workspacePath, ".cline/kanban/plans/dogfood-output/tasks.json"), "utf8"),
 		).resolves.toContain("verification_failed");
