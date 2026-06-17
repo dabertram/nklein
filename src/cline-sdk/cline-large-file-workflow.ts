@@ -13,7 +13,6 @@ import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 
-const LARGE_FILE_BYTES = 100 * 1024;
 const STITCH_CONTEXT_LINES = 20;
 const READ_LARGE_FILE_TOOL_NAME = "read_large_file";
 
@@ -130,8 +129,8 @@ export function parseReadFileRequests(input: unknown): ReadFileRequest[] {
 	return request ? [request] : [];
 }
 
-export function isLargeFileForWorkflow(sizeBytes: number, tokenCount: number, tokenBudget: number): boolean {
-	return sizeBytes > LARGE_FILE_BYTES || tokenCount > tokenBudget;
+export function isLargeFileForWorkflow(_sizeBytes: number, tokenCount: number, tokenBudget: number): boolean {
+	return tokenCount > tokenBudget;
 }
 
 function sanitizePathSegment(value: string): string {
@@ -504,8 +503,12 @@ export class ClineLargeFileWorkflow {
 			providedCursor !== legacyExpectedCursor &&
 			!allowsLegacySynthesisCursor
 		) {
+			const synthesisHint =
+				normalizedExpectedCursor === "synthesis"
+					? ` ${path} is already fully covered through EOF and all stitching areas are verified. Do not read more from this file; either move to other required source files or synthesize from the persisted context.`
+					: "";
 			throw new Error(
-				`read_large_file expected cursor "${normalizedExpectedCursor}" for ${path}. Retry with {"path":"${path}","cursor":"${normalizedExpectedCursor}"}.`,
+				`read_large_file expected cursor "${normalizedExpectedCursor}" for ${path}.${synthesisHint} Retry with {"path":"${path}","cursor":"${normalizedExpectedCursor}"}.`,
 			);
 		}
 
@@ -579,9 +582,10 @@ export class ClineLargeFileWorkflow {
 				path,
 				totalLines: file.totalLines,
 				nextCursor: file.synthesisCompleted ? "complete" : "synthesis",
+				coverageStatus: "complete",
 				instruction: file.synthesisCompleted
 					? "This large-file workflow is complete. Re-open it only if the source changes or the user asks for a new analysis."
-					: "All primary chunks and stitching windows are covered. Produce the final deduplicated synthesis now.",
+					: "All primary chunks and stitching areas for this file are covered and verified. Do not call read_large_file again for this file except with cursor `synthesis`. Either continue with other required source files or produce the final deduplicated synthesis now from the persisted context.",
 			};
 		}
 

@@ -5,6 +5,7 @@ import { showAppToast } from "@/components/app-toaster";
 import { getDetailTerminalTaskId } from "@/hooks/use-terminal-panels";
 import {
 	addTaskDependency,
+	completeTaskAndGetReadyLinkedTaskIds,
 	findCardSelection,
 	moveTaskToColumn,
 	removeTaskDependency,
@@ -18,6 +19,8 @@ interface RequestMoveTaskToTrashOptions {
 	optimisticMoveApplied?: boolean;
 	skipWorkingChangeWarning?: boolean;
 }
+
+type FinishTaskTarget = "completed" | "trash";
 
 export function useLinkedBacklogTaskActions({
 	board,
@@ -53,6 +56,7 @@ export function useLinkedBacklogTaskActions({
 		fromColumnId: BoardColumnId,
 		options?: RequestMoveTaskToTrashOptions,
 	) => Promise<void>;
+	requestMoveTaskToCompleted: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
 } {
 	const boardRef = useRef(board);
 
@@ -102,28 +106,34 @@ export function useLinkedBacklogTaskActions({
 		[setBoard],
 	);
 
-	const performMoveTaskToTrash = useCallback(
-		async (task: BoardCard, currentBoard?: BoardData): Promise<void> => {
-			const boardBeforeTrash = currentBoard ?? boardRef.current;
-			const trashed = trashTaskAndGetReadyLinkedTaskIds(boardBeforeTrash, task.id);
-			if (!trashed.moved) {
+	const performFinishTask = useCallback(
+		async (task: BoardCard, target: FinishTaskTarget, currentBoard?: BoardData): Promise<void> => {
+			const boardBeforeFinish = currentBoard ?? boardRef.current;
+			const finished =
+				target === "completed"
+					? completeTaskAndGetReadyLinkedTaskIds(boardBeforeFinish, task.id)
+					: trashTaskAndGetReadyLinkedTaskIds(boardBeforeFinish, task.id);
+			if (!finished.moved) {
 				await stopTaskSession(task.id);
 				await cleanupTaskWorkspace(task.id);
 				return;
 			}
 
 			setBoard((currentBoardState) => {
-				const latestTrashResult = trashTaskAndGetReadyLinkedTaskIds(currentBoardState, task.id);
-				return latestTrashResult.moved ? latestTrashResult.board : currentBoardState;
+				const latestFinishResult =
+					target === "completed"
+						? completeTaskAndGetReadyLinkedTaskIds(currentBoardState, task.id)
+						: trashTaskAndGetReadyLinkedTaskIds(currentBoardState, task.id);
+				return latestFinishResult.moved ? latestFinishResult.board : currentBoardState;
 			});
 			setSelectedTaskId((currentSelectedTaskId) =>
 				currentSelectedTaskId === task.id
-					? getNextDetailTaskIdAfterTrashMove(boardBeforeTrash, task.id)
+					? getNextDetailTaskIdAfterTrashMove(boardBeforeFinish, task.id)
 					: currentSelectedTaskId,
 			);
 
-			const readyTasks = trashed.readyTaskIds
-				.map((readyTaskId) => findCardSelection(trashed.board, readyTaskId)?.card ?? null)
+			const readyTasks = finished.readyTaskIds
+				.map((readyTaskId) => findCardSelection(finished.board, readyTaskId)?.card ?? null)
 				.filter((readyTask): readyTask is BoardCard => readyTask !== null);
 
 			if (readyTasks.length > 0) {
@@ -181,6 +191,13 @@ export function useLinkedBacklogTaskActions({
 		],
 	);
 
+	const performMoveTaskToTrash = useCallback(
+		async (task: BoardCard, currentBoard?: BoardData): Promise<void> => {
+			await performFinishTask(task, "trash", currentBoard);
+		},
+		[performFinishTask],
+	);
+
 	const requestMoveTaskToTrash = useCallback(
 		async (taskId: string, _fromColumnId: BoardColumnId, options?: RequestMoveTaskToTrashOptions): Promise<void> => {
 			const boardSnapshot = boardRef.current;
@@ -212,6 +229,21 @@ export function useLinkedBacklogTaskActions({
 		[performMoveTaskToTrash, setSelectedTaskId],
 	);
 
+	const requestMoveTaskToCompleted = useCallback(
+		async (taskId: string, fromColumnId: BoardColumnId): Promise<void> => {
+			if (fromColumnId !== "review") {
+				return;
+			}
+			const boardSnapshot = boardRef.current;
+			const selection = findCardSelection(boardSnapshot, taskId);
+			if (selection?.column.id !== "review") {
+				return;
+			}
+			await performFinishTask(selection.card, "completed", boardSnapshot);
+		},
+		[performFinishTask],
+	);
+
 	return {
 		handleCreateDependency,
 		handleDeleteDependency,
@@ -219,5 +251,6 @@ export function useLinkedBacklogTaskActions({
 			await performMoveTaskToTrash(task, currentBoard);
 		},
 		requestMoveTaskToTrash,
+		requestMoveTaskToCompleted,
 	};
 }

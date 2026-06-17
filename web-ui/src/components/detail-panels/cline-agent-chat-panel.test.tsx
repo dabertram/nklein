@@ -1528,6 +1528,6 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(container.textContent).not.toContain("Commit");
 		expect(container.textContent).not.toContain("Open PR");
-		expect(container.textContent).toContain("Move Card To Done");
+		expect(container.textContent).toContain("Move Card To Completed");
 	});
 });

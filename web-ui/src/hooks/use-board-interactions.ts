@@ -7,7 +7,6 @@ import { useLinkedBacklogTaskActions } from "@/hooks/use-linked-backlog-task-act
 import { useProgrammaticCardMoves } from "@/hooks/use-programmatic-card-moves";
 import { useReviewAutoActions } from "@/hooks/use-review-auto-actions";
 import type { UseTaskSessionsResult } from "@/hooks/use-task-sessions";
-import { getDetailTerminalTaskId } from "@/hooks/use-terminal-panels";
 import type { RuntimeTaskSessionSummary, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
 import {
 	applyDragResult,
@@ -468,38 +467,27 @@ export function useBoardInteractions({
 		});
 	}, [programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, tryProgrammaticCardMove]);
 
-	const { confirmMoveTaskToTrash, handleCreateDependency, handleDeleteDependency, requestMoveTaskToTrash } =
-		useLinkedBacklogTaskActions({
-			board,
-			setBoard,
-			setSelectedTaskId,
-			stopTaskSession,
-			cleanupTaskWorkspace,
-			maybeRequestNotificationPermissionForTaskStart,
-			kickoffTaskInProgress,
-			startBacklogTaskWithAnimation,
-			waitForBacklogStartAnimationAvailability: waitForProgrammaticCardMoveAvailability,
-		});
+	const {
+		confirmMoveTaskToTrash,
+		handleCreateDependency,
+		handleDeleteDependency,
+		requestMoveTaskToCompleted,
+		requestMoveTaskToTrash,
+	} = useLinkedBacklogTaskActions({
+		board,
+		setBoard,
+		setSelectedTaskId,
+		stopTaskSession,
+		cleanupTaskWorkspace,
+		maybeRequestNotificationPermissionForTaskStart,
+		kickoffTaskInProgress,
+		startBacklogTaskWithAnimation,
+		waitForBacklogStartAnimationAvailability: waitForProgrammaticCardMoveAvailability,
+	});
 
 	useEffect(() => {
 		setRequestMoveTaskToTrashHandler(requestMoveTaskToTrash);
 	}, [requestMoveTaskToTrash, setRequestMoveTaskToTrashHandler]);
-
-	const requestMoveTaskToCompleted = useCallback(
-		async (taskId: string, fromColumnId: BoardColumnId): Promise<void> => {
-			setBoard((currentBoard) => {
-				const selection = findCardSelection(currentBoard, taskId);
-				if (!selection || selection.column.id !== fromColumnId || selection.column.id !== "review") {
-					return currentBoard;
-				}
-				const moved = moveTaskToColumn(currentBoard, taskId, "completed", { insertAtTop: true });
-				return moved.moved ? moved.board : currentBoard;
-			});
-			await Promise.all([stopTaskSession(taskId), stopTaskSession(getDetailTerminalTaskId(taskId))]);
-			await cleanupTaskWorkspace(taskId);
-		},
-		[cleanupTaskWorkspace, setBoard, stopTaskSession],
-	);
 
 	useReviewAutoActions({
 		board,
@@ -731,10 +719,14 @@ export function useBoardInteractions({
 			return;
 		}
 		setTaskMoveToTrashLoading(selectedCard.card.id, true);
-		void requestMoveTaskToTrashWithAnimation(selectedCard.card.id, selectedCard.column.id).finally(() => {
+		const movePromise =
+			selectedCard.column.id === "review"
+				? requestMoveTaskToCompleted(selectedCard.card.id, "review")
+				: requestMoveTaskToTrashWithAnimation(selectedCard.card.id, selectedCard.column.id);
+		void movePromise.finally(() => {
 			setTaskMoveToTrashLoading(selectedCard.card.id, false);
 		});
-	}, [requestMoveTaskToTrashWithAnimation, selectedCard, setTaskMoveToTrashLoading]);
+	}, [requestMoveTaskToCompleted, requestMoveTaskToTrashWithAnimation, selectedCard, setTaskMoveToTrashLoading]);
 
 	const handleMoveReviewCardToTrash = useCallback(
 		(taskId: string) => {
@@ -742,11 +734,11 @@ export function useBoardInteractions({
 				return;
 			}
 			setTaskMoveToTrashLoading(taskId, true);
-			void requestMoveTaskToTrashWithAnimation(taskId, "review").finally(() => {
+			void requestMoveTaskToCompleted(taskId, "review").finally(() => {
 				setTaskMoveToTrashLoading(taskId, false);
 			});
 		},
-		[requestMoveTaskToTrashWithAnimation, setTaskMoveToTrashLoading],
+		[requestMoveTaskToCompleted, setTaskMoveToTrashLoading],
 	);
 
 	const handleRestoreTaskFromTrash = useCallback(

@@ -289,6 +289,8 @@ export interface ClineAgentChatPanelProps {
 	isOpenPrLoading?: boolean;
 	onMoveToTrash?: () => void;
 	isMoveToTrashLoading?: boolean;
+	moveToTrashButtonLabel?: string;
+	moveToTrashButtonVariant?: "primary" | "danger";
 	onCancelAutomaticAction?: () => void;
 	cancelAutomaticActionLabel?: string | null;
 	showMoveToTrash?: boolean;
@@ -322,6 +324,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			isOpenPrLoading = false,
 			onMoveToTrash,
 			isMoveToTrashLoading = false,
+			moveToTrashButtonLabel,
+			moveToTrashButtonVariant,
 			onCancelAutomaticAction,
 			cancelAutomaticActionLabel,
 			showMoveToTrash = false,
@@ -380,6 +384,10 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			cancelAutomaticActionLabel,
 			showMoveToTrash,
 		});
+		const effectiveMoveToTrashButtonLabel =
+			moveToTrashButtonLabel ?? (taskColumnId === "review" ? "Move Card To Completed" : "Move Card To Trash");
+		const effectiveMoveToTrashButtonVariant =
+			moveToTrashButtonVariant ?? (taskColumnId === "review" ? "primary" : "danger");
 		const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 		// TODO: Persist per-task mode immediately when toggled so page refresh restores unsent mode changes.
 		const modeByTaskIdRef = useRef<Map<string, RuntimeTaskSessionMode>>(new Map());
@@ -872,8 +880,13 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 								{cancelAutomaticActionLabel}
 							</Button>
 						) : null}
-						<Button variant="danger" fill disabled={isMoveToTrashLoading} onClick={onMoveToTrash}>
-							{isMoveToTrashLoading ? <Spinner size={14} /> : "Move Card To Done"}
+						<Button
+							variant={effectiveMoveToTrashButtonVariant}
+							fill
+							disabled={isMoveToTrashLoading}
+							onClick={onMoveToTrash}
+						>
+							{isMoveToTrashLoading ? <Spinner size={14} /> : effectiveMoveToTrashButtonLabel}
 						</Button>
 					</div>
 				) : null}

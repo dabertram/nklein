@@ -33,6 +33,8 @@ export interface AgentTerminalPanelProps {
 	taskColumnId?: string;
 	onMoveToTrash?: () => void;
 	isMoveToTrashLoading?: boolean;
+	moveToTrashButtonLabel?: string;
+	moveToTrashButtonVariant?: "primary" | "danger";
 	onCancelAutomaticAction?: () => void;
 	cancelAutomaticActionLabel?: string | null;
 	showMoveToTrash?: boolean;
@@ -212,6 +214,8 @@ function AgentTerminalPanelLayout({
 	taskColumnId = "in_progress",
 	onMoveToTrash,
 	isMoveToTrashLoading = false,
+	moveToTrashButtonLabel,
+	moveToTrashButtonVariant,
 	onCancelAutomaticAction,
 	cancelAutomaticActionLabel,
 	showMoveToTrash,
@@ -243,6 +247,10 @@ function AgentTerminalPanelLayout({
 		}
 		return normalizedCommand.split(/\s+/)[0] ?? null;
 	}, [agentCommand]);
+	const effectiveMoveToTrashButtonLabel =
+		moveToTrashButtonLabel ?? (taskColumnId === "review" ? "Move Card To Completed" : "Move Card To Trash");
+	const effectiveMoveToTrashButtonVariant =
+		moveToTrashButtonVariant ?? (taskColumnId === "review" ? "primary" : "danger");
 
 	return (
 		<div
@@ -398,8 +406,13 @@ function AgentTerminalPanelLayout({
 							{cancelAutomaticActionLabel}
 						</Button>
 					) : null}
-					<Button variant="danger" fill disabled={isMoveToTrashLoading} onClick={onMoveToTrash}>
-						{isMoveToTrashLoading ? <Spinner size={14} /> : "Move Card To Done"}
+					<Button
+						variant={effectiveMoveToTrashButtonVariant}
+						fill
+						disabled={isMoveToTrashLoading}
+						onClick={onMoveToTrash}
+					>
+						{isMoveToTrashLoading ? <Spinner size={14} /> : effectiveMoveToTrashButtonLabel}
 					</Button>
 				</div>
 			) : null}

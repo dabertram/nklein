@@ -431,6 +431,13 @@ export function getReadyLinkedTaskIdsForTaskInTrash(board: BoardData, taskId: st
 	return runtimeTaskState.getReadyLinkedTaskIdsForTaskInTrash(board, taskId);
 }
 
+export function completeTaskAndGetReadyLinkedTaskIds(
+	board: BoardData,
+	taskId: string,
+): { board: BoardData; moved: boolean; readyTaskIds: string[] } {
+	return runtimeTaskState.completeTaskAndGetReadyLinkedTaskIds(board, taskId);
+}
+
 export function trashTaskAndGetReadyLinkedTaskIds(
 	board: BoardData,
 	taskId: string,

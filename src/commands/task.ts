@@ -15,6 +15,7 @@ import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "
 import {
 	addTaskDependency,
 	addTaskToColumn,
+	completeTaskAndGetReadyLinkedTaskIds,
 	deleteTasksFromBoard,
 	getTaskColumnId,
 	moveTaskToColumn,
@@ -774,7 +775,9 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 	};
 }
 
-interface TrashTaskExecutionResult {
+type FinishedTaskColumn = "completed" | "trash";
+
+interface FinishTaskExecutionResult {
 	task: JsonRecord;
 	taskId: string;
 	previousColumnId: ListTaskColumn;
@@ -782,61 +785,65 @@ interface TrashTaskExecutionResult {
 	autoStartedTasks: JsonRecord[];
 	worktreeDeleted: boolean;
 	worktreeDeleteError?: string;
-	alreadyInTrash: boolean;
+	alreadyInTargetColumn: boolean;
 }
 
-interface TrashTaskMutationValue {
+interface FinishTaskMutationValue {
 	task: JsonRecord;
 	previousColumnId: ListTaskColumn;
 	readyTaskIds: string[];
-	alreadyInTrash: boolean;
+	alreadyInTargetColumn: boolean;
 }
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
 	return columnId === "in_progress" || columnId === "review";
 }
 
-async function trashTaskById(input: {
+async function finishTaskById(input: {
 	cwd: string;
 	taskId: string;
+	targetColumn: FinishedTaskColumn;
 	projectPath?: string;
 	workspaceRepoPath: string;
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
-}): Promise<TrashTaskExecutionResult> {
-	const mutation = await mutateWorkspaceState<TrashTaskMutationValue>(input.workspaceRepoPath, (latestState) => {
+}): Promise<FinishTaskExecutionResult> {
+	const mutation = await mutateWorkspaceState<FinishTaskMutationValue>(input.workspaceRepoPath, (latestState) => {
 		const latestRecord = findTaskRecord(latestState, input.taskId);
 		if (!latestRecord) {
 			throw new Error(`Task "${input.taskId}" was not found in workspace ${input.workspaceRepoPath}.`);
 		}
-		if (latestRecord.columnId === "trash") {
+		if (latestRecord.columnId === input.targetColumn) {
 			return {
 				board: latestState.board,
 				value: {
 					task: formatTaskRecord(latestState, latestRecord.task, latestRecord.columnId),
 					previousColumnId: latestRecord.columnId,
 					readyTaskIds: [] as string[],
-					alreadyInTrash: true,
+					alreadyInTargetColumn: true,
 				},
 				save: false,
 			};
 		}
 
-		const trashed = trashTaskAndGetReadyLinkedTaskIds(latestState.board, input.taskId);
-		if (!trashed.moved || !trashed.task) {
-			throw new Error(`Task "${input.taskId}" could not be moved to done.`);
+		const finished =
+			input.targetColumn === "completed"
+				? completeTaskAndGetReadyLinkedTaskIds(latestState.board, input.taskId)
+				: trashTaskAndGetReadyLinkedTaskIds(latestState.board, input.taskId);
+		if (!finished.moved || !finished.task) {
+			throw new Error(`Task "${input.taskId}" could not be moved to ${input.targetColumn}.`);
 		}
 
 		const nextState: RuntimeWorkspaceStateResponse = {
 			...latestState,
-			board: trashed.board,
+			board: finished.board,
 		};
 		return {
-			board: trashed.board,
+			board: finished.board,
 			value: {
-				task: formatTaskRecord(nextState, trashed.task, "trash"),
+				task: formatTaskRecord(nextState, finished.task, input.targetColumn),
 				previousColumnId: latestRecord.columnId,
-				readyTaskIds: trashed.readyTaskIds,
-				alreadyInTrash: false,
+				readyTaskIds: finished.readyTaskIds,
+				alreadyInTargetColumn: false,
 			},
 		};
 	});
@@ -845,7 +852,7 @@ async function trashTaskById(input: {
 		await notifyRuntimeWorkspaceStateUpdated(input.runtimeClient);
 	}
 
-	if (mutation.value.alreadyInTrash) {
+	if (mutation.value.alreadyInTargetColumn) {
 		return {
 			task: mutation.value.task,
 			taskId: input.taskId,
@@ -853,7 +860,7 @@ async function trashTaskById(input: {
 			readyTaskIds: [],
 			autoStartedTasks: [],
 			worktreeDeleted: false,
-			alreadyInTrash: true,
+			alreadyInTargetColumn: true,
 		};
 	}
 
@@ -881,34 +888,37 @@ async function trashTaskById(input: {
 		autoStartedTasks,
 		worktreeDeleted: deletedWorkspace.removed,
 		worktreeDeleteError: deletedWorkspace.error,
-		alreadyInTrash: false,
+		alreadyInTargetColumn: false,
 	};
 }
 
-async function trashTask(input: {
+async function finishTask(input: {
 	cwd: string;
 	taskId?: string;
 	column?: ListTaskColumn;
+	targetColumn: FinishedTaskColumn;
 	projectPath?: string;
 }): Promise<JsonRecord> {
-	const target = resolveTaskCommandTarget(input, "task done");
+	const commandName = input.targetColumn === "completed" ? "task done" : "task trash";
+	const target = resolveTaskCommandTarget(input, commandName);
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
 
 	if (target.kind === "task") {
-		const trashed = await trashTaskById({
+		const finished = await finishTaskById({
 			cwd: input.cwd,
 			taskId: target.taskId,
+			targetColumn: input.targetColumn,
 			projectPath: input.projectPath,
 			workspaceRepoPath,
 			runtimeClient,
 		});
-		if (trashed.alreadyInTrash) {
+		if (finished.alreadyInTargetColumn) {
 			return {
 				ok: true,
 				message: `Task "${target.taskId}" is already done.`,
-				task: trashed.task,
+				task: finished.task,
 				workspacePath: workspaceRepoPath,
 				readyTaskIds: [],
 				autoStartedTasks: [],
@@ -916,12 +926,12 @@ async function trashTask(input: {
 		}
 		return {
 			ok: true,
-			task: trashed.task,
+			task: finished.task,
 			workspacePath: workspaceRepoPath,
-			readyTaskIds: trashed.readyTaskIds,
-			autoStartedTasks: trashed.autoStartedTasks,
-			worktreeDeleted: trashed.worktreeDeleted,
-			worktreeDeleteError: trashed.worktreeDeleteError,
+			readyTaskIds: finished.readyTaskIds,
+			autoStartedTasks: finished.autoStartedTasks,
+			worktreeDeleted: finished.worktreeDeleted,
+			worktreeDeleteError: finished.worktreeDeleteError,
 		};
 	}
 
@@ -932,8 +942,8 @@ async function trashTask(input: {
 			ok: true,
 			column: target.column,
 			workspacePath: workspaceRepoPath,
-			trashedTasks: [],
-			alreadyTrashedTasks: [],
+			finishedTasks: [],
+			alreadyFinishedTasks: [],
 			readyTaskIds: [],
 			autoStartedTasks: [],
 			worktreeCleanup: [],
@@ -941,12 +951,13 @@ async function trashTask(input: {
 		};
 	}
 
-	const results: TrashTaskExecutionResult[] = [];
+	const results: FinishTaskExecutionResult[] = [];
 	for (const { task } of targetTasks) {
 		results.push(
-			await trashTaskById({
+			await finishTaskById({
 				cwd: input.cwd,
 				taskId: task.id,
+				targetColumn: input.targetColumn,
 				projectPath: input.projectPath,
 				workspaceRepoPath,
 				runtimeClient,
@@ -954,23 +965,23 @@ async function trashTask(input: {
 		);
 	}
 
-	const trashedTasks = results.filter((result) => !result.alreadyInTrash);
-	const alreadyTrashedTasks = results.filter((result) => result.alreadyInTrash);
+	const finishedTasks = results.filter((result) => !result.alreadyInTargetColumn);
+	const alreadyFinishedTasks = results.filter((result) => result.alreadyInTargetColumn);
 
 	return {
 		ok: true,
 		column: target.column,
 		workspacePath: workspaceRepoPath,
-		trashedTasks: trashedTasks.map((result) => result.task),
-		alreadyTrashedTasks: alreadyTrashedTasks.map((result) => result.task),
-		readyTaskIds: [...new Set(trashedTasks.flatMap((result) => result.readyTaskIds))],
-		autoStartedTasks: trashedTasks.flatMap((result) => result.autoStartedTasks),
-		worktreeCleanup: trashedTasks.map((result) => ({
+		finishedTasks: finishedTasks.map((result) => result.task),
+		alreadyFinishedTasks: alreadyFinishedTasks.map((result) => result.task),
+		readyTaskIds: [...new Set(finishedTasks.flatMap((result) => result.readyTaskIds))],
+		autoStartedTasks: finishedTasks.flatMap((result) => result.autoStartedTasks),
+		worktreeCleanup: finishedTasks.map((result) => ({
 			taskId: result.taskId,
 			removed: result.worktreeDeleted,
 			error: result.worktreeDeleteError,
 		})),
-		count: trashedTasks.length,
+		count: finishedTasks.length,
 	};
 }
 
@@ -1250,23 +1261,46 @@ export function registerTaskCommand(program: Command): void {
 		);
 
 	task
-		.command("trash")
-		.alias("done")
-		.description("Move a task or an entire column to done and clean up task workspaces.")
+		.command("done")
+		.description("Move a task or an entire column to completed and clean up task workspaces.")
 		.option("--task-id <id>", "Task ID.")
 		.option(
 			"--column <column>",
-			"Column to move to done: backlog | in_progress | review | done. trash is also accepted.",
+			"Column to move to completed: backlog | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.action(async (options: { taskId?: string; column?: ListTaskColumn; projectPath?: string }) => {
 			await runTaskCommand(
 				async () =>
-					await trashTask({
+					await finishTask({
 						cwd: process.cwd(),
 						taskId: options.taskId,
 						column: options.column,
+						targetColumn: "completed",
+						projectPath: options.projectPath,
+					}),
+			);
+		});
+
+	task
+		.command("trash")
+		.description("Move a task or an entire column to trash and clean up task workspaces.")
+		.option("--task-id <id>", "Task ID.")
+		.option(
+			"--column <column>",
+			"Column to move to trash: backlog | in_progress | review | completed | done. trash is also accepted.",
+			parseListColumn,
+		)
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(async (options: { taskId?: string; column?: ListTaskColumn; projectPath?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await finishTask({
+						cwd: process.cwd(),
+						taskId: options.taskId,
+						column: options.column,
+						targetColumn: "trash",
 						projectPath: options.projectPath,
 					}),
 			);

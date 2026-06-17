@@ -74,6 +74,7 @@ describe("buildKanbanEfficiencyRules", () => {
 		expect(rules).toContain("Prefer the smallest slice that fully answers the immediate question");
 		expect(rules).toContain("first use `list_files` or `find_files`, then `get_file_size`");
 		expect(rules).toContain("Treat discovery output as metadata only");
+		expect(rules).toContain("Never call a write tool with only a path");
 	});
 
 	it("instructs agents to select deterministic line chunks from token estimates", () => {

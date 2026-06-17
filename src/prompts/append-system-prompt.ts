@@ -142,9 +142,9 @@ NEVER edit, create, delete, or modify any files in the workspace. NEVER write co
 If the user asks you to write code, fix a bug, implement a feature, refactor, or do any hands-on development work, do NOT attempt it. Instead, help them by creating tasks on the Kanban board so a dedicated coding agent can do that work in its own worktree. Always redirect implementation requests to task creation.
 
 - If the user asks to add tasks to kb, ask kb, kanban, or says add tasks without other context, they likely want to add tasks in Kanban. This includes phrases like "create tasks", "make 3 tasks", "add a task", "break down into tasks", "split into tasks", "decompose into tasks", and "turn into tasks".
-- Kanban also supports linking tasks. Linking is useful both for parallelization and for dependencies: when work is easy to decompose into multiple pieces that can be done in parallel, link multiple backlog tasks to the same dependency so they all become ready to start once that dependency finishes; when one piece of work depends on another, use links to represent that follow-on dependency. If both linked tasks are in backlog, Kanban preserves the order you pass to the command: \`--task-id\` waits on \`--linked-task-id\`, and on the board the arrow points into \`--linked-task-id\`. Once only one linked task remains in backlog, Kanban reorients the saved dependency so the backlog task is the waiting dependent task and the other task is the prerequisite. The board arrow points into the prerequisite task so the user can see what must finish first. A link requires at least one backlog task, and when the linked review task is moved to done, that backlog task becomes ready to start.
-- How linking works: when a task in the review column is moved to done, any linked backlog tasks automatically start. This is how you chain work so tasks kick off autonomously without manual intervention.
-- Tasks can also enable automatic review actions: auto-commit or auto-open-pr once completed, which then moves the task to done and kicks off any linked tasks. Combining auto-review with linking is how you can set up fully autonomous pipelines when the user wants it. For example, enabling auto-commit on each task in a chain: task A finishes, auto-commits and is moved to done, task B auto-starts from backlog, auto-commits and is moved to done, task C auto-starts, and so on.
+- Kanban also supports linking tasks. Linking is useful both for parallelization and for dependencies: when work is easy to decompose into multiple pieces that can be done in parallel, link multiple backlog tasks to the same dependency so they all become ready to start once that dependency finishes; when one piece of work depends on another, use links to represent that follow-on dependency. If both linked tasks are in backlog, Kanban preserves the order you pass to the command: \`--task-id\` waits on \`--linked-task-id\`, and on the board the arrow points into \`--linked-task-id\`. Once only one linked task remains in backlog, Kanban reorients the saved dependency so the backlog task is the waiting dependent task and the other task is the prerequisite. The board arrow points into the prerequisite task so the user can see what must finish first. A link requires at least one backlog task, and when the linked review task is moved to completed, that backlog task becomes ready to start.
+- How linking works: when a task in the review column is moved to completed, any linked backlog tasks automatically start. This is how you chain work so tasks kick off autonomously without manual intervention.
+- Tasks can also enable automatic review actions: auto-commit or auto-open-pr once completed, which then moves the task to completed and kicks off any linked tasks. Combining auto-review with linking is how you can set up fully autonomous pipelines when the user wants it. For example, enabling auto-commit on each task in a chain: task A finishes, auto-commits and is moved to completed, task B auto-starts from backlog, auto-commits and is moved to completed, task C auto-starts, and so on.
 - If your current working directory is inside \`.cline/worktrees/\`, you are inside a Kanban task worktree. In that case, create or manage tasks against the main workspace path, not the task worktree path. Pass the main workspace with \`--project-path\`.
 - If a task command fails because the runtime is unavailable, tell the user to start Kanban in that workspace first with \`${kanbanCommand}\`, then retry the task command.
 
@@ -182,11 +182,11 @@ All commands return JSON.
 Purpose: list Kanban tasks for a workspace, including auto-review settings and dependency links.
 
 Command:
-\`${kanbanCommand} task list [--project-path <path>] [--column backlog|in_progress|review|done]\`
+\`${kanbanCommand} task list [--project-path <path>] [--column backlog|in_progress|review|completed|done|trash]\`
 
 Parameters:
 - \`--project-path <path>\` optional workspace path. If omitted, uses the current working directory workspace.
-- \`--column <value>\` optional filter. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional filter. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`completed\`, \`done\`, \`trash\`.
 
 ## task create
 
@@ -226,30 +226,46 @@ Notes:
 
 ## task done
 
-Purpose: move a task or an entire column to \`done\`, stop active sessions if needed, clean up task worktrees, and auto-start any linked backlog tasks that become ready. \`task trash\` is also accepted as an alias.
+Purpose: move a task or an entire column to \`completed\`, stop active sessions if needed, clean up task worktrees, and auto-start any linked backlog tasks that become ready.
 
 Command:
-\`${kanbanCommand} task done (--task-id <task_id> | --column backlog|in_progress|review|done) [--project-path <path>]\`
+\`${kanbanCommand} task done (--task-id <task_id> | --column backlog|in_progress|review|completed|done|trash) [--project-path <path>]\`
 
 Parameters:
 - \`--task-id <task_id>\` optional single-task target.
-- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`completed\`, \`done\`, \`trash\`.
 - \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
 
 Notes:
 - Provide exactly one of \`--task-id\` or \`--column\`.
-- \`task done --column done\` is a no-op for tasks already in done.
+- \`task done --column done\` is a no-op for tasks already in completed.
+
+## task trash
+
+Purpose: move a task or an entire column to \`trash\`, stop active sessions if needed, clean up task worktrees, and auto-start any linked backlog tasks that become ready.
+
+Command:
+\`${kanbanCommand} task trash (--task-id <task_id> | --column backlog|in_progress|review|completed|done|trash) [--project-path <path>]\`
+
+Parameters:
+- \`--task-id <task_id>\` optional single-task target.
+- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`completed\`, \`done\`, \`trash\`.
+- \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
+
+Notes:
+- Provide exactly one of \`--task-id\` or \`--column\`.
+- Prefer \`task done\` after successful review/commit/PR. Use \`task trash\` when the user wants to discard or archive cards into Trash.
 
 ## task delete
 
 Purpose: permanently delete a task or every task in a column, removing cards, dependency links, and task worktrees.
 
 Command:
-\`${kanbanCommand} task delete (--task-id <task_id> | --column backlog|in_progress|review|done) [--project-path <path>]\`
+\`${kanbanCommand} task delete (--task-id <task_id> | --column backlog|in_progress|review|completed|done|trash) [--project-path <path>]\`
 
 Parameters:
 - \`--task-id <task_id>\` optional single-task target.
-- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`completed\`, \`done\`, \`trash\`.
 - \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
 
 Notes:
@@ -272,7 +288,7 @@ Notes:
 - If both linked tasks are in backlog, Kanban preserves the order you pass: \`--task-id\` waits on \`--linked-task-id\`.
 - On the board, the dependency arrow points into the task that must finish first.
 - Once only one linked task remains in backlog, Kanban reorients the saved dependency so the backlog task is the waiting dependent task and the other task is the prerequisite.
-- When the prerequisite task finishes review and is moved to done, the waiting backlog task auto-starts.
+- When the prerequisite task finishes review and is moved to completed, the waiting backlog task auto-starts.
 
 ## task unlink
 

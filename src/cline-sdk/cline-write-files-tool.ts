@@ -19,8 +19,8 @@ export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 		const rawPath =
 			typeof record.path === "string" ? record.path : typeof record.file_path === "string" ? record.file_path : "";
 		const path = rawPath.trim();
-		const content = typeof record.content === "string" ? record.content : "";
-		return path ? { path, content } : null;
+		const content = typeof record.content === "string" ? record.content : null;
+		return path && content !== null ? { path, content } : null;
 	};
 
 	if (!input || typeof input !== "object") {
@@ -29,7 +29,8 @@ export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 	const record = input as Record<string, unknown>;
 	const files = record.files;
 	if (Array.isArray(files)) {
-		return files.map(toRequest).filter((request): request is WriteFilesRequest => request !== null);
+		const requests = files.map(toRequest);
+		return requests.every((request): request is WriteFilesRequest => request !== null) ? requests : [];
 	}
 	const singleRequest = toRequest(record);
 	return singleRequest ? [singleRequest] : [];
@@ -49,8 +50,8 @@ function createWriteTool(options: {
 	return {
 		name: options.name,
 		description: isBatchTool
-			? "Create or replace one or more text files. Use this for generated artifacts that fit Kanban's per-file line guard rail; split larger output across files."
-			: "Create or replace one text file. Use this for a generated artifact that fits Kanban's per-file line guard rail; split larger output across files.",
+			? "Create or replace one or more text files. Each file entry must include both path and complete content in the same tool call. Use this for generated artifacts that fit Kanban's per-file line guard rail; split larger output across files."
+			: "Create or replace one text file. Include both path and complete content in the same tool call. Use this for a generated artifact that fits Kanban's per-file line guard rail; split larger output across files.",
 		inputSchema: {
 			type: "object",
 			properties: isBatchTool
@@ -80,16 +81,12 @@ function createWriteTool(options: {
 							type: "string",
 							description: "Absolute path or workspace-relative path to create or replace.",
 						},
-						file_path: {
-							type: "string",
-							description: "Compatibility alias for path.",
-						},
 						content: {
 							type: "string",
 							description: "Complete UTF-8 text content to write.",
 						},
 					},
-			required: isBatchTool ? ["files"] : ["content"],
+			required: isBatchTool ? ["files"] : ["path", "content"],
 			additionalProperties: false,
 		},
 		async execute(input) {

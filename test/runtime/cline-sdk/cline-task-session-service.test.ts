@@ -399,7 +399,11 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(rules).toContain("Prefer non-overlapping primary chunks");
 		expect(rules).toContain("explicitly inspect stitching areas around each chunk boundary");
 		expect(rules).toContain("deduplicate those lines when merging, summarizing, or deriving requirements");
+		expect(rules).toContain("Use `read_large_file` only when the file must be read completely");
+		expect(rules).toContain("the whole file would not fit in the available context/read budget");
+		expect(rules).toContain("Use reasonably large safe chunks to minimize chunk count and stitching areas");
 		expect(rules).not.toContain("use overlapping chunks");
+		expect(rules).not.toContain("100 KB");
 	});
 
 	beforeEach(() => {

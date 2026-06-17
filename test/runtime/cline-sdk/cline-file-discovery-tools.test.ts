@@ -114,6 +114,20 @@ describe("createFileDiscoveryTools", () => {
 		expect(result.tokenCount).toEqual(expect.any(Number));
 	});
 
+	it("recommends read_files for byte-large files that fit the context budget", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const content = "a".repeat(120 * 1024);
+		await writeFile(join(workspacePath, "long-but-simple.txt"), content, "utf8");
+
+		const getFileSize = getTool(createFileDiscoveryTools({ workspacePath, contextWindow: 80_000 }), "get_file_size");
+		const result = (await getFileSize.execute({ path: "long-but-simple.txt" }, TOOL_CONTEXT)) as GetFileSizeResult;
+
+		expect(result.sizeBytes).toBeGreaterThan(100 * 1024);
+		expect(result.useReadLargeFile).toBe(false);
+		expect(result.recommendedTool).toBe("read_files");
+	});
+
 	it("blocks paths outside the workspace", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

@@ -513,6 +513,8 @@ export function CardDetailView({
 	const detailDiffContentPanelPercent = `${((1 - detailDiffFileTreeRatio) * 100).toFixed(1)}%`;
 	const detailDiffFileTreePanelFlex = `0 0 ${detailDiffFileTreePanelPercent}`;
 	const showMoveToTrashActions = selection.column.id === "review" || selection.column.id === "in_progress";
+	const finishTaskButtonLabel = selection.column.id === "review" ? "Move Card To Completed" : "Move Card To Trash";
+	const finishTaskButtonVariant = selection.column.id === "review" ? "primary" : "danger";
 	const isTaskTerminalEnabled = selection.column.id === "in_progress" || selection.column.id === "review";
 	const effectiveTaskAgentId = sessionSummary?.agentId ?? selection.card.agentId ?? selectedAgentId;
 	const showClineAgentChatPanel = isNativeClineAgentSelected(effectiveTaskAgentId);
@@ -661,6 +663,8 @@ export function CardDetailView({
 			showMoveToTrash={showMoveToTrashActions}
 			onMoveToTrash={onMoveToTrash}
 			isMoveToTrashLoading={isMoveToTrashLoading}
+			moveToTrashButtonLabel={finishTaskButtonLabel}
+			moveToTrashButtonVariant={finishTaskButtonVariant}
 			onCancelAutomaticAction={
 				selection.card.autoReviewEnabled === true && onCancelAutomaticTaskAction
 					? () => onCancelAutomaticTaskAction(selection.card.id)
@@ -688,6 +692,8 @@ export function CardDetailView({
 			showMoveToTrash={showMoveToTrashActions}
 			onMoveToTrash={onMoveToTrash}
 			isMoveToTrashLoading={isMoveToTrashLoading}
+			moveToTrashButtonLabel={finishTaskButtonLabel}
+			moveToTrashButtonVariant={finishTaskButtonVariant}
 			onCancelAutomaticAction={
 				selection.card.autoReviewEnabled === true && onCancelAutomaticTaskAction
 					? () => onCancelAutomaticTaskAction(selection.card.id)

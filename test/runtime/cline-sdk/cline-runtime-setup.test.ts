@@ -93,6 +93,24 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("3-line file limit");
 	});
 
+	it("blocks path-only write_file payloads before approval", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, { maxAgentWritableFileLines: 3 });
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: {
+					path: "new_plan.md",
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("path and content fields");
+	});
+
 	it("blocks write_files payloads above the configured line limit", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

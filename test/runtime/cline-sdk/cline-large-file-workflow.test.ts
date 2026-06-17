@@ -196,7 +196,9 @@ describe("ClineLargeFileWorkflow", () => {
 		expect(await workflow.getReadFilesBlockingReason()).toContain("second-large.txt");
 		const parked = await workflow.readNext("large.txt", 16_000, "synthesis");
 		expect(parked.phase).toBe("synthesis");
-		expect(parked.instruction).toContain("covered");
+		expect(parked.coverageStatus).toBe("complete");
+		expect(parked.instruction).toContain("Do not call read_large_file again for this file");
+		expect(parked.instruction).toContain("continue with other required source files");
 	});
 
 	it("hides read_files while a large-file workflow is active", async () => {
@@ -230,6 +232,31 @@ describe("ClineLargeFileWorkflow", () => {
 		const expectedNextCursor = String(first.nextCursor);
 
 		await expect(workflow.readNext("large.txt", 16_000, "start")).rejects.toThrow(expectedNextCursor);
+	});
+
+	it("explains that synthesis cursor means the file is fully covered", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const sourcePath = join(workspacePath, "large.txt");
+		await writeFile(sourcePath, createLargeContent(4_000), "utf8");
+		const workflow = new ClineLargeFileWorkflow(
+			"session-synthesis-cursor-message",
+			workspacePath,
+			join(workspacePath, ".runtime"),
+		);
+
+		let cursor = "start";
+		for (let attempt = 0; attempt < 200; attempt += 1) {
+			const result = await workflow.readNext("large.txt", 16_000, cursor);
+			cursor = String(result.nextCursor ?? cursor);
+			if (cursor === "synthesis") {
+				break;
+			}
+		}
+
+		await expect(workflow.readNext("large.txt", 16_000, "read:3151:99")).rejects.toThrow(
+			"Do not read more from this file",
+		);
 	});
 
 	it("includes monotonic counters in read and stitch cursors", async () => {

@@ -201,15 +201,15 @@ describe("BoardCard", () => {
 		expect(nextCancelButton).toBeUndefined();
 	});
 
-	it("shows a loading state on the review trash button while moving to trash", async () => {
+	it("shows a loading state on the review completed button while moving to completed", async () => {
 		await act(async () => {
 			root.render(<BoardCard card={createCard()} index={0} columnId="review" isMoveToTrashLoading />);
 		});
 
-		const trashButton = container.querySelector('button[aria-label="Move task to trash"]');
-		expect(trashButton).toBeInstanceOf(HTMLButtonElement);
-		expect((trashButton as HTMLButtonElement | null)?.disabled).toBe(true);
-		expect(trashButton?.querySelector("svg.animate-spin")).toBeTruthy();
+		const completeButton = container.querySelector('button[aria-label="Move task to completed"]');
+		expect(completeButton).toBeInstanceOf(HTMLButtonElement);
+		expect((completeButton as HTMLButtonElement | null)?.disabled).toBe(true);
+		expect(completeButton?.querySelector("svg.animate-spin")).toBeTruthy();
 	});
 
 	it("shows inline see more and less controls for long descriptions", async () => {

@@ -42,7 +42,8 @@ function createBoard(dependencies: BoardDependency[] = []): BoardData {
 				title: "Review",
 				cards: [createTask("task-2", "Review task", 2)],
 			},
-			{ id: "trash", title: "Done", cards: [] },
+			{ id: "completed", title: "Completed", cards: [] },
+			{ id: "trash", title: "Trash", cards: [] },
 		],
 		dependencies,
 	};
@@ -56,6 +57,7 @@ interface HookSnapshot {
 		taskId: string,
 		fromColumnId: "backlog" | "in_progress" | "review" | "trash",
 	) => Promise<void>;
+	requestMoveTaskToCompleted: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
 }
 
 interface Deferred<T> {
@@ -112,10 +114,12 @@ function HookHarness({
 			handleCreateDependency: actions.handleCreateDependency,
 			confirmMoveTaskToTrash: actions.confirmMoveTaskToTrash,
 			requestMoveTaskToTrash: actions.requestMoveTaskToTrash,
+			requestMoveTaskToCompleted: actions.requestMoveTaskToCompleted,
 		});
 	}, [
 		actions.confirmMoveTaskToTrash,
 		actions.handleCreateDependency,
+		actions.requestMoveTaskToCompleted,
 		actions.requestMoveTaskToTrash,
 		board,
 		onSnapshot,
@@ -224,6 +228,46 @@ describe("useLinkedBacklogTaskActions", () => {
 
 		expect(kickoffTaskInProgress).toHaveBeenCalledTimes(2);
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(2);
+	});
+
+	it("moves review tasks to completed and auto-starts linked backlog tasks", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const kickoffTaskInProgress = vi.fn(async () => true);
+		const boardFactory = () =>
+			createBoard([{ id: "dep-1", fromTaskId: "task-1", toTaskId: "task-2", createdAt: 10 }]);
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					boardFactory={boardFactory}
+					kickoffTaskInProgress={kickoffTaskInProgress}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		const initialSnapshot = latestSnapshot as HookSnapshot;
+
+		await act(async () => {
+			await initialSnapshot.requestMoveTaskToCompleted("task-2", "review");
+		});
+
+		const completedCards = latestSnapshot.board.columns.find((column) => column.id === "completed")?.cards ?? [];
+		const trashCards = latestSnapshot.board.columns.find((column) => column.id === "trash")?.cards ?? [];
+		expect(completedCards.map((card) => card.id)).toContain("task-2");
+		expect(trashCards).toEqual([]);
+		expect(kickoffTaskInProgress).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "task-1" }),
+			"task-1",
+			"backlog",
+			{ optimisticMove: true },
+		);
+		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
 	});
 
 	it("uses animated backlog starts for dependency-unblocked tasks when available", async () => {
