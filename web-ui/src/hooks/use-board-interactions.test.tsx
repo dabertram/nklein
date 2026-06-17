@@ -426,6 +426,86 @@ describe("useBoardInteractions", () => {
 		]);
 	});
 
+	it("skips tasks parked for decomposition during manual start-all", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							...createTask("task-1", "Blocked task", 1),
+							blockedKind: "needs_decomposition",
+							blockedReason: "Task start blocked: this card needs decomposition.",
+						},
+						createTask("task-2", "Runnable task", 2),
+					],
+				},
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartAllBacklogTasks(["task-1", "task-2"]);
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(startTaskSession).toHaveBeenCalledTimes(1);
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-2" }));
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
+			"task-2",
+		]);
+		expect(currentBoard.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id)).toEqual([
+			"task-1",
+		]);
+	});
+
 	it("waits for a new backlog card height to settle before starting animation", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);

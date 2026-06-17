@@ -703,6 +703,9 @@ export function useBoardInteractions({
 				if (selection?.column.id !== "backlog") {
 					continue;
 				}
+				if (selection.card.blockedKind === "needs_decomposition") {
+					continue;
+				}
 				const moved = moveTaskToColumn(nextBoard, taskId, getTaskActiveColumnId(selection.card), {
 					insertAtTop: true,
 				});

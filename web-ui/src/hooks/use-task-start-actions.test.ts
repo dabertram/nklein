@@ -43,6 +43,20 @@ describe("getStartableBacklogTaskIds", () => {
 		expect(getStartableBacklogTaskIds(board)).toEqual(["task-1", "task-2", "task-3"]);
 	});
 
+	it("excludes backlog tasks parked for decomposition", () => {
+		const board = createBoard({
+			backlogCards: [
+				{
+					...createCard("task-1"),
+					blockedKind: "needs_decomposition",
+					blockedReason: "Task start blocked: this card needs decomposition.",
+				},
+				createCard("task-2"),
+			],
+		});
+		expect(getStartableBacklogTaskIds(board)).toEqual(["task-2"]);
+	});
+
 	it("returns empty array when backlog is empty", () => {
 		const board = createBoard({ backlogCards: [] });
 		expect(getStartableBacklogTaskIds(board)).toEqual([]);
