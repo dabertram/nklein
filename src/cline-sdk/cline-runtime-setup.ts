@@ -1,12 +1,12 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import {
 	countTextLines,
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
-import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
+import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN, resolveKanbanDecomposePrompt } from "./cline-decomposition-workflow";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import { parseWriteFilesRequests } from "./cline-write-files-tool";
 import {
@@ -418,6 +418,30 @@ function resolveWorkspaceWorkflowDirectory(workspacePath: string): string {
 	);
 }
 
+async function excludeGeneratedWorkflowFromGit(workspacePath: string, workflowPath: string): Promise<void> {
+	const resolvedWorkspacePath = resolve(workspacePath);
+	const resolvedWorkflowPath = resolve(workflowPath);
+	const relativeWorkflowPath = relative(resolvedWorkspacePath, resolvedWorkflowPath);
+	if (!relativeWorkflowPath || relativeWorkflowPath.startsWith("..") || isAbsolute(relativeWorkflowPath)) {
+		return;
+	}
+	const excludePath = join(resolvedWorkspacePath, ".git", "info", "exclude");
+	try {
+		const existing = await readFile(excludePath, "utf8").catch(() => "");
+		const normalizedRelativePath = relativeWorkflowPath.replaceAll("\\", "/");
+		const excludeLine = `/${normalizedRelativePath}`;
+		if (existing.split(/\r?\n/).includes(excludeLine)) {
+			return;
+		}
+		await mkdir(join(resolvedWorkspacePath, ".git", "info"), { recursive: true });
+		await appendFile(excludePath, `${existing.endsWith("\n") || existing.length === 0 ? "" : "\n"}${excludeLine}\n`, {
+			encoding: "utf8",
+		});
+	} catch {
+		// Best effort only: the workflow is still useful even if the workspace is not a Git repository yet.
+	}
+}
+
 export async function ensureKanbanDefaultWorkflows(workspacePath: string): Promise<string> {
 	const workflowDirectory = resolveWorkspaceWorkflowDirectory(workspacePath);
 	const workflowPath = join(workflowDirectory, "kanban-decompose.md");
@@ -429,11 +453,11 @@ export async function ensureKanbanDefaultWorkflows(workspacePath: string): Promi
 			throw error;
 		}
 	}
+	await excludeGeneratedWorkflowFromGit(workspacePath, workflowPath);
 	return workflowPath;
 }
 
 export async function createClineRuntimeSetup(workspacePath: string): Promise<ClineRuntimeSetup> {
-	await ensureKanbanDefaultWorkflows(workspacePath);
 	const userInstructionService = createClineSdkUserInstructionService(workspacePath);
 	const toolApprovalPolicy = createKanbanToolApprovalPolicy(workspacePath);
 	try {
@@ -442,7 +466,8 @@ export async function createClineRuntimeSetup(workspacePath: string): Promise<Cl
 
 	return {
 		userInstructionService,
-		resolvePrompt: (prompt: string) => resolveClineSdkWorkflowSlashCommand(prompt, userInstructionService),
+		resolvePrompt: (prompt: string) =>
+			resolveClineSdkWorkflowSlashCommand(resolveKanbanDecomposePrompt(prompt), userInstructionService),
 		loadRules: () => loadClineSdkRulesForSystemPrompt(userInstructionService),
 		toolPolicies: createKanbanToolPolicies(),
 		requestToolApproval: toolApprovalPolicy.requestToolApproval,

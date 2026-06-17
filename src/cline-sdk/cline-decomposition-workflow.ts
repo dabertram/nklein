@@ -1,11 +1,6 @@
 export const KANBAN_DECOMPOSE_WORKFLOW_NAME = "kanban-decompose";
 
-export const KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN = `---
-name: ${KANBAN_DECOMPOSE_WORKFLOW_NAME}
-description: Create Kanban decomposition artifacts for a project-scale idea.
----
-
-You are decomposing a project-scale idea for Kanban.
+export const KANBAN_DECOMPOSE_PROMPT = `You are decomposing a project-scale idea for Kanban.
 
 Write these artifacts under \`.cline/kanban/plans/<slug>/\`:
 - \`spec.md\`: concise requirements, constraints, non-goals, and acceptance criteria.
@@ -24,3 +19,24 @@ Split or expand any leaf that cannot satisfy those limits. When artifacts are re
 
 \`kanban task decompose --slug <slug> --project-path <workspace_path>\`
 `;
+
+export const KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN = `---
+name: ${KANBAN_DECOMPOSE_WORKFLOW_NAME}
+description: Create Kanban decomposition artifacts for a project-scale idea.
+---
+
+${KANBAN_DECOMPOSE_PROMPT}`;
+
+const KANBAN_DECOMPOSE_COMMAND_PATTERN = /^\/kanban-decompose(?:\s+.*)?$/;
+
+export function resolveKanbanDecomposePrompt(prompt: string): string {
+	const normalizedPrompt = prompt.replace(/\r\n/g, "\n");
+	const [firstLine = "", ...restLines] = normalizedPrompt.split("\n");
+	if (!KANBAN_DECOMPOSE_COMMAND_PATTERN.test(firstLine.trim())) {
+		return prompt;
+	}
+
+	const taskPrompt = restLines.join("\n").trimStart();
+	const builtInPrompt = KANBAN_DECOMPOSE_PROMPT.trimEnd();
+	return taskPrompt ? `${builtInPrompt}\n\n${taskPrompt}` : builtInPrompt;
+}

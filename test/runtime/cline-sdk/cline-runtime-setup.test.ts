@@ -1,17 +1,21 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { promisify } from "node:util";
 
 import type { ToolApprovalRequest } from "@clinebot/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+	createClineRuntimeSetup,
 	createKanbanToolApprovalPolicy,
 	createKanbanToolPolicies,
 	ensureKanbanDefaultWorkflows,
 } from "../../../src/cline-sdk/cline-runtime-setup";
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
+const execFileAsync = promisify(execFile);
 
 function createTokenDenseContent(lineCount: number, wordsPerLine: number): string {
 	return Array.from(
@@ -75,6 +79,37 @@ describe("createKanbanToolApprovalPolicy", () => {
 		await writeFile(workflowPath, "user custom workflow", "utf8");
 		await expect(ensureKanbanDefaultWorkflows(workspacePath)).resolves.toBe(workflowPath);
 		await expect(readFile(workflowPath, "utf8")).resolves.toBe("user custom workflow");
+	});
+
+	it("excludes generated Kanban workflows from task Git diffs", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await execFileAsync("git", ["init"], { cwd: workspacePath });
+
+		const workflowPath = await ensureKanbanDefaultWorkflows(workspacePath);
+		const excludedWorkflowPath = `/${relative(workspacePath, workflowPath).replaceAll("\\", "/")}`;
+
+		const exclude = await readFile(join(workspacePath, ".git", "info", "exclude"), "utf8");
+		expect(exclude).toContain(excludedWorkflowPath);
+		const status = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: workspacePath });
+		expect(status.stdout).not.toContain("kanban-decompose.md");
+	});
+
+	it("resolves Kanban decomposition without creating workspace workflow files", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+
+		const runtimeSetup = await createClineRuntimeSetup(workspacePath);
+		try {
+			const resolved = runtimeSetup.resolvePrompt("/kanban-decompose\n\nTitle: Built-in workflow");
+
+			expect(resolved).toContain("You are decomposing a project-scale idea for Kanban.");
+			expect(resolved).toContain("Title: Built-in workflow");
+			await expect(access(join(workspacePath, ".clinerules", "workflows", "kanban-decompose.md"))).rejects.toThrow();
+			await expect(access(join(workspacePath, ".cline", "workflows", "kanban-decompose.md"))).rejects.toThrow();
+		} finally {
+			await runtimeSetup.dispose();
+		}
 	});
 
 	it("marks guarded tools as approval-required", () => {
