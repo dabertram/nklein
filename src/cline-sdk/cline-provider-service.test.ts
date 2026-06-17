@@ -27,7 +27,59 @@ vi.mock("./sdk-provider-boundary", () => ({
 	updateSdkCustomProvider: vi.fn(),
 }));
 
-import { loadProviderModelsWithFallback } from "./cline-provider-service";
+import type { ClineModelRegistryEntry } from "./cline-model-registry";
+import { loadProviderModelsWithFallback, mergeProviderModelsWithModelRegistry } from "./cline-provider-service";
+
+function createRegistryEntry(input: {
+	key: string;
+	providerId: string;
+	modelId: string;
+	contextWindow: number | null;
+}): ClineModelRegistryEntry {
+	return {
+		key: input.key,
+		providerId: input.providerId,
+		modelId: input.modelId,
+		endpoint: null,
+		contextWindow: {
+			advertised: null,
+			observed: input.contextWindow,
+			userOverride: null,
+			effective: input.contextWindow,
+		},
+		speed: {
+			samples: 0,
+			promptTokensEwma: null,
+			outputTokensEwma: null,
+			totalTokensEwma: null,
+			prefillTokensPerSecondEwma: null,
+			decodeTokensPerSecondEwma: null,
+			ttftMsEwma: null,
+			wallTimeMsEwma: null,
+			wallTimeMsPer1kPromptTokensEwma: null,
+			lastPromptTokens: null,
+			lastOutputTokens: null,
+			lastWallTimeMs: null,
+			lastObservedAt: null,
+		},
+		capability: {
+			samples: 0,
+			staticPrior: 35,
+			evalScore: null,
+			externalScore: null,
+			observedPassRate: null,
+			effectiveScore: 35,
+			lastObservedAt: null,
+		},
+		constraints: {
+			sharedEndpointId: null,
+			inputCostPerMillionTokens: null,
+			outputCostPerMillionTokens: null,
+		},
+		createdAt: 1,
+		updatedAt: 1,
+	};
+}
 
 describe("loadProviderModelsWithFallback", () => {
 	const originalFetch = globalThis.fetch;
@@ -291,5 +343,32 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.id).toBe("qwen/qwen3.5-9b-mtp-m1");
 		expect(models[0]?.contextWindow).toBe(80_000);
+	});
+
+	it("overrides provider context windows with measured model registry windows", () => {
+		const models = mergeProviderModelsWithModelRegistry(
+			"ollama",
+			[
+				{ id: "qwen", name: "Qwen", contextWindow: 32_000 },
+				{ id: "other", name: "Other", contextWindow: 16_000 },
+			],
+			[
+				createRegistryEntry({
+					key: "ollama:qwen:default",
+					providerId: "ollama",
+					modelId: "qwen",
+					contextWindow: 8_000,
+				}),
+				createRegistryEntry({
+					key: "lmstudio:other:default",
+					providerId: "lmstudio",
+					modelId: "other",
+					contextWindow: 128_000,
+				}),
+			],
+		);
+
+		expect(models[0]?.contextWindow).toBe(8_000);
+		expect(models[1]?.contextWindow).toBe(16_000);
 	});
 });

@@ -21,6 +21,7 @@ import type {
 	RuntimeClineReasoningEffort,
 } from "../core/api-contract";
 import { openInBrowser } from "../server/browser";
+import { type ClineModelRegistryEntry, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import {
 	addSdkCustomProvider,
@@ -328,6 +329,34 @@ export function mergeProviderModelsWithContextWindowFallback(
 	});
 }
 
+export function mergeProviderModelsWithModelRegistry(
+	providerId: string,
+	models: RuntimeClineProviderModel[],
+	registryEntries: readonly ClineModelRegistryEntry[],
+): RuntimeClineProviderModel[] {
+	const normalizedProviderId = providerId.trim().toLowerCase();
+	if (!normalizedProviderId || registryEntries.length === 0) {
+		return models;
+	}
+	const measuredWindowByModelId = new Map<string, number>();
+	for (const entry of registryEntries) {
+		if (entry.providerId.trim().toLowerCase() !== normalizedProviderId) {
+			continue;
+		}
+		const measuredWindow = normalizeContextWindow(entry.contextWindow.effective);
+		if (measuredWindow !== null) {
+			measuredWindowByModelId.set(entry.modelId, measuredWindow);
+		}
+	}
+	if (measuredWindowByModelId.size === 0) {
+		return models;
+	}
+	return models.map((model) => {
+		const measuredWindow = measuredWindowByModelId.get(model.id);
+		return measuredWindow ? { ...model, contextWindow: measuredWindow } : model;
+	});
+}
+
 function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): RuntimeClineProviderModel | null {
 	const record = readObjectValue(item);
 	if (!record) {
@@ -567,6 +596,16 @@ export async function loadProviderModelsWithFallback(providerId: string): Promis
 		return appendMissingModels(mergedModels, lmStudioModels);
 	}
 	return providerModels;
+}
+
+async function loadProviderModelsWithMeasuredWindows(providerId: string): Promise<RuntimeClineProviderModel[]> {
+	const providerModels = await loadProviderModelsWithFallback(providerId);
+	try {
+		const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+		return mergeProviderModelsWithModelRegistry(providerId, providerModels, Object.values(snapshot.models));
+	} catch {
+		return providerModels;
+	}
 }
 
 function createEmptyProviderSettingsSummary(): RuntimeClineProviderSettings {
@@ -1068,7 +1107,7 @@ export function createClineProviderService() {
 				overrides?.modelIdOverride?.trim() ||
 				resolvedSettings.model?.trim() ||
 				(await resolveDefaultModelIdForProvider(normalizedProviderId));
-			const providerModels = await loadProviderModelsWithFallback(normalizedProviderId);
+			const providerModels = await loadProviderModelsWithMeasuredWindows(normalizedProviderId);
 			const resolvedModel = providerModels.find((candidate) => candidate.id === modelId) ?? null;
 			return {
 				providerId: normalizedProviderId,
@@ -1133,7 +1172,7 @@ export function createClineProviderService() {
 			const normalizedProviderId = providerId.trim().toLowerCase();
 			const providerModels =
 				normalizedProviderId.length > 0
-					? (await loadProviderModelsWithFallback(normalizedProviderId))
+					? (await loadProviderModelsWithMeasuredWindows(normalizedProviderId))
 							.map((model) => toRuntimeProviderModel(model))
 							.sort((left, right) => left.name.localeCompare(right.name))
 					: [];
