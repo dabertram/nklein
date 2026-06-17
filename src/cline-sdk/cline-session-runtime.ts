@@ -22,6 +22,7 @@ import { buildClineRepoMap } from "./cline-repo-map";
 import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
+import { createWebResearchTool } from "./cline-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./cline-write-files-tool";
 import { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
@@ -462,6 +463,9 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			createWriteFileTool({
 				workspacePath: request.cwd,
 				maxFileLines: request.maxAgentWritableFileLines,
+			}),
+			...createWebResearchTool({
+				enabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),
 			...(mcpToolBundle?.tools ?? []),
 		];
