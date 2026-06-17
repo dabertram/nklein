@@ -29,6 +29,7 @@ import {
 	createInMemoryClineMessageRepository,
 	createTaskEntryFromPersistedSession,
 } from "./cline-message-repository";
+import { extractClineModelRegistryObservationFromEvent, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { type ClineRuntimeSetup, createClineRuntimeSetup } from "./cline-runtime-setup";
 import {
 	type ClineSessionRuntime,
@@ -272,6 +273,8 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 export class InMemoryClineTaskSessionService implements ClineTaskSessionService {
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
+	private readonly modelIdByTaskId = new Map<string, string>();
+	private readonly endpointByTaskId = new Map<string, string | null>();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
@@ -682,6 +685,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || SDK_DEFAULT_MODEL_ID;
+		this.modelIdByTaskId.set(request.taskId, modelId);
+		this.endpointByTaskId.set(request.taskId, request.baseUrl?.trim() || null);
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
 		const normalizedPrompt = request.prompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
@@ -858,6 +863,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.modelIdByTaskId.delete(taskId);
+		this.endpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
@@ -881,6 +888,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.modelIdByTaskId.delete(taskId);
+		this.endpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
@@ -1126,6 +1135,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdByTaskId.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
+		this.modelIdByTaskId.delete(taskId);
+		this.endpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -1229,6 +1240,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdByTaskId.clear();
 		this.contextWindowByTaskId.clear();
+		this.modelIdByTaskId.clear();
+		this.endpointByTaskId.clear();
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {
 				const lease = await leasePromise;
@@ -1299,6 +1312,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private handleTaskEvent(taskId: string, event: unknown): void {
+		this.recordModelRegistryObservation(taskId, event);
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return;
@@ -1345,6 +1359,25 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (shouldAbortForCreditLimit) {
 			void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
 		}
+	}
+
+	private recordModelRegistryObservation(taskId: string, event: unknown): void {
+		const observation = extractClineModelRegistryObservationFromEvent(
+			event,
+			{
+				providerId: this.resolveProviderIdForTask(taskId),
+				modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+				endpoint: this.endpointByTaskId.get(taskId) ?? null,
+				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
+			},
+			now(),
+		);
+		if (!observation) {
+			return;
+		}
+		void getDefaultClineModelRegistry()
+			.recordRequest(observation)
+			.catch(() => undefined);
 	}
 }
 
