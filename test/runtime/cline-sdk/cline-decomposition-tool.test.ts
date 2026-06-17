@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyClinePlanTaskGraphToBoard } from "../../../src/cline-sdk/cline-decomposition-tool";
 import type { ClinePlanTaskGraph } from "../../../src/cline-sdk/cline-plan-artifacts";
+import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
 
 function createBoard(): RuntimeBoardData {
@@ -43,6 +44,60 @@ function createTaskGraph(): ClinePlanTaskGraph {
 				acceptanceCommand: "npm test",
 			},
 		],
+	};
+}
+
+function createRoutingCandidate(input: {
+	key: string;
+	role: string;
+	capability: number;
+	contextWindow: number;
+}): ClineTaskRoutingCandidate {
+	return {
+		role: input.role,
+		entry: {
+			key: input.key,
+			providerId: "ollama",
+			modelId: input.key,
+			endpoint: null,
+			contextWindow: {
+				advertised: input.contextWindow,
+				observed: null,
+				userOverride: null,
+				effective: input.contextWindow,
+			},
+			speed: {
+				samples: 0,
+				promptTokensEwma: null,
+				outputTokensEwma: null,
+				totalTokensEwma: null,
+				prefillTokensPerSecondEwma: null,
+				decodeTokensPerSecondEwma: null,
+				ttftMsEwma: null,
+				wallTimeMsEwma: null,
+				wallTimeMsPer1kPromptTokensEwma: null,
+				lastPromptTokens: null,
+				lastOutputTokens: null,
+				lastWallTimeMs: null,
+				lastObservedAt: null,
+			},
+			capability: {
+				samples: 0,
+				staticPrior: input.capability,
+				evalScore: null,
+				externalScore: null,
+				observedPassRate: null,
+				effectiveScore: input.capability,
+				lastObservedAt: null,
+			},
+			constraints: {
+				sharedEndpointId: "ollama:default",
+				inputCostPerMillionTokens: null,
+				outputCostPerMillionTokens: null,
+			},
+			createdAt: 1,
+			updatedAt: 1,
+		},
 	};
 }
 
@@ -173,5 +228,53 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 				randomUuid: () => "unused",
 			}),
 		).toThrow("3 files or fewer");
+	});
+
+	it("accepts sized leaves that pass the model feasibility guard", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			routingCandidates: [
+				createRoutingCandidate({
+					key: "qwen3.5-9b",
+					role: "worker",
+					capability: 65,
+					contextWindow: 32_000,
+				}),
+			],
+		});
+
+		expect(result.createdTasks).toHaveLength(2);
+	});
+
+	it("rejects leaves that no connected model can route", () => {
+		const graph = createTaskGraph();
+		const uiTask = graph.tasks[1];
+		if (!uiTask) {
+			throw new Error("Expected UI task.");
+		}
+		graph.tasks[1] = {
+			...uiTask,
+			complexity: 70,
+		};
+
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: graph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+				routingCandidates: [
+					createRoutingCandidate({
+						key: "tiny-local",
+						role: "worker",
+						capability: 35,
+						contextWindow: 8_000,
+					}),
+				],
+			}),
+		).toThrow("failed the model feasibility guard");
 	});
 });

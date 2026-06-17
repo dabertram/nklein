@@ -6,6 +6,13 @@ import type {
 } from "../core/api-contract";
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import type { ClinePlanTask, ClinePlanTaskGraph } from "./cline-plan-artifacts";
+import { type ClineTaskRoutingCandidate, routeClineTask } from "./cline-task-router";
+import {
+	estimateClineStartDifficulty,
+	estimateClineStartFitBudgetTokens,
+	estimateClineStartPromptTokens,
+	formatClineTaskRoutingBlockMessage,
+} from "./cline-task-start-guard";
 
 const MAX_DECOMPOSED_TASK_COMPLEXITY = 75;
 const MAX_DECOMPOSED_TASK_LIKELY_FILES = 3;
@@ -16,6 +23,7 @@ export interface ApplyClinePlanTaskGraphInput {
 	baseRef: string;
 	randomUuid: () => string;
 	modelRoleSettings?: Record<string, RuntimeTaskClineSettings>;
+	routingCandidates?: readonly ClineTaskRoutingCandidate[];
 	now?: number;
 }
 
@@ -66,6 +74,41 @@ function validateTaskSizingContract(task: ClinePlanTask): void {
 	}
 }
 
+function validateTaskRoutingFeasibility(
+	task: ClinePlanTask,
+	taskPrompt: string,
+	routingCandidates: readonly ClineTaskRoutingCandidate[] | undefined,
+): void {
+	if (!routingCandidates || routingCandidates.length === 0) {
+		return;
+	}
+	const promptTokens = estimateClineStartPromptTokens({
+		prompt: taskPrompt,
+		taskTitle: task.title,
+	});
+	const largestContextWindow =
+		routingCandidates
+			.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+			.filter((contextWindow) => contextWindow > 0)
+			.sort((left, right) => right - left)[0] ?? null;
+	const preferredModelKey = task.suggestedRole
+		? (routingCandidates.find((candidate) => candidate.role === task.suggestedRole)?.entry.key ?? null)
+		: null;
+	const routingDecision = routeClineTask({
+		difficulty: Math.max(task.complexity, estimateClineStartDifficulty(promptTokens)),
+		fitBudgetTokens: estimateClineStartFitBudgetTokens(promptTokens, largestContextWindow),
+		promptTokens,
+		outputTokens: 1_000,
+		preferredModelKey,
+		candidates: routingCandidates,
+	});
+	if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
+		throw new Error(
+			`Task ${task.id} failed the model feasibility guard: ${formatClineTaskRoutingBlockMessage(routingDecision)}`,
+		);
+	}
+}
+
 function resolveTaskRoleSettings(
 	task: ClinePlanTask,
 	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
@@ -103,6 +146,8 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 
 	for (const task of input.taskGraph.tasks) {
 		validateTaskSizingContract(task);
+		const taskPrompt = buildTaskPrompt(task);
+		validateTaskRoutingFeasibility(task, taskPrompt, input.routingCandidates);
 		const taskId = `${slugifyTaskId(input.taskGraph.slug)}-${slugifyTaskId(task.id)}`;
 		const created = addTaskToColumn(
 			board,
@@ -110,7 +155,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 			{
 				taskId,
 				title: task.title,
-				prompt: buildTaskPrompt(task),
+				prompt: taskPrompt,
 				startInPlanMode: false,
 				autoReviewEnabled: true,
 				autoReviewMode: "commit",

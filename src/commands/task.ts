@@ -4,8 +4,12 @@ import type { Command } from "commander";
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan } from "../cline-sdk/cline-acceptance-repair";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
+import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
 import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
-import { loadRuntimeConfig } from "../config/runtime-config";
+import { createClineProviderService } from "../cline-sdk/cline-provider-service";
+import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
+import { buildClineStartGuardCandidate } from "../cline-sdk/cline-task-start-guard";
+import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
@@ -85,6 +89,60 @@ function toErrorMessage(error: unknown): string {
 
 function printJson(payload: unknown): void {
 	process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+async function buildDecompositionRoutingCandidates(
+	runtimeConfig: RuntimeConfigState,
+): Promise<ClineTaskRoutingCandidate[]> {
+	const clineProviderService = createClineProviderService();
+	const modelRegistry = await getDefaultClineModelRegistry()
+		.getSnapshot()
+		.catch(() => ({
+			schemaVersion: 1 as const,
+			updatedAt: 0,
+			models: {},
+		}));
+	const candidates = new Map<string, ClineTaskRoutingCandidate>();
+	try {
+		const launchConfig = await clineProviderService.resolveLaunchConfig({});
+		const candidate = buildClineStartGuardCandidate({
+			launchConfig,
+			role: null,
+			modelRegistry,
+		});
+		candidates.set(candidate.entry.key, {
+			entry: candidate.entry,
+			role: candidate.role,
+		});
+	} catch {
+		// A workspace without a runnable default Cline provider can still decompose from explicit role models.
+	}
+
+	for (const [role, settings] of Object.entries(runtimeConfig.modelRoles)) {
+		if (!settings.providerId && !settings.modelId) {
+			continue;
+		}
+		try {
+			const launchConfig = await clineProviderService.resolveLaunchConfig({
+				providerIdOverride: settings.providerId ?? undefined,
+				modelIdOverride: settings.modelId ?? undefined,
+				reasoningEffortOverride: settings.reasoningEffort ?? null,
+			});
+			const candidate = buildClineStartGuardCandidate({
+				launchConfig,
+				role,
+				modelRegistry,
+			});
+			candidates.set(candidate.entry.key, {
+				entry: candidate.entry,
+				role: candidate.role,
+			});
+		} catch {
+			// Ignore roles that are configured but not currently runnable.
+		}
+	}
+
+	return [...candidates.values()];
 }
 
 export function recordDecompositionRejection(input: DecompositionRejectionInput): void {
@@ -711,6 +769,7 @@ async function decomposeTaskGraph(input: {
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
 	const artifacts = await readClinePlanArtifacts(workspaceRepoPath, input.slug);
 	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
+	const routingCandidates = await buildDecompositionRoutingCandidates(runtimeConfig);
 	let applied: {
 		createdTasks: JsonRecord[];
 		createdDependencies: JsonRecord[];
@@ -728,6 +787,7 @@ async function decomposeTaskGraph(input: {
 				baseRef: resolvedBaseRef,
 				randomUuid: () => globalThis.crypto.randomUUID(),
 				modelRoleSettings: runtimeConfig.modelRoles,
+				routingCandidates,
 			});
 			const nextState: RuntimeWorkspaceStateResponse = {
 				...runtimeState,
