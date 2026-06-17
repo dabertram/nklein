@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
+import { searchClineCodeIndex } from "./cline-code-index";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
@@ -135,7 +136,7 @@ function scoreLine(line: string, query: string, queryTokens: readonly string[]):
 			score += 8;
 		}
 	}
-	if (/^\s*(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|const)\s+/.test(line)) {
+	if (score > 0 && /^\s*(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|const)\s+/.test(line)) {
 		score += 8;
 	}
 	return score;
@@ -207,6 +208,26 @@ export async function searchClineCode(options: SearchClineCodeOptions): Promise<
 			}
 			return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
 		});
+	if (rankedMatches.length === 0) {
+		const indexMatches = await searchClineCodeIndex({
+			workspacePath: options.workspacePath,
+			query,
+			maxFiles,
+			maxResults,
+		});
+		return {
+			query,
+			filesScanned: indexMatches.filesScanned,
+			matches: indexMatches.matches.map((match) => ({
+				path: match.path,
+				lineStart: match.lineStart,
+				lineEnd: match.lineEnd,
+				score: match.score,
+				snippet: match.text,
+			})),
+			truncated: indexMatches.truncated,
+		};
+	}
 	return {
 		query,
 		filesScanned: files.length,

@@ -19,6 +19,11 @@ async function createWorkspace(): Promise<string> {
 		].join("\n"),
 		"utf8",
 	);
+	await writeFile(
+		join(workspacePath, "src", "storage-adapter.ts"),
+		["export function createDriver(): string {", "  return 'ok';", "}"].join("\n"),
+		"utf8",
+	);
 	return workspacePath;
 }
 
@@ -42,7 +47,7 @@ describe("cline retrieval tools", () => {
 			truncated: boolean;
 		};
 
-		expect(result.filesScanned).toBe(1);
+		expect(result.filesScanned).toBe(2);
 		expect(result.symbolsReturned).toBeGreaterThanOrEqual(2);
 		expect(result.truncated).toBe(false);
 		expect(result.map).toContain("alphaFeature");
@@ -62,11 +67,29 @@ describe("cline retrieval tools", () => {
 			truncated: boolean;
 		};
 
-		expect(result.filesScanned).toBe(1);
+		expect(result.filesScanned).toBe(2);
 		expect(result.matches.length).toBeGreaterThan(0);
 		expect(result.matches[0]?.path).toBe("src/index.ts");
 		expect(result.matches[0]?.snippet).toContain("betaFeature");
 		expect(result.matches[0]?.lineStart).toBeGreaterThan(0);
 		expect(result.matches[0]?.lineEnd).toBeGreaterThanOrEqual(result.matches[0]?.lineStart ?? 0);
+	});
+
+	it("falls back to indexed chunk search when line search misses", async () => {
+		const workspacePath = await createWorkspace();
+		const searchTool = getTool("search_code", workspacePath);
+
+		const result = (await searchTool.execute(
+			{ query: "storage-adapter", maxResults: 2, contextLines: 1 },
+			undefined as never,
+		)) as {
+			filesScanned: number;
+			matches: Array<{ path: string; snippet: string; lineStart: number; lineEnd: number }>;
+			truncated: boolean;
+		};
+
+		expect(result.filesScanned).toBe(2);
+		expect(result.matches[0]?.path).toBe("src/storage-adapter.ts");
+		expect(result.matches[0]?.snippet).toContain("createDriver");
 	});
 });
