@@ -106,6 +106,7 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 			},
 		],
 		shortcuts: [],
+		modelRoles: {},
 		clineProviderSettings: {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4",

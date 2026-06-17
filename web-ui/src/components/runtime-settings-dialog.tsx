@@ -46,8 +46,11 @@ import { openFileOnHost } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeClineReasoningEffort,
 	RuntimeConfigResponse,
+	RuntimeModelRoles,
 	RuntimeProjectShortcut,
+	RuntimeTaskClineSettings,
 } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 import {
@@ -85,6 +88,31 @@ function normalizeTemplateForComparison(value: string): string {
 	return value.replaceAll("\r\n", "\n").trim();
 }
 
+function normalizeModelRoleSettings(settings: RuntimeTaskClineSettings | undefined): RuntimeTaskClineSettings {
+	const providerId = settings?.providerId?.trim();
+	const modelId = settings?.modelId?.trim();
+	return {
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
+		...(settings?.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+	};
+}
+
+function normalizeModelRolesForSettings(modelRoles: RuntimeModelRoles | undefined): RuntimeModelRoles {
+	const normalized: RuntimeModelRoles = {};
+	for (const roleId of MODEL_ROLE_IDS) {
+		const settings = normalizeModelRoleSettings(modelRoles?.[roleId]);
+		if (Object.keys(settings).length > 0) {
+			normalized[roleId] = settings;
+		}
+	}
+	return normalized;
+}
+
+function serializeModelRoles(modelRoles: RuntimeModelRoles | undefined): string {
+	return JSON.stringify(normalizeModelRolesForSettings(modelRoles));
+}
+
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [
 	{ value: "commit", label: "Commit" },
 	{ value: "pr", label: "Make PR" },
@@ -93,6 +121,15 @@ const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }>
 export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
+const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
+type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
+const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> = [
+	"inherit",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+];
 
 type SettingsNavId = "general" | "cline" | "git-prompts" | "notifications" | "appearance" | "project";
 
@@ -381,6 +418,7 @@ export function RuntimeSettingsDialog({
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
+	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
 	const [selectedPromptVariant, setSelectedPromptVariant] = useState<TaskGitAction>("commit");
@@ -460,6 +498,7 @@ export function RuntimeSettingsDialog({
 	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialShortcuts = config?.shortcuts ?? [];
+	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
 	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
 	const clineSettings = useRuntimeSettingsClineController({
@@ -517,6 +556,9 @@ export function RuntimeSettingsDialog({
 		if (clineMcpSettings.hasUnsavedChanges) {
 			return true;
 		}
+		if (serializeModelRoles(modelRoles) !== serializeModelRoles(initialModelRoles)) {
+			return true;
+		}
 		if (draftThemeId !== initialThemeId) {
 			return true;
 		}
@@ -551,6 +593,7 @@ export function RuntimeSettingsDialog({
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
 		initialMaxAgentWritableFileLines,
+		initialModelRoles,
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
@@ -560,6 +603,7 @@ export function RuntimeSettingsDialog({
 		initialThemeId,
 		initialToolTimeoutMs,
 		maxAgentWritableFileLines,
+		modelRoles,
 		openPrPromptTemplate,
 		requestTimeoutMs,
 		readyForReviewNotificationsEnabled,
@@ -585,6 +629,7 @@ export function RuntimeSettingsDialog({
 		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		setShortcuts(config?.shortcuts ?? []);
+		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
 		setOpenPrPromptTemplate(config?.openPrPromptTemplate ?? "");
 		setSaveError(null);
@@ -601,6 +646,7 @@ export function RuntimeSettingsDialog({
 		config?.readyForReviewNotificationsEnabled,
 		config?.selectedAgentId,
 		config?.shortcuts,
+		config?.modelRoles,
 		config?.streamTimeoutMs,
 		config?.toolTimeoutMs,
 		fallbackAgentId,
@@ -735,6 +781,31 @@ export function RuntimeSettingsDialog({
 		handleSelectedPromptChange(selectedPromptDefaultValue);
 	};
 
+	const handleModelRoleFieldChange = (roleId: ModelRoleId, field: "providerId" | "modelId", value: string) => {
+		setModelRoles((current) => ({
+			...current,
+			[roleId]: {
+				...current[roleId],
+				[field]: value,
+			},
+		}));
+	};
+
+	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeClineReasoningEffort | "inherit") => {
+		setModelRoles((current) => {
+			const nextRole = { ...current[roleId] };
+			if (value === "inherit") {
+				delete nextRole.reasoningEffort;
+			} else {
+				nextRole.reasoningEffort = value;
+			}
+			return {
+				...current,
+				[roleId]: nextRole,
+			};
+		});
+	};
+
 	const handleSave = async () => {
 		setSaveError(null);
 		const parseTimeoutMsInput = (value: string): number | null | "invalid" => {
@@ -815,6 +886,7 @@ export function RuntimeSettingsDialog({
 			conversationTimeoutMs: parsedConversationTimeout,
 			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled,
+			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			shortcuts,
 			commitPromptTemplate,
 			openPrPromptTemplate,
@@ -1053,6 +1125,70 @@ export function RuntimeSettingsDialog({
 									onError={setSaveError}
 									onSaved={handleClineSetupSaved}
 								/>
+								<div className="mt-4 border-t border-border pt-4">
+									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+										Model roles
+									</h6>
+									<div className="grid gap-3">
+										{MODEL_ROLE_IDS.map((roleId) => {
+											const roleSettings = modelRoles[roleId] ?? {};
+											return (
+												<div
+													key={roleId}
+													className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px]"
+												>
+													<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
+														{roleId}
+													</div>
+													<label className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">Provider</span>
+														<input
+															value={roleSettings.providerId ?? ""}
+															onChange={(event) =>
+																handleModelRoleFieldChange(roleId, "providerId", event.target.value)
+															}
+															placeholder="default"
+															disabled={controlsDisabled}
+															className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary disabled:opacity-40"
+														/>
+													</label>
+													<label className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
+														<input
+															value={roleSettings.modelId ?? ""}
+															onChange={(event) =>
+																handleModelRoleFieldChange(roleId, "modelId", event.target.value)
+															}
+															placeholder="default"
+															disabled={controlsDisabled}
+															className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary disabled:opacity-40"
+														/>
+													</label>
+													<div className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">Reasoning</span>
+														<NativeSelect
+															fill
+															value={roleSettings.reasoningEffort ?? "inherit"}
+															onChange={(event) =>
+																handleModelRoleReasoningChange(
+																	roleId,
+																	event.target.value as RuntimeClineReasoningEffort | "inherit",
+																)
+															}
+															disabled={controlsDisabled}
+														>
+															{REASONING_EFFORT_OPTIONS.map((option) => (
+																<option key={option} value={option}>
+																	{option === "inherit" ? "Default" : option}
+																</option>
+															))}
+														</NativeSelect>
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</div>
 							</div>
 						</>
 					) : null}

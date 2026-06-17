@@ -120,6 +120,7 @@ function createRuntimeConfig(agentTimeoutMode: RuntimeConfigResponse["agentTimeo
 		detectedCommands: [],
 		agents: [],
 		shortcuts: [],
+		modelRoles: {},
 		clineProviderSettings: {
 			providerId: null,
 			modelId: null,

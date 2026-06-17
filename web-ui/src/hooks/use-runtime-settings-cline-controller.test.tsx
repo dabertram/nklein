@@ -96,6 +96,7 @@ function createRuntimeConfigResponse(
 			},
 		],
 		shortcuts: [],
+		modelRoles: {},
 		clineProviderSettings: {
 			providerId: "cline",
 			modelId: "claude-sonnet-4-6",

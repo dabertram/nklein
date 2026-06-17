@@ -44,6 +44,7 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 			},
 		],
 		shortcuts: [],
+		modelRoles: {},
 		clineProviderSettings: {
 			providerId: null,
 			modelId: null,

@@ -63,6 +63,7 @@ function createRuntimeConfigResponse(
 			},
 		],
 		shortcuts,
+		modelRoles: {},
 		clineProviderSettings: {
 			providerId: null,
 			modelId: null,

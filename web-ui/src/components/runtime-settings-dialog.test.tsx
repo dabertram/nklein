@@ -75,6 +75,7 @@ vi.mock("@radix-ui/react-select", () => ({
 }));
 
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
+const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
 }));
@@ -142,7 +143,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 		isLoading: false,
 		isSaving: false,
 		refresh: vi.fn(),
-		save: vi.fn(async () => true),
+		save: saveRuntimeConfigMock,
 	}),
 }));
 
@@ -166,6 +167,12 @@ function findButtonByAriaLabel(container: ParentNode, ariaLabel: string): HTMLBu
 	) ?? null) as HTMLButtonElement | null;
 }
 
+function setInputValue(input: HTMLInputElement, value: string): void {
+	const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+	valueSetter?.call(input, value);
+	input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 const savedClineOauthConfig = {
 	selectedAgentId: "cline",
 	selectedShortcutLabel: null,
@@ -174,6 +181,7 @@ const savedClineOauthConfig = {
 	effectiveCommand: "cline",
 	detectedCommands: [],
 	shortcuts: [],
+	modelRoles: {},
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",
 	commitPromptTemplateDefault: "",
@@ -217,6 +225,8 @@ describe("RuntimeSettingsDialog", () => {
 
 	beforeEach(() => {
 		resetLayoutCustomizationsMock.mockReset();
+		saveRuntimeConfigMock.mockClear();
+		saveRuntimeConfigMock.mockResolvedValue(true);
 		clineSetupSectionOnSavedRef.onSaved = null;
 		window.localStorage.clear();
 		document.documentElement.removeAttribute("data-theme");
@@ -364,6 +374,68 @@ describe("RuntimeSettingsDialog", () => {
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 		expect(window.localStorage.getItem("kanban.theme")).toBe("graphite");
 		expect(document.documentElement.getAttribute("data-theme")).toBe("graphite");
+	});
+
+	it("saves configured Cline model roles", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const saveButton = findButtonByText(document.body, "Save");
+		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Model roles",
+		);
+		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const providerInputs = Array.from(
+			modelRolesSection?.querySelectorAll<HTMLInputElement>('input[placeholder="default"]') ?? [],
+		);
+		const reasoningSelects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectProviderInput = providerInputs[0];
+		const architectModelInput = providerInputs[1];
+		const architectReasoningSelect = reasoningSelects[0];
+		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+		expect(modelRolesSection).toBeInstanceOf(HTMLDivElement);
+		if (
+			!(architectProviderInput instanceof HTMLInputElement) ||
+			!(architectModelInput instanceof HTMLInputElement) ||
+			!(architectReasoningSelect instanceof HTMLSelectElement)
+		) {
+			throw new Error("Expected architect model role controls to render.");
+		}
+
+		await act(async () => {
+			setInputValue(architectProviderInput, " anthropic ");
+			setInputValue(architectModelInput, " claude-3-7-sonnet ");
+			architectReasoningSelect.value = "high";
+			architectReasoningSelect.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+
+		expect(saveButton?.disabled).toBe(false);
+
+		await act(async () => {
+			saveButton?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelRoles: {
+					architect: {
+						providerId: "anthropic",
+						modelId: "claude-3-7-sonnet",
+						reasoningEffort: "high",
+					},
+				},
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
 	it("forwards cline setup saves to the dialog onSaved callback", async () => {
