@@ -188,6 +188,59 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 	};
 }
 
+function createModelRegistryEntry(input: {
+	key: string;
+	providerId: string;
+	modelId: string;
+	endpoint?: string | null;
+	contextWindow: number;
+	capability: number;
+}) {
+	return {
+		key: input.key,
+		providerId: input.providerId,
+		modelId: input.modelId,
+		endpoint: input.endpoint ?? null,
+		contextWindow: {
+			advertised: input.contextWindow,
+			observed: null,
+			userOverride: null,
+			effective: input.contextWindow,
+		},
+		speed: {
+			samples: 0,
+			promptTokensEwma: null,
+			outputTokensEwma: null,
+			totalTokensEwma: null,
+			prefillTokensPerSecondEwma: null,
+			decodeTokensPerSecondEwma: null,
+			ttftMsEwma: null,
+			wallTimeMsEwma: null,
+			wallTimeMsPer1kPromptTokensEwma: null,
+			lastPromptTokens: null,
+			lastOutputTokens: null,
+			lastWallTimeMs: null,
+			lastObservedAt: null,
+		},
+		capability: {
+			samples: 0,
+			staticPrior: input.capability,
+			evalScore: null,
+			externalScore: null,
+			observedPassRate: null,
+			effectiveScore: input.capability,
+			lastObservedAt: null,
+		},
+		constraints: {
+			sharedEndpointId: input.endpoint ?? `${input.providerId}:default`,
+			inputCostPerMillionTokens: null,
+			outputCostPerMillionTokens: null,
+		},
+		createdAt: 1,
+		updatedAt: 1,
+	};
+}
+
 function createRuntimeConfigState(): RuntimeConfigState {
 	return {
 		selectedAgentId: "claude",
@@ -605,6 +658,143 @@ describe("createRuntimeApi startTaskSession", () => {
 				requestTimeoutMs: 300_000,
 			}),
 		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("routes Cline starts up to the smallest sufficient configured role model", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "small-model",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:small-model:default": createModelRegistryEntry({
+					key: "anthropic:small-model:default",
+					providerId: "anthropic",
+					modelId: "small-model",
+					contextWindow: 16_000,
+					capability: 35,
+				}),
+				"anthropic:claude-opus:default": createModelRegistryEntry({
+					key: "anthropic:claude-opus:default",
+					providerId: "anthropic",
+					modelId: "claude-opus",
+					contextWindow: 200_000,
+					capability: 90,
+				}),
+			},
+		});
+
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.modelRoles = {
+					architect: {
+						providerId: "anthropic",
+						modelId: "claude-opus",
+						reasoningEffort: "high",
+					},
+				};
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: `Implement a broad architecture change.\n${"complex ".repeat(20_000)}`,
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "claude-opus",
+				reasoningEffort: "high",
+			}),
+		);
+	});
+
+	it("blocks Cline starts that no configured model can fit", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "small-model",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:small-model:default": createModelRegistryEntry({
+					key: "anthropic:small-model:default",
+					providerId: "anthropic",
+					modelId: "small-model",
+					contextWindow: 16_000,
+					capability: 90,
+				}),
+			},
+		});
+
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: `Implement a broad architecture change.\n${"complex ".repeat(20_000)}`,
+			},
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.error).toContain("needs decomposition");
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 

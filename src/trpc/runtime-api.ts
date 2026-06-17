@@ -7,12 +7,19 @@ import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "../cline-sdk/cline-context-budgets";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
-import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
+import {
+	buildClineModelRegistryKey,
+	type ClineModelRegistryEntry,
+	type ClineModelRegistrySnapshot,
+	getDefaultClineModelRegistry,
+} from "../cline-sdk/cline-model-registry";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
+import { type ClineTaskRoutingDecision, routeClineTask } from "../cline-sdk/cline-task-router";
 import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
@@ -51,6 +58,21 @@ import type { TerminalSessionManager } from "../terminal/session-manager";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+
+const DEFAULT_START_GUARD_CONTEXT_WINDOW = 80_000;
+const START_GUARD_MIN_WORKING_ROOM_TOKENS = 4_000;
+const START_GUARD_BASE_DIFFICULTY = 25;
+const START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS = 35;
+
+type ResolvedClineLaunchConfig = Awaited<
+	ReturnType<ReturnType<typeof createClineProviderService>["resolveLaunchConfig"]>
+>;
+
+interface ClineStartGuardCandidate {
+	entry: ClineModelRegistryEntry;
+	role: string | null;
+	launchConfig: ResolvedClineLaunchConfig;
+}
 
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
@@ -132,6 +154,149 @@ function scaleTimeoutMs(value: number | null, factor: number): number | null {
 		return null;
 	}
 	return Math.max(0, Math.trunc(value * factor));
+}
+
+function estimateClineStartPromptTokens(input: {
+	prompt: string;
+	taskTitle?: string | null;
+	images?: readonly unknown[];
+}): number {
+	const titleTokens = input.taskTitle ? countKanbanTextTokens(input.taskTitle) : 0;
+	const promptTokens = countKanbanTextTokens(input.prompt);
+	const imageTokens = (input.images?.length ?? 0) * 1_000;
+	return titleTokens + promptTokens + imageTokens;
+}
+
+function estimateClineStartDifficulty(promptTokens: number): number {
+	const promptDifficultyBonus = Math.min(START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS, Math.round(promptTokens / 800));
+	return Math.min(100, START_GUARD_BASE_DIFFICULTY + promptDifficultyBonus);
+}
+
+function estimateClineStartFitBudgetTokens(promptTokens: number, largestContextWindow: number | null): number {
+	const budgets = buildKanbanContextSafetyBudgets(largestContextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW);
+	return (
+		promptTokens +
+		budgets.outputReserveTokens +
+		budgets.promptOverheadReserveTokens +
+		START_GUARD_MIN_WORKING_ROOM_TOKENS
+	);
+}
+
+function getRoleCapabilityPrior(role: string | null): number {
+	if (role === "architect") {
+		return 85;
+	}
+	if (role === "reviewer") {
+		return 70;
+	}
+	if (role === "worker") {
+		return 45;
+	}
+	return 40;
+}
+
+function createFallbackRegistryEntry(input: {
+	providerId: string;
+	modelId: string;
+	endpoint: string | null;
+	contextWindow: number | null;
+	capability: number;
+	now: number;
+}): ClineModelRegistryEntry {
+	const key = buildClineModelRegistryKey({
+		providerId: input.providerId,
+		modelId: input.modelId,
+		endpoint: input.endpoint,
+	});
+	return {
+		key,
+		providerId: input.providerId,
+		modelId: input.modelId,
+		endpoint: input.endpoint,
+		contextWindow: {
+			advertised: input.contextWindow,
+			observed: null,
+			userOverride: null,
+			effective: input.contextWindow,
+		},
+		speed: {
+			samples: 0,
+			promptTokensEwma: null,
+			outputTokensEwma: null,
+			totalTokensEwma: null,
+			prefillTokensPerSecondEwma: null,
+			decodeTokensPerSecondEwma: null,
+			ttftMsEwma: null,
+			wallTimeMsEwma: null,
+			wallTimeMsPer1kPromptTokensEwma: null,
+			lastPromptTokens: null,
+			lastOutputTokens: null,
+			lastWallTimeMs: null,
+			lastObservedAt: null,
+		},
+		capability: {
+			samples: 0,
+			staticPrior: input.capability,
+			evalScore: null,
+			externalScore: null,
+			observedPassRate: null,
+			effectiveScore: input.capability,
+			lastObservedAt: null,
+		},
+		constraints: {
+			sharedEndpointId: input.endpoint ?? `${input.providerId}:default`,
+			inputCostPerMillionTokens: null,
+			outputCostPerMillionTokens: null,
+		},
+		createdAt: input.now,
+		updatedAt: input.now,
+	};
+}
+
+function buildClineStartGuardCandidate(input: {
+	launchConfig: ResolvedClineLaunchConfig;
+	role: string | null;
+	modelRegistry: ClineModelRegistrySnapshot;
+}): ClineStartGuardCandidate {
+	const endpoint = input.launchConfig.baseUrl ?? null;
+	const modelId = input.launchConfig.modelId ?? "unknown";
+	const key = buildClineModelRegistryKey({
+		providerId: input.launchConfig.providerId,
+		modelId,
+		endpoint,
+	});
+	const entry =
+		input.modelRegistry.models[key] ??
+		createFallbackRegistryEntry({
+			providerId: input.launchConfig.providerId,
+			modelId,
+			endpoint,
+			contextWindow: input.launchConfig.contextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW,
+			capability: getRoleCapabilityPrior(input.role),
+			now: Date.now(),
+		});
+	const contextWindowFallback = input.launchConfig.contextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW;
+	return {
+		entry:
+			entry.contextWindow.effective === null
+				? {
+						...entry,
+						contextWindow: {
+							...entry.contextWindow,
+							effective: contextWindowFallback,
+						},
+					}
+				: entry,
+		role: input.role,
+		launchConfig: input.launchConfig,
+	};
+}
+
+function formatClineTaskRoutingBlockMessage(
+	decision: Extract<ClineTaskRoutingDecision, { type: "decompose" | "escalate" }>,
+): string {
+	const action = decision.type === "decompose" ? "needs decomposition" : "needs a stronger/larger model";
+	return `Task start blocked: this card ${action}. ${decision.reason}`;
 }
 
 function resolveEffectiveTaskTimeoutSettings(input: {
@@ -324,7 +489,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 
 				if (useClinePath) {
 					const hasTaskLevelClineSettingsOverride = body.clineSettings !== undefined;
-					const clineLaunchConfig = await clineProviderService.resolveLaunchConfig({
+					let clineLaunchConfig = await clineProviderService.resolveLaunchConfig({
 						providerIdOverride: body.clineSettings?.providerId ?? undefined,
 						modelIdOverride: body.clineSettings?.modelId ?? undefined,
 						...(hasTaskLevelClineSettingsOverride
@@ -341,6 +506,65 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							updatedAt: 0,
 							models: {},
 						}));
+					const guardCandidates = new Map<string, ClineStartGuardCandidate>();
+					const selectedCandidate = buildClineStartGuardCandidate({
+						launchConfig: clineLaunchConfig,
+						role: null,
+						modelRegistry: modelRegistrySnapshot,
+					});
+					guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
+					for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
+						if (!settings.providerId && !settings.modelId) {
+							continue;
+						}
+						try {
+							const roleLaunchConfig = await clineProviderService.resolveLaunchConfig({
+								providerIdOverride: settings.providerId ?? undefined,
+								modelIdOverride: settings.modelId ?? undefined,
+								reasoningEffortOverride: settings.reasoningEffort ?? null,
+							});
+							const roleCandidate = buildClineStartGuardCandidate({
+								launchConfig: roleLaunchConfig,
+								role,
+								modelRegistry: modelRegistrySnapshot,
+							});
+							guardCandidates.set(roleCandidate.entry.key, roleCandidate);
+						} catch {
+							// Ignore roles that are not currently runnable; the configured default still participates.
+						}
+					}
+					const promptTokens = estimateClineStartPromptTokens({
+						prompt: body.prompt,
+						taskTitle: body.taskTitle,
+						images: body.images,
+					});
+					const largestContextWindow =
+						[...guardCandidates.values()]
+							.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+							.filter((contextWindow) => contextWindow > 0)
+							.sort((left, right) => right - left)[0] ?? null;
+					const routingDecision = routeClineTask({
+						difficulty: estimateClineStartDifficulty(promptTokens),
+						fitBudgetTokens: estimateClineStartFitBudgetTokens(promptTokens, largestContextWindow),
+						promptTokens,
+						outputTokens: 1_000,
+						preferredModelKey: selectedCandidate.entry.key,
+						candidates: [...guardCandidates.values()].map((candidate) => ({
+							entry: candidate.entry,
+							role: candidate.role,
+						})),
+					});
+					if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
+						return {
+							ok: false,
+							summary: null,
+							error: formatClineTaskRoutingBlockMessage(routingDecision),
+						};
+					}
+					const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
+					if (routedCandidate) {
+						clineLaunchConfig = routedCandidate.launchConfig;
+					}
 					const endpointDecision = scheduleClineEndpointStart({
 						taskId: body.taskId,
 						providerId: clineLaunchConfig.providerId,
