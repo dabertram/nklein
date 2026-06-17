@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -22,7 +22,7 @@ describe("cline dev test project", () => {
 		await expect(readFile(join(templatePath, "package.json"), "utf8")).resolves.toContain("kanban-smoke-ts-cli");
 	});
 
-	it("scaffolds a throwaway workspace with scenario metadata", async () => {
+	it("scaffolds a throwaway workspace with a user-facing specification", async () => {
 		const parentDir = await createParentDir();
 		const project = await scaffoldClineDevTestProject({
 			parentDir,
@@ -36,9 +36,10 @@ describe("cline dev test project", () => {
 		await expect(readFile(join(project.workspacePath, "src", "habit-score.ts"), "utf8")).resolves.toContain(
 			"calculateHabitScore",
 		);
-		await expect(readFile(join(project.workspacePath, "kanban-dev-scenario.json"), "utf8")).resolves.toContain(
-			DEFAULT_CLINE_DEV_TEST_SCENARIO.acceptanceCommand,
-		);
+		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(specification).toContain(DEFAULT_CLINE_DEV_TEST_SCENARIO.title);
+		expect(specification).toContain(DEFAULT_CLINE_DEV_TEST_SCENARIO.acceptanceCommand);
+		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
 	});
 
 	it("initializes git with Kanban ownership metadata", async () => {

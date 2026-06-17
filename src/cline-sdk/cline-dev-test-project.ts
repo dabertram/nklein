@@ -12,8 +12,13 @@ export interface ClineDevTestProjectScenario {
 	id: string;
 	title: string;
 	prompt: string;
+	specification: string;
 	acceptanceCommand: string;
+	complexity?: number;
+	filesLikelyTouched?: string[];
 }
+
+export type ClineDevTestProjectPreset = "mid_task" | "complex_dag";
 
 export interface ScaffoldClineDevTestProjectOptions {
 	scenario?: ClineDevTestProjectScenario;
@@ -35,9 +40,75 @@ export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "small-model-smoke",
 	title: "Small model smoke task",
 	prompt:
+		"Read specification.md, decompose the requested change into Kanban plan artifacts, and apply the generated task graph.",
+	specification:
 		"Update the habit score logic so perfect completion is capped at 100 even with a long streak, and add or update the acceptance test.",
 	acceptanceCommand: "npm test",
+	complexity: 35,
+	filesLikelyTouched: ["src/habit-score.ts", "test/habit-score.test.js"],
 };
+
+export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
+	id: "habit-insights-mid",
+	title: "Add habit insight summaries",
+	prompt:
+		"Read specification.md, decompose the habit insight summary work into Kanban plan artifacts, and apply the generated task graph.",
+	specification: [
+		"Implement a mid-complexity habit insights feature in this TypeScript CLI project.",
+		"",
+		"Goal:",
+		"- Add a reusable weekly habit summary API that combines habit score, completion trend, and a short recommendation.",
+		"- Update the CLI output to print the summary in a compact human-readable form.",
+		"- Add or update tests that cover improving, declining, and perfect-score capped cases.",
+		"",
+		"Constraints:",
+		"- Keep the implementation small and maintainable.",
+		"- Prefer touching src/habit-score.ts, src/habit-insights.ts, src/index.ts, and test/habit-score.test.js.",
+		"- Do not add dependencies.",
+		"- Acceptance command: npm test",
+	].join("\n"),
+	acceptanceCommand: "npm test",
+	complexity: 62,
+	filesLikelyTouched: ["src/habit-score.ts", "src/habit-insights.ts", "src/index.ts"],
+};
+
+export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
+	id: "habit-product-cline-complex",
+	title: "Habit product Cline buildout",
+	prompt:
+		"Read specification.md, decompose the product buildout into at least ten Kanban task leaves with dependencies, and apply the generated task graph.",
+	specification: [
+		"Turn the tiny habit scoring CLI into a more complete habit-insights product slice.",
+		"",
+		"Expected product capabilities:",
+		"- Document the current habit score domain model and extension points.",
+		"- Add configurable weekly goal settings with validation.",
+		"- Extract reusable trend classification with improving, declining, steady, and insufficient-data outcomes.",
+		"- Make recommendations depend on score band, trend, and goal configuration.",
+		"- Update the CLI text output to print score, trend, and recommendation.",
+		"- Add a --json output mode without adding dependencies.",
+		"- Expand tests for improving, declining, steady, invalid-input, and perfect-score capped scenarios.",
+		"- Add README usage notes for text and JSON output.",
+		"- Keep each generated task independently reviewable and machine-checkable.",
+		"",
+		"Decomposition requirements:",
+		"- Create at least ten task leaves.",
+		"- Use dependencies where one task needs another task's output.",
+		"- Keep each leaf at complexity <= 75 and no more than three likely touched files.",
+		"- Use npm test as the acceptance command for generated implementation leaves.",
+		"",
+		"Acceptance command: npm test",
+	].join("\n"),
+	acceptanceCommand: "npm test",
+	complexity: 74,
+	filesLikelyTouched: ["src/habit-score.ts", "src/habit-insights.ts", "src/index.ts"],
+};
+
+export function resolveClineDevTestProjectScenario(
+	preset: ClineDevTestProjectPreset = "mid_task",
+): ClineDevTestProjectScenario {
+	return preset === "complex_dag" ? COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO : MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO;
+}
 
 function getRepoRootFromCurrentModule(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -86,17 +157,17 @@ export async function scaffoldClineDevTestProject(
 		force: true,
 	});
 	await writeFile(
-		join(workspacePath, "kanban-dev-scenario.json"),
-		`${JSON.stringify(
-			{
-				id: scenario.id,
-				title: scenario.title,
-				prompt: scenario.prompt,
-				acceptanceCommand: scenario.acceptanceCommand,
-			},
-			null,
-			2,
-		)}\n`,
+		join(workspacePath, "specification.md"),
+		[
+			`# ${scenario.title}`,
+			"",
+			scenario.specification.trim(),
+			"",
+			"## Acceptance",
+			"",
+			`Run \`${scenario.acceptanceCommand}\` successfully.`,
+			"",
+		].join("\n"),
 		"utf8",
 	);
 	const shouldInitializeGit = options.initializeGit ?? true;

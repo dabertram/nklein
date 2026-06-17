@@ -1,7 +1,21 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, ChevronUp, Ellipsis, ExternalLink, Info, Lightbulb, Plus, X } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronUp,
+	Clipboard,
+	Ellipsis,
+	ExternalLink,
+	FlaskConical,
+	Info,
+	Lightbulb,
+	Play,
+	Plus,
+	Trash2,
+	X,
+} from "lucide-react";
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { showAppToast } from "@/components/app-toaster";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
 import { Button } from "@/components/ui/button";
 import { ClineIcon } from "@/components/ui/cline-icon";
@@ -20,7 +34,16 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import type { RuntimeAgentId, RuntimeClineProviderSettings, RuntimeProjectSummary } from "@/runtime/types";
+import { cleanupDevTestProjects, createDevTestProject } from "@/runtime/runtime-config-query";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
+import type {
+	RuntimeAgentId,
+	RuntimeClineProviderSettings,
+	RuntimeDevTestProjectPreset,
+	RuntimeProjectSummary,
+} from "@/runtime/types";
+import { fetchWorkspaceState, saveWorkspaceState } from "@/runtime/workspace-state-query";
+import { moveTaskToColumn } from "@/state/board-state";
 import {
 	LocalStorageKey,
 	readLocalStorageItem,
@@ -93,6 +116,11 @@ export function ProjectNavigationPanel({
 
 	const [pendingProjectRemoval, setPendingProjectRemoval] = useState<RuntimeProjectSummary | null>(null);
 	const [deleteGitRepository, setDeleteGitRepository] = useState(false);
+	const [devTestProjectState, setDevTestProjectState] = useState<{
+		runningPreset: RuntimeDevTestProjectPreset | null;
+		isCleaningUp: boolean;
+		evidencePath: string | null;
+	}>({ runningPreset: null, isCleaningUp: false, evidencePath: null });
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
 	const pendingProjectTaskCount = pendingProjectRemoval
 		? pendingProjectRemoval.taskCounts.backlog +
@@ -397,6 +425,115 @@ export function ProjectNavigationPanel({
 								<span className="text-sm">Add Project</span>
 							</button>
 						) : null}
+						{import.meta.env.DEV ? (
+							<DevTestProjectCard
+								disabled={
+									removingProjectId !== null ||
+									devTestProjectState.runningPreset !== null ||
+									devTestProjectState.isCleaningUp
+								}
+								runningPreset={devTestProjectState.runningPreset}
+								isCleaningUp={devTestProjectState.isCleaningUp}
+								evidencePath={devTestProjectState.evidencePath}
+								onRun={async (preset) => {
+									setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
+									try {
+										const created = await createDevTestProject(currentProjectId, { preset });
+										if (!created.ok || !created.project) {
+											throw new Error(created.error ?? "Could not create the dev test project.");
+										}
+										setDevTestProjectState({
+											runningPreset: preset,
+											isCleaningUp: false,
+											evidencePath: created.evidenceRootPath,
+										});
+										onSelectProject(created.project.id);
+										if (preset === "mid_task" || preset === "complex_dag") {
+											if (!created.task) {
+												throw new Error("Dev test project did not include a startable task.");
+											}
+											const trpcClient = getRuntimeTrpcClient(created.project.id);
+											const started = await trpcClient.runtime.startTaskSession.mutate({
+												taskId: created.task.id,
+												prompt: created.task.prompt,
+												taskTitle: created.task.title,
+												startInPlanMode: created.task.startInPlanMode,
+												baseRef: created.task.baseRef,
+												agentId: created.task.agentId,
+												clineSettings: created.task.clineSettings,
+											});
+											if (!started.ok) {
+												throw new Error(started.error ?? "Dev test task could not be started.");
+											}
+											const workspaceState = await fetchWorkspaceState(created.project.id);
+											const targetColumnId = created.task.startInPlanMode ? "planning" : "in_progress";
+											const moved = moveTaskToColumn(workspaceState.board, created.task.id, targetColumnId, {
+												insertAtTop: true,
+											});
+											if (moved.moved) {
+												await saveWorkspaceState(created.project.id, {
+													board: moved.board,
+													sessions: workspaceState.sessions,
+													expectedRevision: workspaceState.revision,
+												});
+												await trpcClient.workspace.notifyStateUpdated.mutate();
+											}
+										}
+										showAppToast({
+											intent: "success",
+											icon: "check",
+											message:
+												preset === "complex_dag"
+													? "Complex product test project created with one decomposition task."
+													: "Mid task test project created with one decomposition task.",
+											timeout: 5000,
+										});
+									} catch (error) {
+										const message = error instanceof Error ? error.message : String(error);
+										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+									} finally {
+										setDevTestProjectState((current) => ({ ...current, runningPreset: null }));
+									}
+								}}
+								onCopyEvidence={async () => {
+									if (!devTestProjectState.evidencePath) {
+										return;
+									}
+									await navigator.clipboard.writeText(devTestProjectState.evidencePath);
+									showAppToast({
+										intent: "success",
+										icon: "clipboard",
+										message: "Evidence path copied.",
+										timeout: 3000,
+									});
+								}}
+								onCleanup={async () => {
+									setDevTestProjectState((current) => ({ ...current, isCleaningUp: true }));
+									try {
+										const cleaned = await cleanupDevTestProjects(currentProjectId);
+										if (!cleaned.ok) {
+											throw new Error(cleaned.error ?? "Could not clean up dev test projects.");
+										}
+										setDevTestProjectState({
+											runningPreset: null,
+											isCleaningUp: false,
+											evidencePath: null,
+										});
+										showAppToast({
+											intent: "success",
+											icon: "trash",
+											message: `Removed ${cleaned.removedProjects} dev projects and ${cleaned.removedTaskWorktrees} task workspaces.`,
+											timeout: 5000,
+										});
+									} catch (error) {
+										const message = error instanceof Error ? error.message : String(error);
+										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+									} finally {
+										setDevTestProjectState((current) => ({ ...current, isCleaningUp: false }));
+									}
+								}}
+							/>
+						) : null}
 					</div>
 					<ShortcutsCard />
 					<ProjectSupportFooter
@@ -513,6 +650,99 @@ const TERMINAL_AGENT_HINTS: readonly { label: string; hint: string }[] = [
 	{ label: "Break down work", hint: "Ask to decompose a complex feature into linked subtasks" },
 	{ label: "Import issues", hint: "Pull issues into task cards via GitHub CLI or Linear MCP" },
 ];
+
+function DevTestProjectCard({
+	disabled,
+	runningPreset,
+	isCleaningUp,
+	evidencePath,
+	onRun,
+	onCopyEvidence,
+	onCleanup,
+}: {
+	disabled: boolean;
+	runningPreset: RuntimeDevTestProjectPreset | null;
+	isCleaningUp: boolean;
+	evidencePath: string | null;
+	onRun: (preset: RuntimeDevTestProjectPreset) => Promise<void>;
+	onCopyEvidence: () => Promise<void>;
+	onCleanup: () => Promise<void>;
+}): React.ReactElement {
+	const isRunningMidTask = runningPreset === "mid_task";
+	const isRunningComplexProject = runningPreset === "complex_dag";
+
+	return (
+		<div className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
+			<div className="mb-2 flex items-start gap-2">
+				<FlaskConical size={14} className="mt-0.5 shrink-0 text-status-purple" />
+				<div className="min-w-0">
+					<p className="m-0 text-xs font-semibold text-text-primary">Dev Test Scenarios</p>
+					<p className="mt-1 mb-0 text-[11px] leading-4 text-text-secondary">
+						Create fixture projects with one spec and one initial decomposition task.
+					</p>
+				</div>
+			</div>
+			<div className="grid gap-2">
+				<Button
+					size="sm"
+					variant="default"
+					icon={isRunningMidTask ? <Spinner size={14} /> : <Play size={14} />}
+					disabled={disabled}
+					onClick={() => {
+						void onRun("mid_task");
+					}}
+					fill
+				>
+					{isRunningMidTask ? "Creating..." : "Create mid task project"}
+				</Button>
+				<Button
+					size="sm"
+					variant="default"
+					icon={isRunningComplexProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
+					disabled={disabled}
+					onClick={() => {
+						void onRun("complex_dag");
+					}}
+					fill
+				>
+					{isRunningComplexProject ? "Creating..." : "Create complex product project"}
+				</Button>
+				{evidencePath ? (
+					<Button
+						size="sm"
+						variant="ghost"
+						icon={<Clipboard size={14} />}
+						disabled={runningPreset !== null}
+						onClick={() => {
+							void onCopyEvidence();
+						}}
+						aria-label="Copy dev scenario evidence path"
+						fill
+					>
+						Copy evidence path
+					</Button>
+				) : null}
+				<Button
+					size="sm"
+					variant="ghost"
+					icon={isCleaningUp ? <Spinner size={14} /> : <Trash2 size={14} />}
+					disabled={disabled}
+					onClick={() => {
+						void onCleanup();
+					}}
+					fill
+				>
+					{isCleaningUp ? "Cleaning..." : "Delete dev workspaces"}
+				</Button>
+			</div>
+			{evidencePath ? (
+				<p className="mt-2 mb-0 truncate font-mono text-[11px] text-text-tertiary" title={evidencePath}>
+					{evidencePath}
+				</p>
+			) : null}
+		</div>
+	);
+}
 
 function TerminalAgentHints(): React.ReactElement {
 	const [isDismissed, setIsDismissed] = useState(

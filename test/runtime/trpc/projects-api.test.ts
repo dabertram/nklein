@@ -3,9 +3,14 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO } from "../../../src/cline-sdk/cline-dev-test-project";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
 import type { TerminalSessionManager } from "../../../src/terminal/session-manager";
-import { type CreateProjectsApiDependencies, createProjectsApi } from "../../../src/trpc/projects-api";
+import {
+	type CreateProjectsApiDependencies,
+	createDevTestBoard,
+	createProjectsApi,
+} from "../../../src/trpc/projects-api";
 
 function createTestCwd(): string {
 	const base = join(tmpdir(), `kanban-test-dir-list-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -52,6 +57,27 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 		serverCwd,
 	};
 }
+
+describe("createDevTestBoard", () => {
+	it("seeds one Cline-only decomposition task without prebuilt dependencies", () => {
+		const board = createDevTestBoard({
+			taskId: "dev-initial-decompose",
+			title: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.title,
+			prompt: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.prompt,
+			acceptanceCommand: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.acceptanceCommand,
+			now: 123,
+		});
+		const backlog = board.columns.find((column) => column.id === "backlog")?.cards ?? [];
+		expect(backlog).toHaveLength(1);
+		expect(new Set(backlog.map((card) => card.agentId))).toEqual(new Set(["cline"]));
+		expect(backlog[0]?.clineSettings).toBeUndefined();
+		expect(backlog[0]?.startInPlanMode).toBe(true);
+		expect(backlog[0]?.autoReviewEnabled).toBe(false);
+		expect(backlog[0]?.prompt).toContain("/kanban-decompose");
+		expect(backlog[0]?.prompt).toContain("specification.md");
+		expect(board.dependencies).toHaveLength(0);
+	});
+});
 
 describe("listDirectoryContents", () => {
 	let testCwd: string;
