@@ -245,6 +245,12 @@ describe("InMemoryClineSessionRuntime", () => {
 						reserveTokens: 16_000,
 						preserveRecentTokens: 20_000,
 					}),
+					toolRoutingRules: expect.arrayContaining([
+						expect.objectContaining({
+							name: "kanban-small-local-model-tool-trim",
+							disableTools: ["fetch_web_content", "skills", "ask_question"],
+						}),
+					]),
 				}),
 				localRuntime: expect.objectContaining({
 					compaction: expect.objectContaining({

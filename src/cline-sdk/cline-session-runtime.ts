@@ -18,6 +18,7 @@ import {
 	type ClineMcpToolBundle,
 	createClineMcpRuntimeService,
 } from "./cline-mcp-runtime-service";
+import { buildKanbanModelToolRoutingRules } from "./cline-model-tool-routing";
 import { buildClineRepoMap } from "./cline-repo-map";
 import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
@@ -507,6 +508,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
 			providerConfig,
 			...(compaction ? { compaction } : {}),
+			toolRoutingRules: buildKanbanModelToolRoutingRules(),
 			execution: {
 				maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
 			},
