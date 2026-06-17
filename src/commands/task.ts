@@ -40,6 +40,7 @@ import type { RuntimeAppRouter } from "../trpc/app-router";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
+const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
 type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
 type TaskCommandTarget = { taskId?: string; column?: ListTaskColumn };
 
@@ -161,6 +162,33 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			error: message,
 		},
 	});
+}
+
+export function markTaskNeedsDecompositionOnBoard(
+	board: RuntimeWorkspaceStateResponse["board"],
+	taskId: string,
+	reason: string | null | undefined,
+): RuntimeWorkspaceStateResponse["board"] {
+	let updated = false;
+	const blockedReason = reason?.trim() || DEFAULT_NEEDS_DECOMPOSITION_REASON;
+	const columns = board.columns.map((column) => {
+		let columnUpdated = false;
+		const cards = column.cards.map((card) => {
+			if (card.id !== taskId) {
+				return card;
+			}
+			updated = true;
+			columnUpdated = true;
+			return {
+				...card,
+				blockedKind: "needs_decomposition" as const,
+				blockedReason,
+				updatedAt: Date.now(),
+			};
+		});
+		return columnUpdated ? { ...column, cards } : column;
+	});
+	return updated ? { ...board, columns } : board;
 }
 
 function parseListColumn(value: string | undefined): ListTaskColumn | undefined {
@@ -981,6 +1009,12 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 			clineSettings: task.clineSettings,
 		});
 		if (!started.ok || !started.summary) {
+			if (started.errorCode === "needs_decomposition") {
+				await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (latestState) => ({
+					board: markTaskNeedsDecompositionOnBoard(latestState.board, task.id, started.error),
+					value: null,
+				}));
+			}
 			throw new Error(started.error ?? "Could not start task session.");
 		}
 	}

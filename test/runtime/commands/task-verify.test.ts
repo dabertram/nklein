@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { recordDecompositionRejection, runVerifyTaskAcceptanceCommand } from "../../../src/commands/task";
+import {
+	markTaskNeedsDecompositionOnBoard,
+	recordDecompositionRejection,
+	runVerifyTaskAcceptanceCommand,
+} from "../../../src/commands/task";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
 
@@ -265,6 +269,24 @@ describe("task decompose command telemetry", () => {
 				taskGraphPath: "/repo/.cline/kanban/plans/checkout-rework/tasks.json",
 				error: "Task api has complexity 90/100; split it below 75/100 before decomposing.",
 			},
+		});
+	});
+});
+
+describe("task start command blocking", () => {
+	it("marks tasks that need decomposition on the board", () => {
+		const board = createWorkspaceState("Implement a broad task.").board;
+
+		const nextBoard = markTaskNeedsDecompositionOnBoard(
+			board,
+			"task-1",
+			"Task start blocked: this card needs decomposition.",
+		);
+		const task = nextBoard.columns.find((column) => column.id === "in_progress")?.cards[0];
+
+		expect(task).toMatchObject({
+			blockedKind: "needs_decomposition",
+			blockedReason: "Task start blocked: this card needs decomposition.",
 		});
 	});
 });
