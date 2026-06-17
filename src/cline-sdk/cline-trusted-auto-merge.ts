@@ -1,13 +1,16 @@
 const PROTECTED_AUTO_MERGE_PATH_PREFIXES = [
+	"src/core/agent-write-guard.ts",
+	"src/core/runtime-endpoint.ts",
 	"src/security/",
+	"src/server/shutdown-coordinator.ts",
 	"src/workspace/path-sandbox.ts",
 	"src/workspace/task-worktree.ts",
+	"src/workspace/task-worktree-path.ts",
 	"src/workspace/task-worktree-sync.ts",
 	"src/telemetry/self-observation-sink.ts",
 	"src/cline-sdk/cline-dogfood-engine.ts",
 	"src/cline-sdk/cline-trusted-auto-merge.ts",
-	"src/permissions/",
-	"src/sandbox/",
+	"src/trpc/runtime-api.ts",
 ];
 
 export interface TrustedAutoMergeInput {
@@ -69,7 +72,14 @@ export function evaluateTrustedAutoMerge(input: TrustedAutoMergeInput): TrustedA
 			protectedPaths,
 		};
 	}
-	if (input.regressionDelta !== null && input.regressionDelta < 0) {
+	if (input.regressionDelta === null) {
+		return {
+			allowed: false,
+			reason: "trusted auto-merge blocked because the regression delta is unknown.",
+			protectedPaths,
+		};
+	}
+	if (input.regressionDelta < 0) {
 		return {
 			allowed: false,
 			reason: "trusted auto-merge blocked by negative regression delta.",

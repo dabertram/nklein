@@ -25,6 +25,7 @@ import type {
 } from "../core/api-contract";
 import { openInBrowser } from "../server/browser";
 import { assertClineContextWindowPolicy } from "./cline-context-window-policy";
+import { assertLocalProviderAllowed } from "./cline-local-only-policy";
 import { type ClineModelRegistryEntry, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import {
@@ -1187,6 +1188,12 @@ export function createClineProviderService() {
 					"No native Cline provider is configured. Open Settings, choose a provider, and then start the task again.",
 				);
 			}
+			// Local-only lockdown: refuse to resolve a launch config for any cloud/paid provider before
+			// we touch OAuth, API keys, or the network. This is the single dispatch chokepoint.
+			assertLocalProviderAllowed({
+				providerId: normalizedProviderId,
+				baseUrl: selectedSettings.baseUrl,
+			});
 			const oauthResolution = await refreshManagedOauthSettings(selectedSettings);
 			const resolvedSettings = oauthResolution?.settings ?? selectedSettings;
 			const apiKey = isManagedOauthProviderId(normalizedProviderId)

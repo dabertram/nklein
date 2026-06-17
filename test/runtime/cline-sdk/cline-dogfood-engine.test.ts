@@ -97,9 +97,25 @@ describe("cline dogfood engine", () => {
 			}),
 		});
 		expect(backlog.taskGraph.tasks[0]).toMatchObject({
-			complexity: 80,
+			complexity: 40,
 			suggestedRole: "architect",
 		});
+	});
+
+	it("caps generated task graphs to the decomposition sizing contract", () => {
+		const backlog = buildClineDogfoodBacklog({
+			events: [
+				createEvent({
+					severity: "error",
+					metadata: {
+						filesLikelyTouched: ["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts"],
+					},
+				}),
+			],
+		});
+
+		expect(backlog.taskGraph.tasks[0]?.complexity).toBeLessThanOrEqual(75);
+		expect(backlog.taskGraph.tasks[0]?.filesLikelyTouched).toHaveLength(3);
 	});
 
 	it("turns user suggestions into dogfood task candidates", () => {

@@ -43,6 +43,9 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
+	RuntimeDevTestCleanupResponse,
+	RuntimeDevTestProjectRequest,
+	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListRequest,
 	RuntimeDirectoryListResponse,
 	RuntimeFeaturebaseTokenResponse,
@@ -140,6 +143,9 @@ import {
 	runtimeConfigResponseSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
+	runtimeDevTestCleanupResponseSchema,
+	runtimeDevTestProjectRequestSchema,
+	runtimeDevTestProjectResponseSchema,
 	runtimeDirectoryListRequestSchema,
 	runtimeDirectoryListResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
@@ -380,6 +386,11 @@ export interface RuntimeTrpcContext {
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectAddRequest,
 		) => Promise<RuntimeProjectAddResponse>;
+		createDevTestProject: (
+			preferredWorkspaceId: string | null,
+			input: RuntimeDevTestProjectRequest,
+		) => Promise<RuntimeDevTestProjectResponse>;
+		cleanupDevTestProjects: (preferredWorkspaceId: string | null) => Promise<RuntimeDevTestCleanupResponse>;
 		removeProject: (
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectRemoveRequest,
@@ -744,6 +755,15 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.projectsApi.addProject(ctx.requestedWorkspaceId, input);
 			}),
+		createDevTestProject: t.procedure
+			.input(runtimeDevTestProjectRequestSchema)
+			.output(runtimeDevTestProjectResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.projectsApi.createDevTestProject(ctx.requestedWorkspaceId, input);
+			}),
+		cleanupDevTestProjects: t.procedure.output(runtimeDevTestCleanupResponseSchema).mutation(async ({ ctx }) => {
+			return await ctx.projectsApi.cleanupDevTestProjects(ctx.requestedWorkspaceId);
+		}),
 		remove: t.procedure
 			.input(runtimeProjectRemoveRequestSchema)
 			.output(runtimeProjectRemoveResponseSchema)

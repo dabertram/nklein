@@ -1,4 +1,5 @@
 import type { SearchSelectOption } from "@/components/search-select-dropdown";
+import { formatClineModelContextWindowLabel } from "@/runtime/cline-context-window-policy";
 import type { RuntimeClineProviderModel, RuntimeClineReasoningEffort } from "@/runtime/types";
 
 const CLINE_PROVIDER_ID = "cline";
@@ -37,7 +38,7 @@ export function buildClineAgentModelPickerOptions(
 ): BuildClineAgentModelPickerOptionsResult {
 	const defaultOptions = providerModels.map((model) => ({
 		value: model.id,
-		label: model.name,
+		label: formatClineModelContextWindowLabel(model),
 	}));
 	if (providerId.trim().toLowerCase() !== CLINE_PROVIDER_ID) {
 		return {

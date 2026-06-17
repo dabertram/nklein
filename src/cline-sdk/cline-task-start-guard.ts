@@ -1,4 +1,5 @@
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
+import { assertClineContextWindowPolicy } from "./cline-context-window-policy";
 import {
 	buildClineModelRegistryKey,
 	type ClineModelRegistryEntry,
@@ -141,11 +142,16 @@ export function buildClineStartGuardCandidate<TLaunchConfig extends ClineStartGu
 			providerId: input.launchConfig.providerId,
 			modelId,
 			endpoint,
-			contextWindow: input.launchConfig.contextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW,
+			contextWindow: input.launchConfig.contextWindow ?? null,
 			capability: getRoleCapabilityPrior(input.role),
 			now: Date.now(),
 		});
-	const contextWindowFallback = input.launchConfig.contextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW;
+	const contextWindow = assertClineContextWindowPolicy({
+		providerId: input.launchConfig.providerId,
+		modelId,
+		contextWindow: entry.contextWindow.effective ?? input.launchConfig.contextWindow ?? null,
+		label: input.role ? `${input.role} role model` : "Selected Cline model",
+	});
 	return {
 		entry:
 			entry.contextWindow.effective === null
@@ -153,7 +159,7 @@ export function buildClineStartGuardCandidate<TLaunchConfig extends ClineStartGu
 						...entry,
 						contextWindow: {
 							...entry.contextWindow,
-							effective: contextWindowFallback,
+							effective: contextWindow,
 						},
 					}
 				: entry,

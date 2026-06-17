@@ -50,6 +50,17 @@ describe("cline self-review hook", () => {
 		});
 	});
 
+	it("blocks completion claims when the runtime reports no changed files", () => {
+		const control = reviewClineAfterModelCompletion(
+			createAfterModelContext("Implemented the parser fix and added focused regression coverage."),
+			{ hasChangedFiles: false },
+		);
+
+		expect(control).toMatchObject({
+			stop: true,
+		});
+	});
+
 	it("allows ordinary final summaries", () => {
 		const control = reviewClineAfterModelCompletion(
 			createAfterModelContext("Implemented the parser fix and added focused regression coverage."),

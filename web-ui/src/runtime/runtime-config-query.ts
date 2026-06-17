@@ -32,6 +32,9 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
+	RuntimeDevTestCleanupResponse,
+	RuntimeDevTestProjectPreset,
+	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeUpdateStatusResponse,
@@ -174,6 +177,19 @@ export async function writeClineDogfoodBacklog(
 export async function runClineSmokeEval(workspaceId: string | null): Promise<RuntimeClineSmokeEvalResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.runClineSmokeEval.mutate();
+}
+
+export async function createDevTestProject(
+	workspaceId: string | null,
+	input?: { preset?: RuntimeDevTestProjectPreset },
+): Promise<RuntimeDevTestProjectResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.projects.createDevTestProject.mutate(input);
+}
+
+export async function cleanupDevTestProjects(workspaceId: string | null): Promise<RuntimeDevTestCleanupResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.projects.cleanupDevTestProjects.mutate();
 }
 
 export async function runClineProviderOauthLogin(

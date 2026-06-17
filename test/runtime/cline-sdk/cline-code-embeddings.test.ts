@@ -8,12 +8,12 @@ describe("cline code embeddings", () => {
 		globalThis.fetch = originalFetch;
 	});
 
-	it("uses local hash embeddings by default", async () => {
+	it("uses local lexical vectors by default", async () => {
 		const provider = createClineCodeEmbeddingProvider({});
 		const vector = await provider.embed("storage adapter persistence");
 
-		expect(provider.kind).toBe("local_hash");
-		expect(provider.model).toBe("kanban-local-hash-embedding-v1");
+		expect(provider.kind).toBe("local_lexical");
+		expect(provider.model).toBe("kanban-local-lexical-vector-v1");
 		expect(vector.get("storage")).toBeGreaterThan(0);
 	});
 

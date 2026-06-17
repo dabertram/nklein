@@ -14,6 +14,8 @@ import {
 
 const DEFAULT_ACCEPTANCE_COMMAND = "npm run typecheck && npm run test:fast";
 const MAX_EXAMPLES_PER_CLUSTER = 5;
+const MAX_DOGFOOD_TASK_COMPLEXITY = 75;
+const MAX_DOGFOOD_TASK_LIKELY_FILES = 3;
 const MAX_MESSAGE_KEY_LENGTH = 140;
 const SEVERITY_WEIGHT: Record<SelfObservationSeverity, number> = {
 	debug: 1,
@@ -336,9 +338,9 @@ export function buildClineDogfoodBacklog(options: BuildClineDogfoodBacklogOption
 				title: candidate.title,
 				prompt: candidate.prompt,
 				dependsOn: [],
-				complexity: candidate.requiresHumanApproval ? 80 : Math.min(75, 30 + candidate.score),
+				complexity: Math.min(MAX_DOGFOOD_TASK_COMPLEXITY, 30 + candidate.score),
 				suggestedRole: candidate.requiresHumanApproval ? "architect" : "worker",
-				filesLikelyTouched: candidate.filesLikelyTouched,
+				filesLikelyTouched: candidate.filesLikelyTouched.slice(0, MAX_DOGFOOD_TASK_LIKELY_FILES),
 				acceptanceCommand: candidate.acceptanceCommand,
 				testFirst: false,
 				acceptanceTestPrompt: null,

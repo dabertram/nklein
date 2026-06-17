@@ -12,6 +12,10 @@ const UNFINISHED_PATTERNS = [
 const COMPLETION_CLAIM_PATTERN = /\b(done|complete|completed|implemented|fixed|finished)\b/i;
 const NO_CHANGE_PATTERN = /\bno (?:files|changes|edits) (?:were )?(?:changed|made|needed)\b/i;
 
+export interface ClineSelfReviewOptions {
+	hasChangedFiles?: boolean | null;
+}
+
 function readAssistantText(message: AgentMessage): string {
 	return message.content
 		.flatMap((part) => {
@@ -28,7 +32,10 @@ function hasToolCall(message: AgentMessage): boolean {
 	return message.content.some((part) => part.type === "tool-call");
 }
 
-export function reviewClineAfterModelCompletion(context: AgentAfterModelContext): AgentStopControl | undefined {
+export function reviewClineAfterModelCompletion(
+	context: AgentAfterModelContext,
+	options: ClineSelfReviewOptions = {},
+): AgentStopControl | undefined {
 	if (context.finishReason !== "stop" || hasToolCall(context.assistantMessage)) {
 		return undefined;
 	}
@@ -37,7 +44,9 @@ export function reviewClineAfterModelCompletion(context: AgentAfterModelContext)
 		return undefined;
 	}
 	const admitsUnfinishedWork = UNFINISHED_PATTERNS.some((pattern) => pattern.test(text));
-	const claimsCompletionWithoutChanges = COMPLETION_CLAIM_PATTERN.test(text) && NO_CHANGE_PATTERN.test(text);
+	const claimsCompletion = COMPLETION_CLAIM_PATTERN.test(text);
+	const claimsCompletionWithoutChanges =
+		claimsCompletion && (NO_CHANGE_PATTERN.test(text) || options.hasChangedFiles === false);
 	if (!admitsUnfinishedWork && !claimsCompletionWithoutChanges) {
 		return undefined;
 	}

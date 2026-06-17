@@ -1,9 +1,11 @@
-import { calculateHabitScore } from "./habit-score.js";
+import { summarizeHabitWeek } from "./habit-insights.ts";
 
-const score = calculateHabitScore({
+const summary = summarizeHabitWeek({
 	completedDays: 4,
+	previousCompletedDays: 3,
 	targetDays: 5,
 	streakDays: 3,
 });
 
-console.log(`habit score: ${score}`);
+console.log(`habit score: ${summary.score}`);
+console.log(`trend: ${summary.trend}`);

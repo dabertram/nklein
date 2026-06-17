@@ -102,6 +102,46 @@ describe("cline endpoint scheduler", () => {
 		expect(decision).toEqual({ ok: true });
 	});
 
+	it("does not serialize cloud providers even when old registry data has a default shared endpoint", () => {
+		const modelRegistry: ClineModelRegistrySnapshot = {
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:claude-sonnet:default": {
+					...createSnapshot(null).models["ollama:qwen:local"],
+					key: "anthropic:claude-sonnet:default",
+					providerId: "anthropic",
+					modelId: "claude-sonnet",
+					endpoint: null,
+					constraints: {
+						sharedEndpointId: "anthropic:default",
+						inputCostPerMillionTokens: null,
+						outputCostPerMillionTokens: null,
+					},
+				},
+			},
+		};
+
+		const decision = scheduleClineEndpointStart({
+			taskId: "task-2",
+			providerId: "anthropic",
+			modelId: "claude-sonnet",
+			endpoint: null,
+			modelRegistry,
+			runningSessions: [
+				{
+					taskId: "task-1",
+					state: "running",
+					providerId: "anthropic",
+					modelId: "claude-sonnet",
+					endpoint: null,
+				},
+			],
+		});
+
+		expect(decision).toEqual({ ok: true });
+	});
+
 	it("uses conservative local-provider fallback when registry data is cold", () => {
 		const decision = scheduleClineEndpointStart({
 			taskId: "task-2",

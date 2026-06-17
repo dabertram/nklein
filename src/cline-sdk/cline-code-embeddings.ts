@@ -1,4 +1,4 @@
-export type ClineCodeEmbeddingProviderKind = "local_hash" | "openai_compatible";
+export type ClineCodeEmbeddingProviderKind = "local_lexical" | "openai_compatible";
 
 export type ClineCodeEmbeddingVector = Map<string, number>;
 
@@ -15,7 +15,7 @@ interface OpenAiEmbeddingResponse {
 	}>;
 }
 
-const LOCAL_EMBEDDING_MODEL = "kanban-local-hash-embedding-v1";
+const LOCAL_LEXICAL_MODEL = "kanban-local-lexical-vector-v1";
 
 function tokenize(text: string): string[] {
 	return text
@@ -65,11 +65,11 @@ function readOpenAiEmbeddingResponse(value: unknown): OpenAiEmbeddingResponse | 
 	};
 }
 
-function createLocalHashEmbeddingProvider(): ClineCodeEmbeddingProvider {
+function createLocalLexicalEmbeddingProvider(): ClineCodeEmbeddingProvider {
 	return {
-		kind: "local_hash",
-		model: LOCAL_EMBEDDING_MODEL,
-		cacheKey: LOCAL_EMBEDDING_MODEL,
+		kind: "local_lexical",
+		model: LOCAL_LEXICAL_MODEL,
+		cacheKey: LOCAL_LEXICAL_MODEL,
 		async embed(text) {
 			return vectorizeSparseTokens(text);
 		},
@@ -113,7 +113,7 @@ function createOpenAiCompatibleEmbeddingProvider(env: NodeJS.ProcessEnv): ClineC
 
 export function createClineCodeEmbeddingProvider(env: NodeJS.ProcessEnv = process.env): ClineCodeEmbeddingProvider {
 	if (env.KANBAN_CODE_EMBEDDING_PROVIDER?.trim() === "openai-compatible") {
-		return createOpenAiCompatibleEmbeddingProvider(env) ?? createLocalHashEmbeddingProvider();
+		return createOpenAiCompatibleEmbeddingProvider(env) ?? createLocalLexicalEmbeddingProvider();
 	}
-	return createLocalHashEmbeddingProvider();
+	return createLocalLexicalEmbeddingProvider();
 }

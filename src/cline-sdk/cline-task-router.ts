@@ -1,3 +1,4 @@
+import { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
 import type { ClineModelRegistryEntry } from "./cline-model-registry";
 
 export interface ClineTaskRoutingCandidate {
@@ -45,6 +46,7 @@ export type ClineTaskRoutingDecision =
 interface ScoredCandidate extends ClineTaskRoutingCandidate {
 	capability: number;
 	contextWindow: number;
+	requiredContextWindow: number;
 	predictedWallTimeMs: number | null;
 }
 
@@ -88,13 +90,31 @@ function estimateWallTimeMs(
 	return (prefillMs ?? 0) + (decodeMs ?? 0) + (speed.ttftMsEwma ?? 0);
 }
 
+function estimateCandidateRequiredContextWindow(
+	candidate: ClineTaskRoutingCandidate,
+	promptTokens: number | null,
+	fallbackFitBudgetTokens: number,
+): number {
+	if (promptTokens === null) {
+		return fallbackFitBudgetTokens;
+	}
+	const contextWindow = getCandidateContextWindow(candidate);
+	if (contextWindow <= 0) {
+		return fallbackFitBudgetTokens;
+	}
+	const budgets = buildKanbanContextSafetyBudgets(contextWindow);
+	return promptTokens + budgets.outputReserveTokens + budgets.promptOverheadReserveTokens;
+}
+
 function scoreCandidates(request: ClineTaskRoutingRequest): ScoredCandidate[] {
 	const promptTokens = request.promptTokens && request.promptTokens > 0 ? request.promptTokens : null;
 	const outputTokens = request.outputTokens && request.outputTokens > 0 ? request.outputTokens : null;
+	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
 	return request.candidates.map((candidate) => ({
 		...candidate,
 		capability: getCandidateCapability(candidate),
 		contextWindow: getCandidateContextWindow(candidate),
+		requiredContextWindow: estimateCandidateRequiredContextWindow(candidate, promptTokens, fitBudgetTokens),
 		predictedWallTimeMs: estimateWallTimeMs(candidate, promptTokens, outputTokens),
 	}));
 }
@@ -124,7 +144,10 @@ export function routeClineTask(request: ClineTaskRoutingRequest): ClineTaskRouti
 	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
 	const candidates = scoreCandidates(request);
 	const feasible = candidates
-		.filter((candidate) => candidate.capability >= difficulty && candidate.contextWindow >= fitBudgetTokens)
+		.filter(
+			(candidate) =>
+				candidate.capability >= difficulty && candidate.contextWindow >= candidate.requiredContextWindow,
+		)
 		.sort(compareCandidates);
 	const preferredModelKey = request.preferredModelKey ?? null;
 	const preferred = preferredModelKey
@@ -132,14 +155,22 @@ export function routeClineTask(request: ClineTaskRoutingRequest): ClineTaskRouti
 		: null;
 
 	if (feasible.length > 0) {
+		if (preferred && feasible.some((candidate) => candidate.entry.key === preferred.entry.key)) {
+			return {
+				type: "assign",
+				modelKey: preferred.entry.key,
+				role: preferred.role ?? null,
+				reason: `Selected feasible preferred model for difficulty ${difficulty}.`,
+			};
+		}
 		const selected = feasible[0];
-		if (preferred && preferred.entry.key !== selected.entry.key) {
+		if (preferred) {
 			return {
 				type: "route_up",
 				modelKey: selected.entry.key,
 				role: selected.role ?? null,
 				fromModelKey: preferred.entry.key,
-				reason: `Preferred model cannot satisfy difficulty ${difficulty} and fit budget ${fitBudgetTokens.toLocaleString()} tokens.`,
+				reason: `Preferred model cannot satisfy difficulty ${difficulty} and the candidate-specific context fit guard.`,
 			};
 		}
 		return {
@@ -151,20 +182,27 @@ export function routeClineTask(request: ClineTaskRoutingRequest): ClineTaskRouti
 	}
 
 	const hasCapableModel = candidates.some((candidate) => candidate.capability >= difficulty);
-	const hasLargeEnoughWindow = candidates.some((candidate) => candidate.contextWindow >= fitBudgetTokens);
+	const hasLargeEnoughWindow = candidates.some(
+		(candidate) => candidate.contextWindow >= candidate.requiredContextWindow,
+	);
+	const positiveRequiredContextWindows = candidates
+		.map((candidate) => candidate.requiredContextWindow)
+		.filter((value) => value > 0);
+	const requiredContextWindow =
+		positiveRequiredContextWindows.length > 0 ? Math.min(...positiveRequiredContextWindows) : fitBudgetTokens;
 	if (hasCapableModel || hasLargeEnoughWindow) {
 		return {
 			type: "decompose",
-			reason: `No connected model satisfies both difficulty ${difficulty} and fit budget ${fitBudgetTokens.toLocaleString()} tokens.`,
+			reason: `No connected model satisfies both difficulty ${difficulty} and the candidate-specific context fit guard.`,
 			requiredCapability: difficulty,
-			requiredContextWindow: fitBudgetTokens,
+			requiredContextWindow,
 		};
 	}
 
 	return {
 		type: "escalate",
-		reason: `No connected model is capable enough or large enough for difficulty ${difficulty} and fit budget ${fitBudgetTokens.toLocaleString()} tokens.`,
+		reason: `No connected model is capable enough or large enough for difficulty ${difficulty} and the candidate-specific context fit guard.`,
 		requiredCapability: difficulty,
-		requiredContextWindow: fitBudgetTokens,
+		requiredContextWindow,
 	};
 }

@@ -65,6 +65,10 @@ interface SourceFile {
 	content: string;
 }
 
+interface RankedClineCodeSearchMatch extends ClineCodeSearchMatch {
+	source: "lexical" | "index";
+}
+
 function asPositiveInteger(value: number | undefined, fallback: number): number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
 }
@@ -182,6 +186,52 @@ function searchFile(
 	return matches;
 }
 
+function normalizeMatches(
+	matches: readonly ClineCodeSearchMatch[],
+	source: RankedClineCodeSearchMatch["source"],
+	weight: number,
+): RankedClineCodeSearchMatch[] {
+	const maxScore = Math.max(...matches.map((match) => match.score), 0);
+	return matches.map((match) => ({
+		...match,
+		source,
+		score: maxScore > 0 ? Math.round((match.score / maxScore) * weight) : 0,
+	}));
+}
+
+function rankHybridMatches(input: {
+	lexicalMatches: readonly ClineCodeSearchMatch[];
+	indexMatches: readonly ClineCodeSearchMatch[];
+	maxResults: number;
+}): { matches: ClineCodeSearchMatch[]; truncated: boolean } {
+	const combined = [
+		...normalizeMatches(input.lexicalMatches, "lexical", 100),
+		...normalizeMatches(input.indexMatches, "index", 80),
+	].filter((match) => match.score > 0);
+	const bestByRange = new Map<string, RankedClineCodeSearchMatch>();
+	for (const match of combined) {
+		const key = `${match.path}:${match.lineStart}:${match.lineEnd}`;
+		const existing = bestByRange.get(key);
+		if (!existing || match.score > existing.score || (match.score === existing.score && match.source === "lexical")) {
+			bestByRange.set(key, match);
+		}
+	}
+	const ranked = [...bestByRange.values()].sort((left, right) => {
+		const scoreDelta = right.score - left.score;
+		if (scoreDelta !== 0) {
+			return scoreDelta;
+		}
+		if (left.source !== right.source) {
+			return left.source === "lexical" ? -1 : 1;
+		}
+		return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
+	});
+	return {
+		matches: ranked.slice(0, input.maxResults).map(({ source: _source, ...match }) => match),
+		truncated: ranked.length > input.maxResults,
+	};
+}
+
 export async function searchClineCode(options: SearchClineCodeOptions): Promise<ClineCodeSearchResult> {
 	const query = normalizeQuery(options.query);
 	if (!query) {
@@ -199,7 +249,7 @@ export async function searchClineCode(options: SearchClineCodeOptions): Promise<
 			content: await readFile(filePath, "utf8"),
 		});
 	}
-	const rankedMatches = files
+	const lexicalMatches = files
 		.flatMap((file) => searchFile(file, query, queryTokens, contextLines))
 		.sort((left, right) => {
 			const scoreDelta = right.score - left.score;
@@ -208,30 +258,27 @@ export async function searchClineCode(options: SearchClineCodeOptions): Promise<
 			}
 			return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
 		});
-	if (rankedMatches.length === 0) {
-		const indexMatches = await searchClineCodeIndex({
-			workspacePath: options.workspacePath,
-			query,
-			maxFiles,
-			maxResults,
-		});
-		return {
-			query,
-			filesScanned: indexMatches.filesScanned,
-			matches: indexMatches.matches.map((match) => ({
-				path: match.path,
-				lineStart: match.lineStart,
-				lineEnd: match.lineEnd,
-				score: match.score,
-				snippet: match.text,
-			})),
-			truncated: indexMatches.truncated,
-		};
-	}
+	const indexMatches = await searchClineCodeIndex({
+		workspacePath: options.workspacePath,
+		query,
+		maxFiles,
+		maxResults: Math.max(maxResults, DEFAULT_MAX_RESULTS),
+	});
+	const hybrid = rankHybridMatches({
+		lexicalMatches,
+		indexMatches: indexMatches.matches.map((match) => ({
+			path: match.path,
+			lineStart: match.lineStart,
+			lineEnd: match.lineEnd,
+			score: match.score,
+			snippet: match.text,
+		})),
+		maxResults,
+	});
 	return {
 		query,
-		filesScanned: files.length,
-		matches: rankedMatches.slice(0, maxResults),
-		truncated: rankedMatches.length > maxResults,
+		filesScanned: Math.max(files.length, indexMatches.filesScanned),
+		matches: hybrid.matches,
+		truncated: hybrid.truncated || indexMatches.truncated,
 	};
 }

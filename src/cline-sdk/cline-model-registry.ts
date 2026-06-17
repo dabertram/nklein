@@ -2,10 +2,14 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { LOCAL_PROVIDER_IDS } from "./cline-local-only-policy";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
 const DEFAULT_CAPABILITY_PRIOR = 35;
+// Local inference servers (one GPU/endpoint) are serialized by the scheduler. Source of truth is the
+// local-only policy so the set never drifts from the lockdown's notion of "local".
+const LOCAL_SERIALIZED_PROVIDER_IDS = LOCAL_PROVIDER_IDS;
 
 export interface ClineModelRegistryKeyInput {
 	providerId: string;
@@ -148,6 +152,12 @@ function normalizeEndpoint(endpoint: string | null | undefined): string | null {
 	return normalizeNullableString(endpoint);
 }
 
+function getDefaultSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
+	return LOCAL_SERIALIZED_PROVIDER_IDS.has(input.providerId)
+		? (input.endpoint ?? `${input.providerId}:default`)
+		: null;
+}
+
 export function buildClineModelRegistryKey(input: ClineModelRegistryKeyInput): string {
 	const providerId = normalizeProviderId(input.providerId);
 	const modelId = normalizeModelId(input.modelId);
@@ -210,7 +220,7 @@ function createEntry(input: ClineModelRegistryKeyInput, now: number): ClineModel
 		speed: createEmptySpeedStats(),
 		capability: createEmptyCapabilityStats(),
 		constraints: {
-			sharedEndpointId: endpoint ?? `${providerId}:default`,
+			sharedEndpointId: getDefaultSharedEndpointId({ providerId, endpoint }),
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
 		},
@@ -234,16 +244,19 @@ function calculateEffectiveContextWindow(windowStats: ClineModelRegistryWindowSt
 }
 
 function calculateEffectiveCapability(capability: ClineModelRegistryCapabilityStats): number {
-	const scores = [
+	const observedScores = [
 		capability.evalScore,
 		capability.externalScore,
 		capability.observedPassRate === null ? null : capability.observedPassRate * 100,
-		capability.staticPrior,
 	].filter((score): score is number => score !== null);
-	if (scores.length === 0) {
+	const priorWeight = 1 / (1 + Math.max(0, capability.samples));
+	const weightedTotal =
+		observedScores.reduce((total, score) => total + score, 0) + capability.staticPrior * priorWeight;
+	const totalWeight = observedScores.length + priorWeight;
+	if (totalWeight === 0) {
 		return DEFAULT_CAPABILITY_PRIOR;
 	}
-	return Math.round(scores.reduce((total, score) => total + score, 0) / scores.length);
+	return Math.round(weightedTotal / totalWeight);
 }
 
 function normalizeWindowStats(value: unknown): ClineModelRegistryWindowStats {
@@ -264,9 +277,9 @@ function normalizeSpeedStats(value: unknown): ClineModelRegistrySpeedStats {
 	const record = asRecord(value);
 	return {
 		samples: normalizePositiveInteger(record?.samples) ?? 0,
-		promptTokensEwma: normalizePositiveInteger(record?.promptTokensEwma),
-		outputTokensEwma: normalizePositiveInteger(record?.outputTokensEwma),
-		totalTokensEwma: normalizePositiveInteger(record?.totalTokensEwma),
+		promptTokensEwma: normalizePositiveNumber(record?.promptTokensEwma),
+		outputTokensEwma: normalizePositiveNumber(record?.outputTokensEwma),
+		totalTokensEwma: normalizePositiveNumber(record?.totalTokensEwma),
 		prefillTokensPerSecondEwma: normalizeScoreLikeNumber(record?.prefillTokensPerSecondEwma),
 		decodeTokensPerSecondEwma: normalizeScoreLikeNumber(record?.decodeTokensPerSecondEwma),
 		ttftMsEwma: normalizePositiveNumber(record?.ttftMsEwma),

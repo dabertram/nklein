@@ -57,6 +57,9 @@ function getSharedEndpointId(snapshot: ClineModelRegistrySnapshot, input: ClineM
 	if (providerId.length === 0 || modelId.length === 0) {
 		return null;
 	}
+	if (!LOCAL_SERIALIZED_PROVIDER_IDS.has(providerId)) {
+		return null;
+	}
 	const key = buildClineModelRegistryKey({ providerId, modelId, endpoint });
 	const registrySharedEndpointId = snapshot.models[key]?.constraints.sharedEndpointId?.trim() ?? "";
 	return registrySharedEndpointId.length > 0 ? registrySharedEndpointId : getFallbackSharedEndpointId(input);

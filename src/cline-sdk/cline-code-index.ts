@@ -275,18 +275,23 @@ async function persistVectorCache(options: {
 		return;
 	}
 	const files: CachedCodeIndexFile[] = [];
+	const currentChunkHashes = new Set<string>();
 	for (const file of options.files) {
 		const absolutePath = join(options.workspacePath, file.path);
 		const fileStat = await stat(absolutePath);
+		const chunks = (options.chunksByFile.get(file.path) ?? []).map((chunk) => ({
+			lineStart: chunk.lineStart,
+			lineEnd: chunk.lineEnd,
+			hash: hashText(`${chunk.path}\n${chunk.text}`),
+		}));
+		for (const chunk of chunks) {
+			currentChunkHashes.add(chunk.hash);
+		}
 		files.push({
 			path: file.path,
 			size: fileStat.size,
 			mtimeMs: fileStat.mtimeMs,
-			chunks: (options.chunksByFile.get(file.path) ?? []).map((chunk) => ({
-				lineStart: chunk.lineStart,
-				lineEnd: chunk.lineEnd,
-				hash: hashText(`${chunk.path}\n${chunk.text}`),
-			})),
+			chunks,
 		});
 	}
 	const payload: CachedCodeIndex = {
@@ -297,6 +302,7 @@ async function persistVectorCache(options: {
 		chunkLines: options.chunkLines,
 		files,
 		embeddings: [...options.cache.entries.entries()]
+			.filter(([hash]) => currentChunkHashes.has(hash))
 			.map(([hash, vector]) => ({ hash, vector: vectorToEntries(vector) }))
 			.sort((left, right) => left.hash.localeCompare(right.hash)),
 		updatedAt: Date.now(),

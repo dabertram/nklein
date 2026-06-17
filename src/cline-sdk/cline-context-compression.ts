@@ -1,10 +1,6 @@
 import { countKanbanTextTokens } from "./cline-context-budgets";
 
-export type ClineContextCompressionMode =
-	| "prose_caveman"
-	| "code_minify"
-	| "model_assisted"
-	| "model_assisted_disabled";
+export type ClineContextCompressionMode = "prose_caveman" | "code_minify" | "model_assisted";
 
 export interface ClineContextCompressionResult {
 	mode: ClineContextCompressionMode;
@@ -193,16 +189,6 @@ export function compressKanbanContextText(
 	} = { maxTokens: 200 },
 ): ClineContextCompressionResult {
 	const originalTokens = countKanbanTextTokens(text);
-	if (options.allowModelAssisted) {
-		const compressed = trimToTokenBudget(text, options.maxTokens);
-		return {
-			mode: "model_assisted_disabled",
-			originalTokens,
-			compressedTokens: countKanbanTextTokens(compressed),
-			text: compressed,
-		};
-	}
-
 	const mode: ClineContextCompressionMode = looksLikeCode(text) ? "code_minify" : "prose_caveman";
 	const candidate = mode === "code_minify" ? compressCodeMinify(text) : compressProseCaveman(text);
 	const compressed = trimToTokenBudget(candidate.length > 0 ? candidate : text, options.maxTokens);

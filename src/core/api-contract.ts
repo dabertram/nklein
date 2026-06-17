@@ -90,6 +90,7 @@ export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewMode
 
 export const runtimeClineReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 export type RuntimeClineReasoningEffort = z.infer<typeof runtimeClineReasoningEffortSchema>;
+export const RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 export const runtimeAgentTimeoutModeSchema = z.preprocess(
 	(value) => (value === "very_long" ? "extended" : value),
 	z.enum(["normal", "long", "extended", "unlimited"]),
@@ -561,6 +562,47 @@ export const runtimeProjectAddResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeProjectAddResponse = z.infer<typeof runtimeProjectAddResponseSchema>;
+
+export const runtimeDevTestProjectScenarioSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	prompt: z.string(),
+	acceptanceCommand: z.string(),
+	complexity: z.number().nullable(),
+	filesLikelyTouched: z.array(z.string()),
+});
+export type RuntimeDevTestProjectScenario = z.infer<typeof runtimeDevTestProjectScenarioSchema>;
+
+export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag"]);
+export type RuntimeDevTestProjectPreset = z.infer<typeof runtimeDevTestProjectPresetSchema>;
+
+export const runtimeDevTestProjectRequestSchema = z
+	.object({
+		preset: runtimeDevTestProjectPresetSchema.optional(),
+	})
+	.optional();
+export type RuntimeDevTestProjectRequest = z.infer<typeof runtimeDevTestProjectRequestSchema>;
+
+export const runtimeDevTestProjectResponseSchema = z.object({
+	ok: z.boolean(),
+	project: runtimeProjectSummarySchema.nullable(),
+	task: runtimeBoardCardSchema.nullable(),
+	tasks: z.array(runtimeBoardCardSchema).default([]),
+	scenario: runtimeDevTestProjectScenarioSchema.nullable(),
+	workspacePath: z.string().nullable(),
+	evidenceRootPath: z.string().nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeDevTestProjectResponse = z.infer<typeof runtimeDevTestProjectResponseSchema>;
+
+export const runtimeDevTestCleanupResponseSchema = z.object({
+	ok: z.boolean(),
+	removedProjects: z.number(),
+	removedTaskWorktrees: z.number(),
+	errors: z.array(z.string()).default([]),
+	error: z.string().optional(),
+});
+export type RuntimeDevTestCleanupResponse = z.infer<typeof runtimeDevTestCleanupResponseSchema>;
 
 export const runtimeProjectDirectoryPickerResponseSchema = z.object({
 	ok: z.boolean(),

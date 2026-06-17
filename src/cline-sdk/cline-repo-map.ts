@@ -4,6 +4,7 @@ import { countKanbanTextTokens } from "./cline-context-budgets";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_TOKEN_BUDGET = 1_200;
+const MAX_REFERENCE_RANK_SYMBOLS = 500;
 const SOURCE_EXTENSIONS = new Set([
 	".ts",
 	".tsx",
@@ -192,7 +193,12 @@ export async function buildClineRepoMap(options: BuildClineRepoMapOptions): Prom
 		});
 	}
 	const symbols = files.flatMap((file) => extractSymbolsFromContent(file.path, file.content));
-	const rankedSymbols = symbols
+	const referenceRankCandidates = symbols
+		.sort((left, right) =>
+			`${left.path}:${left.line}:${left.name}`.localeCompare(`${right.path}:${right.line}:${right.name}`),
+		)
+		.slice(0, MAX_REFERENCE_RANK_SYMBOLS);
+	const rankedSymbols = referenceRankCandidates
 		.map((symbol) => ({
 			...symbol,
 			referenceCount: countReferences(symbol.name, files),

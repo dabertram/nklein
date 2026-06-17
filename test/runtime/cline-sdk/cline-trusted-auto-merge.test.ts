@@ -58,4 +58,20 @@ describe("trusted auto merge", () => {
 			allowed: true,
 		});
 	});
+
+	it("blocks trusted auto-merge when the regression delta is unknown", () => {
+		const decision = evaluateTrustedAutoMerge({
+			requested: true,
+			evalPassed: true,
+			testsPassed: true,
+			changedFiles: ["src/components/app.tsx"],
+			regressionDelta: null,
+			env: { KANBAN_ENABLE_TRUSTED_AUTO_MERGE: "1" },
+		});
+
+		expect(decision).toMatchObject({
+			allowed: false,
+			reason: "trusted auto-merge blocked because the regression delta is unknown.",
+		});
+	});
 });

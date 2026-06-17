@@ -96,7 +96,34 @@ describe("cline model registry", () => {
 		expect(entry.capability.samples).toBe(2);
 		expect(entry.capability.observedPassRate).toBe(0.5);
 		expect(entry.capability.evalScore).toBe(60);
-		expect(entry.capability.effectiveScore).toBe(48);
+		expect(entry.capability.effectiveScore).toBe(52);
+	});
+
+	it("does not default cloud models into a serialized shared endpoint", async () => {
+		const registry = new ClineModelRegistry({
+			registryPath: await createRegistryPath(),
+		});
+
+		const cloudEntry = await registry.recordRequest({
+			providerId: "anthropic",
+			modelId: "claude-sonnet",
+			contextWindow: 200_000,
+			promptTokens: 1_000,
+			outputTokens: 100,
+			wallTimeMs: 1_000,
+		});
+		const localEntry = await registry.recordRequest({
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:11434",
+			contextWindow: 16_000,
+			promptTokens: 1_000,
+			outputTokens: 100,
+			wallTimeMs: 1_000,
+		});
+
+		expect(cloudEntry.constraints.sharedEndpointId).toBeNull();
+		expect(localEntry.constraints.sharedEndpointId).toBe("http://127.0.0.1:11434");
 	});
 });
 

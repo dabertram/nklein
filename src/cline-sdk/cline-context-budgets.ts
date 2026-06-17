@@ -4,9 +4,27 @@ const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 12_000;
 const READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS = 1_000;
 const OUTPUT_RESERVE_RATIO = 0.1;
 const PROMPT_OVERHEAD_RESERVE_RATIO = 0.15;
+const MIN_OUTPUT_RESERVE_TOKENS = 512;
+const MIN_PROMPT_OVERHEAD_RESERVE_TOKENS = 1_024;
+const MIN_FILE_CHUNK_TOKEN_BUDGET = 512;
 const FILE_CHUNK_SAFE_WORKING_BUDGET_RATIO = 0.6;
 const FILE_CHUNK_CONTEXT_WINDOW_RATIO = 0.5;
 const MAX_FILE_CHUNK_TOKEN_BUDGET = 64_000;
+const PRESSURE_REFERENCE_CONTEXT_WINDOW_TOKENS = 24_000;
+const PRESSURE_CONTEXT_WINDOW_RANGE_TOKENS = 16_000;
+const DEFAULT_UNKNOWN_WINDOW_PRESSURE = 0.35;
+const PRESSURE_REFERENCE_WALL_TIME_MS_PER_1K_PROMPT_TOKENS = 750;
+const PRESSURE_WALL_TIME_RANGE_MS_PER_1K_PROMPT_TOKENS = 2_500;
+const REPO_MAP_CONTEXT_WINDOW_RATIO = 0.015;
+const RETRIEVAL_CONTEXT_WINDOW_RATIO = 0.04;
+const DEFAULT_REPO_MAP_TOKEN_BUDGET = 800;
+const DEFAULT_RETRIEVAL_RESULT_TOKEN_BUDGET = 2_000;
+const REPO_MAP_PRESSURE_REDUCTION_RATIO = 0.45;
+const RETRIEVAL_PRESSURE_REDUCTION_RATIO = 0.35;
+const COMPACTION_TRIGGER_BASE_RATIO = 0.78;
+const COMPACTION_TRIGGER_PRESSURE_REDUCTION_RATIO = 0.18;
+const MIN_COMPACTION_TRIGGER_RATIO = 0.55;
+const MAX_COMPACTION_TRIGGER_RATIO = 0.82;
 
 export interface KanbanContextSafetyBudgets {
 	contextWindow: number | null;
@@ -46,10 +64,13 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 			? Math.trunc(contextWindowInput)
 			: null;
 	const outputReserveTokens = contextWindow
-		? Math.max(4_000, Math.min(16_000, Math.round(contextWindow * OUTPUT_RESERVE_RATIO)))
+		? Math.max(MIN_OUTPUT_RESERVE_TOKENS, Math.min(16_000, Math.round(contextWindow * OUTPUT_RESERVE_RATIO)))
 		: 8_000;
 	const promptOverheadReserveTokens = contextWindow
-		? Math.max(8_000, Math.min(24_000, Math.round(contextWindow * PROMPT_OVERHEAD_RESERVE_RATIO)))
+		? Math.max(
+				MIN_PROMPT_OVERHEAD_RESERVE_TOKENS,
+				Math.min(24_000, Math.round(contextWindow * PROMPT_OVERHEAD_RESERVE_RATIO)),
+			)
 		: 12_000;
 	const safeWorkingBudget = contextWindow
 		? Math.max(0, contextWindow - outputReserveTokens - promptOverheadReserveTokens)
@@ -57,7 +78,7 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 	const fileChunkTokenBudget =
 		contextWindow && safeWorkingBudget !== null
 			? Math.max(
-					4_000,
+					MIN_FILE_CHUNK_TOKEN_BUDGET,
 					Math.min(
 						MAX_FILE_CHUNK_TOKEN_BUDGET,
 						Math.round(contextWindow * FILE_CHUNK_CONTEXT_WINDOW_RATIO),
@@ -81,22 +102,51 @@ export function buildKanbanContextPressurePolicy(
 ): KanbanContextPressurePolicy {
 	const contextWindow = normalizePositiveNumber(options.contextWindow);
 	const wallTimeMsPer1kPromptTokens = normalizePositiveNumber(options.wallTimeMsPer1kPromptTokens);
-	const windowPressure = contextWindow ? Math.max(0, Math.min(1, (24_000 - contextWindow) / 16_000)) : 0.35;
+	const windowPressure = contextWindow
+		? Math.max(
+				0,
+				Math.min(
+					1,
+					(PRESSURE_REFERENCE_CONTEXT_WINDOW_TOKENS - contextWindow) / PRESSURE_CONTEXT_WINDOW_RANGE_TOKENS,
+				),
+			)
+		: DEFAULT_UNKNOWN_WINDOW_PRESSURE;
 	const speedPressure = wallTimeMsPer1kPromptTokens
-		? Math.max(0, Math.min(1, (wallTimeMsPer1kPromptTokens - 750) / 2_500))
+		? Math.max(
+				0,
+				Math.min(
+					1,
+					(wallTimeMsPer1kPromptTokens - PRESSURE_REFERENCE_WALL_TIME_MS_PER_1K_PROMPT_TOKENS) /
+						PRESSURE_WALL_TIME_RANGE_MS_PER_1K_PROMPT_TOKENS,
+				),
+			)
 		: 0;
 	const pressureScore = Math.max(windowPressure, speedPressure);
 	const pressure = pressureScore >= 0.66 ? "high" : pressureScore >= 0.33 ? "medium" : "low";
-	const repoMapBaseBudget = contextWindow ? Math.round(contextWindow * 0.015) : 800;
+	const repoMapBaseBudget = contextWindow
+		? Math.round(contextWindow * REPO_MAP_CONTEXT_WINDOW_RATIO)
+		: DEFAULT_REPO_MAP_TOKEN_BUDGET;
 	const repoMapTokenBudget = Math.max(
 		250,
-		Math.min(1_500, Math.round(repoMapBaseBudget * (1 - pressureScore * 0.45))),
+		Math.min(1_500, Math.round(repoMapBaseBudget * (1 - pressureScore * REPO_MAP_PRESSURE_REDUCTION_RATIO))),
 	);
 	const retrievalResultTokenBudget = Math.max(
 		600,
-		Math.min(4_000, Math.round((contextWindow ? contextWindow * 0.04 : 2_000) * (1 - pressureScore * 0.35))),
+		Math.min(
+			4_000,
+			Math.round(
+				(contextWindow ? contextWindow * RETRIEVAL_CONTEXT_WINDOW_RATIO : DEFAULT_RETRIEVAL_RESULT_TOKEN_BUDGET) *
+					(1 - pressureScore * RETRIEVAL_PRESSURE_REDUCTION_RATIO),
+			),
+		),
 	);
-	const compactionTriggerRatio = Math.max(0.55, Math.min(0.82, 0.78 - pressureScore * 0.18));
+	const compactionTriggerRatio = Math.max(
+		MIN_COMPACTION_TRIGGER_RATIO,
+		Math.min(
+			MAX_COMPACTION_TRIGGER_RATIO,
+			COMPACTION_TRIGGER_BASE_RATIO - pressureScore * COMPACTION_TRIGGER_PRESSURE_REDUCTION_RATIO,
+		),
+	);
 	return {
 		contextWindow: contextWindow ? Math.trunc(contextWindow) : null,
 		wallTimeMsPer1kPromptTokens,

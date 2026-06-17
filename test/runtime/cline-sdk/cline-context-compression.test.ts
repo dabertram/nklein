@@ -42,13 +42,13 @@ describe("cline context compression", () => {
 		expect(result.text).not.toContain("Keep this code structurally");
 	});
 
-	it("keeps model-assisted compression explicitly disabled until a safe provider is wired", () => {
+	it("falls back to deterministic compression until a safe provider is wired", () => {
 		const result = compressKanbanContextText("Important facts must not be silently model-compressed.", {
 			maxTokens: 20,
 			allowModelAssisted: true,
 		});
 
-		expect(result.mode).toBe("model_assisted_disabled");
+		expect(result.mode).toBe("prose_caveman");
 		expect(buildCompressedContextPreview("The user wants careful compression.", 40)).toContain(
 			"older text compressed",
 		);

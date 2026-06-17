@@ -103,6 +103,53 @@ describe("routeClineTask", () => {
 		});
 	});
 
+	it("keeps a feasible preferred model instead of routing down to the cheapest fit", () => {
+		const decision = routeClineTask({
+			difficulty: 40,
+			fitBudgetTokens: 8_000,
+			preferredModelKey: "cloud:large:default",
+			candidates: [
+				{
+					entry: createEntry({ key: "local:small:default", capability: 45, contextWindow: 16_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
+					role: "architect",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "assign",
+			modelKey: "cloud:large:default",
+			role: "architect",
+		});
+	});
+
+	it("can assign an 8k model when the prompt fits that candidate's own reserves", () => {
+		const decision = routeClineTask({
+			difficulty: 35,
+			fitBudgetTokens: 80_000,
+			promptTokens: 1_000,
+			candidates: [
+				{
+					entry: createEntry({ key: "local:tiny:default", capability: 45, contextWindow: 8_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
+					role: "architect",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "assign",
+			modelKey: "local:tiny:default",
+		});
+	});
+
 	it("uses predicted speed as a tie-breaker after capability and cost", () => {
 		const decision = routeClineTask({
 			difficulty: 50,

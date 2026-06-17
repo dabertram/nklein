@@ -4,7 +4,7 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 2 * 1024 * 1024;
+const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
 
 export interface ClineAcceptanceGateExecution {
@@ -47,8 +47,7 @@ function resolveShellExecution(command: string): { binary: string; args: string[
 		const shell = process.env.COMSPEC?.trim() || "cmd.exe";
 		return { binary: shell, args: ["/d", "/s", "/c", command] };
 	}
-	const shell = process.env.SHELL?.trim() || "/bin/sh";
-	return { binary: shell, args: ["-lc", command] };
+	return { binary: "/bin/sh", args: ["-c", command] };
 }
 
 function readErrorOutput(error: unknown): { exitCode: number | null; stdout: string; stderr: string } {

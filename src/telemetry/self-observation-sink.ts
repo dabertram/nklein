@@ -1,4 +1,4 @@
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -41,6 +41,7 @@ export interface SelfObservationEventRecord extends SelfObservationEventInput {
 export interface SelfObservationSinkOptions {
 	rootDir?: string;
 	now?: () => number;
+	retentionDays?: number;
 }
 
 export interface SelfObservationSink {
@@ -49,9 +50,11 @@ export interface SelfObservationSink {
 }
 
 const DEFAULT_SELF_OBSERVATION_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
+const DEFAULT_RETENTION_DAYS = 30;
 const SECRET_KEY_PATTERN = /(api[_-]?key|authorization|bearer|cookie|password|secret|token)/i;
 const SECRET_VALUE_PATTERN =
-	/(sk-[a-z0-9_-]{12,}|gh[pousr]_[a-z0-9_]{12,}|xox[baprs]-[a-z0-9-]{12,}|bearer\s+[a-z0-9._-]{12,})/gi;
+	/(sk-[a-z0-9_-]{12,}|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[a-z0-9_]{12,}|xox[baprs]-[a-z0-9-]{12,}|bearer\s+[a-z0-9._-]{12,}|eyJ[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\.[a-z0-9_-]{10,})/gi;
+const ABSOLUTE_PATH_PATTERN = /(?:^|[\s(["'])((?:\/[^\s"'()]+){2,}|[A-Za-z]:\\[^\s"'()]+(?:\\[^\s"'()]+)+)/g;
 
 function resolveRootDir(rootDir?: string): string {
 	return rootDir ?? DEFAULT_SELF_OBSERVATION_ROOT;
@@ -69,8 +72,12 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
 	return trimmed.length > 0 ? redactText(trimmed) : null;
 }
 
+function redactPaths(value: string): string {
+	return value.replace(ABSOLUTE_PATH_PATTERN, (match: string, path: string) => match.replace(path, "[REDACTED_PATH]"));
+}
+
 function redactText(value: string): string {
-	return value.replace(SECRET_VALUE_PATTERN, "[REDACTED]");
+	return redactPaths(value.replace(SECRET_VALUE_PATTERN, "[REDACTED]"));
 }
 
 function redactValue(value: unknown): unknown {
@@ -88,6 +95,20 @@ function redactValue(value: unknown): unknown {
 		return Object.fromEntries(entries);
 	}
 	return value;
+}
+
+async function pruneOldLogs(rootDir: string, now: number, retentionDays: number): Promise<void> {
+	if (!Number.isFinite(retentionDays) || retentionDays <= 0) {
+		return;
+	}
+	const cutoff = now - Math.trunc(retentionDays) * 24 * 60 * 60 * 1000;
+	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+	await Promise.all(
+		entries
+			.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+			.filter((entry) => Date.parse(entry.name.slice(0, 10)) < cutoff)
+			.map((entry) => unlink(join(rootDir, entry.name)).catch(() => undefined)),
+	);
 }
 
 function normalizeEvent(input: SelfObservationEventInput, now: number): SelfObservationEventRecord {
@@ -113,10 +134,12 @@ export function resolveSelfObservationLogPath(rootDir: string | undefined, times
 export class LocalSelfObservationSink implements SelfObservationSink {
 	private readonly rootDir: string;
 	private readonly now: () => number;
+	private readonly retentionDays: number;
 
 	constructor(options: SelfObservationSinkOptions = {}) {
 		this.rootDir = resolveRootDir(options.rootDir);
 		this.now = options.now ?? Date.now;
+		this.retentionDays = options.retentionDays ?? DEFAULT_RETENTION_DAYS;
 	}
 
 	getLogPath(timestamp = this.now()): string {
@@ -129,6 +152,7 @@ export class LocalSelfObservationSink implements SelfObservationSink {
 		const record = normalizeEvent(event, createdAt);
 		await mkdir(this.rootDir, { recursive: true });
 		await appendFile(logPath, `${JSON.stringify(record)}\n`, "utf8");
+		await pruneOldLogs(this.rootDir, createdAt, this.retentionDays);
 	}
 }
 

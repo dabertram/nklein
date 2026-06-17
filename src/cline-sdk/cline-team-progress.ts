@@ -55,7 +55,11 @@ function summarizeTeamEvent(record: Record<string, unknown>, eventType: string, 
 		case "task_start":
 			return compactText(directMessage ?? `${agentLabel(agentId)} started delegated work.`);
 		case "task_end":
-			return compactText(errorMessage ?? `${agentLabel(agentId)} completed delegated work.`);
+			return compactText(
+				errorMessage
+					? `${agentLabel(agentId)} failed: ${errorMessage}`
+					: `${agentLabel(agentId)} completed delegated work.`,
+			);
 		case "agent_event":
 			return compactText(`${agentLabel(agentId)} reported progress.`);
 		case "teammate_spawned":

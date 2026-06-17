@@ -65,16 +65,42 @@ describe("cline code index", () => {
 			cachePath,
 		});
 
-		expect(first.index.embeddingModel).toBe("kanban-local-hash-embedding-v1");
-		expect(first.index.embeddingProvider).toBe("local_hash");
+		expect(first.index.embeddingModel).toBe("kanban-local-lexical-vector-v1");
+		expect(first.index.embeddingProvider).toBe("local_lexical");
 		expect(first.index.cacheMissCount).toBeGreaterThan(0);
 		expect(second.index.cacheHitCount).toBeGreaterThan(0);
 		expect(JSON.parse(await readFile(cachePath, "utf8"))).toEqual(
 			expect.objectContaining({
-				embeddingProvider: "local_hash",
-				embeddingModel: "kanban-local-hash-embedding-v1",
+				embeddingProvider: "local_lexical",
+				embeddingModel: "kanban-local-lexical-vector-v1",
 			}),
 		);
+	});
+
+	it("garbage-collects cached vectors for deleted chunks", async () => {
+		const workspacePath = await createWorkspace();
+		const cachePath = join(workspacePath, ".cline", "kanban", "code-index-gc-test.json");
+		await searchClineCodeIndex({
+			workspacePath,
+			query: "storage persistence",
+			chunkLines: 4,
+			cachePath,
+		});
+		await writeFile(join(workspacePath, "src", "storage-adapter.ts"), "export const tiny = true;\n", "utf8");
+
+		await searchClineCodeIndex({
+			workspacePath,
+			query: "tiny",
+			chunkLines: 4,
+			cachePath,
+		});
+
+		const parsed = JSON.parse(await readFile(cachePath, "utf8")) as {
+			files: Array<{ chunks: unknown[] }>;
+			embeddings: unknown[];
+		};
+		const currentChunkCount = parsed.files.reduce((total, file) => total + file.chunks.length, 0);
+		expect(parsed.embeddings).toHaveLength(currentChunkCount);
 	});
 
 	it("separates cache entries by embedding provider cache key", async () => {
@@ -106,7 +132,7 @@ describe("cline code index", () => {
 			embeddingProvider: provider,
 		});
 
-		expect(first.index.embeddingProvider).toBe("local_hash");
+		expect(first.index.embeddingProvider).toBe("local_lexical");
 		expect(second.index.embeddingProvider).toBe("openai_compatible");
 		expect(second.index.cacheMissCount).toBeGreaterThan(0);
 		expect(JSON.parse(await readFile(cachePath, "utf8"))).toEqual(

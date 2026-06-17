@@ -30,6 +30,18 @@ describe("buildKanbanContextSafetyBudgets", () => {
 			fileChunkCharBudget: 48_000,
 		});
 	});
+
+	it("keeps useful working room for 8k and 16k target models", () => {
+		const eightK = buildKanbanContextSafetyBudgets(8_000);
+		const sixteenK = buildKanbanContextSafetyBudgets(16_000);
+		const eightKSafeWorkingBudget = eightK.safeWorkingBudget ?? 0;
+		const sixteenKSafeWorkingBudget = sixteenK.safeWorkingBudget ?? 0;
+
+		expect(eightKSafeWorkingBudget).toBeGreaterThan(0);
+		expect(eightK.fileChunkTokenBudget).toBeLessThanOrEqual(Math.floor(eightKSafeWorkingBudget * 0.6));
+		expect(sixteenKSafeWorkingBudget).toBeGreaterThan(8_000);
+		expect(sixteenK.fileChunkTokenBudget).toBeLessThanOrEqual(Math.floor(sixteenKSafeWorkingBudget * 0.6));
+	});
 });
 
 describe("buildKanbanContextPressurePolicy", () => {

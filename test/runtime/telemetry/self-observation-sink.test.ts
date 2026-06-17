@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -34,8 +34,10 @@ describe("self observation sink", () => {
 			workspacePath: "/Users/david/GIT/kanban",
 			metadata: {
 				apiKey: "sk-abc123456789999",
+				aws: "AKIA1234567890ABCDEF",
+				filePath: "/Users/david/GIT/kanban/src/index.ts",
 				nested: {
-					message: "bearer ghp_abcdefghijklmnop",
+					message: "bearer ghp_abcdefghijklmnop in /private/tmp/workspace/file.ts",
 				},
 			},
 		});
@@ -50,12 +52,17 @@ describe("self observation sink", () => {
 		const first = JSON.parse(lines[0] ?? "{}") as {
 			message: string;
 			taskId: string;
-			metadata: { apiKey: string; nested: { message: string } };
+			workspacePath: string;
+			metadata: { apiKey: string; aws: string; filePath: string; nested: { message: string } };
 		};
 		expect(first.taskId).toBe("task-1");
+		expect(first.workspacePath).toBe("[REDACTED_PATH]");
 		expect(first.message).toContain("[REDACTED]");
 		expect(first.metadata.apiKey).toBe("[REDACTED]");
+		expect(first.metadata.aws).toBe("[REDACTED]");
+		expect(first.metadata.filePath).toBe("[REDACTED_PATH]");
 		expect(first.metadata.nested.message).toContain("[REDACTED]");
+		expect(first.metadata.nested.message).toContain("[REDACTED_PATH]");
 	});
 
 	it("uses the event timestamp for log routing", async () => {
@@ -73,5 +80,24 @@ describe("self observation sink", () => {
 		});
 
 		await expect(readFile(join(rootDir, "2026-01-03.jsonl"), "utf8")).resolves.toContain("Backfilled event");
+	});
+
+	it("prunes daily telemetry files outside retention", async () => {
+		const rootDir = await createTelemetryRoot();
+		await writeFile(join(rootDir, "2025-12-01.jsonl"), "{}\n", "utf8");
+		await writeFile(join(rootDir, "2026-01-01.jsonl"), "{}\n", "utf8");
+		const sink = new LocalSelfObservationSink({
+			rootDir,
+			retentionDays: 7,
+			now: () => Date.UTC(2026, 0, 10, 3, 4, 5),
+		});
+
+		await sink.record({
+			signal: "custom",
+			severity: "info",
+			message: "Fresh event",
+		});
+
+		await expect(readdir(rootDir)).resolves.toEqual(["2026-01-10.jsonl"]);
 	});
 });

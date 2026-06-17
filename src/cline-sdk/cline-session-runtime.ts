@@ -1,8 +1,14 @@
 // Owns the live SDK session host plus taskId to sessionId bindings.
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
-import type { AgentBeforeModelContext, AgentBeforeModelResult, AgentMessage } from "@clinebot/shared";
+import type {
+	AgentAfterModelContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentMessage,
+} from "@clinebot/shared";
 import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
+import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { createClineDecompositionTools } from "./cline-decomposition-tool";
@@ -66,6 +72,10 @@ function createRepoMapRailMessage(text: string): AgentMessage {
 	};
 }
 
+function assistantMessageHasToolCall(context: AgentAfterModelContext): boolean {
+	return context.assistantMessage.content.some((part) => part.type === "tool-call");
+}
+
 async function appendRepoMapBeforeModel(
 	context: AgentBeforeModelContext,
 	workspacePath: string,
@@ -119,6 +129,14 @@ function createKanbanContextFocusExtension(
 			.catch(() => null);
 		return await cachedRepoMap;
 	};
+	const hasChangedFiles = async (): Promise<boolean | null> => {
+		try {
+			const changes = await getWorkspaceChanges(workspacePath);
+			return changes.files.length > 0;
+		} catch {
+			return null;
+		}
+	};
 	return {
 		name: "kanban-context-focus",
 		manifest: {
@@ -135,8 +153,14 @@ function createKanbanContextFocusExtension(
 				);
 			},
 			async afterModel(context) {
+				if (assistantMessageHasToolCall(context)) {
+					cachedRepoMap = null;
+				}
 				const largeFileControl = await largeFileWorkflow.afterModel(context);
-				return largeFileControl ?? reviewClineAfterModelCompletion(context);
+				return (
+					largeFileControl ??
+					reviewClineAfterModelCompletion(context, { hasChangedFiles: await hasChangedFiles() })
+				);
 			},
 		},
 		setup(api) {
