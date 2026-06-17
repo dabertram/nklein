@@ -68,6 +68,33 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	it("applies Cline settings from suggested task roles", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			modelRoleSettings: {
+				worker: {
+					providerId: "ollama",
+					modelId: "qwen3.5-9b",
+					reasoningEffort: "medium",
+				},
+			},
+		});
+
+		expect(result.createdTasks[0]?.clineSettings).toEqual({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			reasoningEffort: "medium",
+		});
+		expect(result.createdTasks[1]?.clineSettings).toEqual({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			reasoningEffort: "medium",
+		});
+	});
+
 	it("rejects unknown dependency references", () => {
 		const graph = createTaskGraph();
 		const uiTask = graph.tasks[1];

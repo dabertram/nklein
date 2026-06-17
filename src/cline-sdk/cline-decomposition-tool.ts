@@ -1,4 +1,9 @@
-import type { RuntimeBoardCard, RuntimeBoardData, RuntimeBoardDependency } from "../core/api-contract";
+import type {
+	RuntimeBoardCard,
+	RuntimeBoardData,
+	RuntimeBoardDependency,
+	RuntimeTaskClineSettings,
+} from "../core/api-contract";
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import type { ClinePlanTask, ClinePlanTaskGraph } from "./cline-plan-artifacts";
 
@@ -7,6 +12,7 @@ export interface ApplyClinePlanTaskGraphInput {
 	taskGraph: ClinePlanTaskGraph;
 	baseRef: string;
 	randomUuid: () => string;
+	modelRoleSettings?: Record<string, RuntimeTaskClineSettings>;
 	now?: number;
 }
 
@@ -41,6 +47,34 @@ function buildTaskPrompt(task: ClinePlanTask): string {
 	return sections.join("\n\n");
 }
 
+function resolveTaskRoleSettings(
+	task: ClinePlanTask,
+	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
+): RuntimeTaskClineSettings | undefined {
+	const role = task.suggestedRole?.trim();
+	if (!role || !modelRoleSettings) {
+		return undefined;
+	}
+	const settings = modelRoleSettings[role];
+	if (!settings) {
+		return undefined;
+	}
+	return {
+		...(settings.providerId ? { providerId: settings.providerId } : {}),
+		...(settings.modelId ? { modelId: settings.modelId } : {}),
+		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
+		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
+		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
+		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
+		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
+		...(settings.conversationTimeoutMs !== undefined
+			? { conversationTimeoutMs: settings.conversationTimeoutMs }
+			: {}),
+	};
+}
+
 export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInput): ApplyClinePlanTaskGraphResult {
 	let board = input.board;
 	const createdTasks: RuntimeBoardCard[] = [];
@@ -62,6 +96,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 				autoReviewMode: "commit",
 				agentId: "cline",
 				baseRef: input.baseRef,
+				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings),
 			},
 			input.randomUuid,
 			now,
