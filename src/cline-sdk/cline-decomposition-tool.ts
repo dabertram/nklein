@@ -204,11 +204,17 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const createdTasks: RuntimeBoardCard[] = [];
 	const createdDependencies: RuntimeBoardDependency[] = [];
 	const taskIdByPlanTaskId: Record<string, string> = {};
+	const usedBoardTaskIds = new Set<string>();
 	const now = input.now ?? Date.now();
 
 	for (const task of taskGraph.tasks) {
 		const taskPrompt = buildTaskPrompt(task);
-		const taskId = `${slugifyTaskId(taskGraph.slug)}-${slugifyTaskId(task.id)}`;
+		const baseTaskId = `${slugifyTaskId(taskGraph.slug)}-${slugifyTaskId(task.id)}`;
+		let taskId = baseTaskId;
+		for (let suffix = 2; usedBoardTaskIds.has(taskId); suffix += 1) {
+			taskId = `${baseTaskId}-${suffix}`;
+		}
+		usedBoardTaskIds.add(taskId);
 		const created = addTaskToColumn(
 			board,
 			"backlog",
@@ -262,7 +268,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 	return {
 		name: "decompose_project",
 		description:
-			"Write Kanban spec, plan, and task graph artifacts for a project-scale idea. Use this after planning and before telling the user to run task decompose.",
+			"Validate and persist Kanban decomposition artifacts for a project-scale idea. Use this instead of editing .cline/kanban plan files or tasks.json directly.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -296,7 +302,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
 				taskGraphPath: artifacts.taskGraphPath,
-				instruction: `Artifacts are ready. Run: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}`,
+				instruction: `Artifacts passed schema and sizing validation. Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply.`,
 			};
 		},
 	};
@@ -325,7 +331,7 @@ function createExpandTaskTool(): AgentTool {
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
 				instruction:
-					"Replacement graph passes the Kanban sizing contract. Merge these leaves into the plan artifacts or call decompose_project with the full graph.",
+					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Call decompose_project with the full graph instead of editing plan artifacts directly.",
 			};
 		},
 	};

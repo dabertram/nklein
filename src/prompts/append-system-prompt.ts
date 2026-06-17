@@ -303,9 +303,10 @@ Parameters:
 - \`--base-ref <branch>\` optional base branch/worktree ref for all generated tasks. Defaults to current branch, then default branch, then first known branch.
 
 Notes:
-- Use this after a planning session has written \`spec.md\`, \`plan.md\`, and \`tasks.json\` under \`.cline/kanban/plans/<slug>\`.
+- Use this after Kanban's \`decompose_project\` tool has validated and persisted the plan artifacts.
+- Do not manually edit \`.cline/kanban/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state to create tasks.
 - Each generated task is created in backlog with Cline as its agent and auto-review enabled.
-- Dependency links from \`tasks.json\` are applied automatically.
+- Dependency links from the validated task graph are applied automatically.
 - Each task graph leaf must include \`acceptanceCommand\`, stay at complexity <= 75, and list no more than 3 likely files. Split or expand oversized leaves before running this command.
 
 ## task verify

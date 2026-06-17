@@ -2,12 +2,13 @@ export const KANBAN_DECOMPOSE_WORKFLOW_NAME = "kanban-decompose";
 
 export const KANBAN_DECOMPOSE_PROMPT = `You are decomposing a project-scale idea for Kanban.
 
-Write these artifacts under \`.cline/kanban/plans/<slug>/\`:
-- \`spec.md\`: concise requirements, constraints, non-goals, and acceptance criteria.
-- \`plan.md\`: implementation approach and dependency ordering.
-- \`tasks.json\`: schemaVersion 1, slug, title, and tasks.
+Use Kanban's decomposition workflow instead of editing Kanban internals directly:
+- Do not manually create or edit \`.cline/kanban/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state.
+- Prepare a concise spec, implementation plan, and task graph in your reasoning.
+- Call the \`decompose_project\` tool with slug, spec, plan, and taskGraph. The tool validates the graph and persists the approved Kanban artifacts.
+- After the tool succeeds, use the command it returns, or tell the user the exact \`kanban task decompose --slug <slug> --project-path <workspace_path>\` command to apply the task graph.
 
-Each task in \`tasks.json\` must include:
+Each task in the tool's \`taskGraph\` input must include:
 - id, title, prompt, dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, acceptanceTestPrompt.
 - A self-contained prompt with the relevant slice of the spec and exact acceptance criteria.
 - Complexity <= 75.
@@ -15,9 +16,7 @@ Each task in \`tasks.json\` must include:
 - A machine-checkable acceptanceCommand.
 - For suitable changes, set testFirst=true and include the exact acceptance test to write or update in acceptanceTestPrompt.
 
-Split or expand any leaf that cannot satisfy those limits. When artifacts are ready, tell the user to run:
-
-\`kanban task decompose --slug <slug> --project-path <workspace_path>\`
+Split or expand any leaf that cannot satisfy those limits before calling \`decompose_project\`.
 `;
 
 export const KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN = `---

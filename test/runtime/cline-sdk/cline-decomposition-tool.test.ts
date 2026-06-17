@@ -133,6 +133,36 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	it("keeps board task ids unique when plan ids slugify to the same value", () => {
+		const graph = createTaskGraph();
+		const storageTask = graph.tasks[0];
+		const uiTask = graph.tasks[1];
+		if (!storageTask || !uiTask) {
+			throw new Error("Expected tasks.");
+		}
+		graph.tasks = [
+			{ ...storageTask, id: "build.ui" },
+			{ ...uiTask, id: "build-ui", dependsOn: ["build.ui"] },
+		];
+
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: graph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		expect(result.createdTasks.map((task) => task.id)).toEqual([
+			"habit-tracker-build-ui",
+			"habit-tracker-build-ui-2",
+		]);
+		expect(result.createdDependencies[0]).toMatchObject({
+			fromTaskId: "habit-tracker-build-ui-2",
+			toTaskId: "habit-tracker-build-ui",
+		});
+	});
+
 	it("carries test-first decomposition instructions into created card prompts", () => {
 		const graph = createTaskGraph();
 		const storageTask = graph.tasks[0];
@@ -370,6 +400,8 @@ describe("cline decomposition tools", () => {
 		expect(result.slug).toBe("habit-tracker");
 		expect(result.taskCount).toBe(2);
 		expect(result.instruction).toContain("kanban task decompose --slug habit-tracker");
+		expect(result.instruction).toContain("Apply them through Kanban, not by editing task files");
+		expect(result.instruction).toContain("connected-model fit is checked during apply");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});
 
