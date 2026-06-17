@@ -7,6 +7,7 @@ import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
@@ -333,6 +334,28 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							: {}),
 					});
 					const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+					const modelRegistrySnapshot = await getDefaultClineModelRegistry()
+						.getSnapshot()
+						.catch(() => ({
+							schemaVersion: 1,
+							updatedAt: 0,
+							models: {},
+						}));
+					const endpointDecision = scheduleClineEndpointStart({
+						taskId: body.taskId,
+						providerId: clineLaunchConfig.providerId,
+						modelId: clineLaunchConfig.modelId ?? "",
+						endpoint: clineLaunchConfig.baseUrl ?? null,
+						runningSessions: clineTaskSessionService.listModelEndpointSessions(),
+						modelRegistry: modelRegistrySnapshot,
+					});
+					if (!endpointDecision.ok) {
+						return {
+							ok: false,
+							summary: null,
+							error: `${endpointDecision.reason} Wait for task "${endpointDecision.blockedByTaskId}" to finish, or choose a different model endpoint.`,
+						};
+					}
 					const resolvedClineTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
 					const summary = await clineTaskSessionService.startTaskSession({
 						taskId: body.taskId,

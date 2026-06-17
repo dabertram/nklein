@@ -206,6 +206,13 @@ export interface ClineTaskSessionService {
 	rebindPersistedTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null;
 	listSummaries(): RuntimeTaskSessionSummary[];
+	listModelEndpointSessions(): Array<{
+		taskId: string;
+		state: RuntimeTaskSessionSummary["state"];
+		providerId: string;
+		modelId: string;
+		endpoint: string | null;
+	}>;
 	listMessages(taskId: string): ClineTaskMessage[];
 	listSlashCommands(workspacePath: string): Promise<ClineSdkSlashCommand[]>;
 	loadTaskSessionMessages(taskId: string): Promise<ClineTaskMessage[]>;
@@ -1252,6 +1259,22 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	listSummaries(): RuntimeTaskSessionSummary[] {
 		return this.messageRepository.listSummaries();
+	}
+
+	listModelEndpointSessions(): Array<{
+		taskId: string;
+		state: RuntimeTaskSessionSummary["state"];
+		providerId: string;
+		modelId: string;
+		endpoint: string | null;
+	}> {
+		return this.messageRepository.listSummaries().map((summary) => ({
+			taskId: summary.taskId,
+			state: summary.state,
+			providerId: this.providerIdByTaskId.get(summary.taskId) ?? SDK_DEFAULT_PROVIDER_ID,
+			modelId: this.modelIdByTaskId.get(summary.taskId) ?? SDK_DEFAULT_MODEL_ID,
+			endpoint: this.endpointByTaskId.get(summary.taskId) ?? null,
+		}));
 	}
 
 	listMessages(taskId: string): ClineTaskMessage[] {

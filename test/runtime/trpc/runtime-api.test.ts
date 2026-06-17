@@ -132,6 +132,8 @@ vi.mock("../../../src/server/browser.js", () => ({
 }));
 
 vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
+	buildClineModelRegistryKey: (input: { providerId: string; modelId: string; endpoint?: string | null }) =>
+		`${input.providerId.trim().toLowerCase()}:${input.modelId.trim()}:${input.endpoint?.trim() || "default"}`,
 	getDefaultClineModelRegistry: () => ({
 		getSnapshot: modelRegistryMocks.getSnapshot,
 	}),
@@ -259,6 +261,7 @@ function createClineTaskSessionServiceMock() {
 		),
 		getSummary: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
 		listSummaries: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary[]>(() => []),
+		listModelEndpointSessions: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
 		listMessages: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
 		loadTaskSessionMessages: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
 		applyTurnCheckpoint: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
@@ -601,6 +604,63 @@ describe("createRuntimeApi startTaskSession", () => {
 				requestTimeoutMs: 300_000,
 			}),
 		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("blocks Cline starts that would contend for the same local endpoint", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+		});
+
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.listModelEndpointSessions.mockReturnValue([
+			{
+				taskId: "task-1",
+				state: "running",
+				providerId: "ollama",
+				modelId: "llama3",
+				endpoint: "http://127.0.0.1:11434",
+			},
+		]);
+
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-2",
+				baseRef: "main",
+				prompt: "Continue task",
+			},
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.error).toContain("http://127.0.0.1:11434");
+		expect(response.error).toContain("task-1");
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
