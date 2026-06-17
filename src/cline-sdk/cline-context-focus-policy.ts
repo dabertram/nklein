@@ -1,4 +1,5 @@
 import { countKanbanTextTokens } from "./cline-context-budgets";
+import { buildCompressedContextPreview } from "./cline-context-compression";
 import type { ClineSdkPersistedMessage, ClineSdkStartSessionInput } from "./sdk-runtime-boundary";
 
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
@@ -555,10 +556,7 @@ function compactOlderTextMessages(
 		}
 		messages[index] = {
 			...message,
-			content: `[Kanban context focus: older text message compacted.] ${summarizeText(
-				message.content,
-				COMPACTED_MESSAGE_PREVIEW_CHARS,
-			)}`,
+			content: buildCompressedContextPreview(message.content, 160),
 		};
 		changed.value = true;
 	}
@@ -568,10 +566,7 @@ function compactStructuredContentBlock(block: ClineSdkContentBlock): ClineSdkCon
 	if (block.type === "text" && block.text.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
 		return {
 			...block,
-			text: `[Kanban context focus: older text block compacted.] ${summarizeText(
-				block.text,
-				COMPACTED_MESSAGE_PREVIEW_CHARS,
-			)}`,
+			text: buildCompressedContextPreview(block.text, 160),
 		};
 	}
 	if (block.type === "thinking" && block.thinking.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
