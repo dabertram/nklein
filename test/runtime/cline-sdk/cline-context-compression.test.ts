@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildCompressedContextPreview,
 	compressKanbanContextText,
+	compressKanbanContextTextWithProvider,
+	createClineModelCompressionProvider,
 } from "../../../src/cline-sdk/cline-context-compression";
 
 describe("cline context compression", () => {
+	const originalFetch = globalThis.fetch;
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+	});
+
 	it("uses caveman-style compression for prose-heavy context", () => {
 		const result = compressKanbanContextText(
 			"The implementation should preserve the existing behavior and the tests should explain the regression.",
@@ -43,6 +51,42 @@ describe("cline context compression", () => {
 		expect(result.mode).toBe("model_assisted_disabled");
 		expect(buildCompressedContextPreview("The user wants careful compression.", 40)).toContain(
 			"older text compressed",
+		);
+	});
+
+	it("uses a gated OpenAI-compatible provider for model-assisted compression", async () => {
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				choices: [{ message: { content: "Preserve requirements; reduce repeated prose." } }],
+			}),
+		})) as unknown as typeof fetch;
+		globalThis.fetch = fetchMock;
+		const provider = createClineModelCompressionProvider({
+			KANBAN_CONTEXT_COMPRESSION_PROVIDER: "openai-compatible",
+			KANBAN_CONTEXT_COMPRESSION_EVAL_PROOF: "1",
+			KANBAN_CONTEXT_COMPRESSION_BASE_URL: "https://compress.example/v1/chat/completions",
+			KANBAN_CONTEXT_COMPRESSION_MODEL: "compression-model",
+			KANBAN_CONTEXT_COMPRESSION_API_KEY: "secret",
+		});
+
+		const result = await compressKanbanContextTextWithProvider("Preserve every requirement and reduce prose.", {
+			maxTokens: 40,
+			provider,
+		});
+
+		expect(result.mode).toBe("model_assisted");
+		expect(result.provider).toBe("openai_compatible:compression-model");
+		expect(result.text).toContain("requirements");
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://compress.example/v1/chat/completions",
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					authorization: "Bearer secret",
+				}),
+			}),
 		);
 	});
 });

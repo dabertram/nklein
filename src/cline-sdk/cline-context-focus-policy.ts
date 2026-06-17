@@ -1,5 +1,5 @@
 import { countKanbanTextTokens } from "./cline-context-budgets";
-import { buildCompressedContextPreview } from "./cline-context-compression";
+import { buildCompressedContextPreview, buildCompressedContextPreviewWithProvider } from "./cline-context-compression";
 import type { ClineSdkPersistedMessage, ClineSdkStartSessionInput } from "./sdk-runtime-boundary";
 
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
@@ -562,6 +562,40 @@ function compactOlderTextMessages(
 	}
 }
 
+async function compactOlderTextMessagesWithProvider(
+	messages: ClineSdkPersistedMessage[],
+	targetTokens: number,
+	changed: { value: boolean },
+): Promise<void> {
+	for (
+		let index = 1;
+		index < messages.length - 1 && countKanbanPersistedMessagesTokens(messages) > targetTokens;
+		index += 1
+	) {
+		const message = messages[index];
+		if (
+			!message ||
+			typeof message.content !== "string" ||
+			message.content.length <= COMPACTED_MESSAGE_PREVIEW_CHARS
+		) {
+			continue;
+		}
+		try {
+			messages[index] = {
+				...message,
+				content: await buildCompressedContextPreviewWithProvider(message.content, 160),
+			};
+			changed.value = true;
+		} catch {
+			messages[index] = {
+				...message,
+				content: buildCompressedContextPreview(message.content, 160),
+			};
+			changed.value = true;
+		}
+	}
+}
+
 function compactStructuredContentBlock(block: ClineSdkContentBlock): ClineSdkContentBlock {
 	if (block.type === "text" && block.text.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
 		return {
@@ -769,16 +803,35 @@ export function compactKanbanMessagesForContextTarget(
 	return changed.value ? messages : null;
 }
 
+async function compactKanbanMessagesForContextTargetWithModelProvider(
+	messagesInput: readonly ClineSdkPersistedMessage[],
+	targetTokens: number,
+): Promise<ClineSdkPersistedMessage[] | null> {
+	const normalizedTargetTokens = Math.max(1, Math.trunc(targetTokens));
+	if (countKanbanPersistedMessagesTokens(messagesInput) <= normalizedTargetTokens) {
+		return null;
+	}
+	const messages = cloneMessages(messagesInput);
+	const changed = { value: false };
+	await compactOlderTextMessagesWithProvider(messages, normalizedTargetTokens, changed);
+	if (countKanbanPersistedMessagesTokens(messages) > normalizedTargetTokens) {
+		return compactKanbanMessagesForContextTarget(messages, normalizedTargetTokens);
+	}
+	return changed.value ? messages : null;
+}
+
 export function focusKanbanReadFilesForNextRequest(
 	messages: readonly ClineSdkPersistedMessage[],
 ): ClineSdkPersistedMessage[] | null {
 	return compactKanbanMessagesForContextTarget(messages, Number.MAX_SAFE_INTEGER);
 }
 
-export function compactKanbanFocusedMessages(
+export async function compactKanbanFocusedMessages(
 	context: ClineSdkContextCompactionContext,
-): ClineSdkContextCompactionResult {
+): Promise<Awaited<ClineSdkContextCompactionResult>> {
 	const targetTokens = Math.max(1, Math.min(context.triggerTokens, context.contextWindowTokens));
-	const messages = compactKanbanMessagesForContextTarget(context.messages, targetTokens);
+	const messages =
+		(await compactKanbanMessagesForContextTargetWithModelProvider(context.messages, targetTokens)) ??
+		compactKanbanMessagesForContextTarget(context.messages, targetTokens);
 	return messages ? { messages } : undefined;
 }

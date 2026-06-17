@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	compactKanbanFocusedMessages,
@@ -73,6 +73,36 @@ function getToolResultContent(messages: readonly ClineSdkPersistedMessage[], too
 }
 
 describe("compactKanbanFocusedMessages", () => {
+	const originalFetch = globalThis.fetch;
+	const originalCompressionProvider = process.env.KANBAN_CONTEXT_COMPRESSION_PROVIDER;
+	const originalCompressionEvalProof = process.env.KANBAN_CONTEXT_COMPRESSION_EVAL_PROOF;
+	const originalCompressionBaseUrl = process.env.KANBAN_CONTEXT_COMPRESSION_BASE_URL;
+	const originalCompressionModel = process.env.KANBAN_CONTEXT_COMPRESSION_MODEL;
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+		if (originalCompressionProvider === undefined) {
+			delete process.env.KANBAN_CONTEXT_COMPRESSION_PROVIDER;
+		} else {
+			process.env.KANBAN_CONTEXT_COMPRESSION_PROVIDER = originalCompressionProvider;
+		}
+		if (originalCompressionEvalProof === undefined) {
+			delete process.env.KANBAN_CONTEXT_COMPRESSION_EVAL_PROOF;
+		} else {
+			process.env.KANBAN_CONTEXT_COMPRESSION_EVAL_PROOF = originalCompressionEvalProof;
+		}
+		if (originalCompressionBaseUrl === undefined) {
+			delete process.env.KANBAN_CONTEXT_COMPRESSION_BASE_URL;
+		} else {
+			process.env.KANBAN_CONTEXT_COMPRESSION_BASE_URL = originalCompressionBaseUrl;
+		}
+		if (originalCompressionModel === undefined) {
+			delete process.env.KANBAN_CONTEXT_COMPRESSION_MODEL;
+		} else {
+			process.env.KANBAN_CONTEXT_COMPRESSION_MODEL = originalCompressionModel;
+		}
+	});
+
 	it("retains the newest read_files result and summarizes older chunks before the next model request", async () => {
 		const olderChunk = "old chunk line\n".repeat(2_000);
 		const latestChunk = "latest chunk must remain verbatim\n".repeat(20);
@@ -121,6 +151,44 @@ describe("compactKanbanFocusedMessages", () => {
 		expect(compactedText).toContain("Do not restart a file from line 1");
 		expect(compactedText).not.toContain(olderChunk.trim());
 		expect(getToolResultContent(result?.messages ?? [], "read-2")).toBe(latestChunk);
+	});
+
+	it("uses gated model-assisted compression for older text during SDK compaction", async () => {
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				choices: [{ message: { content: "Compressed requirement ledger." } }],
+			}),
+		})) as unknown as typeof fetch;
+		process.env.KANBAN_CONTEXT_COMPRESSION_PROVIDER = "openai-compatible";
+		process.env.KANBAN_CONTEXT_COMPRESSION_EVAL_PROOF = "1";
+		process.env.KANBAN_CONTEXT_COMPRESSION_BASE_URL = "https://compress.example/v1/chat/completions";
+		process.env.KANBAN_CONTEXT_COMPRESSION_MODEL = "compression-model";
+		const messages: ClineSdkPersistedMessage[] = [
+			{ role: "user", content: "Initial request stays." },
+			{ role: "assistant", content: "Verbose stale planning details. ".repeat(1_000) },
+			{ role: "user", content: "Recent user request stays visible." },
+		];
+
+		const result = await compactKanbanFocusedMessages({
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			parentAgentId: null,
+			iteration: 3,
+			messages,
+			model: {
+				id: "claude-sonnet-4-6",
+				provider: "anthropic",
+			},
+			contextWindowTokens: 2_000,
+			triggerTokens: 60,
+			thresholdRatio: 0.8,
+			utilizationRatio: 0.9,
+		});
+
+		expect(JSON.stringify(result?.messages)).toContain("model_assisted via openai_compatible:compression-model");
+		expect(JSON.stringify(result?.messages)).toContain("Compressed requirement ledger");
 	});
 
 	it("keeps earlier chunk bodies out of the current chunk context", () => {
