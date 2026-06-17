@@ -21,6 +21,11 @@ import type {
 	UseRuntimeSettingsClineControllerResult,
 } from "@/hooks/use-runtime-settings-cline-controller";
 import type { UseRuntimeSettingsClineMcpControllerResult } from "@/hooks/use-runtime-settings-cline-mcp-controller";
+import {
+	findClineProviderModel,
+	getClineModelContextWindowWarning,
+	isLmStudioProviderId,
+} from "@/runtime/cline-context-window-policy";
 import { openFileOnHost } from "@/runtime/runtime-config-query";
 import type { RuntimeClineMcpServer, RuntimeClineReasoningEffort } from "@/runtime/types";
 import { formatPathForDisplay } from "@/utils/path-display";
@@ -130,6 +135,50 @@ export function ClineSetupSection({
 		[controller.providerId, controller.providerModels],
 	);
 	const clineModelOptions = modelPickerOptions.options;
+	const isLmStudioProviderSelected = isLmStudioProviderId(controller.providerId);
+	const selectedModel = useMemo(
+		() => findClineProviderModel(controller.providerModels, controller.modelId),
+		[controller.modelId, controller.providerModels],
+	);
+	const selectedModelAvailabilityWarning = useMemo(() => {
+		if (!isLmStudioProviderSelected || controller.isLoadingProviderModels) {
+			return null;
+		}
+		const trimmedModelId = controller.modelId.trim();
+		if (!trimmedModelId || selectedModel) {
+			return null;
+		}
+		return `Selected LM Studio model "${trimmedModelId}" is not loaded. Load it in LM Studio, refresh models, then choose it before activation.`;
+	}, [controller.isLoadingProviderModels, controller.modelId, isLmStudioProviderSelected, selectedModel]);
+	const selectedModelContextWarning = useMemo(
+		() =>
+			getClineModelContextWindowWarning({
+				model: selectedModel,
+				modelId: controller.modelId,
+				label: "Selected Cline model",
+			}),
+		[controller.modelId, selectedModel],
+	);
+	const selectedModelButtonText = useMemo(() => {
+		if (controller.isLoadingProviderModels) {
+			return "Loading models...";
+		}
+		if (isLmStudioProviderSelected && controller.providerModels.length === 0) {
+			return "No loaded LM Studio models";
+		}
+		if (selectedModelAvailabilityWarning) {
+			return "Model not loaded in LM Studio";
+		}
+		const selectedOptionLabel = clineModelOptions.find((option) => option.value === controller.modelId)?.label;
+		return selectedOptionLabel ?? (controller.modelId.trim() || undefined);
+	}, [
+		clineModelOptions,
+		controller.isLoadingProviderModels,
+		controller.modelId,
+		controller.providerModels.length,
+		isLmStudioProviderSelected,
+		selectedModelAvailabilityWarning,
+	]);
 	const selectedProvider = useMemo(
 		() =>
 			controller.providerCatalog.find(
@@ -599,21 +648,15 @@ export function ClineSetupSection({
 							disabled={controlsDisabled || controller.isLoadingProviderModels}
 							fill
 							size="sm"
-							buttonText={
-								controller.isLoadingProviderModels
-									? "Loading models..."
-									: (clineModelOptions.find((option) => option.value === controller.modelId)?.label ??
-											controller.modelId.trim()) ||
-										undefined
-							}
-							emptyText="Select model"
-							noResultsText="No matching models"
+							buttonText={selectedModelButtonText}
+							emptyText={isLmStudioProviderSelected ? "No loaded LM Studio models" : "Select model"}
+							noResultsText={isLmStudioProviderSelected ? "No loaded LM Studio models" : "No matching models"}
 							placeholder="Search models..."
 							showSelectedIndicator
 							pinSelectedToTop={modelPickerOptions.shouldPinSelectedModelToTop}
 							recommendedOptionValues={modelPickerOptions.recommendedModelIds}
 							recommendedHeading="Recommended models"
-							allowCustomValue
+							allowCustomValue={!isLmStudioProviderSelected}
 						/>
 					</div>
 					{controller.selectedModelSupportsReasoningEffort ? (
@@ -642,6 +685,12 @@ export function ClineSetupSection({
 				</div>
 				{controller.isLoadingProviderModels ? (
 					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching Cline models...</p>
+				) : null}
+				{!controller.isLoadingProviderModels && selectedModelAvailabilityWarning ? (
+					<p className="text-status-orange text-[12px] mt-1 mb-0">{selectedModelAvailabilityWarning}</p>
+				) : null}
+				{!controller.isLoadingProviderModels && selectedModelContextWarning ? (
+					<p className="text-status-orange text-[12px] mt-1 mb-0">{selectedModelContextWarning}</p>
 				) : null}
 			</div>
 

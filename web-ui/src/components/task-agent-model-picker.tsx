@@ -13,6 +13,7 @@ import {
 import { SearchSelectDropdown } from "@/components/search-select-dropdown";
 import { cn } from "@/components/ui/cn";
 import { NativeSelect } from "@/components/ui/native-select";
+import { isLmStudioProviderId } from "@/runtime/cline-context-window-policy";
 import { fetchClineProviderCatalog, fetchClineProviderModels } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
@@ -174,6 +175,9 @@ export function useTaskAgentModelPicker({
 	// reflect that provider's default model — not the global settings model.
 	const effectiveDefaultModelId = useMemo(() => {
 		if (clineProviderId) {
+			if (isLmStudioProviderId(clineProviderId)) {
+				return null;
+			}
 			const provider = providerCatalog.find((p) => p.id === clineProviderId);
 			return provider?.defaultModelId ?? null;
 		}
@@ -188,12 +192,14 @@ export function useTaskAgentModelPicker({
 			const defaultModel = providerModels.find((m) => m.id === effectiveDefaultModelId);
 			defaultLabel = defaultModel ? defaultModel.name : effectiveDefaultModelId;
 		}
+		const defaultOptions =
+			clineProviderId && isLmStudioProviderId(clineProviderId) ? [] : [{ value: "", label: defaultLabel }];
 		return [
-			{ value: "", label: defaultLabel },
+			...defaultOptions,
 			// Exclude the default model from the explicit list — it's already represented by the first option
 			...providerModels.filter((m) => m.id !== effectiveDefaultModelId).map((m) => ({ value: m.id, label: m.name })),
 		];
-	}, [providerModels, effectiveDefaultModelId]);
+	}, [clineProviderId, providerModels, effectiveDefaultModelId]);
 
 	return {
 		agentOptions,
@@ -282,6 +288,7 @@ export function TaskAgentModelPicker({
 	// Show the Cline model picker when a provider is effectively selected
 	// (either explicitly overridden, or the global default provider is set)
 	const effectiveProviderId = clineProviderId ?? defaultProviderId ?? null;
+	const hasExplicitLmStudioProviderOverride = clineProviderId !== undefined && isLmStudioProviderId(clineProviderId);
 	const showClineModelPicker = showClineProviderPicker && Boolean(effectiveProviderId);
 	const hasTaskClineSettingsOverride = clineSettings !== undefined;
 	const selectedTaskReasoningEffort = clineReasoningEffort ?? "";
@@ -447,6 +454,26 @@ export function TaskAgentModelPicker({
 		}
 	}, [clineModelId, isLoadingModels, modelPickerOptions.options, updateTaskClineSettings]);
 
+	useEffect(() => {
+		if (isLoadingModels || !hasExplicitLmStudioProviderOverride || clineModelId) {
+			return;
+		}
+		const firstLoadedModel = modelPickerOptions.options.find((option) => option.value !== "");
+		if (!firstLoadedModel) {
+			return;
+		}
+		updateTaskClineSettings((currentSettings) => ({
+			...(cloneTaskClineSettings(currentSettings) ?? {}),
+			modelId: firstLoadedModel.value,
+		}));
+	}, [
+		clineModelId,
+		hasExplicitLmStudioProviderOverride,
+		isLoadingModels,
+		modelPickerOptions.options,
+		updateTaskClineSettings,
+	]);
+
 	return (
 		<div className="flex flex-col gap-2">
 			<Collapsible.Root open={isSettingsExpanded} onOpenChange={setIsSettingsExpanded}>
@@ -498,7 +525,7 @@ export function TaskAgentModelPicker({
 										onSelect={(value) => {
 											const newProviderId = value || undefined;
 											const newDefaultModel =
-												newProviderId && providerDefaultModels
+												newProviderId && providerDefaultModels && !isLmStudioProviderId(newProviderId)
 													? providerDefaultModels[newProviderId]
 													: undefined;
 											updateTaskClineSettings((currentSettings) => {

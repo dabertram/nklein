@@ -21,6 +21,7 @@ import type {
 	RuntimeClineReasoningEffort,
 } from "../core/api-contract";
 import { openInBrowser } from "../server/browser";
+import { assertClineContextWindowPolicy } from "./cline-context-window-policy";
 import { type ClineModelRegistryEntry, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import {
@@ -130,6 +131,10 @@ function parseClineRemoteConfigValue(value: string): ClineRemoteConfig {
 
 function isManagedOauthProviderId(providerId: string): providerId is ManagedClineOauthProviderId {
 	return providerId === "cline" || providerId === "oca" || providerId === "openai-codex";
+}
+
+function isLiveOnlyProviderId(providerId: string): boolean {
+	return providerId.trim().toLowerCase() === "lmstudio";
 }
 
 function formatManagedProviderDisplayName(providerId: ManagedClineOauthProviderId): string {
@@ -440,7 +445,7 @@ function toLmStudioModels(item: unknown, pathname: LmStudioModelListPathname): R
 		];
 	});
 
-	return [model, ...loadedInstanceModels];
+	return loadedInstanceModels;
 }
 
 function appendMissingModels(
@@ -576,36 +581,93 @@ function normalizeLmStudioModelListBaseUrl(baseUrl: string): string {
 	}
 }
 
-export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeClineProviderModel[]> {
+async function loadProviderModelsWithFallbackForSettings(
+	providerId: string,
+	settingsOverride?: SdkProviderSettings | null,
+): Promise<RuntimeClineProviderModel[]> {
 	const normalizedProviderId = providerId.trim().toLowerCase();
 	if (!normalizedProviderId) {
 		return [];
 	}
 
+	const settings = settingsOverride ?? getSdkProviderSettings(normalizedProviderId);
 	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
 	if (normalizedProviderId === "litellm") {
-		const liteLlmModels = await fetchLiteLlmBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
+		const liteLlmModels = await fetchLiteLlmBaseUrlModels(settings);
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
 		return appendMissingModels(mergedModels, liteLlmModels);
 	}
 	if (normalizedProviderId === "lmstudio") {
-		const lmStudioModels = await fetchLmStudioBaseUrlModels(getSdkProviderSettings(normalizedProviderId));
-		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, lmStudioModels, {
-			preferFallbackContextWindow: true,
-		});
-		return appendMissingModels(mergedModels, lmStudioModels);
+		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
+		return mergeProviderModelsWithContextWindowFallback(lmStudioModels, providerModels);
 	}
 	return providerModels;
 }
 
-async function loadProviderModelsWithMeasuredWindows(providerId: string): Promise<RuntimeClineProviderModel[]> {
-	const providerModels = await loadProviderModelsWithFallback(providerId);
+export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeClineProviderModel[]> {
+	return await loadProviderModelsWithFallbackForSettings(providerId);
+}
+
+async function loadProviderModelsWithMeasuredWindows(
+	providerId: string,
+	settingsOverride?: SdkProviderSettings | null,
+): Promise<RuntimeClineProviderModel[]> {
+	const providerModels = await loadProviderModelsWithFallbackForSettings(providerId, settingsOverride);
 	try {
 		const snapshot = await getDefaultClineModelRegistry().getSnapshot();
-		return mergeProviderModelsWithModelRegistry(providerId, providerModels, Object.values(snapshot.models));
+		const registryEntries = Object.values(snapshot.models);
+		const mergedModels = mergeProviderModelsWithModelRegistry(providerId, providerModels, registryEntries);
+		if (isLiveOnlyProviderId(providerId)) {
+			return mergedModels;
+		}
+		const modelIds = new Set(mergedModels.map((model) => model.id));
+		const normalizedProviderId = providerId.trim().toLowerCase();
+		const registryOnlyModels = registryEntries.flatMap((entry) => {
+			if (entry.providerId.trim().toLowerCase() !== normalizedProviderId || modelIds.has(entry.modelId)) {
+				return [];
+			}
+			const contextWindow = normalizeContextWindow(entry.contextWindow.effective);
+			if (contextWindow === null) {
+				return [];
+			}
+			modelIds.add(entry.modelId);
+			return [
+				{
+					id: entry.modelId,
+					name: entry.modelId,
+					contextWindow,
+				},
+			];
+		});
+		return [...mergedModels, ...registryOnlyModels];
 	} catch {
 		return providerModels;
 	}
+}
+
+async function assertProviderModelMeetsContextRequirement(input: {
+	providerId: string;
+	modelId: string | null | undefined;
+	settings?: SdkProviderSettings | null;
+	label?: string;
+}): Promise<void> {
+	const modelId = input.modelId?.trim();
+	if (!modelId) {
+		return;
+	}
+	const providerModels = await loadProviderModelsWithMeasuredWindows(input.providerId, input.settings);
+	const resolvedModel = providerModels.find((model) => model.id === modelId) ?? null;
+	if (isLiveOnlyProviderId(input.providerId) && !resolvedModel) {
+		throw new Error(
+			`Selected LM Studio model "${modelId}" is not currently loaded. Load it in LM Studio, refresh models, then choose it before activation.`,
+		);
+	}
+	assertClineContextWindowPolicy({
+		providerId: input.providerId,
+		modelId,
+		contextWindow: resolvedModel?.contextWindow ?? null,
+		label: input.label ?? "Selected Cline model",
+	});
 }
 
 function createEmptyProviderSettingsSummary(): RuntimeClineProviderSettings {
@@ -1109,6 +1171,17 @@ export function createClineProviderService() {
 				(await resolveDefaultModelIdForProvider(normalizedProviderId));
 			const providerModels = await loadProviderModelsWithMeasuredWindows(normalizedProviderId);
 			const resolvedModel = providerModels.find((candidate) => candidate.id === modelId) ?? null;
+			if (isLiveOnlyProviderId(normalizedProviderId) && modelId && !resolvedModel) {
+				throw new Error(
+					`Selected LM Studio model "${modelId}" is not currently loaded. Load it in LM Studio, refresh models, then choose it before starting the task.`,
+				);
+			}
+			assertClineContextWindowPolicy({
+				providerId: normalizedProviderId,
+				modelId,
+				contextWindow: resolvedModel?.contextWindow ?? null,
+				label: "Selected Cline model",
+			});
 			return {
 				providerId: normalizedProviderId,
 				modelId,
@@ -1181,6 +1254,13 @@ export function createClineProviderService() {
 				return {
 					providerId: normalizedProviderId,
 					models: providerModels,
+				};
+			}
+
+			if (isLiveOnlyProviderId(normalizedProviderId)) {
+				return {
+					providerId: normalizedProviderId || providerId,
+					models: [],
 				};
 			}
 
@@ -1268,7 +1348,7 @@ export function createClineProviderService() {
 			return getProviderSettingsSummary();
 		},
 
-		saveProviderSettings(input: {
+		async saveProviderSettings(input: {
 			providerId: string;
 			modelId?: string | null;
 			apiKey?: string | null;
@@ -1288,7 +1368,7 @@ export function createClineProviderService() {
 				projectId?: string | null;
 				region?: string | null;
 			};
-		}): RuntimeClineProviderSettingsSaveResponse {
+		}): Promise<RuntimeClineProviderSettingsSaveResponse> {
 			const providerId = input.providerId.trim().toLowerCase();
 			if (!providerId) {
 				throw new Error("Provider ID cannot be empty.");
@@ -1448,6 +1528,13 @@ export function createClineProviderService() {
 			if (!isManagedOauthProviderId(providerId)) {
 				delete nextSettings.auth;
 			}
+
+			await assertProviderModelMeetsContextRequirement({
+				providerId,
+				modelId: nextSettings.model,
+				settings: nextSettings,
+				label: "Selected Cline model",
+			});
 
 			saveSdkProviderSettings({
 				settings: nextSettings,

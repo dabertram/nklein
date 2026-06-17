@@ -53,6 +53,7 @@ import {
 	findClineProviderModel,
 	formatClineModelContextWindowLabel,
 	getClineModelContextWindowWarning,
+	isLmStudioProviderId,
 } from "@/runtime/cline-context-window-policy";
 import {
 	buildClineAdvisorRequest,
@@ -1018,6 +1019,8 @@ export function RuntimeSettingsDialog({
 		Record<string, RuntimeClineProviderModel[]>
 	>({});
 	const [loadingModelRoleProviderIds, setLoadingModelRoleProviderIds] = useState<Record<string, boolean>>({});
+	const modelRoleModelsByProviderIdRef = useRef<Record<string, RuntimeClineProviderModel[]>>({});
+	const loadingModelRoleProviderIdsRef = useRef<Record<string, boolean>>({});
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
 	const [selectedPromptVariant, setSelectedPromptVariant] = useState<TaskGitAction>("commit");
@@ -1083,6 +1086,15 @@ export function RuntimeSettingsDialog({
 		() => SETTINGS_NAV_ITEMS.filter((item) => !item.clineOnly || selectedAgentId === "cline"),
 		[selectedAgentId],
 	);
+
+	useEffect(() => {
+		modelRoleModelsByProviderIdRef.current = modelRoleModelsByProviderId;
+	}, [modelRoleModelsByProviderId]);
+
+	useEffect(() => {
+		loadingModelRoleProviderIdsRef.current = loadingModelRoleProviderIds;
+	}, [loadingModelRoleProviderIds]);
+
 	const configuredAgentId = config?.selectedAgentId ?? null;
 	const firstInstalledAgentId = displayedAgents.find((agent) => agent.installed)?.id;
 	const fallbackAgentId = firstInstalledAgentId ?? displayedAgents[0]?.id ?? "claude";
@@ -1364,8 +1376,8 @@ export function RuntimeSettingsDialog({
 				return false;
 			}
 			return (
-				modelRoleModelsByProviderId[normalizedProviderId] === undefined &&
-				!loadingModelRoleProviderIds[normalizedProviderId]
+				modelRoleModelsByProviderIdRef.current[normalizedProviderId] === undefined &&
+				!loadingModelRoleProviderIdsRef.current[normalizedProviderId]
 			);
 		});
 		if (providerIdsToLoad.length === 0) {
@@ -1414,15 +1426,7 @@ export function RuntimeSettingsDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [
-		clineProviderId,
-		loadingModelRoleProviderIds,
-		modelRoleModelsByProviderId,
-		open,
-		selectedAgentId,
-		selectedModelRoleProviderIds,
-		workspaceId,
-	]);
+	}, [clineProviderId, open, selectedAgentId, selectedModelRoleProviderIds, workspaceId]);
 
 	useEffect(() => {
 		if (pendingShortcutScrollIndex === null) {
@@ -1567,6 +1571,30 @@ export function RuntimeSettingsDialog({
 		[clineProviderId, clineSettings.providerCatalog, getModelRoleProviderModels, modelRoles],
 	);
 
+	const getModelRoleAvailabilityWarning = useCallback(
+		(roleId: ModelRoleId): string | null => {
+			const roleSettings = modelRoles[roleId] ?? {};
+			const roleProviderId = roleSettings.providerId ?? "";
+			const effectiveProviderId = roleProviderId || clineProviderId;
+			if (!isLmStudioProviderId(effectiveProviderId)) {
+				return null;
+			}
+			const roleModelId = roleSettings.modelId?.trim() ?? "";
+			if (roleProviderId && !roleModelId) {
+				return `${MODEL_ROLE_LABELS[roleId]} role uses LM Studio. Choose a loaded LM Studio model before saving.`;
+			}
+			if (!roleModelId) {
+				return null;
+			}
+			const roleModels = getModelRoleProviderModels(effectiveProviderId);
+			if (findClineProviderModel(roleModels, roleModelId)) {
+				return null;
+			}
+			return `${MODEL_ROLE_LABELS[roleId]} model "${roleModelId}" is not loaded in LM Studio. Load it, refresh models, then choose it before saving.`;
+		},
+		[clineProviderId, getModelRoleProviderModels, modelRoles],
+	);
+
 	const handleModelRoleProviderChange = (roleId: ModelRoleId, value: string) => {
 		setModelRoles((current) => {
 			const next = { ...current };
@@ -1587,9 +1615,9 @@ export function RuntimeSettingsDialog({
 			next[roleId] = {
 				...current[roleId],
 				providerId: trimmedProviderId,
-				...(defaultModelId ? { modelId: defaultModelId } : {}),
+				...(!isLmStudioProviderId(trimmedProviderId) && defaultModelId ? { modelId: defaultModelId } : {}),
 			};
-			if (!defaultModelId) {
+			if (!defaultModelId || isLmStudioProviderId(trimmedProviderId)) {
 				delete next[roleId].modelId;
 			}
 			return next;
@@ -1701,6 +1729,13 @@ export function RuntimeSettingsDialog({
 			return;
 		}
 		if (selectedAgentId === "cline") {
+			const modelRoleAvailabilityWarning = MODEL_ROLE_IDS.map((roleId) =>
+				getModelRoleAvailabilityWarning(roleId),
+			).find((warning): warning is string => warning !== null);
+			if (modelRoleAvailabilityWarning) {
+				setSaveError(modelRoleAvailabilityWarning);
+				return;
+			}
 			const modelRoleContextWarning = MODEL_ROLE_IDS.map((roleId) => getModelRoleContextWarning(roleId)).find(
 				(warning): warning is string => warning !== null,
 			);
@@ -2086,11 +2121,14 @@ export function RuntimeSettingsDialog({
 											const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
 											const roleModels = getModelRoleProviderModels(effectiveProviderId);
 											const selectedRoleModelId = roleSettings.modelId ?? "";
+											const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
 											const hasSelectedRoleModel =
 												selectedRoleModelId.length > 0 &&
+												!isLmStudioRoleProvider &&
 												!roleModels.some((model) => model.id === selectedRoleModelId);
 											const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
 											const hasRoleOverride = Object.keys(roleSettings).length > 0;
+											const roleAvailabilityWarning = getModelRoleAvailabilityWarning(roleId);
 											const roleContextWarning = getModelRoleContextWarning(roleId);
 											return (
 												<div key={roleId} className="grid gap-1">
@@ -2144,7 +2182,11 @@ export function RuntimeSettingsDialog({
 																disabled={controlsDisabled || isRoleProviderLoading}
 															>
 																<option value="">
-																	{isRoleProviderLoading ? "Loading models..." : "Default"}
+																	{isRoleProviderLoading
+																		? "Loading models..."
+																		: isLmStudioRoleProvider && roleModels.length === 0
+																			? "No loaded LM Studio models"
+																			: "Default"}
 																</option>
 																{hasSelectedRoleModel ? (
 																	<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
@@ -2189,7 +2231,12 @@ export function RuntimeSettingsDialog({
 															}}
 														/>
 													</div>
-													{roleContextWarning ? (
+													{roleAvailabilityWarning ? (
+														<p className="m-0 text-[12px] text-status-orange md:ml-[118px]">
+															{roleAvailabilityWarning}
+														</p>
+													) : null}
+													{!roleAvailabilityWarning && roleContextWarning ? (
 														<p className="m-0 text-[12px] text-status-orange md:ml-[118px]">
 															{roleContextWarning}
 														</p>

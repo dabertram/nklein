@@ -299,6 +299,84 @@ function setSelectedProviderSettings(
 	);
 }
 
+function createMockLocalProviderModels(providerId: string) {
+	const modelsByProvider: Record<
+		string,
+		Array<{
+			id: string;
+			name: string;
+			contextWindow: number;
+			supportsReasoning?: boolean;
+		}>
+	> = {
+		anthropic: [
+			{
+				id: "claude-sonnet-4-6",
+				name: "Claude Sonnet 4.6",
+				contextWindow: 200_000,
+			},
+			{
+				id: "anthropic/claude-opus-4.6",
+				name: "Claude Opus 4.6",
+				contextWindow: 200_000,
+			},
+		],
+		cline: [
+			{
+				id: "claude-sonnet-4-6",
+				name: "Claude Sonnet 4.6",
+				contextWindow: 200_000,
+			},
+			{
+				id: "anthropic/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+				contextWindow: 200_000,
+			},
+			{
+				id: "anthropic/claude-opus-4.6",
+				name: "Claude Opus 4.6",
+				contextWindow: 200_000,
+			},
+		],
+		lmstudio: [
+			{
+				id: "old-model",
+				name: "Old Model",
+				contextWindow: 64_000,
+			},
+			{
+				id: "new-model",
+				name: "New Model",
+				contextWindow: 64_000,
+			},
+		],
+		ollama: [
+			{
+				id: "qwen3.5-9b",
+				name: "Qwen 3.5 9B",
+				contextWindow: 64_000,
+			},
+		],
+		openrouter: [
+			{
+				id: "openrouter/auto",
+				name: "OpenRouter Auto",
+				contextWindow: 128_000,
+			},
+			{
+				id: "openrouter/free",
+				name: "OpenRouter Free",
+				contextWindow: 128_000,
+				supportsReasoning: true,
+			},
+		],
+	};
+	return {
+		providerId,
+		models: modelsByProvider[providerId] ?? [],
+	};
+}
+
 function restoreEnvVar(name: "CLINE_API_KEY" | "OCA_API_KEY", value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[name];
@@ -367,6 +445,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		clineAccountMocks.fetchRemoteConfig.mockReset();
 		clineAccountMocks.constructedOptions.length = 0;
 		localProviderMocks.getLocalProviderModels.mockReset();
+		localProviderMocks.getLocalProviderModels.mockImplementation(async (providerId: string) =>
+			createMockLocalProviderModels(providerId),
+		);
 		llmsModelMocks.getAllProviders.mockReset();
 		llmsModelMocks.getModelsForProvider.mockReset();
 		llmsModelMocks.resolveProviderConfig.mockReset();
@@ -489,6 +570,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				"claude-sonnet-4-6": {
 					id: "claude-sonnet-4-6",
 					name: "Claude Sonnet 4.6",
+					contextWindow: 200_000,
 					capabilities: ["images", "files"],
 				},
 			};
@@ -614,6 +696,11 @@ describe("createRuntimeApi startTaskSession", () => {
 			model: "claude-sonnet-4-6",
 			apiKey: "anthropic-api-key",
 		});
+		modelRegistryMocks.getSnapshot.mockReturnValue({
+			schemaVersion: 1,
+			updatedAt: 0,
+			models: {},
+		});
 
 		const terminalManager = {
 			startTaskSession: vi.fn(async () => createSummary()),
@@ -688,6 +775,16 @@ describe("createRuntimeApi startTaskSession", () => {
 			model: "small-model",
 			apiKey: "anthropic-api-key",
 		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "anthropic",
+			models: [
+				{
+					id: "small-model",
+					name: "Small Model",
+					contextWindow: 32_000,
+				},
+			],
+		});
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,
 			updatedAt: 1,
@@ -696,7 +793,7 @@ describe("createRuntimeApi startTaskSession", () => {
 					key: "anthropic:small-model:default",
 					providerId: "anthropic",
 					modelId: "small-model",
-					contextWindow: 16_000,
+					contextWindow: 32_000,
 					capability: 35,
 				}),
 				"anthropic:claude-opus:default": createModelRegistryEntry({
@@ -744,7 +841,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			{
 				taskId: "task-1",
 				baseRef: "main",
-				prompt: `Implement a broad architecture change.\n${"complex ".repeat(20_000)}`,
+				prompt: `Implement a broad architecture change.\n${"complex ".repeat(60_000)}`,
 			},
 		);
 
@@ -758,6 +855,75 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
+	it("blocks Cline starts when any configured role model is below the minimum context window", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-opus",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:claude-opus:default": createModelRegistryEntry({
+					key: "anthropic:claude-opus:default",
+					providerId: "anthropic",
+					modelId: "claude-opus",
+					contextWindow: 200_000,
+					capability: 90,
+				}),
+				"anthropic:small-model:default": createModelRegistryEntry({
+					key: "anthropic:small-model:default",
+					providerId: "anthropic",
+					modelId: "small-model",
+					contextWindow: 16_000,
+					capability: 70,
+				}),
+			},
+		});
+
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "small-model",
+					},
+				};
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Implement a focused change.",
+			},
+		);
+
+		expect(response).toMatchObject({
+			ok: false,
+			error: expect.stringContaining("requires at least 32,000"),
+		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
 	it("blocks Cline starts that no configured model can fit", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
@@ -765,6 +931,16 @@ describe("createRuntimeApi startTaskSession", () => {
 			provider: "anthropic",
 			model: "small-model",
 			apiKey: "anthropic-api-key",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "anthropic",
+			models: [
+				{
+					id: "small-model",
+					name: "Small Model",
+					contextWindow: 32_000,
+				},
+			],
 		});
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,
@@ -774,7 +950,7 @@ describe("createRuntimeApi startTaskSession", () => {
 					key: "anthropic:small-model:default",
 					providerId: "anthropic",
 					modelId: "small-model",
-					contextWindow: 16_000,
+					contextWindow: 32_000,
 					capability: 90,
 				}),
 			},
@@ -807,7 +983,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			{
 				taskId: "task-1",
 				baseRef: "main",
-				prompt: `Implement a broad architecture change.\n${"complex ".repeat(20_000)}`,
+				prompt: `Implement a broad architecture change.\n${"complex ".repeat(60_000)}`,
 			},
 		);
 
@@ -1722,6 +1898,19 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("forwards selected Cline model settings through chat sends", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: [
+					{
+						id: "new-model",
+						name: "New Model",
+						loaded_context_length: 64_000,
+					},
+				],
+			}),
+		})) as unknown as typeof globalThis.fetch;
 		setSelectedProviderSettings({
 			provider: "lmstudio",
 			model: "old-model",
@@ -1745,32 +1934,36 @@ describe("createRuntimeApi startTaskSession", () => {
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.sendTaskChatMessage(
-			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{
-				taskId: "task-1",
-				text: "hello",
-				providerId: "lmstudio",
-				modelId: "new-model",
-				reasoningEffort: null,
-			},
-		);
+		try {
+			const response = await api.sendTaskChatMessage(
+				{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+				{
+					taskId: "task-1",
+					text: "hello",
+					providerId: "lmstudio",
+					modelId: "new-model",
+					reasoningEffort: null,
+				},
+			);
 
-		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
-			"task-1",
-			"hello",
-			undefined,
-			undefined,
-			{
-				providerId: "lmstudio",
-				modelId: "new-model",
-				apiKey: "local-key",
-				baseUrl: "http://127.0.0.1:1234/v1",
-				reasoningEffort: null,
-				contextWindow: null,
-			},
-		);
+			expect(response.ok).toBe(true);
+			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+				"task-1",
+				"hello",
+				undefined,
+				undefined,
+				{
+					providerId: "lmstudio",
+					modelId: "new-model",
+					apiKey: "local-key",
+					baseUrl: "http://127.0.0.1:1234/v1",
+					reasoningEffort: null,
+					contextWindow: 64_000,
+				},
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	it("handles clear slash commands without sending them to the model", async () => {
@@ -1947,6 +2140,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			apiKey: "sk-or-test",
 			baseUrl: "https://openrouter.ai/api/v1",
 			reasoningEffort: undefined,
+			contextWindow: 128_000,
 		});
 	});
 

@@ -147,6 +147,15 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 				baseUrl: null,
 				supportsBaseUrl: true,
 			},
+			{
+				id: "lmstudio",
+				name: "LM Studio",
+				oauthSupported: false,
+				enabled: true,
+				defaultModelId: "configured-but-unloaded",
+				baseUrl: "http://localhost:1234",
+				supportsBaseUrl: true,
+			},
 		],
 		providerModels: [
 			{ id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", contextWindow: 200_000, supportsReasoningEffort: true },
@@ -211,6 +220,23 @@ function setSelectValue(select: HTMLSelectElement, value: string): void {
 	const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
 	valueSetter?.call(select, value);
 	select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+async function flushAsyncWork(): Promise<void> {
+	await act(async () => {
+		await new Promise((resolve) => window.setTimeout(resolve, 0));
+		await Promise.resolve();
+	});
+}
+
+async function waitForCondition(condition: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await flushAsyncWork();
+	}
+	throw new Error("Condition was not met before timeout.");
 }
 
 const savedClineOauthConfig = {
@@ -307,6 +333,9 @@ describe("RuntimeSettingsDialog", () => {
 						supportsReasoningEffort: true,
 					},
 				];
+			}
+			if (providerId === "lmstudio") {
+				return [{ id: "loaded-qwen", name: "Loaded Qwen", contextWindow: 128_000 }];
 			}
 			return [];
 		});
@@ -548,10 +577,10 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setSelectValue(architectProviderSelect, "openrouter");
 		});
-		await act(async () => {
-			await Promise.resolve();
-			await Promise.resolve();
-		});
+		await waitForCondition(() =>
+			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "openrouter"),
+		);
+		await flushAsyncWork();
 		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith("workspace-1", "openrouter");
 		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toContain("google/gemini-2.5-pro");
 
@@ -619,10 +648,10 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setSelectValue(architectProviderSelect, "openrouter");
 		});
-		await act(async () => {
-			await Promise.resolve();
-			await Promise.resolve();
-		});
+		await waitForCondition(() =>
+			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "openrouter"),
+		);
+		await flushAsyncWork();
 
 		expect(document.body.textContent).toContain("Architect model reports 16,000 context tokens");
 		await act(async () => {
@@ -632,6 +661,110 @@ describe("RuntimeSettingsDialog", () => {
 		expect(saveRuntimeConfigMock).not.toHaveBeenCalled();
 		expect(handleOpenChange).not.toHaveBeenCalled();
 		expect(document.body.textContent).toContain("Kanban requires at least 32,000");
+	});
+
+	it("does not offer stale LM Studio model role selections", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedClineOauthConfig,
+							modelRoles: {
+								architect: {
+									providerId: "lmstudio",
+									modelId: "configured-but-unloaded",
+								},
+							},
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+		await waitForCondition(() =>
+			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
+		);
+		await waitForCondition(() => document.body.textContent?.includes("Loaded Qwen") === true);
+
+		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Model roles",
+		);
+		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectModelSelect = selects[1];
+		if (!(architectModelSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected architect model select to render.");
+		}
+
+		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toEqual(["", "loaded-qwen"]);
+		expect(document.body.textContent).toContain('Architect model "configured-but-unloaded" is not loaded');
+		expect(handleOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("requires an explicit loaded LM Studio model for role provider overrides", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const saveButton = findButtonByText(document.body, "Save");
+		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Model roles",
+		);
+		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectProviderSelect = selects[0];
+		const architectModelSelect = selects[1];
+		if (
+			!(saveButton instanceof HTMLButtonElement) ||
+			!(architectProviderSelect instanceof HTMLSelectElement) ||
+			!(architectModelSelect instanceof HTMLSelectElement)
+		) {
+			throw new Error("Expected architect role controls to render.");
+		}
+
+		await act(async () => {
+			setSelectValue(architectProviderSelect, "lmstudio");
+		});
+		await flushAsyncWork();
+
+		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toEqual(["", "loaded-qwen"]);
+		expect(document.body.textContent).toContain("Architect role uses LM Studio");
+		await act(async () => {
+			saveButton.click();
+		});
+		expect(saveRuntimeConfigMock).not.toHaveBeenCalled();
+		expect(handleOpenChange).not.toHaveBeenCalled();
+
+		await act(async () => {
+			setSelectValue(architectModelSelect, "loaded-qwen");
+		});
+		await act(async () => {
+			saveButton.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelRoles: {
+					architect: {
+						providerId: "lmstudio",
+						modelId: "loaded-qwen",
+					},
+				},
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
 	it("builds and copies Cline advisor prompts from settings", async () => {

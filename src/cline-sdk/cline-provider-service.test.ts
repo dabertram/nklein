@@ -28,7 +28,11 @@ vi.mock("./sdk-provider-boundary", () => ({
 }));
 
 import type { ClineModelRegistryEntry } from "./cline-model-registry";
-import { loadProviderModelsWithFallback, mergeProviderModelsWithModelRegistry } from "./cline-provider-service";
+import {
+	createClineProviderService,
+	loadProviderModelsWithFallback,
+	mergeProviderModelsWithModelRegistry,
+} from "./cline-provider-service";
 
 function createRegistryEntry(input: {
 	key: string;
@@ -97,12 +101,20 @@ describe("loadProviderModelsWithFallback", () => {
 		globalThis.fetch = originalFetch;
 	});
 
-	it("keeps SDK context windows and fills missing LM Studio model metadata", async () => {
+	it("keeps only live LM Studio models and fills missing metadata from the SDK catalog", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "model-a",
 				name: "Model A",
 				contextWindow: null,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+			{
+				id: "unloaded-model",
+				name: "Unloaded Model",
+				contextWindow: 262144,
 				supportsVision: false,
 				supportsAttachments: false,
 				supportsReasoningEffort: false,
@@ -370,5 +382,90 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.contextWindow).toBe(8_000);
 		expect(models[1]?.contextWindow).toBe(16_000);
+	});
+
+	it("rejects saving an active model below the Kanban minimum context window", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "small-model",
+				name: "Small Model",
+				contextWindow: 16_000,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "anthropic",
+			model: "small-model",
+		} as never);
+		const service = createClineProviderService();
+
+		await expect(
+			service.saveProviderSettings({
+				providerId: "anthropic",
+				modelId: "small-model",
+			}),
+		).rejects.toThrow("requires at least 32,000");
+	});
+
+	it("rejects saving an LM Studio model that is not currently loaded", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "configured-but-unloaded",
+				name: "Configured But Unloaded",
+				contextWindow: 262_144,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "lmstudio",
+			model: "configured-but-unloaded",
+			baseUrl: "http://localhost:1234",
+			timeout: 1000,
+		} as never);
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ data: [] }),
+		})) as unknown as typeof globalThis.fetch;
+		const service = createClineProviderService();
+
+		await expect(
+			service.saveProviderSettings({
+				providerId: "lmstudio",
+				modelId: "configured-but-unloaded",
+				baseUrl: "http://localhost:1234",
+			}),
+		).rejects.toThrow("is not currently loaded");
+	});
+
+	it("allows saving an active model at the Kanban minimum context window", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "worker-model",
+				name: "Worker Model",
+				contextWindow: 32_000,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "anthropic",
+			model: "worker-model",
+		} as never);
+		const service = createClineProviderService();
+
+		await expect(
+			service.saveProviderSettings({
+				providerId: "anthropic",
+				modelId: "worker-model",
+			}),
+		).resolves.toMatchObject({
+			providerId: "anthropic",
+			modelId: "worker-model",
+		});
 	});
 });
