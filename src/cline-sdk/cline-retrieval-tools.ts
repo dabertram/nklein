@@ -1,10 +1,13 @@
 import type { AgentTool } from "@clinebot/shared";
+import { searchClineCode } from "./cline-code-search";
 import { buildClineRepoMap } from "./cline-repo-map";
 
 const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1_200;
 const MAX_REPO_MAP_TOKEN_BUDGET = 12_000;
 const DEFAULT_REPO_MAP_MAX_FILES = 1_000;
 const MAX_REPO_MAP_MAX_FILES = 5_000;
+const DEFAULT_CODE_SEARCH_MAX_RESULTS = 8;
+const MAX_CODE_SEARCH_MAX_RESULTS = 30;
 
 function asBoundedInteger(value: unknown, fallback: number, min: number, max: number): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -57,6 +60,61 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 	};
 }
 
+function createCodeSearchTool(workspacePath: string): AgentTool {
+	return {
+		name: "search_code",
+		description:
+			"Search source code and return focused line-numbered snippets. Use this to find relevant functions, types, errors, or identifiers before reading files.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				query: {
+					type: "string",
+					description: 'Required search text, for example "calculateScore" or "failed to parse config".',
+				},
+				maxResults: {
+					type: "number",
+					description: "Maximum snippets to return. Defaults to 8.",
+				},
+				contextLines: {
+					type: "number",
+					description: "Lines of context before and after each match. Defaults to 3.",
+				},
+				maxFiles: {
+					type: "number",
+					description: "Maximum source files to scan. Defaults to 1000.",
+				},
+			},
+			required: ["query"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+			const query = typeof record.query === "string" ? record.query : "";
+			const search = await searchClineCode({
+				workspacePath,
+				query,
+				maxFiles: asBoundedInteger(record.maxFiles, DEFAULT_REPO_MAP_MAX_FILES, 1, MAX_REPO_MAP_MAX_FILES),
+				maxResults: asBoundedInteger(
+					record.maxResults,
+					DEFAULT_CODE_SEARCH_MAX_RESULTS,
+					1,
+					MAX_CODE_SEARCH_MAX_RESULTS,
+				),
+				contextLines: asBoundedInteger(record.contextLines, 3, 0, 12),
+			});
+			return {
+				query: search.query,
+				filesScanned: search.filesScanned,
+				matches: search.matches,
+				truncated: search.truncated,
+				instruction:
+					"Pick the smallest relevant file excerpts from these snippets. Prefer read_files with focused ranges before reading whole files.",
+			};
+		},
+	};
+}
+
 export function createClineRetrievalTools(options: { workspacePath: string }): AgentTool[] {
-	return [createRepoMapTool(options.workspacePath)];
+	return [createRepoMapTool(options.workspacePath), createCodeSearchTool(options.workspacePath)];
 }

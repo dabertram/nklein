@@ -48,4 +48,25 @@ describe("cline retrieval tools", () => {
 		expect(result.map).toContain("alphaFeature");
 		expect(result.map).toContain("src/index.ts");
 	});
+
+	it("returns focused code search snippets", async () => {
+		const workspacePath = await createWorkspace();
+		const searchTool = getTool("search_code", workspacePath);
+
+		const result = (await searchTool.execute(
+			{ query: "betaFeature", maxResults: 2, contextLines: 1 },
+			undefined as never,
+		)) as {
+			filesScanned: number;
+			matches: Array<{ path: string; snippet: string; lineStart: number; lineEnd: number }>;
+			truncated: boolean;
+		};
+
+		expect(result.filesScanned).toBe(1);
+		expect(result.matches.length).toBeGreaterThan(0);
+		expect(result.matches[0]?.path).toBe("src/index.ts");
+		expect(result.matches[0]?.snippet).toContain("betaFeature");
+		expect(result.matches[0]?.lineStart).toBeGreaterThan(0);
+		expect(result.matches[0]?.lineEnd).toBeGreaterThanOrEqual(result.matches[0]?.lineStart ?? 0);
+	});
 });
