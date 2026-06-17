@@ -149,8 +149,8 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 			},
 		],
 		providerModels: [
-			{ id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", supportsReasoningEffort: true },
-			{ id: "claude-opus-4", name: "Claude Opus 4", supportsReasoningEffort: true },
+			{ id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", contextWindow: 200_000, supportsReasoningEffort: true },
+			{ id: "claude-opus-4", name: "Claude Opus 4", contextWindow: 200_000, supportsReasoningEffort: true },
 		],
 		isLoadingProviderModels: false,
 		saveProviderSettings: vi.fn(async () => ({ ok: true })),
@@ -299,8 +299,13 @@ describe("RuntimeSettingsDialog", () => {
 		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "openrouter") {
 				return [
-					{ id: "openai/gpt-5.4", name: "GPT-5.4", supportsReasoningEffort: true },
-					{ id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", supportsReasoningEffort: true },
+					{ id: "openai/gpt-5.4", name: "GPT-5.4", contextWindow: 128_000, supportsReasoningEffort: true },
+					{
+						id: "google/gemini-2.5-pro",
+						name: "Gemini 2.5 Pro",
+						contextWindow: 1_000_000,
+						supportsReasoningEffort: true,
+					},
 				];
 			}
 			return [];
@@ -379,6 +384,49 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(resetLayoutCustomizationsMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("saves new task defaults from settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const taskSection = Array.from(document.querySelectorAll("h6")).find((heading) =>
+			heading.textContent?.includes("New Task Defaults"),
+		)?.parentElement;
+		expect(taskSection).toBeTruthy();
+		const switches = Array.from(taskSection?.querySelectorAll<HTMLButtonElement>("[role='switch']") ?? []);
+		expect(switches).toHaveLength(2);
+		const reviewActionSelect = taskSection?.querySelector<HTMLSelectElement>("select");
+		expect(reviewActionSelect).toBeInstanceOf(HTMLSelectElement);
+
+		await act(async () => {
+			switches[0]?.click();
+			switches[1]?.click();
+		});
+		await act(async () => {
+			if (reviewActionSelect) {
+				reviewActionSelect.value = "pr";
+				reviewActionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			}
+		});
+
+		const saveButton = findButtonByText(document.body, "Save");
+		expect(saveButton?.disabled).toBe(false);
+		await act(async () => {
+			saveButton?.click();
+		});
+
+		expect(window.localStorage.getItem("kanban.task-start-in-plan-mode")).toBe("true");
+		expect(window.localStorage.getItem("kanban.task-auto-review-enabled")).toBe("true");
+		expect(window.localStorage.getItem("kanban.task-auto-review-mode")).toBe("pr");
 	});
 
 	it("enables save on theme change and reverts preview on cancel", async () => {
@@ -530,6 +578,60 @@ describe("RuntimeSettingsDialog", () => {
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("warns and blocks saving model roles below the minimum context window", async () => {
+		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+			if (providerId === "openrouter") {
+				return [
+					{
+						id: "openai/gpt-5.4",
+						name: "GPT-5.4",
+						contextWindow: 16_000,
+						supportsReasoningEffort: true,
+					},
+				];
+			}
+			return [];
+		});
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const saveButton = findButtonByText(document.body, "Save");
+		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Model roles",
+		);
+		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const architectProviderSelect = modelRolesSection?.querySelector<HTMLSelectElement>("select");
+		if (!(architectProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected architect provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(architectProviderSelect, "openrouter");
+		});
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(document.body.textContent).toContain("Architect model reports 16,000 context tokens");
+		await act(async () => {
+			saveButton?.click();
+		});
+
+		expect(saveRuntimeConfigMock).not.toHaveBeenCalled();
+		expect(handleOpenChange).not.toHaveBeenCalled();
+		expect(document.body.textContent).toContain("Kanban requires at least 32,000");
 	});
 
 	it("builds and copies Cline advisor prompts from settings", async () => {

@@ -73,7 +73,7 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.clineSettings).toBeUndefined();
 		expect(backlog[0]?.startInPlanMode).toBe(true);
 		expect(backlog[0]?.autoReviewEnabled).toBe(false);
-		expect(backlog[0]?.prompt).toContain("/kanban-decompose");
+		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
 		expect(board.dependencies).toHaveLength(0);
 	});

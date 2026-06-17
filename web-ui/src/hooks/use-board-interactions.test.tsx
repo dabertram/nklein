@@ -76,6 +76,7 @@ interface HookSnapshot {
 	handleStartAllBacklogTasks: (taskIds?: string[]) => void;
 	handleDecomposeTask: (taskId: string) => void;
 	handleCardSelect: (taskId: string) => void;
+	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
 }
 
 function createRect(width: number, height: number): DOMRect {
@@ -152,6 +153,7 @@ function HookHarness({
 			handleStartAllBacklogTasks: actions.handleStartAllBacklogTasks,
 			handleDecomposeTask: actions.handleDecomposeTask,
 			handleCardSelect: actions.handleCardSelect,
+			setSessions,
 		});
 	}, [
 		actions.handleCardSelect,
@@ -1080,5 +1082,87 @@ describe("useBoardInteractions", () => {
 		expect(planningTask?.id).toBe("task-1");
 		expect(planningTask?.blockedKind).toBeUndefined();
 		expect(setSelectedTaskId).toHaveBeenCalledWith("task-1");
+	});
+
+	it("keeps planning-only tasks in Planning when the planning turn finishes", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{
+					id: "planning",
+					title: "Planning",
+					cards: [createTask("task-plan", "Plan a feature", 1, { startInPlanMode: true })],
+				},
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard: Dispatch<SetStateAction<BoardData>> = (next) => {
+			currentBoard = typeof next === "function" ? next(currentBoard) : next;
+		};
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable",
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={async () => ({ ok: true as const })}
+					startTaskSession={async () => ({ ok: true as const })}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			latestSnapshot?.setSessions({
+				"task-plan": {
+					taskId: "task-plan",
+					state: "awaiting_review",
+					mode: "act",
+					agentId: "cline",
+					workspacePath: "/tmp/project",
+					pid: null,
+					startedAt: 1,
+					updatedAt: 2,
+					lastOutputAt: 2,
+					lastTokenAt: null,
+					lastHeartbeatAt: null,
+					heartbeatStatus: null,
+					reviewReason: null,
+					exitCode: null,
+					lastHookAt: null,
+					latestHookActivity: null,
+				},
+			});
+		});
+
+		expect(currentBoard.columns.find((column) => column.id === "planning")?.cards.map((card) => card.id)).toEqual([
+			"task-plan",
+		]);
+		expect(currentBoard.columns.find((column) => column.id === "review")?.cards).toEqual([]);
 	});
 });

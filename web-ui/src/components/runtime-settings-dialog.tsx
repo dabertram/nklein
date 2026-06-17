@@ -50,6 +50,11 @@ import {
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
 import {
+	findClineProviderModel,
+	formatClineModelContextWindowLabel,
+	getClineModelContextWindowWarning,
+} from "@/runtime/cline-context-window-policy";
+import {
 	buildClineAdvisorRequest,
 	fetchClineProviderModels,
 	openFileOnHost,
@@ -70,9 +75,11 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
+	RuntimeTaskAutoReviewMode,
 	RuntimeTaskClineSettings,
 } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
+import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import {
 	type BrowserNotificationPermission,
 	getBrowserNotificationPermission,
@@ -155,7 +162,7 @@ function formatProviderOptionLabel(provider: { id: string; name: string }): stri
 }
 
 function formatModelOptionLabel(model: RuntimeClineProviderModel): string {
-	const name = model.name.trim();
+	const name = formatClineModelContextWindowLabel(model);
 	const id = model.id.trim();
 	if (!name || name.toLowerCase() === id.toLowerCase()) {
 		return id;
@@ -186,7 +193,7 @@ const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> =
 	"xhigh",
 ];
 
-type SettingsNavId = "general" | "cline" | "git-prompts" | "notifications" | "appearance" | "project";
+type SettingsNavId = "general" | "tasks" | "cline" | "git-prompts" | "notifications" | "appearance" | "project";
 
 const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	id: SettingsNavId;
@@ -195,12 +202,34 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	clineOnly?: boolean;
 }> = [
 	{ id: "general", label: "General", icon: <SlidersHorizontal size={16} /> },
+	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
 	{ id: "cline", label: "Cline", icon: <Bot size={16} />, clineOnly: true },
 	{ id: "git-prompts", label: "Git Prompts", icon: <GitCommit size={16} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
 	{ id: "project", label: "Project", icon: <FolderOpen size={16} /> },
 ];
+
+const TASK_AUTO_REVIEW_MODE_OPTIONS: Array<{ value: RuntimeTaskAutoReviewMode; label: string }> = [
+	{ value: "commit", label: "Commit" },
+	{ value: "pr", label: "Open PR" },
+];
+
+function readBooleanTaskDefault(key: LocalStorageKey, fallback: boolean): boolean {
+	const stored = readLocalStorageItem(key);
+	if (stored === "true") {
+		return true;
+	}
+	if (stored === "false") {
+		return false;
+	}
+	return fallback;
+}
+
+function readTaskAutoReviewModeDefault(): RuntimeTaskAutoReviewMode {
+	const stored = readLocalStorageItem(LocalStorageKey.TaskAutoReviewMode);
+	return stored === "pr" ? "pr" : "commit";
+}
 
 function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOption {
 	return getRuntimeShortcutPickerOption(icon);
@@ -966,6 +995,20 @@ export function RuntimeSettingsDialog({
 	const [maxAgentWritableFileLines, setMaxAgentWritableFileLines] = useState("1000");
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
+	const [taskDefaultStartInPlanMode, setTaskDefaultStartInPlanMode] = useState(() =>
+		readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false),
+	);
+	const [taskDefaultAutoReviewEnabled, setTaskDefaultAutoReviewEnabled] = useState(() =>
+		readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false),
+	);
+	const [taskDefaultAutoReviewMode, setTaskDefaultAutoReviewMode] =
+		useState<RuntimeTaskAutoReviewMode>(readTaskAutoReviewModeDefault);
+	const [initialTaskDefaultStartInPlanMode, setInitialTaskDefaultStartInPlanMode] =
+		useState(taskDefaultStartInPlanMode);
+	const [initialTaskDefaultAutoReviewEnabled, setInitialTaskDefaultAutoReviewEnabled] =
+		useState(taskDefaultAutoReviewEnabled);
+	const [initialTaskDefaultAutoReviewMode, setInitialTaskDefaultAutoReviewMode] =
+		useState<RuntimeTaskAutoReviewMode>(taskDefaultAutoReviewMode);
 	const [initialThemeId, setInitialThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
@@ -1004,6 +1047,8 @@ export function RuntimeSettingsDialog({
 	const selectedPromptPlaceholder =
 		selectedPromptVariant === "commit" ? "Commit prompt template" : "PR prompt template";
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
+	const taskDefaultStartInPlanModeId = "runtime-settings-task-default-start-in-plan-mode";
+	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -1146,6 +1191,13 @@ export function RuntimeSettingsDialog({
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
+		if (
+			taskDefaultStartInPlanMode !== initialTaskDefaultStartInPlanMode ||
+			taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
+			taskDefaultAutoReviewMode !== initialTaskDefaultAutoReviewMode
+		) {
+			return true;
+		}
 		if (clineSettings.hasUnsavedChanges) {
 			return true;
 		}
@@ -1196,6 +1248,9 @@ export function RuntimeSettingsDialog({
 		initialReadyForReviewNotificationsEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
+		initialTaskDefaultAutoReviewEnabled,
+		initialTaskDefaultAutoReviewMode,
+		initialTaskDefaultStartInPlanMode,
 		initialStreamTimeoutMs,
 		initialThemeId,
 		initialToolTimeoutMs,
@@ -1208,6 +1263,9 @@ export function RuntimeSettingsDialog({
 		selectedAgentId,
 		shortcuts,
 		streamTimeoutMs,
+		taskDefaultAutoReviewEnabled,
+		taskDefaultAutoReviewMode,
+		taskDefaultStartInPlanMode,
 		toolTimeoutMs,
 	]);
 
@@ -1227,6 +1285,15 @@ export function RuntimeSettingsDialog({
 		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
 		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
+		const storedTaskDefaultStartInPlanMode = readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false);
+		const storedTaskDefaultAutoReviewEnabled = readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false);
+		const storedTaskDefaultAutoReviewMode = readTaskAutoReviewModeDefault();
+		setTaskDefaultStartInPlanMode(storedTaskDefaultStartInPlanMode);
+		setInitialTaskDefaultStartInPlanMode(storedTaskDefaultStartInPlanMode);
+		setTaskDefaultAutoReviewEnabled(storedTaskDefaultAutoReviewEnabled);
+		setInitialTaskDefaultAutoReviewEnabled(storedTaskDefaultAutoReviewEnabled);
+		setTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
+		setInitialTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
 		setShortcuts(config?.shortcuts ?? []);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
@@ -1478,6 +1545,28 @@ export function RuntimeSettingsDialog({
 		[clineProviderId, clineSettings.isLoadingProviderModels, loadingModelRoleProviderIds],
 	);
 
+	const getModelRoleContextWarning = useCallback(
+		(roleId: ModelRoleId): string | null => {
+			const roleSettings = modelRoles[roleId] ?? {};
+			const roleProviderId = roleSettings.providerId ?? "";
+			const effectiveProviderId = roleProviderId || clineProviderId;
+			const providerDefaultModelId = roleProviderId
+				? (findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)?.defaultModelId?.trim() ?? "")
+				: "";
+			const effectiveModelId = roleSettings.modelId?.trim() || providerDefaultModelId;
+			if (!effectiveModelId) {
+				return null;
+			}
+			const roleModels = getModelRoleProviderModels(effectiveProviderId);
+			return getClineModelContextWindowWarning({
+				model: findClineProviderModel(roleModels, effectiveModelId),
+				modelId: effectiveModelId,
+				label: `${MODEL_ROLE_LABELS[roleId]} model`,
+			});
+		},
+		[clineProviderId, clineSettings.providerCatalog, getModelRoleProviderModels, modelRoles],
+	);
+
 	const handleModelRoleProviderChange = (roleId: ModelRoleId, value: string) => {
 		setModelRoles((current) => {
 			const next = { ...current };
@@ -1612,6 +1701,13 @@ export function RuntimeSettingsDialog({
 			return;
 		}
 		if (selectedAgentId === "cline") {
+			const modelRoleContextWarning = MODEL_ROLE_IDS.map((roleId) => getModelRoleContextWarning(roleId)).find(
+				(warning): warning is string => warning !== null,
+			);
+			if (modelRoleContextWarning) {
+				setSaveError(modelRoleContextWarning);
+				return;
+			}
 			const clineProviderSaveResult = await clineSettings.saveProviderSettings();
 			if (!clineProviderSaveResult.ok) {
 				setSaveError(clineProviderSaveResult.message ?? "Could not save Cline provider settings.");
@@ -1649,6 +1745,12 @@ export function RuntimeSettingsDialog({
 			saveThemeId(draftThemeId);
 			setInitialThemeId(draftThemeId);
 		}
+		writeLocalStorageItem(LocalStorageKey.TaskStartInPlanMode, String(taskDefaultStartInPlanMode));
+		writeLocalStorageItem(LocalStorageKey.TaskAutoReviewEnabled, String(taskDefaultAutoReviewEnabled));
+		writeLocalStorageItem(LocalStorageKey.TaskAutoReviewMode, taskDefaultAutoReviewMode);
+		setInitialTaskDefaultStartInPlanMode(taskDefaultStartInPlanMode);
+		setInitialTaskDefaultAutoReviewEnabled(taskDefaultAutoReviewEnabled);
+		setInitialTaskDefaultAutoReviewMode(taskDefaultAutoReviewMode);
 		onSaved?.();
 		handleDialogOpenChange(false);
 	};
@@ -1860,6 +1962,69 @@ export function RuntimeSettingsDialog({
 						</div>
 					</div>
 
+					{/* ---- Tasks ---- */}
+					<div data-settings-section="tasks" />
+					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+							<Check size={16} className="text-text-secondary" />
+							Tasks
+						</h2>
+					</div>
+					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+							New Task Defaults
+						</h6>
+						<div className="grid gap-3">
+							<label
+								htmlFor={taskDefaultStartInPlanModeId}
+								className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+							>
+								<RadixSwitch.Root
+									id={taskDefaultStartInPlanModeId}
+									checked={taskDefaultStartInPlanMode}
+									disabled={controlsDisabled}
+									onCheckedChange={setTaskDefaultStartInPlanMode}
+									className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+								>
+									<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+								</RadixSwitch.Root>
+								<span>Start new tasks in Planning</span>
+							</label>
+							<label
+								htmlFor={taskDefaultAutoReviewEnabledId}
+								className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+							>
+								<RadixSwitch.Root
+									id={taskDefaultAutoReviewEnabledId}
+									checked={taskDefaultAutoReviewEnabled}
+									disabled={controlsDisabled}
+									onCheckedChange={setTaskDefaultAutoReviewEnabled}
+									className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+								>
+									<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+								</RadixSwitch.Root>
+								<span>Run review action automatically</span>
+							</label>
+							<div className="max-w-[220px]">
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Automatic review action</p>
+								<NativeSelect
+									fill
+									value={taskDefaultAutoReviewMode}
+									onChange={(event) =>
+										setTaskDefaultAutoReviewMode(event.target.value as RuntimeTaskAutoReviewMode)
+									}
+									disabled={controlsDisabled || !taskDefaultAutoReviewEnabled}
+								>
+									{TASK_AUTO_REVIEW_MODE_OPTIONS.map((option) => (
+										<option key={option.value} value={option.value}>
+											{option.label}
+										</option>
+									))}
+								</NativeSelect>
+							</div>
+						</div>
+					</div>
+
 					{/* ---- Cline ---- */}
 					{selectedAgentId === "cline" ? (
 						<>
@@ -1926,100 +2091,109 @@ export function RuntimeSettingsDialog({
 												!roleModels.some((model) => model.id === selectedRoleModelId);
 											const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
 											const hasRoleOverride = Object.keys(roleSettings).length > 0;
+											const roleContextWarning = getModelRoleContextWarning(roleId);
 											return (
-												<div
-													key={roleId}
-													className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px_34px]"
-												>
-													<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
-														{MODEL_ROLE_LABELS[roleId]}
+												<div key={roleId} className="grid gap-1">
+													<div className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px_34px]">
+														<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
+															{MODEL_ROLE_LABELS[roleId]}
+														</div>
+														<label className="min-w-0" htmlFor={providerSelectId}>
+															<span className="mb-1 block text-[12px] text-text-secondary">
+																Provider
+															</span>
+															<NativeSelect
+																id={providerSelectId}
+																fill
+																value={roleProviderId}
+																onChange={(event) =>
+																	handleModelRoleProviderChange(roleId, event.target.value)
+																}
+																disabled={controlsDisabled}
+															>
+																<option value="">Default</option>
+																{roleProvider &&
+																!clineSettings.providerCatalog.some(
+																	(provider) => provider.id === roleProviderId,
+																) ? (
+																	<option value={roleProviderId}>{roleProviderId}</option>
+																) : null}
+																{clineSettings.providerCatalog.map((provider) => (
+																	<option key={provider.id} value={provider.id}>
+																		{formatProviderOptionLabel(provider)}
+																	</option>
+																))}
+																{roleProviderId &&
+																!roleProvider &&
+																!clineSettings.providerCatalog.some(
+																	(provider) => provider.id === roleProviderId,
+																) ? (
+																	<option value={roleProviderId}>{roleProviderId}</option>
+																) : null}
+															</NativeSelect>
+														</label>
+														<label className="min-w-0" htmlFor={modelSelectId}>
+															<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
+															<NativeSelect
+																id={modelSelectId}
+																fill
+																value={selectedRoleModelId}
+																onChange={(event) =>
+																	handleModelRoleModelChange(roleId, event.target.value)
+																}
+																disabled={controlsDisabled || isRoleProviderLoading}
+															>
+																<option value="">
+																	{isRoleProviderLoading ? "Loading models..." : "Default"}
+																</option>
+																{hasSelectedRoleModel ? (
+																	<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
+																) : null}
+																{roleModels.map((model) => (
+																	<option key={model.id} value={model.id}>
+																		{formatModelOptionLabel(model)}
+																	</option>
+																))}
+															</NativeSelect>
+														</label>
+														<div className="min-w-0">
+															<span className="mb-1 block text-[12px] text-text-secondary">
+																Reasoning
+															</span>
+															<NativeSelect
+																fill
+																value={roleSettings.reasoningEffort ?? "inherit"}
+																onChange={(event) =>
+																	handleModelRoleReasoningChange(
+																		roleId,
+																		event.target.value as RuntimeClineReasoningEffort | "inherit",
+																	)
+																}
+																disabled={controlsDisabled}
+															>
+																{REASONING_EFFORT_OPTIONS.map((option) => (
+																	<option key={option} value={option}>
+																		{option === "inherit" ? "Default" : option}
+																	</option>
+																))}
+															</NativeSelect>
+														</div>
+														<Button
+															variant="ghost"
+															size="sm"
+															icon={<X size={14} />}
+															aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
+															disabled={controlsDisabled || !hasRoleOverride}
+															onClick={() => {
+																handleResetModelRole(roleId);
+															}}
+														/>
 													</div>
-													<label className="min-w-0" htmlFor={providerSelectId}>
-														<span className="mb-1 block text-[12px] text-text-secondary">Provider</span>
-														<NativeSelect
-															id={providerSelectId}
-															fill
-															value={roleProviderId}
-															onChange={(event) =>
-																handleModelRoleProviderChange(roleId, event.target.value)
-															}
-															disabled={controlsDisabled}
-														>
-															<option value="">Default</option>
-															{roleProvider &&
-															!clineSettings.providerCatalog.some(
-																(provider) => provider.id === roleProviderId,
-															) ? (
-																<option value={roleProviderId}>{roleProviderId}</option>
-															) : null}
-															{clineSettings.providerCatalog.map((provider) => (
-																<option key={provider.id} value={provider.id}>
-																	{formatProviderOptionLabel(provider)}
-																</option>
-															))}
-															{roleProviderId &&
-															!roleProvider &&
-															!clineSettings.providerCatalog.some(
-																(provider) => provider.id === roleProviderId,
-															) ? (
-																<option value={roleProviderId}>{roleProviderId}</option>
-															) : null}
-														</NativeSelect>
-													</label>
-													<label className="min-w-0" htmlFor={modelSelectId}>
-														<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
-														<NativeSelect
-															id={modelSelectId}
-															fill
-															value={selectedRoleModelId}
-															onChange={(event) =>
-																handleModelRoleModelChange(roleId, event.target.value)
-															}
-															disabled={controlsDisabled || isRoleProviderLoading}
-														>
-															<option value="">
-																{isRoleProviderLoading ? "Loading models..." : "Default"}
-															</option>
-															{hasSelectedRoleModel ? (
-																<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
-															) : null}
-															{roleModels.map((model) => (
-																<option key={model.id} value={model.id}>
-																	{formatModelOptionLabel(model)}
-																</option>
-															))}
-														</NativeSelect>
-													</label>
-													<div className="min-w-0">
-														<span className="mb-1 block text-[12px] text-text-secondary">Reasoning</span>
-														<NativeSelect
-															fill
-															value={roleSettings.reasoningEffort ?? "inherit"}
-															onChange={(event) =>
-																handleModelRoleReasoningChange(
-																	roleId,
-																	event.target.value as RuntimeClineReasoningEffort | "inherit",
-																)
-															}
-															disabled={controlsDisabled}
-														>
-															{REASONING_EFFORT_OPTIONS.map((option) => (
-																<option key={option} value={option}>
-																	{option === "inherit" ? "Default" : option}
-																</option>
-															))}
-														</NativeSelect>
-													</div>
-													<Button
-														variant="ghost"
-														size="sm"
-														icon={<X size={14} />}
-														aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
-														disabled={controlsDisabled || !hasRoleOverride}
-														onClick={() => {
-															handleResetModelRole(roleId);
-														}}
-													/>
+													{roleContextWarning ? (
+														<p className="m-0 text-[12px] text-status-orange md:ml-[118px]">
+															{roleContextWarning}
+														</p>
+													) : null}
 												</div>
 											);
 										})}

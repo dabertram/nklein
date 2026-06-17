@@ -478,6 +478,19 @@ export function useBoardInteractions({
 				}
 				const columnId = getTaskColumnId(nextBoard, summary.taskId);
 				if (summary.state === "awaiting_review" && (columnId === "in_progress" || columnId === "planning")) {
+					const selection = findCardSelection(nextBoard, summary.taskId);
+					if (selection?.card.startInPlanMode && selection.card.autoReviewEnabled !== true) {
+						if (columnId === "planning") {
+							continue;
+						}
+						const movedToPlanning = moveTaskToColumn(nextBoard, summary.taskId, "planning", {
+							insertAtTop: true,
+						});
+						if (movedToPlanning.moved) {
+							nextBoard = movedToPlanning.board;
+						}
+						continue;
+					}
 					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "review");
 					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
 						continue;

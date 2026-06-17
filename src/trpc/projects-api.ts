@@ -64,8 +64,6 @@ export function createDevTestBoard(input: {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,
 		prompt: [
-			"/kanban-decompose",
-			"",
 			input.prompt,
 			"",
 			"Workspace seed:",

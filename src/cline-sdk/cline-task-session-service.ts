@@ -25,6 +25,7 @@ import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
 } from "./cline-context-overflow-compaction";
+import { KANBAN_DECOMPOSE_PROMPT } from "./cline-decomposition-workflow";
 import { applyClineSessionEvent } from "./cline-event-adapter";
 import {
 	type ClineMessageRepository,
@@ -296,7 +297,9 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 	const trimmedPrompt = prompt.trim();
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
-		"Do not modify files, do not use write tools, and do not implement anything yet.",
+		"Kanban decomposition is available during planning; when the task should be split into dependent cards, follow these decomposition instructions:",
+		KANBAN_DECOMPOSE_PROMPT.trimEnd(),
+		"Do not modify implementation files, do not use write tools outside Kanban planning artifacts, and do not implement product code yet.",
 		"After you present the plan, ask for approval before making changes.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");

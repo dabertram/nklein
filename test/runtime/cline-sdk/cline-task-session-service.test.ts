@@ -1008,7 +1008,12 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				mode: "act",
-				prompt: expect.stringContaining("Do not modify files, do not use write tools"),
+				prompt: expect.stringContaining("Kanban decomposition is available during planning"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("Write these artifacts under `.cline/kanban/plans/<slug>/`:"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
