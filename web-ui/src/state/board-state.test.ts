@@ -13,6 +13,7 @@ import {
 	moveTaskToColumn,
 	normalizeBoardData,
 	trashTaskAndGetReadyLinkedTaskIds,
+	updateTaskBlockedState,
 	updateTaskTitle,
 } from "@/state/board-state";
 import type { ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
@@ -593,6 +594,40 @@ describe("board dependency state", () => {
 		]);
 		expect(normalized?.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
 		expect(normalized?.columns.find((column) => column.id === "backlog")?.cards[0]?.id).toBe("task-1");
+	});
+
+	it("normalizes and updates task blocked state", () => {
+		const normalized = normalizeBoardData({
+			columns: [
+				{
+					id: "backlog",
+					cards: [
+						{
+							id: "task-1",
+							prompt: "Implement large feature",
+							startInPlanMode: false,
+							baseRef: "main",
+							blockedKind: "needs_decomposition",
+							blockedReason: "Task start blocked: this card needs decomposition.",
+						},
+					],
+				},
+			],
+			dependencies: [],
+		});
+
+		const normalizedTask = normalized?.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(normalizedTask?.blockedKind).toBe("needs_decomposition");
+		expect(normalizedTask?.blockedReason).toBe("Task start blocked: this card needs decomposition.");
+		if (!normalized) {
+			throw new Error("Expected board to normalize.");
+		}
+
+		const cleared = updateTaskBlockedState(normalized, "task-1", null);
+		expect(cleared.updated).toBe(true);
+		const clearedTask = cleared.board.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(clearedTask?.blockedKind).toBeUndefined();
+		expect(clearedTask?.blockedReason).toBeUndefined();
 	});
 
 	it("disables auto-review settings for a task", () => {

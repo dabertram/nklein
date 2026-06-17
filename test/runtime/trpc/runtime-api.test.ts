@@ -793,6 +793,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("needs_decomposition");
 		expect(response.error).toContain("needs decomposition");
 		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();

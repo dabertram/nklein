@@ -265,6 +265,75 @@ describe("useBoardInteractions", () => {
 		expect(startTaskSession).toHaveBeenCalledWith(backlogTask);
 	});
 
+	it("marks backlog tasks as needing decomposition when the start guard blocks them", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard = createBoard();
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: {
+				ok: true as const,
+				path: "/tmp/task-1",
+				baseRef: "main",
+				baseCommit: "abc123",
+			},
+		}));
+		const startTaskSession = vi.fn(async () => ({
+			ok: false as const,
+			message: "Task start blocked: this card needs decomposition.",
+			errorCode: "needs_decomposition" as const,
+		}));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		const backlogTask = currentBoard.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(backlogTask?.blockedKind).toBe("needs_decomposition");
+		expect(backlogTask?.blockedReason).toBe("Task start blocked: this card needs decomposition.");
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
+	});
+
 	it("waits for a new backlog card height to settle before starting animation", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);

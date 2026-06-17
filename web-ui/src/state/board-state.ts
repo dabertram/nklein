@@ -27,6 +27,8 @@ export interface TaskDraft {
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
+	blockedKind?: "needs_decomposition";
+	blockedReason?: string;
 	baseRef: string;
 }
 
@@ -218,6 +220,8 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		baseRef?: unknown;
 		agentId?: unknown;
 		clineSettings?: unknown;
+		blockedKind?: unknown;
+		blockedReason?: unknown;
 		clineProviderId?: unknown;
 		clineModelId?: unknown;
 		clineReasoningEffort?: unknown;
@@ -258,6 +262,10 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
 		...(clineSettings !== undefined ? { clineSettings } : {}),
+		...(card.blockedKind === "needs_decomposition" ? { blockedKind: "needs_decomposition" as const } : {}),
+		...(typeof card.blockedReason === "string" && card.blockedReason.trim()
+			? { blockedReason: card.blockedReason.trim() }
+			: {}),
 		createdAt: typeof card.createdAt === "number" ? card.createdAt : now,
 		updatedAt: typeof card.updatedAt === "number" ? card.updatedAt : now,
 	};
@@ -610,7 +618,45 @@ export function updateTask(board: BoardData, taskId: string, draft: TaskDraft): 
 							: undefined,
 				agentId: draft.agentId,
 				clineSettings: draft.clineSettings,
+				blockedKind: undefined,
+				blockedReason: undefined,
 				baseRef,
+				updatedAt: Date.now(),
+			};
+		});
+		return columnUpdated ? { ...column, cards } : column;
+	});
+
+	if (!updated) {
+		return { board, updated: false };
+	}
+	return { board: withUpdatedColumns(board, columns), updated: true };
+}
+
+export function updateTaskBlockedState(
+	board: BoardData,
+	taskId: string,
+	blocked: {
+		kind: "needs_decomposition";
+		reason: string;
+	} | null,
+): { board: BoardData; updated: boolean } {
+	let updated = false;
+	const columns = board.columns.map((column) => {
+		let columnUpdated = false;
+		const cards = column.cards.map((card) => {
+			if (card.id !== taskId) {
+				return card;
+			}
+			if (blocked === null && card.blockedKind === undefined && card.blockedReason === undefined) {
+				return card;
+			}
+			columnUpdated = true;
+			updated = true;
+			return {
+				...card,
+				blockedKind: blocked?.kind,
+				blockedReason: blocked?.reason,
 				updatedAt: Date.now(),
 			};
 		});

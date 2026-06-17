@@ -559,6 +559,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							ok: false,
 							summary: null,
 							error: formatClineTaskRoutingBlockMessage(routingDecision),
+							errorCode: routingDecision.type === "decompose" ? "needs_decomposition" : "routing_escalation",
 						};
 					}
 					const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;

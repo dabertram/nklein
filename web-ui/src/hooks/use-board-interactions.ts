@@ -16,6 +16,7 @@ import {
 	getTaskColumnId,
 	moveTaskToColumn,
 	updateTask,
+	updateTaskBlockedState,
 } from "@/state/board-state";
 import { clearTaskWorkspaceInfo, setTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
@@ -345,6 +346,15 @@ export function useBoardInteractions({
 			const started = await startTaskSession(task);
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
+				if (started.errorCode === "needs_decomposition") {
+					setBoard((currentBoard) => {
+						const marked = updateTaskBlockedState(currentBoard, taskId, {
+							kind: "needs_decomposition",
+							reason: started.message ?? "This task needs to be decomposed before it can start.",
+						});
+						return marked.updated ? marked.board : currentBoard;
+					});
+				}
 				if (optimisticMove) {
 					setBoard((currentBoard) => {
 						const currentColumnId = getTaskColumnId(currentBoard, taskId);
@@ -367,6 +377,10 @@ export function useBoardInteractions({
 					return moved.moved ? moved.board : currentBoard;
 				});
 			}
+			setBoard((currentBoard) => {
+				const cleared = updateTaskBlockedState(currentBoard, taskId, null);
+				return cleared.updated ? cleared.board : currentBoard;
+			});
 			return true;
 		},
 		[ensureTaskWorkspace, fetchTaskWorkspaceInfo, selectedTaskId, setBoard, startTaskSession],

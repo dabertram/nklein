@@ -526,6 +526,10 @@ export function BoardCard({
 		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;
 	}, [agentOverrideLabel, modelOverrideLabel]);
+	const blockedReason =
+		card.blockedKind === "needs_decomposition"
+			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
+			: null;
 
 	const activeDescriptionDisplay = isDescriptionExpanded ? descriptionDisplay.expanded : descriptionDisplay.collapsed;
 
@@ -783,6 +787,12 @@ export function BoardCard({
 										<Bot size={12} className="shrink-0" />
 										<span className="truncate">{taskAgentSettingsLabel}</span>
 									</span>
+								</div>
+							) : null}
+							{blockedReason ? (
+								<div className="mt-2 flex items-start gap-1.5 rounded-md border border-status-orange/40 bg-status-orange/10 px-2 py-1.5 text-[11px] leading-snug text-status-orange">
+									<AlertTriangle size={12} className="mt-0.5 shrink-0" />
+									<p className="m-0 min-w-0">{blockedReason}</p>
 								</div>
 							) : null}
 							{sessionActivity ? (

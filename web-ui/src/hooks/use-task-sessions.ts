@@ -42,6 +42,7 @@ interface SendTaskSessionInputResult {
 interface StartTaskSessionResult {
 	ok: boolean;
 	message?: string;
+	errorCode?: "needs_decomposition" | "routing_escalation";
 }
 
 interface StartTaskSessionOptions {
@@ -171,6 +172,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					return {
 						ok: false,
 						message: payload.error ?? "Task session start failed.",
+						errorCode: payload.errorCode,
 					};
 				}
 				upsertSession(payload.summary);
