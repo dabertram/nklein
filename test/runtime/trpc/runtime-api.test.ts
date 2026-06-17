@@ -2357,6 +2357,35 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.prompt).toContain("70/100 capability");
 	});
 
+	it("builds generic advisor requests with workspace context", async () => {
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.buildClineAdvisor(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				kind: "mcp_discovery",
+				repoSummary: "TypeScript desktop app",
+			},
+		);
+
+		expect(response.kind).toBe("mcp_discovery");
+		expect(response.requiresWebResearch).toBe(true);
+		expect(response.recommendedSources).toContain("https://mcp.so/");
+		expect(response.prompt).toContain("Workspace: /tmp/repo");
+		expect(response.prompt).toContain("TypeScript desktop app");
+	});
+
 	it("loads provider models through the SDK local-provider resolver with saved config", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),

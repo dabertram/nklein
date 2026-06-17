@@ -7,6 +7,7 @@ import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
@@ -34,6 +35,7 @@ import type {
 import {
 	parseClineAccountSwitchRequest,
 	parseClineAddProviderRequest,
+	parseClineAdvisorBuildRequest,
 	parseClineDeviceAuthCompleteRequest,
 	parseClineMcpOAuthRequest,
 	parseClineMcpSettingsSaveRequest,
@@ -757,6 +759,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildClineModelFreshnessAdvisorRequest();
+		},
+		buildClineAdvisor: async (workspaceScope, input) => {
+			const body = parseClineAdvisorBuildRequest(input);
+			if (body.kind === "model_freshness") {
+				return await buildClineModelFreshnessAdvisorRequest();
+			}
+			return buildClineAdvisorRequest(body.kind, {
+				workspacePath: workspaceScope?.workspacePath,
+				repoSummary: body.repoSummary,
+				modelRegistrySummary: body.modelRegistrySummary,
+				runtimeConfigSummary: body.runtimeConfigSummary,
+				telemetrySummary: body.telemetrySummary,
+				taskSummary: body.taskSummary,
+				userQuestion: body.userQuestion,
+			});
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {
 			const statuses = await clineMcpRuntimeService.getAuthStatuses();

@@ -822,6 +822,17 @@ export const runtimeClineAdvisorRequestSchema = z.object({
 });
 export type RuntimeClineAdvisorRequest = z.infer<typeof runtimeClineAdvisorRequestSchema>;
 
+export const runtimeClineAdvisorBuildRequestSchema = z.object({
+	kind: runtimeClineAdvisorKindSchema,
+	repoSummary: z.string().optional(),
+	modelRegistrySummary: z.string().optional(),
+	runtimeConfigSummary: z.string().optional(),
+	telemetrySummary: z.string().optional(),
+	taskSummary: z.string().optional(),
+	userQuestion: z.string().optional(),
+});
+export type RuntimeClineAdvisorBuildRequest = z.infer<typeof runtimeClineAdvisorBuildRequestSchema>;
+
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",

@@ -8,6 +8,8 @@ import type {
 	RuntimeClineAccountProfileResponse,
 	RuntimeClineAccountSwitchResponse,
 	RuntimeClineAddProviderResponse,
+	RuntimeClineAdvisorBuildRequest,
+	RuntimeClineAdvisorRequest,
 	RuntimeClineDeviceAuthCompleteRequest,
 	RuntimeClineDeviceAuthCompleteResponse,
 	RuntimeClineDeviceAuthStartResponse,
@@ -149,6 +151,14 @@ export async function fetchClineProviderModels(
 export async function fetchClineModelRegistry(workspaceId: string | null): Promise<RuntimeClineModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getClineModelRegistry.query();
+}
+
+export async function buildClineAdvisorRequest(
+	workspaceId: string | null,
+	input: RuntimeClineAdvisorBuildRequest,
+): Promise<RuntimeClineAdvisorRequest> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.buildClineAdvisor.query(input);
 }
 
 export async function runClineProviderOauthLogin(

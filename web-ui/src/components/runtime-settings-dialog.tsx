@@ -14,13 +14,16 @@ import {
 	ChevronDown,
 	Circle,
 	CircleDot,
+	Clipboard,
 	ExternalLink,
 	FolderOpen,
 	GitCommit,
 	Palette,
 	Plus,
+	Search,
 	Settings,
 	SlidersHorizontal,
+	Sparkles,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,9 +45,11 @@ import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-
 import { useRuntimeSettingsClineMcpController } from "@/hooks/use-runtime-settings-cline-mcp-controller";
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
-import { openFileOnHost } from "@/runtime/runtime-config-query";
+import { buildClineAdvisorRequest, openFileOnHost } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
+	RuntimeClineAdvisorKind,
+	RuntimeClineAdvisorRequest,
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeClineReasoningEffort,
 	RuntimeConfigResponse,
@@ -379,6 +384,142 @@ function SettingsNav({
 				</button>
 			))}
 		</nav>
+	);
+}
+
+const CLINE_ADVISOR_ACTIONS: ReadonlyArray<{
+	kind: RuntimeClineAdvisorKind;
+	label: string;
+	icon: React.ReactNode;
+}> = [
+	{ kind: "model_freshness", label: "Check models", icon: <Sparkles size={14} /> },
+	{ kind: "mcp_discovery", label: "Find MCP plugins", icon: <Search size={14} /> },
+];
+
+function ClineAdvisorActions({
+	workspaceId,
+	disabled,
+	onError,
+}: {
+	workspaceId: string | null;
+	disabled: boolean;
+	onError: (message: string | null) => void;
+}): React.ReactElement {
+	const [activeKind, setActiveKind] = useState<RuntimeClineAdvisorKind | null>(null);
+	const [advisorRequest, setAdvisorRequest] = useState<RuntimeClineAdvisorRequest | null>(null);
+	const [copyButtonText, setCopyButtonText] = useState("Copy prompt");
+	const copyResetTimerRef = useRef<number | null>(null);
+
+	useUnmount(() => {
+		if (copyResetTimerRef.current !== null) {
+			window.clearTimeout(copyResetTimerRef.current);
+		}
+	});
+
+	const handleBuildAdvisor = useCallback(
+		(kind: RuntimeClineAdvisorKind) => {
+			onError(null);
+			setActiveKind(kind);
+			void buildClineAdvisorRequest(workspaceId, { kind })
+				.then((request) => {
+					setAdvisorRequest(request);
+				})
+				.catch((error) => {
+					const message = error instanceof Error ? error.message : String(error);
+					onError(`Could not build advisor prompt: ${message}`);
+				})
+				.finally(() => {
+					setActiveKind(null);
+				});
+		},
+		[onError, workspaceId],
+	);
+
+	const handleCopyPrompt = useCallback(() => {
+		if (!advisorRequest) {
+			return;
+		}
+		void navigator.clipboard
+			.writeText(advisorRequest.prompt)
+			.then(() => {
+				setCopyButtonText("Copied");
+				if (copyResetTimerRef.current !== null) {
+					window.clearTimeout(copyResetTimerRef.current);
+				}
+				copyResetTimerRef.current = window.setTimeout(() => {
+					setCopyButtonText("Copy prompt");
+					copyResetTimerRef.current = null;
+				}, 1800);
+			})
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				onError(`Could not copy advisor prompt: ${message}`);
+			});
+	}, [advisorRequest, onError]);
+
+	return (
+		<div className="mt-4 border-t border-border pt-4">
+			<div className="flex items-center justify-between gap-3 mb-2">
+				<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">Advisor</h6>
+				<div className="flex flex-wrap items-center justify-end gap-2">
+					{CLINE_ADVISOR_ACTIONS.map((action) => (
+						<Button
+							key={action.kind}
+							size="sm"
+							variant="default"
+							icon={action.icon}
+							disabled={disabled || activeKind !== null}
+							onClick={() => handleBuildAdvisor(action.kind)}
+						>
+							{activeKind === action.kind ? "Building..." : action.label}
+						</Button>
+					))}
+				</div>
+			</div>
+			{advisorRequest ? (
+				<div className="rounded-md border border-border bg-surface-2 p-3">
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<div className="min-w-0">
+							<p className="text-[13px] font-medium text-text-primary m-0">{advisorRequest.title}</p>
+							<p className="text-[12px] text-text-secondary mt-0.5 mb-0">
+								{advisorRequest.requiresWebResearch ? "Uses web research sources" : "Uses local context only"}
+							</p>
+						</div>
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={<Clipboard size={14} />}
+							disabled={disabled}
+							onClick={handleCopyPrompt}
+						>
+							{copyButtonText}
+						</Button>
+					</div>
+					<textarea
+						readOnly
+						value={advisorRequest.prompt}
+						rows={8}
+						className="mt-3 w-full resize-none rounded-md border border-border bg-surface-1 p-3 font-mono text-[12px] text-text-primary focus:outline-none"
+					/>
+					{advisorRequest.recommendedSources.length > 0 ? (
+						<div className="mt-3 flex flex-wrap gap-2">
+							{advisorRequest.recommendedSources.map((source) => (
+								<a
+									key={source}
+									href={source}
+									target="_blank"
+									rel="noreferrer"
+									className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-1 px-2 py-1 text-[12px] text-text-secondary hover:text-text-primary hover:border-border-bright"
+								>
+									<span>{new URL(source).hostname}</span>
+									<ExternalLink size={12} />
+								</a>
+							))}
+						</div>
+					) : null}
+				</div>
+			) : null}
+		</div>
 	);
 }
 
@@ -1156,6 +1297,11 @@ export function RuntimeSettingsDialog({
 									}
 									onError={setSaveError}
 									onSaved={handleClineSetupSaved}
+								/>
+								<ClineAdvisorActions
+									workspaceId={workspaceId}
+									disabled={controlsDisabled}
+									onError={setSaveError}
 								/>
 								<div className="mt-4 border-t border-border pt-4">
 									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">

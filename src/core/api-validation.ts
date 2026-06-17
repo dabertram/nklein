@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	type RuntimeClineAccountSwitchRequest,
 	type RuntimeClineAddProviderRequest,
+	type RuntimeClineAdvisorBuildRequest,
 	type RuntimeClineDeviceAuthCompleteRequest,
 	type RuntimeClineMcpOAuthRequest,
 	type RuntimeClineMcpSettingsSaveRequest,
@@ -35,6 +36,7 @@ import {
 	type RuntimeWorktreeEnsureRequest,
 	runtimeClineAccountSwitchRequestSchema,
 	runtimeClineAddProviderRequestSchema,
+	runtimeClineAdvisorBuildRequestSchema,
 	runtimeClineDeviceAuthCompleteRequestSchema,
 	runtimeClineMcpOAuthRequestSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
@@ -330,6 +332,10 @@ export function parseClineProviderModelsRequest(value: unknown): RuntimeClinePro
 	return {
 		providerId,
 	};
+}
+
+export function parseClineAdvisorBuildRequest(value: unknown): RuntimeClineAdvisorBuildRequest {
+	return parseWithSchema(runtimeClineAdvisorBuildRequestSchema, value);
 }
 
 export function parseClineAddProviderRequest(value: unknown): RuntimeClineAddProviderRequest {

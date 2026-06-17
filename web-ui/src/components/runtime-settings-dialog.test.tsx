@@ -76,6 +76,7 @@ vi.mock("@radix-ui/react-select", () => ({
 
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
 const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
+const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
 }));
@@ -148,6 +149,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
+	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
 	openFileOnHost: vi.fn(async () => undefined),
 }));
 
@@ -225,6 +227,14 @@ describe("RuntimeSettingsDialog", () => {
 
 	beforeEach(() => {
 		resetLayoutCustomizationsMock.mockReset();
+		buildClineAdvisorRequestMock.mockReset();
+		buildClineAdvisorRequestMock.mockResolvedValue({
+			kind: "model_freshness",
+			title: "Check For Better Models",
+			prompt: "Compare connected models.",
+			requiresWebResearch: true,
+			recommendedSources: ["https://openrouter.ai/models"],
+		});
 		saveRuntimeConfigMock.mockClear();
 		saveRuntimeConfigMock.mockResolvedValue(true);
 		clineSetupSectionOnSavedRef.onSaved = null;
@@ -236,6 +246,12 @@ describe("RuntimeSettingsDialog", () => {
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: vi.fn(async () => undefined),
+			},
+		});
 	});
 
 	afterEach(() => {
@@ -436,6 +452,39 @@ describe("RuntimeSettingsDialog", () => {
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("builds and copies Cline advisor prompts from settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const checkModelsButton = findButtonByText(document.body, "Check models");
+		expect(checkModelsButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			checkModelsButton?.click();
+		});
+
+		expect(buildClineAdvisorRequestMock).toHaveBeenCalledWith("workspace-1", { kind: "model_freshness" });
+		expect(document.body.textContent).toContain("Check For Better Models");
+		expect(document.body.textContent).toContain("openrouter.ai");
+
+		const copyButton = findButtonByText(document.body, "Copy prompt");
+		expect(copyButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			copyButton?.click();
+		});
+
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Compare connected models.");
 	});
 
 	it("forwards cline setup saves to the dialog onSaved callback", async () => {

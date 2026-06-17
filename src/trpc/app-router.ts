@@ -13,6 +13,7 @@ import type {
 	RuntimeClineAccountSwitchResponse,
 	RuntimeClineAddProviderRequest,
 	RuntimeClineAddProviderResponse,
+	RuntimeClineAdvisorBuildRequest,
 	RuntimeClineAdvisorRequest,
 	RuntimeClineDeviceAuthCompleteRequest,
 	RuntimeClineDeviceAuthCompleteResponse,
@@ -106,6 +107,7 @@ import {
 	runtimeClineAccountSwitchResponseSchema,
 	runtimeClineAddProviderRequestSchema,
 	runtimeClineAddProviderResponseSchema,
+	runtimeClineAdvisorBuildRequestSchema,
 	runtimeClineAdvisorRequestSchema,
 	runtimeClineDeviceAuthCompleteRequestSchema,
 	runtimeClineDeviceAuthCompleteResponseSchema,
@@ -271,6 +273,10 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeClineProviderModelsResponse>;
 		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
 		buildClineModelFreshnessAdvisor: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineAdvisorRequest>;
+		buildClineAdvisor: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClineAdvisorBuildRequest,
+		) => Promise<RuntimeClineAdvisorRequest>;
 		runClineProviderOAuthLogin: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineOauthLoginRequest,
@@ -550,6 +556,12 @@ export const runtimeAppRouter = t.router({
 		buildClineModelFreshnessAdvisor: t.procedure.output(runtimeClineAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildClineModelFreshnessAdvisor(ctx.workspaceScope);
 		}),
+		buildClineAdvisor: t.procedure
+			.input(runtimeClineAdvisorBuildRequestSchema)
+			.output(runtimeClineAdvisorRequestSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.buildClineAdvisor(ctx.workspaceScope, input);
+			}),
 		getClineMcpAuthStatuses: t.procedure.output(runtimeClineMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineMcpAuthStatuses(ctx.workspaceScope);
 		}),
