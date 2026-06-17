@@ -51,6 +51,7 @@ import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, t
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
 import {
 	buildClineAdvisorRequest,
+	fetchClineProviderModels,
 	openFileOnHost,
 	runClineSmokeEval,
 	writeClineDogfoodBacklog,
@@ -62,6 +63,8 @@ import type {
 	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeClineProviderCatalogItem,
+	RuntimeClineProviderModel,
 	RuntimeClineReasoningEffort,
 	RuntimeClineSmokeEvalResponse,
 	RuntimeConfigResponse,
@@ -130,6 +133,36 @@ function serializeModelRoles(modelRoles: RuntimeModelRoles | undefined): string 
 	return JSON.stringify(normalizeModelRolesForSettings(modelRoles));
 }
 
+function normalizeProviderId(value: string | null | undefined): string {
+	return value?.trim().toLowerCase() ?? "";
+}
+
+function findProviderCatalogItem(
+	providers: RuntimeClineProviderCatalogItem[],
+	providerId: string,
+): RuntimeClineProviderCatalogItem | null {
+	const normalizedProviderId = normalizeProviderId(providerId);
+	return providers.find((provider) => normalizeProviderId(provider.id) === normalizedProviderId) ?? null;
+}
+
+function formatProviderOptionLabel(provider: { id: string; name: string }): string {
+	const name = provider.name.trim();
+	const id = provider.id.trim();
+	if (!name || name.toLowerCase() === id.toLowerCase()) {
+		return id;
+	}
+	return `${name} (${id})`;
+}
+
+function formatModelOptionLabel(model: RuntimeClineProviderModel): string {
+	const name = model.name.trim();
+	const id = model.id.trim();
+	if (!name || name.toLowerCase() === id.toLowerCase()) {
+		return id;
+	}
+	return `${name} (${id})`;
+}
+
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [
 	{ value: "commit", label: "Commit" },
 	{ value: "pr", label: "Make PR" },
@@ -140,6 +173,11 @@ export type RuntimeSettingsSection = "shortcuts";
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
 type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
+const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
+	architect: "Architect",
+	worker: "Worker",
+	reviewer: "Reviewer",
+};
 const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> = [
 	"inherit",
 	"low",
@@ -933,6 +971,10 @@ export function RuntimeSettingsDialog({
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
+	const [modelRoleModelsByProviderId, setModelRoleModelsByProviderId] = useState<
+		Record<string, RuntimeClineProviderModel[]>
+	>({});
+	const [loadingModelRoleProviderIds, setLoadingModelRoleProviderIds] = useState<Record<string, boolean>>({});
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
 	const [selectedPromptVariant, setSelectedPromptVariant] = useState<TaskGitAction>("commit");
@@ -1028,6 +1070,17 @@ export function RuntimeSettingsDialog({
 		selectedAgentId,
 		liveAuthStatuses: liveMcpAuthStatuses,
 	});
+	const clineProviderId = clineSettings.providerId.trim();
+	const selectedModelRoleProviderIds = useMemo(() => {
+		const providerIds = new Set<string>();
+		for (const roleId of MODEL_ROLE_IDS) {
+			const providerId = modelRoles[roleId]?.providerId?.trim();
+			if (providerId) {
+				providerIds.add(providerId);
+			}
+		}
+		return [...providerIds].sort((left, right) => left.localeCompare(right));
+	}, [modelRoles]);
 	const advisorRuntimeConfigSummary = useMemo(
 		() =>
 			[
@@ -1230,6 +1283,81 @@ export function RuntimeSettingsDialog({
 	}, [initialSection, open]);
 
 	useEffect(() => {
+		if (!open || selectedAgentId !== "cline") {
+			setModelRoleModelsByProviderId({});
+			setLoadingModelRoleProviderIds({});
+			return;
+		}
+		const providerIdsToLoad = selectedModelRoleProviderIds.filter((providerId) => {
+			const normalizedProviderId = normalizeProviderId(providerId);
+			if (!normalizedProviderId) {
+				return false;
+			}
+			if (normalizedProviderId === normalizeProviderId(clineProviderId)) {
+				return false;
+			}
+			return (
+				modelRoleModelsByProviderId[normalizedProviderId] === undefined &&
+				!loadingModelRoleProviderIds[normalizedProviderId]
+			);
+		});
+		if (providerIdsToLoad.length === 0) {
+			return;
+		}
+		let cancelled = false;
+		setLoadingModelRoleProviderIds((current) => {
+			const next = { ...current };
+			for (const providerId of providerIdsToLoad) {
+				next[normalizeProviderId(providerId)] = true;
+			}
+			return next;
+		});
+		for (const providerId of providerIdsToLoad) {
+			const normalizedProviderId = normalizeProviderId(providerId);
+			void fetchClineProviderModels(workspaceId, providerId)
+				.then((models) => {
+					if (cancelled) {
+						return;
+					}
+					setModelRoleModelsByProviderId((current) => ({
+						...current,
+						[normalizedProviderId]: models,
+					}));
+				})
+				.catch(() => {
+					if (cancelled) {
+						return;
+					}
+					setModelRoleModelsByProviderId((current) => ({
+						...current,
+						[normalizedProviderId]: [],
+					}));
+				})
+				.finally(() => {
+					if (cancelled) {
+						return;
+					}
+					setLoadingModelRoleProviderIds((current) => {
+						const next = { ...current };
+						delete next[normalizedProviderId];
+						return next;
+					});
+				});
+		}
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		clineProviderId,
+		loadingModelRoleProviderIds,
+		modelRoleModelsByProviderId,
+		open,
+		selectedAgentId,
+		selectedModelRoleProviderIds,
+		workspaceId,
+	]);
+
+	useEffect(() => {
 		if (pendingShortcutScrollIndex === null) {
 			return;
 		}
@@ -1328,14 +1456,71 @@ export function RuntimeSettingsDialog({
 		handleSelectedPromptChange(selectedPromptDefaultValue);
 	};
 
-	const handleModelRoleFieldChange = (roleId: ModelRoleId, field: "providerId" | "modelId", value: string) => {
-		setModelRoles((current) => ({
-			...current,
-			[roleId]: {
+	const getModelRoleProviderModels = useCallback(
+		(providerId: string): RuntimeClineProviderModel[] => {
+			const normalizedProviderId = normalizeProviderId(providerId || clineProviderId);
+			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(clineProviderId)) {
+				return clineSettings.providerModels;
+			}
+			return modelRoleModelsByProviderId[normalizedProviderId] ?? [];
+		},
+		[clineProviderId, clineSettings.providerModels, modelRoleModelsByProviderId],
+	);
+
+	const isModelRoleProviderLoading = useCallback(
+		(providerId: string): boolean => {
+			const normalizedProviderId = normalizeProviderId(providerId || clineProviderId);
+			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(clineProviderId)) {
+				return clineSettings.isLoadingProviderModels;
+			}
+			return loadingModelRoleProviderIds[normalizedProviderId] === true;
+		},
+		[clineProviderId, clineSettings.isLoadingProviderModels, loadingModelRoleProviderIds],
+	);
+
+	const handleModelRoleProviderChange = (roleId: ModelRoleId, value: string) => {
+		setModelRoles((current) => {
+			const next = { ...current };
+			const trimmedProviderId = value.trim();
+			const currentReasoningEffort = current[roleId]?.reasoningEffort;
+			if (!trimmedProviderId) {
+				if (currentReasoningEffort) {
+					next[roleId] = { reasoningEffort: currentReasoningEffort };
+				} else {
+					delete next[roleId];
+				}
+				return next;
+			}
+			const defaultModelId = findProviderCatalogItem(
+				clineSettings.providerCatalog,
+				trimmedProviderId,
+			)?.defaultModelId?.trim();
+			next[roleId] = {
 				...current[roleId],
-				[field]: value,
-			},
-		}));
+				providerId: trimmedProviderId,
+				...(defaultModelId ? { modelId: defaultModelId } : {}),
+			};
+			if (!defaultModelId) {
+				delete next[roleId].modelId;
+			}
+			return next;
+		});
+	};
+
+	const handleModelRoleModelChange = (roleId: ModelRoleId, value: string) => {
+		setModelRoles((current) => {
+			const nextRole = { ...current[roleId] };
+			const trimmedModelId = value.trim();
+			if (trimmedModelId) {
+				nextRole.modelId = trimmedModelId;
+			} else {
+				delete nextRole.modelId;
+			}
+			return {
+				...current,
+				[roleId]: nextRole,
+			};
+		});
 	};
 
 	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeClineReasoningEffort | "inherit") => {
@@ -1350,6 +1535,14 @@ export function RuntimeSettingsDialog({
 				...current,
 				[roleId]: nextRole,
 			};
+		});
+	};
+
+	const handleResetModelRole = (roleId: ModelRoleId) => {
+		setModelRoles((current) => {
+			const next = { ...current };
+			delete next[roleId];
+			return next;
 		});
 	};
 
@@ -1719,37 +1912,83 @@ export function RuntimeSettingsDialog({
 									<div className="grid gap-3">
 										{MODEL_ROLE_IDS.map((roleId) => {
 											const roleSettings = modelRoles[roleId] ?? {};
+											const roleProviderId = roleSettings.providerId ?? "";
+											const effectiveProviderId = roleProviderId || clineProviderId;
+											const roleProvider = roleProviderId
+												? findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)
+												: null;
+											const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
+											const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
+											const roleModels = getModelRoleProviderModels(effectiveProviderId);
+											const selectedRoleModelId = roleSettings.modelId ?? "";
+											const hasSelectedRoleModel =
+												selectedRoleModelId.length > 0 &&
+												!roleModels.some((model) => model.id === selectedRoleModelId);
+											const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
+											const hasRoleOverride = Object.keys(roleSettings).length > 0;
 											return (
 												<div
 													key={roleId}
-													className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px]"
+													className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px_34px]"
 												>
 													<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
-														{roleId}
+														{MODEL_ROLE_LABELS[roleId]}
 													</div>
-													<label className="min-w-0">
+													<label className="min-w-0" htmlFor={providerSelectId}>
 														<span className="mb-1 block text-[12px] text-text-secondary">Provider</span>
-														<input
-															value={roleSettings.providerId ?? ""}
+														<NativeSelect
+															id={providerSelectId}
+															fill
+															value={roleProviderId}
 															onChange={(event) =>
-																handleModelRoleFieldChange(roleId, "providerId", event.target.value)
+																handleModelRoleProviderChange(roleId, event.target.value)
 															}
-															placeholder="default"
 															disabled={controlsDisabled}
-															className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary disabled:opacity-40"
-														/>
+														>
+															<option value="">Default</option>
+															{roleProvider &&
+															!clineSettings.providerCatalog.some(
+																(provider) => provider.id === roleProviderId,
+															) ? (
+																<option value={roleProviderId}>{roleProviderId}</option>
+															) : null}
+															{clineSettings.providerCatalog.map((provider) => (
+																<option key={provider.id} value={provider.id}>
+																	{formatProviderOptionLabel(provider)}
+																</option>
+															))}
+															{roleProviderId &&
+															!roleProvider &&
+															!clineSettings.providerCatalog.some(
+																(provider) => provider.id === roleProviderId,
+															) ? (
+																<option value={roleProviderId}>{roleProviderId}</option>
+															) : null}
+														</NativeSelect>
 													</label>
-													<label className="min-w-0">
+													<label className="min-w-0" htmlFor={modelSelectId}>
 														<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
-														<input
-															value={roleSettings.modelId ?? ""}
+														<NativeSelect
+															id={modelSelectId}
+															fill
+															value={selectedRoleModelId}
 															onChange={(event) =>
-																handleModelRoleFieldChange(roleId, "modelId", event.target.value)
+																handleModelRoleModelChange(roleId, event.target.value)
 															}
-															placeholder="default"
-															disabled={controlsDisabled}
-															className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary disabled:opacity-40"
-														/>
+															disabled={controlsDisabled || isRoleProviderLoading}
+														>
+															<option value="">
+																{isRoleProviderLoading ? "Loading models..." : "Default"}
+															</option>
+															{hasSelectedRoleModel ? (
+																<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
+															) : null}
+															{roleModels.map((model) => (
+																<option key={model.id} value={model.id}>
+																	{formatModelOptionLabel(model)}
+																</option>
+															))}
+														</NativeSelect>
 													</label>
 													<div className="min-w-0">
 														<span className="mb-1 block text-[12px] text-text-secondary">Reasoning</span>
@@ -1771,6 +2010,16 @@ export function RuntimeSettingsDialog({
 															))}
 														</NativeSelect>
 													</div>
+													<Button
+														variant="ghost"
+														size="sm"
+														icon={<X size={14} />}
+														aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
+														disabled={controlsDisabled || !hasRoleOverride}
+														onClick={() => {
+															handleResetModelRole(roleId);
+														}}
+													/>
 												</div>
 											);
 										})}

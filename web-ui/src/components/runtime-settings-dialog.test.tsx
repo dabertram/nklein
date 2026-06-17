@@ -79,6 +79,7 @@ const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
 const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
+const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const addMcpServerMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
@@ -124,6 +125,34 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 		},
 		hasUnsavedChanges: false,
 		providerId: "anthropic",
+		modelId: "claude-3-7-sonnet",
+		baseUrl: "",
+		reasoningEffort: "",
+		providerCatalog: [
+			{
+				id: "anthropic",
+				name: "Anthropic",
+				oauthSupported: false,
+				enabled: true,
+				defaultModelId: "claude-3-7-sonnet",
+				baseUrl: null,
+				supportsBaseUrl: false,
+			},
+			{
+				id: "openrouter",
+				name: "OpenRouter",
+				oauthSupported: false,
+				enabled: true,
+				defaultModelId: "openai/gpt-5.4",
+				baseUrl: null,
+				supportsBaseUrl: true,
+			},
+		],
+		providerModels: [
+			{ id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", supportsReasoningEffort: true },
+			{ id: "claude-opus-4", name: "Claude Opus 4", supportsReasoningEffort: true },
+		],
+		isLoadingProviderModels: false,
 		saveProviderSettings: vi.fn(async () => ({ ok: true })),
 	}),
 }));
@@ -156,6 +185,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
+	fetchClineProviderModels: fetchClineProviderModelsMock,
 	openFileOnHost: openFileOnHostMock,
 	runClineSmokeEval: runClineSmokeEvalMock,
 	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
@@ -177,10 +207,10 @@ function findButtonByAriaLabel(container: ParentNode, ariaLabel: string): HTMLBu
 	) ?? null) as HTMLButtonElement | null;
 }
 
-function setInputValue(input: HTMLInputElement, value: string): void {
-	const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-	valueSetter?.call(input, value);
-	input.dispatchEvent(new Event("input", { bubbles: true }));
+function setSelectValue(select: HTMLSelectElement, value: string): void {
+	const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+	valueSetter?.call(select, value);
+	select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 const savedClineOauthConfig = {
@@ -264,6 +294,16 @@ describe("RuntimeSettingsDialog", () => {
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
 			endpoint: "http://127.0.0.1:11434",
+		});
+		fetchClineProviderModelsMock.mockReset();
+		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+			if (providerId === "openrouter") {
+				return [
+					{ id: "openai/gpt-5.4", name: "GPT-5.4", supportsReasoningEffort: true },
+					{ id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", supportsReasoningEffort: true },
+				];
+			}
+			return [];
 		});
 		addMcpServerMock.mockReset();
 		addMcpServerMock.mockResolvedValue({ ok: true });
@@ -443,28 +483,33 @@ describe("RuntimeSettingsDialog", () => {
 			(element) => element.textContent?.trim() === "Model roles",
 		);
 		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
-		const providerInputs = Array.from(
-			modelRolesSection?.querySelectorAll<HTMLInputElement>('input[placeholder="default"]') ?? [],
-		);
-		const reasoningSelects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
-		const architectProviderInput = providerInputs[0];
-		const architectModelInput = providerInputs[1];
-		const architectReasoningSelect = reasoningSelects[0];
+		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectProviderSelect = selects[0];
+		const architectModelSelect = selects[1];
+		const architectReasoningSelect = selects[2];
 		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
 		expect(modelRolesSection).toBeInstanceOf(HTMLDivElement);
 		if (
-			!(architectProviderInput instanceof HTMLInputElement) ||
-			!(architectModelInput instanceof HTMLInputElement) ||
+			!(architectProviderSelect instanceof HTMLSelectElement) ||
+			!(architectModelSelect instanceof HTMLSelectElement) ||
 			!(architectReasoningSelect instanceof HTMLSelectElement)
 		) {
 			throw new Error("Expected architect model role controls to render.");
 		}
 
 		await act(async () => {
-			setInputValue(architectProviderInput, " anthropic ");
-			setInputValue(architectModelInput, " claude-3-7-sonnet ");
-			architectReasoningSelect.value = "high";
-			architectReasoningSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			setSelectValue(architectProviderSelect, "openrouter");
+		});
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith("workspace-1", "openrouter");
+		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toContain("google/gemini-2.5-pro");
+
+		await act(async () => {
+			setSelectValue(architectModelSelect, "google/gemini-2.5-pro");
+			setSelectValue(architectReasoningSelect, "high");
 		});
 
 		expect(saveButton?.disabled).toBe(false);
@@ -477,8 +522,8 @@ describe("RuntimeSettingsDialog", () => {
 			expect.objectContaining({
 				modelRoles: {
 					architect: {
-						providerId: "anthropic",
-						modelId: "claude-3-7-sonnet",
+						providerId: "openrouter",
+						modelId: "google/gemini-2.5-pro",
 						reasoningEffort: "high",
 					},
 				},
