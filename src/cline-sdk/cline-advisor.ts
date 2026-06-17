@@ -103,7 +103,7 @@ export function buildClineAdvisorRequest(kind: ClineAdvisorKind, context: ClineA
 				context,
 				sources: MCP_DISCOVERY_SOURCES,
 				instruction:
-					"Research MCP servers relevant to this project. Include trust signals such as maintenance, auth, permissions, popularity, and risk. Never recommend automatic installation.",
+					'Research MCP servers relevant to this project. Include trust signals such as maintenance, auth, permissions, popularity, and risk. Never recommend automatic installation. End with pasteable JSON using the shape {"mcpServers":[{"name":"server-name","type":"streamableHttp","url":"https://example.com/mcp"}]}; include only HTTPS remote HTTP/SSE servers in that JSON, and keep stdio/local command servers in prose notes.',
 			}),
 		};
 	}

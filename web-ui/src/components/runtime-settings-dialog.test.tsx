@@ -80,6 +80,7 @@ const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
+const addMcpServerMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
 }));
@@ -130,6 +131,8 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 vi.mock("@/hooks/use-runtime-settings-cline-mcp-controller", () => ({
 	useRuntimeSettingsClineMcpController: () => ({
 		hasUnsavedChanges: false,
+		isSavingMcpSettings: false,
+		addMcpServer: addMcpServerMock,
 		saveMcpSettings: vi.fn(async () => ({ ok: true })),
 	}),
 }));
@@ -262,6 +265,8 @@ describe("RuntimeSettingsDialog", () => {
 			modelId: "qwen3.5-9b",
 			endpoint: "http://127.0.0.1:11434",
 		});
+		addMcpServerMock.mockReset();
+		addMcpServerMock.mockResolvedValue({ ok: true });
 		openFileOnHostMock.mockClear();
 		saveRuntimeConfigMock.mockClear();
 		saveRuntimeConfigMock.mockResolvedValue(true);
@@ -513,6 +518,78 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Compare connected models.");
+	});
+
+	it("adds a pasted MCP advisor suggestion to Cline MCP settings", async () => {
+		buildClineAdvisorRequestMock.mockResolvedValueOnce({
+			kind: "mcp_discovery",
+			title: "Find Useful MCP Plugins",
+			prompt: "Research MCP servers.",
+			requiresWebResearch: true,
+			recommendedSources: ["https://mcp.so/"],
+		});
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const findPluginsButton = findButtonByText(document.body, "Find MCP plugins");
+		expect(findPluginsButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			findPluginsButton?.click();
+		});
+
+		const suggestionInput = Array.from(document.body.querySelectorAll("textarea")).find((textarea) =>
+			textarea.getAttribute("placeholder")?.includes('"mcpServers"'),
+		);
+		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
+			throw new Error("Expected MCP suggestion textarea.");
+		}
+		const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+		await act(async () => {
+			valueSetter?.call(
+				suggestionInput,
+				JSON.stringify({
+					mcpServers: [
+						{
+							name: "linear",
+							type: "streamableHttp",
+							url: "https://mcp.linear.app/mcp",
+						},
+					],
+				}),
+			);
+			suggestionInput.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		const findAddableButton = findButtonByText(document.body, "Find addable servers");
+		expect(findAddableButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			findAddableButton?.click();
+		});
+
+		const addButton = findButtonByText(document.body, "Add");
+		expect(addButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			addButton?.click();
+		});
+
+		expect(addMcpServerMock).toHaveBeenCalledWith({
+			name: "linear",
+			disabled: false,
+			type: "streamableHttp",
+			url: "https://mcp.linear.app/mcp",
+		});
 	});
 
 	it("writes self-improvement backlog artifacts from a user suggestion", async () => {

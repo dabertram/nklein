@@ -40,6 +40,7 @@ export interface UseRuntimeSettingsClineMcpControllerResult {
 	isLoadingMcpSettings: boolean;
 	isSavingMcpSettings: boolean;
 	hasUnsavedChanges: boolean;
+	addMcpServer: (server: RuntimeClineMcpServer) => Promise<SaveResult>;
 	saveMcpSettings: () => Promise<SaveResult>;
 	runMcpServerOauth: (serverName: string) => Promise<SaveResult>;
 	linearMcpPreset: LinearMcpPreset;
@@ -252,6 +253,22 @@ export function useRuntimeSettingsClineMcpController(
 		}
 	}, [hasUnsavedChanges, mcpServers, persistMcpSettings]);
 
+	const addMcpServer = useCallback(
+		async (server: RuntimeClineMcpServer): Promise<SaveResult> => {
+			const nextServers = upsertServerByName(mcpServers, normalizeMcpServer(server));
+			setMcpServers(nextServers);
+			setIsSavingMcpSettings(true);
+			try {
+				return await persistMcpSettings(nextServers);
+			} catch (error) {
+				return toSaveError(error);
+			} finally {
+				setIsSavingMcpSettings(false);
+			}
+		},
+		[mcpServers, persistMcpSettings],
+	);
+
 	const runMcpServerOauth = useCallback(
 		async (serverName: string): Promise<SaveResult> => {
 			const normalizedServerName = serverName.trim();
@@ -350,6 +367,7 @@ export function useRuntimeSettingsClineMcpController(
 		isLoadingMcpSettings,
 		isSavingMcpSettings,
 		hasUnsavedChanges,
+		addMcpServer,
 		saveMcpSettings,
 		runMcpServerOauth,
 		linearMcpPreset,

@@ -43,7 +43,10 @@ import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
-import { useRuntimeSettingsClineMcpController } from "@/hooks/use-runtime-settings-cline-mcp-controller";
+import {
+	type UseRuntimeSettingsClineMcpControllerResult,
+	useRuntimeSettingsClineMcpController,
+} from "@/hooks/use-runtime-settings-cline-mcp-controller";
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
 import {
@@ -57,6 +60,7 @@ import type {
 	RuntimeClineAdvisorKind,
 	RuntimeClineAdvisorRequest,
 	RuntimeClineDogfoodBacklogResponse,
+	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeClineReasoningEffort,
 	RuntimeClineSmokeEvalResponse,
@@ -404,17 +408,95 @@ const CLINE_ADVISOR_ACTIONS: ReadonlyArray<{
 	{ kind: "mcp_discovery", label: "Find MCP plugins", icon: <Search size={14} /> },
 ];
 
+interface ParsedMcpSuggestion {
+	server: RuntimeClineMcpServer;
+	label: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function stringField(record: Record<string, unknown>, key: string): string {
+	const value = record[key];
+	return typeof value === "string" ? value.trim() : "";
+}
+
+function parseAddableMcpServer(value: unknown): ParsedMcpSuggestion | null {
+	const record = asRecord(value);
+	if (!record) {
+		return null;
+	}
+	const name = stringField(record, "name");
+	const type = stringField(record, "type") || "streamableHttp";
+	const url = stringField(record, "url");
+	if (!name || !url || (type !== "streamableHttp" && type !== "sse")) {
+		return null;
+	}
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(url);
+	} catch {
+		return null;
+	}
+	if (parsedUrl.protocol !== "https:") {
+		return null;
+	}
+	return {
+		label: stringField(record, "title") || stringField(record, "label") || name,
+		server: {
+			name,
+			disabled: false,
+			type,
+			url: parsedUrl.toString(),
+		},
+	};
+}
+
+function parseMcpSuggestionText(text: string): ParsedMcpSuggestion[] {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return [];
+	}
+	const parsed: unknown = JSON.parse(trimmed);
+	const record = asRecord(parsed);
+	const candidates = Array.isArray(parsed)
+		? parsed
+		: Array.isArray(record?.mcpServers)
+			? record.mcpServers
+			: Array.isArray(record?.servers)
+				? record.servers
+				: [parsed];
+	const suggestions = candidates
+		.map((candidate) => parseAddableMcpServer(candidate))
+		.filter((candidate): candidate is ParsedMcpSuggestion => candidate !== null);
+	const seen = new Set<string>();
+	return suggestions.filter((suggestion) => {
+		const key = suggestion.server.name.trim().toLowerCase();
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
 function ClineAdvisorActions({
 	workspaceId,
 	disabled,
+	mcpController,
 	onError,
 }: {
 	workspaceId: string | null;
 	disabled: boolean;
+	mcpController: UseRuntimeSettingsClineMcpControllerResult;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [activeKind, setActiveKind] = useState<RuntimeClineAdvisorKind | null>(null);
 	const [advisorRequest, setAdvisorRequest] = useState<RuntimeClineAdvisorRequest | null>(null);
+	const [mcpSuggestionText, setMcpSuggestionText] = useState("");
+	const [parsedMcpSuggestions, setParsedMcpSuggestions] = useState<ParsedMcpSuggestion[]>([]);
+	const [addingMcpServerName, setAddingMcpServerName] = useState<string | null>(null);
 	const [copyButtonText, setCopyButtonText] = useState("Copy prompt");
 	const copyResetTimerRef = useRef<number | null>(null);
 
@@ -431,6 +513,10 @@ function ClineAdvisorActions({
 			void buildClineAdvisorRequest(workspaceId, { kind })
 				.then((request) => {
 					setAdvisorRequest(request);
+					if (kind !== "mcp_discovery") {
+						setMcpSuggestionText("");
+						setParsedMcpSuggestions([]);
+					}
 				})
 				.catch((error) => {
 					const message = error instanceof Error ? error.message : String(error);
@@ -441,6 +527,43 @@ function ClineAdvisorActions({
 				});
 		},
 		[onError, workspaceId],
+	);
+
+	const handleParseMcpSuggestions = useCallback(() => {
+		onError(null);
+		try {
+			const suggestions = parseMcpSuggestionText(mcpSuggestionText);
+			setParsedMcpSuggestions(suggestions);
+			if (suggestions.length === 0) {
+				onError("No addable HTTPS MCP servers found in the pasted advisor JSON.");
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setParsedMcpSuggestions([]);
+			onError(`Could not parse MCP suggestion JSON: ${message}`);
+		}
+	}, [mcpSuggestionText, onError]);
+
+	const handleAddMcpSuggestion = useCallback(
+		(suggestion: ParsedMcpSuggestion) => {
+			onError(null);
+			setAddingMcpServerName(suggestion.server.name);
+			void mcpController
+				.addMcpServer(suggestion.server)
+				.then((result) => {
+					if (!result.ok) {
+						onError(result.message ?? `Could not add MCP server "${suggestion.server.name}".`);
+					}
+				})
+				.catch((error) => {
+					const message = error instanceof Error ? error.message : String(error);
+					onError(`Could not add MCP server "${suggestion.server.name}": ${message}`);
+				})
+				.finally(() => {
+					setAddingMcpServerName(null);
+				});
+		},
+		[mcpController, onError],
 	);
 
 	const handleCopyPrompt = useCallback(() => {
@@ -523,6 +646,63 @@ function ClineAdvisorActions({
 									<ExternalLink size={12} />
 								</a>
 							))}
+						</div>
+					) : null}
+					{advisorRequest.kind === "mcp_discovery" ? (
+						<div className="mt-3 border-t border-border pt-3">
+							<textarea
+								value={mcpSuggestionText}
+								onChange={(event) => setMcpSuggestionText(event.target.value)}
+								rows={4}
+								disabled={disabled || mcpController.isSavingMcpSettings}
+								placeholder='Paste advisor JSON: {"mcpServers":[{"name":"linear","type":"streamableHttp","url":"https://mcp.linear.app/mcp"}]}'
+								className="w-full resize-none rounded-md border border-border bg-surface-1 p-3 font-mono text-[12px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none disabled:opacity-40"
+							/>
+							<div className="mt-2 flex items-center justify-between gap-3">
+								<p className="text-[12px] text-text-secondary m-0">HTTPS MCP suggestions only</p>
+								<Button
+									size="sm"
+									variant="default"
+									icon={<Search size={14} />}
+									disabled={
+										disabled || mcpController.isSavingMcpSettings || mcpSuggestionText.trim().length === 0
+									}
+									onClick={handleParseMcpSuggestions}
+								>
+									Find addable servers
+								</Button>
+							</div>
+							{parsedMcpSuggestions.length > 0 ? (
+								<div className="mt-2 grid gap-2">
+									{parsedMcpSuggestions.map((suggestion) => (
+										<div
+											key={suggestion.server.name}
+											className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-1 px-3 py-2"
+										>
+											<div className="min-w-0">
+												<p className="text-[13px] font-medium text-text-primary m-0">{suggestion.label}</p>
+												<p className="text-[12px] text-text-secondary m-0 break-all">
+													{suggestion.server.name} ·{" "}
+													{suggestion.server.type === "stdio"
+														? suggestion.server.command
+														: suggestion.server.url}
+												</p>
+											</div>
+											<Button
+												size="sm"
+												variant="primary"
+												icon={<Plus size={14} />}
+												disabled={
+													disabled || addingMcpServerName !== null || mcpController.isSavingMcpSettings
+												}
+												onClick={() => handleAddMcpSuggestion(suggestion)}
+											>
+												{addingMcpServerName === suggestion.server.name ? "Adding..." : "Add"}
+											</Button>
+										</div>
+									))}
+								</div>
+							) : null}
 						</div>
 					) : null}
 				</div>
@@ -1486,6 +1666,7 @@ export function RuntimeSettingsDialog({
 								<ClineAdvisorActions
 									workspaceId={workspaceId}
 									disabled={controlsDisabled}
+									mcpController={clineMcpSettings}
 									onError={setSaveError}
 								/>
 								<ClineSmokeEvalTrial

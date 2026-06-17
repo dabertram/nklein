@@ -28,6 +28,8 @@ describe("cline advisor", () => {
 		expect(request.recommendedSources).toContain("https://smithery.ai/");
 		expect(request.prompt).toContain("trust signals");
 		expect(request.prompt).toContain("Never recommend automatic installation");
+		expect(request.prompt).toContain('"mcpServers"');
+		expect(request.prompt).toContain("HTTPS remote HTTP/SSE servers");
 	});
 
 	it("keeps config and task-failure helpers local by default", () => {

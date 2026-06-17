@@ -27,6 +27,7 @@ interface HookSnapshot {
 	isLoadingMcpSettings: boolean;
 	authenticatingMcpServerName: string | null;
 	setMcpServers: (next: RuntimeClineMcpServer[]) => void;
+	addMcpServer: (server: RuntimeClineMcpServer) => Promise<{ ok: boolean; message?: string }>;
 	saveMcpSettings: () => Promise<{ ok: boolean; message?: string }>;
 	runMcpServerOauth: (serverName: string) => Promise<{ ok: boolean; message?: string }>;
 	linearMcpPreset: LinearMcpPreset;
@@ -74,6 +75,7 @@ function HookHarness({
 			setMcpServers: (next) => {
 				state.setMcpServers(next);
 			},
+			addMcpServer: state.addMcpServer,
 			saveMcpSettings: state.saveMcpSettings,
 			runMcpServerOauth: state.runMcpServerOauth,
 			linearMcpPreset: state.linearMcpPreset,
@@ -592,5 +594,97 @@ describe("useRuntimeSettingsClineMcpController", () => {
 			},
 		]);
 		expect(requireSnapshot(latestSnapshot).authenticatingMcpServerName).toBeNull();
+	});
+
+	it("adds and persists an MCP server suggestion by name", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		fetchClineMcpSettingsMock.mockResolvedValue({
+			path: "/tmp/cline_mcp_settings.json",
+			servers: [
+				{
+					name: "linear",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.linear.app/mcp",
+				},
+			],
+		});
+		saveClineMcpSettingsMock.mockResolvedValue({
+			path: "/tmp/cline_mcp_settings.json",
+			servers: [
+				{
+					name: "github",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.github.com/mcp",
+				},
+				{
+					name: "linear",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.linear.app/mcp",
+				},
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					open={true}
+					workspaceId="workspace-1"
+					selectedAgentId="cline"
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+			await flushAsyncWork();
+		});
+
+		await act(async () => {
+			await flushAsyncWork();
+		});
+
+		await act(async () => {
+			expect(
+				await requireSnapshot(latestSnapshot).addMcpServer({
+					name: "github",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.github.com/mcp",
+				}),
+			).toEqual({ ok: true });
+		});
+
+		expect(saveClineMcpSettingsMock).toHaveBeenCalledWith("workspace-1", {
+			servers: [
+				{
+					name: "github",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.github.com/mcp",
+				},
+				{
+					name: "linear",
+					disabled: false,
+					type: "streamableHttp",
+					url: "https://mcp.linear.app/mcp",
+				},
+			],
+		});
+		expect(requireSnapshot(latestSnapshot).mcpServers).toEqual([
+			{
+				name: "github",
+				disabled: false,
+				type: "streamableHttp",
+				url: "https://mcp.github.com/mcp",
+			},
+			{
+				name: "linear",
+				disabled: false,
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
+			},
+		]);
 	});
 });
