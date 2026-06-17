@@ -16,6 +16,7 @@ import {
 	type ClineMcpToolBundle,
 	createClineMcpRuntimeService,
 } from "./cline-mcp-runtime-service";
+import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
 import { createWriteFilesTool, createWriteFileTool } from "./cline-write-files-tool";
@@ -370,6 +371,9 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
 		const extraTools = [
+			...createClineRetrievalTools({
+				workspacePath: request.cwd,
+			}),
 			...createFileDiscoveryTools({
 				workspacePath: request.cwd,
 				contextWindow: request.contextWindow,
