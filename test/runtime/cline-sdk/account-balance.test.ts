@@ -1,3 +1,6 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const clineAccountMocks = vi.hoisted(() => ({
@@ -99,6 +102,8 @@ vi.mock("../../../src/server/browser.js", () => ({
 
 import { createClineProviderService } from "../../../src/cline-sdk/cline-provider-service";
 
+const providerSelectionPath = join(tmpdir(), "kanban-account-balance-test-provider-selection.json");
+
 function setSelectedProviderSettings(
 	settings: {
 		provider: string;
@@ -119,7 +124,22 @@ function setSelectedProviderSettings(
 	oauthMocks.getProviderSettings.mockImplementation((providerId: string) =>
 		settings && settings.provider === providerId ? settings : undefined,
 	);
+	rmSync(providerSelectionPath, { force: true });
+	if (settings) {
+		mkdirSync(dirname(providerSelectionPath), { recursive: true });
+		writeFileSync(providerSelectionPath, `${JSON.stringify({ providerId: settings.provider }, null, 2)}\n`, "utf8");
+	}
 }
+
+beforeEach(() => {
+	vi.stubEnv("KANBAN_CLINE_PROVIDER_SELECTION_PATH", providerSelectionPath);
+	rmSync(providerSelectionPath, { force: true });
+});
+
+afterEach(() => {
+	rmSync(providerSelectionPath, { force: true });
+	vi.unstubAllEnvs();
+});
 
 describe("getProviderModels", () => {
 	beforeEach(() => {

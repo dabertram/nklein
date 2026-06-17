@@ -2,6 +2,9 @@
 // It resolves provider settings, model catalogs, OAuth flows, and launch
 // config without leaking SDK details into runtime-api.ts or the UI.
 
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import type {
 	RuntimeClineAccountBalanceResponse,
@@ -75,12 +78,42 @@ const LMSTUDIO_MODEL_LIST_PATHNAMES = ["/api/v0/models", "/api/v1/models"] as co
 const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const LOGGER = createKanbanClineLogger({ component: "cline-provider-service" });
+const KANBAN_PROVIDER_SELECTION_SCHEMA = z.object({
+	providerId: z.string().min(1),
+});
 
 type ClineRemoteConfig = z.infer<typeof CLINE_REMOTE_CONFIG_SCHEMA>;
 type LiteLlmModelListPathname = (typeof LITELLM_MODEL_LIST_PATHNAMES)[number];
 type LiteLlmModelListItem = NonNullable<z.infer<typeof LITELLM_MODELS_RESPONSE_SCHEMA>["data"]>[number];
 type LmStudioModelListPathname = (typeof LMSTUDIO_MODEL_LIST_PATHNAMES)[number];
 type SdkReasoningEffort = NonNullable<NonNullable<SdkProviderSettings["reasoning"]>["effort"]>;
+
+function getKanbanProviderSelectionPath(): string {
+	return (
+		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH?.trim() ||
+		join(homedir(), ".cline", "kanban", "cline-provider-selection.json")
+	);
+}
+
+function readKanbanSelectedProviderId(): string | null {
+	try {
+		const parsedJson = JSON.parse(readFileSync(getKanbanProviderSelectionPath(), "utf8")) as unknown;
+		const parsed = KANBAN_PROVIDER_SELECTION_SCHEMA.safeParse(parsedJson);
+		if (!parsed.success) {
+			return null;
+		}
+		const providerId = parsed.data.providerId.trim().toLowerCase();
+		return providerId.length > 0 ? providerId : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeKanbanSelectedProviderId(providerId: string): void {
+	const selectionPath = getKanbanProviderSelectionPath();
+	mkdirSync(dirname(selectionPath), { recursive: true });
+	writeFileSync(selectionPath, `${JSON.stringify({ providerId }, null, 2)}\n`, "utf8");
+}
 
 export interface ResolvedClineLaunchConfig {
 	providerId: string;
@@ -708,20 +741,17 @@ function toProviderSettingsSummary(settings: SdkProviderSettings | null): Runtim
 }
 
 function getSelectedProviderSettings(): SdkProviderSettings | null {
-	const lastUsedSettings = getLastUsedSdkProviderSettings();
-	const resolvedProviderId = lastUsedSettings?.provider?.trim().toLowerCase() || SDK_DEFAULT_PROVIDER_ID;
-	return (
-		getSdkProviderSettings(resolvedProviderId) ??
-		lastUsedSettings ?? {
-			provider: resolvedProviderId,
-		}
-	);
+	const resolvedProviderId = readKanbanSelectedProviderId();
+	if (!resolvedProviderId) {
+		return null;
+	}
+	return getSdkProviderSettings(resolvedProviderId) ?? { provider: resolvedProviderId };
 }
 
 async function resolveDefaultModelIdForProvider(providerId: string): Promise<string | null> {
 	const normalizedProviderId = providerId.trim().toLowerCase();
 	if (!normalizedProviderId) {
-		return SDK_DEFAULT_MODEL_ID;
+		return null;
 	}
 	try {
 		const provider = (await listSdkProviderCatalog()).find((candidate) => candidate.id === normalizedProviderId);
@@ -1141,8 +1171,9 @@ export function createClineProviderService() {
 			modelIdOverride?: string;
 			reasoningEffortOverride?: RuntimeClineReasoningEffort | null;
 		}): Promise<ResolvedClineLaunchConfig> {
-			const selectedSettings = overrides?.providerIdOverride
-				? (getSdkProviderSettings(overrides.providerIdOverride) ?? getSelectedProviderSettings())
+			const providerIdOverride = overrides?.providerIdOverride?.trim().toLowerCase() ?? "";
+			const selectedSettings = providerIdOverride
+				? (getSdkProviderSettings(providerIdOverride) ?? { provider: providerIdOverride })
 				: getSelectedProviderSettings();
 			if (!selectedSettings) {
 				throw new Error(
@@ -1204,8 +1235,7 @@ export function createClineProviderService() {
 							id: provider.id,
 							name: provider.name,
 							oauthSupported: (provider.capabilities ?? []).includes("oauth"),
-							enabled:
-								selectedProviderId.length > 0 ? selectedProviderId === provider.id : provider.id === "cline",
+							enabled: selectedProviderId.length > 0 && selectedProviderId === provider.id,
 							defaultModelId: provider.defaultModelId ?? null,
 							baseUrl: provider.baseUrl?.trim() || null,
 							supportsBaseUrl: (provider.baseUrl?.trim().length ?? 0) > 0,
@@ -1304,6 +1334,7 @@ export function createClineProviderService() {
 				tokenSource: hasOauthAccessToken(existingSettings) ? "oauth" : "manual",
 				setLastUsed: true,
 			});
+			writeKanbanSelectedProviderId(providerId);
 
 			return toProviderSettingsSummary(getSdkProviderSettings(providerId));
 		},
@@ -1541,6 +1572,7 @@ export function createClineProviderService() {
 				tokenSource: hasOauthAccessToken(nextSettings) ? "oauth" : "manual",
 				setLastUsed: true,
 			});
+			writeKanbanSelectedProviderId(providerId);
 
 			return toProviderSettingsSummary(nextSettings);
 		},
@@ -1584,6 +1616,7 @@ export function createClineProviderService() {
 					tokenSource: "oauth",
 					setLastUsed: true,
 				});
+				writeKanbanSelectedProviderId(input.providerId);
 
 				return {
 					ok: true,
@@ -1652,6 +1685,7 @@ export function createClineProviderService() {
 					tokenSource: "oauth",
 					setLastUsed: true,
 				});
+				writeKanbanSelectedProviderId(providerId);
 
 				return {
 					ok: true,

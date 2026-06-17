@@ -1,7 +1,12 @@
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listSdkProviderModelsMock = vi.hoisted(() => vi.fn());
 const getSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
+const getLastUsedSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
+const saveSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./sdk-provider-boundary", () => ({
 	addSdkCustomProvider: vi.fn(),
@@ -13,7 +18,7 @@ vi.mock("./sdk-provider-boundary", () => ({
 	fetchSdkFeaturebaseToken: vi.fn(),
 	fetchSdkOrganizationBalance: vi.fn(),
 	fetchSdkOrgData: vi.fn(),
-	getLastUsedSdkProviderSettings: vi.fn(),
+	getLastUsedSdkProviderSettings: getLastUsedSdkProviderSettingsMock,
 	getSdkProviderSettings: getSdkProviderSettingsMock,
 	listSdkProviderCatalog: vi.fn(),
 	listSdkProviderModels: listSdkProviderModelsMock,
@@ -21,7 +26,7 @@ vi.mock("./sdk-provider-boundary", () => ({
 	refreshManagedOauthCredentials: vi.fn(),
 	SDK_DEFAULT_MODEL_ID: "default-model",
 	SDK_DEFAULT_PROVIDER_ID: "lmstudio",
-	saveSdkProviderSettings: vi.fn(),
+	saveSdkProviderSettings: saveSdkProviderSettingsMock,
 	startClineDeviceAuth: vi.fn(),
 	switchSdkClineAccount: vi.fn(),
 	updateSdkCustomProvider: vi.fn(),
@@ -33,6 +38,93 @@ import {
 	loadProviderModelsWithFallback,
 	mergeProviderModelsWithModelRegistry,
 } from "./cline-provider-service";
+
+const providerSelectionPath = join(tmpdir(), "kanban-cline-provider-service-test-selection.json");
+
+function resetProviderSelection(): void {
+	rmSync(providerSelectionPath, { force: true });
+	vi.stubEnv("KANBAN_CLINE_PROVIDER_SELECTION_PATH", providerSelectionPath);
+}
+
+function writeProviderSelection(providerId: string): void {
+	mkdirSync(dirname(providerSelectionPath), { recursive: true });
+	writeFileSync(providerSelectionPath, `${JSON.stringify({ providerId }, null, 2)}\n`, "utf8");
+}
+
+beforeEach(() => {
+	resetProviderSelection();
+});
+
+afterEach(() => {
+	rmSync(providerSelectionPath, { force: true });
+	vi.unstubAllEnvs();
+});
+
+describe("createClineProviderService provider selection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("ignores SDK last-used cloud settings until Kanban explicitly selects a provider", async () => {
+		getLastUsedSdkProviderSettingsMock.mockReturnValue({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+		});
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+		});
+		const service = createClineProviderService();
+
+		expect(service.getProviderSettingsSummary()).toMatchObject({
+			providerId: null,
+			modelId: null,
+		});
+		await expect(service.resolveLaunchConfig()).rejects.toThrow("No native Cline provider is configured");
+
+		writeProviderSelection("cline");
+		expect(service.getProviderSettingsSummary()).toMatchObject({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+		});
+	});
+
+	it("persists a Kanban-owned provider selection when settings are saved", async () => {
+		listSdkProviderModelsMock.mockResolvedValue([
+			{
+				id: "worker-model",
+				name: "Worker Model",
+				contextWindow: 32_000,
+				supportsVision: false,
+				supportsAttachments: false,
+				supportsReasoningEffort: false,
+			},
+		]);
+		getSdkProviderSettingsMock.mockReturnValue({
+			provider: "anthropic",
+			model: "worker-model",
+		});
+		const service = createClineProviderService();
+
+		await expect(
+			service.saveProviderSettings({
+				providerId: "anthropic",
+				modelId: "worker-model",
+			}),
+		).resolves.toMatchObject({
+			providerId: "anthropic",
+			modelId: "worker-model",
+		});
+
+		expect(JSON.parse(readFileSync(providerSelectionPath, "utf8"))).toMatchObject({ providerId: "anthropic" });
+		expect(saveSdkProviderSettingsMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				settings: expect.objectContaining({ provider: "anthropic", model: "worker-model" }),
+				setLastUsed: true,
+			}),
+		);
+	});
+});
 
 function createRegistryEntry(input: {
 	key: string;

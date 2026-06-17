@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
@@ -276,6 +276,17 @@ function createRuntimeConfigState(): RuntimeConfigState {
 	};
 }
 
+let providerSelectionPath = "";
+
+function writeSelectedProviderId(providerId: string): void {
+	if (!providerSelectionPath) {
+		return;
+	}
+	rmSync(providerSelectionPath, { force: true });
+	mkdirSync(dirname(providerSelectionPath), { recursive: true });
+	writeFileSync(providerSelectionPath, `${JSON.stringify({ providerId }, null, 2)}\n`, "utf8");
+}
+
 function setSelectedProviderSettings(
 	settings: {
 		provider: string;
@@ -297,6 +308,13 @@ function setSelectedProviderSettings(
 	oauthMocks.getProviderSettings.mockImplementation((providerId: string) =>
 		settings && settings.provider === providerId ? settings : undefined,
 	);
+	if (!providerSelectionPath) {
+		return;
+	}
+	rmSync(providerSelectionPath, { force: true });
+	if (settings) {
+		writeSelectedProviderId(settings.provider);
+	}
 }
 
 function createMockLocalProviderModels(providerId: string) {
@@ -416,14 +434,17 @@ describe("createRuntimeApi startTaskSession", () => {
 	const originalOcaApiKey = process.env.OCA_API_KEY;
 	const originalClineMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 	const originalClineMcpOauthSettingsPath = process.env.CLINE_MCP_OAUTH_SETTINGS_PATH;
+	const originalProviderSelectionPath = process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
 	let mcpSettingsPath = "";
 	let mcpOauthSettingsPath = "";
 
 	beforeEach(() => {
 		mcpSettingsPath = `/tmp/kanban-mcp-settings-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
 		mcpOauthSettingsPath = `/tmp/kanban-mcp-oauth-settings-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
+		providerSelectionPath = `/tmp/kanban-provider-selection-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
 		process.env.CLINE_MCP_SETTINGS_PATH = mcpSettingsPath;
 		process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = mcpOauthSettingsPath;
+		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = providerSelectionPath;
 		agentRegistryMocks.resolveAgentCommand.mockReset();
 		agentRegistryMocks.buildRuntimeConfigResponse.mockReset();
 		taskWorktreeMocks.resolveTaskCwd.mockReset();
@@ -590,10 +611,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		} else {
 			process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = originalClineMcpOauthSettingsPath;
 		}
+		if (originalProviderSelectionPath === undefined) {
+			delete process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+		} else {
+			process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
+		}
 		rmSync(mcpSettingsPath, { force: true });
 		rmSync(`${mcpSettingsPath}.lock`, { force: true });
 		rmSync(mcpOauthSettingsPath, { force: true });
 		rmSync(`${mcpOauthSettingsPath}.lock`, { force: true });
+		rmSync(providerSelectionPath, { force: true });
+		providerSelectionPath = "";
 	});
 
 	it("reuses an existing worktree path before falling back to ensure", async () => {
@@ -1355,6 +1383,7 @@ describe("createRuntimeApi startTaskSession", () => {
 					}
 				: undefined,
 		);
+		writeSelectedProviderId("cline");
 
 		const clineTaskSessionService = createClineTaskSessionServiceMock();
 		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
@@ -3563,13 +3592,29 @@ describe("createRuntimeApi startTaskSession", () => {
 });
 
 describe("createRuntimeApi getFeaturebaseToken", () => {
+	const originalProviderSelectionPath = process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+
 	beforeEach(() => {
+		providerSelectionPath = `/tmp/kanban-featurebase-provider-selection-${Date.now()}-${Math.random()
+			.toString(16)
+			.slice(2)}.json`;
+		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = providerSelectionPath;
 		oauthMocks.getProviderSettings.mockReset();
 		oauthMocks.getLastUsedProviderSettings.mockReset();
 		oauthMocks.getValidClineCredentials.mockReset();
 		oauthMocks.saveProviderSettings.mockReset();
 		clineAccountMocks.fetchFeaturebaseToken.mockReset();
 		clineAccountMocks.constructedOptions.length = 0;
+	});
+
+	afterEach(() => {
+		rmSync(providerSelectionPath, { force: true });
+		providerSelectionPath = "";
+		if (originalProviderSelectionPath === undefined) {
+			delete process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+		} else {
+			process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
+		}
 	});
 
 	it("returns JWT from SDK method", async () => {
@@ -3620,7 +3665,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 				workspaceId: "workspace-1",
 				workspacePath: "/tmp/repo",
 			}),
-		).rejects.toThrow("Failed to fetch Featurebase token.");
+		).rejects.toThrow("No provider settings configured.");
 	});
 
 	it("throws when provider is not cline", async () => {

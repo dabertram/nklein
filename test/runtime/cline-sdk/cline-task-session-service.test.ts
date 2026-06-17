@@ -848,7 +848,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		]);
 	});
 
-	it("defaults to the SDK cline provider when provider is not explicitly configured", async () => {
+	it("does not default to the paid Cline provider when provider is not explicitly configured", async () => {
 		const { service, runtime } = createTrackedService();
 
 		await service.startTaskSession({
@@ -862,7 +862,8 @@ describe("InMemoryClineTaskSessionService", () => {
 
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				providerId: "cline",
+				providerId: "unconfigured",
+				modelId: "unconfigured",
 				systemPrompt: expect.stringContaining("You are Cline, an AI coding agent."),
 			}),
 		);
@@ -1212,6 +1213,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Continue\n");
@@ -1287,6 +1290,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 		await waitForTaskSessionId(runtime, "task-1");
 
@@ -1308,6 +1313,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		const stopped = await service.stopTaskSession("task-1");
@@ -1358,6 +1365,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		const canceled = await service.cancelTaskTurn("task-1");
@@ -1632,6 +1641,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		await vi.waitFor(() => {
@@ -1656,6 +1667,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		await vi.waitFor(() => {
@@ -1678,6 +1691,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 
 		await vi.waitFor(() => {
@@ -1694,6 +1709,8 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Investigate startup",
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-1");
 

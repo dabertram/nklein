@@ -58,7 +58,6 @@ import {
 	type ClineWatcherRegistry,
 	createClineWatcherRegistry,
 } from "./cline-watcher-registry";
-import { SDK_DEFAULT_MODEL_ID, SDK_DEFAULT_PROVIDER_ID } from "./sdk-provider-boundary";
 import {
 	type ClineSdkPersistedMessage,
 	type ClineSdkSlashCommand,
@@ -78,6 +77,8 @@ const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
 const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+const UNCONFIGURED_PROVIDER_ID = "unconfigured";
+const UNCONFIGURED_MODEL_ID = "unconfigured";
 type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
 
 interface ClineTaskTimeoutSettings {
@@ -362,7 +363,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			this.providerIdByTaskId.set(taskId, fromRuntime);
 			return fromRuntime;
 		}
-		return SDK_DEFAULT_PROVIDER_ID;
+		return UNCONFIGURED_PROVIDER_ID;
 	}
 
 	private isClineProviderForTask(taskId: string): boolean {
@@ -387,7 +388,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			message: `Cline SDK ${context} failed: ${errorMessage}`,
 			taskId,
 			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
 			metadata: {
 				context,
 				creditLimitError,
@@ -610,7 +611,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			message: toErrorMessage(input.error),
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? SDK_DEFAULT_MODEL_ID,
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
 			metadata: {
 				mode: input.mode,
 			},
@@ -762,10 +763,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return cloneSummary(existing.summary);
 		}
 
-		const providerId = request.providerId?.trim().toLowerCase() || SDK_DEFAULT_PROVIDER_ID;
+		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
-		const modelId = request.modelId?.trim() || SDK_DEFAULT_MODEL_ID;
+		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
 		this.endpointByTaskId.set(request.taskId, request.baseUrl?.trim() || null);
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
@@ -1301,8 +1302,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return this.messageRepository.listSummaries().map((summary) => ({
 			taskId: summary.taskId,
 			state: summary.state,
-			providerId: this.providerIdByTaskId.get(summary.taskId) ?? SDK_DEFAULT_PROVIDER_ID,
-			modelId: this.modelIdByTaskId.get(summary.taskId) ?? SDK_DEFAULT_MODEL_ID,
+			providerId: this.providerIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_PROVIDER_ID,
+			modelId: this.modelIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_MODEL_ID,
 			endpoint: this.endpointByTaskId.get(summary.taskId) ?? null,
 		}));
 	}
@@ -1488,7 +1489,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			event,
 			{
 				providerId: this.resolveProviderIdForTask(taskId),
-				modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+				modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
 				endpoint: this.endpointByTaskId.get(taskId) ?? null,
 				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
 			},
@@ -1533,7 +1534,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			message: errorMessage,
 			taskId,
 			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
 			metadata: {
 				eventType: agentEvent.type,
 			},
