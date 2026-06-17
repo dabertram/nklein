@@ -203,10 +203,10 @@ describe("applyClineSessionEvent", () => {
 							outputText: "Done.",
 							messages: [],
 							usage: {
-								inputTokens: 0,
-								outputTokens: 0,
-								cacheReadTokens: 0,
-								cacheWriteTokens: 0,
+								inputTokens: 1200,
+								outputTokens: 80,
+								cacheReadTokens: 40,
+								cacheWriteTokens: 5,
 							},
 						},
 					},
@@ -219,6 +219,12 @@ describe("applyClineSessionEvent", () => {
 		expect(entry.messages[1]?.meta?.hookEventName).toBe("tool_call_end");
 		expect(finished.entry.summary.state).toBe("awaiting_review");
 		expect(finished.entry.summary.latestHookActivity?.finalMessage).toBe("Done.");
+		expect(finished.entry.summary.latestUsage).toEqual({
+			inputTokens: 1200,
+			outputTokens: 80,
+			cacheReadTokens: 40,
+			cacheWriteTokens: 5,
+		});
 	});
 
 	it("keeps the full streamed assistant message in summary metadata", () => {

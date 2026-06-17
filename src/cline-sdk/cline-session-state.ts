@@ -105,6 +105,7 @@ export function createDefaultSummary(taskId: string): RuntimeTaskSessionSummary 
 		lastHookAt: null,
 		latestHookActivity: null,
 		warningMessage: null,
+		latestUsage: null,
 		latestTurnCheckpoint: null,
 		previousTurnCheckpoint: null,
 	};

@@ -1,7 +1,7 @@
 // Translates raw SDK session events into Kanban summary and message mutations.
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
-import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import type { RuntimeTaskSessionSummary, RuntimeTaskSessionUsage } from "../core/api-contract";
 import {
 	appendAssistantChunk,
 	appendReasoningChunk,
@@ -59,6 +59,35 @@ type RawClineSdkAgentEvent = ClineSdkAgentEvent | (Record<string, unknown> & { t
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeNonNegativeInteger(value: unknown): number | null {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+		return null;
+	}
+	return Math.trunc(value);
+}
+
+function readSessionUsage(value: unknown): RuntimeTaskSessionUsage | null {
+	const usage = asRecord(value);
+	if (!usage) {
+		return null;
+	}
+	const inputTokens =
+		normalizeNonNegativeInteger(usage.inputTokens) ?? normalizeNonNegativeInteger(usage.promptTokens);
+	const outputTokens =
+		normalizeNonNegativeInteger(usage.outputTokens) ??
+		normalizeNonNegativeInteger(usage.completionTokens) ??
+		normalizeNonNegativeInteger(usage.generatedTokens);
+	if (inputTokens === null || outputTokens === null) {
+		return null;
+	}
+	return {
+		inputTokens,
+		outputTokens,
+		cacheReadTokens: normalizeNonNegativeInteger(usage.cacheReadTokens) ?? 0,
+		cacheWriteTokens: normalizeNonNegativeInteger(usage.cacheWriteTokens) ?? 0,
+	};
 }
 
 function readAgentEvent(event: unknown): RawClineSdkAgentEvent | null {
@@ -399,6 +428,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 	if (agentEvent?.type === "run-finished") {
 		const result = asRecord(agentEvent.result);
 		const finalText = typeof result?.outputText === "string" ? result.outputText.trim() : "";
+		const latestUsage = readSessionUsage(result?.usage);
 		if (finalText) {
 			const message = setOrCreateAssistantMessage(entry, taskId, finalText);
 			if (message) {
@@ -420,6 +450,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const summaryPatch: Partial<RuntimeTaskSessionSummary> = {
 			lastOutputAt: now(),
 			lastHookAt: now(),
+			...(latestUsage ? { latestUsage } : {}),
 			latestHookActivity: {
 				activityText: finalText ? `Final: ${finalText}` : (previousHookActivity?.activityText ?? null),
 				toolName: previousHookActivity?.toolName ?? null,
@@ -460,6 +491,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		}
 
 		const doneReason = typeof agentEvent.reason === "string" ? agentEvent.reason : "completed";
+		const latestUsage = readSessionUsage(agentEvent.usage);
 		if (doneReason === "aborted" && input.pendingTurnCancelTaskIds.has(taskId)) {
 			emitTurnCanceled(input);
 			return;
@@ -469,6 +501,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 		const summaryPatch: Partial<RuntimeTaskSessionSummary> = {
 			lastOutputAt: now(),
 			lastHookAt: now(),
+			...(latestUsage ? { latestUsage } : {}),
 			latestHookActivity: {
 				activityText: finalText ? `Final: ${finalText}` : (previousHookActivity?.activityText ?? null),
 				toolName: previousHookActivity?.toolName ?? null,

@@ -74,6 +74,11 @@ function buildSessionTelemetryLine(summary: RuntimeTaskSessionSummary | undefine
 		return null;
 	}
 	const parts: string[] = [];
+	if (summary.latestUsage) {
+		const inputTokens = Math.round(summary.latestUsage.inputTokens / 100) / 10;
+		const outputTokens = Math.round(summary.latestUsage.outputTokens / 100) / 10;
+		parts.push(`${inputTokens}k in/${outputTokens}k out`);
+	}
 	const runDuration = formatRunDuration(summary.startedAt);
 	if (summary.state === "running" && runDuration) {
 		parts.push(`Run ${runDuration}`);
