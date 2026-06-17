@@ -12,6 +12,9 @@ interface DevSmokeEvalOptions {
 	parentDir?: string;
 	evidenceRoot?: string;
 	git?: boolean;
+	providerId?: string;
+	modelId?: string;
+	endpoint?: string;
 	write?: (text: string) => void;
 }
 
@@ -42,6 +45,23 @@ type DevAdvisorShortcutOptions = Omit<DevAdvisorPromptOptions, "kind">;
 
 const DEFAULT_TELEMETRY_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
 
+function buildDevSmokeEvalModelObservation(options: DevSmokeEvalOptions) {
+	const providerId = options.providerId?.trim();
+	const modelId = options.modelId?.trim();
+	const endpoint = options.endpoint?.trim();
+	if (!providerId && !modelId && !endpoint) {
+		return undefined;
+	}
+	if (!providerId || !modelId) {
+		throw new Error("--provider-id and --model-id are required together when recording smoke eval capability.");
+	}
+	return {
+		providerId,
+		modelId,
+		endpoint: endpoint || undefined,
+	};
+}
+
 function parseAdvisorKind(value: string): ClineAdvisorKind {
 	if (
 		value === "model_freshness" ||
@@ -63,6 +83,7 @@ export async function runDevSmokeEvalCommand(options: DevSmokeEvalOptions = {}):
 		parentDir: options.parentDir,
 		evidenceRootDir: options.evidenceRoot,
 		initializeGit: options.git !== false,
+		modelObservation: buildDevSmokeEvalModelObservation(options),
 	});
 	if (options.json) {
 		write(`${JSON.stringify(result, null, 2)}\n`);
@@ -158,6 +179,9 @@ export function registerDevCommand(program: Command): void {
 		.option("--parent-dir <path>", "Parent directory for the throwaway workspace.")
 		.option("--evidence-root <path>", "Directory for evidence bundles.")
 		.option("--no-git", "Skip git initialization in the throwaway workspace.")
+		.option("--provider-id <id>", "Provider id to score in the model capability registry.")
+		.option("--model-id <id>", "Model id to score in the model capability registry.")
+		.option("--endpoint <url>", "Optional model endpoint to score in the model capability registry.")
 		.action(async (options: DevSmokeEvalOptions) => {
 			await runDevSmokeEvalCommand(options);
 		});

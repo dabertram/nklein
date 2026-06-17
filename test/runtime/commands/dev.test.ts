@@ -55,6 +55,9 @@ describe("dev command", () => {
 			parentDir: "/tmp/workspaces",
 			evidenceRoot: "/tmp/evidence-root",
 			git: false,
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			endpoint: "http://127.0.0.1:11434",
 			write: (text) => {
 				writes.push(text);
 			},
@@ -64,9 +67,21 @@ describe("dev command", () => {
 			parentDir: "/tmp/workspaces",
 			evidenceRootDir: "/tmp/evidence-root",
 			initializeGit: false,
+			modelObservation: {
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
+				endpoint: "http://127.0.0.1:11434",
+			},
 		});
 		expect(writes.join("")).toContain("Dev smoke eval passed.");
 		expect(writes.join("")).toContain("Evidence: /tmp/evidence");
+	});
+
+	it("requires provider and model together when scoring a smoke eval", async () => {
+		await expect(runDevSmokeEvalCommand({ providerId: "ollama" })).rejects.toThrow(
+			"--provider-id and --model-id are required together",
+		);
+		expect(evalHarnessMocks.runClineDevSmokeEval).not.toHaveBeenCalled();
 	});
 
 	it("prints JSON output for automation", async () => {
