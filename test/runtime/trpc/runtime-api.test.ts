@@ -2145,7 +2145,17 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("rebinds persisted non-home chat sessions before retrying the first send after restart", async () => {
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
 		const summary = createSummary({ agentId: "cline", pid: null });
+		const reboundSummary = createSummary({
+			agentId: "cline",
+			pid: null,
+			workspacePath: "/tmp/repo/.worktrees/task-1",
+		});
 		const latestMessage = {
 			id: "message-rebound-1",
 			role: "user" as const,
@@ -2153,8 +2163,9 @@ describe("createRuntimeApi startTaskSession", () => {
 			createdAt: Date.now(),
 		};
 		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null).mockResolvedValueOnce(summary);
-		clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(summary);
+		clineTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null);
+		clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
+		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
 		clineTaskSessionService.listMessages.mockReturnValue([latestMessage]);
 
 		const api = createTestRuntimeApi({
@@ -2174,19 +2185,23 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(clineTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenNthCalledWith(
-			1,
+		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledTimes(1);
+		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
 			"task-1",
 			"continue",
 			undefined,
 			undefined,
 		);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenNthCalledWith(
-			2,
-			"task-1",
-			"continue",
-			undefined,
-			undefined,
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				cwd: "/tmp/repo/.worktrees/task-1",
+				prompt: "continue",
+				resumeFromPersistence: true,
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "anthropic-api-key",
+			}),
 		);
 		expect(response.message).toEqual(latestMessage);
 	});

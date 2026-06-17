@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
+import { isClineContextWindowPolicyError } from "../cline-sdk/cline-context-window-policy";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
@@ -271,7 +272,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		saveClineProviderSettings: async (_workspaceScope, input) => {
 			const body = parseClineProviderSettingsSaveRequest(input);
-			const response = clineProviderService.saveProviderSettings(body);
+			const response = await clineProviderService.saveProviderSettings(body);
 			deps.bumpClineSessionContextVersion?.();
 			return response;
 		},
@@ -354,13 +355,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							: {}),
 					});
 					const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-					const modelRegistrySnapshot = await getDefaultClineModelRegistry()
-						.getSnapshot()
-						.catch(() => ({
+					const modelRegistrySnapshot = await Promise.resolve(getDefaultClineModelRegistry().getSnapshot()).catch(
+						() => ({
 							schemaVersion: 1,
 							updatedAt: 0,
 							models: {},
-						}));
+						}),
+					);
 					const guardCandidates = new Map<string, ClineStartGuardCandidate<ResolvedClineLaunchConfig>>();
 					const selectedCandidate = buildClineStartGuardCandidate({
 						launchConfig: clineLaunchConfig,
@@ -384,7 +385,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 								modelRegistry: modelRegistrySnapshot,
 							});
 							guardCandidates.set(roleCandidate.entry.key, roleCandidate);
-						} catch {
+						} catch (error) {
+							if (isClineContextWindowPolicyError(error)) {
+								return {
+									ok: false,
+									summary: null,
+									error: error.message,
+									errorCode: "routing_escalation",
+								};
+							}
 							// Ignore roles that are not currently runnable; the configured default still participates.
 						}
 					}
@@ -652,6 +661,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						apiKey: clineLaunchConfig.apiKey,
 						baseUrl: clineLaunchConfig.baseUrl,
 						reasoningEffort: clineLaunchConfig.reasoningEffort,
+						contextWindow: clineLaunchConfig.contextWindow ?? null,
 					});
 				}
 				if (!summary) {
@@ -923,20 +933,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					if (!isHomeAgentSessionId(body.taskId)) {
 						const reboundSummary = await clineTaskSessionService.rebindPersistedTaskSession(body.taskId);
 						if (reboundSummary) {
-							summary = sessionLaunchConfigOverrides
-								? await clineTaskSessionService.sendTaskSessionInput(
-										body.taskId,
-										body.text,
-										requestedMode,
-										body.images,
-										sessionLaunchConfigOverrides,
-									)
-								: await clineTaskSessionService.sendTaskSessionInput(
-										body.taskId,
-										body.text,
-										requestedMode,
-										body.images,
-									);
+							const clineLaunchConfig =
+								launchConfigOverrides ?? (await clineProviderService.resolveLaunchConfig());
+							summary = await clineTaskSessionService.startTaskSession({
+								taskId: body.taskId,
+								cwd: reboundSummary.workspacePath ?? workspaceScope.workspacePath,
+								prompt: body.text,
+								images: body.images,
+								resumeFromPersistence: true,
+								providerId: clineLaunchConfig.providerId,
+								modelId: clineLaunchConfig.modelId,
+								mode: requestedMode,
+								apiKey: clineLaunchConfig.apiKey,
+								baseUrl: clineLaunchConfig.baseUrl,
+								reasoningEffort: clineLaunchConfig.reasoningEffort,
+								contextWindow: clineLaunchConfig.contextWindow ?? null,
+							});
 						}
 						if (!summary) {
 							return {
@@ -959,6 +971,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							apiKey: clineLaunchConfig.apiKey,
 							baseUrl: clineLaunchConfig.baseUrl,
 							reasoningEffort: clineLaunchConfig.reasoningEffort,
+							contextWindow: clineLaunchConfig.contextWindow ?? null,
 						});
 					}
 				}
