@@ -17,6 +17,7 @@ import type {
 	RuntimeClineMcpOAuthResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpSettingsResponse,
+	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginResponse,
 	RuntimeClineOauthProvider,
 	RuntimeClineProviderCapability,
@@ -160,6 +161,11 @@ export async function fetchClineProviderModels(
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	const response = await trpcClient.runtime.getClineProviderModels.query({ providerId });
 	return response.models;
+}
+
+export async function fetchClineModelRegistry(workspaceId: string | null): Promise<RuntimeClineModelRegistryResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getClineModelRegistry.query();
 }
 
 export async function runClineProviderOauthLogin(

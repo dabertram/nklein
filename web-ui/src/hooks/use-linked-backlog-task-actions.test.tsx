@@ -257,8 +257,9 @@ describe("useLinkedBacklogTaskActions", () => {
 			await initialSnapshot.requestMoveTaskToCompleted("task-2", "review");
 		});
 
-		const completedCards = latestSnapshot.board.columns.find((column) => column.id === "completed")?.cards ?? [];
-		const trashCards = latestSnapshot.board.columns.find((column) => column.id === "trash")?.cards ?? [];
+		const finalSnapshot = latestSnapshot as HookSnapshot;
+		const completedCards = finalSnapshot.board.columns.find((column) => column.id === "completed")?.cards ?? [];
+		const trashCards = finalSnapshot.board.columns.find((column) => column.id === "trash")?.cards ?? [];
 		expect(completedCards.map((card) => card.id)).toContain("task-2");
 		expect(trashCards).toEqual([]);
 		expect(kickoffTaskInProgress).toHaveBeenCalledWith(

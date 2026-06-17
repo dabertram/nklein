@@ -31,13 +31,16 @@ import { useClineChatPanelController } from "@/hooks/use-cline-chat-panel-contro
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
+import { fetchClineModelRegistry } from "@/runtime/runtime-config-query";
 import type {
+	RuntimeClineModelRegistryEntry,
 	RuntimeClineReasoningEffort,
 	RuntimeConfigResponse,
 	RuntimeTaskClineSettings,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
+import { useTrpcQuery } from "@/runtime/use-trpc-query";
 import type { TaskImage } from "@/types";
 
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
@@ -155,6 +158,46 @@ export function formatClineContextBudgetDisplay(options: {
 		percent: displayPercent,
 		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
+}
+
+export function findClineModelRegistryEntry(
+	entries: readonly RuntimeClineModelRegistryEntry[],
+	providerId: string,
+	modelId: string,
+): RuntimeClineModelRegistryEntry | null {
+	const normalizedProviderId = providerId.trim().toLowerCase();
+	const normalizedModelId = modelId.trim();
+	if (!normalizedProviderId || !normalizedModelId) {
+		return null;
+	}
+	return (
+		entries.find(
+			(entry) =>
+				entry.providerId.trim().toLowerCase() === normalizedProviderId &&
+				entry.modelId.trim() === normalizedModelId,
+		) ?? null
+	);
+}
+
+export function formatClineModelRegistryDisplay(entry: RuntimeClineModelRegistryEntry | null): string | null {
+	if (!entry || entry.speed.samples <= 0) {
+		return null;
+	}
+	const parts: string[] = [];
+	if (entry.contextWindow.effective) {
+		parts.push(`${Math.round(entry.contextWindow.effective / 1000)}k measured window`);
+	}
+	if (entry.speed.prefillTokensPerSecondEwma) {
+		parts.push(`${Math.round(entry.speed.prefillTokensPerSecondEwma)} tok/s in`);
+	}
+	if (entry.speed.decodeTokensPerSecondEwma) {
+		parts.push(`${Math.round(entry.speed.decodeTokensPerSecondEwma)} tok/s out`);
+	}
+	if (entry.speed.wallTimeMsPer1kPromptTokensEwma) {
+		parts.push(`${Math.round(entry.speed.wallTimeMsPer1kPromptTokensEwma)} ms/1k`);
+	}
+	parts.push(`cap ${Math.round(entry.capability.effectiveScore)}`);
+	return parts.length > 0 ? `Model telemetry: ${parts.join(" · ")}` : null;
 }
 
 export function formatClineCardContentDisplay(options: {
@@ -418,6 +461,28 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const selectedModel = useMemo(
 			() => clineSettings.providerModels.find((model) => model.id === clineSettings.modelId) ?? null,
 			[clineSettings.modelId, clineSettings.providerModels],
+		);
+		const fetchSelectedWorkspaceModelRegistry = useCallback(
+			async () => await fetchClineModelRegistry(workspaceId),
+			[workspaceId],
+		);
+		const modelRegistryQuery = useTrpcQuery({
+			enabled: clineSettings.providerId.trim().length > 0 && clineSettings.modelId.trim().length > 0,
+			queryFn: fetchSelectedWorkspaceModelRegistry,
+			retainDataOnError: true,
+		});
+		const selectedModelRegistryEntry = useMemo(
+			() =>
+				findClineModelRegistryEntry(
+					modelRegistryQuery.data?.models ?? [],
+					clineSettings.providerId,
+					clineSettings.modelId,
+				),
+			[clineSettings.modelId, clineSettings.providerId, modelRegistryQuery.data?.models],
+		);
+		const modelRegistryText = useMemo(
+			() => formatClineModelRegistryDisplay(selectedModelRegistryEntry),
+			[selectedModelRegistryEntry],
 		);
 		const reasoningEnabledModelIds = useMemo(
 			() => getClineReasoningEnabledModelIds(clineSettings.providerModels),
@@ -762,6 +827,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					<div className="flex flex-wrap items-center gap-2">
 						<div className="text-[11px] text-text-secondary">{cardContentText}</div>
 						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
+						{modelRegistryText ? <div className="text-[11px] text-text-tertiary">{modelRegistryText}</div> : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}

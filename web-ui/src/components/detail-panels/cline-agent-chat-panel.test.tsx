@@ -7,13 +7,20 @@ import {
 	type ClineAgentChatPanelHandle,
 	estimateClineRequestHistoryTokens,
 	estimateClineRequestMessageTokens,
+	findClineModelRegistryEntry,
 	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
 	formatClineModelActivityDisplay,
+	formatClineModelRegistryDisplay,
 } from "@/components/detail-panels/cline-agent-chat-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
-import type { RuntimeConfigResponse, RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "@/runtime/types";
+import type {
+	RuntimeClineModelRegistryEntry,
+	RuntimeConfigResponse,
+	RuntimeTaskHookActivity,
+	RuntimeTaskSessionSummary,
+} from "@/runtime/types";
 import { resetWorkspaceMetadataStore, setTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 
 function createSummary(
@@ -36,6 +43,55 @@ function createSummary(
 		latestHookActivity,
 		latestTurnCheckpoint: null,
 		previousTurnCheckpoint: null,
+		...overrides,
+	};
+}
+
+function createModelRegistryEntry(
+	overrides: Partial<RuntimeClineModelRegistryEntry> = {},
+): RuntimeClineModelRegistryEntry {
+	return {
+		key: "ollama:qwen:local",
+		providerId: "ollama",
+		modelId: "qwen",
+		endpoint: "local",
+		contextWindow: {
+			advertised: null,
+			observed: 16_000,
+			userOverride: null,
+			effective: 16_000,
+		},
+		speed: {
+			samples: 2,
+			promptTokensEwma: 1_500,
+			outputTokensEwma: 75,
+			totalTokensEwma: 1_575,
+			prefillTokensPerSecondEwma: 800,
+			decodeTokensPerSecondEwma: 40,
+			ttftMsEwma: 500,
+			wallTimeMsEwma: 3_000,
+			wallTimeMsPer1kPromptTokensEwma: 2_000,
+			lastPromptTokens: 1_000,
+			lastOutputTokens: 50,
+			lastWallTimeMs: 2_000,
+			lastObservedAt: 20,
+		},
+		capability: {
+			samples: 1,
+			staticPrior: 35,
+			evalScore: null,
+			externalScore: null,
+			observedPassRate: 1,
+			effectiveScore: 68,
+			lastObservedAt: 20,
+		},
+		constraints: {
+			sharedEndpointId: "local",
+			inputCostPerMillionTokens: null,
+			outputCostPerMillionTokens: null,
+		},
+		createdAt: 10,
+		updatedAt: 20,
 		...overrides,
 	};
 }
@@ -210,6 +266,38 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(text).toContain("Card content: ~");
 		expect(text).toContain("tokens");
+	});
+
+	it("matches model registry entries by provider and model", () => {
+		const qwenEntry = createModelRegistryEntry();
+		const sonnetEntry = createModelRegistryEntry({
+			key: "cline:sonnet:default",
+			providerId: "cline",
+			modelId: "sonnet",
+			endpoint: null,
+		});
+
+		expect(findClineModelRegistryEntry([qwenEntry, sonnetEntry], " OLLAMA ", "qwen")).toBe(qwenEntry);
+		expect(findClineModelRegistryEntry([qwenEntry, sonnetEntry], "cline", "missing")).toBeNull();
+	});
+
+	it("formats model telemetry when measured registry stats exist", () => {
+		const text = formatClineModelRegistryDisplay(createModelRegistryEntry());
+
+		expect(text).toBe("Model telemetry: 16k measured window · 800 tok/s in · 40 tok/s out · 2000 ms/1k · cap 68");
+	});
+
+	it("hides model telemetry until the model has request samples", () => {
+		const text = formatClineModelRegistryDisplay(
+			createModelRegistryEntry({
+				speed: {
+					...createModelRegistryEntry().speed,
+					samples: 0,
+				},
+			}),
+		);
+
+		expect(text).toBeNull();
 	});
 
 	it("counts the newest read_files output while treating older chunks as compacted", () => {
