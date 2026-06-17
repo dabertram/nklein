@@ -23,6 +23,7 @@ import type {
 	RuntimeClineMcpSettingsResponse,
 	RuntimeClineMcpSettingsSaveRequest,
 	RuntimeClineMcpSettingsSaveResponse,
+	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginRequest,
 	RuntimeClineOauthLoginResponse,
 	RuntimeClineProviderCatalogResponse,
@@ -114,6 +115,7 @@ import {
 	runtimeClineMcpSettingsResponseSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
 	runtimeClineMcpSettingsSaveResponseSchema,
+	runtimeClineModelRegistryResponseSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineOauthLoginResponseSchema,
 	runtimeClineProviderCatalogResponseSchema,
@@ -265,6 +267,7 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineProviderModelsRequest,
 		) => Promise<RuntimeClineProviderModelsResponse>;
+		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
 		runClineProviderOAuthLogin: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineOauthLoginRequest,
@@ -538,6 +541,9 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getClineProviderModels(ctx.workspaceScope, input);
 			}),
+		getClineModelRegistry: t.procedure.output(runtimeClineModelRegistryResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getClineModelRegistry(ctx.workspaceScope);
+		}),
 		getClineMcpAuthStatuses: t.procedure.output(runtimeClineMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineMcpAuthStatuses(ctx.workspaceScope);
 		}),

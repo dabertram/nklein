@@ -58,6 +58,10 @@ const browserMocks = vi.hoisted(() => ({
 	openInBrowser: vi.fn(),
 }));
 
+const modelRegistryMocks = vi.hoisted(() => ({
+	getSnapshot: vi.fn(),
+}));
+
 vi.mock("../../../src/terminal/agent-registry.js", () => ({
 	resolveAgentCommand: agentRegistryMocks.resolveAgentCommand,
 	buildRuntimeConfigResponse: agentRegistryMocks.buildRuntimeConfigResponse,
@@ -125,6 +129,12 @@ vi.mock("@clinebot/core", () => ({
 
 vi.mock("../../../src/server/browser.js", () => ({
 	openInBrowser: browserMocks.openInBrowser,
+}));
+
+vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
+	getDefaultClineModelRegistry: () => ({
+		getSnapshot: modelRegistryMocks.getSnapshot,
+	}),
 }));
 
 import type { RuntimeTrpcContext } from "../../../src/trpc/app-router";
@@ -294,6 +304,12 @@ describe("createRuntimeApi startTaskSession", () => {
 		llmsModelMocks.resolveProviderConfig.mockReset();
 		llmsModelMocks.resolveProviderModelCatalogKeys.mockReset();
 		browserMocks.openInBrowser.mockReset();
+		modelRegistryMocks.getSnapshot.mockReset();
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 0,
+			models: {},
+		});
 
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
 			agentId: "claude",
@@ -1899,6 +1915,120 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 		expect(modelsResponse.providerId).toBe("cline");
 		expect(modelsResponse.models.some((model) => model.id === "claude-sonnet-4-6")).toBe(true);
+	});
+
+	it("returns the model registry snapshot sorted by recency", async () => {
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 30,
+			models: {
+				"ollama:qwen:local": {
+					key: "ollama:qwen:local",
+					providerId: "ollama",
+					modelId: "qwen",
+					endpoint: "local",
+					contextWindow: {
+						advertised: null,
+						observed: 16_000,
+						userOverride: null,
+						effective: 16_000,
+					},
+					speed: {
+						samples: 2,
+						promptTokensEwma: 1_500,
+						outputTokensEwma: 75,
+						totalTokensEwma: 1_575,
+						prefillTokensPerSecondEwma: 800,
+						decodeTokensPerSecondEwma: 40,
+						ttftMsEwma: 500,
+						wallTimeMsEwma: 3_000,
+						wallTimeMsPer1kPromptTokensEwma: 2_000,
+						lastPromptTokens: 1_000,
+						lastOutputTokens: 50,
+						lastWallTimeMs: 2_000,
+						lastObservedAt: 20,
+					},
+					capability: {
+						samples: 1,
+						staticPrior: 35,
+						evalScore: null,
+						externalScore: null,
+						observedPassRate: 1,
+						effectiveScore: 68,
+						lastObservedAt: 20,
+					},
+					constraints: {
+						sharedEndpointId: "local",
+						inputCostPerMillionTokens: null,
+						outputCostPerMillionTokens: null,
+					},
+					createdAt: 10,
+					updatedAt: 20,
+				},
+				"cline:sonnet:default": {
+					key: "cline:sonnet:default",
+					providerId: "cline",
+					modelId: "sonnet",
+					endpoint: null,
+					contextWindow: {
+						advertised: 200_000,
+						observed: null,
+						userOverride: null,
+						effective: 200_000,
+					},
+					speed: {
+						samples: 1,
+						promptTokensEwma: 5_000,
+						outputTokensEwma: 400,
+						totalTokensEwma: 5_400,
+						prefillTokensPerSecondEwma: 2_000,
+						decodeTokensPerSecondEwma: 80,
+						ttftMsEwma: 300,
+						wallTimeMsEwma: 4_000,
+						wallTimeMsPer1kPromptTokensEwma: 800,
+						lastPromptTokens: 5_000,
+						lastOutputTokens: 400,
+						lastWallTimeMs: 4_000,
+						lastObservedAt: 30,
+					},
+					capability: {
+						samples: 1,
+						staticPrior: 80,
+						evalScore: null,
+						externalScore: null,
+						observedPassRate: 1,
+						effectiveScore: 90,
+						lastObservedAt: 30,
+					},
+					constraints: {
+						sharedEndpointId: "cline:default",
+						inputCostPerMillionTokens: null,
+						outputCostPerMillionTokens: null,
+					},
+					createdAt: 5,
+					updatedAt: 30,
+				},
+			},
+		});
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.getClineModelRegistry({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/repo",
+		});
+
+		expect(response.updatedAt).toBe(30);
+		expect(response.models.map((model) => model.key)).toEqual(["cline:sonnet:default", "ollama:qwen:local"]);
+		expect(response.models[0]?.contextWindow.effective).toBe(200_000);
+		expect(response.models[1]?.speed.prefillTokensPerSecondEwma).toBe(800);
 	});
 
 	it("loads provider models through the SDK local-provider resolver with saved config", async () => {

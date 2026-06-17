@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
+import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
 import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
@@ -645,6 +646,17 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getClineProviderModels: async (_workspaceScope, input) => {
 			const body = parseClineProviderModelsRequest(input);
 			return await clineProviderService.getProviderModels(body.providerId);
+		},
+		getClineModelRegistry: async (_workspaceScope) => {
+			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+			return {
+				schemaVersion: snapshot.schemaVersion,
+				updatedAt: snapshot.updatedAt,
+				models: Object.values(snapshot.models).sort((left, right) => {
+					const updatedDelta = right.updatedAt - left.updatedAt;
+					return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
+				}),
+			};
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {
 			const statuses = await clineMcpRuntimeService.getAuthStatuses();

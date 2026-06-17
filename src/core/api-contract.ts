@@ -738,6 +738,58 @@ export const runtimeClineProviderModelsResponseSchema = z.object({
 });
 export type RuntimeClineProviderModelsResponse = z.infer<typeof runtimeClineProviderModelsResponseSchema>;
 
+export const runtimeClineModelRegistryEntrySchema = z.object({
+	key: z.string(),
+	providerId: z.string(),
+	modelId: z.string(),
+	endpoint: z.string().nullable(),
+	contextWindow: z.object({
+		advertised: z.number().int().positive().nullable(),
+		observed: z.number().int().positive().nullable(),
+		userOverride: z.number().int().positive().nullable(),
+		effective: z.number().int().positive().nullable(),
+	}),
+	speed: z.object({
+		samples: z.number().int().nonnegative(),
+		promptTokensEwma: z.number().nonnegative().nullable(),
+		outputTokensEwma: z.number().nonnegative().nullable(),
+		totalTokensEwma: z.number().nonnegative().nullable(),
+		prefillTokensPerSecondEwma: z.number().nonnegative().nullable(),
+		decodeTokensPerSecondEwma: z.number().nonnegative().nullable(),
+		ttftMsEwma: z.number().nonnegative().nullable(),
+		wallTimeMsEwma: z.number().nonnegative().nullable(),
+		wallTimeMsPer1kPromptTokensEwma: z.number().nonnegative().nullable(),
+		lastPromptTokens: z.number().int().nonnegative().nullable(),
+		lastOutputTokens: z.number().int().nonnegative().nullable(),
+		lastWallTimeMs: z.number().nonnegative().nullable(),
+		lastObservedAt: z.number().int().nonnegative().nullable(),
+	}),
+	capability: z.object({
+		samples: z.number().int().nonnegative(),
+		staticPrior: z.number().min(0).max(100),
+		evalScore: z.number().min(0).max(100).nullable(),
+		externalScore: z.number().min(0).max(100).nullable(),
+		observedPassRate: z.number().min(0).max(1).nullable(),
+		effectiveScore: z.number().min(0).max(100),
+		lastObservedAt: z.number().int().nonnegative().nullable(),
+	}),
+	constraints: z.object({
+		sharedEndpointId: z.string().nullable(),
+		inputCostPerMillionTokens: z.number().nonnegative().nullable(),
+		outputCostPerMillionTokens: z.number().nonnegative().nullable(),
+	}),
+	createdAt: z.number().int().nonnegative(),
+	updatedAt: z.number().int().nonnegative(),
+});
+export type RuntimeClineModelRegistryEntry = z.infer<typeof runtimeClineModelRegistryEntrySchema>;
+
+export const runtimeClineModelRegistryResponseSchema = z.object({
+	schemaVersion: z.number().int().positive(),
+	updatedAt: z.number().int().nonnegative(),
+	models: z.array(runtimeClineModelRegistryEntrySchema),
+});
+export type RuntimeClineModelRegistryResponse = z.infer<typeof runtimeClineModelRegistryResponseSchema>;
+
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",
