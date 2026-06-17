@@ -38,7 +38,7 @@ describe("cline dev test project", () => {
 		);
 		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
 		expect(specification).toContain(DEFAULT_CLINE_DEV_TEST_SCENARIO.title);
-		expect(specification).toContain(DEFAULT_CLINE_DEV_TEST_SCENARIO.acceptanceCommand);
+		expect(specification).not.toContain("Acceptance command");
 		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
 	});
 

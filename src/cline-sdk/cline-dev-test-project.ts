@@ -40,7 +40,7 @@ export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "small-model-smoke",
 	title: "Small model smoke task",
 	prompt:
-		"Read specification.md, decompose the requested change into Kanban plan artifacts, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the requested change into Kanban task leaves, and apply the generated task graph.",
 	specification:
 		"Update the habit score logic so perfect completion is capped at 100 even with a long streak, and add or update the acceptance test.",
 	acceptanceCommand: "npm test",
@@ -52,7 +52,7 @@ export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario
 	id: "habit-insights-mid",
 	title: "Add habit insight summaries",
 	prompt:
-		"Read specification.md, decompose the habit insight summary work into Kanban plan artifacts, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the habit insight summary work into Kanban task leaves, and apply the generated task graph.",
 	specification: [
 		"Implement a mid-complexity habit insights feature in this TypeScript CLI project.",
 		"",
@@ -65,7 +65,6 @@ export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario
 		"- Keep the implementation small and maintainable.",
 		"- Prefer touching src/habit-score.ts, src/habit-insights.ts, src/index.ts, and test/habit-score.test.js.",
 		"- Do not add dependencies.",
-		"- Acceptance command: npm test",
 	].join("\n"),
 	acceptanceCommand: "npm test",
 	complexity: 62,
@@ -76,7 +75,7 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 	id: "habit-product-cline-complex",
 	title: "Habit product Cline buildout",
 	prompt:
-		"Read specification.md, decompose the product buildout into at least ten Kanban task leaves with dependencies, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the product buildout into at least ten Kanban task leaves with dependencies, and apply the generated task graph.",
 	specification: [
 		"Turn the tiny habit scoring CLI into a more complete habit-insights product slice.",
 		"",
@@ -90,14 +89,6 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 		"- Expand tests for improving, declining, steady, invalid-input, and perfect-score capped scenarios.",
 		"- Add README usage notes for text and JSON output.",
 		"- Keep each generated task independently reviewable and machine-checkable.",
-		"",
-		"Decomposition requirements:",
-		"- Create at least ten task leaves.",
-		"- Use dependencies where one task needs another task's output.",
-		"- Keep each leaf at complexity <= 75 and no more than three likely touched files.",
-		"- Use npm test as the acceptance command for generated implementation leaves.",
-		"",
-		"Acceptance command: npm test",
 	].join("\n"),
 	acceptanceCommand: "npm test",
 	complexity: 74,

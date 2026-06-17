@@ -300,7 +300,7 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 		"Kanban decomposition is available during planning; when the task should be split into dependent cards, follow these decomposition instructions:",
 		KANBAN_DECOMPOSE_PROMPT.trimEnd(),
 		"Do not modify implementation files, do not use write tools outside Kanban planning artifacts, and do not implement product code yet.",
-		"After you present the plan, ask for approval before making changes.",
+		"Continue autonomously through the planning workflow when the task can be completed with Kanban-managed tools.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");
 }

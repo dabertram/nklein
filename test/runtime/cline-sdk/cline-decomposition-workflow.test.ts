@@ -14,6 +14,10 @@ describe("resolveKanbanDecomposePrompt", () => {
 		expect(resolved).toContain(KANBAN_DECOMPOSE_PROMPT.trimEnd());
 		expect(resolved).toContain("Call the `decompose_project` tool");
 		expect(resolved).toContain("title, tasks, and defaultAcceptanceCommand");
+		expect(resolved).toContain("apply the generated graph through the command it returns");
+		expect(resolved).toContain("Only tell the user the exact `kanban task decompose");
+		expect(resolved).toContain("id, title, prompt, dependsOn[], complexity");
+		expect(resolved).toContain("Create reviewable Kanban tasks from the specification");
 		expect(resolved).toContain("Do not manually create or edit `.cline/kanban/plans/**`, `tasks.json`");
 		expect(resolved).toContain("Project-scale task to decompose:");
 		expect(resolved).toContain("Title: Complex dev scenario");

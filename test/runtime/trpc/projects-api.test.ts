@@ -72,9 +72,11 @@ describe("createDevTestBoard", () => {
 		expect(new Set(backlog.map((card) => card.agentId))).toEqual(new Set(["cline"]));
 		expect(backlog[0]?.clineSettings).toBeUndefined();
 		expect(backlog[0]?.startInPlanMode).toBe(true);
-		expect(backlog[0]?.autoReviewEnabled).toBe(false);
+		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
+		expect(backlog[0]?.prompt).not.toContain("Create reviewable Kanban tasks");
+		expect(backlog[0]?.prompt).not.toContain("Acceptance command for implementation leaves");
 		expect(board.dependencies).toHaveLength(0);
 	});
 });

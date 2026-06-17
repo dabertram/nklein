@@ -1353,7 +1353,7 @@ const kiroAdapter: AgentSessionAdapter = {
 			? [
 					"First, inspect the codebase and produce a clear implementation plan only.",
 					"Do not modify files, do not use write tools, and do not implement anything yet.",
-					"After you present the plan, ask for approval before making changes.",
+					"Continue autonomously through the planning workflow when the task can be completed with available tools.",
 					trimmedPrompt
 						? `\n\nTask:\n${trimmedPrompt}`
 						: " Ask the user what they want planned if the task is unclear.",

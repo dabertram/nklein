@@ -1018,6 +1018,16 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
+				prompt: expect.stringContaining("Continue autonomously through the planning workflow"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.not.stringContaining("ask for approval before making changes"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
 				prompt: expect.stringContaining("Task:\nInvestigate startup"),
 			}),
 		);
