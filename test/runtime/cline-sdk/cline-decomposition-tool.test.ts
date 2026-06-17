@@ -1,0 +1,91 @@
+import { describe, expect, it } from "vitest";
+import { applyClinePlanTaskGraphToBoard } from "../../../src/cline-sdk/cline-decomposition-tool";
+import type { ClinePlanTaskGraph } from "../../../src/cline-sdk/cline-plan-artifacts";
+import type { RuntimeBoardData } from "../../../src/core/api-contract";
+
+function createBoard(): RuntimeBoardData {
+	return {
+		columns: [
+			{ id: "backlog", title: "Backlog", cards: [] },
+			{ id: "in_progress", title: "In Progress", cards: [] },
+			{ id: "review", title: "Review", cards: [] },
+			{ id: "completed", title: "Completed", cards: [] },
+			{ id: "trash", title: "Trash", cards: [] },
+		],
+		dependencies: [],
+	};
+}
+
+function createTaskGraph(): ClinePlanTaskGraph {
+	return {
+		schemaVersion: 1,
+		slug: "habit-tracker",
+		title: "Habit Tracker",
+		tasks: [
+			{
+				id: "storage",
+				title: "Create storage",
+				prompt: "Implement persistent storage.",
+				dependsOn: [],
+				complexity: 30,
+				suggestedRole: "worker",
+				filesLikelyTouched: ["src/storage.ts"],
+				acceptanceCommand: "npm test",
+			},
+			{
+				id: "ui",
+				title: "Create UI",
+				prompt: "Implement the habit list UI.",
+				dependsOn: ["storage"],
+				complexity: 45,
+				suggestedRole: "worker",
+				filesLikelyTouched: ["src/App.tsx"],
+				acceptanceCommand: "npm test",
+			},
+		],
+	};
+}
+
+describe("applyClinePlanTaskGraphToBoard", () => {
+	it("creates backlog cards and dependency links from a task graph", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		expect(result.createdTasks.map((task) => task.id)).toEqual(["habit-tracker-storage", "habit-tracker-ui"]);
+		expect(result.createdTasks[0]?.prompt).toContain("Likely files:");
+		expect(result.createdTasks[0]?.prompt).toContain("Acceptance check: npm test");
+		expect(result.createdTasks[0]?.agentId).toBe("cline");
+		expect(result.createdDependencies).toHaveLength(1);
+		expect(result.createdDependencies[0]).toMatchObject({
+			fromTaskId: "habit-tracker-ui",
+			toTaskId: "habit-tracker-storage",
+		});
+		expect(result.board.dependencies).toEqual(result.createdDependencies);
+	});
+
+	it("rejects unknown dependency references", () => {
+		const graph = createTaskGraph();
+		const uiTask = graph.tasks[1];
+		if (!uiTask) {
+			throw new Error("Expected UI task.");
+		}
+		graph.tasks[1] = {
+			...uiTask,
+			dependsOn: ["missing"],
+		};
+
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: graph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+			}),
+		).toThrow("depends on unknown task");
+	});
+});
