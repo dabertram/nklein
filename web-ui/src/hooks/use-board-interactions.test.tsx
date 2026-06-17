@@ -132,6 +132,8 @@ function HookHarness({
 		startTaskSession,
 		fetchTaskWorkspaceInfo: NOOP_FETCH_WORKSPACE_INFO,
 		sendTaskSessionInput: NOOP_SEND_TASK_INPUT,
+		activeTaskSessionCount: 0,
+		maxConcurrentTasks: 3,
 		readyForReviewNotificationsEnabled: false,
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction: NOOP_RUN_AUTO_REVIEW,

@@ -27,6 +27,7 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 		agentTimeoutMs: 3_600_000,
 		conversationTimeoutMs: 7_200_000,
 		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks: 3,
 		effectiveCommand: selectedAgentId,
 		globalConfigPath: "/tmp/.cline/kanban/config.json",
 		projectConfigPath: "/tmp/project/.cline/kanban/config.json",

@@ -39,6 +39,14 @@ export function getDetailTerminalTaskId(taskId: string): string {
 	return `${DETAIL_TERMINAL_TASK_PREFIX}${taskId}`;
 }
 
+export function isDetailTerminalTaskId(taskId: string): boolean {
+	return taskId.startsWith(DETAIL_TERMINAL_TASK_PREFIX);
+}
+
+export function isShellTerminalTaskId(taskId: string): boolean {
+	return taskId === HOME_TERMINAL_TASK_ID || isDetailTerminalTaskId(taskId);
+}
+
 async function resolveShellTerminalGeometry(taskId: string): Promise<{ cols: number; rows: number }> {
 	const existingGeometry = getTerminalGeometry(taskId);
 	if (existingGeometry) {

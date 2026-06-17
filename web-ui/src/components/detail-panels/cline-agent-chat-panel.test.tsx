@@ -113,6 +113,7 @@ function createRuntimeConfig(agentTimeoutMode: RuntimeConfigResponse["agentTimeo
 		agentTimeoutMs: null,
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks: 3,
 		effectiveCommand: null,
 		globalConfigPath: "/tmp/global-config",
 		projectConfigPath: null,

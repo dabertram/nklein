@@ -81,6 +81,8 @@ function HookHarness({
 	waitForBacklogStartAnimationAvailability,
 	stopTaskSession,
 	cleanupTaskWorkspace,
+	activeTaskSessionCount = 1,
+	maxConcurrentTasks = 3,
 }: {
 	boardFactory?: () => BoardData;
 	onSnapshot: (snapshot: HookSnapshot) => void;
@@ -94,6 +96,8 @@ function HookHarness({
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
 	stopTaskSession?: (taskId: string) => Promise<void>;
 	cleanupTaskWorkspace?: (taskId: string) => Promise<unknown>;
+	activeTaskSessionCount?: number;
+	maxConcurrentTasks?: number;
 }): null {
 	const [board, setBoard] = useState<BoardData>(() => (boardFactory ? boardFactory() : createBoard()));
 	const actions = useLinkedBacklogTaskActions({
@@ -104,6 +108,8 @@ function HookHarness({
 		cleanupTaskWorkspace: cleanupTaskWorkspace ?? (async () => null),
 		maybeRequestNotificationPermissionForTaskStart: () => {},
 		kickoffTaskInProgress: kickoffTaskInProgress ?? (async () => true),
+		activeTaskSessionCount,
+		maxConcurrentTasks,
 		startBacklogTaskWithAnimation,
 		waitForBacklogStartAnimationAvailability,
 	});
@@ -268,6 +274,55 @@ describe("useLinkedBacklogTaskActions", () => {
 			"backlog",
 			{ optimisticMove: true },
 		);
+		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
+	});
+
+	it("caps dependency-unblocked task starts by available task capacity", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const kickoffTaskInProgress = vi.fn(async () => true);
+		const boardFactory = () =>
+			createBoard([
+				{ id: "dep-1", fromTaskId: "task-1", toTaskId: "task-2", createdAt: 10 },
+				{ id: "dep-2", fromTaskId: "task-3", toTaskId: "task-2", createdAt: 11 },
+			]);
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					boardFactory={boardFactory}
+					kickoffTaskInProgress={kickoffTaskInProgress}
+					activeTaskSessionCount={2}
+					maxConcurrentTasks={2}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		const initialSnapshot = latestSnapshot as HookSnapshot;
+
+		await act(async () => {
+			await initialSnapshot.requestMoveTaskToCompleted("task-2", "review");
+		});
+
+		const finalSnapshot = latestSnapshot as HookSnapshot;
+		const inProgressTaskIds =
+			finalSnapshot.board.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id) ?? [];
+		const backlogTaskIds =
+			finalSnapshot.board.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id) ?? [];
+		expect(kickoffTaskInProgress).toHaveBeenCalledTimes(1);
+		expect(kickoffTaskInProgress).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "task-1" }),
+			"task-1",
+			"backlog",
+			{ optimisticMove: true },
+		);
+		expect(inProgressTaskIds).toEqual(["task-1"]);
+		expect(backlogTaskIds).toEqual(["task-3"]);
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
 	});
 

@@ -73,6 +73,8 @@ interface UseBoardInteractionsInput {
 		input: string,
 		options?: SendTerminalInputOptions,
 	) => Promise<{ ok: boolean; message?: string }>;
+	activeTaskSessionCount: number;
+	maxConcurrentTasks: number;
 	readyForReviewNotificationsEnabled: boolean;
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
@@ -117,6 +119,8 @@ export function useBoardInteractions({
 	startTaskSession,
 	fetchTaskWorkspaceInfo,
 	sendTaskSessionInput,
+	activeTaskSessionCount,
+	maxConcurrentTasks,
 	readyForReviewNotificationsEnabled,
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
@@ -491,6 +495,8 @@ export function useBoardInteractions({
 		cleanupTaskWorkspace,
 		maybeRequestNotificationPermissionForTaskStart,
 		kickoffTaskInProgress,
+		activeTaskSessionCount,
+		maxConcurrentTasks,
 		startBacklogTaskWithAnimation,
 		waitForBacklogStartAnimationAvailability: waitForProgrammaticCardMoveAvailability,
 	});

@@ -76,6 +76,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		agentTimeoutMs: null,
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks: 3,
 		readyForReviewNotificationsEnabled: true,
 		modelRoles: {
 			reviewer: {

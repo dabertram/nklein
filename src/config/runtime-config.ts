@@ -30,6 +30,7 @@ interface RuntimeGlobalConfigFileShape {
 	agentTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
+	maxConcurrentTasks?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	modelRoles?: RuntimeModelRoles;
 	commitPromptTemplate?: string;
@@ -54,6 +55,7 @@ export interface RuntimeConfigState {
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
+	maxConcurrentTasks: number;
 	readyForReviewNotificationsEnabled: boolean;
 	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
@@ -75,6 +77,7 @@ export interface RuntimeConfigUpdateInput {
 	agentTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
+	maxConcurrentTasks?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	modelRoles?: RuntimeModelRoles;
 	shortcuts?: RuntimeProjectShortcut[];
@@ -94,6 +97,7 @@ const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
+const DEFAULT_MAX_CONCURRENT_TASKS = 3;
 const DEFAULT_LOCAL_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -334,6 +338,14 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 	return fallback;
 }
 
+function normalizeMaxConcurrentTasks(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return DEFAULT_MAX_CONCURRENT_TASKS;
+	}
+	const normalized = Math.trunc(value);
+	return normalized > 0 ? normalized : DEFAULT_MAX_CONCURRENT_TASKS;
+}
+
 function normalizeShortcutLabel(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -436,6 +448,7 @@ function toRuntimeConfigState({
 		agentTimeoutMs: normalizeTimeoutMsValue(globalConfig?.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
+		maxConcurrentTasks: normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -475,6 +488,7 @@ async function writeRuntimeGlobalConfigFile(
 		agentTimeoutMs?: number | null;
 		conversationTimeoutMs?: number | null;
 		maxAgentWritableFileLines?: number;
+		maxConcurrentTasks?: number;
 		readyForReviewNotificationsEnabled?: boolean;
 		modelRoles?: RuntimeModelRoles;
 		commitPromptTemplate?: string;
@@ -528,6 +542,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.maxAgentWritableFileLines === undefined
 			? DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
 			: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines);
+	const maxConcurrentTasks =
+		config.maxConcurrentTasks === undefined
+			? DEFAULT_MAX_CONCURRENT_TASKS
+			: normalizeMaxConcurrentTasks(config.maxConcurrentTasks);
 	const readyForReviewNotificationsEnabled =
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
@@ -595,6 +613,9 @@ async function writeRuntimeGlobalConfigFile(
 		maxAgentWritableFileLines !== DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
 	) {
 		payload.maxAgentWritableFileLines = maxAgentWritableFileLines;
+	}
+	if (hasOwnKey(existing, "maxConcurrentTasks") || maxConcurrentTasks !== DEFAULT_MAX_CONCURRENT_TASKS) {
+		payload.maxConcurrentTasks = maxConcurrentTasks;
 	}
 	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
@@ -697,6 +718,7 @@ function createRuntimeConfigStateFromValues(input: {
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
+	maxConcurrentTasks: number;
 	readyForReviewNotificationsEnabled: boolean;
 	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
@@ -720,6 +742,7 @@ function createRuntimeConfigStateFromValues(input: {
 		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
+		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -748,6 +771,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		agentTimeoutMs: current.agentTimeoutMs,
 		conversationTimeoutMs: current.conversationTimeoutMs,
 		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
+		maxConcurrentTasks: current.maxConcurrentTasks,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		modelRoles: current.modelRoles,
 		shortcuts: [],
@@ -792,6 +816,7 @@ export async function saveRuntimeConfig(
 		agentTimeoutMs: number | null;
 		conversationTimeoutMs: number | null;
 		maxAgentWritableFileLines?: number;
+		maxConcurrentTasks?: number;
 		readyForReviewNotificationsEnabled: boolean;
 		modelRoles?: RuntimeModelRoles;
 		shortcuts: RuntimeProjectShortcut[];
@@ -813,6 +838,7 @@ export async function saveRuntimeConfig(
 			agentTimeoutMs: config.agentTimeoutMs,
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
+			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			modelRoles: config.modelRoles,
 			commitPromptTemplate: config.commitPromptTemplate,
@@ -833,6 +859,7 @@ export async function saveRuntimeConfig(
 			agentTimeoutMs: config.agentTimeoutMs,
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
+			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRoles(config.modelRoles),
 			shortcuts: config.shortcuts,
@@ -866,6 +893,10 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.maxAgentWritableFileLines === undefined
 					? current.maxAgentWritableFileLines
 					: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
+			maxConcurrentTasks:
+				updates.maxConcurrentTasks === undefined
+					? current.maxConcurrentTasks
+					: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
@@ -886,6 +917,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
 			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
+			nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
@@ -908,6 +940,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			agentTimeoutMs: nextConfig.agentTimeoutMs,
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
+			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			modelRoles: nextConfig.modelRoles,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
@@ -930,6 +963,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			agentTimeoutMs: nextConfig.agentTimeoutMs,
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
+			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			modelRoles: nextConfig.modelRoles,
 			shortcuts: nextConfig.shortcuts,
@@ -974,6 +1008,10 @@ export async function updateGlobalRuntimeConfig(
 					updates.maxAgentWritableFileLines === undefined
 						? current.maxAgentWritableFileLines
 						: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
+				maxConcurrentTasks:
+					updates.maxConcurrentTasks === undefined
+						? current.maxConcurrentTasks
+						: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 				modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
@@ -994,6 +1032,7 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
 				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
+				nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
@@ -1015,6 +1054,7 @@ export async function updateGlobalRuntimeConfig(
 				agentTimeoutMs: nextConfig.agentTimeoutMs,
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
+				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				modelRoles: nextConfig.modelRoles,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
@@ -1035,6 +1075,7 @@ export async function updateGlobalRuntimeConfig(
 				agentTimeoutMs: nextConfig.agentTimeoutMs,
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
+				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				modelRoles: nextConfig.modelRoles,
 				shortcuts: nextConfig.shortcuts,

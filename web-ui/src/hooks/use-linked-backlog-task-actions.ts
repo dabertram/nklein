@@ -30,6 +30,8 @@ export function useLinkedBacklogTaskActions({
 	cleanupTaskWorkspace,
 	maybeRequestNotificationPermissionForTaskStart,
 	kickoffTaskInProgress,
+	activeTaskSessionCount,
+	maxConcurrentTasks,
 	startBacklogTaskWithAnimation,
 	waitForBacklogStartAnimationAvailability,
 }: {
@@ -45,6 +47,8 @@ export function useLinkedBacklogTaskActions({
 		fromColumnId: BoardColumnId,
 		options?: { optimisticMove?: boolean },
 	) => Promise<boolean>;
+	activeTaskSessionCount: number;
+	maxConcurrentTasks: number;
 	startBacklogTaskWithAnimation?: (task: BoardCard) => Promise<boolean>;
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
 }): {
@@ -135,15 +139,19 @@ export function useLinkedBacklogTaskActions({
 			const readyTasks = finished.readyTaskIds
 				.map((readyTaskId) => findCardSelection(finished.board, readyTaskId)?.card ?? null)
 				.filter((readyTask): readyTask is BoardCard => readyTask !== null);
+			const normalizedMaxConcurrentTasks = Math.max(1, Math.trunc(maxConcurrentTasks));
+			const activeTasksAfterFinish = Math.max(0, activeTaskSessionCount - 1);
+			const availableStartSlots = Math.max(0, normalizedMaxConcurrentTasks - activeTasksAfterFinish);
+			const readyTasksToStart = readyTasks.slice(0, availableStartSlots);
 
-			if (readyTasks.length > 0) {
+			if (readyTasksToStart.length > 0) {
 				maybeRequestNotificationPermissionForTaskStart();
 				let startedTaskCount = 0;
 				if (startBacklogTaskWithAnimation) {
 					const startedTaskPromises: Promise<boolean>[] = [];
-					for (const [index, readyTask] of readyTasks.entries()) {
+					for (const [index, readyTask] of readyTasksToStart.entries()) {
 						startedTaskPromises.push(startBacklogTaskWithAnimation(readyTask));
-						if (index < readyTasks.length - 1) {
+						if (index < readyTasksToStart.length - 1) {
 							await waitForBacklogStartAnimationAvailability?.();
 						}
 					}
@@ -152,7 +160,7 @@ export function useLinkedBacklogTaskActions({
 				} else {
 					setBoard((currentBoardState) => {
 						let nextBoardState = currentBoardState;
-						for (const readyTask of readyTasks) {
+						for (const readyTask of readyTasksToStart) {
 							const moved = moveTaskToColumn(nextBoardState, readyTask.id, "in_progress", {
 								insertAtTop: true,
 							});
@@ -162,7 +170,7 @@ export function useLinkedBacklogTaskActions({
 						}
 						return nextBoardState;
 					});
-					for (const readyTask of readyTasks) {
+					for (const readyTask of readyTasksToStart) {
 						const started = await kickoffTaskInProgress(readyTask, readyTask.id, "backlog", {
 							optimisticMove: true,
 						});
@@ -180,8 +188,10 @@ export function useLinkedBacklogTaskActions({
 			await cleanupTaskWorkspace(task.id);
 		},
 		[
+			activeTaskSessionCount,
 			cleanupTaskWorkspace,
 			kickoffTaskInProgress,
+			maxConcurrentTasks,
 			maybeRequestNotificationPermissionForTaskStart,
 			setBoard,
 			setSelectedTaskId,

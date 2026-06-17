@@ -56,6 +56,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		agentTimeoutMs: null,
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks: 3,
 		readyForReviewNotificationsEnabled: true,
 		modelRoles,
 		shortcuts: [],

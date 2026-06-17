@@ -413,6 +413,7 @@ export function RuntimeSettingsDialog({
 	const [agentTimeoutMs, setAgentTimeoutMs] = useState("");
 	const [conversationTimeoutMs, setConversationTimeoutMs] = useState("");
 	const [maxAgentWritableFileLines, setMaxAgentWritableFileLines] = useState("1000");
+	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [initialThemeId, setInitialThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
@@ -496,6 +497,7 @@ export function RuntimeSettingsDialog({
 	const initialConversationTimeoutMs =
 		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
 	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
+	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
@@ -547,6 +549,9 @@ export function RuntimeSettingsDialog({
 		if (maxAgentWritableFileLines.trim() !== initialMaxAgentWritableFileLines.trim()) {
 			return true;
 		}
+		if (maxConcurrentTasks.trim() !== initialMaxConcurrentTasks.trim()) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -593,6 +598,7 @@ export function RuntimeSettingsDialog({
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
 		initialMaxAgentWritableFileLines,
+		initialMaxConcurrentTasks,
 		initialModelRoles,
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
@@ -603,6 +609,7 @@ export function RuntimeSettingsDialog({
 		initialThemeId,
 		initialToolTimeoutMs,
 		maxAgentWritableFileLines,
+		maxConcurrentTasks,
 		modelRoles,
 		openPrPromptTemplate,
 		requestTimeoutMs,
@@ -627,6 +634,7 @@ export function RuntimeSettingsDialog({
 		setAgentTimeoutMs(config?.agentTimeoutMs == null ? "" : String(config.agentTimeoutMs));
 		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
 		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
+		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		setShortcuts(config?.shortcuts ?? []);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
@@ -641,6 +649,7 @@ export function RuntimeSettingsDialog({
 		config?.commitPromptTemplate,
 		config?.conversationTimeoutMs,
 		config?.maxAgentWritableFileLines,
+		config?.maxConcurrentTasks,
 		config?.openPrPromptTemplate,
 		config?.requestTimeoutMs,
 		config?.readyForReviewNotificationsEnabled,
@@ -825,6 +834,7 @@ export function RuntimeSettingsDialog({
 		const parsedAgentTimeout = parseTimeoutMsInput(agentTimeoutMs);
 		const parsedConversationTimeout = parseTimeoutMsInput(conversationTimeoutMs);
 		const parsedMaxAgentWritableFileLines = parseTimeoutMsInput(maxAgentWritableFileLines);
+		const parsedMaxConcurrentTasks = parseTimeoutMsInput(maxConcurrentTasks);
 		if (
 			parsedRequestTimeout === "invalid" ||
 			parsedStreamTimeout === "invalid" ||
@@ -832,13 +842,21 @@ export function RuntimeSettingsDialog({
 			parsedAgentTimeout === "invalid" ||
 			parsedConversationTimeout === "invalid" ||
 			parsedMaxAgentWritableFileLines === "invalid" ||
-			parsedMaxAgentWritableFileLines === null
+			parsedMaxAgentWritableFileLines === null ||
+			parsedMaxConcurrentTasks === "invalid" ||
+			parsedMaxConcurrentTasks === null
 		) {
-			setSaveError("Timeout values must be integers >= 0; max writable file lines must be an integer >= 1.");
+			setSaveError(
+				"Timeout values must be integers >= 0; max writable file lines and max concurrent tasks must be integers >= 1.",
+			);
 			return;
 		}
 		if (parsedMaxAgentWritableFileLines < 1) {
 			setSaveError("Max writable file lines must be an integer >= 1.");
+			return;
+		}
+		if (parsedMaxConcurrentTasks < 1) {
+			setSaveError("Max concurrent tasks must be an integer >= 1.");
 			return;
 		}
 		if (!config) {
@@ -885,6 +903,7 @@ export function RuntimeSettingsDialog({
 			agentTimeoutMs: parsedAgentTimeout,
 			conversationTimeoutMs: parsedConversationTimeout,
 			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
+			maxConcurrentTasks: parsedMaxConcurrentTasks,
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			shortcuts,
@@ -1092,6 +1111,19 @@ export function RuntimeSettingsDialog({
 								/>
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
 									Maximum lines any agent write tool may create in a single file.
+								</p>
+							</div>
+							<div style={{ gridColumn: "1 / span 2" }}>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">maxConcurrentTasks</p>
+								<input
+									value={maxConcurrentTasks}
+									onChange={(event) => setMaxConcurrentTasks(event.target.value)}
+									placeholder="3"
+									disabled={controlsDisabled}
+									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+								/>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									Maximum dependency-unblocked tasks Kanban may start at once.
 								</p>
 							</div>
 						</div>

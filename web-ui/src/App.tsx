@@ -53,7 +53,7 @@ import { useTaskBranchOptions } from "@/hooks/use-task-branch-options";
 import { useTaskEditor } from "@/hooks/use-task-editor";
 import { useTaskSessions } from "@/hooks/use-task-sessions";
 import { useTaskStartActions } from "@/hooks/use-task-start-actions";
-import { useTerminalPanels } from "@/hooks/use-terminal-panels";
+import { isShellTerminalTaskId, useTerminalPanels } from "@/hooks/use-terminal-panels";
 import { useWorkspaceSync } from "@/hooks/use-workspace-sync";
 import { LayoutCustomizationsProvider } from "@/resize/layout-customizations";
 import { ResizableBottomPane } from "@/resize/resizable-bottom-pane";
@@ -179,6 +179,15 @@ export default function App(): ReactElement {
 		prepareWaitForConnection: prepareWaitForTerminalConnectionReady,
 	} = useTerminalConnectionReady();
 	const readyForReviewNotificationsEnabled = runtimeProjectConfig?.readyForReviewNotificationsEnabled ?? true;
+	const activeTaskSessionCount = useMemo(
+		() =>
+			Object.values(sessions).filter(
+				(session) =>
+					!isShellTerminalTaskId(session.taskId) &&
+					(session.state === "running" || session.state === "awaiting_review"),
+			).length,
+		[sessions],
+	);
 	const shortcuts = runtimeProjectConfig?.shortcuts ?? [];
 	const selectedShortcutLabel = useMemo(() => {
 		if (shortcuts.length === 0) {
@@ -594,6 +603,8 @@ export default function App(): ReactElement {
 		startTaskSession,
 		fetchTaskWorkspaceInfo,
 		sendTaskSessionInput,
+		activeTaskSessionCount,
+		maxConcurrentTasks: runtimeProjectConfig?.maxConcurrentTasks ?? 3,
 		readyForReviewNotificationsEnabled,
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
