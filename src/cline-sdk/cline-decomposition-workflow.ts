@@ -13,11 +13,12 @@ Write these artifacts under \`.cline/kanban/plans/<slug>/\`:
 - \`tasks.json\`: schemaVersion 1, slug, title, and tasks.
 
 Each task in \`tasks.json\` must include:
-- id, title, prompt, dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand.
+- id, title, prompt, dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, acceptanceTestPrompt.
 - A self-contained prompt with the relevant slice of the spec and exact acceptance criteria.
 - Complexity <= 75.
 - No more than 3 likely files.
 - A machine-checkable acceptanceCommand.
+- For suitable changes, set testFirst=true and include the exact acceptance test to write or update in acceptanceTestPrompt.
 
 Split or expand any leaf that cannot satisfy those limits. When artifacts are ready, tell the user to run:
 

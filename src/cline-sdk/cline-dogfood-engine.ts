@@ -334,6 +334,8 @@ export function buildClineDogfoodBacklog(options: BuildClineDogfoodBacklogOption
 				suggestedRole: candidate.requiresHumanApproval ? "architect" : "worker",
 				filesLikelyTouched: candidate.filesLikelyTouched,
 				acceptanceCommand: candidate.acceptanceCommand,
+				testFirst: false,
+				acceptanceTestPrompt: null,
 			})),
 		},
 	};

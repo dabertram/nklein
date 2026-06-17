@@ -63,6 +63,13 @@ function buildTaskPrompt(task: ClinePlanTask): string {
 	if (task.acceptanceCommand) {
 		sections.push(`Acceptance check: ${task.acceptanceCommand}`);
 	}
+	if (task.testFirst) {
+		const testInstructions = ["Test-first: write or update the acceptance test before implementation."];
+		if (task.acceptanceTestPrompt?.trim()) {
+			testInstructions.push(task.acceptanceTestPrompt.trim());
+		}
+		sections.push(testInstructions.join("\n"));
+	}
 	sections.push(`Complexity: ${Math.round(task.complexity)}/100`);
 	if (task.suggestedRole) {
 		sections.push(`Suggested role: ${task.suggestedRole}`);
@@ -73,6 +80,9 @@ function buildTaskPrompt(task: ClinePlanTask): string {
 function validateTaskSizingContract(task: ClinePlanTask): void {
 	if (!task.acceptanceCommand?.trim()) {
 		throw new Error(`Task ${task.id} is missing an acceptanceCommand; split or specify an objective check.`);
+	}
+	if (task.testFirst && !task.acceptanceTestPrompt?.trim()) {
+		throw new Error(`Task ${task.id} is test-first but missing an acceptanceTestPrompt.`);
 	}
 	if (task.complexity > MAX_DECOMPOSED_TASK_COMPLEXITY) {
 		throw new Error(

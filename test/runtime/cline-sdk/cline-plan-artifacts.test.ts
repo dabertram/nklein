@@ -42,6 +42,8 @@ describe("cline plan artifacts", () => {
 			suggestedRole: null,
 			filesLikelyTouched: [],
 			acceptanceCommand: null,
+			testFirst: false,
+			acceptanceTestPrompt: null,
 		});
 	});
 
@@ -66,6 +68,8 @@ describe("cline plan artifacts", () => {
 						suggestedRole: "worker",
 						filesLikelyTouched: ["src/storage.ts"],
 						acceptanceCommand: "npm test",
+						testFirst: true,
+						acceptanceTestPrompt: "Add a storage persistence test before implementing the storage adapter.",
 					},
 				],
 			},
@@ -77,5 +81,7 @@ describe("cline plan artifacts", () => {
 		expect(artifacts.plan).toBe("# Plan\n");
 		expect(artifacts.taskGraph.slug).toBe("habit-tracker");
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
+		expect(artifacts.taskGraph.tasks[0]?.testFirst).toBe(true);
+		expect(artifacts.taskGraph.tasks[0]?.acceptanceTestPrompt).toContain("storage persistence test");
 	});
 });

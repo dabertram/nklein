@@ -38,6 +38,8 @@ function createTaskGraph(): ClinePlanTaskGraph {
 				suggestedRole: "worker",
 				filesLikelyTouched: ["src/storage.ts"],
 				acceptanceCommand: "npm test",
+				testFirst: false,
+				acceptanceTestPrompt: null,
 			},
 			{
 				id: "ui",
@@ -48,6 +50,8 @@ function createTaskGraph(): ClinePlanTaskGraph {
 				suggestedRole: "worker",
 				filesLikelyTouched: ["src/App.tsx"],
 				acceptanceCommand: "npm test",
+				testFirst: false,
+				acceptanceTestPrompt: null,
 			},
 		],
 	};
@@ -129,6 +133,32 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	it("carries test-first decomposition instructions into created card prompts", () => {
+		const graph = createTaskGraph();
+		const storageTask = graph.tasks[0];
+		if (!storageTask) {
+			throw new Error("Expected storage task.");
+		}
+		graph.tasks[0] = {
+			...storageTask,
+			testFirst: true,
+			acceptanceTestPrompt: "Add a failing storage persistence test before changing src/storage.ts.",
+		};
+
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: graph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		expect(result.createdTasks[0]?.prompt).toContain(
+			"Test-first: write or update the acceptance test before implementation.",
+		);
+		expect(result.createdTasks[0]?.prompt).toContain("Add a failing storage persistence test");
+	});
+
 	it("applies Cline settings from suggested task roles", () => {
 		const result = applyClinePlanTaskGraphToBoard({
 			board: createBoard(),
@@ -196,6 +226,28 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 				randomUuid: () => "unused",
 			}),
 		).toThrow("missing an acceptanceCommand");
+	});
+
+	it("rejects test-first tasks without acceptance test instructions", () => {
+		const graph = createTaskGraph();
+		const storageTask = graph.tasks[0];
+		if (!storageTask) {
+			throw new Error("Expected storage task.");
+		}
+		graph.tasks[0] = {
+			...storageTask,
+			testFirst: true,
+			acceptanceTestPrompt: "",
+		};
+
+		expect(() =>
+			applyClinePlanTaskGraphToBoard({
+				board: createBoard(),
+				taskGraph: graph,
+				baseRef: "main",
+				randomUuid: () => "unused",
+			}),
+		).toThrow("missing an acceptanceTestPrompt");
 	});
 
 	it("rejects oversized task leaves by complexity and likely file count", () => {

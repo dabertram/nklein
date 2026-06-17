@@ -12,6 +12,8 @@ export const clinePlanTaskSchema = z.object({
 	suggestedRole: z.string().nullable().default(null),
 	filesLikelyTouched: z.array(z.string()).default([]),
 	acceptanceCommand: z.string().nullable().default(null),
+	testFirst: z.boolean().default(false),
+	acceptanceTestPrompt: z.string().nullable().default(null),
 });
 export type ClinePlanTask = z.infer<typeof clinePlanTaskSchema>;
 
