@@ -66,6 +66,8 @@ describe("renderAppendSystemPrompt", () => {
 		expect(rendered).toContain("Provide exactly one of");
 		expect(rendered).toContain("task delete --column done");
 		expect(rendered).toContain("kanban task link");
+		expect(rendered).toContain("kanban task decompose --slug");
+		expect(rendered).toContain(".cline/kanban/plans/<slug>");
 		expect(rendered).toContain("If a task command fails because the runtime is unavailable");
 		expect(rendered).toContain("If the user asks for GitHub work");
 		expect(rendered).toContain("gh issue view");

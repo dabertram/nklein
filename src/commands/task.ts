@@ -1,6 +1,8 @@
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
+import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
+import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
@@ -651,6 +653,60 @@ async function linkTasks(input: {
 		ok: true,
 		workspacePath: workspaceRepoPath,
 		dependency,
+	};
+}
+
+async function decomposeTaskGraph(input: {
+	cwd: string;
+	slug: string;
+	projectPath?: string;
+	baseRef?: string;
+}): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
+	const runtimeClient = createRuntimeTrpcClient(workspaceId);
+	const artifacts = await readClinePlanArtifacts(workspaceRepoPath, input.slug);
+	const applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
+		const resolvedBaseRef = (input.baseRef ?? "").trim() || resolveTaskBaseRef(runtimeState);
+		if (!resolvedBaseRef) {
+			throw new Error("Could not determine task base branch for this workspace.");
+		}
+		const result = applyClinePlanTaskGraphToBoard({
+			board: runtimeState.board,
+			taskGraph: artifacts.taskGraph,
+			baseRef: resolvedBaseRef,
+			randomUuid: () => globalThis.crypto.randomUUID(),
+		});
+		const nextState: RuntimeWorkspaceStateResponse = {
+			...runtimeState,
+			board: result.board,
+		};
+		return {
+			board: result.board,
+			value: {
+				createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "backlog")),
+				createdDependencies: result.createdDependencies.map((dependency) =>
+					formatDependencyRecord(nextState, dependency),
+				),
+				taskIdByPlanTaskId: result.taskIdByPlanTaskId,
+			},
+		};
+	});
+
+	return {
+		ok: true,
+		workspacePath: workspaceRepoPath,
+		plan: {
+			slug: artifacts.taskGraph.slug,
+			title: artifacts.taskGraph.title,
+			specPath: artifacts.specPath,
+			planPath: artifacts.planPath,
+			taskGraphPath: artifacts.taskGraphPath,
+		},
+		tasks: applied.createdTasks,
+		dependencies: applied.createdDependencies,
+		taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+		count: applied.createdTasks.length,
 	};
 }
 
@@ -1358,6 +1414,24 @@ export function registerTaskCommand(program: Command): void {
 						taskId: options.taskId,
 						linkedTaskId: options.linkedTaskId,
 						projectPath: options.projectPath,
+					}),
+			);
+		});
+
+	task
+		.command("decompose")
+		.description("Create backlog tasks and dependency links from a saved Cline plan task graph.")
+		.requiredOption("--slug <slug>", "Plan slug under .cline/kanban/plans/<slug>.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.option("--base-ref <branch>", "Task base branch/ref. Defaults to the workspace branch.")
+		.action(async (options: { slug: string; projectPath?: string; baseRef?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await decomposeTaskGraph({
+						cwd: process.cwd(),
+						slug: options.slug,
+						projectPath: options.projectPath,
+						baseRef: options.baseRef,
 					}),
 			);
 		});

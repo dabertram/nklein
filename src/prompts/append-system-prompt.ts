@@ -290,6 +290,23 @@ Notes:
 - Once only one linked task remains in backlog, Kanban reorients the saved dependency so the backlog task is the waiting dependent task and the other task is the prerequisite.
 - When the prerequisite task finishes review and is moved to completed, the waiting backlog task auto-starts.
 
+## task decompose
+
+Purpose: create backlog tasks and dependency links from an approved saved plan task graph.
+
+Command:
+\`${kanbanCommand} task decompose --slug <plan_slug> [--project-path <path>] [--base-ref <branch>]\`
+
+Parameters:
+- \`--slug <plan_slug>\` required plan slug under \`.cline/kanban/plans/<slug>\`.
+- \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
+- \`--base-ref <branch>\` optional base branch/worktree ref for all generated tasks. Defaults to current branch, then default branch, then first known branch.
+
+Notes:
+- Use this after a planning session has written \`spec.md\`, \`plan.md\`, and \`tasks.json\` under \`.cline/kanban/plans/<slug>\`.
+- Each generated task is created in backlog with Cline as its agent and auto-review enabled.
+- Dependency links from \`tasks.json\` are applied automatically.
+
 ## task unlink
 
 Purpose: remove an existing task link (dependency) by dependency ID.
