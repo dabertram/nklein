@@ -273,6 +273,102 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("loads and normalizes model role settings from global config", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-roles-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-roles-");
+
+		try {
+			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			mkdirSync(runtimeConfigDir, { recursive: true });
+			writeFileSync(
+				join(runtimeConfigDir, "config.json"),
+				JSON.stringify(
+					{
+						modelRoles: {
+							" worker ": {
+								providerId: " ollama ",
+								modelId: " qwen3.5-9b ",
+								reasoningEffort: "medium",
+								contextScope: "minimal",
+							},
+							broken: {
+								reasoningEffort: "ultra",
+							},
+						},
+					},
+					null,
+					2,
+				),
+				"utf8",
+			);
+
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const state = await loadRuntimeConfig(tempProject);
+				expect(state.modelRoles).toEqual({
+					worker: {
+						providerId: "ollama",
+						modelId: "qwen3.5-9b",
+						reasoningEffort: "medium",
+						contextScope: "minimal",
+					},
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("updates and persists model role settings", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-update-roles-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-update-roles-",
+		);
+
+		try {
+			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			mkdirSync(runtimeConfigDir, { recursive: true });
+			writeFileSync(join(runtimeConfigDir, "config.json"), "{}", "utf8");
+
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const updated = await updateRuntimeConfig(tempProject, {
+					modelRoles: {
+						architect: {
+							providerId: "anthropic",
+							modelId: "claude-sonnet",
+							reasoningEffort: "high",
+						},
+						worker: {
+							providerId: "ollama",
+							modelId: "qwen3.5-9b",
+						},
+					},
+				});
+
+				expect(updated.modelRoles.worker?.modelId).toBe("qwen3.5-9b");
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+				) as {
+					modelRoles?: Record<string, unknown>;
+				};
+				expect(globalPayload.modelRoles).toMatchObject({
+					architect: {
+						providerId: "anthropic",
+						modelId: "claude-sonnet",
+						reasoningEffort: "high",
+					},
+					worker: {
+						providerId: "ollama",
+						modelId: "qwen3.5-9b",
+					},
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("save omits default keys when they were not previously set", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-omit-defaults-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir(

@@ -31,6 +31,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		readyForReviewNotificationsEnabled: true,
+		modelRoles: {},
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",
@@ -71,6 +72,12 @@ describe("buildRuntimeConfigResponse", () => {
 	it("keeps curated agent default args independent of autonomous mode", () => {
 		const config = createRuntimeConfigState({
 			agentAutonomousModeEnabled: true,
+			modelRoles: {
+				worker: {
+					providerId: "ollama",
+					modelId: "qwen3.5-9b",
+				},
+			},
 		});
 
 		const response = buildRuntimeConfigResponse(config, {
@@ -86,6 +93,12 @@ describe("buildRuntimeConfigResponse", () => {
 		});
 
 		expect(response.agentAutonomousModeEnabled).toBe(true);
+		expect(response.modelRoles).toEqual({
+			worker: {
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
+			},
+		});
 		expect(response.agents.map((agent) => agent.id)).toEqual(["claude", "codex", "cline", "droid", "kiro"]);
 		expect(response.agents.find((agent) => agent.id === "claude")?.defaultArgs).toEqual([]);
 		expect(response.agents.find((agent) => agent.id === "codex")?.defaultArgs).toEqual([]);

@@ -128,6 +128,7 @@ export function buildRuntimeConfigResponse(
 		agents,
 		shortcuts: runtimeConfig.shortcuts,
 		clineProviderSettings,
+		modelRoles: runtimeConfig.modelRoles,
 		commitPromptTemplate: runtimeConfig.commitPromptTemplate,
 		openPrPromptTemplate: runtimeConfig.openPrPromptTemplate,
 		commitPromptTemplateDefault: runtimeConfig.commitPromptTemplateDefault,

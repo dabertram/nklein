@@ -118,6 +118,8 @@ export const runtimeTaskClineSettingsSchema = z.object({
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 });
 export type RuntimeTaskClineSettings = z.infer<typeof runtimeTaskClineSettingsSchema>;
+export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeTaskClineSettingsSchema);
+export type RuntimeModelRoles = z.infer<typeof runtimeModelRolesSchema>;
 export const runtimeTaskImageSchema = z.object({
 	id: z.string(),
 	data: z.string(),
@@ -1041,6 +1043,7 @@ export const runtimeConfigResponseSchema = z.object({
 	agents: z.array(runtimeAgentDefinitionSchema),
 	shortcuts: z.array(runtimeProjectShortcutSchema),
 	clineProviderSettings: runtimeClineProviderSettingsSchema,
+	modelRoles: runtimeModelRolesSchema,
 	commitPromptTemplate: z.string(),
 	openPrPromptTemplate: z.string(),
 	commitPromptTemplateDefault: z.string(),
@@ -1061,6 +1064,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	maxAgentWritableFileLines: z.number().int().positive().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
+	modelRoles: runtimeModelRolesSchema.optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),
 	openPrPromptTemplate: z.string().optional(),

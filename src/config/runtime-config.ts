@@ -10,8 +10,10 @@ import type {
 	RuntimeAgentId,
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
+	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 } from "../core/api-contract";
+import { runtimeTaskClineSettingsSchema } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
@@ -29,6 +31,7 @@ interface RuntimeGlobalConfigFileShape {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	readyForReviewNotificationsEnabled?: boolean;
+	modelRoles?: RuntimeModelRoles;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 }
@@ -52,6 +55,7 @@ export interface RuntimeConfigState {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	readyForReviewNotificationsEnabled: boolean;
+	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -72,6 +76,7 @@ export interface RuntimeConfigUpdateInput {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	readyForReviewNotificationsEnabled?: boolean;
+	modelRoles?: RuntimeModelRoles;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -275,6 +280,45 @@ function normalizeShortcuts(shortcuts: RuntimeProjectShortcut[] | null | undefin
 	return normalized;
 }
 
+function normalizeModelRoles(value: unknown): RuntimeModelRoles {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return {};
+	}
+	const normalized: RuntimeModelRoles = {};
+	for (const [rawRole, rawSettings] of Object.entries(value as Record<string, unknown>)) {
+		const role = rawRole.trim();
+		if (!role) {
+			continue;
+		}
+		const parsedSettings = runtimeTaskClineSettingsSchema.safeParse(rawSettings);
+		if (!parsedSettings.success) {
+			continue;
+		}
+		const settings = parsedSettings.data;
+		const providerId = settings.providerId?.trim();
+		const modelId = settings.modelId?.trim();
+		normalized[role] = {
+			...(providerId ? { providerId } : {}),
+			...(modelId ? { modelId } : {}),
+			...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+			...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+			...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
+			...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
+			...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
+			...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
+			...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
+			...(settings.conversationTimeoutMs !== undefined
+				? { conversationTimeoutMs: settings.conversationTimeoutMs }
+				: {}),
+		};
+	}
+	return normalized;
+}
+
+function areModelRolesEqual(left: RuntimeModelRoles, right: RuntimeModelRoles): boolean {
+	return JSON.stringify(normalizeModelRoles(left)) === JSON.stringify(normalizeModelRoles(right));
+}
+
 function normalizePromptTemplate(value: unknown, fallback: string): string {
 	if (typeof value !== "string") {
 		return fallback;
@@ -396,6 +440,7 @@ function toRuntimeConfigState({
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
+		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplate(globalConfig?.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
 		openPrPromptTemplate: normalizePromptTemplate(
@@ -431,6 +476,7 @@ async function writeRuntimeGlobalConfigFile(
 		conversationTimeoutMs?: number | null;
 		maxAgentWritableFileLines?: number;
 		readyForReviewNotificationsEnabled?: boolean;
+		modelRoles?: RuntimeModelRoles;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
 	},
@@ -486,6 +532,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
 			: normalizeBoolean(config.readyForReviewNotificationsEnabled, DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED);
+	const modelRoles =
+		config.modelRoles === undefined
+			? normalizeModelRoles(existing?.modelRoles)
+			: normalizeModelRoles(config.modelRoles);
 	const commitPromptTemplate =
 		config.commitPromptTemplate === undefined
 			? DEFAULT_COMMIT_PROMPT_TEMPLATE
@@ -551,6 +601,9 @@ async function writeRuntimeGlobalConfigFile(
 		readyForReviewNotificationsEnabled !== DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
 	) {
 		payload.readyForReviewNotificationsEnabled = readyForReviewNotificationsEnabled;
+	}
+	if (hasOwnKey(existing, "modelRoles") || Object.keys(modelRoles).length > 0) {
+		payload.modelRoles = modelRoles;
 	}
 	if (hasOwnKey(existing, "commitPromptTemplate") || commitPromptTemplate !== DEFAULT_COMMIT_PROMPT_TEMPLATE) {
 		payload.commitPromptTemplate = commitPromptTemplate;
@@ -645,6 +698,7 @@ function createRuntimeConfigStateFromValues(input: {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	readyForReviewNotificationsEnabled: boolean;
+	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -670,6 +724,7 @@ function createRuntimeConfigStateFromValues(input: {
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
+		modelRoles: normalizeModelRoles(input.modelRoles),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplate(input.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
 		openPrPromptTemplate: normalizePromptTemplate(input.openPrPromptTemplate, DEFAULT_OPEN_PR_PROMPT_TEMPLATE),
@@ -694,6 +749,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		conversationTimeoutMs: current.conversationTimeoutMs,
 		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
+		modelRoles: current.modelRoles,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
 		openPrPromptTemplate: current.openPrPromptTemplate,
@@ -737,6 +793,7 @@ export async function saveRuntimeConfig(
 		conversationTimeoutMs: number | null;
 		maxAgentWritableFileLines?: number;
 		readyForReviewNotificationsEnabled: boolean;
+		modelRoles?: RuntimeModelRoles;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
 		openPrPromptTemplate: string;
@@ -757,6 +814,7 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
+			modelRoles: config.modelRoles,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
@@ -776,6 +834,7 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
+			modelRoles: normalizeModelRoles(config.modelRoles),
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
@@ -809,6 +868,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 					: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
+			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -827,6 +887,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
+			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
 			!areRuntimeProjectShortcutsEqual(nextConfig.shortcuts, current.shortcuts);
@@ -848,6 +909,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+			modelRoles: nextConfig.modelRoles,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 		});
@@ -869,6 +931,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+			modelRoles: nextConfig.modelRoles,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -913,6 +976,7 @@ export async function updateGlobalRuntimeConfig(
 						: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
+				modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
 				shortcuts: current.shortcuts,
 				commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 				openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -931,6 +995,7 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
+				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
 
@@ -951,6 +1016,7 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+				modelRoles: nextConfig.modelRoles,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 			});
@@ -970,6 +1036,7 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+				modelRoles: nextConfig.modelRoles,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,

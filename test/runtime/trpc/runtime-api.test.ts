@@ -200,6 +200,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		readyForReviewNotificationsEnabled: true,
+		modelRoles: {},
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",
