@@ -31,6 +31,11 @@ import type { RuntimeClineMcpServer, RuntimeClineReasoningEffort } from "@/runti
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useCopyToClipboard } from "@/utils/react-use";
 
+const MODEL_PICKER_DROPDOWN_STYLE = {
+	width: "min(760px, calc(100vw - 48px))",
+	maxWidth: "calc(100vw - 48px)",
+};
+
 function formatExpiry(value: string): string {
 	const trimmed = value.trim();
 	if (trimmed.length === 0) {
@@ -329,7 +334,7 @@ export function ClineSetupSection({
 		<>
 			<div className="mt-2">
 				<p className="text-text-primary font-semibold text-[12px] mt-0 mb-2">API provider</p>
-				<div className="min-w-0 w-1/2 max-w-full">
+				<div className="min-w-0 w-full max-w-3xl">
 					<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
 						<div className="min-w-0">
 							<SearchSelectDropdown
@@ -362,6 +367,8 @@ export function ClineSetupSection({
 								noResultsText="No matching providers"
 								placeholder="Search providers..."
 								showSelectedIndicator
+								matchTargetWidth={false}
+								dropdownStyle={MODEL_PICKER_DROPDOWN_STYLE}
 								footerAction={{
 									label: "+ New Provider",
 									onClick: () => {
@@ -657,6 +664,8 @@ export function ClineSetupSection({
 							recommendedOptionValues={modelPickerOptions.recommendedModelIds}
 							recommendedHeading="Recommended models"
 							allowCustomValue={!isLmStudioProviderSelected}
+							matchTargetWidth={false}
+							dropdownStyle={MODEL_PICKER_DROPDOWN_STYLE}
 						/>
 					</div>
 					{controller.selectedModelSupportsReasoningEffort ? (

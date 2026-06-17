@@ -315,6 +315,7 @@ export function SearchSelectDropdown({
 					disabled={disabled}
 					className={cn(fill && "justify-between text-left", buttonClassName)}
 					style={buttonStyle}
+					title={typeof resolvedButtonText === "string" ? resolvedButtonText : undefined}
 				>
 					<span className="flex-1 truncate text-left">{resolvedButtonText}</span>
 				</Button>

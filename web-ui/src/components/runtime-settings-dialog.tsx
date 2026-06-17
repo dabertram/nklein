@@ -1831,9 +1831,13 @@ export function RuntimeSettingsDialog({
 	const currentThemeDef = THEMES.find((t) => t.id === draftThemeId);
 
 	return (
-		<Dialog open={open} onOpenChange={handleDialogOpenChange} contentClassName="!max-w-[780px]">
+		<Dialog
+			open={open}
+			onOpenChange={handleDialogOpenChange}
+			contentClassName="!w-[min(1240px,calc(100vw-24px))] !max-w-none !max-h-[calc(100vh-24px)]"
+		>
 			<DialogHeader title="Settings" icon={<Settings size={16} />} />
-			<div className="flex h-[min(480px,60vh)]">
+			<div className="flex h-[min(760px,calc(100vh-120px))]">
 				<SettingsNav items={navItems} activeId={activeSection} onSelect={handleNavSelect} />
 				<div
 					ref={bodyRef}
@@ -2121,6 +2125,11 @@ export function RuntimeSettingsDialog({
 											const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
 											const roleModels = getModelRoleProviderModels(effectiveProviderId);
 											const selectedRoleModelId = roleSettings.modelId ?? "";
+											const selectedRoleModel =
+												roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
+											const selectedRoleModelLabel = selectedRoleModel
+												? formatModelOptionLabel(selectedRoleModel)
+												: selectedRoleModelId || undefined;
 											const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
 											const hasSelectedRoleModel =
 												selectedRoleModelId.length > 0 &&
@@ -2132,7 +2141,7 @@ export function RuntimeSettingsDialog({
 											const roleContextWarning = getModelRoleContextWarning(roleId);
 											return (
 												<div key={roleId} className="grid gap-1">
-													<div className="grid items-end gap-2 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_120px_34px]">
+													<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
 														<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
 															{MODEL_ROLE_LABELS[roleId]}
 														</div>
@@ -2176,6 +2185,7 @@ export function RuntimeSettingsDialog({
 																id={modelSelectId}
 																fill
 																value={selectedRoleModelId}
+																title={selectedRoleModelLabel}
 																onChange={(event) =>
 																	handleModelRoleModelChange(roleId, event.target.value)
 																}
@@ -2232,12 +2242,12 @@ export function RuntimeSettingsDialog({
 														/>
 													</div>
 													{roleAvailabilityWarning ? (
-														<p className="m-0 text-[12px] text-status-orange md:ml-[118px]">
+														<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
 															{roleAvailabilityWarning}
 														</p>
 													) : null}
 													{!roleAvailabilityWarning && roleContextWarning ? (
-														<p className="m-0 text-[12px] text-status-orange md:ml-[118px]">
+														<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
 															{roleContextWarning}
 														</p>
 													) : null}
