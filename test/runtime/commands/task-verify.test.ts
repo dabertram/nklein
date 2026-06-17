@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { runVerifyTaskAcceptanceCommand } from "../../../src/commands/task";
+import { recordDecompositionRejection, runVerifyTaskAcceptanceCommand } from "../../../src/commands/task";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
 
@@ -231,6 +231,39 @@ describe("task verify command helper", () => {
 			taskWorkspacePath: "/repo",
 			acceptance: {
 				present: false,
+			},
+		});
+	});
+});
+
+describe("task decompose command telemetry", () => {
+	it("records rejected plan task graphs for self-observation", () => {
+		const recordObservation = vi.fn();
+
+		recordDecompositionRejection({
+			workspacePath: "/repo",
+			slug: "checkout-rework",
+			title: "Checkout rework",
+			specPath: "/repo/.cline/kanban/plans/checkout-rework/spec.md",
+			planPath: "/repo/.cline/kanban/plans/checkout-rework/plan.md",
+			taskGraphPath: "/repo/.cline/kanban/plans/checkout-rework/tasks.json",
+			error: new Error("Task api has complexity 90/100; split it below 75/100 before decomposing."),
+			recordObservation,
+		});
+
+		expect(recordObservation).toHaveBeenCalledWith({
+			signal: "decomposition_rejected",
+			severity: "warning",
+			message:
+				'Task decomposition rejected for plan "checkout-rework": Task api has complexity 90/100; split it below 75/100 before decomposing.',
+			workspacePath: "/repo",
+			metadata: {
+				slug: "checkout-rework",
+				title: "Checkout rework",
+				specPath: "/repo/.cline/kanban/plans/checkout-rework/spec.md",
+				planPath: "/repo/.cline/kanban/plans/checkout-rework/plan.md",
+				taskGraphPath: "/repo/.cline/kanban/plans/checkout-rework/tasks.json",
+				error: "Task api has complexity 90/100; split it below 75/100 before decomposing.",
 			},
 		});
 	});

@@ -31,6 +31,7 @@ import {
 } from "../core/task-board-mutations";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 
@@ -54,6 +55,18 @@ interface RuntimeWorkspaceMutationResult<T> {
 }
 
 type JsonRecord = Record<string, unknown>;
+type RecordSelfObservation = typeof recordSelfObservation;
+
+interface DecompositionRejectionInput {
+	workspacePath: string;
+	slug: string;
+	title?: string;
+	specPath?: string;
+	planPath?: string;
+	taskGraphPath?: string;
+	error: unknown;
+	recordObservation?: RecordSelfObservation;
+}
 
 interface VerifyTaskAcceptanceDependencies {
 	resolveWorkspaceRepoPath?: typeof resolveWorkspaceRepoPath;
@@ -72,6 +85,24 @@ function toErrorMessage(error: unknown): string {
 
 function printJson(payload: unknown): void {
 	process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+export function recordDecompositionRejection(input: DecompositionRejectionInput): void {
+	const message = toErrorMessage(input.error);
+	(input.recordObservation ?? recordSelfObservation)({
+		signal: "decomposition_rejected",
+		severity: "warning",
+		message: `Task decomposition rejected for plan "${input.slug}": ${message}`,
+		workspacePath: input.workspacePath,
+		metadata: {
+			slug: input.slug,
+			title: input.title ?? null,
+			specPath: input.specPath ?? null,
+			planPath: input.planPath ?? null,
+			taskGraphPath: input.taskGraphPath ?? null,
+			error: message,
+		},
+	});
 }
 
 function parseListColumn(value: string | undefined): ListTaskColumn | undefined {
@@ -680,33 +711,51 @@ async function decomposeTaskGraph(input: {
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
 	const artifacts = await readClinePlanArtifacts(workspaceRepoPath, input.slug);
 	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
-	const applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
-		const resolvedBaseRef = (input.baseRef ?? "").trim() || resolveTaskBaseRef(runtimeState);
-		if (!resolvedBaseRef) {
-			throw new Error("Could not determine task base branch for this workspace.");
-		}
-		const result = applyClinePlanTaskGraphToBoard({
-			board: runtimeState.board,
-			taskGraph: artifacts.taskGraph,
-			baseRef: resolvedBaseRef,
-			randomUuid: () => globalThis.crypto.randomUUID(),
-			modelRoleSettings: runtimeConfig.modelRoles,
+	let applied: {
+		createdTasks: JsonRecord[];
+		createdDependencies: JsonRecord[];
+		taskIdByPlanTaskId: Record<string, string>;
+	};
+	try {
+		applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
+			const resolvedBaseRef = (input.baseRef ?? "").trim() || resolveTaskBaseRef(runtimeState);
+			if (!resolvedBaseRef) {
+				throw new Error("Could not determine task base branch for this workspace.");
+			}
+			const result = applyClinePlanTaskGraphToBoard({
+				board: runtimeState.board,
+				taskGraph: artifacts.taskGraph,
+				baseRef: resolvedBaseRef,
+				randomUuid: () => globalThis.crypto.randomUUID(),
+				modelRoleSettings: runtimeConfig.modelRoles,
+			});
+			const nextState: RuntimeWorkspaceStateResponse = {
+				...runtimeState,
+				board: result.board,
+			};
+			return {
+				board: result.board,
+				value: {
+					createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "backlog")),
+					createdDependencies: result.createdDependencies.map((dependency) =>
+						formatDependencyRecord(nextState, dependency),
+					),
+					taskIdByPlanTaskId: result.taskIdByPlanTaskId,
+				},
+			};
 		});
-		const nextState: RuntimeWorkspaceStateResponse = {
-			...runtimeState,
-			board: result.board,
-		};
-		return {
-			board: result.board,
-			value: {
-				createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "backlog")),
-				createdDependencies: result.createdDependencies.map((dependency) =>
-					formatDependencyRecord(nextState, dependency),
-				),
-				taskIdByPlanTaskId: result.taskIdByPlanTaskId,
-			},
-		};
-	});
+	} catch (error) {
+		recordDecompositionRejection({
+			workspacePath: workspaceRepoPath,
+			slug: artifacts.taskGraph.slug,
+			title: artifacts.taskGraph.title,
+			specPath: artifacts.specPath,
+			planPath: artifacts.planPath,
+			taskGraphPath: artifacts.taskGraphPath,
+			error,
+		});
+		throw error;
+	}
 
 	return {
 		ok: true,
