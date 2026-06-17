@@ -53,6 +53,17 @@ function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardCol
 	return summary.mode === "plan" ? "planning" : "in_progress";
 }
 
+function buildDecompositionPlanningPrompt(task: BoardCard): string {
+	return [
+		"/kanban-decompose",
+		"",
+		"Project-scale task to decompose:",
+		`Title: ${task.title}`,
+		"",
+		task.prompt.trim(),
+	].join("\n");
+}
+
 interface UseBoardInteractionsInput {
 	board: BoardData;
 	setBoard: Dispatch<SetStateAction<BoardData>>;
@@ -89,6 +100,7 @@ export interface UseBoardInteractionsResult {
 	handleDragEnd: (result: DropResult, options?: { selectDroppedTask?: boolean }) => void;
 	handleStartTask: (taskId: string) => void;
 	handleStartAllBacklogTasks: (taskIds?: string[]) => void;
+	handleDecomposeTask: (taskId: string) => void;
 	handleDetailTaskDragEnd: (result: DropResult) => void;
 	handleCardSelect: (taskId: string) => void;
 	handleMoveToTrash: () => void;
@@ -741,6 +753,41 @@ export function useBoardInteractions({
 		],
 	);
 
+	const handleDecomposeTask = useCallback(
+		(taskId: string) => {
+			const selection = findCardSelection(board, taskId);
+			if (selection?.column.id !== "backlog" || selection.card.blockedKind !== "needs_decomposition") {
+				return;
+			}
+			void (async () => {
+				const ensured = await ensureTaskWorkspace(selection.card);
+				if (!ensured.ok) {
+					notifyError(ensured.message ?? "Could not set up task workspace.");
+					return;
+				}
+				const started = await startTaskSession(selection.card, {
+					mode: "plan",
+					startInPlanMode: true,
+					promptOverride: buildDecompositionPlanningPrompt(selection.card),
+				});
+				if (!started.ok) {
+					notifyError(started.message ?? "Could not start decomposition planning.");
+					return;
+				}
+				setBoard((currentBoard) => {
+					const moved = moveTaskToColumn(currentBoard, taskId, "planning", { insertAtTop: true });
+					if (!moved.moved) {
+						return currentBoard;
+					}
+					const cleared = updateTaskBlockedState(moved.board, taskId, null);
+					return cleared.updated ? cleared.board : moved.board;
+				});
+				setSelectedTaskId(taskId);
+			})();
+		},
+		[board, ensureTaskWorkspace, setBoard, setSelectedTaskId, startTaskSession],
+	);
+
 	const handleDetailTaskDragEnd = useCallback(
 		(result: DropResult) => {
 			handleDragEnd(result);
@@ -908,6 +955,7 @@ export function useBoardInteractions({
 		handleDragEnd,
 		handleStartTask,
 		handleStartAllBacklogTasks,
+		handleDecomposeTask,
 		handleDetailTaskDragEnd,
 		handleCardSelect,
 		handleMoveToTrash,

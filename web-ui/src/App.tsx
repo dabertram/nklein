@@ -574,6 +574,7 @@ export default function App(): ReactElement {
 		handleDragEnd,
 		handleStartTask,
 		handleStartAllBacklogTasks,
+		handleDecomposeTask,
 		handleDetailTaskDragEnd,
 		handleCardSelect,
 		handleMoveToTrash,
@@ -955,6 +956,7 @@ export default function App(): ReactElement {
 												onCardSelect={handleCardSelect}
 												onCreateTask={handleOpenCreateTask}
 												onStartTask={handleStartTaskFromBoard}
+												onDecomposeTask={handleDecomposeTask}
 												onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 												onClearTrash={handleOpenClearTrash}
 												editingTaskId={editingTaskId}

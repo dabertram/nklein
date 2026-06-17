@@ -276,6 +276,7 @@ export function BoardCard({
 	selected = false,
 	onClick,
 	onStart,
+	onDecompose,
 	onMoveToTrash,
 	onRestoreFromTrash,
 	onSaveTitle,
@@ -300,6 +301,7 @@ export function BoardCard({
 	selected?: boolean;
 	onClick?: () => void;
 	onStart?: (taskId: string) => void;
+	onDecompose?: (taskId: string) => void;
 	onMoveToTrash?: (taskId: string) => void;
 	onRestoreFromTrash?: (taskId: string) => void;
 	onSaveTitle?: (taskId: string, title: string) => void;
@@ -792,7 +794,25 @@ export function BoardCard({
 							{blockedReason ? (
 								<div className="mt-2 flex items-start gap-1.5 rounded-md border border-status-orange/40 bg-status-orange/10 px-2 py-1.5 text-[11px] leading-snug text-status-orange">
 									<AlertTriangle size={12} className="mt-0.5 shrink-0" />
-									<p className="m-0 min-w-0">{blockedReason}</p>
+									<div className="min-w-0 flex-1">
+										<p className="m-0 min-w-0">{blockedReason}</p>
+										{columnId === "backlog" && onDecompose ? (
+											<div className="mt-1">
+												<Button
+													icon={<GitBranch size={12} />}
+													variant="ghost"
+													size="sm"
+													onMouseDown={stopEvent}
+													onClick={(event) => {
+														stopEvent(event);
+														onDecompose(card.id);
+													}}
+												>
+													Decompose
+												</Button>
+											</div>
+										) : null}
+									</div>
 								</div>
 							) : null}
 							{sessionActivity ? (

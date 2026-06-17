@@ -74,6 +74,7 @@ interface HookSnapshot {
 	handleRestoreTaskFromTrash: (taskId: string) => void;
 	handleStartTask: (taskId: string) => void;
 	handleStartAllBacklogTasks: (taskIds?: string[]) => void;
+	handleDecomposeTask: (taskId: string) => void;
 	handleCardSelect: (taskId: string) => void;
 }
 
@@ -149,10 +150,12 @@ function HookHarness({
 			handleRestoreTaskFromTrash: actions.handleRestoreTaskFromTrash,
 			handleStartTask: actions.handleStartTask,
 			handleStartAllBacklogTasks: actions.handleStartAllBacklogTasks,
+			handleDecomposeTask: actions.handleDecomposeTask,
 			handleCardSelect: actions.handleCardSelect,
 		});
 	}, [
 		actions.handleCardSelect,
+		actions.handleDecomposeTask,
 		actions.handleRestoreTaskFromTrash,
 		actions.handleStartAllBacklogTasks,
 		actions.handleStartTask,
@@ -997,5 +1000,85 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(setSelectedTaskId).not.toHaveBeenCalled();
+	});
+
+	it("starts blocked backlog tasks in planning mode for decomposition", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							...createTask("task-1", "Build a large feature", 1),
+							blockedKind: "needs_decomposition",
+							blockedReason: "Task start blocked: this card needs decomposition.",
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard: Dispatch<SetStateAction<BoardData>> = (next) => {
+			currentBoard = typeof next === "function" ? next(currentBoard) : next;
+		};
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+		const setSelectedTaskId = vi.fn<Dispatch<SetStateAction<string | null>>>();
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable",
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={async () => ({ ok: true as const })}
+					startTaskSession={startTaskSession}
+					setSelectedTaskIdOverride={setSelectedTaskId}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			latestSnapshot?.handleDecomposeTask("task-1");
+		});
+
+		expect(startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "task-1" }),
+			expect.objectContaining({
+				mode: "plan",
+				startInPlanMode: true,
+				promptOverride: expect.stringContaining("/kanban-decompose"),
+			}),
+		);
+		const planningTask = currentBoard.columns.find((column) => column.id === "planning")?.cards[0];
+		expect(planningTask?.id).toBe("task-1");
+		expect(planningTask?.blockedKind).toBeUndefined();
+		expect(setSelectedTaskId).toHaveBeenCalledWith("task-1");
 	});
 });
