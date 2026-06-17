@@ -1,5 +1,11 @@
-import type { RuntimeTaskSessionSummary, RuntimeWorkspaceStateResponse } from "../core/api-contract";
-import { loadWorkspaceState, saveWorkspaceState } from "../state/workspace-state";
+import type {
+	RuntimeBoardColumnId,
+	RuntimeBoardData,
+	RuntimeTaskSessionSummary,
+	RuntimeWorkspaceStateResponse,
+} from "../core/api-contract";
+import { moveTaskToColumn } from "../core/task-board-mutations";
+import { listWorkspaceIndexEntries, loadWorkspaceState, saveWorkspaceState } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { deleteTaskWorktree, removeTaskWorktreeSetupLock } from "../workspace/task-worktree";
 import type { WorkspaceRegistry } from "./workspace-registry";
@@ -11,6 +17,32 @@ export interface RuntimeShutdownCoordinatorDependencies {
 	skipSessionCleanup?: boolean;
 }
 
+const SHUTDOWN_ACTIVE_COLUMN_IDS = new Set<RuntimeBoardColumnId>(["planning", "in_progress", "review"]);
+
+function collectActiveBoardTaskIdsForShutdown(board: RuntimeBoardData): string[] {
+	const taskIds: string[] = [];
+	for (const column of board.columns) {
+		if (!SHUTDOWN_ACTIVE_COLUMN_IDS.has(column.id)) {
+			continue;
+		}
+		for (const card of column.cards) {
+			taskIds.push(card.id);
+		}
+	}
+	return taskIds;
+}
+
+function moveActiveBoardTasksToTrash(board: RuntimeBoardData, taskIds: Iterable<string>): RuntimeBoardData {
+	let nextBoard = board;
+	for (const taskId of taskIds) {
+		const moved = moveTaskToColumn(nextBoard, taskId, "trash");
+		if (moved.moved) {
+			nextBoard = moved.board;
+		}
+	}
+	return nextBoard;
+}
+
 async function persistInterruptedSessions(
 	workspacePath: string,
 	interruptedTaskIds: string[],
@@ -19,14 +51,17 @@ async function persistInterruptedSessions(
 		resolveSummary?: (taskId: string) => RuntimeTaskSessionSummary | null;
 	},
 ): Promise<string[]> {
-	if (interruptedTaskIds.length === 0) {
+	const workspaceState = options?.workspaceState ?? (await loadWorkspaceState(workspacePath));
+	const activeBoardTaskIds = collectActiveBoardTaskIdsForShutdown(workspaceState.board);
+	const taskIdsToInterrupt = Array.from(new Set([...interruptedTaskIds, ...activeBoardTaskIds]));
+	if (taskIdsToInterrupt.length === 0) {
 		return [];
 	}
-	const workspaceState = options?.workspaceState ?? (await loadWorkspaceState(workspacePath));
+	const now = Date.now();
 	const nextSessions = {
 		...workspaceState.sessions,
 	};
-	for (const taskId of interruptedTaskIds) {
+	for (const taskId of taskIdsToInterrupt) {
 		const summary = options?.resolveSummary?.(taskId) ?? workspaceState.sessions[taskId] ?? null;
 		if (summary) {
 			nextSessions[taskId] = {
@@ -34,15 +69,16 @@ async function persistInterruptedSessions(
 				state: "interrupted",
 				reviewReason: "interrupted",
 				pid: null,
-				updatedAt: Date.now(),
+				updatedAt: now,
 			};
 		}
 	}
+	const nextBoard = moveActiveBoardTasksToTrash(workspaceState.board, activeBoardTaskIds);
 	await saveWorkspaceState(workspacePath, {
-		board: workspaceState.board,
+		board: nextBoard,
 		sessions: nextSessions,
 	});
-	return [];
+	return taskIdsToInterrupt;
 }
 
 async function cleanupInterruptedTaskWorktrees(
@@ -140,6 +176,30 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(`Could not load workspace state for ${workspacePath} during shutdown cleanup. ${message}`);
+		}
+	}
+
+	for (const indexedWorkspace of await listWorkspaceIndexEntries()) {
+		if (managedWorkspacePaths.has(indexedWorkspace.repoPath)) {
+			continue;
+		}
+		try {
+			const workspaceState = await loadWorkspaceState(indexedWorkspace.repoPath);
+			const activeTaskIds = collectActiveBoardTaskIdsForShutdown(workspaceState.board);
+			if (activeTaskIds.length === 0) {
+				continue;
+			}
+			interruptedByWorkspace.push({
+				workspacePath: indexedWorkspace.repoPath,
+				interruptedTaskIds: activeTaskIds,
+				workspaceState,
+			});
+			managedWorkspacePaths.add(indexedWorkspace.repoPath);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.warn(
+				`Could not load indexed workspace state for ${indexedWorkspace.repoPath} during shutdown cleanup. ${message}`,
+			);
 		}
 	}
 

@@ -46,6 +46,7 @@ function createDeps(serverCwd: string): CreateProjectsApiDependencies {
 		hasGitRepository: () => true,
 		summarizeProjectTaskCounts: async (): Promise<RuntimeProjectTaskCounts> => ({
 			backlog: 0,
+			planning: 0,
 			in_progress: 0,
 			review: 0,
 			completed: 0,

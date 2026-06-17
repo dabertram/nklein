@@ -44,6 +44,14 @@ interface PendingProgrammaticStartMoveCompletion {
 	timeoutId: number;
 }
 
+function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardColumnId {
+	return task.startInPlanMode ? "planning" : "in_progress";
+}
+
+function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardColumnId {
+	return summary.mode === "plan" ? "planning" : "in_progress";
+}
+
 interface UseBoardInteractionsInput {
 	board: BoardData;
 	setBoard: Dispatch<SetStateAction<BoardData>>;
@@ -289,13 +297,14 @@ export function useBoardInteractions({
 			options?: { optimisticMove?: boolean },
 		): Promise<boolean> => {
 			const optimisticMove = options?.optimisticMove ?? true;
+			const activeColumnId = getTaskActiveColumnId(task);
 			const ensured = await ensureTaskWorkspace(task);
 			if (!ensured.ok) {
 				notifyError(ensured.message ?? "Could not set up task workspace.");
 				if (optimisticMove) {
 					setBoard((currentBoard) => {
 						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== "in_progress") {
+						if (currentColumnId !== activeColumnId) {
 							return currentBoard;
 						}
 						const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
@@ -335,7 +344,7 @@ export function useBoardInteractions({
 				if (optimisticMove) {
 					setBoard((currentBoard) => {
 						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== "in_progress") {
+						if (currentColumnId !== activeColumnId) {
 							return currentBoard;
 						}
 						const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
@@ -350,7 +359,7 @@ export function useBoardInteractions({
 					if (currentColumnId !== fromColumnId) {
 						return currentBoard;
 					}
-					const moved = moveTaskToColumn(currentBoard, taskId, "in_progress", { insertAtTop: true });
+					const moved = moveTaskToColumn(currentBoard, taskId, activeColumnId, { insertAtTop: true });
 					return moved.moved ? moved.board : currentBoard;
 				});
 			}
@@ -371,7 +380,7 @@ export function useBoardInteractions({
 				if (currentSelection?.column.id !== "backlog") {
 					return currentBoard;
 				}
-				const moved = moveTaskToColumn(currentBoard, task.id, "in_progress", { insertAtTop: true });
+				const moved = moveTaskToColumn(currentBoard, task.id, getTaskActiveColumnId(task), { insertAtTop: true });
 				return moved.moved ? moved.board : currentBoard;
 			});
 
@@ -390,7 +399,7 @@ export function useBoardInteractions({
 
 			await waitForBacklogCardHeightToSettle(task.id);
 
-			const programmaticMoveAttempt = tryProgrammaticCardMove(task.id, "backlog", "in_progress");
+			const programmaticMoveAttempt = tryProgrammaticCardMove(task.id, "backlog", getTaskActiveColumnId(task));
 			if (programmaticMoveAttempt === "blocked") {
 				await waitForProgrammaticCardMoveAvailability();
 				return startBacklogTaskWithAnimation(task);
@@ -438,7 +447,7 @@ export function useBoardInteractions({
 					continue;
 				}
 				const columnId = getTaskColumnId(nextBoard, summary.taskId);
-				if (summary.state === "awaiting_review" && columnId === "in_progress") {
+				if (summary.state === "awaiting_review" && (columnId === "in_progress" || columnId === "planning")) {
 					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "review");
 					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
 						continue;
@@ -450,13 +459,14 @@ export function useBoardInteractions({
 					continue;
 				}
 				if (summary.state === "running" && columnId === "review") {
-					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "in_progress", {
+					const targetColumnId = getSessionRunningColumnId(summary);
+					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, targetColumnId, {
 						skipKickoff: true,
 					});
 					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
 						continue;
 					}
-					const moved = moveTaskToColumn(nextBoard, summary.taskId, "in_progress", { insertAtTop: true });
+					const moved = moveTaskToColumn(nextBoard, summary.taskId, targetColumnId, { insertAtTop: true });
 					if (moved.moved) {
 						nextBoard = moved.board;
 					}
@@ -666,7 +676,9 @@ export function useBoardInteractions({
 				if (selection?.column.id !== "backlog") {
 					continue;
 				}
-				const moved = moveTaskToColumn(nextBoard, taskId, "in_progress", { insertAtTop: true });
+				const moved = moveTaskToColumn(nextBoard, taskId, getTaskActiveColumnId(selection.card), {
+					insertAtTop: true,
+				});
 				if (!moved.moved) {
 					continue;
 				}

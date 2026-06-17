@@ -30,7 +30,7 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
-const LIST_TASK_COLUMNS = ["backlog", "in_progress", "review", "completed", "trash"] as const;
+const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
 type TaskCommandTarget = { taskId?: string; column?: ListTaskColumn };
 
@@ -71,6 +71,7 @@ function parseListColumn(value: string | undefined): ListTaskColumn | undefined 
 	}
 	if (
 		value === "backlog" ||
+		value === "planning" ||
 		value === "in_progress" ||
 		value === "review" ||
 		value === "completed" ||
@@ -752,16 +753,16 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 		throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
 	}
 
-	if (fromColumnId !== "backlog" && fromColumnId !== "in_progress") {
-		throw new Error(
-			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog or in_progress.`,
-		);
-	}
-
 	const currentRecord = findTaskRecord(runtimeState, input.taskId);
 	const task = currentRecord?.task;
 	if (!task) {
 		throw new Error(`Task "${input.taskId}" could not be resolved.`);
+	}
+	const activeColumnId: RuntimeBoardColumnId = task.startInPlanMode ? "planning" : "in_progress";
+	if (fromColumnId !== "backlog" && fromColumnId !== activeColumnId) {
+		throw new Error(
+			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog or ${activeColumnId}.`,
+		);
 	}
 
 	const existingSession = runtimeState.sessions[task.id] ?? null;
@@ -791,7 +792,7 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 	}
 
 	const moved = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (latestState) => {
-		const movement = moveTaskToColumn(latestState.board, input.taskId, "in_progress");
+		const movement = moveTaskToColumn(latestState.board, input.taskId, activeColumnId);
 		if (!movement.task) {
 			throw new Error(`Task "${input.taskId}" could not be resolved.`);
 		}
@@ -814,7 +815,7 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 			task: {
 				id: task.id,
 				prompt: task.prompt,
-				column: "in_progress",
+				column: activeColumnId,
 				workspacePath: workspaceRepoPath,
 			},
 		};
@@ -825,7 +826,7 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 		task: {
 			id: task.id,
 			prompt: task.prompt,
-			column: "in_progress",
+			column: activeColumnId,
 			workspacePath: workspaceRepoPath,
 		},
 	};
@@ -852,7 +853,7 @@ interface FinishTaskMutationValue {
 }
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
-	return columnId === "in_progress" || columnId === "review";
+	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
 }
 
 async function finishTaskById(input: {
@@ -1183,7 +1184,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option(
 			"--column <column>",
-			"Filter column: backlog | in_progress | review | done. trash is also accepted.",
+			"Filter column: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.action(async (options: { projectPath?: string; column?: ListTaskColumn }) => {
@@ -1322,7 +1323,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--task-id <id>", "Task ID.")
 		.option(
 			"--column <column>",
-			"Column to move to completed: backlog | in_progress | review | done. trash is also accepted.",
+			"Column to move to completed: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
@@ -1345,7 +1346,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--task-id <id>", "Task ID.")
 		.option(
 			"--column <column>",
-			"Column to move to trash: backlog | in_progress | review | completed | done. trash is also accepted.",
+			"Column to move to trash: backlog | planning | in_progress | review | completed | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
@@ -1368,7 +1369,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--task-id <id>", "Task ID to permanently delete.")
 		.option(
 			"--column <column>",
-			"Column to bulk-delete: backlog | in_progress | review | done. trash is also accepted.",
+			"Column to bulk-delete: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
@@ -1454,7 +1455,7 @@ export function registerTaskCommand(program: Command): void {
 
 	task
 		.command("start")
-		.description("Start a task session and move task to in_progress.")
+		.description("Start a task session and move task to Planning or In Progress.")
 		.requiredOption("--task-id <id>", "Task ID.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.action(async (options: { taskId: string; projectPath?: string }) => {

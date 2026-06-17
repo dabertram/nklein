@@ -568,6 +568,33 @@ describe("board dependency state", () => {
 		]);
 	});
 
+	it("normalizes legacy boards with an empty Planning column in canonical order", () => {
+		const normalized = normalizeBoardData({
+			columns: [
+				{
+					id: "backlog",
+					cards: [{ id: "task-1", prompt: "Plan migration", startInPlanMode: true, baseRef: "main" }],
+				},
+				{ id: "in_progress", cards: [] },
+				{ id: "review", cards: [] },
+				{ id: "completed", cards: [] },
+				{ id: "trash", cards: [] },
+			],
+			dependencies: [],
+		});
+
+		expect(normalized?.columns.map((column) => column.id)).toEqual([
+			"backlog",
+			"planning",
+			"in_progress",
+			"review",
+			"completed",
+			"trash",
+		]);
+		expect(normalized?.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
+		expect(normalized?.columns.find((column) => column.id === "backlog")?.cards[0]?.id).toBe("task-1");
+	});
+
 	it("disables auto-review settings for a task", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "review", {

@@ -95,6 +95,7 @@ export interface WorkspaceRegistry {
 function createEmptyProjectTaskCounts(): RuntimeProjectTaskCounts {
 	return {
 		backlog: 0,
+		planning: 0,
 		in_progress: 0,
 		review: 0,
 		completed: 0,
@@ -109,6 +110,9 @@ function countTasksByColumn(board: RuntimeBoardData): RuntimeProjectTaskCounts {
 		switch (column.id) {
 			case "backlog":
 				counts.backlog += count;
+				break;
+			case "planning":
+				counts.planning += count;
 				break;
 			case "in_progress":
 				counts.in_progress += count;
@@ -156,8 +160,12 @@ function applyLiveSessionStateToProjectTaskCounts(
 		if (!columnId) {
 			continue;
 		}
-		if (summary.state === "awaiting_review" && columnId === "in_progress") {
-			next.in_progress = Math.max(0, next.in_progress - 1);
+		if (summary.state === "awaiting_review" && (columnId === "in_progress" || columnId === "planning")) {
+			if (columnId === "planning") {
+				next.planning = Math.max(0, next.planning - 1);
+			} else {
+				next.in_progress = Math.max(0, next.in_progress - 1);
+			}
 			next.review += 1;
 		}
 	}

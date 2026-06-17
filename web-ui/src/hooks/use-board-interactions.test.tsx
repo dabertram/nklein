@@ -29,12 +29,17 @@ vi.mock("@/hooks/use-review-auto-actions", () => ({
 	useReviewAutoActions: () => ({}) as ReturnType<typeof useBoardInteractions>,
 }));
 
-function createTask(taskId: string, prompt: string, createdAt: number): BoardCard {
+function createTask(
+	taskId: string,
+	prompt: string,
+	createdAt: number,
+	options?: { startInPlanMode?: boolean },
+): BoardCard {
 	return {
 		id: taskId,
 		title: prompt,
 		prompt,
-		startInPlanMode: false,
+		startInPlanMode: options?.startInPlanMode ?? false,
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		baseRef: "main",
@@ -98,7 +103,10 @@ function HookHarness({
 	setBoard: Dispatch<SetStateAction<BoardData>>;
 	ensureTaskWorkspace: UseTaskSessionsResult["ensureTaskWorkspace"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
-	selectedCard?: { card: BoardCard; column: { id: "backlog" | "in_progress" | "review" | "trash" } } | null;
+	selectedCard?: {
+		card: BoardCard;
+		column: { id: "backlog" | "planning" | "in_progress" | "review" | "trash" };
+	} | null;
 	setSelectedTaskIdOverride?: Dispatch<SetStateAction<string | null>>;
 	onSnapshot?: (snapshot: HookSnapshot) => void;
 }): null {
@@ -342,6 +350,76 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(tryProgrammaticCardMove).toHaveBeenCalledWith("task-1", "backlog", "in_progress");
+		boardElement.remove();
+	});
+
+	it("starts plan-mode backlog tasks into Planning", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const tryProgrammaticCardMove = vi.fn(() => "started" as const);
+		const boardElement = document.createElement("section");
+		boardElement.className = "kb-board";
+		const taskElement = document.createElement("div");
+		taskElement.dataset.taskId = "task-1";
+		vi.spyOn(taskElement, "getBoundingClientRect").mockReturnValue(createRect(160, 44));
+		boardElement.appendChild(taskElement);
+		document.body.appendChild(boardElement);
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		const board = createBoard();
+		const backlogColumn = board.columns.find((column) => column.id === "backlog");
+		if (!backlogColumn?.cards[0]) {
+			throw new Error("Expected a backlog card.");
+		}
+		backlogColumn.cards[0] = createTask("task-1", "Planning task", 1, { startInPlanMode: true });
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={board}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+		});
+		await act(async () => {
+			vi.advanceTimersByTime(48);
+			await Promise.resolve();
+		});
+
+		expect(tryProgrammaticCardMove).toHaveBeenCalledWith("task-1", "backlog", "planning");
 		boardElement.remove();
 	});
 

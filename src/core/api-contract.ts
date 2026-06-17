@@ -74,7 +74,7 @@ export type RuntimeSlashCommandsResponse = z.infer<typeof runtimeSlashCommandsRe
 export const runtimeAgentIdSchema = z.enum(["claude", "codex", "gemini", "opencode", "droid", "kiro", "cline"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
-const runtimeBoardColumnIdEnum = z.enum(["backlog", "in_progress", "review", "completed", "trash"]);
+const runtimeBoardColumnIdEnum = z.enum(["backlog", "planning", "in_progress", "review", "completed", "trash"]);
 export const runtimeBoardColumnIdSchema = z.preprocess(
 	(val) => (val === "done" ? "completed" : val),
 	runtimeBoardColumnIdEnum,
@@ -354,6 +354,7 @@ export type RuntimeWorkspaceStateNotifyResponse = z.infer<typeof runtimeWorkspac
 
 export const runtimeProjectTaskCountsSchema = z.object({
 	backlog: z.number(),
+	planning: z.number().default(0),
 	in_progress: z.number(),
 	review: z.number(),
 	completed: z.number(),

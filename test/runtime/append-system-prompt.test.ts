@@ -62,7 +62,7 @@ describe("renderAppendSystemPrompt", () => {
 		expect(rendered).toContain("kanban task done");
 		expect(rendered).toContain("kanban task trash");
 		expect(rendered).toContain("kanban task delete");
-		expect(rendered).toContain("--column backlog|in_progress|review|completed|done|trash");
+		expect(rendered).toContain("--column backlog|planning|in_progress|review|completed|done|trash");
 		expect(rendered).toContain("Provide exactly one of");
 		expect(rendered).toContain("task delete --column done");
 		expect(rendered).toContain("kanban task link");
