@@ -1,6 +1,7 @@
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
+import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
 import type {
@@ -27,8 +28,9 @@ import {
 	updateTask,
 } from "../core/task-board-mutations";
 import { resolveProjectInputPath } from "../projects/project-path";
-import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state";
+import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
+import { resolveTaskCwd } from "../workspace/task-worktree";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
@@ -50,6 +52,13 @@ interface RuntimeWorkspaceMutationResult<T> {
 }
 
 type JsonRecord = Record<string, unknown>;
+
+interface VerifyTaskAcceptanceDependencies {
+	resolveWorkspaceRepoPath?: typeof resolveWorkspaceRepoPath;
+	loadWorkspaceState?: typeof loadWorkspaceState;
+	resolveTaskCwd?: typeof resolveTaskCwd;
+	runAcceptanceGate?: typeof runClineAcceptanceGate;
+}
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error && error.message.trim().length > 0) {
@@ -711,6 +720,63 @@ async function decomposeTaskGraph(input: {
 	};
 }
 
+export async function runVerifyTaskAcceptanceCommand(
+	input: {
+		cwd: string;
+		taskId: string;
+		projectPath?: string;
+		workspaceRoot?: boolean;
+		ensureWorktree?: boolean;
+		timeoutMs?: number;
+	},
+	deps: VerifyTaskAcceptanceDependencies = {},
+): Promise<JsonRecord> {
+	const workspaceRepoPath = await (deps.resolveWorkspaceRepoPath ?? resolveWorkspaceRepoPath)(
+		input.projectPath,
+		input.cwd,
+		{
+			autoCreateIfMissing: false,
+		},
+	);
+	const readState = deps.loadWorkspaceState ?? loadWorkspaceState;
+	const state = await readState(workspaceRepoPath);
+	const taskRecord = findTaskRecord(state, input.taskId);
+	if (!taskRecord) {
+		throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
+	}
+
+	const taskWorkspacePath = input.workspaceRoot
+		? workspaceRepoPath
+		: await (deps.resolveTaskCwd ?? resolveTaskCwd)({
+				cwd: workspaceRepoPath,
+				taskId: input.taskId,
+				baseRef: taskRecord.task.baseRef,
+				ensure: input.ensureWorktree === true,
+			});
+	const result = await (deps.runAcceptanceGate ?? runClineAcceptanceGate)({
+		taskId: input.taskId,
+		workspacePath: taskWorkspacePath,
+		taskPrompt: taskRecord.task.prompt,
+		timeoutMs: input.timeoutMs,
+	});
+
+	const ok = result.present === true && result.passed === true;
+	return {
+		ok,
+		workspacePath: workspaceRepoPath,
+		taskWorkspacePath,
+		task: formatTaskRecord(state, taskRecord.task, taskRecord.columnId),
+		acceptance: result,
+		...(ok
+			? {}
+			: {
+					error: result.present
+						? `Acceptance check failed for task "${input.taskId}".`
+						: `Task "${input.taskId}" has no Acceptance check line.`,
+				}),
+	};
+}
+
 async function unlinkTasks(input: { cwd: string; dependencyId: string; projectPath?: string }): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
@@ -1165,7 +1231,11 @@ function parseOptionalBooleanOption(value: unknown, flagName: string): boolean |
 
 async function runTaskCommand(handler: () => Promise<JsonRecord>): Promise<void> {
 	try {
-		printJson(await handler());
+		const payload = await handler();
+		printJson(payload);
+		if (payload.ok === false) {
+			process.exitCode = 1;
+		}
 	} catch (error) {
 		printJson({
 			ok: false,
@@ -1436,6 +1506,42 @@ export function registerTaskCommand(program: Command): void {
 					}),
 			);
 		});
+
+	task
+		.command("verify")
+		.description("Run the task's embedded Acceptance check in its task worktree.")
+		.requiredOption("--task-id <id>", "Task ID.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.option("--workspace-root", "Run the acceptance check in the workspace root instead of the task worktree.")
+		.option("--ensure-worktree", "Create the task worktree first if it is missing.")
+		.option("--timeout-ms <ms>", "Acceptance command timeout in milliseconds.", (value: string) => {
+			const timeoutMs = Number(value);
+			if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+				throw new Error("Invalid timeout. Expected a positive integer number of milliseconds.");
+			}
+			return timeoutMs;
+		})
+		.action(
+			async (options: {
+				taskId: string;
+				projectPath?: string;
+				workspaceRoot?: boolean;
+				ensureWorktree?: boolean;
+				timeoutMs?: number;
+			}) => {
+				await runTaskCommand(
+					async () =>
+						await runVerifyTaskAcceptanceCommand({
+							cwd: process.cwd(),
+							taskId: options.taskId,
+							projectPath: options.projectPath,
+							workspaceRoot: options.workspaceRoot === true,
+							ensureWorktree: options.ensureWorktree === true,
+							timeoutMs: options.timeoutMs,
+						}),
+				);
+			},
+		);
 
 	task
 		.command("unlink")

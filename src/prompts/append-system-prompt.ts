@@ -307,6 +307,24 @@ Notes:
 - Each generated task is created in backlog with Cline as its agent and auto-review enabled.
 - Dependency links from \`tasks.json\` are applied automatically.
 
+## task verify
+
+Purpose: run a task's embedded \`Acceptance check:\` command in the task worktree and return a machine-readable pass/fail result.
+
+Command:
+\`${kanbanCommand} task verify --task-id <task_id> [--project-path <path>] [--ensure-worktree] [--timeout-ms <ms>]\`
+
+Parameters:
+- \`--task-id <task_id>\` required task ID.
+- \`--project-path <path>\` optional workspace path. If omitted, Kanban uses the current directory workspace.
+- \`--ensure-worktree\` optional; create the task worktree before verifying if it is missing.
+- \`--timeout-ms <ms>\` optional command timeout in milliseconds.
+
+Notes:
+- The task prompt must contain an \`Acceptance check:\` line, which is added automatically by \`task decompose\` when the plan graph includes an acceptance command.
+- A missing or failing acceptance check exits non-zero and prints JSON with \`ok: false\`.
+- Use this before moving implementation tasks to completed.
+
 ## task unlink
 
 Purpose: remove an existing task link (dependency) by dependency ID.
