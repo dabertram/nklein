@@ -54,6 +54,56 @@ function createPersistedRecord(input: {
 }
 
 describe("InMemoryClineSessionRuntime", () => {
+	it("passes native SDK team config when team delegation is explicitly enabled", async () => {
+		const previousFlag = process.env.KANBAN_ENABLE_CLINE_TEAMS;
+		process.env.KANBAN_ENABLE_CLINE_TEAMS = "1";
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		try {
+			const runtime = createInMemoryClineSessionRuntime({
+				createSessionHost: async () => fakeHost,
+				createMcpRuntimeService: createNoopMcpRuntimeService,
+			});
+
+			await runtime.startTaskSession({
+				taskId: "task-team",
+				cwd: "/tmp/worktree",
+				prompt: "Implement and delegate tests if helpful",
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				systemPrompt: "You are a helpful coding assistant.",
+			});
+
+			expect(fakeHost.start.mock.calls[0]?.[0].config).toEqual(
+				expect.objectContaining({
+					enableAgentTeams: true,
+					enableSpawnAgent: true,
+					teamName: expect.stringContaining("kanban"),
+				}),
+			);
+		} finally {
+			if (previousFlag === undefined) {
+				delete process.env.KANBAN_ENABLE_CLINE_TEAMS;
+			} else {
+				process.env.KANBAN_ENABLE_CLINE_TEAMS = previousFlag;
+			}
+		}
+	});
+
 	it("allows only one file-reading tool to start in an assistant turn", async () => {
 		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
 		const fakeHost = {

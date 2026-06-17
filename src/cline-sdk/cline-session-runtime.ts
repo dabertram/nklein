@@ -25,6 +25,7 @@ import { createClineRetrievalTools } from "./cline-retrieval-tools";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import { reviewClineAfterModelCompletion } from "./cline-self-review-hook";
 import { buildSessionIdPrefix, createSessionId } from "./cline-session-state";
+import { resolveClineTeamDelegationPolicy } from "./cline-team-delegation";
 import { createWebResearchTool } from "./cline-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./cline-write-files-tool";
 import { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -482,6 +483,10 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const shouldSendInitialTurn = request.prompt.trim().length > 0 || Boolean(userImages?.length);
 		const sdkApiTimeoutMs = resolveSdkApiTimeoutMs(request.apiTimeoutMs);
 		const compaction = buildClineContextCompactionConfig(request.contextWindow);
+		const teamDelegation = resolveClineTeamDelegationPolicy({
+			taskId: request.taskId,
+			mode: resolvedMode,
+		});
 		const providerConfig: NonNullable<ClineSdkStartSessionInput["config"]["providerConfig"]> = {
 			providerId: request.providerId,
 			modelId: request.modelId,
@@ -507,8 +512,9 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			cwd: request.cwd,
 			mode: resolvedMode,
 			enableTools: true,
-			enableSpawnAgent: false,
-			enableAgentTeams: false,
+			enableSpawnAgent: teamDelegation.enabled,
+			enableAgentTeams: teamDelegation.enabled,
+			...(teamDelegation.teamName ? { teamName: teamDelegation.teamName } : {}),
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
 			providerConfig,
 			...(compaction ? { compaction } : {}),
