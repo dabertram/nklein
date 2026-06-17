@@ -15,6 +15,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { selectLatestTaskChatMessageForTask } from "@/runtime/native-agent";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeGitRepositoryInfo,
 	RuntimeStateStreamTaskChatMessage,
@@ -32,6 +33,7 @@ interface UseHomeSidebarAgentPanelInput {
 	workspaceGit: RuntimeGitRepositoryInfo | null;
 	latestTaskChatMessage: RuntimeStateStreamTaskChatMessage | null;
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
+	clineTeamProgressByTaskId: Record<string, RuntimeClineTeamProgressEvent[]>;
 }
 
 async function stopHomeSidebarTaskSession(workspaceId: string, taskId: string): Promise<void> {
@@ -53,6 +55,7 @@ export function useHomeSidebarAgentPanel({
 	workspaceGit,
 	latestTaskChatMessage,
 	taskChatMessagesByTaskId,
+	clineTeamProgressByTaskId,
 }: UseHomeSidebarAgentPanelInput): ReactElement | null {
 	const isMobile = useIsMobile();
 	const terminalThemeColors = useTerminalThemeColors();
@@ -111,6 +114,7 @@ export function useHomeSidebarAgentPanel({
 
 	const homeAgentPanelSummary = taskId ? (effectiveSessionSummaries[taskId] ?? null) : null;
 	const homeTaskChatMessages = taskId ? (taskChatMessagesByTaskId[taskId] ?? null) : null;
+	const homeTeamProgress = taskId ? (clineTeamProgressByTaskId[taskId] ?? []) : [];
 	const latestHomeTaskChatMessage = selectLatestTaskChatMessageForTask(taskId, latestTaskChatMessage);
 
 	const handleSendHomeClineChatMessage = useCallback(
@@ -166,6 +170,7 @@ export function useHomeSidebarAgentPanel({
 				onLoadMessages={handleLoadHomeClineChatMessages}
 				incomingMessage={latestHomeTaskChatMessage}
 				incomingMessages={homeTaskChatMessages}
+				teamProgress={homeTeamProgress}
 				composerPlaceholder="Ask Cline to add, edit, start, or link tasks"
 			/>
 		);

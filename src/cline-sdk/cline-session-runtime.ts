@@ -34,6 +34,7 @@ import {
 	type ClineSdkSessionHost,
 	type ClineSdkSessionRecord,
 	type ClineSdkStartSessionInput,
+	type ClineSdkTeamEvent,
 	type ClineSdkToolApprovalRequest,
 	type ClineSdkToolApprovalResult,
 	type ClineSdkUserInstructionService,
@@ -264,6 +265,7 @@ export interface StartClineSessionRuntimeRequest {
 	userInstructionService?: ClineSdkUserInstructionService;
 	toolPolicies?: ClineSdkStartSessionInput["toolPolicies"];
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
+	onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 }
 
 export interface StartClineSessionRuntimeResult {
@@ -286,6 +288,7 @@ export interface ClineSessionRuntime {
 		images?: RuntimeTaskImage[];
 		mode?: RuntimeTaskSessionMode;
 		launchConfigOverrides?: ClineSessionLaunchConfigOverrides;
+		onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 	}): Promise<StartClineSessionRuntimeResult>;
 	sendTaskSessionInput(
 		taskId: string,
@@ -342,7 +345,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 	private readonly taskIdBySessionId = new Map<string, string>();
 	private readonly lastStartRequestByTaskId = new Map<
 		string,
-		Omit<StartClineSessionRuntimeRequest, "prompt" | "images" | "initialMessages">
+		Omit<StartClineSessionRuntimeRequest, "prompt" | "images" | "initialMessages" | "onTeamEvent">
 	>();
 	private readonly mcpToolBundleByTaskId = new Map<string, ClineMcpToolBundle>();
 	private sessionHostPromise: Promise<ClineSessionHostBoundary> | null = null;
@@ -515,6 +518,13 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			enableSpawnAgent: teamDelegation.enabled,
 			enableAgentTeams: teamDelegation.enabled,
 			...(teamDelegation.teamName ? { teamName: teamDelegation.teamName } : {}),
+			...(teamDelegation.enabled && request.onTeamEvent
+				? {
+						onTeamEvent: (event) => {
+							request.onTeamEvent?.(event, teamDelegation.teamName ?? null);
+						},
+					}
+				: {}),
 			...(hasMcpExtraTools ? { disableMcpSettingsTools: true } : {}),
 			providerConfig,
 			...(compaction ? { compaction } : {}),
@@ -591,6 +601,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		images?: RuntimeTaskImage[];
 		mode?: RuntimeTaskSessionMode;
 		launchConfigOverrides?: ClineSessionLaunchConfigOverrides;
+		onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 	}): Promise<StartClineSessionRuntimeResult> {
 		const lastStartRequest = this.lastStartRequestByTaskId.get(input.taskId);
 		if (!lastStartRequest) {
@@ -604,6 +615,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			initialMessages: input.initialMessages,
 			images: input.images,
 			mode: input.mode ?? lastStartRequest.mode,
+			onTeamEvent: input.onTeamEvent,
 		});
 	}
 

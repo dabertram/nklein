@@ -3,7 +3,7 @@
 // controller hook so multiple surfaces can share the same behavior.
 
 import { ALL_SPECIAL_TOKENS, countTokens } from "gpt-tokenizer";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, GitBranch, Users } from "lucide-react";
 import React, {
 	type ReactElement,
 	useCallback,
@@ -35,6 +35,7 @@ import { fetchClineModelRegistry } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeClineModelRegistryEntry,
 	RuntimeClineReasoningEffort,
+	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeTaskClineSettings,
 	RuntimeTaskSessionMode,
@@ -285,6 +286,66 @@ const ClineCreditLimitNotice = React.memo(function ClineCreditLimitNotice() {
 	);
 });
 
+function formatTeamEventAge(nowMs: number, createdAt: number): string {
+	return `${formatCompactDuration(nowMs - createdAt)} ago`;
+}
+
+function countDistinct(values: Array<string | null>): number {
+	return new Set(values.filter((value): value is string => Boolean(value))).size;
+}
+
+const ClineTeamProgressStrip = React.memo(function ClineTeamProgressStrip({
+	events,
+	nowMs,
+}: {
+	events: RuntimeClineTeamProgressEvent[];
+	nowMs: number;
+}) {
+	if (events.length === 0) {
+		return null;
+	}
+	const latestEvent = events[events.length - 1];
+	if (!latestEvent) {
+		return null;
+	}
+	const agentCount = countDistinct(events.map((event) => event.agentId));
+	const runCount = countDistinct(events.map((event) => event.runId));
+	const latestLabel = [
+		latestEvent.agentId,
+		latestEvent.role,
+		latestEvent.status,
+		formatTeamEventAge(nowMs, latestEvent.createdAt),
+	]
+		.filter(Boolean)
+		.join(" · ");
+	return (
+		<div className="mx-1 flex min-w-0 items-center gap-2 rounded-md border border-border-bright bg-surface-2 px-2.5 py-2 text-xs text-text-secondary">
+			<Users size={14} className="shrink-0 text-status-purple" />
+			<div className="min-w-0 flex-1">
+				<div className="truncate text-text-primary">{latestEvent.message}</div>
+				<div className="mt-0.5 truncate text-[11px] text-text-tertiary">
+					{latestEvent.teamName ? `${latestEvent.teamName} · ` : ""}
+					{latestLabel}
+				</div>
+			</div>
+			<div className="hidden shrink-0 items-center gap-1.5 text-[11px] text-text-tertiary sm:flex">
+				{agentCount > 0 ? (
+					<span className="inline-flex items-center gap-1 rounded-sm bg-surface-3 px-1.5 py-1">
+						<Users size={12} />
+						{agentCount}
+					</span>
+				) : null}
+				{runCount > 0 ? (
+					<span className="inline-flex items-center gap-1 rounded-sm bg-surface-3 px-1.5 py-1">
+						<GitBranch size={12} />
+						{runCount}
+					</span>
+				) : null}
+			</div>
+		</div>
+	);
+});
+
 export interface ClineAgentChatPanelHandle {
 	appendToDraft: (text: string) => void;
 	sendText: (text: string) => Promise<void>;
@@ -326,6 +387,7 @@ export interface ClineAgentChatPanelProps {
 	onLoadMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
 	incomingMessages?: ClineChatMessage[] | null;
 	incomingMessage?: ClineChatMessage | null;
+	teamProgress?: RuntimeClineTeamProgressEvent[];
 	onCommit?: () => void;
 	onOpenPr?: () => void;
 	isCommitLoading?: boolean;
@@ -361,6 +423,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			onLoadMessages,
 			incomingMessages,
 			incomingMessage,
+			teamProgress = [],
 			onCommit,
 			onOpenPr,
 			isCommitLoading = false,
@@ -815,6 +878,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					{messages.map((message) => (
 						<ClineChatMessageItem key={message.id} message={message} />
 					))}
+					<ClineTeamProgressStrip events={teamProgress} nowMs={nowMs} />
 					{showAgentProgressIndicator ? <ClineThinkingIndicator /> : null}
 					{isCreditLimitNoticeVisible ? <ClineCreditLimitNotice /> : null}
 				</div>

@@ -415,6 +415,19 @@ export const runtimeClineMcpServerAuthStatusSchema = z.object({
 });
 export type RuntimeClineMcpServerAuthStatus = z.infer<typeof runtimeClineMcpServerAuthStatusSchema>;
 
+export const runtimeClineTeamProgressEventSchema = z.object({
+	taskId: z.string(),
+	teamName: z.string().nullable(),
+	eventType: z.string(),
+	agentId: z.string().nullable(),
+	role: z.string().nullable(),
+	runId: z.string().nullable(),
+	status: z.string().nullable(),
+	message: z.string(),
+	createdAt: z.number(),
+});
+export type RuntimeClineTeamProgressEvent = z.infer<typeof runtimeClineTeamProgressEventSchema>;
+
 export const runtimeStateStreamSnapshotMessageSchema = z.object({
 	type: z.literal("snapshot"),
 	currentProjectId: z.string().nullable(),
@@ -480,6 +493,16 @@ export const runtimeStateStreamTaskChatClearedMessageSchema = z.object({
 });
 export type RuntimeStateStreamTaskChatClearedMessage = z.infer<typeof runtimeStateStreamTaskChatClearedMessageSchema>;
 
+export const runtimeStateStreamClineTeamProgressMessageSchema = z.object({
+	type: z.literal("cline_team_progress"),
+	workspaceId: z.string(),
+	taskId: z.string(),
+	event: runtimeClineTeamProgressEventSchema,
+});
+export type RuntimeStateStreamClineTeamProgressMessage = z.infer<
+	typeof runtimeStateStreamClineTeamProgressMessageSchema
+>;
+
 export const runtimeStateStreamMcpAuthUpdatedMessageSchema = z.object({
 	type: z.literal("mcp_auth_updated"),
 	statuses: z.array(runtimeClineMcpServerAuthStatusSchema),
@@ -509,6 +532,7 @@ export const runtimeStateStreamMessageSchema = z.discriminatedUnion("type", [
 	runtimeStateStreamTaskReadyForReviewMessageSchema,
 	runtimeStateStreamTaskChatMessageSchema,
 	runtimeStateStreamTaskChatClearedMessageSchema,
+	runtimeStateStreamClineTeamProgressMessageSchema,
 	runtimeStateStreamMcpAuthUpdatedMessageSchema,
 	runtimeStateStreamClineSessionContextUpdatedMessageSchema,
 	runtimeStateStreamErrorMessageSchema,

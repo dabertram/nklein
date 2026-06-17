@@ -2,8 +2,10 @@ import { useEffect, useReducer } from "react";
 
 import type {
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeClineTeamProgressEvent,
 	RuntimeProjectSummary,
 	RuntimeStateStreamClineSessionContextUpdatedMessage,
+	RuntimeStateStreamClineTeamProgressMessage,
 	RuntimeStateStreamMcpAuthUpdatedMessage,
 	RuntimeStateStreamMessage,
 	RuntimeStateStreamProjectsMessage,
@@ -19,6 +21,7 @@ import type {
 
 const STREAM_RECONNECT_BASE_DELAY_MS = 500;
 const STREAM_RECONNECT_MAX_DELAY_MS = 5_000;
+const MAX_TEAM_PROGRESS_EVENTS_PER_TASK = 30;
 
 function mergeTaskSessionSummaries(
 	currentSessions: Record<string, RuntimeTaskSessionSummary>,
@@ -54,6 +57,8 @@ export interface UseRuntimeStateStreamResult {
 	latestTaskChatMessage: RuntimeStateStreamTaskChatMessage | null;
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
 	latestTaskReadyForReview: RuntimeStateStreamTaskReadyForReviewMessage | null;
+	latestClineTeamProgress: RuntimeStateStreamClineTeamProgressMessage | null;
+	clineTeamProgressByTaskId: Record<string, RuntimeClineTeamProgressEvent[]>;
 	latestMcpAuthStatuses: RuntimeClineMcpServerAuthStatus[] | null;
 	clineSessionContextVersion: number;
 	streamError: string | null;
@@ -69,6 +74,8 @@ interface RuntimeStateStreamStore {
 	latestTaskChatMessage: RuntimeStateStreamTaskChatMessage | null;
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
 	latestTaskReadyForReview: RuntimeStateStreamTaskReadyForReviewMessage | null;
+	latestClineTeamProgress: RuntimeStateStreamClineTeamProgressMessage | null;
+	clineTeamProgressByTaskId: Record<string, RuntimeClineTeamProgressEvent[]>;
 	latestMcpAuthStatuses: RuntimeClineMcpServerAuthStatus[] | null;
 	clineSessionContextVersion: number;
 	streamError: string | null;
@@ -87,6 +94,7 @@ type RuntimeStateStreamAction =
 	  }
 	| { type: "task_chat_message"; payload: RuntimeStateStreamTaskChatMessage }
 	| { type: "task_chat_cleared"; payload: RuntimeStateStreamTaskChatClearedMessage }
+	| { type: "cline_team_progress"; payload: RuntimeStateStreamClineTeamProgressMessage }
 	| { type: "workspace_metadata_updated"; workspaceMetadata: RuntimeWorkspaceMetadata }
 	| { type: "task_ready_for_review"; payload: RuntimeStateStreamTaskReadyForReviewMessage }
 	| { type: "mcp_auth_updated"; payload: RuntimeStateStreamMcpAuthUpdatedMessage }
@@ -105,6 +113,8 @@ function createInitialRuntimeStateStreamStore(requestedWorkspaceId: string | nul
 		latestTaskChatMessage: null,
 		taskChatMessagesByTaskId: {},
 		latestTaskReadyForReview: null,
+		latestClineTeamProgress: null,
+		clineTeamProgressByTaskId: {},
 		latestMcpAuthStatuses: null,
 		clineSessionContextVersion: 0,
 		streamError: null,
@@ -157,6 +167,8 @@ function runtimeStateStreamReducer(
 			workspaceMetadata: null,
 			latestTaskChatMessage: null,
 			taskChatMessagesByTaskId: {},
+			latestClineTeamProgress: null,
+			clineTeamProgressByTaskId: {},
 			streamError: null,
 			isRuntimeDisconnected: false,
 			hasReceivedSnapshot: false,
@@ -189,6 +201,8 @@ function runtimeStateStreamReducer(
 			latestTaskChatMessage: null,
 			taskChatMessagesByTaskId: {},
 			latestTaskReadyForReview: state.latestTaskReadyForReview,
+			latestClineTeamProgress: null,
+			clineTeamProgressByTaskId: {},
 			latestMcpAuthStatuses: state.latestMcpAuthStatuses,
 			clineSessionContextVersion: action.payload.clineSessionContextVersion,
 			streamError: null,
@@ -207,6 +221,8 @@ function runtimeStateStreamReducer(
 			latestTaskChatMessage: didProjectChange ? null : state.latestTaskChatMessage,
 			taskChatMessagesByTaskId: didProjectChange ? {} : state.taskChatMessagesByTaskId,
 			latestTaskReadyForReview: didProjectChange ? null : state.latestTaskReadyForReview,
+			latestClineTeamProgress: didProjectChange ? null : state.latestClineTeamProgress,
+			clineTeamProgressByTaskId: didProjectChange ? {} : state.clineTeamProgressByTaskId,
 			hasReceivedSnapshot: true,
 		};
 	}
@@ -221,12 +237,28 @@ function runtimeStateStreamReducer(
 			},
 		};
 	}
+	if (action.type === "cline_team_progress") {
+		const currentEvents = state.clineTeamProgressByTaskId[action.payload.taskId] ?? [];
+		const nextEvents = [...currentEvents, action.payload.event].slice(-MAX_TEAM_PROGRESS_EVENTS_PER_TASK);
+		return {
+			...state,
+			latestClineTeamProgress: action.payload,
+			clineTeamProgressByTaskId: {
+				...state.clineTeamProgressByTaskId,
+				[action.payload.taskId]: nextEvents,
+			},
+		};
+	}
 	if (action.type === "task_chat_cleared") {
 		return {
 			...state,
 			latestTaskChatMessage: null,
 			taskChatMessagesByTaskId: {
 				...state.taskChatMessagesByTaskId,
+				[action.payload.taskId]: [],
+			},
+			clineTeamProgressByTaskId: {
+				...state.clineTeamProgressByTaskId,
 				[action.payload.taskId]: [],
 			},
 		};
@@ -425,6 +457,16 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						});
 						return;
 					}
+					if (payload.type === "cline_team_progress") {
+						if (payload.workspaceId !== activeWorkspaceId) {
+							return;
+						}
+						dispatch({
+							type: "cline_team_progress",
+							payload,
+						});
+						return;
+					}
 					if (payload.type === "task_sessions_updated") {
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
@@ -509,6 +551,8 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 		latestTaskChatMessage: state.latestTaskChatMessage,
 		taskChatMessagesByTaskId: state.taskChatMessagesByTaskId,
 		latestTaskReadyForReview: state.latestTaskReadyForReview,
+		latestClineTeamProgress: state.latestClineTeamProgress,
+		clineTeamProgressByTaskId: state.clineTeamProgressByTaskId,
 		latestMcpAuthStatuses: state.latestMcpAuthStatuses,
 		clineSessionContextVersion: state.clineSessionContextVersion,
 		streamError: state.streamError,

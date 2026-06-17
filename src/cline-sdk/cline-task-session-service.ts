@@ -6,6 +6,7 @@
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	RuntimeClineReasoningEffort,
+	RuntimeClineTeamProgressEvent,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -50,6 +51,7 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./cline-session-state";
+import { projectClineTeamProgressEvent } from "./cline-team-progress";
 import {
 	type ClineRuntimeSetupLease,
 	type ClineWatcherRegistry,
@@ -59,6 +61,7 @@ import { SDK_DEFAULT_MODEL_ID, SDK_DEFAULT_PROVIDER_ID } from "./sdk-provider-bo
 import {
 	type ClineSdkPersistedMessage,
 	type ClineSdkSlashCommand,
+	type ClineSdkTeamEvent,
 	listClineSdkWorkflowSlashCommands,
 	resolveClineSdkSystemPrompt,
 } from "./sdk-runtime-boundary.js";
@@ -190,6 +193,7 @@ export function buildKanbanEfficiencyRules(options: {
 export interface ClineTaskSessionService {
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	onMessage(listener: (taskId: string, message: ClineTaskMessage) => void): () => void;
+	onTeamProgress(listener: (taskId: string, event: RuntimeClineTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartClineTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
 	stopTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
@@ -311,6 +315,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<ClineRuntimeSetupLease>>();
+	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeClineTeamProgressEvent) => void>();
 
 	constructor(options: CreateInMemoryClineTaskSessionServiceOptions = {}) {
 		const createSessionRuntime = options.createSessionRuntime ?? createInMemoryClineSessionRuntime;
@@ -334,6 +339,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	onMessage(listener: (taskId: string, message: ClineTaskMessage) => void): () => void {
 		return this.messageRepository.onMessage(listener);
+	}
+
+	onTeamProgress(listener: (taskId: string, event: RuntimeClineTeamProgressEvent) => void): () => void {
+		this.teamProgressListeners.add(listener);
+		return () => {
+			this.teamProgressListeners.delete(listener);
+		};
 	}
 
 	private resolveProviderIdForTask(taskId: string): string {
@@ -534,6 +546,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				images: input.images,
 				initialMessages,
 				launchConfigOverrides: input.launchConfigOverrides,
+				onTeamEvent: (event, teamName) => {
+					this.emitTeamProgress(input.taskId, event, teamName);
+				},
 			});
 			if (input.launchConfigOverrides) {
 				this.providerIdByTaskId.set(input.taskId, input.launchConfigOverrides.providerId.trim().toLowerCase());
@@ -566,6 +581,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			images: input.images,
 			initialMessages,
 			launchConfigOverrides: input.launchConfigOverrides,
+			onTeamEvent: (event, teamName) => {
+				this.emitTeamProgress(input.taskId, event, teamName);
+			},
 		});
 		return {
 			result: restartedSession.result,
@@ -609,6 +627,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			mode: input.mode,
 			images: input.images,
 			initialMessages: compactedMessages,
+			onTeamEvent: (event, teamName) => {
+				this.emitTeamProgress(input.taskId, event, teamName);
+			},
 		});
 		return {
 			result: restartedSession.result,
@@ -717,6 +738,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			images: input.images,
 			initialMessages: compactedMessages,
 			launchConfigOverrides: input.launchConfigOverrides,
+			onTeamEvent: (event, teamName) => {
+				this.emitTeamProgress(input.taskId, event, teamName);
+			},
 		});
 		return {
 			result: restartedSession.result,
@@ -872,6 +896,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 					}),
 					toolPolicies: runtimeSetup.toolPolicies,
+					onTeamEvent: (event, teamName) => {
+						this.emitTeamProgress(request.taskId, event, teamName);
+					},
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);
 				if (warningMessage) {
@@ -1317,6 +1344,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelIdByTaskId.clear();
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
+		this.teamProgressListeners.clear();
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {
 				const lease = await leasePromise;
@@ -1335,6 +1363,20 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	private emitMessage(taskId: string, message: ClineTaskMessage): void {
 		this.messageRepository.emitMessage(taskId, message);
+	}
+
+	private emitTeamProgress(taskId: string, event: ClineSdkTeamEvent, teamName: string | null): void {
+		if (this.teamProgressListeners.size === 0) {
+			return;
+		}
+		const progressEvent = projectClineTeamProgressEvent({
+			taskId,
+			teamName,
+			event,
+		});
+		for (const listener of this.teamProgressListeners) {
+			listener(taskId, progressEvent);
+		}
 	}
 
 	private shouldCaptureReviewCheckpoint(

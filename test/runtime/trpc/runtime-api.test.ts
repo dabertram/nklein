@@ -313,6 +313,7 @@ function createClineTaskSessionServiceMock() {
 			createSummary({ agentId: "cline", pid: null }),
 		),
 		onMessage: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
+		onTeamProgress: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
 		stopTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary | null>>(async () => null),
 		abortTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary | null>>(async () => null),
 		cancelTaskTurn: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary | null>>(async () => null),

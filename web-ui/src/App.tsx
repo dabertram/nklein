@@ -105,6 +105,7 @@ export default function App(): ReactElement {
 		workspaceMetadata,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
+		clineTeamProgressByTaskId,
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
 		clineSessionContextVersion,
@@ -447,6 +448,7 @@ export default function App(): ReactElement {
 		workspaceGit,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
+		clineTeamProgressByTaskId,
 	});
 	const { runningShortcutLabel, handleSelectShortcutLabel, handleRunShortcut, handleCreateShortcut } =
 		useShortcutActions({
@@ -722,6 +724,7 @@ export default function App(): ReactElement {
 		workspacePath: activeWorkspacePath,
 	});
 	const selectedTaskChatMessages = selectTaskChatMessagesForTask(selectedCard?.card.id, taskChatMessagesByTaskId);
+	const selectedTaskTeamProgress = selectedCard ? (clineTeamProgressByTaskId[selectedCard.card.id] ?? []) : [];
 	const latestSelectedTaskChatMessage = selectLatestTaskChatMessageForTask(
 		selectedCard?.card.id,
 		latestTaskChatMessage,
@@ -1071,6 +1074,7 @@ export default function App(): ReactElement {
 									onLoadClineChatMessages={fetchTaskChatMessages}
 									latestClineChatMessage={latestSelectedTaskChatMessage}
 									streamedClineChatMessages={selectedTaskChatMessages}
+									clineTeamProgress={selectedTaskTeamProgress}
 									onMoveToTrash={handleMoveToTrash}
 									isMoveToTrashLoading={moveToTrashLoadingById[selectedCard.card.id] ?? false}
 									gitHistoryPanel={

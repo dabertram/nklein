@@ -19,6 +19,7 @@ import {
 	resolveClineDataDir,
 	resolveWorkflowsConfigSearchPaths,
 	type SessionHistoryRecord,
+	type TeamEvent,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
@@ -31,6 +32,7 @@ export { TelemetryLoggerSink, TelemetryService } from "@clinebot/core";
 export type ClineSdkSessionHost = ClineCore;
 export type ClineSdkBasicLogger = BasicLogger;
 export type ClineSdkAgentEvent = AgentEvent;
+export type ClineSdkTeamEvent = TeamEvent;
 
 export type ClineSdkSessionEvent = CoreSessionEvent;
 

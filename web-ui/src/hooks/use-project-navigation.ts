@@ -51,6 +51,7 @@ export interface UseProjectNavigationResult {
 	workspaceMetadata: ReturnType<typeof useRuntimeStateStream>["workspaceMetadata"];
 	latestTaskChatMessage: ReturnType<typeof useRuntimeStateStream>["latestTaskChatMessage"];
 	taskChatMessagesByTaskId: ReturnType<typeof useRuntimeStateStream>["taskChatMessagesByTaskId"];
+	clineTeamProgressByTaskId: ReturnType<typeof useRuntimeStateStream>["clineTeamProgressByTaskId"];
 	latestTaskReadyForReview: ReturnType<typeof useRuntimeStateStream>["latestTaskReadyForReview"];
 	latestMcpAuthStatuses: ReturnType<typeof useRuntimeStateStream>["latestMcpAuthStatuses"];
 	clineSessionContextVersion: ReturnType<typeof useRuntimeStateStream>["clineSessionContextVersion"];
@@ -85,6 +86,7 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		workspaceMetadata,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
+		clineTeamProgressByTaskId,
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
 		clineSessionContextVersion,
@@ -277,6 +279,7 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		workspaceMetadata,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
+		clineTeamProgressByTaskId,
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
 		clineSessionContextVersion,

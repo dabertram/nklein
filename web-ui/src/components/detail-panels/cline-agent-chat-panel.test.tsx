@@ -17,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import type {
 	RuntimeClineModelRegistryEntry,
+	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeTaskHookActivity,
 	RuntimeTaskSessionSummary,
@@ -561,6 +562,52 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(container.textContent).toContain("Output");
 		expect(container.textContent).toContain('{"ok":true}');
+	});
+
+	it("renders compact team progress telemetry when available", async () => {
+		const teamProgress: RuntimeClineTeamProgressEvent[] = [
+			{
+				taskId: "task-1",
+				teamName: "kanban-task-1",
+				eventType: "teammate_spawned",
+				agentId: "worker",
+				role: "implementation",
+				runId: null,
+				status: null,
+				message: "Spawned worker.",
+				createdAt: Date.now() - 2_000,
+			},
+			{
+				taskId: "task-1",
+				teamName: "kanban-task-1",
+				eventType: "run_progress",
+				agentId: "worker",
+				role: "implementation",
+				runId: "run-1",
+				status: "running",
+				message: "Worker is updating the persistence adapter.",
+				createdAt: Date.now() - 1_000,
+			},
+		];
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running")}
+					onLoadMessages={async () => []}
+					teamProgress={teamProgress}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		expect(container.textContent).toContain("Worker is updating the persistence adapter.");
+		expect(container.textContent).toContain("kanban-task-1");
+		expect(container.textContent).toContain("worker");
+		expect(container.textContent).toContain("implementation");
+		expect(container.textContent).toContain("running");
 	});
 
 	it("keeps completed reasoning collapsed after the stream finishes", async () => {

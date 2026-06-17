@@ -21,6 +21,7 @@ import { isNativeClineAgentSelected } from "@/runtime/native-agent";
 import type {
 	RuntimeAgentId,
 	RuntimeClineReasoningEffort,
+	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -346,6 +347,7 @@ export function CardDetailView({
 	onLoadClineChatMessages,
 	latestClineChatMessage,
 	streamedClineChatMessages,
+	clineTeamProgress,
 	onMoveToTrash,
 	isMoveToTrashLoading,
 	gitHistoryPanel,
@@ -408,6 +410,7 @@ export function CardDetailView({
 	onLoadClineChatMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
 	latestClineChatMessage?: ClineChatMessage | null;
 	streamedClineChatMessages?: ClineChatMessage[] | null;
+	clineTeamProgress?: RuntimeClineTeamProgressEvent[];
 	onMoveToTrash: () => void;
 	isMoveToTrashLoading?: boolean;
 	gitHistoryPanel?: ReactNode;
@@ -658,6 +661,7 @@ export function CardDetailView({
 			onLoadMessages={onLoadClineChatMessages}
 			incomingMessages={streamedClineChatMessages}
 			incomingMessage={latestClineChatMessage}
+			teamProgress={clineTeamProgress}
 			onCommit={onAgentCommitTask ? () => onAgentCommitTask(selection.card.id) : undefined}
 			onOpenPr={onAgentOpenPrTask ? () => onAgentOpenPrTask(selection.card.id) : undefined}
 			isCommitLoading={agentCommitTaskLoadingById?.[selection.card.id] ?? false}

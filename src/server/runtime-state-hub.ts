@@ -7,7 +7,9 @@ import { runClineAcceptanceAutoRepair } from "../cline-sdk/cline-acceptance-auto
 import type { ClineTaskMessage, ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type {
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeClineTeamProgressEvent,
 	RuntimeStateStreamClineSessionContextUpdatedMessage,
+	RuntimeStateStreamClineTeamProgressMessage,
 	RuntimeStateStreamErrorMessage,
 	RuntimeStateStreamMcpAuthUpdatedMessage,
 	RuntimeStateStreamMessage,
@@ -65,6 +67,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 	const terminalSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clineSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clineMessageUnsubscribeByWorkspaceId = new Map<string, () => void>();
+	const clineTeamProgressUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clinePreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const pendingTaskSessionSummariesByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const taskSessionBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
@@ -215,6 +218,22 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 	};
 
+	const broadcastClineTeamProgress = (workspaceId: string, taskId: string, event: RuntimeClineTeamProgressEvent) => {
+		const runtimeClients = runtimeStateClientsByWorkspaceId.get(workspaceId);
+		if (!runtimeClients || runtimeClients.size === 0) {
+			return;
+		}
+		const payload: RuntimeStateStreamClineTeamProgressMessage = {
+			type: "cline_team_progress",
+			workspaceId,
+			taskId,
+			event,
+		};
+		for (const client of runtimeClients) {
+			sendRuntimeStateMessage(client, payload);
+		}
+	};
+
 	const disposeTaskSessionSummaryBroadcast = (workspaceId: string) => {
 		const timer = taskSessionBroadcastTimersByWorkspaceId.get(workspaceId);
 		if (timer) {
@@ -270,6 +289,15 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			}
 		}
 		clineMessageUnsubscribeByWorkspaceId.delete(workspaceId);
+		const unsubscribeClineTeamProgress = clineTeamProgressUnsubscribeByWorkspaceId.get(workspaceId);
+		if (unsubscribeClineTeamProgress) {
+			try {
+				unsubscribeClineTeamProgress();
+			} catch {
+				// Ignore listener cleanup errors during project removal.
+			}
+		}
+		clineTeamProgressUnsubscribeByWorkspaceId.delete(workspaceId);
 		disposeTaskSessionSummaryBroadcast(workspaceId);
 		workspaceMetadataMonitor.disposeWorkspace(workspaceId);
 
@@ -581,6 +609,10 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				broadcastTaskChatMessage(workspaceId, taskId, message);
 			});
 			clineMessageUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeMessage);
+			const unsubscribeTeamProgress = service.onTeamProgress((taskId, event) => {
+				broadcastClineTeamProgress(workspaceId, taskId, event);
+			});
+			clineTeamProgressUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeTeamProgress);
 		},
 		broadcastTaskChatMessage,
 		broadcastTaskChatCleared,
@@ -618,6 +650,14 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			}
 			clineSummaryUnsubscribeByWorkspaceId.clear();
 			clinePreviousSummaryByWorkspaceId.clear();
+			for (const unsubscribe of clineTeamProgressUnsubscribeByWorkspaceId.values()) {
+				try {
+					unsubscribe();
+				} catch {
+					// Ignore listener cleanup errors during shutdown.
+				}
+			}
+			clineTeamProgressUnsubscribeByWorkspaceId.clear();
 			acceptanceRepairAttemptStoreByWorkspaceId.clear();
 			for (const unsubscribe of clineMessageUnsubscribeByWorkspaceId.values()) {
 				try {
