@@ -13,6 +13,7 @@ import type {
 } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
@@ -226,7 +227,26 @@ function toErrorMessage(error: unknown): string {
 			return message;
 		}
 	}
+	if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+		const message = error.message.trim();
+		if (message.length > 0) {
+			return message;
+		}
+	}
 	return "Unknown error";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readSdkAgentEvent(event: unknown): Record<string, unknown> | null {
+	const record = asRecord(event);
+	if (record?.type !== "agent_event") {
+		return null;
+	}
+	const payload = asRecord(record.payload);
+	return asRecord(payload?.event);
 }
 
 function readAgentResultText(result: unknown): string | null {
@@ -338,6 +358,18 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.activeToolTaskIds.delete(taskId);
 		const errorMessage = toErrorMessage(error);
 		const creditLimitError = this.isClineProviderForTask(taskId) && isCreditLimitError(errorMessage);
+		recordSelfObservation({
+			signal: creditLimitError ? "provider_error" : "runtime_error",
+			severity: "error",
+			message: `Cline SDK ${context} failed: ${errorMessage}`,
+			taskId,
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+			metadata: {
+				context,
+				creditLimitError,
+			},
+		});
 		if (!creditLimitError) {
 			const systemMessage = createMessage(
 				taskId,
@@ -541,6 +573,17 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (!isContextOverflowError(input.error)) {
 			return null;
 		}
+		recordSelfObservation({
+			signal: "context_overflow",
+			severity: "warning",
+			message: toErrorMessage(input.error),
+			taskId: input.taskId,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? SDK_DEFAULT_MODEL_ID,
+			metadata: {
+				mode: input.mode,
+			},
+		});
 
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
 		const compactedMessages = compactPersistedMessagesForContextOverflow(persistedSnapshot?.messages ?? []);
@@ -1313,6 +1356,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	private handleTaskEvent(taskId: string, event: unknown): void {
 		this.recordModelRegistryObservation(taskId, event);
+		this.recordSdkEventObservation(taskId, event);
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return;
@@ -1378,6 +1422,29 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		void getDefaultClineModelRegistry()
 			.recordRequest(observation)
 			.catch(() => undefined);
+	}
+
+	private recordSdkEventObservation(taskId: string, event: unknown): void {
+		const agentEvent = readSdkAgentEvent(event);
+		if (!agentEvent || (agentEvent.type !== "error" && agentEvent.type !== "run-failed")) {
+			return;
+		}
+		const rawMessage = typeof agentEvent.message === "string" ? agentEvent.message : null;
+		const errorMessage = toErrorMessage(agentEvent.error ?? rawMessage);
+		recordSelfObservation({
+			signal:
+				this.isClineProviderForTask(taskId) && isCreditLimitError(errorMessage)
+					? "provider_error"
+					: "runtime_error",
+			severity: "error",
+			message: errorMessage,
+			taskId,
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelIdByTaskId.get(taskId) ?? SDK_DEFAULT_MODEL_ID,
+			metadata: {
+				eventType: agentEvent.type,
+			},
+		});
 	}
 }
 
