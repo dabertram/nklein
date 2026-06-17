@@ -27,6 +27,7 @@ import type {
 	RuntimeClineProviderModel,
 	RuntimeClineProviderSettings,
 	RuntimeClineReasoningEffort,
+	RuntimeClineSmokeEvalResponse,
 	RuntimeClineUpdateProviderResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
@@ -168,6 +169,11 @@ export async function writeClineDogfoodBacklog(
 ): Promise<RuntimeClineDogfoodBacklogResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.writeClineDogfoodBacklog.mutate(input);
+}
+
+export async function runClineSmokeEval(workspaceId: string | null): Promise<RuntimeClineSmokeEvalResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.runClineSmokeEval.mutate();
 }
 
 export async function runClineProviderOauthLogin(

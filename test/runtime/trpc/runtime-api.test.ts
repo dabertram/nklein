@@ -19,6 +19,10 @@ const turnCheckpointMocks = vi.hoisted(() => ({
 	captureTaskTurnCheckpoint: vi.fn(),
 }));
 
+const evalHarnessMocks = vi.hoisted(() => ({
+	runClineDevSmokeEval: vi.fn(),
+}));
+
 const oauthMocks = vi.hoisted(() => ({
 	addLocalProvider: vi.fn(),
 	ensureCustomProvidersLoaded: vi.fn(),
@@ -138,6 +142,10 @@ vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
 	getDefaultClineModelRegistry: () => ({
 		getSnapshot: modelRegistryMocks.getSnapshot,
 	}),
+}));
+
+vi.mock("../../../src/cline-sdk/cline-eval-harness.js", () => ({
+	runClineDevSmokeEval: evalHarnessMocks.runClineDevSmokeEval,
 }));
 
 import type { RuntimeTrpcContext } from "../../../src/trpc/app-router";
@@ -429,6 +437,15 @@ describe("createRuntimeApi startTaskSession", () => {
 		llmsModelMocks.getAllProviders.mockResolvedValue([]);
 		llmsModelMocks.getModelsForProvider.mockResolvedValue({});
 		llmsModelMocks.resolveProviderConfig.mockResolvedValue(undefined);
+		evalHarnessMocks.runClineDevSmokeEval.mockReset();
+		evalHarnessMocks.runClineDevSmokeEval.mockResolvedValue({
+			workspacePath: "/tmp/eval-workspace",
+			evidenceBundlePath: "/tmp/eval-evidence",
+			acceptanceCommand: "npm test",
+			passed: true,
+			exitCode: 0,
+			output: "ok",
+		});
 		llmsModelMocks.resolveProviderModelCatalogKeys.mockImplementation((providerId: string) =>
 			providerId === "cline" ? ["openrouter", "cline"] : [providerId],
 		);
@@ -2416,6 +2433,42 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.taskCount).toBe(1);
 		expect(response.nextCommand).toContain("kanban task decompose --slug runtime-dogfood");
 		expect(existsSync(response.taskGraphPath)).toBe(true);
+	});
+
+	it("runs the Cline smoke eval for the selected provider and model", async () => {
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+		});
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.runClineSmokeEval({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/repo",
+		});
+
+		expect(evalHarnessMocks.runClineDevSmokeEval).toHaveBeenCalledWith({
+			modelObservation: {
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
+				endpoint: "http://127.0.0.1:11434",
+			},
+		});
+		expect(response).toMatchObject({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			evidenceBundlePath: "/tmp/eval-evidence",
+			passed: true,
+		});
 	});
 
 	it("loads provider models through the SDK local-provider resolver with saved config", async () => {

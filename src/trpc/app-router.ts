@@ -35,6 +35,7 @@ import type {
 	RuntimeClineProviderModelsResponse,
 	RuntimeClineProviderSettingsSaveRequest,
 	RuntimeClineProviderSettingsSaveResponse,
+	RuntimeClineSmokeEvalResponse,
 	RuntimeClineUpdateProviderRequest,
 	RuntimeClineUpdateProviderResponse,
 	RuntimeCommandRunRequest,
@@ -131,6 +132,7 @@ import {
 	runtimeClineProviderModelsResponseSchema,
 	runtimeClineProviderSettingsSaveRequestSchema,
 	runtimeClineProviderSettingsSaveResponseSchema,
+	runtimeClineSmokeEvalResponseSchema,
 	runtimeClineUpdateProviderRequestSchema,
 	runtimeClineUpdateProviderResponseSchema,
 	runtimeCommandRunRequestSchema,
@@ -285,6 +287,7 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineDogfoodBacklogRequest,
 		) => Promise<RuntimeClineDogfoodBacklogResponse>;
+		runClineSmokeEval: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineSmokeEvalResponse>;
 		runClineProviderOAuthLogin: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineOauthLoginRequest,
@@ -576,6 +579,9 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.writeClineDogfoodBacklog(ctx.workspaceScope, input);
 			}),
+		runClineSmokeEval: t.procedure.output(runtimeClineSmokeEvalResponseSchema).mutation(async ({ ctx }) => {
+			return await ctx.runtimeApi.runClineSmokeEval(ctx.workspaceScope);
+		}),
 		getClineMcpAuthStatuses: t.procedure.output(runtimeClineMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineMcpAuthStatuses(ctx.workspaceScope);
 		}),

@@ -850,6 +850,19 @@ export const runtimeClineDogfoodBacklogResponseSchema = z.object({
 });
 export type RuntimeClineDogfoodBacklogResponse = z.infer<typeof runtimeClineDogfoodBacklogResponseSchema>;
 
+export const runtimeClineSmokeEvalResponseSchema = z.object({
+	workspacePath: z.string(),
+	evidenceBundlePath: z.string(),
+	acceptanceCommand: z.string(),
+	passed: z.boolean(),
+	exitCode: z.number().int().nullable(),
+	output: z.string(),
+	providerId: z.string(),
+	modelId: z.string(),
+	endpoint: z.string().nullable(),
+});
+export type RuntimeClineSmokeEvalResponse = z.infer<typeof runtimeClineSmokeEvalResponseSchema>;
+
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",

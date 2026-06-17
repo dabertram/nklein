@@ -78,6 +78,7 @@ const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
 const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
 const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
+const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
@@ -153,6 +154,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
 	openFileOnHost: openFileOnHostMock,
+	runClineSmokeEval: runClineSmokeEvalMock,
 	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
 }));
 
@@ -247,6 +249,18 @@ describe("RuntimeSettingsDialog", () => {
 			slug: "dogfood",
 			taskCount: 1,
 			nextCommand: "kanban task decompose --slug dogfood --project-path /repo",
+		});
+		runClineSmokeEvalMock.mockReset();
+		runClineSmokeEvalMock.mockResolvedValue({
+			workspacePath: "/tmp/eval-workspace",
+			evidenceBundlePath: "/tmp/eval-evidence",
+			acceptanceCommand: "npm test",
+			passed: true,
+			exitCode: 0,
+			output: "ok",
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			endpoint: "http://127.0.0.1:11434",
 		});
 		openFileOnHostMock.mockClear();
 		saveRuntimeConfigMock.mockClear();
@@ -539,6 +553,30 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		expect(document.body.textContent).toContain("1 task drafted");
 		expect(document.body.textContent).toContain("kanban task decompose --slug dogfood");
+	});
+
+	it("runs the Cline smoke eval from settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const runEvalButton = findButtonByText(document.body, "Run smoke eval");
+		expect(runEvalButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			runEvalButton?.click();
+		});
+
+		expect(runClineSmokeEvalMock).toHaveBeenCalledWith("workspace-1");
+		expect(document.body.textContent).toContain("ollama:qwen3.5-9b passed npm test");
+		expect(document.body.textContent).toContain("/tmp/eval-evidence");
 	});
 
 	it("forwards cline setup saves to the dialog onSaved callback", async () => {

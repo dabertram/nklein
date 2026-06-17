@@ -19,6 +19,7 @@ import {
 	FolderOpen,
 	GitCommit,
 	Palette,
+	Play,
 	Plus,
 	Search,
 	Settings,
@@ -45,7 +46,12 @@ import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-
 import { useRuntimeSettingsClineMcpController } from "@/hooks/use-runtime-settings-cline-mcp-controller";
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
-import { buildClineAdvisorRequest, openFileOnHost, writeClineDogfoodBacklog } from "@/runtime/runtime-config-query";
+import {
+	buildClineAdvisorRequest,
+	openFileOnHost,
+	runClineSmokeEval,
+	writeClineDogfoodBacklog,
+} from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
 	RuntimeClineAdvisorKind,
@@ -53,6 +59,7 @@ import type {
 	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeClineReasoningEffort,
+	RuntimeClineSmokeEvalResponse,
 	RuntimeConfigResponse,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
@@ -614,6 +621,88 @@ function ClineDogfoodSuggestion({
 						{result.nextCommand}
 					</code>
 				</div>
+			) : null}
+		</div>
+	);
+}
+
+function ClineSmokeEvalTrial({
+	workspaceId,
+	disabled,
+	onError,
+}: {
+	workspaceId: string | null;
+	disabled: boolean;
+	onError: (message: string | null) => void;
+}): React.ReactElement {
+	const [isRunning, setIsRunning] = useState(false);
+	const [result, setResult] = useState<RuntimeClineSmokeEvalResponse | null>(null);
+
+	const handleRunEval = useCallback(() => {
+		onError(null);
+		setIsRunning(true);
+		void runClineSmokeEval(workspaceId)
+			.then((response) => {
+				setResult(response);
+			})
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				onError(`Could not run Cline smoke eval: ${message}`);
+			})
+			.finally(() => {
+				setIsRunning(false);
+			});
+	}, [onError, workspaceId]);
+
+	const handleOpenEvidence = useCallback(() => {
+		if (!result) {
+			return;
+		}
+		void openFileOnHost(workspaceId, result.evidenceBundlePath).catch((error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			onError(`Could not open smoke eval evidence: ${message}`);
+		});
+	}, [onError, result, workspaceId]);
+
+	return (
+		<div className="mt-4 border-t border-border pt-4">
+			<div className="flex items-center justify-between gap-3">
+				<div className="min-w-0">
+					<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
+						Eval harness
+					</h6>
+					{result ? (
+						<p className="text-[12px] text-text-secondary mt-1 mb-0">
+							{result.providerId}:{result.modelId} {result.passed ? "passed" : "failed"}{" "}
+							{result.acceptanceCommand}
+						</p>
+					) : null}
+				</div>
+				<div className="flex items-center gap-2">
+					{result ? (
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={<ExternalLink size={14} />}
+							disabled={disabled}
+							onClick={handleOpenEvidence}
+						>
+							Evidence
+						</Button>
+					) : null}
+					<Button
+						size="sm"
+						variant="default"
+						icon={<Play size={14} />}
+						disabled={disabled || isRunning}
+						onClick={handleRunEval}
+					>
+						{isRunning ? "Running..." : "Run smoke eval"}
+					</Button>
+				</div>
+			</div>
+			{result ? (
+				<p className="mt-2 mb-0 break-all font-mono text-[12px] text-text-secondary">{result.evidenceBundlePath}</p>
 			) : null}
 		</div>
 	);
@@ -1395,6 +1484,11 @@ export function RuntimeSettingsDialog({
 									onSaved={handleClineSetupSaved}
 								/>
 								<ClineAdvisorActions
+									workspaceId={workspaceId}
+									disabled={controlsDisabled}
+									onError={setSaveError}
+								/>
+								<ClineSmokeEvalTrial
 									workspaceId={workspaceId}
 									disabled={controlsDisabled}
 									onError={setSaveError}

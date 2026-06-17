@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
+import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
@@ -800,6 +801,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				slug: artifacts.taskGraph.slug,
 				taskCount: artifacts.taskGraph.tasks.length,
 				nextCommand: `kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspaceScope.workspacePath}`,
+			};
+		},
+		runClineSmokeEval: async (_workspaceScope) => {
+			const launchConfig = await clineProviderService.resolveLaunchConfig();
+			const modelId = launchConfig.modelId?.trim() || "unknown";
+			const result = await runClineDevSmokeEval({
+				modelObservation: {
+					providerId: launchConfig.providerId,
+					modelId,
+					endpoint: launchConfig.baseUrl ?? null,
+				},
+			});
+			return {
+				...result,
+				providerId: launchConfig.providerId,
+				modelId,
+				endpoint: launchConfig.baseUrl ?? null,
 			};
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {
