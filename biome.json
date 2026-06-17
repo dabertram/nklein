@@ -54,6 +54,15 @@
 									{
 										"group": ["@clinebot/core", "@clinebot/core/**"],
 										"message": "Import Cline SDK packages only through src/cline-sdk/sdk-provider-boundary.ts or src/cline-sdk/sdk-runtime-boundary.ts."
+									},
+									{
+										"group": [
+											"@clinebot/shared",
+											"@clinebot/shared/**",
+											"@clinebot/llms",
+											"@clinebot/llms/**"
+										],
+										"message": "Import Cline SDK packages only through src/cline-sdk/ boundary files."
 									}
 								]
 							}

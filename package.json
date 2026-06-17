@@ -59,6 +59,7 @@
     "web:test": "npm --prefix web-ui run test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "npx @biomejs/biome lint src test web-ui/src web-ui/tests vitest.config.ts web-ui/vite.config.ts web-ui/vitest.config.ts web-ui/playwright.config.ts",
+    "check:cline-boundary": "node .github/scripts/check-cline-boundary.mjs",
     "format": "npx @biomejs/biome check --write .",
     "check": "npx @biomejs/biome check . && npm run typecheck && npm run test",
     "test": "vitest run",
