@@ -383,9 +383,10 @@ describe("cline decomposition tools", () => {
 		const result = (await tool.execute(
 			{
 				slug: "Habit Tracker",
+				title: "Habit Tracker",
 				spec: "Track habits.",
 				plan: "Build storage before UI.",
-				taskGraph: createTaskGraph(),
+				tasks: createTaskGraph().tasks,
 			},
 			undefined as never,
 		)) as {

@@ -52,20 +52,18 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		title: true,
 		tasks: true,
 	})
-	.partial()
 	.extend({
 		slug: clinePlanTaskGraphSchema.shape.slug,
 		spec: clinePlanTaskSchema.shape.prompt.describe("Concise requirements markdown."),
 		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
-		taskGraph: clinePlanTaskGraphSchema.optional(),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
 	});
 type DecomposeProjectToolInput = {
 	slug: string;
 	spec: string;
 	plan: string;
-	title?: string;
-	tasks?: ClinePlanTask[];
+	title: string;
+	tasks: ClinePlanTask[];
 	taskGraph: ClinePlanTaskGraph;
 	defaultAcceptanceCommand?: string | null;
 };
@@ -194,20 +192,18 @@ export function validateClinePlanTaskGraph(input: {
 function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
 	const parsed = decomposeProjectToolInputSchema.parse(input);
 	const defaultAcceptanceCommand = parsed.defaultAcceptanceCommand?.trim() || null;
-	if (!parsed.taskGraph && (!parsed.tasks || parsed.tasks.length === 0)) {
-		throw new Error("decompose_project requires either a taskGraph or a non-empty tasks list.");
+	if (parsed.tasks.length === 0) {
+		throw new Error("decompose_project requires at least one task.");
 	}
-	const taskGraph = parsed.taskGraph
-		? parsed.taskGraph
-		: {
-				schemaVersion: 1 as const,
-				slug: parsed.slug,
-				title: parsed.title?.trim() || parsed.slug,
-				tasks: (parsed.tasks ?? []).map((task) => ({
-					...task,
-					acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
-				})),
-			};
+	const taskGraph = {
+		schemaVersion: 1 as const,
+		slug: parsed.slug,
+		title: parsed.title.trim() || parsed.slug,
+		tasks: parsed.tasks.map((task) => ({
+			...task,
+			acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
+		})),
+	};
 	return {
 		slug: parsed.slug,
 		spec: parsed.spec,
@@ -327,11 +323,11 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				slug: { type: "string", description: "Short stable plan slug, for example habit-insights." },
 				spec: { type: "string", description: "Approved concise specification markdown, not a file path." },
 				plan: { type: "string", description: "Implementation plan markdown." },
-				title: { type: "string", description: "Project/task graph title. Required when using tasks." },
+				title: { type: "string", description: "Project/task graph title." },
 				tasks: {
 					type: "array",
 					description:
-						"Preferred simple input: task leaves. Kanban adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
+						"Task leaves. Kanban adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
 					items: {
 						type: "object",
 						properties: {
@@ -354,12 +350,8 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 					type: "string",
 					description: "Optional acceptance command applied to tasks that omit acceptanceCommand.",
 				},
-				taskGraph: {
-					type: "object",
-					description: "Compatibility input for callers that already have a full schemaVersion/title/tasks graph.",
-				},
 			},
-			required: ["slug", "spec", "plan"],
+			required: ["slug", "spec", "plan", "title", "tasks"],
 			additionalProperties: false,
 		},
 		async execute(input) {
@@ -409,7 +401,7 @@ function createExpandTaskTool(): AgentTool {
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
 				instruction:
-					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Call decompose_project with the full graph instead of editing plan artifacts directly.",
+					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Use these replacement task leaves in decompose_project's tasks input instead of editing plan artifacts directly.",
 			};
 		},
 	};
