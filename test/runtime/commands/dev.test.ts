@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const evalHarnessMocks = vi.hoisted(() => ({
 	buildClineAdvisorRequest: vi.fn(),
+	buildClineModelFreshnessAdvisorRequest: vi.fn(),
 	runClineDevSmokeEval: vi.fn(),
 	writeClineDogfoodBacklog: vi.fn(),
 }));
@@ -18,8 +19,13 @@ vi.mock("../../../src/cline-sdk/cline-dogfood-engine", () => ({
 	writeClineDogfoodBacklog: evalHarnessMocks.writeClineDogfoodBacklog,
 }));
 
+vi.mock("../../../src/cline-sdk/cline-model-research", () => ({
+	buildClineModelFreshnessAdvisorRequest: evalHarnessMocks.buildClineModelFreshnessAdvisorRequest,
+}));
+
 import {
 	runDevAdvisorPromptCommand,
+	runDevCheckModelsCommand,
 	runDevDogfoodBacklogCommand,
 	runDevSmokeEvalCommand,
 } from "../../../src/commands/dev";
@@ -28,6 +34,7 @@ describe("dev command", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		evalHarnessMocks.buildClineAdvisorRequest.mockReset();
+		evalHarnessMocks.buildClineModelFreshnessAdvisorRequest.mockReset();
 		evalHarnessMocks.runClineDevSmokeEval.mockReset();
 		evalHarnessMocks.writeClineDogfoodBacklog.mockReset();
 	});
@@ -147,6 +154,30 @@ describe("dev command", () => {
 		expect(JSON.parse(writes[0] ?? "{}")).toMatchObject({
 			title: "Check For Better Models",
 			requiresWebResearch: true,
+		});
+	});
+
+	it("prints check-models prompt JSON", async () => {
+		evalHarnessMocks.buildClineModelFreshnessAdvisorRequest.mockResolvedValue({
+			kind: "model_freshness",
+			title: "Check For Better Models",
+			prompt: "Compare current roster",
+			requiresWebResearch: true,
+			recommendedSources: ["https://openrouter.ai/models"],
+		});
+		const writes: string[] = [];
+
+		await runDevCheckModelsCommand({
+			json: true,
+			write: (text) => {
+				writes.push(text);
+			},
+		});
+
+		expect(evalHarnessMocks.buildClineModelFreshnessAdvisorRequest).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(writes[0] ?? "{}")).toMatchObject({
+			title: "Check For Better Models",
+			prompt: "Compare current roster",
 		});
 	});
 });

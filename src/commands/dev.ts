@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { buildClineAdvisorRequest, type ClineAdvisorKind } from "../cline-sdk/cline-advisor";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
+import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 
 interface DevSmokeEvalOptions {
@@ -112,6 +113,18 @@ export async function runDevAdvisorPromptCommand(options: DevAdvisorPromptOption
 	write(`# ${request.title}\n\n${request.prompt}\n`);
 }
 
+export async function runDevCheckModelsCommand(
+	options: { json?: boolean; write?: (text: string) => void } = {},
+): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const request = await buildClineModelFreshnessAdvisorRequest();
+	if (options.json) {
+		write(`${JSON.stringify(request, null, 2)}\n`);
+		return;
+	}
+	write(`# ${request.title}\n\n${request.prompt}\n`);
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only Kanban diagnostics and smoke tests.");
 
@@ -153,5 +166,12 @@ export function registerDevCommand(program: Command): void {
 		.option("--user-question <text>", "User question or pain point.")
 		.action(async (options: DevAdvisorPromptOptions) => {
 			await runDevAdvisorPromptCommand(options);
+		});
+
+	dev.command("check-models")
+		.description("Build a user-triggered model freshness advisor prompt from the local model registry.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevCheckModelsCommand(options);
 		});
 }
