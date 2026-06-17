@@ -580,6 +580,7 @@ export function extractClineModelRegistryObservationFromEvent(
 	event: unknown,
 	model: ClineModelRegistryKeyInput & { contextWindow?: number | null },
 	now: number,
+	wallTimeMsFallback?: number | null,
 ): ClineModelRegistryEventObservation | null {
 	const record = asRecord(event);
 	if (record?.type !== "agent_event") {
@@ -603,7 +604,8 @@ export function extractClineModelRegistryObservationFromEvent(
 		normalizePositiveNumber(result?.durationMs) ??
 		normalizePositiveNumber(result?.wallTimeMs) ??
 		normalizePositiveNumber(agentEvent.durationMs) ??
-		normalizePositiveNumber(agentEvent.wallTimeMs);
+		normalizePositiveNumber(agentEvent.wallTimeMs) ??
+		normalizePositiveNumber(wallTimeMsFallback);
 	if (!durationMs) {
 		return null;
 	}

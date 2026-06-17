@@ -164,4 +164,28 @@ describe("extractClineModelRegistryObservationFromEvent", () => {
 			),
 		).toBeNull();
 	});
+
+	it("uses a Kanban-measured wall-time fallback when the SDK event omits duration", () => {
+		const observation = extractClineModelRegistryObservationFromEvent(
+			{
+				type: "agent_event",
+				payload: {
+					event: {
+						type: "run-finished",
+						result: {
+							usage: {
+								inputTokens: 3_000,
+								outputTokens: 150,
+							},
+						},
+					},
+				},
+			},
+			{ providerId: "cline", modelId: "default" },
+			10_000,
+			4_500,
+		);
+
+		expect(observation?.wallTimeMs).toBe(4_500);
+	});
 });
