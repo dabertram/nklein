@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -2384,6 +2385,37 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.recommendedSources).toContain("https://mcp.so/");
 		expect(response.prompt).toContain("Workspace: /tmp/repo");
 		expect(response.prompt).toContain("TypeScript desktop app");
+	});
+
+	it("writes dogfood backlog artifacts for the active workspace", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-runtime-dogfood-workspace-"));
+		const telemetryRoot = mkdtempSync(join(tmpdir(), "kanban-runtime-dogfood-telemetry-"));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+			getDogfoodTelemetryRoot: vi.fn(() => telemetryRoot),
+		});
+
+		const response = await api.writeClineDogfoodBacklog(
+			{
+				workspaceId: "workspace-1",
+				workspacePath,
+			},
+			{
+				slug: "runtime-dogfood",
+				suggestion: "Improve stalled task diagnostics.",
+			},
+		);
+
+		expect(response.slug).toBe("runtime-dogfood");
+		expect(response.taskCount).toBe(1);
+		expect(response.nextCommand).toContain("kanban task decompose --slug runtime-dogfood");
+		expect(existsSync(response.taskGraphPath)).toBe(true);
 	});
 
 	it("loads provider models through the SDK local-provider resolver with saved config", async () => {

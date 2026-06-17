@@ -45,11 +45,12 @@ import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-
 import { useRuntimeSettingsClineMcpController } from "@/hooks/use-runtime-settings-cline-mcp-controller";
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
-import { buildClineAdvisorRequest, openFileOnHost } from "@/runtime/runtime-config-query";
+import { buildClineAdvisorRequest, openFileOnHost, writeClineDogfoodBacklog } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
 	RuntimeClineAdvisorKind,
 	RuntimeClineAdvisorRequest,
+	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeClineReasoningEffort,
 	RuntimeConfigResponse,
@@ -517,6 +518,101 @@ function ClineAdvisorActions({
 							))}
 						</div>
 					) : null}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function ClineDogfoodSuggestion({
+	workspaceId,
+	disabled,
+	onError,
+}: {
+	workspaceId: string | null;
+	disabled: boolean;
+	onError: (message: string | null) => void;
+}): React.ReactElement {
+	const [suggestion, setSuggestion] = useState("");
+	const [isWriting, setIsWriting] = useState(false);
+	const [result, setResult] = useState<RuntimeClineDogfoodBacklogResponse | null>(null);
+
+	const handleWriteBacklog = useCallback(() => {
+		const trimmed = suggestion.trim();
+		onError(null);
+		setIsWriting(true);
+		void writeClineDogfoodBacklog(workspaceId, trimmed ? { suggestion: trimmed } : {})
+			.then((response) => {
+				setResult(response);
+			})
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				onError(`Could not write self-improvement backlog: ${message}`);
+			})
+			.finally(() => {
+				setIsWriting(false);
+			});
+	}, [onError, suggestion, workspaceId]);
+
+	const handleOpenPlan = useCallback(() => {
+		if (!result) {
+			return;
+		}
+		void openFileOnHost(workspaceId, result.planPath).catch((error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			onError(`Could not open self-improvement plan: ${message}`);
+		});
+	}, [onError, result, workspaceId]);
+
+	return (
+		<div className="mt-4 border-t border-border pt-4">
+			<div className="flex items-center justify-between gap-3 mb-2">
+				<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
+					Self-improvement
+				</h6>
+				<Button
+					size="sm"
+					variant="default"
+					icon={<Plus size={14} />}
+					disabled={disabled || isWriting}
+					onClick={handleWriteBacklog}
+				>
+					{isWriting ? "Writing..." : "Suggest improvement"}
+				</Button>
+			</div>
+			<textarea
+				value={suggestion}
+				onChange={(event) => setSuggestion(event.target.value)}
+				rows={3}
+				disabled={disabled || isWriting}
+				placeholder="Describe a Kanban improvement to turn into guarded dogfood tasks."
+				className="w-full resize-none rounded-md border border-border bg-surface-2 p-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none disabled:opacity-40"
+			/>
+			{result ? (
+				<div className="mt-3 rounded-md border border-border bg-surface-2 p-3">
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<div className="min-w-0">
+							<p className="text-[13px] font-medium text-text-primary m-0">
+								{result.taskCount} task{result.taskCount === 1 ? "" : "s"} drafted
+							</p>
+							<p className="text-[12px] text-text-secondary mt-0.5 mb-0 font-mono break-all">
+								{result.taskGraphPath}
+							</p>
+						</div>
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={<ExternalLink size={14} />}
+							disabled={disabled}
+							onClick={handleOpenPlan}
+						>
+							Open plan
+						</Button>
+					</div>
+					<p className="text-[12px] text-text-secondary mt-3 mb-1">Next</p>
+					<code className="block rounded-md border border-border bg-surface-1 px-2 py-1.5 text-[12px] text-text-primary break-all">
+						{result.nextCommand}
+					</code>
 				</div>
 			) : null}
 		</div>
@@ -1299,6 +1395,11 @@ export function RuntimeSettingsDialog({
 									onSaved={handleClineSetupSaved}
 								/>
 								<ClineAdvisorActions
+									workspaceId={workspaceId}
+									disabled={controlsDisabled}
+									onError={setSaveError}
+								/>
+								<ClineDogfoodSuggestion
 									workspaceId={workspaceId}
 									disabled={controlsDisabled}
 									onError={setSaveError}

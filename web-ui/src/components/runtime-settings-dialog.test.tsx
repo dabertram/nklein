@@ -77,6 +77,8 @@ vi.mock("@radix-ui/react-select", () => ({
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
 const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
 const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
+const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
+const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
 }));
@@ -150,7 +152,8 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
-	openFileOnHost: vi.fn(async () => undefined),
+	openFileOnHost: openFileOnHostMock,
+	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
 }));
 
 vi.mock("@/utils/notification-permission", () => ({
@@ -235,6 +238,17 @@ describe("RuntimeSettingsDialog", () => {
 			requiresWebResearch: true,
 			recommendedSources: ["https://openrouter.ai/models"],
 		});
+		writeClineDogfoodBacklogMock.mockReset();
+		writeClineDogfoodBacklogMock.mockResolvedValue({
+			rootPath: "/repo/.cline/kanban/plans/dogfood",
+			specPath: "/repo/.cline/kanban/plans/dogfood/spec.md",
+			planPath: "/repo/.cline/kanban/plans/dogfood/plan.md",
+			taskGraphPath: "/repo/.cline/kanban/plans/dogfood/tasks.json",
+			slug: "dogfood",
+			taskCount: 1,
+			nextCommand: "kanban task decompose --slug dogfood --project-path /repo",
+		});
+		openFileOnHostMock.mockClear();
 		saveRuntimeConfigMock.mockClear();
 		saveRuntimeConfigMock.mockResolvedValue(true);
 		clineSetupSectionOnSavedRef.onSaved = null;
@@ -485,6 +499,46 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Compare connected models.");
+	});
+
+	it("writes self-improvement backlog artifacts from a user suggestion", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const suggestionInput = Array.from(document.body.querySelectorAll("textarea")).find(
+			(textarea) =>
+				textarea.getAttribute("placeholder") ===
+				"Describe a Kanban improvement to turn into guarded dogfood tasks.",
+		);
+		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
+			throw new Error("Expected dogfood suggestion textarea.");
+		}
+		const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+		await act(async () => {
+			valueSetter?.call(suggestionInput, " Improve stalled task diagnostics. ");
+			suggestionInput.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		const suggestButton = findButtonByText(document.body, "Suggest improvement");
+		expect(suggestButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			suggestButton?.click();
+		});
+
+		expect(writeClineDogfoodBacklogMock).toHaveBeenCalledWith("workspace-1", {
+			suggestion: "Improve stalled task diagnostics.",
+		});
+		expect(document.body.textContent).toContain("1 task drafted");
+		expect(document.body.textContent).toContain("kanban task decompose --slug dogfood");
 	});
 
 	it("forwards cline setup saves to the dialog onSaved callback", async () => {

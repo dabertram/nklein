@@ -833,6 +833,23 @@ export const runtimeClineAdvisorBuildRequestSchema = z.object({
 });
 export type RuntimeClineAdvisorBuildRequest = z.infer<typeof runtimeClineAdvisorBuildRequestSchema>;
 
+export const runtimeClineDogfoodBacklogRequestSchema = z.object({
+	suggestion: z.string().optional(),
+	slug: z.string().optional(),
+});
+export type RuntimeClineDogfoodBacklogRequest = z.infer<typeof runtimeClineDogfoodBacklogRequestSchema>;
+
+export const runtimeClineDogfoodBacklogResponseSchema = z.object({
+	rootPath: z.string(),
+	specPath: z.string(),
+	planPath: z.string(),
+	taskGraphPath: z.string(),
+	slug: z.string(),
+	taskCount: z.number().int().nonnegative(),
+	nextCommand: z.string(),
+});
+export type RuntimeClineDogfoodBacklogResponse = z.infer<typeof runtimeClineDogfoodBacklogResponseSchema>;
+
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",

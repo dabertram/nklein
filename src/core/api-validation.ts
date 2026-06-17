@@ -5,6 +5,7 @@ import {
 	type RuntimeClineAddProviderRequest,
 	type RuntimeClineAdvisorBuildRequest,
 	type RuntimeClineDeviceAuthCompleteRequest,
+	type RuntimeClineDogfoodBacklogRequest,
 	type RuntimeClineMcpOAuthRequest,
 	type RuntimeClineMcpSettingsSaveRequest,
 	type RuntimeClineOauthLoginRequest,
@@ -38,6 +39,7 @@ import {
 	runtimeClineAddProviderRequestSchema,
 	runtimeClineAdvisorBuildRequestSchema,
 	runtimeClineDeviceAuthCompleteRequestSchema,
+	runtimeClineDogfoodBacklogRequestSchema,
 	runtimeClineMcpOAuthRequestSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
 	runtimeClineOauthLoginRequestSchema,
@@ -336,6 +338,10 @@ export function parseClineProviderModelsRequest(value: unknown): RuntimeClinePro
 
 export function parseClineAdvisorBuildRequest(value: unknown): RuntimeClineAdvisorBuildRequest {
 	return parseWithSchema(runtimeClineAdvisorBuildRequestSchema, value);
+}
+
+export function parseClineDogfoodBacklogRequest(value: unknown): RuntimeClineDogfoodBacklogRequest {
+	return parseWithSchema(runtimeClineDogfoodBacklogRequestSchema, value);
 }
 
 export function parseClineAddProviderRequest(value: unknown): RuntimeClineAddProviderRequest {

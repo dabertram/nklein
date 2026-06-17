@@ -13,6 +13,7 @@ import type {
 	RuntimeClineDeviceAuthCompleteRequest,
 	RuntimeClineDeviceAuthCompleteResponse,
 	RuntimeClineDeviceAuthStartResponse,
+	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineKanbanAccessResponse,
 	RuntimeClineMcpAuthStatusResponse,
 	RuntimeClineMcpOAuthResponse,
@@ -159,6 +160,14 @@ export async function buildClineAdvisorRequest(
 ): Promise<RuntimeClineAdvisorRequest> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.buildClineAdvisor.query(input);
+}
+
+export async function writeClineDogfoodBacklog(
+	workspaceId: string | null,
+	input: { suggestion?: string; slug?: string },
+): Promise<RuntimeClineDogfoodBacklogResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.writeClineDogfoodBacklog.mutate(input);
 }
 
 export async function runClineProviderOauthLogin(

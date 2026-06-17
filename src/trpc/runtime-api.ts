@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
+import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
@@ -37,6 +38,7 @@ import {
 	parseClineAddProviderRequest,
 	parseClineAdvisorBuildRequest,
 	parseClineDeviceAuthCompleteRequest,
+	parseClineDogfoodBacklogRequest,
 	parseClineMcpOAuthRequest,
 	parseClineMcpSettingsSaveRequest,
 	parseClineOauthLoginRequest,
@@ -83,6 +85,7 @@ export interface CreateRuntimeApiDependencies {
 	broadcastTaskChatCleared?: (workspaceId: string, taskId: string) => void;
 	bumpClineSessionContextVersion?: () => void;
 	prepareForStateReset?: () => Promise<void>;
+	getDogfoodTelemetryRoot?: () => string;
 	getUpdateStatus: () => RuntimeUpdateStatusResponse;
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
 }
@@ -774,6 +777,30 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				taskSummary: body.taskSummary,
 				userQuestion: body.userQuestion,
 			});
+		},
+		writeClineDogfoodBacklog: async (workspaceScope, input) => {
+			if (!workspaceScope) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "A workspace is required to write dogfood backlog artifacts.",
+				});
+			}
+			const body = parseClineDogfoodBacklogRequest(input);
+			const artifacts = await writeClineDogfoodBacklog({
+				workspacePath: workspaceScope.workspacePath,
+				telemetryRootDir: deps.getDogfoodTelemetryRoot?.() ?? join(homedir(), ".cline", "kanban", "telemetry"),
+				slug: body.slug,
+				userSuggestions: body.suggestion?.trim() ? [body.suggestion] : undefined,
+			});
+			return {
+				rootPath: artifacts.rootPath,
+				specPath: artifacts.specPath,
+				planPath: artifacts.planPath,
+				taskGraphPath: artifacts.taskGraphPath,
+				slug: artifacts.taskGraph.slug,
+				taskCount: artifacts.taskGraph.tasks.length,
+				nextCommand: `kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspaceScope.workspacePath}`,
+			};
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {
 			const statuses = await clineMcpRuntimeService.getAuthStatuses();
