@@ -339,7 +339,7 @@ Parameters:
 - \`--kind <kind>\` required one of: \`missing_decision\`, \`contradictory_requirement\`, \`missing_dependency\`, \`scope_too_large\`, \`integration_needed\`, \`other\`.
 - \`--description <text>\` required plain-language description of the blocking gap.
 - \`--evidence <text>\` optional concrete evidence such as error text, a missing file/path, or the conflicting requirements.
-- \`--plan-slug <slug>\` optional saved decomposition plan slug; when provided, Kanban appends the gap to that plan's \`revisions.md\`.
+- \`--plan-slug <slug>\` optional saved decomposition plan slug; Kanban can infer it for decomposition-created task IDs and appends the gap to that plan's \`revisions.md\` when available.
 - \`--project-path <path>\` optional workspace path. If omitted, Kanban uses the current directory workspace.
 
 Notes:

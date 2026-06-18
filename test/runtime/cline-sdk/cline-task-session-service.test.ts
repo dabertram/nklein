@@ -1634,6 +1634,61 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.listMessages("task-1").at(-1)?.content).toContain("paused this task");
 	});
 
+	it("parks a task when the autonomous wall-time budget is reached", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		try {
+			const { service, runtime } = createTrackedService();
+			await service.startTaskSession({
+				taskId: "task-1",
+				cwd: "/tmp/worktree",
+				prompt: "Keep working autonomously.",
+				providerId: "lmstudio",
+				modelId: "qwen3",
+			});
+
+			nowSpy.mockReturnValue(1_000 + 2 * 60 * 60 * 1000 + 60_000);
+			const summary = service.applyTurnCheckpoint("task-1", {
+				turn: 3,
+				ref: "refs/kanban/checkpoints/task-1/turn/3",
+				commit: "commit-3",
+				createdAt: 3,
+			});
+
+			expect(summary).toMatchObject({
+				state: "awaiting_review",
+				reviewReason: "attention",
+				warningMessage: expect.stringContaining("autonomous wall time"),
+				latestTurnCheckpoint: {
+					turn: 3,
+					commit: "commit-3",
+				},
+				latestHookActivity: {
+					hookEventName: "guardrail",
+					source: "kanban",
+				},
+			});
+			expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "budget_wall",
+					severity: "warning",
+					taskId: "task-1",
+					providerId: "lmstudio",
+					modelId: "qwen3",
+					metadata: expect.objectContaining({
+						guardrail: "max_autonomous_wall_time",
+						elapsedMs: 2 * 60 * 60 * 1000 + 60_000,
+						limitMs: 2 * 60 * 60 * 1000,
+						turn: 3,
+					}),
+				}),
+			);
+			expect(service.listMessages("task-1").at(-1)?.content).toContain("autonomous wall time");
+		} finally {
+			nowSpy.mockRestore();
+		}
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartClineSessionRuntimeResult>();

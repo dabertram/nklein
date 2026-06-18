@@ -2178,7 +2178,10 @@ export function registerTaskCommand(program: Command): void {
 		)
 		.requiredOption("--description <text>", "Plain-language description of the blocking gap.")
 		.option("--evidence <text>", "Optional evidence such as error text, missing path, or conflicting requirement.")
-		.option("--plan-slug <slug>", "Optional saved plan slug whose revisions.md should record this gap.")
+		.option(
+			"--plan-slug <slug>",
+			"Optional saved plan slug whose revisions.md should record this gap; inferred for decomposition-created task IDs when omitted.",
+		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.action(
 			async (options: {

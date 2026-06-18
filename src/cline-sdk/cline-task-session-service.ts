@@ -86,6 +86,7 @@ const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
 const CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
+const CLINE_MAX_AUTONOMOUS_WALL_TIME_MS = 2 * 60 * 60 * 1000;
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
 type ClineSdkToolResultBlock = Extract<ClineSdkContentBlock, { type: "tool_result" }>;
 type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
@@ -397,6 +398,19 @@ function readAgentResultText(result: unknown): string | null {
 	}
 	const normalized = text.trim();
 	return normalized.length > 0 ? normalized : null;
+}
+
+function formatWallTimeDuration(durationMs: number): string {
+	const totalMinutes = Math.max(1, Math.round(durationMs / 60_000));
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	if (hours === 0) {
+		return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
+	}
+	if (minutes === 0) {
+		return `${hours} hour${hours === 1 ? "" : "s"}`;
+	}
+	return `${hours} hour${hours === 1 ? "" : "s"} ${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
 function formatStartWarnings(warnings: readonly string[] | undefined): string | null {
@@ -1865,52 +1879,89 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (!summary) {
 			return null;
 		}
-		const guardedSummary = this.enforceTurnBudget(taskId, checkpoint) ?? summary;
+		const guardedSummary = this.enforceAutonomyBudgets(taskId, checkpoint) ?? summary;
 		this.emitSummary(guardedSummary);
 		return guardedSummary;
 	}
 
-	private enforceTurnBudget(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null {
-		if (isHomeAgentSessionId(taskId) || checkpoint.turn < CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK) {
+	private enforceAutonomyBudgets(
+		taskId: string,
+		checkpoint: RuntimeTaskTurnCheckpoint,
+	): RuntimeTaskSessionSummary | null {
+		if (isHomeAgentSessionId(taskId)) {
 			return null;
 		}
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry || entry.summary.reviewReason === "attention") {
 			return null;
 		}
-		this.clearTaskTimeouts(taskId);
-		void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
-		const message = `Kanban paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`;
-		recordSelfObservation({
-			signal: "budget_wall",
-			severity: "warning",
-			message,
+		if (checkpoint.turn >= CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK) {
+			return this.parkTaskForAutonomyBudget({
+				taskId,
+				entry,
+				message: `Kanban paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
+				metadata: {
+					guardrail: "max_autonomous_turns",
+					turn: checkpoint.turn,
+					limit: CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK,
+					checkpointRef: checkpoint.ref,
+					checkpointCommit: checkpoint.commit,
+				},
+			});
+		}
+		const startedAt = entry.summary.startedAt;
+		const elapsedMs =
+			typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0 ? now() - startedAt : null;
+		if (elapsedMs === null || elapsedMs < CLINE_MAX_AUTONOMOUS_WALL_TIME_MS) {
+			return null;
+		}
+		return this.parkTaskForAutonomyBudget({
 			taskId,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			entry,
+			message: `Kanban paused this task after ${formatWallTimeDuration(elapsedMs)} of autonomous wall time so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
 			metadata: {
-				guardrail: "max_autonomous_turns",
+				guardrail: "max_autonomous_wall_time",
+				elapsedMs,
+				limitMs: CLINE_MAX_AUTONOMOUS_WALL_TIME_MS,
 				turn: checkpoint.turn,
-				limit: CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK,
 				checkpointRef: checkpoint.ref,
 				checkpointCommit: checkpoint.commit,
 			},
 		});
-		const systemMessage = createMessage(taskId, "system", message);
-		entry.messages.push(systemMessage);
-		this.emitMessage(taskId, systemMessage);
-		clearActiveTurnState(entry);
-		return updateSummary(entry, {
+	}
+
+	private parkTaskForAutonomyBudget(input: {
+		taskId: string;
+		entry: ClineTaskSessionEntry;
+		message: string;
+		metadata: Record<string, unknown>;
+	}): RuntimeTaskSessionSummary {
+		this.clearTaskTimeouts(input.taskId);
+		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
+		recordSelfObservation({
+			signal: "budget_wall",
+			severity: "warning",
+			message: input.message,
+			taskId: input.taskId,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: input.metadata,
+		});
+		const systemMessage = createMessage(input.taskId, "system", input.message);
+		input.entry.messages.push(systemMessage);
+		this.emitMessage(input.taskId, systemMessage);
+		clearActiveTurnState(input.entry);
+		return updateSummary(input.entry, {
 			state: "awaiting_review",
 			reviewReason: "attention",
 			lastOutputAt: now(),
 			lastHookAt: now(),
-			warningMessage: message,
+			warningMessage: input.message,
 			latestHookActivity: {
-				activityText: message,
+				activityText: input.message,
 				toolName: null,
 				toolInputSummary: null,
-				finalMessage: message,
+				finalMessage: input.message,
 				hookEventName: "guardrail",
 				notificationType: "warning",
 				source: "kanban",
