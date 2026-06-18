@@ -497,10 +497,12 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 - [x] ~~≥30k context policy~~ — **done at 32k** (`CLINE_MIN_CONTEXT_WINDOW_TOKENS = 32_000`,
       `assertClineContextWindowPolicy`, [cline-context-window-policy.ts:1](src/cline-sdk/cline-context-window-policy.ts#L1)).
       *The entire 8–16k premise of the old plan is obsolete — removed.*
-- [ ] **Verify 30k enforcement at every entry** (provider save, task start, router candidates, role
+- [x] ~~**Verify 30k enforcement at every entry** (provider save, task start, router candidates, role
       resolution) and confirm the unknown-window fallback (8k/12k reserves,
       [cline-context-budgets.ts:66-74](src/cline-sdk/cline-context-budgets.ts#L66)) can't admit a
-      sub-30k model.
+      sub-30k model.~~
+      `assertClineContextWindowPolicy` is enforced at provider save, launch resolution, role candidate
+      construction, runtime start, and start-guard fallback creation; tests cover null/16k rejection and 32k acceptance.
 - [ ] **Resolve & measure the local model (currently null).** `model-registry.json` shows the in-use
       lmstudio qwen with `contextWindow.{advertised,observed,userOverride,effective} = null` and
       `speed.samples = 0` — so the MCSR provides no window or speed and budgets/UI fall back to heuristics.
@@ -552,11 +554,13 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Delete the branch or fall back to caveman/minify.~~
       The deterministic path now always uses caveman/minify compression, and provider-assisted compression is
       isolated in `compressKanbanContextTextWithProvider`.
-- [ ] **Plan2.md L6 / success-criterion #6:** hoist hardcoded policy constants
+- [x] ~~**Plan2.md L6 / success-criterion #6:** hoist hardcoded policy constants
       (`24_000`/`16_000`/`750`/`2_500`, curve factors,
       [cline-context-budgets.ts:79-108](src/cline-sdk/cline-context-budgets.ts#L79)) into named,
       documented policy parameters — or relax the "no hardcoded constants" success criterion to "no
-      hardcoded *window/speed* constants in routing/budget *decisions*."
+      hardcoded *window/speed* constants in routing/budget *decisions*.~~
+      Context-budget reserves, pressure references/ranges, fallback reserves, file chunk minimums, and char
+      budget conversion are now named policy constants with comments for the pressure curve.
 
 ### Autonomy & reliability gates
 - [x] ~~Acceptance repair/escalation ladder is well-structured~~ ([cline-acceptance-repair.ts](src/cline-sdk/cline-acceptance-repair.ts)).
@@ -567,7 +571,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       block completion when a completion claim coincides with an empty diff.~~
       `cline-session-runtime` now reads workspace changes and passes `hasChangedFiles` into the self-review
       hook; hook tests cover completion claims with no changed files.
-- [ ] Acceptance-gate shell fix — covered in **L1.5**.
+- [x] ~~Acceptance-gate shell fix — covered in **L1.5**.~~
 
 ### Self-improvement loop (Dogfood Engine) + telemetry
 - [x] ~~Self-observation sink is clean and async~~ ([self-observation-sink.ts](src/telemetry/self-observation-sink.ts)).
@@ -584,10 +588,12 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Treat `null` delta as **block**; reconcile the protected list with files that actually exist
       ([agent-write-guard.ts](src/core/agent-write-guard.ts), etc.).~~
       `evaluateTrustedAutoMerge` blocks `null` regression deltas and protects the real guardrail/runtime paths.
-- [ ] **Plan2.md L5:** sink stores `workspacePath` and file paths verbatim; secret regex misses AWS
+- [x] ~~**Plan2.md L5:** sink stores `workspacePath` and file paths verbatim; secret regex misses AWS
       keys / generic JWTs; no retention/rotation
       ([self-observation-sink.ts:52-107](src/telemetry/self-observation-sink.ts#L52)). Add path
-      redaction/relativization, broaden secret patterns, cap/rotate retention.
+      redaction/relativization, broaden secret patterns, cap/rotate retention.~~
+      The sink now redacts absolute paths in top-level fields and nested metadata, covers AWS/GitHub/JWT-style
+      secrets, and prunes daily JSONL logs by retention.
 - [x] ~~**Plan2.md L7:** team-progress frames a `task_end` error as completion
       ([cline-team-progress.ts:57-58](src/cline-sdk/cline-team-progress.ts#L57)) — distinct failure summary.~~
       `task_end` summaries now treat object-shaped and string-shaped errors as failures.

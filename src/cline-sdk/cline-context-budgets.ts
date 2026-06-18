@@ -6,10 +6,18 @@ const OUTPUT_RESERVE_RATIO = 0.1;
 const PROMPT_OVERHEAD_RESERVE_RATIO = 0.15;
 const MIN_OUTPUT_RESERVE_TOKENS = 512;
 const MIN_PROMPT_OVERHEAD_RESERVE_TOKENS = 1_024;
+// Reserve caps keep very large local windows from hoarding context that should remain useful working room.
+const MAX_OUTPUT_RESERVE_TOKENS = 16_000;
+const MAX_PROMPT_OVERHEAD_RESERVE_TOKENS = 24_000;
+const UNKNOWN_WINDOW_OUTPUT_RESERVE_TOKENS = 8_000;
+const UNKNOWN_WINDOW_PROMPT_OVERHEAD_RESERVE_TOKENS = 12_000;
 const MIN_FILE_CHUNK_TOKEN_BUDGET = 512;
+const MIN_FILE_CHUNK_CONTENT_TOKEN_BUDGET = 1_000;
+const TOKEN_TO_CHAR_BUDGET_MULTIPLIER = 4;
 const FILE_CHUNK_SAFE_WORKING_BUDGET_RATIO = 0.6;
 const FILE_CHUNK_CONTEXT_WINDOW_RATIO = 0.5;
 const MAX_FILE_CHUNK_TOKEN_BUDGET = 64_000;
+// Pressure rises as windows shrink below 24k or local prefill slows beyond 750ms per 1k prompt tokens.
 const PRESSURE_REFERENCE_CONTEXT_WINDOW_TOKENS = 24_000;
 const PRESSURE_CONTEXT_WINDOW_RANGE_TOKENS = 16_000;
 const DEFAULT_UNKNOWN_WINDOW_PRESSURE = 0.35;
@@ -64,14 +72,17 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 			? Math.trunc(contextWindowInput)
 			: null;
 	const outputReserveTokens = contextWindow
-		? Math.max(MIN_OUTPUT_RESERVE_TOKENS, Math.min(16_000, Math.round(contextWindow * OUTPUT_RESERVE_RATIO)))
-		: 8_000;
+		? Math.max(
+				MIN_OUTPUT_RESERVE_TOKENS,
+				Math.min(MAX_OUTPUT_RESERVE_TOKENS, Math.round(contextWindow * OUTPUT_RESERVE_RATIO)),
+			)
+		: UNKNOWN_WINDOW_OUTPUT_RESERVE_TOKENS;
 	const promptOverheadReserveTokens = contextWindow
 		? Math.max(
 				MIN_PROMPT_OVERHEAD_RESERVE_TOKENS,
-				Math.min(24_000, Math.round(contextWindow * PROMPT_OVERHEAD_RESERVE_RATIO)),
+				Math.min(MAX_PROMPT_OVERHEAD_RESERVE_TOKENS, Math.round(contextWindow * PROMPT_OVERHEAD_RESERVE_RATIO)),
 			)
-		: 12_000;
+		: UNKNOWN_WINDOW_PROMPT_OVERHEAD_RESERVE_TOKENS;
 	const safeWorkingBudget = contextWindow
 		? Math.max(0, contextWindow - outputReserveTokens - promptOverheadReserveTokens)
 		: null;
@@ -92,8 +103,11 @@ export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | nu
 		promptOverheadReserveTokens,
 		safeWorkingBudget,
 		fileChunkTokenBudget,
-		fileChunkContentTokenBudget: Math.max(1_000, fileChunkTokenBudget - READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS),
-		fileChunkCharBudget: fileChunkTokenBudget * 4,
+		fileChunkContentTokenBudget: Math.max(
+			MIN_FILE_CHUNK_CONTENT_TOKEN_BUDGET,
+			fileChunkTokenBudget - READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS,
+		),
+		fileChunkCharBudget: fileChunkTokenBudget * TOKEN_TO_CHAR_BUDGET_MULTIPLIER,
 	};
 }
 
