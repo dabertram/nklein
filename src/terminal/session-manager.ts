@@ -1016,7 +1016,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 				const summary = updateSummary(entry, {
 					warningMessage: message,
 				});
-				const output = Buffer.from(`\r\n[kanban] ${message}\r\n`, "utf8");
+				const output = Buffer.from(`\r\n[nklein] ${message}\r\n`, "utf8");
 				for (const listener of entry.listeners.values()) {
 					listener.onOutput?.(output);
 					listener.onState?.(cloneSummary(summary));

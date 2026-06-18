@@ -12,6 +12,7 @@
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { readEnvWithLegacyFallback } from "../config/legacy-env";
 
 const PASSCODE_LENGTH = 8;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -32,7 +33,10 @@ interface RateLimitEntry {
 	lockedUntil: number | null;
 }
 
-const INTERNAL_TOKEN_ENV = "KANBAN_INTERNAL_AUTH_TOKEN";
+const INTERNAL_TOKEN_ENV = "NKLEIN_INTERNAL_AUTH_TOKEN";
+const LEGACY_INTERNAL_TOKEN_ENV = "KANBAN_INTERNAL_AUTH_TOKEN";
+export const SESSION_COOKIE_NAME = "nklein_session";
+export const LEGACY_SESSION_COOKIE_NAME = "kanban_session";
 
 let passcodeState: PasscodeState | null = null;
 let passcodeEnabled = true;
@@ -131,9 +135,11 @@ export function extractSessionTokenFromCookie(cookieHeader: string | undefined):
 	if (!cookieHeader) return null;
 	for (const part of cookieHeader.split(";")) {
 		const trimmed = part.trim();
-		if (trimmed.startsWith("kanban_session=")) {
-			const value = trimmed.slice("kanban_session=".length).trim();
-			return value || null;
+		for (const cookieName of [SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME]) {
+			if (trimmed.startsWith(`${cookieName}=`)) {
+				const value = trimmed.slice(`${cookieName}=`.length).trim();
+				return value || null;
+			}
 		}
 	}
 	return null;
@@ -191,7 +197,7 @@ export function clearRateLimit(ip: string): void {
 // commands) to authenticate against the runtime server without the
 // browser-facing passcode flow.  The token is:
 //   • Generated once alongside the passcode (or when explicitly requested).
-//   • Stored in-memory AND propagated via the KANBAN_INTERNAL_AUTH_TOKEN env
+//   • Stored in-memory AND propagated via the NKLEIN_INTERNAL_AUTH_TOKEN env
 //     var so that child processes (spawned terminals, detached hook commands)
 //     inherit it automatically.
 //   • Never exposed to browser clients.
@@ -214,7 +220,14 @@ export function generateInternalToken(): string {
  * (this covers CLI sub-processes that were spawned by the server).
  */
 export function getInternalToken(): string | null {
-	return internalAuthToken ?? process.env[INTERNAL_TOKEN_ENV]?.trim() ?? null;
+	return (
+		internalAuthToken ??
+		readEnvWithLegacyFallback({
+			currentName: INTERNAL_TOKEN_ENV,
+			legacyName: LEGACY_INTERNAL_TOKEN_ENV,
+		}) ??
+		null
+	);
 }
 
 /**

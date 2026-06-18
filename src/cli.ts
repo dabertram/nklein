@@ -32,6 +32,7 @@ import {
 	setKanbanRuntimePort,
 	setKanbanRuntimeTls,
 } from "./core/runtime-endpoint";
+import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
 import { terminateProcessForTimeout } from "./server/process-termination";
 import type { RuntimeStateHub } from "./server/runtime-state-hub";
@@ -293,7 +294,7 @@ async function canReachKanbanServer(workspaceId: string | null): Promise<boolean
 	try {
 		const headers: Record<string, string> = {};
 		if (workspaceId) {
-			headers["x-kanban-workspace-id"] = workspaceId;
+			Object.assign(headers, buildWorkspaceScopeHeaders(workspaceId));
 		}
 		const runtimeFetch = await getRuntimeFetch();
 		const response = await runtimeFetch(buildKanbanRuntimeUrl("/api/trpc/projects.list"), {
@@ -318,8 +319,8 @@ async function tryOpenExistingServer(options: { noOpen: boolean; shouldAutoOpenB
 	let workspaceId: string | null = null;
 	if (hasGitRepository(process.cwd())) {
 		const { loadWorkspaceContext } = await import("./state/workspace-state.js");
-		const context = await loadWorkspaceContext(process.cwd());
-		workspaceId = context.workspaceId;
+		const context = await loadWorkspaceContext(process.cwd(), { autoCreateIfMissing: false }).catch(() => null);
+		workspaceId = context?.workspaceId ?? null;
 	}
 	const running = await canReachKanbanServer(workspaceId);
 	if (!running) {
@@ -414,7 +415,7 @@ async function startServer(): Promise<{
 
 	/*
 		Server-only modules are loaded lazily because task-oriented subcommands like
-		`kanban task create` and `kanban hooks ingest` do not need the runtime server.
+		`nklein task create` and `nklein hooks ingest` do not need the runtime server.
 
 		A regression in 25ba59f showed that eagerly importing the runtime stack here
 		could leave the source CLI process alive after the command had already printed
@@ -478,7 +479,7 @@ async function startServer(): Promise<{
 		workspaceRegistry,
 		runtimeStateHub: runtimeHub,
 		warn: (message) => {
-			console.warn(`[kanban] ${message}`);
+			console.warn(`[nklein] ${message}`);
 		},
 		ensureTerminalManagerForWorkspace: workspaceRegistry.ensureTerminalManagerForWorkspace,
 		resolveInteractiveShellCommand,
@@ -539,7 +540,7 @@ async function startServer(): Promise<{
 		await shutdownRuntimeServer({
 			workspaceRegistry,
 			warn: (message) => {
-				console.warn(`[kanban] ${message}`);
+				console.warn(`[nklein] ${message}`);
 			},
 			closeRuntimeServer: close,
 			skipSessionCleanup: options?.skipSessionCleanup ?? false,
@@ -626,7 +627,7 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		}
 		throw error;
 	}
-	console.log(`Cline Kanban running at ${runtime.url}`);
+	console.log(`!Klein running at ${runtime.url}`);
 	if (!options.noOpen && shouldAutoOpenBrowser) {
 		try {
 			openInBrowser(runtime.url, {
@@ -712,8 +713,8 @@ function createProgram(invocationArgs: string[]): Command {
 	const shouldAutoOpenBrowser = shouldAutoOpenBrowserTabForInvocation(invocationArgs);
 	const program = new Command();
 	program
-		.name("kanban")
-		.description("Local orchestration board for coding agents.")
+		.name("nklein")
+		.description("!Klein local orchestration board for coding agents.")
 		.version(KANBAN_VERSION, "-v, --version", "Output the version number")
 		.option("--host <ip>", "Host IP to bind the server to (default: 127.0.0.1).")
 		.option("--port <number|auto>", "Runtime port (1-65535) or auto.", parseCliPortValue)
@@ -722,7 +723,7 @@ function createProgram(invocationArgs: string[]): Command {
 		.option("--https", "Enable HTTPS. Requires both --cert and --key.")
 		.option("--cert <path>", "Path to a TLS certificate PEM file (implies HTTPS).")
 		.option("--key <path>", "Path to a TLS private key PEM file (implies HTTPS).")
-		.option("--update", "Update Kanban to the latest published version and exit.")
+		.option("--update", "Update !Klein to the latest published version and exit.")
 		.option(
 			"--no-passcode",
 			"Disable auto-generated passcode for remote access (for advanced users behind a reverse proxy).",
@@ -740,12 +741,12 @@ function createProgram(invocationArgs: string[]): Command {
 		.command("mcp")
 		.description("Deprecated compatibility command.")
 		.action(() => {
-			console.warn("Deprecated. Please uninstall Kanban MCP.");
+			console.warn("Deprecated. Please uninstall the legacy Kanban MCP.");
 		});
 
 	program
 		.command("update")
-		.description("Update Kanban to the latest published version.")
+		.description("Update !Klein to the latest published version.")
 		.action(async () => {
 			await runUpdateCommand();
 		});
@@ -787,6 +788,6 @@ void run().catch(async (error) => {
 	captureNodeException(error, { area: "startup" });
 	await Promise.allSettled([disposeCliTelemetryService(), flushNodeTelemetry()]);
 	const message = error instanceof Error ? error.message : String(error);
-	console.error(`Failed to start Kanban: ${message}`);
+	console.error(`Failed to start !Klein: ${message}`);
 	process.exit(1);
 });

@@ -157,10 +157,10 @@ describe("cline dogfood engine", () => {
 
 		expect(artifacts.taskGraph.tasks).toHaveLength(1);
 		await expect(
-			readFile(join(workspacePath, ".cline/kanban/plans/dogfood-output/plan.md"), "utf8"),
+			readFile(join(workspacePath, ".cline/nklein/plans/dogfood-output/plan.md"), "utf8"),
 		).resolves.toContain("Trusted auto-merge: blocked");
 		await expect(
-			readFile(join(workspacePath, ".cline/kanban/plans/dogfood-output/tasks.json"), "utf8"),
+			readFile(join(workspacePath, ".cline/nklein/plans/dogfood-output/tasks.json"), "utf8"),
 		).resolves.toContain("verification_failed");
 	});
 });

@@ -10,6 +10,7 @@ import type {
 } from "../core/api-contract";
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	appendClinePlanRevision,
 	type ClinePlanQuestion,
@@ -19,6 +20,7 @@ import {
 	clinePlanTaskGraphSchema,
 	clinePlanTaskSchema,
 	readClinePlanArtifacts,
+	updateClinePlanArtifactApplicationStatus,
 	writeClinePlanArtifacts,
 	writeClinePlanTaskGraph,
 } from "./cline-plan-artifacts";
@@ -46,6 +48,7 @@ export interface ApplyClinePlanTaskGraphInput {
 	taskGraph: ClinePlanTaskGraph;
 	baseRef: string;
 	randomUuid: () => string;
+	sourceTaskId?: string | null;
 	modelRoleSettings?: Record<string, RuntimeTaskClineSettings>;
 	routingCandidates?: readonly ClineTaskRoutingCandidate[];
 	sharedContext?: ClinePlanTaskSharedContext;
@@ -719,6 +722,24 @@ function collectBoardTaskIds(board: RuntimeBoardData): Set<string> {
 	return new Set(board.columns.flatMap((column) => column.cards.map((card) => card.id)));
 }
 
+function findGeneratedPlanTaskCard(input: {
+	board: RuntimeBoardData;
+	planSlug: string;
+	planTaskId: string;
+}): RuntimeBoardCard | null {
+	for (const column of input.board.columns) {
+		for (const card of column.cards) {
+			if (
+				card.generatedFromPlan?.planSlug === input.planSlug &&
+				card.generatedFromPlan.planTaskId === input.planTaskId
+			) {
+				return card;
+			}
+		}
+	}
+	return null;
+}
+
 export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInput): ApplyClinePlanTaskGraphResult {
 	let board = input.board;
 	const taskGraph = validateClinePlanTaskGraph({
@@ -737,6 +758,16 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	});
 
 	for (const task of taskGraph.tasks) {
+		const existingGeneratedCard = findGeneratedPlanTaskCard({
+			board,
+			planSlug: taskGraph.slug,
+			planTaskId: task.id,
+		});
+		if (existingGeneratedCard) {
+			usedBoardTaskIds.add(existingGeneratedCard.id);
+			taskIdByPlanTaskId[task.id] = existingGeneratedCard.id;
+			continue;
+		}
 		const taskPromptForRouting = buildTaskPrompt(task, input.sharedContext);
 		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPromptForRouting, input.routingCandidates);
 		const taskPrompt = buildTaskPrompt(
@@ -766,6 +797,12 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 				baseRef: input.baseRef,
 				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
 				filesLikelyTouched: task.filesLikelyTouched,
+				generatedFromPlan: {
+					artifactKind: "decomposition",
+					planSlug: taskGraph.slug,
+					planTaskId: task.id,
+					sourceTaskId: input.sourceTaskId ?? null,
+				},
 			},
 			input.randomUuid,
 			now,
@@ -787,6 +824,9 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 			}
 			const linked = addTaskDependency(board, waitingTaskId, prerequisiteTaskId);
 			if (!linked.added || !linked.dependency) {
+				if (linked.reason === "duplicate") {
+					continue;
+				}
 				throw new Error(`Could not link ${task.id} to ${dependencyPlanTaskId}: ${linked.reason ?? "unknown"}.`);
 			}
 			board = linked.board;
@@ -806,6 +846,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	workspacePath: string;
 	taskGraph: ClinePlanTaskGraph;
+	sourceTaskId?: string | null;
 	sharedContext?: ClinePlanTaskSharedContext;
 }): Promise<ApplyDecomposeProjectArtifactsResult> {
 	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
@@ -813,6 +854,17 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 		taskGraph: input.taskGraph,
 		sharedContext: input.sharedContext,
 	});
+	if (runtimeConfig?.decompositionAutoApplyEnabled === false) {
+		return {
+			applied: false,
+			createdTaskCount: 0,
+			createdDependencyCount: 0,
+			taskIdByPlanTaskId: {},
+			baseRef: null,
+			message: "Automatic card creation is disabled, so the task graph was kept pending for review.",
+			preview: fallbackPreview,
+		};
+	}
 	try {
 		const result = await mutateWorkspaceState<ApplyDecomposeProjectArtifactsResult>(input.workspacePath, (state) => {
 			const baseRef = state.git.currentBranch ?? state.git.defaultBranch;
@@ -836,6 +888,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				taskGraph: input.taskGraph,
 				baseRef,
 				randomUuid: randomUUID,
+				sourceTaskId: input.sourceTaskId,
 				modelRoleSettings: runtimeConfig?.modelRoles,
 				sharedContext: input.sharedContext,
 			});
@@ -855,6 +908,18 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 		return result.value;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
+		await recordSelfObservation({
+			signal: "runtime_error",
+			severity: "warning",
+			message: `Plan artifact auto-apply failed: ${message}`,
+			taskId: input.sourceTaskId ?? null,
+			workspacePath: input.workspacePath,
+			metadata: {
+				operation: "decompose_project_auto_apply",
+				planSlug: input.taskGraph.slug,
+				taskCount: input.taskGraph.tasks.length,
+			},
+		});
 		return {
 			applied: false,
 			createdTaskCount: 0,
@@ -867,11 +932,11 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	}
 }
 
-function createDecomposeProjectTool(workspacePath: string): AgentTool {
+function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string | null): AgentTool {
 	return {
 		name: "decompose_project",
 		description:
-			"Validate and persist Kanban decomposition artifacts for a project-scale idea. Use this instead of editing .cline/kanban plan files or tasks.json directly.",
+			"Validate and persist !Klein decomposition artifacts for a project-scale idea. Use this instead of editing .cline/nklein plan files or tasks.json directly.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -944,7 +1009,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				expansions: {
 					type: "object",
 					description:
-						"Optional recursive replacement map. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. Kanban expands these before validation and rewrites dependencies to terminal replacement leaves.",
+						"Optional recursive replacement map. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. !Klein expands these before validation and rewrites dependencies to terminal replacement leaves.",
 					additionalProperties: {
 						type: "array",
 						items: {
@@ -983,17 +1048,28 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				questions,
 				revisions: formatExpansionRevisionMarkdown(expansions),
 				taskGraph: validation.taskGraph,
+				sourceTaskId,
 			});
 			const applied = await applyDecomposeProjectArtifactsToWorkspace({
 				workspacePath,
-				taskGraph: validation.taskGraph,
+				taskGraph: artifacts.taskGraph,
+				sourceTaskId,
 				sharedContext: {
 					spec: artifacts.spec,
 					decisionsMarkdown: artifacts.decisionsMarkdown,
 				},
 			});
+			if (applied.applied) {
+				await updateClinePlanArtifactApplicationStatus({
+					workspacePath,
+					slug: artifacts.taskGraph.slug,
+					applicationStatus: "applied",
+					sourceTaskId,
+				});
+			}
 			return {
 				ok: true,
+				artifactId: artifacts.artifactId,
 				slug: artifacts.taskGraph.slug,
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
@@ -1012,7 +1088,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
 					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
-					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
+					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through Kanban, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
 			};
 		},
 	};
@@ -1047,6 +1123,13 @@ function createExpandTaskTool(): AgentTool {
 	};
 }
 
-export function createClineDecompositionTools(options: { workspacePath: string }): AgentTool[] {
-	return [createDecomposeProjectTool(options.workspacePath), createExpandTaskTool()];
+export function createClineDecompositionTools(options: {
+	workspacePath: string;
+	artifactWorkspacePath?: string | null;
+	sourceTaskId?: string | null;
+}): AgentTool[] {
+	return [
+		createDecomposeProjectTool(options.artifactWorkspacePath?.trim() || options.workspacePath, options.sourceTaskId),
+		createExpandTaskTool(),
+	];
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { resetLegacyEnvWarningsForTests } from "../../src/config/legacy-env";
 
 import {
 	buildKanbanRuntimeUrl,
@@ -17,34 +18,59 @@ import {
 
 const originalRuntimePort = getKanbanRuntimePort();
 const originalRuntimeHost = getKanbanRuntimeHost();
-const originalEnvPort = process.env.KANBAN_RUNTIME_PORT;
-const originalEnvHost = process.env.KANBAN_RUNTIME_HOST;
-const originalEnvHttps = process.env.KANBAN_RUNTIME_HTTPS;
-const originalEnvTlsCa = process.env.KANBAN_RUNTIME_TLS_CA;
+const originalEnvPort = process.env.NKLEIN_RUNTIME_PORT;
+const originalLegacyEnvPort = process.env.KANBAN_RUNTIME_PORT;
+const originalEnvHost = process.env.NKLEIN_RUNTIME_HOST;
+const originalLegacyEnvHost = process.env.KANBAN_RUNTIME_HOST;
+const originalEnvHttps = process.env.NKLEIN_RUNTIME_HTTPS;
+const originalLegacyEnvHttps = process.env.KANBAN_RUNTIME_HTTPS;
+const originalEnvTlsCa = process.env.NKLEIN_RUNTIME_TLS_CA;
+const originalLegacyEnvTlsCa = process.env.KANBAN_RUNTIME_TLS_CA;
 
 afterEach(() => {
 	setKanbanRuntimePort(originalRuntimePort);
 	setKanbanRuntimeHost(originalRuntimeHost);
 	clearKanbanRuntimeTls();
+	resetLegacyEnvWarningsForTests();
 	if (originalEnvPort === undefined) {
+		delete process.env.NKLEIN_RUNTIME_PORT;
+	} else {
+		process.env.NKLEIN_RUNTIME_PORT = originalEnvPort;
+	}
+	if (originalLegacyEnvPort === undefined) {
 		delete process.env.KANBAN_RUNTIME_PORT;
 	} else {
-		process.env.KANBAN_RUNTIME_PORT = originalEnvPort;
+		process.env.KANBAN_RUNTIME_PORT = originalLegacyEnvPort;
 	}
 	if (originalEnvHost === undefined) {
+		delete process.env.NKLEIN_RUNTIME_HOST;
+	} else {
+		process.env.NKLEIN_RUNTIME_HOST = originalEnvHost;
+	}
+	if (originalLegacyEnvHost === undefined) {
 		delete process.env.KANBAN_RUNTIME_HOST;
 	} else {
-		process.env.KANBAN_RUNTIME_HOST = originalEnvHost;
+		process.env.KANBAN_RUNTIME_HOST = originalLegacyEnvHost;
 	}
 	if (originalEnvHttps === undefined) {
+		delete process.env.NKLEIN_RUNTIME_HTTPS;
+	} else {
+		process.env.NKLEIN_RUNTIME_HTTPS = originalEnvHttps;
+	}
+	if (originalLegacyEnvHttps === undefined) {
 		delete process.env.KANBAN_RUNTIME_HTTPS;
 	} else {
-		process.env.KANBAN_RUNTIME_HTTPS = originalEnvHttps;
+		process.env.KANBAN_RUNTIME_HTTPS = originalLegacyEnvHttps;
 	}
 	if (originalEnvTlsCa === undefined) {
+		delete process.env.NKLEIN_RUNTIME_TLS_CA;
+	} else {
+		process.env.NKLEIN_RUNTIME_TLS_CA = originalEnvTlsCa;
+	}
+	if (originalLegacyEnvTlsCa === undefined) {
 		delete process.env.KANBAN_RUNTIME_TLS_CA;
 	} else {
-		process.env.KANBAN_RUNTIME_TLS_CA = originalEnvTlsCa;
+		process.env.KANBAN_RUNTIME_TLS_CA = originalLegacyEnvTlsCa;
 	}
 });
 
@@ -54,15 +80,15 @@ describe("runtime-endpoint", () => {
 	});
 
 	it("throws for invalid ports", () => {
-		expect(() => parseRuntimePort("0")).toThrow(/Invalid KANBAN_RUNTIME_PORT value/);
-		expect(() => parseRuntimePort("70000")).toThrow(/Invalid KANBAN_RUNTIME_PORT value/);
-		expect(() => parseRuntimePort("abc")).toThrow(/Invalid KANBAN_RUNTIME_PORT value/);
+		expect(() => parseRuntimePort("0")).toThrow(/Invalid NKLEIN_RUNTIME_PORT value/);
+		expect(() => parseRuntimePort("70000")).toThrow(/Invalid NKLEIN_RUNTIME_PORT value/);
+		expect(() => parseRuntimePort("abc")).toThrow(/Invalid NKLEIN_RUNTIME_PORT value/);
 	});
 
 	it("updates runtime url builders when port changes", () => {
 		setKanbanRuntimePort(4567);
 		expect(getKanbanRuntimePort()).toBe(4567);
-		expect(process.env.KANBAN_RUNTIME_PORT).toBe("4567");
+		expect(process.env.NKLEIN_RUNTIME_PORT).toBe("4567");
 		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("http://127.0.0.1:4567/api/trpc");
 		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("ws://127.0.0.1:4567/api/terminal/ws");
 	});
@@ -71,7 +97,7 @@ describe("runtime-endpoint", () => {
 		setKanbanRuntimeHost("100.64.0.1");
 		setKanbanRuntimePort(4567);
 		expect(getKanbanRuntimeHost()).toBe("100.64.0.1");
-		expect(process.env.KANBAN_RUNTIME_HOST).toBe("100.64.0.1");
+		expect(process.env.NKLEIN_RUNTIME_HOST).toBe("100.64.0.1");
 		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("http://100.64.0.1:4567/api/trpc");
 		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("ws://100.64.0.1:4567/api/terminal/ws");
 	});
@@ -89,8 +115,8 @@ describe("runtime-endpoint", () => {
 			ca: "test-cert",
 		});
 		expect(isKanbanRuntimeHttps()).toBe(true);
-		expect(process.env.KANBAN_RUNTIME_HTTPS).toBe("1");
-		expect(process.env.KANBAN_RUNTIME_TLS_CA).toBe("test-cert");
+		expect(process.env.NKLEIN_RUNTIME_HTTPS).toBe("1");
+		expect(process.env.NKLEIN_RUNTIME_TLS_CA).toBe("test-cert");
 		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("https://localhost:4567/api/trpc");
 		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("wss://localhost:4567/api/terminal/ws");
 	});

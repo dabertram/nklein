@@ -42,7 +42,7 @@ export function DebugDialog({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogHeader title="Debug tools" icon={<Bug size={16} />} />
+				<DialogHeader title="Developer Tools" icon={<Bug size={16} />} />
 				<DialogBody className="space-y-4">
 					<div className="rounded-md border border-border bg-surface-2 p-3">
 						<p className="text-sm font-medium text-text-primary">Show onboarding dialog</p>
@@ -62,8 +62,8 @@ export function DebugDialog({
 					<div className="rounded-md border border-border bg-surface-2 p-3">
 						<p className="text-sm font-medium text-text-primary">Reset all state</p>
 						<p className="mt-1 text-xs text-text-secondary">
-							Clears browser local storage and removes <code>~/.cline/data</code>, <code>~/.cline/kanban</code>,
-							and <code>~/.cline/worktrees</code>. Kanban reloads after completion.
+							Clears browser local storage and removes <code>~/.cline/data</code>, <code>~/.cline/nklein</code>,
+							and <code>~/.cline/worktrees</code>. !Klein reloads after completion.
 						</p>
 						<Button
 							variant="danger"
@@ -91,7 +91,7 @@ export function DebugDialog({
 				<AlertDialogBody>
 					<AlertDialogDescription>
 						This removes local browser storage and deletes <code>~/.cline/data</code>,{" "}
-						<code>~/.cline/kanban</code>, and <code>~/.cline/worktrees</code>.
+						<code>~/.cline/nklein</code>, and <code>~/.cline/worktrees</code>.
 					</AlertDialogDescription>
 					<p className="text-text-primary">This action cannot be undone.</p>
 				</AlertDialogBody>

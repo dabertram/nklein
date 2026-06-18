@@ -116,7 +116,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(launchCommand).not.toContain("codex-wrapper");
 		expect(launchCommand).not.toContain("notify=");
 
-		const wrapperPath = join(homedir(), ".cline", "kanban", "hooks", "codex", "codex-wrapper.mjs");
+		const wrapperPath = join(homedir(), ".cline", "nklein", "hooks", "codex", "codex-wrapper.mjs");
 		expect(existsSync(wrapperPath)).toBe(false);
 	});
 
@@ -134,7 +134,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 
 		const appendPromptIndex = launch.args.indexOf("--append-system-prompt");
 		expect(appendPromptIndex).toBeGreaterThanOrEqual(0);
-		expect(launch.args[appendPromptIndex + 1]).toContain("Kanban sidebar agent");
+		expect(launch.args[appendPromptIndex + 1]).toContain("!Klein sidebar agent");
 		expect(launch.args[appendPromptIndex + 1]).toContain(
 			"'/usr/local/bin/node' '/Users/example/repo/dist/cli.js' task create",
 		);
@@ -154,7 +154,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 
 		const developerInstructions = getCodexConfigOverrideValues(launch.args, "developer_instructions");
 		expect(developerInstructions).toHaveLength(1);
-		expect(developerInstructions[0]).toContain("Kanban sidebar agent");
+		expect(developerInstructions[0]).toContain("!Klein sidebar agent");
 		expect(developerInstructions[0]).toContain("'/usr/local/bin/node' '/Users/example/repo/dist/cli.js' task create");
 		expect(getCodexConfigOverrideValues(launch.args, "check_for_update_on_startup")).toEqual(["false"]);
 	});
@@ -199,7 +199,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const settingsPath = join(homedir(), ".cline", "kanban", "hooks", "claude", "settings.json");
+		const settingsPath = join(homedir(), ".cline", "nklein", "hooks", "claude", "settings.json");
 		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
 			hooks?: Record<string, unknown>;
 		};
@@ -221,14 +221,14 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const settingsPath = join(homedir(), ".cline", "kanban", "hooks", "gemini", "settings.json");
+		const settingsPath = join(homedir(), ".cline", "nklein", "hooks", "gemini", "settings.json");
 		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
 			hooks?: Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
 		};
 		const afterToolCommand = settings.hooks?.AfterTool?.[0]?.hooks?.[0]?.command;
 		expect(afterToolCommand).toContain("hooks");
 		expect(afterToolCommand).toContain("gemini-hook");
-		const hookScriptPath = join(homedir(), ".cline", "kanban", "hooks", "gemini", "gemini-hook.mjs");
+		const hookScriptPath = join(homedir(), ".cline", "nklein", "hooks", "gemini", "gemini-hook.mjs");
 		expect(existsSync(hookScriptPath)).toBe(false);
 	});
 
@@ -244,7 +244,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const pluginPath = join(homedir(), ".cline", "kanban", "hooks", "opencode", "kanban.js");
+		const pluginPath = join(homedir(), ".cline", "nklein", "hooks", "opencode", "kanban.js");
 		const plugin = readFileSync(pluginPath, "utf8");
 		expect(plugin).toContain("parentID");
 		expect(plugin).toContain('"permission.ask"');
@@ -467,7 +467,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const hooksDir = join(homedir(), ".cline", "kanban", "hooks", "cline");
+		const hooksDir = join(homedir(), ".cline", "nklein", "hooks", "cline");
 		const notificationHookPath =
 			process.platform === "win32" ? join(hooksDir, "Notification.ps1") : join(hooksDir, "Notification");
 		const taskCompleteHookPath =

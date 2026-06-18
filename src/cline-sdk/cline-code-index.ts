@@ -115,6 +115,7 @@ export interface GetClineCodeIndexStatusOptions {
 	maxFiles?: number;
 	chunkLines?: number;
 	cachePath?: string | null;
+	embeddingProvider?: ClineCodeEmbeddingProvider;
 }
 
 interface SourceFile {
@@ -280,7 +281,7 @@ function hashText(text: string): string {
 }
 
 function defaultCachePath(workspacePath: string): string {
-	return join(workspacePath, ".cline", "kanban", "code-index-v1.json");
+	return join(workspacePath, ".cline", "nklein", "code-index-v1.json");
 }
 
 function isCachedCodeIndex(value: unknown): value is CachedCodeIndex {
@@ -589,7 +590,9 @@ export async function getClineCodeIndexStatus(options: GetClineCodeIndexStatusOp
 	const maxFiles = asPositiveInteger(options.maxFiles, DEFAULT_MAX_FILES);
 	const chunkLines = Math.min(asPositiveInteger(options.chunkLines, DEFAULT_CHUNK_LINES), 200);
 	const cachePath = options.cachePath === null ? null : (options.cachePath ?? defaultCachePath(options.workspacePath));
-	const cachedIndex = cachePath ? await readCachedCodeIndex(cachePath) : null;
+	const rawCachedIndex = cachePath ? await readCachedCodeIndex(cachePath) : null;
+	const effectiveProvider = options.embeddingProvider ?? createClineCodeEmbeddingProvider();
+	const cachedIndex = rawCachedIndex?.embeddingCacheKey === effectiveProvider.cacheKey ? rawCachedIndex : null;
 	const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
 	const cachedFileByPath = new Map((cachedIndex?.files ?? []).map((file) => [file.path, file]));
 	let totalChunks = 0;
@@ -620,8 +623,8 @@ export async function getClineCodeIndexStatus(options: GetClineCodeIndexStatusOp
 	return {
 		cachePath,
 		cacheExists: cachedIndex !== null,
-		embeddingProvider: cachedIndex?.embeddingProvider ?? null,
-		embeddingModel: cachedIndex?.embeddingModel ?? null,
+		embeddingProvider: cachedIndex?.embeddingProvider ?? effectiveProvider.kind,
+		embeddingModel: cachedIndex?.embeddingModel ?? effectiveProvider.model,
 		updatedAt: cachedIndex?.updatedAt ?? null,
 		totalFiles: filePaths.length,
 		totalChunks,

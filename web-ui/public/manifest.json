@@ -1,6 +1,6 @@
 {
-	"name": "Cline",
-	"short_name": "Cline",
+	"name": "!Klein",
+	"short_name": "!Klein",
 	"start_url": "/",
 	"display": "standalone",
 	"display_override": ["window-controls-overlay"],

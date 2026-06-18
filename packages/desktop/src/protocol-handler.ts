@@ -1,4 +1,4 @@
-export const KANBAN_PROTOCOL = "kanban";
+export const KANBAN_PROTOCOL = "nklein";
 export const OAUTH_CALLBACK_PATH = "/oauth/callback";
 
 interface ParsedProtocolUrl {
@@ -20,7 +20,7 @@ export function parseProtocolUrl(raw: string): ParsedProtocolUrl | null {
 		return null;
 	}
 
-	// `kanban:` isn't a WHATWG "special" scheme, so `new URL("kanban://oauth/callback")`
+	// `nklein:` isn't a WHATWG "special" scheme, so `new URL("nklein://oauth/callback")`
 	// parses "oauth" as the hostname and "/callback" as the pathname. Re-join
 	// so downstream consumers see `/oauth/callback`.
 	const pathname = `/${url.hostname}${url.pathname}`.replace(/\/+$/, "") || "/";

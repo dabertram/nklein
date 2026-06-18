@@ -1,13 +1,24 @@
 import { rootCertificates } from "node:tls";
 import { Agent, setGlobalDispatcher } from "undici";
+import { readEnvWithLegacyFallback } from "../config/legacy-env";
 import { getInternalToken } from "../security/passcode-manager";
 
 export const DEFAULT_KANBAN_RUNTIME_HOST = "127.0.0.1";
 export const DEFAULT_KANBAN_RUNTIME_PORT = 3484;
-const KANBAN_RUNTIME_HTTPS_ENV = "KANBAN_RUNTIME_HTTPS";
-const KANBAN_RUNTIME_TLS_CA_ENV = "KANBAN_RUNTIME_TLS_CA";
+const NKLEIN_RUNTIME_HOST_ENV = "NKLEIN_RUNTIME_HOST";
+const LEGACY_KANBAN_RUNTIME_HOST_ENV = "KANBAN_RUNTIME_HOST";
+const NKLEIN_RUNTIME_PORT_ENV = "NKLEIN_RUNTIME_PORT";
+const LEGACY_KANBAN_RUNTIME_PORT_ENV = "KANBAN_RUNTIME_PORT";
+const NKLEIN_RUNTIME_HTTPS_ENV = "NKLEIN_RUNTIME_HTTPS";
+const LEGACY_KANBAN_RUNTIME_HTTPS_ENV = "KANBAN_RUNTIME_HTTPS";
+const NKLEIN_RUNTIME_TLS_CA_ENV = "NKLEIN_RUNTIME_TLS_CA";
+const LEGACY_KANBAN_RUNTIME_TLS_CA_ENV = "KANBAN_RUNTIME_TLS_CA";
 
-let runtimeHost: string = process.env.KANBAN_RUNTIME_HOST?.trim() || DEFAULT_KANBAN_RUNTIME_HOST;
+let runtimeHost: string =
+	readEnvWithLegacyFallback({
+		currentName: NKLEIN_RUNTIME_HOST_ENV,
+		legacyName: LEGACY_KANBAN_RUNTIME_HOST_ENV,
+	}) || DEFAULT_KANBAN_RUNTIME_HOST;
 
 export function getKanbanRuntimeHost(): string {
 	return runtimeHost;
@@ -15,7 +26,7 @@ export function getKanbanRuntimeHost(): string {
 
 export function setKanbanRuntimeHost(host: string): void {
 	runtimeHost = host;
-	process.env.KANBAN_RUNTIME_HOST = host;
+	process.env[NKLEIN_RUNTIME_HOST_ENV] = host;
 }
 
 export function parseRuntimePort(rawPort: string | undefined): number {
@@ -24,12 +35,17 @@ export function parseRuntimePort(rawPort: string | undefined): number {
 	}
 	const parsed = Number.parseInt(rawPort, 10);
 	if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
-		throw new Error(`Invalid KANBAN_RUNTIME_PORT value "${rawPort}". Expected an integer from 1-65535.`);
+		throw new Error(`Invalid ${NKLEIN_RUNTIME_PORT_ENV} value "${rawPort}". Expected an integer from 1-65535.`);
 	}
 	return parsed;
 }
 
-let runtimePort = parseRuntimePort(process.env.KANBAN_RUNTIME_PORT?.trim());
+let runtimePort = parseRuntimePort(
+	readEnvWithLegacyFallback({
+		currentName: NKLEIN_RUNTIME_PORT_ENV,
+		legacyName: LEGACY_KANBAN_RUNTIME_PORT_ENV,
+	}),
+);
 
 export function getKanbanRuntimePort(): number {
 	return runtimePort;
@@ -38,7 +54,7 @@ export function getKanbanRuntimePort(): number {
 export function setKanbanRuntimePort(port: number): void {
 	const normalized = parseRuntimePort(String(port));
 	runtimePort = normalized;
-	process.env.KANBAN_RUNTIME_PORT = String(normalized);
+	process.env[NKLEIN_RUNTIME_PORT_ENV] = String(normalized);
 }
 
 export interface RuntimeTlsConfig {
@@ -48,14 +64,22 @@ export interface RuntimeTlsConfig {
 }
 
 let runtimeTls: RuntimeTlsConfig | null = null;
-let runtimeTlsCa: string | null = process.env[KANBAN_RUNTIME_TLS_CA_ENV]?.trim() || null;
+let runtimeTlsCa: string | null =
+	readEnvWithLegacyFallback({
+		currentName: NKLEIN_RUNTIME_TLS_CA_ENV,
+		legacyName: LEGACY_KANBAN_RUNTIME_TLS_CA_ENV,
+	}) || null;
 
 /**
  * Whether the runtime is served over HTTPS. Initialised from the
- * `KANBAN_RUNTIME_HTTPS` env var so that CLI sub-commands (which run
+ * `NKLEIN_RUNTIME_HTTPS` env var so that CLI sub-commands (which run
  * in a separate process from the server) know the correct scheme.
  */
-let runtimeHttps: boolean = process.env[KANBAN_RUNTIME_HTTPS_ENV] === "1";
+let runtimeHttps: boolean =
+	readEnvWithLegacyFallback({
+		currentName: NKLEIN_RUNTIME_HTTPS_ENV,
+		legacyName: LEGACY_KANBAN_RUNTIME_HTTPS_ENV,
+	}) === "1";
 
 function clearRuntimeFetchCache(): void {
 	_runtimeFetchPromise = undefined;
@@ -69,11 +93,11 @@ export function setKanbanRuntimeTls(tls: RuntimeTlsConfig): void {
 	runtimeTls = tls;
 	runtimeHttps = true;
 	runtimeTlsCa = tls.ca?.trim() || null;
-	process.env[KANBAN_RUNTIME_HTTPS_ENV] = "1";
+	process.env[NKLEIN_RUNTIME_HTTPS_ENV] = "1";
 	if (runtimeTlsCa) {
-		process.env[KANBAN_RUNTIME_TLS_CA_ENV] = runtimeTlsCa;
+		process.env[NKLEIN_RUNTIME_TLS_CA_ENV] = runtimeTlsCa;
 	} else {
-		delete process.env[KANBAN_RUNTIME_TLS_CA_ENV];
+		delete process.env[NKLEIN_RUNTIME_TLS_CA_ENV];
 	}
 	clearRuntimeFetchCache();
 }
@@ -82,8 +106,8 @@ export function clearKanbanRuntimeTls(): void {
 	runtimeTls = null;
 	runtimeTlsCa = null;
 	runtimeHttps = false;
-	delete process.env[KANBAN_RUNTIME_HTTPS_ENV];
-	delete process.env[KANBAN_RUNTIME_TLS_CA_ENV];
+	delete process.env[NKLEIN_RUNTIME_HTTPS_ENV];
+	delete process.env[NKLEIN_RUNTIME_TLS_CA_ENV];
 	clearRuntimeFetchCache();
 }
 
@@ -136,7 +160,7 @@ export function buildKanbanRuntimeWsUrl(pathname: string): string {
 }
 
 /**
- * A fetch function that trusts the configured Kanban runtime certificate
+ * A fetch function that trusts the configured !Klein runtime certificate
  * bundle when connecting to the runtime over HTTPS, and automatically
  * attaches the internal CLI auth token (when present) so that CLI
  * sub-processes can authenticate against the runtime server without the

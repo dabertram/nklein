@@ -6,8 +6,8 @@ import type { RuntimeTaskTurnCheckpoint } from "../core/api-contract";
 import { createGitProcessEnv } from "../core/git-process-env";
 import { getGitStdout, type RunGitOptions } from "./git-utils";
 
-const CHECKPOINT_AUTHOR_NAME = "kanban-checkpoint";
-const CHECKPOINT_AUTHOR_EMAIL = "kanban-checkpoint@local";
+const CHECKPOINT_AUTHOR_NAME = "nklein-checkpoint";
+const CHECKPOINT_AUTHOR_EMAIL = "nklein-checkpoint@local";
 
 function runGit(cwd: string, args: string[], options: RunGitOptions = {}) {
 	return getGitStdout(args, cwd, options);
@@ -30,7 +30,7 @@ function buildCheckpointRef(taskId: string, turn: number): string {
 }
 
 async function createWorkingTreeCheckpointCommit(repoRoot: string, turn: number, taskId: string): Promise<string> {
-	const tempDir = await mkdtemp(join(tmpdir(), "kanban-checkpoint-"));
+	const tempDir = await mkdtemp(join(tmpdir(), "nklein-checkpoint-"));
 	const tempIndexPath = join(tempDir, "index");
 
 	const gitEnv: NodeJS.ProcessEnv = {

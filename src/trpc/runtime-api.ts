@@ -3,16 +3,20 @@
 // workspace actions, but detailed Cline, terminal, and config behavior
 // should stay in focused services instead of accumulating here.
 
+import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
+import { createClineCodeEmbeddingProviderFromSettings } from "../cline-sdk/cline-code-embeddings";
 import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
 import {
 	assertClineContextWindowPolicy,
 	isClineContextWindowPolicyError,
 } from "../cline-sdk/cline-context-window-policy";
+import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
@@ -31,8 +35,16 @@ import {
 	getDefaultClineModelRegistry,
 } from "../cline-sdk/cline-model-registry";
 import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
+import {
+	type ClinePlanArtifactSummary,
+	listClinePlanArtifactsForSourceTask,
+	readClinePlanArtifactsByArtifactId,
+	summarizeClinePlanArtifacts,
+	updateClinePlanArtifactApplicationStatus,
+} from "../cline-sdk/cline-plan-artifacts";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import { buildClineRepoMap } from "../cline-sdk/cline-repo-map";
+import { setClineLostHeartbeatPolicy } from "../cline-sdk/cline-session-state";
 import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
 import { routeClineTask } from "../cline-sdk/cline-task-router";
 import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
@@ -48,6 +60,7 @@ import { applyMcsrAwareLocalTimeoutScaling } from "../cline-sdk/cline-timeout-sc
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
+	RuntimeBoardCard,
 	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
@@ -58,6 +71,7 @@ import {
 	parseClineAccountSwitchRequest,
 	parseClineAddProviderRequest,
 	parseClineAdvisorBuildRequest,
+	parseClineAdvisorSendRequest,
 	parseClineDeviceAuthCompleteRequest,
 	parseClineDogfoodBacklogRequest,
 	parseClineMcpOAuthRequest,
@@ -83,10 +97,15 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
-import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
+import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { resolveTaskCwd } from "../workspace/task-worktree";
+import {
+	mergeTaskWorktreesInDependencyOrder,
+	type TaskWorktreeAutoMergeStep,
+} from "../workspace/task-worktree-auto-merge";
 import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
@@ -94,6 +113,150 @@ import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 type ResolvedClineLaunchConfig = Awaited<
 	ReturnType<ReturnType<typeof createClineProviderService>["resolveLaunchConfig"]>
 >;
+
+interface AdvisorChatCompletionInput {
+	launchConfig: ResolvedClineLaunchConfig;
+	prompt: string;
+}
+
+function joinUrlPath(baseUrl: string, path: string): string {
+	return `${baseUrl.replace(/\/+$/u, "")}/${path.replace(/^\/+/u, "")}`;
+}
+
+function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedClineLaunchConfig): string {
+	const configured = launchConfig.baseUrl?.trim();
+	if (configured) {
+		const trimmed = configured.replace(/\/+$/u, "");
+		try {
+			const url = new URL(trimmed);
+			if (!url.pathname.endsWith("/v1")) {
+				url.pathname = `${url.pathname.replace(/\/+$/u, "")}/v1`;
+			}
+			return url.toString().replace(/\/+$/u, "");
+		} catch {
+			return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
+		}
+	}
+	if (launchConfig.providerId === "lmstudio" || launchConfig.providerId === "lm-studio") {
+		return "http://localhost:1234/v1";
+	}
+	return "http://localhost:11434/v1";
+}
+
+function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedClineLaunchConfig): string {
+	return launchConfig.baseUrl?.trim().replace(/\/+$/u, "") || "http://localhost:11434";
+}
+
+function readAdvisorTextResponse(value: unknown): string {
+	if (!value || typeof value !== "object") {
+		return "";
+	}
+	const record = value as Record<string, unknown>;
+	const message = record.message;
+	if (message && typeof message === "object") {
+		const content = (message as Record<string, unknown>).content;
+		if (typeof content === "string") {
+			return content;
+		}
+	}
+	const response = record.response;
+	if (typeof response === "string") {
+		return response;
+	}
+	const choices = record.choices;
+	if (Array.isArray(choices)) {
+		const firstChoice = choices[0];
+		if (firstChoice && typeof firstChoice === "object") {
+			const choiceRecord = firstChoice as Record<string, unknown>;
+			const choiceMessage = choiceRecord.message;
+			if (choiceMessage && typeof choiceMessage === "object") {
+				const content = (choiceMessage as Record<string, unknown>).content;
+				if (typeof content === "string") {
+					return content;
+				}
+			}
+			const text = choiceRecord.text;
+			if (typeof text === "string") {
+				return text;
+			}
+		}
+	}
+	return "";
+}
+
+async function fetchAdvisorJson(url: string, init: RequestInit): Promise<unknown> {
+	const response = await fetch(url, init);
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(text.trim() || `Advisor model request failed with HTTP ${response.status}.`);
+	}
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		throw new Error("Advisor model returned a non-JSON response.");
+	}
+}
+
+async function runLocalAdvisorCompletion(input: AdvisorChatCompletionInput): Promise<string> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 120_000);
+	try {
+		const providerId = input.launchConfig.providerId.trim().toLowerCase();
+		if (providerId === "ollama") {
+			const value = await fetchAdvisorJson(
+				joinUrlPath(resolveAdvisorOllamaBaseUrl(input.launchConfig), "/api/chat"),
+				{
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						...(input.launchConfig.apiKey ? { authorization: `Bearer ${input.launchConfig.apiKey}` } : {}),
+					},
+					body: JSON.stringify({
+						model: input.launchConfig.modelId,
+						stream: false,
+						messages: [{ role: "user", content: input.prompt }],
+					}),
+					signal: controller.signal,
+				},
+			);
+			const output = readAdvisorTextResponse(value).trim();
+			if (!output) {
+				throw new Error("Advisor model returned an empty response.");
+			}
+			return output;
+		}
+
+		const value = await fetchAdvisorJson(
+			joinUrlPath(resolveAdvisorOpenAiBaseUrl(input.launchConfig), "/chat/completions"),
+			{
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					...(input.launchConfig.apiKey ? { authorization: `Bearer ${input.launchConfig.apiKey}` } : {}),
+				},
+				body: JSON.stringify({
+					model: input.launchConfig.modelId,
+					messages: [{ role: "user", content: input.prompt }],
+					temperature: 0.2,
+					stream: false,
+				}),
+				signal: controller.signal,
+			},
+		);
+		const output = readAdvisorTextResponse(value).trim();
+		if (!output) {
+			throw new Error("Advisor model returned an empty response.");
+		}
+		return output;
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error("Advisor model request timed out after 120 seconds.");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
 
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
@@ -262,6 +425,104 @@ function createConcurrencyLimitStartError(maxConcurrentTasks: number): string {
 	return `Maximum concurrent task limit reached (${maxConcurrentTasks}). Wait for a running task to finish, or stop an active task before starting another.`;
 }
 
+function findBoardCardById(cards: readonly RuntimeBoardCard[], taskId: string): RuntimeBoardCard | null {
+	return cards.find((card) => card.id === taskId) ?? null;
+}
+
+function findBoardCardRecordById(
+	board: { columns: readonly { id: string; cards: readonly RuntimeBoardCard[] }[] },
+	taskId: string,
+): { card: RuntimeBoardCard; columnId: string } | null {
+	for (const column of board.columns) {
+		for (const card of column.cards) {
+			if (card.id === taskId) {
+				return { card, columnId: column.id };
+			}
+		}
+	}
+	return null;
+}
+
+function findSourceCardBaseRef(cards: readonly RuntimeBoardCard[], sourceTaskId: string | null): string | null {
+	if (!sourceTaskId) {
+		return null;
+	}
+	return findBoardCardById(cards, sourceTaskId)?.baseRef ?? null;
+}
+
+function toRuntimePlanArtifactSummary(summary: ClinePlanArtifactSummary): ClinePlanArtifactSummary {
+	return summary;
+}
+
+function formatAcceptanceVerifyMessage(input: {
+	present: boolean;
+	passed: boolean | null;
+	command: string | null;
+	exitCode: number | null;
+}): string {
+	if (!input.present) {
+		return "No Acceptance check line was found on this card.";
+	}
+	if (input.passed) {
+		return `Acceptance check passed: ${input.command ?? "command"}.`;
+	}
+	return `Acceptance check failed${input.exitCode === null ? "" : ` with exit ${input.exitCode}`}: ${input.command ?? "command"}.`;
+}
+
+function recordTaskWorktreeMergeObservations(input: {
+	workspacePath: string;
+	steps: readonly TaskWorktreeAutoMergeStep[];
+	ok: boolean;
+}): void {
+	for (const step of input.steps) {
+		if (!step.taskId) {
+			continue;
+		}
+		const severity = step.type === "conflict" || step.type === "blocked" ? "warning" : "info";
+		const message =
+			step.type === "merged"
+				? `Task worktree merged: ${step.taskId}`
+				: step.type === "skipped"
+					? `Task worktree merge skipped: ${step.taskId}`
+					: step.type === "conflict"
+						? `Task worktree merge conflict: ${step.taskId}`
+						: `Task worktree merge blocked: ${step.reason}`;
+		recordSelfObservation({
+			signal: "custom",
+			severity,
+			message,
+			taskId: step.taskId,
+			workspacePath: input.workspacePath,
+			metadata: {
+				category: "task_worktree_merge",
+				ok: input.ok,
+				type: step.type,
+				reason: "reason" in step ? step.reason : null,
+				headCommit: "headCommit" in step ? step.headCommit : null,
+				conflictedPaths: "conflictedPaths" in step ? step.conflictedPaths : null,
+			},
+		});
+	}
+}
+
+function formatMergeMessage(input: {
+	ok: boolean;
+	mergedTaskIds: readonly string[];
+	skippedTaskIds: readonly string[];
+	conflict?: { taskId: string; conflictedPaths: readonly string[] } | null;
+	blocked?: { reason: string } | null;
+}): string {
+	if (input.conflict) {
+		const paths =
+			input.conflict.conflictedPaths.length > 0 ? ` Conflicts: ${input.conflict.conflictedPaths.join(", ")}.` : "";
+		return `Merge conflict while merging ${input.conflict.taskId}.${paths}`;
+	}
+	if (input.blocked) {
+		return `Merge blocked: ${input.blocked.reason}`;
+	}
+	return `Merged ${input.mergedTaskIds.length} task worktrees; skipped ${input.skippedTaskIds.length}.`;
+}
+
 function addConfiguredLocalModelRegistryEntries(input: {
 	models: Record<string, ClineModelRegistryEntry>;
 	runtimeConfig: RuntimeConfigState | null;
@@ -335,7 +596,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 	});
 	const debugResetTargetPaths = [
 		join(homedir(), ".cline", "data"),
-		join(homedir(), ".cline", "kanban"),
+		join(homedir(), ".cline", "nklein"),
 		join(homedir(), ".cline", "worktrees"),
 	] as const;
 
@@ -356,6 +617,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			} else {
 				throw new Error("No active runtime config provider is available.");
 			}
+			setClineLostHeartbeatPolicy(scopedRuntimeConfig.lostHeartbeatPolicy);
 			return buildConfigResponse(scopedRuntimeConfig);
 		},
 		saveConfig: async (workspaceScope, input) => {
@@ -379,6 +641,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			if (!workspaceScope) {
 				deps.setActiveRuntimeConfig(nextRuntimeConfig);
 			}
+			setClineLostHeartbeatPolicy(nextRuntimeConfig.lostHeartbeatPolicy);
 			return buildConfigResponse(nextRuntimeConfig);
 		},
 		getSwarmStop: async (workspaceScope) => {
@@ -411,6 +674,157 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					taskId: input.taskId,
 					limit: input.limit ?? 25,
 				}),
+			};
+		},
+		listClinePlanArtifacts: async (workspaceScope, input) => {
+			const artifacts = await listClinePlanArtifactsForSourceTask({
+				workspacePath: workspaceScope.workspacePath,
+				sourceTaskId: input.taskId,
+				applicationStatus: "pending",
+			});
+			return {
+				artifacts: artifacts.map(toRuntimePlanArtifactSummary),
+			};
+		},
+		applyClinePlanArtifact: async (workspaceScope, input) => {
+			const artifacts = await readClinePlanArtifactsByArtifactId({
+				workspacePath: workspaceScope.workspacePath,
+				artifactId: input.artifactId,
+			});
+			if (artifacts.metadata.applicationStatus === "rejected") {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Rejected plan artifacts cannot be applied.",
+				});
+			}
+			const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope).catch(() => null);
+			const mutation = await mutateWorkspaceState(workspaceScope.workspacePath, (state) => {
+				const cards = state.board.columns.flatMap((column) => column.cards);
+				const baseRef =
+					findSourceCardBaseRef(cards, artifacts.metadata.sourceTaskId) ??
+					state.git.currentBranch ??
+					state.git.defaultBranch;
+				if (!baseRef) {
+					throw new Error("Could not determine a base branch for applying the plan artifact.");
+				}
+				if (artifacts.metadata.sourceTaskId && !findBoardCardById(cards, artifacts.metadata.sourceTaskId)) {
+					throw new Error(`Source card ${artifacts.metadata.sourceTaskId} was not found on this board.`);
+				}
+				const applied = applyClinePlanTaskGraphToBoard({
+					board: state.board,
+					taskGraph: artifacts.taskGraph,
+					baseRef,
+					randomUuid: randomUUID,
+					sourceTaskId: artifacts.metadata.sourceTaskId,
+					modelRoleSettings: runtimeConfig?.modelRoles,
+					sharedContext: {
+						spec: artifacts.spec,
+						decisionsMarkdown: artifacts.decisionsMarkdown,
+					},
+				});
+				return {
+					board: applied.board,
+					value: {
+						createdTaskCount: applied.createdTasks.length,
+						createdDependencyCount: applied.createdDependencies.length,
+					},
+				};
+			});
+			await updateClinePlanArtifactApplicationStatus({
+				workspacePath: workspaceScope.workspacePath,
+				slug: artifacts.taskGraph.slug,
+				applicationStatus: "applied",
+			});
+			const updatedArtifacts = await readClinePlanArtifactsByArtifactId({
+				workspacePath: workspaceScope.workspacePath,
+				artifactId: input.artifactId,
+			});
+			return {
+				ok: true,
+				artifact: summarizeClinePlanArtifacts(updatedArtifacts),
+				createdTaskCount: mutation.value.createdTaskCount,
+				createdDependencyCount: mutation.value.createdDependencyCount,
+				message: `Applied ${artifacts.taskGraph.title}: created ${mutation.value.createdTaskCount} cards and ${mutation.value.createdDependencyCount} dependencies.`,
+				workspaceState: mutation.state,
+			};
+		},
+		rejectClinePlanArtifact: async (workspaceScope, input) => {
+			const artifacts = await readClinePlanArtifactsByArtifactId({
+				workspacePath: workspaceScope.workspacePath,
+				artifactId: input.artifactId,
+			});
+			if (artifacts.metadata.applicationStatus === "applied") {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Applied plan artifacts cannot be rejected.",
+				});
+			}
+			await updateClinePlanArtifactApplicationStatus({
+				workspacePath: workspaceScope.workspacePath,
+				slug: artifacts.taskGraph.slug,
+				applicationStatus: "rejected",
+			});
+			const updatedArtifacts = await readClinePlanArtifactsByArtifactId({
+				workspacePath: workspaceScope.workspacePath,
+				artifactId: input.artifactId,
+			});
+			return {
+				ok: true,
+				artifact: summarizeClinePlanArtifacts(updatedArtifacts),
+				message: `Rejected ${artifacts.taskGraph.title}.`,
+			};
+		},
+		verifyTaskAcceptance: async (workspaceScope, input) => {
+			const state = await loadWorkspaceState(workspaceScope.workspacePath);
+			const taskRecord = findBoardCardRecordById(state.board, input.taskId);
+			if (!taskRecord) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: `Task "${input.taskId}" was not found.`,
+				});
+			}
+			const taskWorkspacePath = await resolveTaskCwd({
+				cwd: workspaceScope.workspacePath,
+				taskId: input.taskId,
+				baseRef: taskRecord.card.baseRef,
+				ensure: input.ensureWorktree ?? true,
+			});
+			const acceptance = await runClineAcceptanceGate({
+				taskId: input.taskId,
+				workspacePath: taskWorkspacePath,
+				taskPrompt: taskRecord.card.prompt,
+				timeoutMs: input.timeoutMs,
+			});
+			return {
+				ok: acceptance.present === true && acceptance.passed === true,
+				taskId: input.taskId,
+				taskWorkspacePath,
+				acceptance,
+				message: formatAcceptanceVerifyMessage(acceptance),
+			};
+		},
+		mergeTaskWorktrees: async (workspaceScope, input) => {
+			const state = await loadWorkspaceState(workspaceScope.workspacePath);
+			const result = await mergeTaskWorktreesInDependencyOrder({
+				repoPath: workspaceScope.workspacePath,
+				board: state.board,
+				columns: [input.column ?? "review"],
+				taskIds: input.taskId ? [input.taskId] : undefined,
+			});
+			recordTaskWorktreeMergeObservations({
+				workspacePath: workspaceScope.workspacePath,
+				steps: result.steps,
+				ok: result.ok,
+			});
+			return {
+				ok: result.ok,
+				column: input.column ?? "review",
+				mergedTaskIds: result.mergedTaskIds,
+				skippedTaskIds: result.skippedTaskIds,
+				steps: result.steps,
+				conflict: result.conflict ?? null,
+				blocked: result.blocked ?? null,
+				message: formatMergeMessage(result),
 			};
 		},
 		saveClineProviderSettings: async (_workspaceScope, input) => {
@@ -613,6 +1027,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						modelRegistry: modelRegistrySnapshot,
 						promptTokens,
 					});
+					const codeEmbeddingProvider = createClineCodeEmbeddingProviderFromSettings(
+						scopedRuntimeConfig.effectiveCodeEmbeddingSettings,
+					);
 					const endpointDecision = scheduleClineEndpointStart({
 						taskId: body.taskId,
 						providerId: clineLaunchConfig.providerId,
@@ -645,6 +1062,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					const summary = await clineTaskSessionService.startTaskSession({
 						taskId: body.taskId,
 						cwd: taskCwd,
+						workspaceRoot: workspaceScope.workspacePath,
 						prompt: body.prompt,
 						taskTitle: resolvedClineTitle.length > 0 ? resolvedClineTitle : undefined,
 						images: body.images,
@@ -665,6 +1083,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						toolTimeoutMs: mcsrAwareTimeouts.toolTimeoutMs,
 						conversationTimeoutMs: mcsrAwareTimeouts.conversationTimeoutMs,
 						maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
+						codeEmbeddingProvider,
 					});
 
 					let nextSummary = summary;
@@ -677,8 +1096,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 								turn: nextTurn,
 							});
 							nextSummary = clineTaskSessionService.applyTurnCheckpoint(body.taskId, checkpoint) ?? summary;
-						} catch {
-							// Best effort checkpointing only.
+						} catch (error) {
+							const message = error instanceof Error ? error.message : String(error);
+							recordSelfObservation({
+								signal: "runtime_error",
+								severity: "warning",
+								message: `Task checkpoint capture failed: ${message}`,
+								taskId: body.taskId,
+								workspacePath: workspaceScope.workspacePath,
+								metadata: {
+									operation: "capture_task_turn_checkpoint",
+									agentId: "cline",
+								},
+							});
 						}
 					}
 
@@ -726,8 +1156,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							turn: nextTurn,
 						});
 						nextSummary = terminalManager.applyTurnCheckpoint(body.taskId, checkpoint) ?? summary;
-					} catch {
-						// Best effort checkpointing only.
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						recordSelfObservation({
+							signal: "runtime_error",
+							severity: "warning",
+							message: `Task checkpoint capture failed: ${message}`,
+							taskId: body.taskId,
+							workspacePath: workspaceScope.workspacePath,
+							metadata: {
+								operation: "capture_task_turn_checkpoint",
+								agentId: resolved.agentId,
+							},
+						});
 					}
 				}
 				return {
@@ -851,6 +1292,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					summary = await clineTaskSessionService.startTaskSession({
 						taskId: body.taskId,
 						cwd: workspaceScope.workspacePath,
+						workspaceRoot: workspaceScope.workspacePath,
 						prompt: "",
 						resumeFromPersistence: true,
 						providerId: clineLaunchConfig.providerId,
@@ -1015,9 +1457,16 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: "A workspace is required to inspect code intelligence status.",
 				});
 			}
+			const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
+			const embeddingProvider = createClineCodeEmbeddingProviderFromSettings(
+				runtimeConfig.effectiveCodeEmbeddingSettings,
+			);
 			const [repoMapResult, codeIndexResult] = await Promise.allSettled([
 				buildClineRepoMap({ workspacePath: workspaceScope.workspacePath }),
-				getClineCodeIndexStatus({ workspacePath: workspaceScope.workspacePath }),
+				getClineCodeIndexStatus({
+					workspacePath: workspaceScope.workspacePath,
+					embeddingProvider,
+				}),
 			]);
 			const repoMap =
 				repoMapResult.status === "fulfilled"
@@ -1079,7 +1528,16 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									? codeIndexResult.reason.message
 									: String(codeIndexResult.reason),
 						};
-			return { repoMap, codeIndex };
+			return {
+				codeEmbeddingSettings: {
+					globalDefaults: runtimeConfig.codeEmbeddingDefaults,
+					projectOverride: runtimeConfig.codeEmbeddingOverride,
+					effective: runtimeConfig.effectiveCodeEmbeddingSettings,
+					source: runtimeConfig.codeEmbeddingOverride ? ("project" as const) : ("global" as const),
+				},
+				repoMap,
+				codeIndex,
+			};
 		},
 		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildClineModelFreshnessAdvisorRequest();
@@ -1099,6 +1557,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				userQuestion: body.userQuestion,
 			});
 		},
+		sendClineAdvisor: async (_workspaceScope, input) => {
+			const body = parseClineAdvisorSendRequest(input);
+			const sentAt = Date.now();
+			const launchConfig = await clineProviderService.resolveLaunchConfig({
+				providerIdOverride: body.providerId,
+				modelIdOverride: body.modelId,
+			});
+			assertLocalProviderAllowed({
+				providerId: launchConfig.providerId,
+				baseUrl: launchConfig.baseUrl,
+			});
+			const output = await runLocalAdvisorCompletion({
+				launchConfig,
+				prompt: body.prompt,
+			});
+			return {
+				providerId: launchConfig.providerId,
+				modelId: launchConfig.modelId ?? body.modelId,
+				output,
+				sentAt,
+				receivedAt: Date.now(),
+			};
+		},
 		writeClineDogfoodBacklog: async (workspaceScope, input) => {
 			if (!workspaceScope) {
 				throw new TRPCError({
@@ -1109,7 +1590,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const body = parseClineDogfoodBacklogRequest(input);
 			const artifacts = await writeClineDogfoodBacklog({
 				workspacePath: workspaceScope.workspacePath,
-				telemetryRootDir: deps.getDogfoodTelemetryRoot?.() ?? join(homedir(), ".cline", "kanban", "telemetry"),
+				telemetryRootDir: deps.getDogfoodTelemetryRoot?.() ?? join(homedir(), ".cline", "nklein", "telemetry"),
 				slug: body.slug,
 				userSuggestions: body.suggestion?.trim() ? [body.suggestion] : undefined,
 			});
@@ -1124,7 +1605,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				taskGraphPath: artifacts.taskGraphPath,
 				slug: artifacts.taskGraph.slug,
 				taskCount: artifacts.taskGraph.tasks.length,
-				nextCommand: `kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspaceScope.workspacePath}`,
+				nextCommand: `nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspaceScope.workspacePath}`,
 			};
 		},
 		runClineSmokeEval: async (_workspaceScope) => {
@@ -1252,6 +1733,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							summary = await clineTaskSessionService.startTaskSession({
 								taskId: body.taskId,
 								cwd: reboundSummary.workspacePath ?? workspaceScope.workspacePath,
+								workspaceRoot: workspaceScope.workspacePath,
 								prompt: body.text,
 								images: body.images,
 								resumeFromPersistence: true,
@@ -1276,6 +1758,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						summary = await clineTaskSessionService.startTaskSession({
 							taskId: body.taskId,
 							cwd: workspaceScope.workspacePath,
+							workspaceRoot: workspaceScope.workspacePath,
 							prompt: body.text,
 							images: body.images,
 							resumeFromPersistence: true,

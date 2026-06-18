@@ -1,7 +1,12 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { loadWorkspaceContext } from "../state/workspace-state";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
+
+const PLAN_ARTIFACT_KIND = "decomposition";
+const PLAN_ARTIFACT_METADATA_FILENAME = "artifact.json";
 
 export const clinePlanTaskSchema = z.object({
 	id: z.string().min(1),
@@ -25,6 +30,20 @@ export const clinePlanTaskGraphSchema = z.object({
 });
 export type ClinePlanTaskGraph = z.infer<typeof clinePlanTaskGraphSchema>;
 
+export const clinePlanArtifactMetadataSchema = z.object({
+	artifactId: z.string().min(1),
+	workspaceId: z.string().min(1).nullable(),
+	workspacePath: z.string().min(1),
+	sourceTaskId: z.string().min(1).nullable(),
+	artifactKind: z.literal(PLAN_ARTIFACT_KIND),
+	planSlug: z.string().min(1),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+	validationStatus: z.enum(["valid", "invalid", "pending"]),
+	applicationStatus: z.enum(["pending", "applied", "rejected"]),
+});
+export type ClinePlanArtifactMetadata = z.infer<typeof clinePlanArtifactMetadataSchema>;
+
 export const clinePlanQuestionOptionSchema = z.object({
 	id: z.string().min(1),
 	label: z.string().min(1),
@@ -44,7 +63,10 @@ export const clinePlanQuestionSchema = z.object({
 export type ClinePlanQuestion = z.infer<typeof clinePlanQuestionSchema>;
 
 export interface ClinePlanArtifacts {
+	metadata: ClinePlanArtifactMetadata;
+	artifactId: string;
 	rootPath: string;
+	metadataPath: string;
 	specPath: string;
 	planPath: string;
 	questionsPath: string;
@@ -62,8 +84,28 @@ export interface ClinePlanArtifacts {
 	taskGraph: ClinePlanTaskGraph;
 }
 
+export interface ClinePlanArtifactSummary {
+	artifactId: string;
+	artifactKind: ClinePlanArtifactMetadata["artifactKind"];
+	planSlug: string;
+	title: string;
+	sourceTaskId: string | null;
+	createdAt: number;
+	updatedAt: number;
+	validationStatus: ClinePlanArtifactMetadata["validationStatus"];
+	applicationStatus: ClinePlanArtifactMetadata["applicationStatus"];
+	taskCount: number;
+	dependencyCount: number;
+	specPath: string;
+	planPath: string;
+	summaryPath: string;
+	taskGraphPath: string;
+}
+
 export interface WriteClinePlanArtifactsInput {
 	workspacePath: string;
+	workspaceId?: string | null;
+	sourceTaskId?: string | null;
 	slug: string;
 	spec: string;
 	plan: string;
@@ -88,6 +130,26 @@ export interface WriteClinePlanTaskGraphInput {
 	workspacePath: string;
 	slug: string;
 	taskGraph: ClinePlanTaskGraph;
+}
+
+export interface UpdateClinePlanArtifactApplicationStatusInput {
+	workspacePath: string;
+	slug: string;
+	applicationStatus: ClinePlanArtifactMetadata["applicationStatus"];
+	sourceTaskId?: string | null;
+	updatedAt?: number;
+}
+
+function createPlanArtifactId(slug: string): string {
+	return `${PLAN_ARTIFACT_KIND}:${slug}`;
+}
+
+async function resolveWorkspaceId(workspacePath: string, explicitWorkspaceId?: string | null): Promise<string | null> {
+	if (explicitWorkspaceId !== undefined) {
+		return explicitWorkspaceId;
+	}
+	const context = await loadWorkspaceContext(workspacePath, { autoCreateIfMissing: false }).catch(() => null);
+	return context?.workspaceId ?? null;
 }
 
 function formatQuestionsMarkdown(questions: readonly ClinePlanQuestion[]): string {
@@ -182,10 +244,11 @@ export function resolveClinePlanArtifactPaths(
 	revisionsPath: string;
 	summaryPath: string;
 	taskGraphPath: string;
+	metadataPath: string;
 	slug: string;
 } {
 	const slug = slugify(rawSlug);
-	const rootPath = join(workspacePath, ".cline", "kanban", "plans", slug);
+	const rootPath = join(workspacePath, ".cline", "nklein", "plans", slug);
 	return {
 		rootPath,
 		specPath: join(rootPath, "spec.md"),
@@ -195,16 +258,96 @@ export function resolveClinePlanArtifactPaths(
 		revisionsPath: join(rootPath, "revisions.md"),
 		summaryPath: join(rootPath, "summary.md"),
 		taskGraphPath: join(rootPath, "tasks.json"),
+		metadataPath: join(rootPath, PLAN_ARTIFACT_METADATA_FILENAME),
 		slug,
 	};
 }
 
+export function summarizeClinePlanArtifacts(artifacts: ClinePlanArtifacts): ClinePlanArtifactSummary {
+	return {
+		artifactId: artifacts.artifactId,
+		artifactKind: artifacts.metadata.artifactKind,
+		planSlug: artifacts.taskGraph.slug,
+		title: artifacts.taskGraph.title,
+		sourceTaskId: artifacts.metadata.sourceTaskId,
+		createdAt: artifacts.metadata.createdAt,
+		updatedAt: artifacts.metadata.updatedAt,
+		validationStatus: artifacts.metadata.validationStatus,
+		applicationStatus: artifacts.metadata.applicationStatus,
+		taskCount: artifacts.taskGraph.tasks.length,
+		dependencyCount: artifacts.taskGraph.tasks.reduce((total, task) => total + task.dependsOn.length, 0),
+		specPath: artifacts.specPath,
+		planPath: artifacts.planPath,
+		summaryPath: artifacts.summaryPath,
+		taskGraphPath: artifacts.taskGraphPath,
+	};
+}
+
+async function listPlanArtifactSlugs(workspacePath: string): Promise<string[]> {
+	const plansPath = join(workspacePath, ".cline", "nklein", "plans");
+	const entries = await readdir(plansPath, { withFileTypes: true }).catch(() => []);
+	return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+}
+
+export async function listClinePlanArtifactsForSourceTask(input: {
+	workspacePath: string;
+	sourceTaskId: string;
+	applicationStatus?: ClinePlanArtifactMetadata["applicationStatus"];
+}): Promise<ClinePlanArtifactSummary[]> {
+	const sourceTaskId = input.sourceTaskId.trim();
+	if (!sourceTaskId) {
+		return [];
+	}
+	const summaries: ClinePlanArtifactSummary[] = [];
+	for (const slug of await listPlanArtifactSlugs(input.workspacePath)) {
+		const artifacts = await readClinePlanArtifacts(input.workspacePath, slug).catch(() => null);
+		if (!artifacts || artifacts.metadata.sourceTaskId !== sourceTaskId) {
+			continue;
+		}
+		if (input.applicationStatus && artifacts.metadata.applicationStatus !== input.applicationStatus) {
+			continue;
+		}
+		summaries.push(summarizeClinePlanArtifacts(artifacts));
+	}
+	return summaries.sort(
+		(left, right) => right.createdAt - left.createdAt || left.planSlug.localeCompare(right.planSlug),
+	);
+}
+
+export async function readClinePlanArtifactsByArtifactId(input: {
+	workspacePath: string;
+	artifactId: string;
+}): Promise<ClinePlanArtifacts> {
+	const artifactId = input.artifactId.trim();
+	for (const slug of await listPlanArtifactSlugs(input.workspacePath)) {
+		const artifacts = await readClinePlanArtifacts(input.workspacePath, slug).catch(() => null);
+		if (artifacts?.artifactId === artifactId) {
+			return artifacts;
+		}
+	}
+	throw new Error(`Plan artifact ${artifactId || "(empty)"} was not found.`);
+}
+
 export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInput): Promise<ClinePlanArtifacts> {
 	const paths = resolveClinePlanArtifactPaths(input.workspacePath, input.slug);
+	const now = Date.now();
+	const workspaceId = await resolveWorkspaceId(input.workspacePath, input.workspaceId);
 	const taskGraph = clinePlanTaskGraphSchema.parse({
 		...input.taskGraph,
 		slug: paths.slug,
 	});
+	const metadata: ClinePlanArtifactMetadata = {
+		artifactId: createPlanArtifactId(paths.slug),
+		workspaceId,
+		workspacePath: input.workspacePath,
+		sourceTaskId: input.sourceTaskId?.trim() || null,
+		artifactKind: PLAN_ARTIFACT_KIND,
+		planSlug: paths.slug,
+		createdAt: now,
+		updatedAt: now,
+		validationStatus: "valid",
+		applicationStatus: "pending",
+	};
 	const questions = z.array(clinePlanQuestionSchema).parse(input.questions ?? []);
 	const summary = input.summary?.trim() || `# ${taskGraph.title}\n\nNo plain-language summary was provided.\n`;
 	const questionsMarkdown = formatQuestionsMarkdown(questions);
@@ -222,8 +365,29 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 	await lockedFileSystem.writeTextFileAtomic(paths.revisionsPath, revisionsMarkdown, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.summaryPath, `${summary.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeJsonFileAtomic(paths.taskGraphPath, taskGraph, { lock: null });
+	await lockedFileSystem.writeJsonFileAtomic(paths.metadataPath, metadata, { lock: null });
+	recordSelfObservation({
+		signal: "custom",
+		severity: "info",
+		message: `Plan artifact created: ${metadata.artifactId}`,
+		taskId: metadata.sourceTaskId,
+		workspacePath: input.workspacePath,
+		metadata: {
+			operation: "plan_artifact_lifecycle",
+			stage: "created",
+			artifactId: metadata.artifactId,
+			planSlug: metadata.planSlug,
+			applicationStatus: metadata.applicationStatus,
+			validationStatus: metadata.validationStatus,
+			taskCount: taskGraph.tasks.length,
+			dependencyCount: taskGraph.tasks.reduce((total, task) => total + task.dependsOn.length, 0),
+		},
+	});
 	return {
+		metadata,
+		artifactId: metadata.artifactId,
 		rootPath: paths.rootPath,
+		metadataPath: paths.metadataPath,
 		specPath: paths.specPath,
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
@@ -265,9 +429,41 @@ export async function writeClinePlanTaskGraph(input: WriteClinePlanTaskGraphInpu
 	return paths.taskGraphPath;
 }
 
+export async function updateClinePlanArtifactApplicationStatus(
+	input: UpdateClinePlanArtifactApplicationStatusInput,
+): Promise<ClinePlanArtifactMetadata> {
+	const artifacts = await readClinePlanArtifacts(input.workspacePath, input.slug);
+	const metadata: ClinePlanArtifactMetadata = {
+		...artifacts.metadata,
+		sourceTaskId:
+			input.sourceTaskId === undefined ? artifacts.metadata.sourceTaskId : input.sourceTaskId?.trim() || null,
+		applicationStatus: input.applicationStatus,
+		updatedAt: input.updatedAt ?? Date.now(),
+	};
+	await lockedFileSystem.writeJsonFileAtomic(artifacts.metadataPath, metadata, { lock: null });
+	recordSelfObservation({
+		signal: "custom",
+		severity: "info",
+		message: `Plan artifact ${metadata.applicationStatus}: ${metadata.artifactId}`,
+		taskId: metadata.sourceTaskId,
+		workspacePath: input.workspacePath,
+		metadata: {
+			operation: "plan_artifact_lifecycle",
+			stage: metadata.applicationStatus,
+			artifactId: metadata.artifactId,
+			planSlug: metadata.planSlug,
+			applicationStatus: metadata.applicationStatus,
+			validationStatus: metadata.validationStatus,
+			taskCount: artifacts.taskGraph.tasks.length,
+			dependencyCount: artifacts.taskGraph.tasks.reduce((total, task) => total + task.dependsOn.length, 0),
+		},
+	});
+	return metadata;
+}
+
 export async function readClinePlanArtifacts(workspacePath: string, slug: string): Promise<ClinePlanArtifacts> {
 	const paths = resolveClinePlanArtifactPaths(workspacePath, slug);
-	const [spec, plan, questionsMarkdown, decisionsMarkdown, revisionsMarkdown, summary, taskGraphRaw] =
+	const [spec, plan, questionsMarkdown, decisionsMarkdown, revisionsMarkdown, summary, taskGraphRaw, metadataRaw] =
 		await Promise.all([
 			readFile(paths.specPath, "utf8"),
 			readFile(paths.planPath, "utf8"),
@@ -278,9 +474,28 @@ export async function readClinePlanArtifacts(workspacePath: string, slug: string
 			readFile(paths.revisionsPath, "utf8").catch(() => formatInitialRevisionsMarkdown()),
 			readFile(paths.summaryPath, "utf8").catch(() => ""),
 			readFile(paths.taskGraphPath, "utf8"),
+			readFile(paths.metadataPath, "utf8").catch(() => null),
 		]);
+	const workspaceId = await resolveWorkspaceId(workspacePath);
+	const taskGraph = clinePlanTaskGraphSchema.parse(JSON.parse(taskGraphRaw));
+	const legacyMetadata: ClinePlanArtifactMetadata = {
+		artifactId: createPlanArtifactId(paths.slug),
+		workspaceId,
+		workspacePath,
+		sourceTaskId: null,
+		artifactKind: PLAN_ARTIFACT_KIND,
+		planSlug: paths.slug,
+		createdAt: 0,
+		updatedAt: 0,
+		validationStatus: "valid",
+		applicationStatus: "pending",
+	};
+	const metadata = metadataRaw ? clinePlanArtifactMetadataSchema.parse(JSON.parse(metadataRaw)) : legacyMetadata;
 	return {
+		metadata,
+		artifactId: metadata.artifactId,
 		rootPath: paths.rootPath,
+		metadataPath: paths.metadataPath,
 		specPath: paths.specPath,
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
@@ -295,6 +510,6 @@ export async function readClinePlanArtifacts(workspacePath: string, slug: string
 		decisionsMarkdown,
 		revisionsMarkdown,
 		summary,
-		taskGraph: clinePlanTaskGraphSchema.parse(JSON.parse(taskGraphRaw)),
+		taskGraph,
 	};
 }

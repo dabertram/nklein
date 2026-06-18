@@ -450,13 +450,13 @@ class PersistentTerminal {
 			}
 			if (payload.type === "exit") {
 				const label = payload.code == null ? "session exited" : `session exited with code ${payload.code}`;
-				void this.enqueueTerminalWrite(`\r\n[kanban] ${label}\r\n`);
+				void this.enqueueTerminalWrite(`\r\n[nklein] ${label}\r\n`);
 				return;
 			}
 			if (payload.type === "error") {
 				this.lastError = payload.message;
 				this.notifyLastError();
-				void this.enqueueTerminalWrite(`\r\n[kanban] ${payload.message}\r\n`);
+				void this.enqueueTerminalWrite(`\r\n[nklein] ${payload.message}\r\n`);
 			}
 		};
 		controlSocket.onerror = () => {

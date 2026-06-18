@@ -52,7 +52,9 @@ export interface EvidenceBundleResult {
 	};
 }
 
-const DEFAULT_DEV_RUNS_PARENT = join(homedir(), ".cline", "kanban", "dev-runs");
+function getDefaultDevRunsParent(): string {
+	return join(homedir(), ".cline", "nklein", "dev-runs");
+}
 
 function slugifyScenario(input: string): string {
 	const slug = input
@@ -126,7 +128,7 @@ function normalizeTranscriptFileName(taskId: string, index: number): string {
 }
 
 export function resolveEvidenceBundleRoot(rootDir?: string): string {
-	return rootDir ?? DEFAULT_DEV_RUNS_PARENT;
+	return rootDir ?? getDefaultDevRunsParent();
 }
 
 export async function createEvidenceBundle(input: EvidenceBundleInput): Promise<EvidenceBundleResult> {

@@ -1,31 +1,44 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	appendClinePlanRevision,
 	clinePlanTaskGraphSchema,
 	readClinePlanArtifacts,
 	resolveClinePlanArtifactPaths,
+	updateClinePlanArtifactApplicationStatus,
 	writeClinePlanArtifacts,
 } from "../../../src/cline-sdk/cline-plan-artifacts";
+
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+}));
+
+vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+}));
 
 async function createWorkspace(): Promise<string> {
 	return await mkdtemp(join(tmpdir(), "kanban-plan-artifacts-"));
 }
 
 describe("cline plan artifacts", () => {
+	beforeEach(() => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+	});
+
 	it("normalizes slugs into the workspace plan directory", async () => {
 		const workspacePath = await createWorkspace();
 		const paths = resolveClinePlanArtifactPaths(workspacePath, " Habit Tracker PWA ");
 
 		expect(paths.slug).toBe("habit-tracker-pwa");
-		expect(paths.rootPath).toBe(join(workspacePath, ".cline", "kanban", "plans", "habit-tracker-pwa"));
+		expect(paths.rootPath).toBe(join(workspacePath, ".cline", "nklein", "plans", "habit-tracker-pwa"));
 		expect(paths.decisionsPath).toBe(
-			join(workspacePath, ".cline", "kanban", "plans", "habit-tracker-pwa", "decisions.md"),
+			join(workspacePath, ".cline", "nklein", "plans", "habit-tracker-pwa", "decisions.md"),
 		);
 		expect(paths.revisionsPath).toBe(
-			join(workspacePath, ".cline", "kanban", "plans", "habit-tracker-pwa", "revisions.md"),
+			join(workspacePath, ".cline", "nklein", "plans", "habit-tracker-pwa", "revisions.md"),
 		);
 	});
 
@@ -114,10 +127,126 @@ describe("cline plan artifacts", () => {
 		await expect(readFile(artifacts.decisionsPath, "utf8")).resolves.toContain("No reminders in the first slice");
 		await expect(readFile(artifacts.revisionsPath, "utf8")).resolves.toContain("# Revisions");
 		await expect(readFile(artifacts.summaryPath, "utf8")).resolves.toContain("Build habit storage");
+		await expect(readFile(artifacts.metadataPath, "utf8")).resolves.toContain('"artifactId"');
+		expect(artifacts.artifactId).toBe("decomposition:habit-tracker");
+		expect(artifacts.metadata).toMatchObject({
+			artifactId: "decomposition:habit-tracker",
+			workspaceId: null,
+			workspacePath,
+			sourceTaskId: null,
+			artifactKind: "decomposition",
+			planSlug: "habit-tracker",
+			validationStatus: "valid",
+			applicationStatus: "pending",
+		});
 		expect(artifacts.taskGraph.slug).toBe("habit-tracker");
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(artifacts.taskGraph.tasks[0]?.testFirst).toBe(true);
 		expect(artifacts.taskGraph.tasks[0]?.acceptanceTestPrompt).toContain("storage persistence test");
+
+		const updatedMetadata = await updateClinePlanArtifactApplicationStatus({
+			workspacePath,
+			slug: "habit-tracker",
+			applicationStatus: "applied",
+			sourceTaskId: "source-card",
+			updatedAt: 123,
+		});
+		expect(updatedMetadata.applicationStatus).toBe("applied");
+		expect(updatedMetadata.sourceTaskId).toBe("source-card");
+		expect(updatedMetadata.updatedAt).toBe(123);
+		const updatedArtifacts = await readClinePlanArtifacts(workspacePath, "habit-tracker");
+		expect(updatedArtifacts.metadata.applicationStatus).toBe("applied");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				message: "Plan artifact created: decomposition:habit-tracker",
+				workspacePath,
+				metadata: expect.objectContaining({
+					operation: "plan_artifact_lifecycle",
+					stage: "created",
+					artifactId: "decomposition:habit-tracker",
+					planSlug: "habit-tracker",
+					taskCount: 1,
+					dependencyCount: 0,
+				}),
+			}),
+		);
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				message: "Plan artifact applied: decomposition:habit-tracker",
+				taskId: "source-card",
+				workspacePath,
+				metadata: expect.objectContaining({
+					operation: "plan_artifact_lifecycle",
+					stage: "applied",
+					artifactId: "decomposition:habit-tracker",
+					planSlug: "habit-tracker",
+					applicationStatus: "applied",
+				}),
+			}),
+		);
+	});
+
+	it("records lifecycle telemetry when artifacts are rejected", async () => {
+		const workspacePath = await createWorkspace();
+		await writeClinePlanArtifacts({
+			workspacePath,
+			slug: "Reject Me",
+			spec: "# Spec\n",
+			plan: "# Plan\n",
+			taskGraph: {
+				schemaVersion: 1,
+				slug: "reject-me",
+				title: "Reject Me",
+				tasks: [
+					{
+						id: "task-1",
+						title: "Create storage",
+						prompt: "Implement storage.",
+						dependsOn: [],
+						complexity: 30,
+						suggestedRole: "worker",
+						filesLikelyTouched: ["src/storage.ts"],
+						acceptanceCommand: "npm test",
+						testFirst: false,
+						acceptanceTestPrompt: null,
+					},
+				],
+			},
+		});
+		selfObservationMocks.recordSelfObservation.mockReset();
+
+		await updateClinePlanArtifactApplicationStatus({
+			workspacePath,
+			slug: "reject-me",
+			applicationStatus: "rejected",
+			sourceTaskId: "source-card",
+			updatedAt: 456,
+		});
+
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				message: "Plan artifact rejected: decomposition:reject-me",
+				taskId: "source-card",
+				workspacePath,
+				metadata: expect.objectContaining({
+					operation: "plan_artifact_lifecycle",
+					stage: "rejected",
+					artifactId: "decomposition:reject-me",
+					planSlug: "reject-me",
+					applicationStatus: "rejected",
+					taskCount: 1,
+					dependencyCount: 0,
+				}),
+			}),
+		);
 	});
 
 	it("appends concrete revision entries to the plan audit trail", async () => {

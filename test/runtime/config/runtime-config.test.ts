@@ -99,7 +99,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					const state = await loadRuntimeConfig(tempProject);
 					expect(state.selectedAgentId).toBe("codex");
 					const persisted = JSON.parse(
-						readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+						readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 					) as {
 						selectedAgentId?: string;
 						agentAutonomousModeEnabled?: boolean;
@@ -145,7 +145,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin, replacePath: true }, async () => {
 					const state = await loadRuntimeConfig(tempProject);
 					expect(state.selectedAgentId).toBe("cline");
-					expect(existsSync(join(tempHome, ".cline", "kanban", "config.json"))).toBe(false);
+					expect(existsSync(join(tempHome, ".cline", "nklein", "config.json"))).toBe(false);
 				});
 			} finally {
 				if (previousShell === undefined) {
@@ -167,7 +167,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const state = await loadRuntimeConfig(tempHome);
-				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "kanban", "config.json"));
+				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "nklein", "config.json"));
 				expect(state.projectConfigPath).toBeNull();
 				expect(state.shortcuts).toEqual([]);
 
@@ -178,7 +178,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.projectConfigPath).toBeNull();
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					selectedAgentId?: string;
 					shortcuts?: unknown;
@@ -197,7 +197,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const state = await loadGlobalRuntimeConfig();
-				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "kanban", "config.json"));
+				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "nklein", "config.json"));
 				expect(state.projectConfigPath).toBeNull();
 				expect(state.shortcuts).toEqual([]);
 			});
@@ -215,7 +215,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			writeFakeCommand(tempBin, "claude");
 			writeFakeCommand(tempBin, "codex");
 
-			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -248,7 +248,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			writeFakeCommand(tempBin, "codex");
 
-			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -278,7 +278,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-roles-");
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -326,7 +326,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(join(runtimeConfigDir, "config.json"), "{}", "utf8");
 
@@ -347,7 +347,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 				expect(updated.modelRoles.worker?.modelId).toBe("qwen3.5-9b");
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					modelRoles?: Record<string, unknown>;
 				};
@@ -376,7 +376,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "kanban");
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(join(runtimeConfigDir, "config.json"), "{}", "utf8");
 
@@ -400,20 +400,22 @@ describe.sequential("runtime-config auto agent selection", () => {
 				});
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					selectedAgentId?: string;
 					agentAutonomousModeEnabled?: boolean;
+					lostHeartbeatPolicy?: string;
 					readyForReviewNotificationsEnabled?: boolean;
 					commitPromptTemplate?: string;
 					openPrPromptTemplate?: string;
 				};
 				expect(globalPayload.selectedAgentId).toBeUndefined();
 				expect(globalPayload.agentAutonomousModeEnabled).toBeUndefined();
+				expect(globalPayload.lostHeartbeatPolicy).toBeUndefined();
 				expect(globalPayload.readyForReviewNotificationsEnabled).toBeUndefined();
 				expect(globalPayload.commitPromptTemplate).toBeUndefined();
 				expect(globalPayload.openPrPromptTemplate).toBeUndefined();
-				expect(existsSync(join(tempProject, ".cline", "kanban", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -428,7 +430,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeProjectConfigDir = join(tempProject, ".cline", "kanban");
+			const runtimeProjectConfigDir = join(tempProject, ".cline", "nklein");
 			mkdirSync(runtimeProjectConfigDir, { recursive: true });
 			writeFileSync(join(runtimeProjectConfigDir, "config.json"), "{}", "utf8");
 
@@ -451,7 +453,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
 
-				expect(existsSync(join(tempProject, ".cline", "kanban", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -484,13 +486,13 @@ describe.sequential("runtime-config auto agent selection", () => {
 					commitPromptTemplate: current.commitPromptTemplateDefault,
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
-				expect(existsSync(join(tempProject, ".cline", "kanban", "config.json"))).toBe(true);
+				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(true);
 
 				await updateRuntimeConfig(tempProject, {
 					shortcuts: [],
 				});
 
-				expect(existsSync(join(tempProject, ".cline", "kanban", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -512,7 +514,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.selectedAgentId).toBe("codex");
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					selectedAgentId?: string;
 					selectedShortcutLabel?: string;
@@ -523,6 +525,138 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(globalPayload.selectedShortcutLabel).toBeUndefined();
 				expect(globalPayload.agentAutonomousModeEnabled).toBeUndefined();
 				expect(globalPayload.readyForReviewNotificationsEnabled).toBeUndefined();
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("persists and reloads global code embedding defaults", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-embedding-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-embedding-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const updated = await updateRuntimeConfig(tempProject, {
+					codeEmbeddingDefaults: {
+						provider: "openai_compatible",
+						baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+						model: "nomic-embed-text",
+					},
+				});
+
+				expect(updated.codeEmbeddingDefaults).toEqual({
+					provider: "openai_compatible",
+					baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+					model: "nomic-embed-text",
+				});
+				expect(updated.effectiveCodeEmbeddingSettings).toEqual(updated.codeEmbeddingDefaults);
+
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.codeEmbeddingDefaults).toEqual(updated.codeEmbeddingDefaults);
+				expect(reloaded.effectiveCodeEmbeddingSettings).toEqual(updated.codeEmbeddingDefaults);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("persists project code embedding override and can reset to inherited defaults", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-embedding-project-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-embedding-project-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				await updateRuntimeConfig(tempProject, {
+					codeEmbeddingDefaults: {
+						provider: "openai_compatible",
+						baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+						model: "nomic-embed-text",
+					},
+				});
+
+				const overridden = await updateRuntimeConfig(tempProject, {
+					codeEmbeddingOverride: {
+						provider: "openai_compatible",
+						baseUrl: "http://127.0.0.1:1234/v1/embeddings",
+						model: "project-embed",
+					},
+				});
+
+				expect(overridden.codeEmbeddingOverride).toEqual({
+					provider: "openai_compatible",
+					baseUrl: "http://127.0.0.1:1234/v1/embeddings",
+					model: "project-embed",
+				});
+				expect(overridden.effectiveCodeEmbeddingSettings).toEqual(overridden.codeEmbeddingOverride);
+
+				const reset = await updateRuntimeConfig(tempProject, {
+					codeEmbeddingOverride: null,
+				});
+				expect(reset.codeEmbeddingOverride).toBeNull();
+				expect(reset.effectiveCodeEmbeddingSettings).toEqual(reset.codeEmbeddingDefaults);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("persists non-default lost heartbeat policy", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-heartbeat-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-heartbeat-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const initial = await loadRuntimeConfig(tempProject);
+				expect(initial.lostHeartbeatPolicy).toBe("park");
+
+				const updated = await updateRuntimeConfig(tempProject, {
+					lostHeartbeatPolicy: "keep_running",
+				});
+
+				expect(updated.lostHeartbeatPolicy).toBe("keep_running");
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+				) as {
+					lostHeartbeatPolicy?: string;
+				};
+				expect(globalPayload.lostHeartbeatPolicy).toBe("keep_running");
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.lostHeartbeatPolicy).toBe("keep_running");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("persists disabled decomposition auto-apply", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-auto-apply-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-auto-apply-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const initial = await loadRuntimeConfig(tempProject);
+				expect(initial.decompositionAutoApplyEnabled).toBe(true);
+
+				const updated = await updateRuntimeConfig(tempProject, {
+					decompositionAutoApplyEnabled: false,
+				});
+
+				expect(updated.decompositionAutoApplyEnabled).toBe(false);
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+				) as {
+					decompositionAutoApplyEnabled?: boolean;
+				};
+				expect(globalPayload.decompositionAutoApplyEnabled).toBe(false);
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.decompositionAutoApplyEnabled).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -544,7 +678,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.agentAutonomousModeEnabled).toBe(false);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					agentAutonomousModeEnabled?: boolean;
 				};
@@ -573,7 +707,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.maxAgentWritableFileLines).toBe(2500);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "kanban", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
 					maxAgentWritableFileLines?: number;
 				};

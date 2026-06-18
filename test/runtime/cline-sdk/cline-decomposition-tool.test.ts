@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	applyClinePlanTaskGraphToBoard,
 	applyClinePlanTaskReplacementArtifacts,
@@ -17,9 +17,17 @@ import {
 } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
-import { loadWorkspaceState } from "../../../src/state/workspace-state";
+import { loadWorkspaceContext, loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 
 const execFileAsync = promisify(execFile);
+
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+}));
+
+vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+}));
 
 function createBoard(): RuntimeBoardData {
 	return {
@@ -140,6 +148,12 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.createdTasks[0]?.prompt).toContain("Acceptance check: npm test");
 		expect(result.createdTasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(result.createdTasks[0]?.agentId).toBe("cline");
+		expect(result.createdTasks[0]?.generatedFromPlan).toEqual({
+			artifactKind: "decomposition",
+			planSlug: "habit-tracker",
+			planTaskId: "storage",
+			sourceTaskId: null,
+		});
 		expect(result.createdDependencies).toHaveLength(1);
 		expect(result.createdDependencies[0]).toMatchObject({
 			fromTaskId: "habit-tracker-ui",
@@ -196,7 +210,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 	});
 
-	it("keeps board task ids unique when a graph is applied more than once", () => {
+	it("reuses generated cards and dependencies when a graph is applied more than once", () => {
 		const firstApply = applyClinePlanTaskGraphToBoard({
 			board: createBoard(),
 			taskGraph: createTaskGraph(),
@@ -213,13 +227,30 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			now: 200,
 		});
 
-		expect(secondApply.createdTasks.map((task) => task.id)).toEqual([
-			"habit-tracker-storage-2",
-			"habit-tracker-ui-2",
-		]);
-		expect(secondApply.createdDependencies[0]).toMatchObject({
-			fromTaskId: "habit-tracker-ui-2",
-			toTaskId: "habit-tracker-storage-2",
+		expect(secondApply.createdTasks).toEqual([]);
+		expect(secondApply.createdDependencies).toEqual([]);
+		expect(secondApply.taskIdByPlanTaskId).toEqual({
+			storage: "habit-tracker-storage",
+			ui: "habit-tracker-ui",
+		});
+		expect(secondApply.board).toEqual(firstApply.board);
+	});
+
+	it("records the source task id on generated cards when provided", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "planning-card",
+			now: 100,
+		});
+
+		expect(result.createdTasks[0]?.generatedFromPlan).toEqual({
+			artifactKind: "decomposition",
+			planSlug: "habit-tracker",
+			planTaskId: "storage",
+			sourceTaskId: "planning-card",
 		});
 	});
 
@@ -516,8 +547,15 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 });
 
 describe("cline decomposition tools", () => {
-	function getTool(name: string, workspacePath: string) {
-		const tool = createClineDecompositionTools({ workspacePath }).find((candidate) => candidate.name === name);
+	function getTool(
+		name: string,
+		workspacePath: string,
+		sourceTaskId?: string | null,
+		artifactWorkspacePath?: string | null,
+	) {
+		const tool = createClineDecompositionTools({ workspacePath, sourceTaskId, artifactWorkspacePath }).find(
+			(candidate) => candidate.name === name,
+		);
 		if (!tool) {
 			throw new Error(`Missing tool ${name}`);
 		}
@@ -575,7 +613,7 @@ describe("cline decomposition tools", () => {
 		expect(result.applied).toBe(false);
 		expect(result.createdTaskCount).toBe(0);
 		expect(result.modelFitValidated).toBe(false);
-		expect(result.instruction).toContain("kanban task decompose --slug habit-tracker");
+		expect(result.instruction).toContain("nklein task decompose --slug habit-tracker");
 		expect(result.instruction).toContain("Apply them through Kanban, not by editing task files");
 		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
@@ -641,6 +679,7 @@ describe("cline decomposition tools", () => {
 				undefined as never,
 			)) as {
 				ok: boolean;
+				artifactId: string;
 				applied: boolean;
 				createdTaskCount: number;
 				createdDependencyCount: number;
@@ -654,6 +693,7 @@ describe("cline decomposition tools", () => {
 			};
 
 			expect(result.ok).toBe(true);
+			expect(result.artifactId).toBe("decomposition:habit-tracker");
 			expect(result.applied).toBe(true);
 			expect(result.createdTaskCount).toBe(2);
 			expect(result.createdDependencyCount).toBe(1);
@@ -667,14 +707,22 @@ describe("cline decomposition tools", () => {
 			expect(result.preview.taskCount).toBe(2);
 			expect(result.preview.summary).toContain("across 2 cards");
 			expect(result.instruction).toContain("connected local model fit will be enforced when each card starts");
-			expect(result.instruction).not.toContain("kanban task decompose");
+			expect(result.instruction).not.toContain("nklein task decompose");
 
 			const state = await loadWorkspaceState(workspacePath);
 			const planningCards = state.board.columns.find((column) => column.id === "planning")?.cards ?? [];
 			expect(new Set(planningCards.map((card) => card.id))).toEqual(
 				new Set(["habit-tracker-storage", "habit-tracker-ui"]),
 			);
+			expect(planningCards.find((card) => card.id === "habit-tracker-storage")?.generatedFromPlan).toEqual({
+				artifactKind: "decomposition",
+				planSlug: "habit-tracker",
+				planTaskId: "storage",
+				sourceTaskId: null,
+			});
 			expect(state.board.dependencies).toHaveLength(1);
+			const artifacts = await readClinePlanArtifacts(workspacePath, "habit-tracker");
+			expect(artifacts.metadata.applicationStatus).toBe("applied");
 		} finally {
 			if (previousHome === undefined) {
 				delete process.env.HOME;
@@ -682,6 +730,199 @@ describe("cline decomposition tools", () => {
 				process.env.HOME = previousHome;
 			}
 		}
+	});
+
+	it("applies a task-worktree decompose_project run to the parent workspace board", async () => {
+		const parentWorkspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-parent-"));
+		const homePath = await mkdtemp(join(tmpdir(), "kanban-decompose-home-"));
+		const taskWorktreePath = join(homePath, ".cline", "worktrees", "source-card", "kanban-decompose-parent");
+		const previousHome = process.env.HOME;
+		process.env.HOME = homePath;
+		try {
+			await mkdir(taskWorktreePath, { recursive: true });
+			await execFileAsync("git", ["init"], { cwd: parentWorkspacePath });
+			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
+				cwd: parentWorkspacePath,
+				env: {
+					...process.env,
+					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
+					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
+				},
+			});
+			await execFileAsync("git", ["init"], { cwd: taskWorktreePath });
+			await loadWorkspaceContext(parentWorkspacePath);
+			const sourceBoard = createBoard();
+			sourceBoard.columns[0]?.cards.push({
+				id: "source-card",
+				title: "Complex product decomposition",
+				prompt: "Generate the implementation DAG.",
+				startInPlanMode: true,
+				baseRef: "main",
+				createdAt: 1,
+				updatedAt: 1,
+			});
+			await saveWorkspaceState(parentWorkspacePath, {
+				board: sourceBoard,
+				sessions: {},
+			});
+			const tasks = Array.from({ length: 10 }, (_, index) => ({
+				id: `slice-${index + 1}`,
+				title: `Slice ${index + 1}`,
+				prompt: `Implement slice ${index + 1}.`,
+				dependsOn: index === 0 ? [] : [`slice-${index}`],
+				complexity: 20,
+				suggestedRole: "worker",
+				filesLikelyTouched: [`src/slice-${index + 1}.ts`],
+				acceptanceCommand: "npm test",
+				testFirst: false,
+				acceptanceTestPrompt: null,
+			}));
+			const tool = getTool("decompose_project", taskWorktreePath, "source-card", parentWorkspacePath);
+
+			const result = (await tool.execute(
+				{
+					slug: "Complex Product",
+					title: "Complex Product",
+					spec: "Build a complex product in small slices.",
+					plan: "Create ten ordered implementation slices.",
+					tasks,
+				},
+				undefined as never,
+			)) as {
+				ok: boolean;
+				applied: boolean;
+				createdTaskCount: number;
+				createdDependencyCount: number;
+			};
+
+			expect(result.ok).toBe(true);
+			expect(result.applied).toBe(true);
+			expect(result.createdTaskCount).toBe(10);
+			expect(result.createdDependencyCount).toBe(9);
+			const parentState = await loadWorkspaceState(parentWorkspacePath);
+			const planningCards = parentState.board.columns.find((column) => column.id === "planning")?.cards ?? [];
+			expect(planningCards).toHaveLength(10);
+			expect(planningCards.every((card) => card.generatedFromPlan?.sourceTaskId === "source-card")).toBe(true);
+			await expect(readClinePlanArtifacts(parentWorkspacePath, "complex-product")).resolves.toMatchObject({
+				metadata: {
+					applicationStatus: "applied",
+					sourceTaskId: "source-card",
+				},
+			});
+			await expect(
+				readFile(join(taskWorktreePath, ".cline", "nklein", "plans", "complex-product", "tasks.json")),
+			).rejects.toMatchObject({
+				code: "ENOENT",
+			});
+		} finally {
+			if (previousHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = previousHome;
+			}
+		}
+	});
+
+	it("keeps decompose_project artifacts pending when auto-apply is disabled", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-pending-"));
+		const homePath = await mkdtemp(join(tmpdir(), "kanban-decompose-home-"));
+		const previousHome = process.env.HOME;
+		process.env.HOME = homePath;
+		try {
+			await mkdir(join(homePath, ".cline", "nklein"), { recursive: true });
+			await writeFile(
+				join(homePath, ".cline", "nklein", "config.json"),
+				JSON.stringify({ decompositionAutoApplyEnabled: false }),
+				"utf8",
+			);
+			await execFileAsync("git", ["init"], { cwd: workspacePath });
+			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
+				cwd: workspacePath,
+				env: {
+					...process.env,
+					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
+					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
+				},
+			});
+			const tool = getTool("decompose_project", workspacePath, "source-card");
+
+			const result = (await tool.execute(
+				{
+					slug: "Habit Tracker",
+					title: "Habit Tracker",
+					spec: "Track habits.",
+					plan: "Build storage before UI.",
+					tasks: createTaskGraph().tasks,
+				},
+				undefined as never,
+			)) as {
+				applied: boolean;
+				createdTaskCount: number;
+				createdDependencyCount: number;
+				instruction: string;
+			};
+
+			expect(result.applied).toBe(false);
+			expect(result.createdTaskCount).toBe(0);
+			expect(result.createdDependencyCount).toBe(0);
+			expect(result.instruction).toContain("Automatic card creation is disabled");
+			const state = await loadWorkspaceState(workspacePath);
+			expect(state.board.columns.find((column) => column.id === "planning")?.cards).toHaveLength(0);
+			const artifacts = await readClinePlanArtifacts(workspacePath, "habit-tracker");
+			expect(artifacts.metadata.applicationStatus).toBe("pending");
+			expect(artifacts.metadata.sourceTaskId).toBe("source-card");
+		} finally {
+			if (previousHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = previousHome;
+			}
+		}
+	});
+
+	it("records telemetry when decompose_project artifacts cannot auto-apply", async () => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-apply-failure-"));
+		const tool = getTool("decompose_project", workspacePath, "source-card");
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				tasks: createTaskGraph().tasks,
+			},
+			undefined as never,
+		)) as {
+			applied: boolean;
+			createdTaskCount: number;
+			createdDependencyCount: number;
+			instruction: string;
+		};
+
+		expect(result.applied).toBe(false);
+		expect(result.createdTaskCount).toBe(0);
+		expect(result.createdDependencyCount).toBe(0);
+		expect(result.instruction).toContain("Could not apply the task graph automatically");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				severity: "warning",
+				taskId: "source-card",
+				workspacePath,
+				message: expect.stringContaining("Plan artifact auto-apply failed:"),
+				metadata: expect.objectContaining({
+					operation: "decompose_project_auto_apply",
+					planSlug: "habit-tracker",
+					taskCount: 2,
+				}),
+			}),
+		);
 	});
 
 	it("accepts simplified task lists in decompose_project", async () => {

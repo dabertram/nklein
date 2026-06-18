@@ -24,6 +24,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
 	checkRateLimit,
 	clearRateLimit,
@@ -32,6 +33,7 @@ import {
 	isPasscodeEnabled,
 	issueSession,
 	recordFailedAttempt,
+	SESSION_COOKIE_NAME,
 	validateInternalToken,
 	validatePasscode,
 	validateSession,
@@ -83,12 +85,14 @@ export interface RuntimeServer {
 }
 
 function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): string | null {
-	const headerValue = request.headers["x-kanban-workspace-id"];
-	const headerWorkspaceId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-	if (typeof headerWorkspaceId === "string") {
-		const normalized = headerWorkspaceId.trim();
-		if (normalized) {
-			return normalized;
+	for (const headerName of [WORKSPACE_ID_HEADER, LEGACY_WORKSPACE_ID_HEADER]) {
+		const headerValue = request.headers[headerName];
+		const headerWorkspaceId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+		if (typeof headerWorkspaceId === "string") {
+			const normalized = headerWorkspaceId.trim();
+			if (normalized) {
+				return normalized;
+			}
 		}
 	}
 	const queryWorkspaceId = requestUrl.searchParams.get("workspaceId");
@@ -124,7 +128,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				workspaceScope: null,
 			};
 		}
-		const requestedWorkspaceContext = await loadWorkspaceContextById(requestedWorkspaceId);
+		const requestedWorkspaceContext = await loadWorkspaceContextById(requestedWorkspaceId, {
+			resolutionSource: "explicit_id",
+		});
 		if (!requestedWorkspaceContext) {
 			return {
 				requestedWorkspaceId,
@@ -437,7 +443,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				clearRateLimit(ip);
 				const token = issueSession();
 				const cookieFlags = [
-					`kanban_session=${token}`,
+					`${SESSION_COOKIE_NAME}=${token}`,
 					"HttpOnly",
 					"SameSite=Strict",
 					"Path=/",

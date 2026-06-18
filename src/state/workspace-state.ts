@@ -4,7 +4,7 @@ import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
-
+import { CLINE_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME, TASK_WORKTREES_DIR_NAME } from "../config/runtime-paths";
 import {
 	type RuntimeBoardColumnId,
 	type RuntimeBoardData,
@@ -19,10 +19,12 @@ import {
 import { createGitProcessEnv } from "../core/git-process-env";
 import { updateTaskDependencies } from "../core/task-board-mutations";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 
-const RUNTIME_HOME_PARENT_DIR = ".cline";
-const RUNTIME_HOME_DIR = "kanban";
-const RUNTIME_WORKTREES_DIR = "worktrees";
+const RUNTIME_HOME_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
+const RUNTIME_WORKTREES_DIR = TASK_WORKTREES_DIR_NAME;
 const WORKSPACES_DIR = "workspaces";
 const INDEX_FILENAME = "index.json";
 const BOARD_FILENAME = "board.json";
@@ -133,6 +135,14 @@ const workspaceSessionsSchema = z
 		}
 	});
 
+const internalWorkspaceStateSaveRequestSchema = runtimeWorkspaceStateSaveRequestSchema.extend({
+	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema).optional(),
+});
+
+export type InternalWorkspaceStateSaveRequest = RuntimeWorkspaceStateSaveRequest & {
+	sessions?: Record<string, RuntimeTaskSessionSummary>;
+};
+
 export interface RuntimeWorkspaceContext {
 	repoPath: string;
 	workspaceId: string;
@@ -144,6 +154,29 @@ export interface RuntimeWorkspaceContext {
 export interface LoadWorkspaceContextOptions {
 	autoCreateIfMissing?: boolean;
 	gitRepositoryCreatedByKanban?: boolean;
+	allowTaskWorktreeProject?: boolean;
+	resolutionSource?: string;
+	resolutionMetadata?: Record<string, unknown>;
+}
+
+function recordWorkspaceResolutionDecision(input: {
+	repoPath: string;
+	severity: "debug" | "info" | "warning";
+	message: string;
+	source: string;
+	metadata?: Record<string, unknown>;
+}): void {
+	recordSelfObservation({
+		signal: "custom",
+		severity: input.severity,
+		message: input.message,
+		workspacePath: input.repoPath,
+		metadata: {
+			operation: "workspace_resolution",
+			source: input.source,
+			...(input.metadata ?? {}),
+		},
+	});
 }
 
 function createEmptyBoard(): RuntimeBoardData {
@@ -191,6 +224,15 @@ export function getRuntimeHomePath(): string {
 
 export function getTaskWorktreesHomePath(): string {
 	return join(homedir(), RUNTIME_HOME_PARENT_DIR, RUNTIME_WORKTREES_DIR);
+}
+
+export async function getCanonicalTaskWorktreesHomePath(): Promise<string> {
+	const taskWorktreesHomePath = getTaskWorktreesHomePath();
+	try {
+		return await realpath(taskWorktreesHomePath);
+	} catch {
+		return taskWorktreesHomePath;
+	}
 }
 
 export function getWorkspacesRootPath(): string {
@@ -311,8 +353,8 @@ function parseWorkspaceIndex(rawIndex: unknown | null): WorkspaceIndexFile {
 	);
 }
 
-function parseWorkspaceStateSavePayload(payload: RuntimeWorkspaceStateSaveRequest): RuntimeWorkspaceStateSaveRequest {
-	const parsed = runtimeWorkspaceStateSaveRequestSchema.safeParse(payload);
+function parseWorkspaceStateSavePayload(payload: InternalWorkspaceStateSaveRequest): InternalWorkspaceStateSaveRequest {
+	const parsed = internalWorkspaceStateSaveRequestSchema.safeParse(payload);
 	if (!parsed.success) {
 		throw new Error(`Invalid workspace state save payload. ${formatSchemaIssues(parsed.error)}`);
 	}
@@ -548,7 +590,7 @@ function detectGitRepositoryInfo(repoPath: string): RuntimeGitRepositoryInfo {
 	};
 }
 
-async function resolveWorkspacePath(cwd: string): Promise<string> {
+export async function resolveWorkspacePath(cwd: string): Promise<string> {
 	const resolvedCwd = resolve(cwd);
 	let canonicalCwd = resolvedCwd;
 	try {
@@ -602,12 +644,52 @@ export async function loadWorkspaceContext(
 ): Promise<RuntimeWorkspaceContext> {
 	const repoPath = await resolveWorkspacePath(cwd);
 	const autoCreateIfMissing = options.autoCreateIfMissing ?? true;
-	if (!autoCreateIfMissing) {
+	const isTaskWorktreePath = isPathInsideTaskWorktreesHome(repoPath, await getCanonicalTaskWorktreesHomePath());
+	if (!autoCreateIfMissing || (options.allowTaskWorktreeProject !== true && isTaskWorktreePath)) {
 		const index = await readWorkspaceIndex();
 		const existingEntry = findWorkspaceEntry(index, repoPath);
 		if (!existingEntry) {
+			if (isTaskWorktreePath) {
+				recordWorkspaceResolutionDecision({
+					repoPath,
+					severity: "warning",
+					message: "Workspace resolution rejected task worktree auto-registration.",
+					source: "rejected_task_worktree",
+					metadata: {
+						autoCreateIfMissing,
+						allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
+						...(options.resolutionMetadata ?? {}),
+					},
+				});
+				throw new Error(
+					`Task worktree ${repoPath} is not a standalone Kanban project. Use the owning parent project path instead.`,
+				);
+			}
+			recordWorkspaceResolutionDecision({
+				repoPath,
+				severity: "info",
+				message: "Workspace resolution rejected an unregistered project while auto-create was disabled.",
+				source: "unregistered_project",
+				metadata: {
+					autoCreateIfMissing,
+					allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
+					...(options.resolutionMetadata ?? {}),
+				},
+			});
 			throw new Error(`Project ${repoPath} is not added to Kanban yet.`);
 		}
+		recordWorkspaceResolutionDecision({
+			repoPath,
+			severity: "debug",
+			message: `Workspace resolved from existing index: ${existingEntry.workspaceId}`,
+			source: options.resolutionSource ?? "existing_index",
+			metadata: {
+				workspaceId: existingEntry.workspaceId,
+				autoCreateIfMissing,
+				allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
+				...(options.resolutionMetadata ?? {}),
+			},
+		});
 		return {
 			repoPath,
 			workspaceId: existingEntry.workspaceId,
@@ -624,6 +706,22 @@ export async function loadWorkspaceContext(
 		if (ensured.changed) {
 			await writeWorkspaceIndex(index);
 		}
+		recordWorkspaceResolutionDecision({
+			repoPath,
+			severity: "debug",
+			message: ensured.changed
+				? `Workspace auto-registered: ${ensured.entry.workspaceId}`
+				: `Workspace resolved from existing index: ${ensured.entry.workspaceId}`,
+			source: options.resolutionSource ?? (ensured.changed ? "auto_registered" : "existing_index"),
+			metadata: {
+				workspaceId: ensured.entry.workspaceId,
+				autoRegistered: ensured.changed,
+				autoCreateIfMissing,
+				allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
+				gitRepositoryCreatedByKanban: options.gitRepositoryCreatedByKanban === true,
+				...(options.resolutionMetadata ?? {}),
+			},
+		});
 
 		return {
 			repoPath,
@@ -635,14 +733,26 @@ export async function loadWorkspaceContext(
 	});
 }
 
-export async function loadWorkspaceContextById(workspaceId: string): Promise<RuntimeWorkspaceContext | null> {
+export async function loadWorkspaceContextById(
+	workspaceId: string,
+	options: {
+		resolutionSource?: string;
+		resolutionMetadata?: Record<string, unknown>;
+	} = {},
+): Promise<RuntimeWorkspaceContext | null> {
 	const index = await readWorkspaceIndex();
 	const entry = index.entries[workspaceId];
 	if (!entry) {
 		return null;
 	}
 	try {
-		return await loadWorkspaceContext(entry.repoPath);
+		return await loadWorkspaceContext(entry.repoPath, {
+			resolutionSource: options.resolutionSource,
+			resolutionMetadata: {
+				requestedWorkspaceId: workspaceId,
+				...(options.resolutionMetadata ?? {}),
+			},
+		});
 	} catch {
 		return null;
 	}
@@ -695,7 +805,7 @@ export async function loadWorkspaceState(cwd: string): Promise<RuntimeWorkspaceS
 
 export async function saveWorkspaceState(
 	cwd: string,
-	payload: RuntimeWorkspaceStateSaveRequest,
+	payload: InternalWorkspaceStateSaveRequest,
 ): Promise<RuntimeWorkspaceStateResponse> {
 	const parsedPayload = parseWorkspaceStateSavePayload(payload);
 	const context = await loadWorkspaceContext(cwd);
@@ -712,7 +822,7 @@ export async function saveWorkspaceState(
 			throw new WorkspaceStateConflictError(expectedRevision, currentMeta.revision);
 		}
 		const board = parsedPayload.board;
-		const sessions = parsedPayload.sessions;
+		const sessions = parsedPayload.sessions ?? (await readWorkspaceSessions(context.workspaceId));
 		const nextRevision = currentMeta.revision + 1;
 		const nextMeta: WorkspaceStateMeta = {
 			revision: nextRevision,

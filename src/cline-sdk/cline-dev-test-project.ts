@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TEMPLATE_NAME = "smoke-ts-cli";
+export const CLINE_DEV_TEST_PROJECT_MARKER_PATH = join(".cline", "nklein", "dev-test-project.json");
 
 export interface ClineDevTestProjectScenario {
 	id: string;
@@ -34,6 +35,13 @@ export interface ScaffoldedClineDevTestProject {
 	scenario: ClineDevTestProjectScenario;
 	acceptanceCommand: string;
 	gitInitialized: boolean;
+}
+
+export interface ClineDevTestProjectMarker {
+	createdBy: "nklein-dev-test";
+	scenarioId: string;
+	scenarioTitle: string;
+	createdAt: number;
 }
 
 export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
@@ -140,7 +148,8 @@ export async function scaffoldClineDevTestProject(
 	const scenario = options.scenario ?? DEFAULT_CLINE_DEV_TEST_SCENARIO;
 	const parentDir = options.parentDir ?? tmpdir();
 	const now = options.now ?? Date.now;
-	const workspacePath = await mkdtemp(join(parentDir, `kanban-${slugify(scenario.id)}-${now()}-`));
+	const createdAt = now();
+	const workspacePath = await mkdtemp(join(parentDir, `nklein-${slugify(scenario.id)}-${createdAt}-`));
 	const templatePath = resolveClineDevTestTemplatePath(options.templateName);
 	await cp(templatePath, workspacePath, {
 		recursive: true,
@@ -161,6 +170,15 @@ export async function scaffoldClineDevTestProject(
 		].join("\n"),
 		"utf8",
 	);
+	const marker: ClineDevTestProjectMarker = {
+		createdBy: "nklein-dev-test",
+		scenarioId: scenario.id,
+		scenarioTitle: scenario.title,
+		createdAt,
+	};
+	const markerPath = join(workspacePath, CLINE_DEV_TEST_PROJECT_MARKER_PATH);
+	await mkdir(dirname(markerPath), { recursive: true });
+	await writeFile(markerPath, `${JSON.stringify(marker, null, 2)}\n`, "utf8");
 	const shouldInitializeGit = options.initializeGit ?? true;
 	if (shouldInitializeGit) {
 		await initializeGitRepository(workspacePath);

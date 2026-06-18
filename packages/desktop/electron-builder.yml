@@ -1,5 +1,5 @@
-appId: com.cline.kanban
-productName: Kanban
+appId: com.cline.nklein
+productName: nKlein
 copyright: Copyright © 2025 Cline
 
 directories:
@@ -18,19 +18,19 @@ files:
   - "!cli/**/*.map"
   - "!dist/**/*.map"
 
-# Narrow filter — explicitly excludes `kanban-dev*` (dev-only shims) and
+# Narrow filter — explicitly excludes `nklein-dev*` (dev-only shims) and
 # any stray files in build/bin from accidentally shipping.
 extraResources:
   - from: build/bin
     to: bin
     filter:
-      - "kanban"
-      - "kanban.cmd"
+      - "nklein"
+      - "nklein.cmd"
 
 protocols:
-  - name: Kanban
+  - name: nKlein
     schemes:
-      - kanban
+      - nklein
 
 asar: true
 

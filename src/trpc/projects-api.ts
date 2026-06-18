@@ -1,6 +1,10 @@
-import { readdir, rm, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { resolveClineDevTestProjectScenario, scaffoldClineDevTestProject } from "../cline-sdk/cline-dev-test-project";
+import { cp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import {
+	CLINE_DEV_TEST_PROJECT_MARKER_PATH,
+	resolveClineDevTestProjectScenario,
+	scaffoldClineDevTestProject,
+} from "../cline-sdk/cline-dev-test-project";
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardData,
@@ -10,18 +14,28 @@ import type {
 	RuntimeDirectoryListResponse,
 	RuntimeModelRoles,
 	RuntimeProjectAddResponse,
+	RuntimeProjectArtifactMigrationResponse,
+	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 	RuntimeProjectTaskCounts,
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
-import { parseDirectoryListRequest, parseProjectAddRequest, parseProjectRemoveRequest } from "../core/api-validation";
 import {
+	parseDirectoryListRequest,
+	parseProjectAddRequest,
+	parseProjectArtifactMigrationRequest,
+	parseProjectRemoveRequest,
+} from "../core/api-validation";
+import { lockedFileSystem } from "../fs/locked-file-system";
+import {
+	getCanonicalTaskWorktreesHomePath,
 	listWorkspaceIndexEntries,
 	loadWorkspaceContext,
 	loadWorkspaceContextById,
 	loadWorkspaceState,
 	removeWorkspaceIndexEntry,
 	removeWorkspaceStateFiles,
+	resolveWorkspacePath,
 	saveWorkspaceState,
 } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
@@ -34,7 +48,9 @@ import {
 	markGitRepositoryCreatedByKanban,
 } from "../workspace/initialize-repo";
 import { isPathWithinRoot } from "../workspace/path-sandbox";
-import { deleteTaskWorktree } from "../workspace/task-worktree";
+import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
+import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
+import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
 
 interface DisposeWorkspaceOptions {
@@ -42,18 +58,29 @@ interface DisposeWorkspaceOptions {
 }
 
 const DEV_TEST_TASK_ID = "dev-habit-insights-mid";
-const DEV_TEST_WORKSPACE_ID_PATTERN = /^kanban-(?:habit|small-model-smoke)-/;
-
-function isDevTestWorkspaceEntry(entry: {
+async function isMarkedDevTestWorkspaceEntry(entry: {
 	workspaceId: string;
 	repoPath: string;
 	gitRepositoryCreatedByKanban: boolean;
-}): boolean {
-	return (
-		entry.gitRepositoryCreatedByKanban &&
-		DEV_TEST_WORKSPACE_ID_PATTERN.test(entry.workspaceId) &&
-		DEV_TEST_WORKSPACE_ID_PATTERN.test(basename(entry.repoPath))
-	);
+}): Promise<boolean> {
+	if (!entry.gitRepositoryCreatedByKanban) {
+		return false;
+	}
+	try {
+		const rawMarker = await readFile(join(entry.repoPath, CLINE_DEV_TEST_PROJECT_MARKER_PATH), "utf8");
+		const parsed = JSON.parse(rawMarker) as { createdBy?: unknown };
+		return parsed.createdBy === "nklein-dev-test";
+	} catch {
+		return false;
+	}
+}
+
+async function resolveGitRootIfAvailable(path: string): Promise<string | null> {
+	try {
+		return await resolveWorkspacePath(path);
+	} catch {
+		return null;
+	}
 }
 
 export function createDevTestBoard(input: {
@@ -109,6 +136,7 @@ export interface CreateProjectsApiDependencies {
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
 		gitRepositoryCreatedByKanban: boolean;
+		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
 	getTerminalManagerForWorkspace: (workspaceId: string) => TerminalSessionManager | null;
@@ -124,6 +152,56 @@ export interface CreateProjectsApiDependencies {
 	}>;
 	pickDirectoryPathFromSystemDialog: () => string | null;
 	serverCwd: string;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function pathExists(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function listPlanArtifactDirectoryNames(workspacePath: string): Promise<string[]> {
+	const plansPath = join(workspacePath, ".cline", "nklein", "plans");
+	const entries = await readdir(plansPath, { withFileTypes: true }).catch(() => []);
+	return entries
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => entry.name)
+		.sort((left, right) => left.localeCompare(right));
+}
+
+async function updateMigratedArtifactMetadata(input: {
+	artifactPath: string;
+	parentWorkspaceId: string;
+	parentWorkspacePath: string;
+	sourceTaskId: string | null;
+}): Promise<void> {
+	const metadataPath = join(input.artifactPath, "artifact.json");
+	const raw = await readFile(metadataPath, "utf8").catch(() => null);
+	if (!raw) {
+		return;
+	}
+	const parsed = JSON.parse(raw) as unknown;
+	if (!isJsonRecord(parsed)) {
+		return;
+	}
+	const metadata = {
+		...parsed,
+		workspaceId: input.parentWorkspaceId,
+		workspacePath: input.parentWorkspacePath,
+		sourceTaskId:
+			typeof parsed.sourceTaskId === "string" && parsed.sourceTaskId.trim()
+				? parsed.sourceTaskId
+				: input.sourceTaskId,
+		updatedAt: Date.now(),
+	};
+	await lockedFileSystem.writeJsonFileAtomic(metadataPath, metadata, { lock: null });
 }
 
 export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeTrpcContext["projectsApi"] {
@@ -206,8 +284,30 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						} satisfies RuntimeProjectAddResponse;
 					}
 				}
+				const candidateRepoPath = await resolveWorkspacePath(projectPath);
+				if (
+					isPathInsideTaskWorktreesHome(candidateRepoPath, await getCanonicalTaskWorktreesHomePath()) &&
+					body.allowTaskWorktreeProject !== true
+				) {
+					return {
+						ok: false,
+						project: null,
+						requiresTaskWorktreeProjectConfirmation: true,
+						error: "That folder is a Kanban task worktree. Add the owning parent project instead, or use an advanced task-worktree project flow.",
+					} satisfies RuntimeProjectAddResponse;
+				}
+				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
+				if (sourceRepoPath && sourceRepoPath === candidateRepoPath && body.confirmSelfProject !== true) {
+					return {
+						ok: false,
+						project: null,
+						requiresSelfProjectConfirmation: true,
+						error: "This is Kanban's own source repository. Loading it as a project is a self-improvement workflow and needs confirmation.",
+					} satisfies RuntimeProjectAddResponse;
+				}
 				const context = await loadWorkspaceContext(projectPath, {
 					gitRepositoryCreatedByKanban,
+					allowTaskWorktreeProject: body.allowTaskWorktreeProject === true,
 				});
 				deps.rememberWorkspace(context.workspaceId, context.repoPath);
 				const projectsAfterAdd = await listWorkspaceIndexEntries();
@@ -362,7 +462,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 			let removedProjects = 0;
 			let removedTaskWorktrees = 0;
 			try {
-				const entries = (await listWorkspaceIndexEntries()).filter(isDevTestWorkspaceEntry);
+				const allEntries = await listWorkspaceIndexEntries();
+				const entries = [];
+				for (const entry of allEntries) {
+					if (await isMarkedDevTestWorkspaceEntry(entry)) {
+						entries.push(entry);
+					}
+				}
 				for (const entry of entries) {
 					const taskIdsToCleanup = new Set<string>();
 					try {
@@ -392,6 +498,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 							errors.push(deleted.error ?? `Could not delete task workspace for ${taskId}.`);
 						}
 					}
+					await deleteTaskPatchFilesForRepo(entry.repoPath);
 
 					const removed = await removeWorkspaceIndexEntry(entry.workspaceId);
 					if (!removed) {
@@ -408,6 +515,12 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						const message = error instanceof Error ? error.message : String(error);
 						errors.push(`Could not remove fixture folder ${entry.repoPath}: ${message}`);
 					});
+					try {
+						await stat(entry.repoPath);
+						errors.push(`Fixture folder still exists after cleanup: ${entry.repoPath}`);
+					} catch {
+						// Removed successfully.
+					}
 					removedProjects += 1;
 				}
 
@@ -527,6 +640,111 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					ok: false,
+					error: message,
+				};
+			}
+		},
+		migrateAccidentalProjectArtifacts: async (
+			_preferredWorkspaceId,
+			input,
+		): Promise<RuntimeProjectArtifactMigrationResponse> => {
+			let migratedArtifacts = 0;
+			let skippedArtifacts = 0;
+			const errors: string[] = [];
+			try {
+				const body = parseProjectArtifactMigrationRequest(input);
+				const entries = await listWorkspaceIndexEntries();
+				const sourceEntry = entries.find((entry) => entry.workspaceId === body.projectId);
+				if (!sourceEntry) {
+					return {
+						ok: false,
+						migratedArtifacts,
+						skippedArtifacts,
+						parentWorkspaceId: null,
+						parentWorkspacePath: null,
+						errors: [],
+						error: `Unknown project ID: ${body.projectId}`,
+					};
+				}
+				const issuesByWorkspaceId = await detectProjectHealthIssuesByWorkspaceId({ projects: entries });
+				const issue = (issuesByWorkspaceId.get(sourceEntry.workspaceId) ?? []).find(
+					(candidate) =>
+						candidate.kind === "task_worktree_project" || candidate.kind === "missing_parent_workspace",
+				);
+				if (!issue) {
+					return {
+						ok: false,
+						migratedArtifacts,
+						skippedArtifacts,
+						parentWorkspaceId: null,
+						parentWorkspacePath: null,
+						errors: [],
+						error: "This project is not detected as an accidental task-worktree project.",
+					};
+				}
+				if (!issue.parentWorkspaceId || !issue.parentWorkspacePath) {
+					return {
+						ok: false,
+						migratedArtifacts,
+						skippedArtifacts,
+						parentWorkspaceId: null,
+						parentWorkspacePath: null,
+						errors: [],
+						error: "No parent project was detected for this task worktree project.",
+					};
+				}
+				if (!issue.canMigrateArtifacts) {
+					return {
+						ok: false,
+						migratedArtifacts,
+						skippedArtifacts,
+						parentWorkspaceId: issue.parentWorkspaceId,
+						parentWorkspacePath: issue.parentWorkspacePath,
+						errors: [],
+						error: "No migratable plan artifacts were found.",
+					};
+				}
+				const artifactSlugs = await listPlanArtifactDirectoryNames(sourceEntry.repoPath);
+				for (const slug of artifactSlugs) {
+					const sourceArtifactPath = join(sourceEntry.repoPath, ".cline", "nklein", "plans", slug);
+					const targetArtifactPath = join(issue.parentWorkspacePath, ".cline", "nklein", "plans", slug);
+					if (await pathExists(targetArtifactPath)) {
+						skippedArtifacts += 1;
+						errors.push(`Skipped ${slug}: the parent project already has an artifact with that slug.`);
+						continue;
+					}
+					await cp(sourceArtifactPath, targetArtifactPath, {
+						recursive: true,
+						errorOnExist: true,
+						force: false,
+					});
+					await updateMigratedArtifactMetadata({
+						artifactPath: targetArtifactPath,
+						parentWorkspaceId: issue.parentWorkspaceId,
+						parentWorkspacePath: issue.parentWorkspacePath,
+						sourceTaskId: issue.taskId,
+					});
+					migratedArtifacts += 1;
+				}
+				await deps.broadcastRuntimeProjectsUpdated(deps.getActiveWorkspaceId());
+				return {
+					ok: errors.length === 0,
+					migratedArtifacts,
+					skippedArtifacts,
+					parentWorkspaceId: issue.parentWorkspaceId,
+					parentWorkspacePath: issue.parentWorkspacePath,
+					errors,
+					...(errors.length > 0 ? { error: errors[0] } : {}),
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					ok: false,
+					migratedArtifacts,
+					skippedArtifacts,
+					parentWorkspaceId: null,
+					parentWorkspacePath: null,
+					errors: [...errors, message],
 					error: message,
 				};
 			}

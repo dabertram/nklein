@@ -17,6 +17,8 @@ import {
 	generatePasscode,
 	isPasscodeEnabled,
 	issueSession,
+	LEGACY_SESSION_COOKIE_NAME,
+	SESSION_COOKIE_NAME,
 	validateSession,
 } from "../../../src/security/passcode-manager";
 
@@ -57,7 +59,7 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 
 		const result = runUpgradeGuard({
 			isRemoteMode: true,
-			cookieHeader: "kanban_session=not-a-real-token",
+			cookieHeader: `${SESSION_COOKIE_NAME}=not-a-real-token`,
 		});
 		expect(result).toBe("rejected");
 	});
@@ -67,7 +69,7 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 
 		const result = runUpgradeGuard({
 			isRemoteMode: true,
-			cookieHeader: "some_other_cookie=abc; kanban_session=",
+			cookieHeader: `some_other_cookie=abc; ${SESSION_COOKIE_NAME}=`,
 		});
 		expect(result).toBe("rejected");
 	});
@@ -78,7 +80,7 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 
 		const result = runUpgradeGuard({
 			isRemoteMode: true,
-			cookieHeader: `kanban_session=${token}`,
+			cookieHeader: `${SESSION_COOKIE_NAME}=${token}`,
 		});
 		expect(result).toBe("allowed");
 	});
@@ -89,7 +91,7 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 
 		const result = runUpgradeGuard({
 			isRemoteMode: true,
-			cookieHeader: `other=value; kanban_session=${token}; another=x`,
+			cookieHeader: `other=value; ${SESSION_COOKIE_NAME}=${token}; another=x`,
 		});
 		expect(result).toBe("allowed");
 	});
@@ -110,7 +112,7 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 
 		const result = runUpgradeGuard({
 			isRemoteMode: true,
-			cookieHeader: `kanban_session=${neverIssuedToken}`,
+			cookieHeader: `${SESSION_COOKIE_NAME}=${neverIssuedToken}`,
 		});
 		expect(result).toBe("rejected");
 	});
@@ -120,6 +122,17 @@ describe("WebSocket upgrade passcode gate (/api/runtime/ws)", () => {
 		expect(isPasscodeEnabled()).toBe(false);
 
 		const result = runUpgradeGuard({ isRemoteMode: true, cookieHeader: undefined });
+		expect(result).toBe("allowed");
+	});
+
+	it("accepts the legacy cookie name during the rename transition", () => {
+		generatePasscode();
+		const token = issueSession();
+
+		const result = runUpgradeGuard({
+			isRemoteMode: true,
+			cookieHeader: `${LEGACY_SESSION_COOKIE_NAME}=${token}`,
+		});
 		expect(result).toBe("allowed");
 	});
 });

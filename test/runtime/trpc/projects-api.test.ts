@@ -1,21 +1,89 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO } from "../../../src/cline-sdk/cline-dev-test-project";
+import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
+import {
+	getTaskWorktreesHomePath,
+	getWorkspaceDirectoryPath,
+	listWorkspaceIndexEntries,
+	loadWorkspaceContext,
+	saveWorkspaceState,
+} from "../../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../../src/terminal/session-manager";
 import {
 	type CreateProjectsApiDependencies,
 	createDevTestBoard,
 	createProjectsApi,
 } from "../../../src/trpc/projects-api";
+import { createGitTestEnv } from "../../utilities/git-env";
 
 function createTestCwd(): string {
 	const base = join(tmpdir(), `kanban-test-dir-list-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 	mkdirSync(base, { recursive: true });
 	return base;
+}
+
+function initGitRepository(path: string): void {
+	const init = spawnSync("git", ["init"], {
+		cwd: path,
+		stdio: "ignore",
+		env: createGitTestEnv(),
+	});
+	if (init.status !== 0) {
+		throw new Error(`Failed to initialize git repository at ${path}`);
+	}
+	for (const [key, value] of [
+		["user.email", "kanban-test@example.com"],
+		["user.name", "Kanban Test"],
+	] as const) {
+		const config = spawnSync("git", ["config", "--local", key, value], {
+			cwd: path,
+			stdio: "ignore",
+			env: createGitTestEnv(),
+		});
+		if (config.status !== 0) {
+			throw new Error(`Failed to configure git repository at ${path}`);
+		}
+	}
+}
+
+function getPatchRepoKey(repoPath: string): string {
+	let canonicalRepoPath: string;
+	try {
+		canonicalRepoPath = realpathSync(repoPath);
+	} catch {
+		canonicalRepoPath = resolve(repoPath);
+	}
+	return createHash("sha256").update(canonicalRepoPath).digest("hex").slice(0, 12);
+}
+
+async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
+	const tempHome = createTestCwd();
+	const previousHome = process.env.HOME;
+	const previousUserProfile = process.env.USERPROFILE;
+	process.env.HOME = tempHome;
+	process.env.USERPROFILE = tempHome;
+	try {
+		return await run();
+	} finally {
+		if (previousHome === undefined) {
+			delete process.env.HOME;
+		} else {
+			process.env.HOME = previousHome;
+		}
+		if (previousUserProfile === undefined) {
+			delete process.env.USERPROFILE;
+		} else {
+			process.env.USERPROFILE = previousUserProfile;
+		}
+		rmSync(tempHome, { recursive: true, force: true });
+	}
 }
 
 function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
@@ -78,6 +146,204 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable Kanban tasks");
 		expect(backlog[0]?.prompt).not.toContain("Acceptance command for implementation leaves");
 		expect(board.dependencies).toHaveLength(0);
+	});
+});
+
+describe("dev-test project cleanup", () => {
+	const previousNodeEnv = process.env.NODE_ENV;
+
+	afterEach(() => {
+		if (previousNodeEnv === undefined) {
+			delete process.env.NODE_ENV;
+		} else {
+			process.env.NODE_ENV = previousNodeEnv;
+		}
+	});
+
+	it("removes only marked dev-test projects and their scoped stale patches", async () => {
+		process.env.NODE_ENV = "development";
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const deps = createDefaultDeps(cleanupCwd);
+				const api = createProjectsApi(deps);
+
+				const marked = await api.createDevTestProject(null, { preset: "mid_task" });
+				expect(marked.ok).toBe(true);
+				if (!marked.workspacePath) {
+					throw new Error("Expected marked dev-test workspace path.");
+				}
+				const markedWorkspacePath = marked.workspacePath;
+
+				const unmarkedPath = join(cleanupCwd, `kanban-habit-lookalike-${Date.now()}`);
+				mkdirSync(unmarkedPath, { recursive: true });
+				initGitRepository(unmarkedPath);
+				await loadWorkspaceContext(unmarkedPath, { gitRepositoryCreatedByKanban: true });
+
+				const patchesDir = join(process.env.HOME ?? cleanupCwd, ".cline", "nklein", "trashed-task-patches");
+				mkdirSync(patchesDir, { recursive: true });
+				const markedPatchPath = join(patchesDir, `stale-task.${getPatchRepoKey(markedWorkspacePath)}.abc123.patch`);
+				writeFileSync(markedPatchPath, "diff --git a/a b/a\n", "utf8");
+				const unmarkedPatchPath = join(patchesDir, `stale-task.${getPatchRepoKey(unmarkedPath)}.abc123.patch`);
+				writeFileSync(unmarkedPatchPath, "diff --git a/a b/a\n", "utf8");
+
+				const cleanup = await api.cleanupDevTestProjects(null);
+
+				expect(cleanup.ok).toBe(true);
+				expect(cleanup.removedProjects).toBe(1);
+				const remainingEntries = await listWorkspaceIndexEntries();
+				expect(remainingEntries).toHaveLength(1);
+				expect(realpathSync(remainingEntries[0]?.repoPath ?? "")).toBe(realpathSync(unmarkedPath));
+				expect(() => realpathSync(markedWorkspacePath)).toThrow();
+				expect(existsSync(unmarkedPath)).toBe(true);
+				expect(() => realpathSync(markedPatchPath)).toThrow();
+				expect(existsSync(unmarkedPatchPath)).toBe(true);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("reports partial cleanup failures instead of claiming success", async () => {
+		process.env.NODE_ENV = "development";
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const api = createProjectsApi(createDefaultDeps(cleanupCwd));
+
+				const marked = await api.createDevTestProject(null, { preset: "mid_task" });
+				expect(marked.ok).toBe(true);
+				if (!marked.workspacePath) {
+					throw new Error("Expected marked dev-test workspace path.");
+				}
+				const markedWorkspacePath = marked.workspacePath;
+				const markedEntry = (await listWorkspaceIndexEntries()).find(
+					(entry) => realpathSync(entry.repoPath) === realpathSync(markedWorkspacePath),
+				);
+				if (!markedEntry) {
+					throw new Error("Expected marked workspace index entry.");
+				}
+				writeFileSync(join(getWorkspaceDirectoryPath(markedEntry.workspaceId), "board.json"), "{not-json", "utf8");
+
+				const cleanup = await api.cleanupDevTestProjects(null);
+
+				expect(cleanup.ok).toBe(false);
+				expect(
+					cleanup.errors.some((error) => error.includes(`Could not read board for ${markedEntry.workspaceId}`)),
+				).toBe(true);
+				expect(cleanup.error).toBe(cleanup.errors[0]);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("accidental task-worktree project recovery", () => {
+	it("copies misplaced plan artifacts to the detected parent project by explicit request", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const api = createProjectsApi(createDefaultDeps(cleanupCwd));
+				const parentPath = join(cleanupCwd, "parent-project");
+				const worktreePath = join(
+					process.env.HOME ?? cleanupCwd,
+					".cline",
+					"worktrees",
+					"source-card",
+					"parent-project",
+				);
+				mkdirSync(parentPath, { recursive: true });
+				mkdirSync(worktreePath, { recursive: true });
+				initGitRepository(parentPath);
+				initGitRepository(worktreePath);
+
+				const parent = await loadWorkspaceContext(parentPath);
+				await saveWorkspaceState(parentPath, {
+					board: {
+						columns: [
+							{
+								id: "backlog",
+								title: "Backlog",
+								cards: [
+									{
+										id: "source-card",
+										title: "Source card",
+										prompt: "Split this work.",
+										startInPlanMode: true,
+										baseRef: "main",
+										createdAt: 1,
+										updatedAt: 1,
+									},
+								],
+							},
+							{ id: "planning", title: "Planning", cards: [] },
+							{ id: "in_progress", title: "In Progress", cards: [] },
+							{ id: "review", title: "Review", cards: [] },
+							{ id: "completed", title: "Completed", cards: [] },
+							{ id: "trash", title: "Trash", cards: [] },
+						],
+						dependencies: [],
+					},
+					sessions: {},
+				});
+				const accidental = await loadWorkspaceContext(worktreePath, { allowTaskWorktreeProject: true });
+				await writeClinePlanArtifacts({
+					workspacePath: worktreePath,
+					workspaceId: accidental.workspaceId,
+					sourceTaskId: "source-card",
+					slug: "misplaced-plan",
+					spec: "# Spec",
+					plan: "# Plan",
+					taskGraph: {
+						schemaVersion: 1,
+						slug: "misplaced-plan",
+						title: "Misplaced Plan",
+						tasks: [
+							{
+								id: "generated-task",
+								title: "Generated task",
+								prompt: "Do work.",
+								dependsOn: [],
+								complexity: 20,
+								suggestedRole: null,
+								filesLikelyTouched: [],
+								acceptanceCommand: null,
+								testFirst: false,
+								acceptanceTestPrompt: null,
+							},
+						],
+					},
+				});
+
+				const migrated = await api.migrateAccidentalProjectArtifacts(null, { projectId: accidental.workspaceId });
+
+				expect(migrated.ok).toBe(true);
+				expect(migrated.migratedArtifacts).toBe(1);
+				expect(migrated.parentWorkspaceId).toBe(parent.workspaceId);
+				const migratedMetadataPath = join(
+					parentPath,
+					".cline",
+					"nklein",
+					"plans",
+					"misplaced-plan",
+					"artifact.json",
+				);
+				expect(existsSync(migratedMetadataPath)).toBe(true);
+				const metadata = JSON.parse(readFileSync(migratedMetadataPath, "utf8")) as {
+					workspaceId?: unknown;
+					workspacePath?: unknown;
+					sourceTaskId?: unknown;
+				};
+				expect(metadata.workspaceId).toBe(parent.workspaceId);
+				expect(metadata.workspacePath).toBe(parent.repoPath);
+				expect(metadata.sourceTaskId).toBe("source-card");
+				const remainingEntries = await listWorkspaceIndexEntries();
+				expect(remainingEntries.some((entry) => entry.workspaceId === accidental.workspaceId)).toBe(true);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -336,5 +602,48 @@ describe("addProject", () => {
 		expect(resolveSpy).toHaveBeenCalledWith("my-new-proj", testCwd);
 		// Crucially, it must NOT have been called with the active project path:
 		expect(resolveSpy).not.toHaveBeenCalledWith("my-new-proj", activeProjectPath);
+	});
+
+	it("requires confirmation before adding the Kanban source repo as a project", async () => {
+		await withTemporaryHome(async () => {
+			const sourceRepoPath = join(testCwd, "kanban-source");
+			mkdirSync(sourceRepoPath, { recursive: true });
+			initGitRepository(sourceRepoPath);
+			const deps = createDefaultDeps(sourceRepoPath);
+			(deps.hasGitRepository as ReturnType<typeof vi.fn>).mockReturnValue(true);
+			const api = createProjectsApi(deps);
+
+			const firstResult = await api.addProject(null, { path: sourceRepoPath });
+			expect(firstResult.ok).toBe(false);
+			expect(firstResult.requiresSelfProjectConfirmation).toBe(true);
+			expect(await listWorkspaceIndexEntries()).toHaveLength(0);
+
+			const confirmedResult = await api.addProject(null, {
+				path: sourceRepoPath,
+				confirmSelfProject: true,
+			});
+			expect(confirmedResult.ok).toBe(true);
+			expect(confirmedResult.project).not.toBeNull();
+			expect(await listWorkspaceIndexEntries()).toHaveLength(1);
+		});
+	});
+
+	it("does not add task worktree paths as standalone projects without the advanced override", async () => {
+		await withTemporaryHome(async () => {
+			const sourceRepoPath = join(testCwd, "source");
+			mkdirSync(sourceRepoPath, { recursive: true });
+			initGitRepository(sourceRepoPath);
+			const worktreePath = join(getTaskWorktreesHomePath(), "task-123", "source");
+			mkdirSync(worktreePath, { recursive: true });
+			initGitRepository(worktreePath);
+			const deps = createDefaultDeps(sourceRepoPath);
+			(deps.hasGitRepository as ReturnType<typeof vi.fn>).mockReturnValue(true);
+			const api = createProjectsApi(deps);
+
+			const result = await api.addProject(null, { path: worktreePath });
+			expect(result.ok).toBe(false);
+			expect(result.requiresTaskWorktreeProjectConfirmation).toBe(true);
+			expect(await listWorkspaceIndexEntries()).toHaveLength(0);
+		});
 	});
 });

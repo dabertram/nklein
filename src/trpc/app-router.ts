@@ -4,7 +4,6 @@
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-
 import type {
 	RuntimeClineAccountBalanceResponse,
 	RuntimeClineAccountOrganizationsResponse,
@@ -15,6 +14,8 @@ import type {
 	RuntimeClineAddProviderResponse,
 	RuntimeClineAdvisorBuildRequest,
 	RuntimeClineAdvisorRequest,
+	RuntimeClineAdvisorSendRequest,
+	RuntimeClineAdvisorSendResponse,
 	RuntimeClineCodeIntelligenceStatusResponse,
 	RuntimeClineDeviceAuthCompleteRequest,
 	RuntimeClineDeviceAuthCompleteResponse,
@@ -33,6 +34,11 @@ import type {
 	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginRequest,
 	RuntimeClineOauthLoginResponse,
+	RuntimeClinePlanArtifactActionRequest,
+	RuntimeClinePlanArtifactApplyResponse,
+	RuntimeClinePlanArtifactRejectResponse,
+	RuntimeClinePlanArtifactsRequest,
+	RuntimeClinePlanArtifactsResponse,
 	RuntimeClineProviderCatalogResponse,
 	RuntimeClineProviderModelsRequest,
 	RuntimeClineProviderModelsResponse,
@@ -69,6 +75,8 @@ import type {
 	RuntimeOpenFileResponse,
 	RuntimeProjectAddRequest,
 	RuntimeProjectAddResponse,
+	RuntimeProjectArtifactMigrationRequest,
+	RuntimeProjectArtifactMigrationResponse,
 	RuntimeProjectDirectoryPickerResponse,
 	RuntimeProjectRemoveRequest,
 	RuntimeProjectRemoveResponse,
@@ -79,6 +87,8 @@ import type {
 	RuntimeSlashCommandsResponse,
 	RuntimeSwarmStopRequest,
 	RuntimeSwarmStopResponse,
+	RuntimeTaskAcceptanceVerifyRequest,
+	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskChatAbortRequest,
 	RuntimeTaskChatAbortResponse,
 	RuntimeTaskChatCancelRequest,
@@ -99,6 +109,8 @@ import type {
 	RuntimeTaskSessionStopResponse,
 	RuntimeTaskWorkspaceInfoRequest,
 	RuntimeTaskWorkspaceInfoResponse,
+	RuntimeTaskWorktreeMergeRequest,
+	RuntimeTaskWorktreeMergeResponse,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceChangesRequest,
 	RuntimeWorkspaceChangesResponse,
@@ -122,6 +134,8 @@ import {
 	runtimeClineAddProviderResponseSchema,
 	runtimeClineAdvisorBuildRequestSchema,
 	runtimeClineAdvisorRequestSchema,
+	runtimeClineAdvisorSendRequestSchema,
+	runtimeClineAdvisorSendResponseSchema,
 	runtimeClineCodeIntelligenceStatusResponseSchema,
 	runtimeClineDeviceAuthCompleteRequestSchema,
 	runtimeClineDeviceAuthCompleteResponseSchema,
@@ -140,6 +154,11 @@ import {
 	runtimeClineModelRegistryResponseSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineOauthLoginResponseSchema,
+	runtimeClinePlanArtifactActionRequestSchema,
+	runtimeClinePlanArtifactApplyResponseSchema,
+	runtimeClinePlanArtifactRejectResponseSchema,
+	runtimeClinePlanArtifactsRequestSchema,
+	runtimeClinePlanArtifactsResponseSchema,
 	runtimeClineProviderCatalogResponseSchema,
 	runtimeClineProviderModelsRequestSchema,
 	runtimeClineProviderModelsResponseSchema,
@@ -176,6 +195,8 @@ import {
 	runtimeOpenFileResponseSchema,
 	runtimeProjectAddRequestSchema,
 	runtimeProjectAddResponseSchema,
+	runtimeProjectArtifactMigrationRequestSchema,
+	runtimeProjectArtifactMigrationResponseSchema,
 	runtimeProjectDirectoryPickerResponseSchema,
 	runtimeProjectRemoveRequestSchema,
 	runtimeProjectRemoveResponseSchema,
@@ -186,6 +207,8 @@ import {
 	runtimeSlashCommandsResponseSchema,
 	runtimeSwarmStopRequestSchema,
 	runtimeSwarmStopResponseSchema,
+	runtimeTaskAcceptanceVerifyRequestSchema,
+	runtimeTaskAcceptanceVerifyResponseSchema,
 	runtimeTaskChatAbortRequestSchema,
 	runtimeTaskChatAbortResponseSchema,
 	runtimeTaskChatCancelRequestSchema,
@@ -206,6 +229,8 @@ import {
 	runtimeTaskSessionStopResponseSchema,
 	runtimeTaskWorkspaceInfoRequestSchema,
 	runtimeTaskWorkspaceInfoResponseSchema,
+	runtimeTaskWorktreeMergeRequestSchema,
+	runtimeTaskWorktreeMergeResponseSchema,
 	runtimeUpdateStatusResponseSchema,
 	runtimeWorkspaceChangesRequestSchema,
 	runtimeWorkspaceChangesResponseSchema,
@@ -219,6 +244,7 @@ import {
 	runtimeWorktreeEnsureRequestSchema,
 	runtimeWorktreeEnsureResponseSchema,
 } from "../core/api-contract";
+import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 
 export interface RuntimeTrpcWorkspaceScope {
 	workspaceId: string;
@@ -264,6 +290,26 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskDiagnosticsRequest,
 		) => Promise<RuntimeTaskDiagnosticsResponse>;
+		listClinePlanArtifacts: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeClinePlanArtifactsRequest,
+		) => Promise<RuntimeClinePlanArtifactsResponse>;
+		applyClinePlanArtifact: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeClinePlanArtifactActionRequest,
+		) => Promise<RuntimeClinePlanArtifactApplyResponse>;
+		rejectClinePlanArtifact: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeClinePlanArtifactActionRequest,
+		) => Promise<RuntimeClinePlanArtifactRejectResponse>;
+		verifyTaskAcceptance: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskAcceptanceVerifyRequest,
+		) => Promise<RuntimeTaskAcceptanceVerifyResponse>;
+		mergeTaskWorktrees: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskWorktreeMergeRequest,
+		) => Promise<RuntimeTaskWorktreeMergeResponse>;
 		sendTaskSessionInput: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionInputRequest,
@@ -320,6 +366,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineAdvisorBuildRequest,
 		) => Promise<RuntimeClineAdvisorRequest>;
+		sendClineAdvisor: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClineAdvisorSendRequest,
+		) => Promise<RuntimeClineAdvisorSendResponse>;
 		writeClineDogfoodBacklog: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineDogfoodBacklogRequest,
@@ -426,6 +476,10 @@ export interface RuntimeTrpcContext {
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectRemoveRequest,
 		) => Promise<RuntimeProjectRemoveResponse>;
+		migrateAccidentalProjectArtifacts: (
+			preferredWorkspaceId: string | null,
+			input: RuntimeProjectArtifactMigrationRequest,
+		) => Promise<RuntimeProjectArtifactMigrationResponse>;
 		pickProjectDirectory: (preferredWorkspaceId: string | null) => Promise<RuntimeProjectDirectoryPickerResponse>;
 		listDirectoryContents: (
 			preferredWorkspaceId: string | null,
@@ -469,7 +523,7 @@ const workspaceProcedure = t.procedure.use(({ ctx, next }) => {
 	if (!ctx.requestedWorkspaceId) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Missing workspace scope. Include x-kanban-workspace-id header or workspaceId query parameter.",
+			message: `Missing workspace scope. Include ${WORKSPACE_ID_HEADER} header or workspaceId query parameter. ${LEGACY_WORKSPACE_ID_HEADER} is still accepted during the rename transition.`,
 		});
 	}
 	if (!ctx.workspaceScope) {
@@ -549,6 +603,36 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeTaskDiagnosticsResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskDiagnostics(ctx.workspaceScope, input);
+			}),
+		listClinePlanArtifacts: workspaceProcedure
+			.input(runtimeClinePlanArtifactsRequestSchema)
+			.output(runtimeClinePlanArtifactsResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.listClinePlanArtifacts(ctx.workspaceScope, input);
+			}),
+		applyClinePlanArtifact: workspaceProcedure
+			.input(runtimeClinePlanArtifactActionRequestSchema)
+			.output(runtimeClinePlanArtifactApplyResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.applyClinePlanArtifact(ctx.workspaceScope, input);
+			}),
+		rejectClinePlanArtifact: workspaceProcedure
+			.input(runtimeClinePlanArtifactActionRequestSchema)
+			.output(runtimeClinePlanArtifactRejectResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.rejectClinePlanArtifact(ctx.workspaceScope, input);
+			}),
+		verifyTaskAcceptance: workspaceProcedure
+			.input(runtimeTaskAcceptanceVerifyRequestSchema)
+			.output(runtimeTaskAcceptanceVerifyResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.verifyTaskAcceptance(ctx.workspaceScope, input);
+			}),
+		mergeTaskWorktrees: workspaceProcedure
+			.input(runtimeTaskWorktreeMergeRequestSchema)
+			.output(runtimeTaskWorktreeMergeResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.mergeTaskWorktrees(ctx.workspaceScope, input);
 			}),
 		sendTaskSessionInput: workspaceProcedure
 			.input(runtimeTaskSessionInputRequestSchema)
@@ -643,6 +727,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeClineAdvisorRequestSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.buildClineAdvisor(ctx.workspaceScope, input);
+			}),
+		sendClineAdvisor: t.procedure
+			.input(runtimeClineAdvisorSendRequestSchema)
+			.output(runtimeClineAdvisorSendResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.sendClineAdvisor(ctx.workspaceScope, input);
 			}),
 		writeClineDogfoodBacklog: t.procedure
 			.input(runtimeClineDogfoodBacklogRequestSchema)
@@ -829,6 +919,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeProjectRemoveResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.projectsApi.removeProject(ctx.requestedWorkspaceId, input);
+			}),
+		migrateAccidentalProjectArtifacts: t.procedure
+			.input(runtimeProjectArtifactMigrationRequestSchema)
+			.output(runtimeProjectArtifactMigrationResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.projectsApi.migrateAccidentalProjectArtifacts(ctx.requestedWorkspaceId, input);
 			}),
 		pickDirectory: t.procedure.output(runtimeProjectDirectoryPickerResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.projectsApi.pickProjectDirectory(ctx.requestedWorkspaceId);

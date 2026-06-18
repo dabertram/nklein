@@ -20,6 +20,11 @@ const turnCheckpointMocks = vi.hoisted(() => ({
 	captureTaskTurnCheckpoint: vi.fn(),
 }));
 
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+	readSelfObservationEvents: vi.fn(),
+}));
+
 const evalHarnessMocks = vi.hoisted(() => ({
 	runClineDevSmokeEval: vi.fn(),
 }));
@@ -79,6 +84,11 @@ vi.mock("../../../src/workspace/task-worktree.js", () => ({
 
 vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
 	captureTaskTurnCheckpoint: turnCheckpointMocks.captureTaskTurnCheckpoint,
+}));
+
+vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+	readSelfObservationEvents: selfObservationMocks.readSelfObservationEvents,
 }));
 
 vi.mock("@clinebot/core", () => ({
@@ -329,7 +339,20 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
 		readyForReviewNotificationsEnabled: true,
+		codeEmbeddingDefaults: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
 		modelRoles: {},
 		shortcuts: [],
 		commitPromptTemplate: "commit",
@@ -518,6 +541,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		agentRegistryMocks.buildRuntimeConfigResponse.mockReset();
 		taskWorktreeMocks.resolveTaskCwd.mockReset();
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockReset();
+		selfObservationMocks.recordSelfObservation.mockReset();
+		selfObservationMocks.readSelfObservationEvents.mockReset();
+		selfObservationMocks.readSelfObservationEvents.mockResolvedValue([]);
 		oauthMocks.addLocalProvider.mockReset();
 		oauthMocks.ensureCustomProvidersLoaded.mockReset();
 		oauthMocks.loginClineOAuth.mockReset();
@@ -789,6 +815,57 @@ describe("createRuntimeApi startTaskSession", () => {
 			baseRef: "main",
 			ensure: true,
 		});
+	});
+
+	it("records checkpoint capture failures without blocking task start", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		turnCheckpointMocks.captureTaskTurnCheckpoint.mockRejectedValue(new Error("checkpoint ref failed"));
+
+		const terminalManager = {
+			listSummaries: vi.fn(() => []),
+			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => ({
+				...createRuntimeConfigState(),
+				selectedAgentId: "codex" as const,
+			})),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Start work",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				severity: "warning",
+				taskId: "task-1",
+				workspacePath: "/tmp/repo",
+				message: "Task checkpoint capture failed: checkpoint ref failed",
+				metadata: expect.objectContaining({
+					operation: "capture_task_turn_checkpoint",
+					agentId: "claude",
+				}),
+			}),
+		);
 	});
 
 	it("blocks project task starts when the terminal active task capacity is full", async () => {
@@ -3183,6 +3260,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.codeIndex.totalFiles).toBe(1);
 		expect(response.codeIndex.totalChunks).toBe(1);
 		expect(response.codeIndex.cacheExists).toBe(false);
+		expect(response.codeEmbeddingSettings.source).toBe("global");
+		expect(response.codeEmbeddingSettings.effective.provider).toBe("local_lexical");
 		expect(response.codeIndex.searchAvailable).toBe(false);
 	});
 
@@ -3288,6 +3367,63 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.prompt).toContain("TypeScript desktop app");
 	});
 
+	it("sends advisor prompts to the selected local Cline model", async () => {
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+			apiKey: "local-key",
+		});
+		const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => {
+			return new Response(
+				JSON.stringify({
+					message: { content: "Use local Qwen for this advisor request." },
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		try {
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({}) as never),
+				getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+
+			const response = await api.sendClineAdvisor(null, {
+				prompt: "Explain this config.",
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
+			});
+
+			expect(response.providerId).toBe("ollama");
+			expect(response.modelId).toBe("qwen3.5-9b");
+			expect(response.output).toBe("Use local Qwen for this advisor request.");
+			expect(response.receivedAt).toBeGreaterThanOrEqual(response.sentAt);
+			expect(fetchMock).toHaveBeenCalledWith(
+				"http://127.0.0.1:11434/api/chat",
+				expect.objectContaining({
+					method: "POST",
+					headers: expect.objectContaining({
+						authorization: "Bearer local-key",
+						"content-type": "application/json",
+					}),
+					body: expect.stringContaining('"model":"qwen3.5-9b"'),
+				}),
+			);
+			const request = JSON.parse(fetchMock.mock.calls[0]?.[1].body as string) as {
+				messages: Array<{ role: string; content: string }>;
+			};
+			expect(request.messages).toEqual([{ role: "user", content: "Explain this config." }]);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it("writes dogfood backlog artifacts for the active workspace", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-runtime-dogfood-workspace-"));
 		const telemetryRoot = mkdtempSync(join(tmpdir(), "kanban-runtime-dogfood-telemetry-"));
@@ -3315,7 +3451,7 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.slug).toBe("runtime-dogfood");
 		expect(response.taskCount).toBe(1);
-		expect(response.nextCommand).toContain("kanban task decompose --slug runtime-dogfood");
+		expect(response.nextCommand).toContain("nklein task decompose --slug runtime-dogfood");
 		expect(existsSync(response.questionsPath)).toBe(true);
 		expect(existsSync(response.decisionsPath)).toBe(true);
 		expect(existsSync(response.revisionsPath)).toBe(true);
@@ -4100,7 +4236,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		mkdirSync(tempHome, { recursive: true });
 		const debugPaths = [
 			join(tempHome, ".cline", "data"),
-			join(tempHome, ".cline", "kanban"),
+			join(tempHome, ".cline", "nklein"),
 			join(tempHome, ".cline", "worktrees"),
 		];
 		for (const path of debugPaths) {
@@ -4148,7 +4284,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		mkdirSync(tempHome, { recursive: true });
 		const debugPaths = [
 			join(tempHome, ".cline", "data"),
-			join(tempHome, ".cline", "kanban"),
+			join(tempHome, ".cline", "nklein"),
 			join(tempHome, ".cline", "worktrees"),
 		];
 		for (const path of debugPaths) {

@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
+import { readEnvWithLegacyFallback } from "../config/legacy-env";
 
 export enum UpdatePackageManager {
 	NPM = "npm",
@@ -502,7 +503,13 @@ export function detectAutoUpdateInstallation(options: {
 }
 
 function isAutoUpdateDisabled(env: NodeJS.ProcessEnv): boolean {
-	if (env.KANBAN_NO_AUTO_UPDATE === "1") {
+	if (
+		readEnvWithLegacyFallback({
+			currentName: "NKLEIN_NO_AUTO_UPDATE",
+			legacyName: "KANBAN_NO_AUTO_UPDATE",
+			env,
+		}) === "1"
+	) {
 		return true;
 	}
 	if (env.NODE_ENV === "test" || env.VITEST === "true") {
@@ -619,7 +626,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 		};
 	}
 
-	const packageName = options.packageName ?? "kanban";
+	const packageName = options.packageName ?? "nklein";
 	const installation = detectAutoUpdateInstallation({
 		currentVersion: options.currentVersion,
 		packageName,
@@ -671,7 +678,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion,
 			packageManager: installation.packageManager,
-			message: `Kanban is already up to date (${options.currentVersion}).`,
+			message: `!Klein is already up to date (${options.currentVersion}).`,
 		};
 	}
 
@@ -725,7 +732,7 @@ export async function runAutoUpdateCheck(options: UpdateStartupOptions): Promise
 		return;
 	}
 
-	const packageName = options.packageName ?? "kanban";
+	const packageName = options.packageName ?? "nklein";
 	const installation = detectAutoUpdateInstallation({
 		currentVersion: options.currentVersion,
 		packageName,

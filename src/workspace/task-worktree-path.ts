@@ -1,9 +1,33 @@
+import {
+	NKLEIN_RUNTIME_HOME_DIR_NAME,
+	TASK_WORKTREES_DIR_NAME,
+	TASK_WORKTREES_HOME_DIR_NAME,
+} from "../config/runtime-paths";
+
 const WORKTREE_TASK_ID_INVALID_MESSAGE = "Invalid task id for worktree path.";
 
-export const KANBAN_RUNTIME_HOME_DIR_NAME = ".cline/kanban";
-export const KANBAN_TASK_WORKTREES_HOME_DIR_NAME = ".cline/worktrees";
-export const KANBAN_TASK_WORKTREES_DIR_NAME = "worktrees";
+export const KANBAN_RUNTIME_HOME_DIR_NAME = NKLEIN_RUNTIME_HOME_DIR_NAME;
+export const KANBAN_TASK_WORKTREES_HOME_DIR_NAME = TASK_WORKTREES_HOME_DIR_NAME;
+export const KANBAN_TASK_WORKTREES_DIR_NAME = TASK_WORKTREES_DIR_NAME;
 export const KANBAN_TASK_WORKTREES_DISPLAY_ROOT = `~/${KANBAN_TASK_WORKTREES_HOME_DIR_NAME}`;
+
+function normalizePathForComparison(path: string): string {
+	return path.replace(/\\/g, "/").replace(/\/+$/g, "");
+}
+
+export function isPathInsideTaskWorktreesHome(path: string, taskWorktreesHomePath: string): boolean {
+	const normalizedPath = normalizePathForComparison(path);
+	const normalizedRoot = normalizePathForComparison(taskWorktreesHomePath);
+	if (!normalizedPath || !normalizedRoot) {
+		return false;
+	}
+	if (process.platform === "win32") {
+		const lowerPath = normalizedPath.toLowerCase();
+		const lowerRoot = normalizedRoot.toLowerCase();
+		return lowerPath === lowerRoot || lowerPath.startsWith(`${lowerRoot}/`);
+	}
+	return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`);
+}
 
 export function normalizeTaskIdForWorktreePath(taskId: string): string {
 	const normalized = taskId.trim();

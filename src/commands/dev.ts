@@ -163,7 +163,7 @@ export async function runDevCheckModelsCommand(
 }
 
 export function registerDevCommand(program: Command): void {
-	const dev = program.command("dev").description("Developer-only Kanban diagnostics and smoke tests.");
+	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
 	const addAdvisorContextOptions = (command: ReturnType<Command["command"]>) => {
 		return command
@@ -194,9 +194,9 @@ export function registerDevCommand(program: Command): void {
 	dev.command("dogfood-backlog")
 		.description("Generate dogfood improvement plan artifacts from local self-observation telemetry.")
 		.option("--json", "Print machine-readable JSON.")
-		.option("--project-path <path>", "Kanban repo path where .cline/kanban/plans should be written.")
-		.option("--telemetry-root <path>", "Telemetry JSONL root. Defaults to ~/.cline/kanban/telemetry.")
-		.option("--slug <slug>", "Plan slug under .cline/kanban/plans/<slug>.")
+		.option("--project-path <path>", "!Klein repo path where .cline/nklein/plans should be written.")
+		.option("--telemetry-root <path>", "Telemetry JSONL root. Defaults to ~/.cline/nklein/telemetry.")
+		.option("--slug <slug>", "Plan slug under .cline/nklein/plans/<slug>.")
 		.option("--suggestion <text>", "Seed the dogfood backlog with a user-described improvement.")
 		.action(async (options: DevDogfoodBacklogOptions) => {
 			await runDevDogfoodBacklogCommand(options);
@@ -234,7 +234,7 @@ export function registerDevCommand(program: Command): void {
 	});
 
 	addAdvisorContextOptions(
-		dev.command("analyze-logs").description("Build a user-triggered Kanban logs advisor prompt."),
+		dev.command("analyze-logs").description("Build a user-triggered !Klein logs advisor prompt."),
 	).action(async (options: DevAdvisorShortcutOptions) => {
 		await runDevAdvisorShortcutCommand("log_analysis", options);
 	});

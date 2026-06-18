@@ -26,8 +26,15 @@ app.commandLine.appendSwitch("disable-renderer-backgrounding");
 registerProtocol(app);
 
 // E2E state isolation for integration tests.
-if (process.env.KANBAN_DESKTOP_USER_DATA) {
-	app.setPath("userData", process.env.KANBAN_DESKTOP_USER_DATA);
+const desktopUserDataOverride =
+	process.env.NKLEIN_DESKTOP_USER_DATA?.trim() || process.env.KANBAN_DESKTOP_USER_DATA?.trim();
+if (desktopUserDataOverride) {
+	if (!process.env.NKLEIN_DESKTOP_USER_DATA && process.env.KANBAN_DESKTOP_USER_DATA) {
+		console.warn(
+			"[desktop] Environment variable KANBAN_DESKTOP_USER_DATA is deprecated; please use NKLEIN_DESKTOP_USER_DATA instead.",
+		);
+	}
+	app.setPath("userData", desktopUserDataOverride);
 }
 
 let isQuitting = false;
@@ -60,7 +67,7 @@ const menu = new AppMenu({
 });
 
 // macOS can deliver `open-url` events before the runtime is ready (the app
-// was launched *by* a `kanban://` link). Queue any callbacks until the
+// was launched *by* an `nklein://` link). Queue any callbacks until the
 // runtime URL lands. An array — not a scalar — because nothing prevents the
 // OS from delivering multiple links during the startup window (e.g. a user
 // kicking off two OAuth flows in quick succession).

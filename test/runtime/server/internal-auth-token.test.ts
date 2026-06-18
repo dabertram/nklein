@@ -13,6 +13,8 @@ import {
 	INTERNAL_TOKEN_ENV,
 	isPasscodeEnabled,
 	issueSession,
+	LEGACY_SESSION_COOKIE_NAME,
+	SESSION_COOKIE_NAME,
 	validateInternalToken,
 	validatePasscode,
 	validateSession,
@@ -183,7 +185,7 @@ describe("HTTP passcode gate with internal token", () => {
 		expect(
 			runHttpGate({
 				isRemoteMode: true,
-				cookieHeader: `kanban_session=${session}`,
+				cookieHeader: `${SESSION_COOKIE_NAME}=${session}`,
 				authorizationHeader: undefined,
 				pathname: "/api/trpc",
 			}),
@@ -274,7 +276,7 @@ describe("WS upgrade gate with internal token", () => {
 		expect(
 			runWsUpgradeGate({
 				isRemoteMode: true,
-				cookieHeader: `kanban_session=${session}`,
+				cookieHeader: `${SESSION_COOKIE_NAME}=${session}`,
 				authorizationHeader: undefined,
 			}),
 		).toBe("allowed");
@@ -290,5 +292,19 @@ describe("WS upgrade gate with internal token", () => {
 				authorizationHeader: undefined,
 			}),
 		).toBe("rejected");
+	});
+
+	it("accepts the legacy session cookie name during the rename transition", () => {
+		generatePasscode();
+		generateInternalToken();
+		const session = issueSession();
+		expect(
+			runHttpGate({
+				isRemoteMode: true,
+				cookieHeader: `${LEGACY_SESSION_COOKIE_NAME}=${session}`,
+				authorizationHeader: undefined,
+				pathname: "/api/trpc",
+			}),
+		).toBe("allowed");
 	});
 });

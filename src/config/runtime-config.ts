@@ -10,12 +10,15 @@ import type {
 	RuntimeAgentId,
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
+	RuntimeCodeEmbeddingSettings,
+	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 } from "../core/api-contract";
-import { runtimeTaskClineSettingsSchema } from "../core/api-contract";
+import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskClineSettingsSchema } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
+import { CLINE_HOME_DIR_NAME, NKLEIN_PROJECT_CONFIG_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "./runtime-paths";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 
 interface RuntimeGlobalConfigFileShape {
@@ -31,7 +34,10 @@ interface RuntimeGlobalConfigFileShape {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	maxConcurrentTasks?: number;
+	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
+	decompositionAutoApplyEnabled?: boolean;
 	readyForReviewNotificationsEnabled?: boolean;
+	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelRoles?: RuntimeModelRoles;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -39,6 +45,7 @@ interface RuntimeGlobalConfigFileShape {
 
 interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
+	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 }
 
 export interface RuntimeConfigState {
@@ -56,7 +63,12 @@ export interface RuntimeConfigState {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
+	decompositionAutoApplyEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
+	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
+	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
+	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
 	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -78,18 +90,22 @@ export interface RuntimeConfigUpdateInput {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	maxConcurrentTasks?: number;
+	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
+	decompositionAutoApplyEnabled?: boolean;
 	readyForReviewNotificationsEnabled?: boolean;
+	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
+	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelRoles?: RuntimeModelRoles;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 }
 
-const RUNTIME_HOME_PARENT_DIR = ".cline";
-const RUNTIME_HOME_DIR = "kanban";
+const RUNTIME_HOME_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
 const CONFIG_FILENAME = "config.json";
-const PROJECT_CONFIG_PARENT_DIR = ".cline";
-const PROJECT_CONFIG_DIR = "kanban";
+const PROJECT_CONFIG_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const PROJECT_CONFIG_DIR = NKLEIN_PROJECT_CONFIG_DIR_NAME;
 const PROJECT_CONFIG_FILENAME = "config.json";
 const DEFAULT_AGENT_ID: RuntimeAgentId = "cline";
 const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = ["claude", "codex", "droid", "kiro"];
@@ -97,6 +113,13 @@ const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
+const DEFAULT_LOST_HEARTBEAT_POLICY: RuntimeLostHeartbeatPolicy = "park";
+const DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED = true;
+export const DEFAULT_CODE_EMBEDDING_SETTINGS: RuntimeCodeEmbeddingSettings = {
+	provider: "local_lexical",
+	model: "kanban-local-lexical-vector-v1",
+	baseUrl: null,
+};
 const DEFAULT_MAX_CONCURRENT_TASKS = 3;
 const DEFAULT_LOCAL_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -332,6 +355,44 @@ function normalizeMaxConcurrentTasks(value: unknown): number {
 	return normalized > 0 ? normalized : DEFAULT_MAX_CONCURRENT_TASKS;
 }
 
+function normalizeLostHeartbeatPolicy(value: unknown): RuntimeLostHeartbeatPolicy {
+	return value === "keep_running" ? "keep_running" : DEFAULT_LOST_HEARTBEAT_POLICY;
+}
+
+function normalizeCodeEmbeddingSettings(
+	value: unknown,
+	fallback: RuntimeCodeEmbeddingSettings,
+): RuntimeCodeEmbeddingSettings {
+	const parsed = runtimeCodeEmbeddingSettingsSchema.safeParse(value);
+	if (!parsed.success) {
+		return fallback;
+	}
+	const model = parsed.data.model?.trim() || null;
+	const baseUrl = parsed.data.baseUrl?.trim() || null;
+	if (parsed.data.provider === "local_lexical") {
+		return DEFAULT_CODE_EMBEDDING_SETTINGS;
+	}
+	return {
+		provider: "openai_compatible",
+		model,
+		baseUrl,
+	};
+}
+
+function normalizeCodeEmbeddingOverride(value: unknown): RuntimeCodeEmbeddingSettings | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	return normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS);
+}
+
+function areCodeEmbeddingSettingsEqual(
+	left: RuntimeCodeEmbeddingSettings | null,
+	right: RuntimeCodeEmbeddingSettings | null,
+): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function normalizeShortcutLabel(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -417,6 +478,11 @@ function toRuntimeConfigState({
 	globalConfig: RuntimeGlobalConfigFileShape | null;
 	projectConfig: RuntimeProjectConfigFileShape | null;
 }): RuntimeConfigState {
+	const codeEmbeddingDefaults = normalizeCodeEmbeddingSettings(
+		globalConfig?.codeEmbeddingDefaults,
+		DEFAULT_CODE_EMBEDDING_SETTINGS,
+	);
+	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(projectConfig?.codeEmbeddingOverride);
 	return {
 		globalConfigPath,
 		projectConfigPath,
@@ -435,10 +501,18 @@ function toRuntimeConfigState({
 		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		maxConcurrentTasks: normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks),
+		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
+		decompositionAutoApplyEnabled: normalizeBoolean(
+			globalConfig?.decompositionAutoApplyEnabled,
+			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+		),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
+		codeEmbeddingDefaults,
+		codeEmbeddingOverride,
+		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplate(globalConfig?.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
@@ -475,7 +549,10 @@ async function writeRuntimeGlobalConfigFile(
 		conversationTimeoutMs?: number | null;
 		maxAgentWritableFileLines?: number;
 		maxConcurrentTasks?: number;
+		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
+		decompositionAutoApplyEnabled?: boolean;
 		readyForReviewNotificationsEnabled?: boolean;
+		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		modelRoles?: RuntimeModelRoles;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
@@ -532,10 +609,22 @@ async function writeRuntimeGlobalConfigFile(
 		config.maxConcurrentTasks === undefined
 			? DEFAULT_MAX_CONCURRENT_TASKS
 			: normalizeMaxConcurrentTasks(config.maxConcurrentTasks);
+	const lostHeartbeatPolicy =
+		config.lostHeartbeatPolicy === undefined
+			? DEFAULT_LOST_HEARTBEAT_POLICY
+			: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy);
+	const decompositionAutoApplyEnabled =
+		config.decompositionAutoApplyEnabled === undefined
+			? DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
+			: normalizeBoolean(config.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED);
 	const readyForReviewNotificationsEnabled =
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
 			: normalizeBoolean(config.readyForReviewNotificationsEnabled, DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED);
+	const codeEmbeddingDefaults =
+		config.codeEmbeddingDefaults === undefined
+			? DEFAULT_CODE_EMBEDDING_SETTINGS
+			: normalizeCodeEmbeddingSettings(config.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS);
 	const modelRoles =
 		config.modelRoles === undefined
 			? normalizeModelRoles(existing?.modelRoles)
@@ -603,11 +692,26 @@ async function writeRuntimeGlobalConfigFile(
 	if (hasOwnKey(existing, "maxConcurrentTasks") || maxConcurrentTasks !== DEFAULT_MAX_CONCURRENT_TASKS) {
 		payload.maxConcurrentTasks = maxConcurrentTasks;
 	}
+	if (hasOwnKey(existing, "lostHeartbeatPolicy") || lostHeartbeatPolicy !== DEFAULT_LOST_HEARTBEAT_POLICY) {
+		payload.lostHeartbeatPolicy = lostHeartbeatPolicy;
+	}
+	if (
+		hasOwnKey(existing, "decompositionAutoApplyEnabled") ||
+		decompositionAutoApplyEnabled !== DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
+	) {
+		payload.decompositionAutoApplyEnabled = decompositionAutoApplyEnabled;
+	}
 	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
 		readyForReviewNotificationsEnabled !== DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
 	) {
 		payload.readyForReviewNotificationsEnabled = readyForReviewNotificationsEnabled;
+	}
+	if (
+		hasOwnKey(existing, "codeEmbeddingDefaults") ||
+		!areCodeEmbeddingSettingsEqual(codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS)
+	) {
+		payload.codeEmbeddingDefaults = codeEmbeddingDefaults;
 	}
 	if (hasOwnKey(existing, "modelRoles") || Object.keys(modelRoles).length > 0) {
 		payload.modelRoles = modelRoles;
@@ -626,16 +730,20 @@ async function writeRuntimeGlobalConfigFile(
 
 async function writeRuntimeProjectConfigFile(
 	configPath: string | null,
-	config: { shortcuts: RuntimeProjectShortcut[] },
+	config: { shortcuts: RuntimeProjectShortcut[]; codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null },
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
+	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(config.codeEmbeddingOverride);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
 		}
+		if (codeEmbeddingOverride) {
+			throw new Error("Cannot save project embedding overrides without a selected project.");
+		}
 		return;
 	}
-	if (normalizedShortcuts.length === 0) {
+	if (normalizedShortcuts.length === 0 && codeEmbeddingOverride === null) {
 		await rm(configPath, { force: true });
 		try {
 			await rm(dirname(configPath));
@@ -648,6 +756,7 @@ async function writeRuntimeProjectConfigFile(
 		configPath,
 		{
 			shortcuts: normalizedShortcuts,
+			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,
@@ -705,7 +814,11 @@ function createRuntimeConfigStateFromValues(input: {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
+	decompositionAutoApplyEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
+	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
+	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	modelRoles: RuntimeModelRoles;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -729,10 +842,23 @@ function createRuntimeConfigStateFromValues(input: {
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
 		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
+		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
+		decompositionAutoApplyEnabled: normalizeBoolean(
+			input.decompositionAutoApplyEnabled,
+			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+		),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
+		codeEmbeddingDefaults: normalizeCodeEmbeddingSettings(
+			input.codeEmbeddingDefaults,
+			DEFAULT_CODE_EMBEDDING_SETTINGS,
+		),
+		codeEmbeddingOverride: normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride),
+		effectiveCodeEmbeddingSettings:
+			normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride) ??
+			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 		modelRoles: normalizeModelRoles(input.modelRoles),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplate(input.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
@@ -758,7 +884,11 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		conversationTimeoutMs: current.conversationTimeoutMs,
 		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
 		maxConcurrentTasks: current.maxConcurrentTasks,
+		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
+		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
+		codeEmbeddingDefaults: current.codeEmbeddingDefaults,
+		codeEmbeddingOverride: null,
 		modelRoles: current.modelRoles,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
@@ -803,7 +933,11 @@ export async function saveRuntimeConfig(
 		conversationTimeoutMs: number | null;
 		maxAgentWritableFileLines?: number;
 		maxConcurrentTasks?: number;
+		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
+		decompositionAutoApplyEnabled?: boolean;
 		readyForReviewNotificationsEnabled: boolean;
+		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
+		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelRoles?: RuntimeModelRoles;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
@@ -825,12 +959,21 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
+			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
+			decompositionAutoApplyEnabled: normalizeBoolean(
+				config.decompositionAutoApplyEnabled,
+				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+			),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
 			modelRoles: config.modelRoles,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
-		await writeRuntimeProjectConfigFile(projectConfigPath, { shortcuts: config.shortcuts });
+		await writeRuntimeProjectConfigFile(projectConfigPath, {
+			shortcuts: config.shortcuts,
+			codeEmbeddingOverride: config.codeEmbeddingOverride,
+		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
 			projectConfigPath,
@@ -846,7 +989,14 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
+			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
+			decompositionAutoApplyEnabled: normalizeBoolean(
+				config.decompositionAutoApplyEnabled,
+				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+			),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults: config.codeEmbeddingDefaults ?? DEFAULT_CODE_EMBEDDING_SETTINGS,
+			codeEmbeddingOverride: config.codeEmbeddingOverride ?? null,
 			modelRoles: normalizeModelRoles(config.modelRoles),
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
@@ -883,8 +1033,24 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.maxConcurrentTasks === undefined
 					? current.maxConcurrentTasks
 					: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
+			lostHeartbeatPolicy:
+				updates.lostHeartbeatPolicy === undefined
+					? current.lostHeartbeatPolicy
+					: normalizeLostHeartbeatPolicy(updates.lostHeartbeatPolicy),
+			decompositionAutoApplyEnabled:
+				updates.decompositionAutoApplyEnabled === undefined
+					? current.decompositionAutoApplyEnabled
+					: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults:
+				updates.codeEmbeddingDefaults === undefined
+					? current.codeEmbeddingDefaults
+					: normalizeCodeEmbeddingSettings(updates.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
+			codeEmbeddingOverride:
+				updates.codeEmbeddingOverride === undefined
+					? current.codeEmbeddingOverride
+					: normalizeCodeEmbeddingOverride(updates.codeEmbeddingOverride),
 			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
@@ -904,7 +1070,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 			nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
+			nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
+			nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
+			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
+			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingOverride, current.codeEmbeddingOverride) ||
 			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
@@ -927,13 +1097,17 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
+			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			modelRoles: nextConfig.modelRoles,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 		});
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: nextConfig.shortcuts,
+			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -950,7 +1124,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
+			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
+			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelRoles: nextConfig.modelRoles,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
@@ -998,8 +1176,21 @@ export async function updateGlobalRuntimeConfig(
 					updates.maxConcurrentTasks === undefined
 						? current.maxConcurrentTasks
 						: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
+				lostHeartbeatPolicy:
+					updates.lostHeartbeatPolicy === undefined
+						? current.lostHeartbeatPolicy
+						: normalizeLostHeartbeatPolicy(updates.lostHeartbeatPolicy),
+				decompositionAutoApplyEnabled:
+					updates.decompositionAutoApplyEnabled === undefined
+						? current.decompositionAutoApplyEnabled
+						: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
+				codeEmbeddingDefaults:
+					updates.codeEmbeddingDefaults === undefined
+						? current.codeEmbeddingDefaults
+						: normalizeCodeEmbeddingSettings(updates.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
+				codeEmbeddingOverride: null,
 				modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
 				shortcuts: current.shortcuts,
 				commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
@@ -1019,7 +1210,10 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 				nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
+				nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
+				nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
+				!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
@@ -1041,7 +1235,10 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
+				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				modelRoles: nextConfig.modelRoles,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -1062,7 +1259,11 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
+				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
+				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
+				codeEmbeddingOverride: null,
 				modelRoles: nextConfig.modelRoles,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,

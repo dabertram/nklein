@@ -10,7 +10,7 @@ async function createBundleRoot(): Promise<string> {
 
 describe("evidence bundle", () => {
 	it("resolves the default dev-runs root", () => {
-		expect(resolveEvidenceBundleRoot()).toContain(join(".cline", "kanban", "dev-runs"));
+		expect(resolveEvidenceBundleRoot()).toContain(join(".cline", "nklein", "dev-runs"));
 	});
 
 	it("writes a stable evidence bundle layout", async () => {

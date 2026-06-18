@@ -1,8 +1,8 @@
 {
-	"name": "@kanban/desktop",
+	"name": "@nklein/desktop",
 	"version": "0.0.1",
 	"private": true,
-	"description": "Kanban desktop app — Electron shell for the Kanban runtime",
+	"description": "nKlein desktop app - Electron shell for the !Klein runtime",
 	"type": "module",
 	"main": "dist/main.js",
 	"scripts": {

@@ -13,11 +13,11 @@ describe("Kanban decomposition workflow defaults", () => {
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Call the `decompose_project` tool");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("title, tasks, and defaultAcceptanceCommand");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("apply the generated graph through the command it returns");
-		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Only tell the user the exact `kanban task decompose");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Only tell the user the exact `nklein task decompose");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("id, title, prompt, dependsOn[], complexity");
-		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Create reviewable Kanban tasks from the specification");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Create reviewable !Klein tasks from the specification");
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(
-			"Do not manually create or edit `.cline/kanban/plans/**`, `tasks.json`",
+			"Do not manually create or edit `.cline/nklein/plans/**`, `tasks.json`",
 		);
 	});
 });

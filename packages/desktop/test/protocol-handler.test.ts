@@ -13,8 +13,8 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("Constants", () => {
-	it("KANBAN_PROTOCOL is 'kanban'", () => {
-		expect(KANBAN_PROTOCOL).toBe("kanban");
+	it("KANBAN_PROTOCOL is 'nklein'", () => {
+		expect(KANBAN_PROTOCOL).toBe("nklein");
 	});
 
 	it("OAUTH_CALLBACK_PATH is '/oauth/callback'", () => {
@@ -31,7 +31,7 @@ describe("parseProtocolUrl", () => {
 		expect(parseProtocolUrl("not a url")).toBeNull();
 	});
 
-	it("returns null for a non-kanban protocol", () => {
+	it("returns null for a non-nklein protocol", () => {
 		expect(parseProtocolUrl("https://example.com/oauth/callback")).toBeNull();
 	});
 
@@ -39,23 +39,23 @@ describe("parseProtocolUrl", () => {
 		expect(parseProtocolUrl("http://oauth/callback?code=abc")).toBeNull();
 	});
 
-	it("parses a basic kanban:// URL", () => {
-		const result = parseProtocolUrl("kanban://oauth/callback");
+	it("parses a basic nklein:// URL", () => {
+		const result = parseProtocolUrl("nklein://oauth/callback");
 		expect(result).not.toBeNull();
-		expect(result!.raw).toBe("kanban://oauth/callback");
+		expect(result!.raw).toBe("nklein://oauth/callback");
 		expect(result!.pathname).toBe("/oauth/callback");
 		expect(result!.isOAuthCallback).toBe(true);
 	});
 
 	it("sets isOAuthCallback to false for non-callback paths", () => {
-		const result = parseProtocolUrl("kanban://settings/general");
+		const result = parseProtocolUrl("nklein://settings/general");
 		expect(result).not.toBeNull();
 		expect(result!.pathname).toBe("/settings/general");
 		expect(result!.isOAuthCallback).toBe(false);
 	});
 
 	it("normalises the root path", () => {
-		const result = parseProtocolUrl("kanban://");
+		const result = parseProtocolUrl("nklein://");
 		expect(result).not.toBeNull();
 		expect(result!.pathname).toBe("/");
 		expect(result!.isOAuthCallback).toBe(false);
@@ -63,7 +63,7 @@ describe("parseProtocolUrl", () => {
 
 	it("preserves all search params in the searchParams map", () => {
 		const result = parseProtocolUrl(
-			"kanban://oauth/callback?code=c&state=s&extra=foo",
+			"nklein://oauth/callback?code=c&state=s&extra=foo",
 		);
 		expect(result).not.toBeNull();
 		expect(result!.searchParams.get("code")).toBe("c");
@@ -72,7 +72,7 @@ describe("parseProtocolUrl", () => {
 	});
 
 	it("handles trailing slash on the callback path", () => {
-		const result = parseProtocolUrl("kanban://oauth/callback/?code=123");
+		const result = parseProtocolUrl("nklein://oauth/callback/?code=123");
 		expect(result).not.toBeNull();
 		expect(result!.pathname).toBe("/oauth/callback");
 		expect(result!.isOAuthCallback).toBe(true);
@@ -81,7 +81,7 @@ describe("parseProtocolUrl", () => {
 
 	it("URL-decodes search parameter values", () => {
 		const result = parseProtocolUrl(
-			"kanban://oauth/callback?error_description=Something%20went%20wrong%21",
+			"nklein://oauth/callback?error_description=Something%20went%20wrong%21",
 		);
 		expect(result).not.toBeNull();
 		expect(result!.searchParams.get("error_description")).toBe(
@@ -103,8 +103,8 @@ describe("registerProtocol", () => {
 
 		const result = registerProtocol(mockApp);
 
-		expect(mockApp.isDefaultProtocolClient).toHaveBeenCalledWith("kanban");
-		expect(mockApp.setAsDefaultProtocolClient).toHaveBeenCalledWith("kanban");
+		expect(mockApp.isDefaultProtocolClient).toHaveBeenCalledWith("nklein");
+		expect(mockApp.setAsDefaultProtocolClient).toHaveBeenCalledWith("nklein");
 		expect(result).toBe(true);
 	});
 
@@ -116,7 +116,7 @@ describe("registerProtocol", () => {
 
 		const result = registerProtocol(mockApp);
 
-		expect(mockApp.isDefaultProtocolClient).toHaveBeenCalledWith("kanban");
+		expect(mockApp.isDefaultProtocolClient).toHaveBeenCalledWith("nklein");
 		expect(mockApp.setAsDefaultProtocolClient).not.toHaveBeenCalled();
 		expect(result).toBe(true);
 	});
@@ -138,24 +138,24 @@ describe("registerProtocol", () => {
 // ---------------------------------------------------------------------------
 
 describe("extractProtocolUrlFromArgv", () => {
-	it("returns the kanban:// URL from argv", () => {
+	it("returns the nklein:// URL from argv", () => {
 		const argv = [
-			"/usr/bin/kanban",
+			"/usr/bin/nklein",
 			"--some-flag",
-			"kanban://oauth/callback?code=abc",
+			"nklein://oauth/callback?code=abc",
 		];
 		expect(extractProtocolUrlFromArgv(argv)).toBe(
-			"kanban://oauth/callback?code=abc",
+			"nklein://oauth/callback?code=abc",
 		);
 	});
 
-	it("returns the first kanban:// URL if there are multiple", () => {
-		const argv = ["kanban://first", "kanban://second"];
-		expect(extractProtocolUrlFromArgv(argv)).toBe("kanban://first");
+	it("returns the first nklein:// URL if there are multiple", () => {
+		const argv = ["nklein://first", "nklein://second"];
+		expect(extractProtocolUrlFromArgv(argv)).toBe("nklein://first");
 	});
 
-	it("returns null when no kanban:// URL is present", () => {
-		const argv = ["/usr/bin/kanban", "--flag", "https://example.com"];
+	it("returns null when no nklein:// URL is present", () => {
+		const argv = ["/usr/bin/nklein", "--flag", "https://example.com"];
 		expect(extractProtocolUrlFromArgv(argv)).toBeNull();
 	});
 
@@ -163,13 +163,13 @@ describe("extractProtocolUrlFromArgv", () => {
 		expect(extractProtocolUrlFromArgv([])).toBeNull();
 	});
 
-	it("does not match kanban: without //", () => {
-		const argv = ["kanban:something"];
+	it("does not match nklein: without //", () => {
+		const argv = ["nklein:something"];
 		expect(extractProtocolUrlFromArgv(argv)).toBeNull();
 	});
 
-	it("does not match kanban:// when embedded in another argument", () => {
-		const argv = ["--url=kanban://foo"];
+	it("does not match nklein:// when embedded in another argument", () => {
+		const argv = ["--url=nklein://foo"];
 		expect(extractProtocolUrlFromArgv(argv)).toBeNull();
 	});
 });

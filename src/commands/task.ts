@@ -16,6 +16,7 @@ import {
 	type ClinePlanTask,
 	clinePlanTaskSchema,
 	readClinePlanArtifacts,
+	updateClinePlanArtifactApplicationStatus,
 } from "../cline-sdk/cline-plan-artifacts";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
@@ -51,6 +52,7 @@ import {
 	updateTask,
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
+import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -565,7 +567,7 @@ function createRuntimeTrpcClient(workspaceId: string | null) {
 		links: [
 			httpBatchLink({
 				url: buildKanbanRuntimeUrl("/api/trpc"),
-				headers: () => (workspaceId ? { "x-kanban-workspace-id": workspaceId } : {}),
+				headers: () => buildWorkspaceScopeHeaders(workspaceId),
 				fetch: async (url, options) => {
 					const runtimeFetch = await getRuntimeFetch();
 					return runtimeFetch(url, options);
@@ -584,6 +586,8 @@ async function resolveRuntimeWorkspace(
 	const resolvedPath = normalizedProjectPath ? resolveProjectInputPath(normalizedProjectPath, cwd) : cwd;
 	return await loadWorkspaceContext(resolvedPath, {
 		autoCreateIfMissing: options.autoCreateIfMissing ?? true,
+		resolutionSource: normalizedProjectPath ? "explicit_path" : undefined,
+		resolutionMetadata: normalizedProjectPath ? { providedProjectPath: normalizedProjectPath } : undefined,
 	});
 }
 
@@ -602,7 +606,7 @@ async function ensureRuntimeWorkspace(workspaceRepoPath: string): Promise<string
 		path: workspaceRepoPath,
 	});
 	if (!added.ok || !added.project) {
-		throw new Error(added.error ?? `Could not register project ${workspaceRepoPath} in Kanban runtime.`);
+		throw new Error(added.error ?? `Could not register project ${workspaceRepoPath} in !Klein runtime.`);
 	}
 	return added.project.id;
 }
@@ -1022,11 +1026,17 @@ async function decomposeTaskGraph(input: {
 		});
 		throw error;
 	}
+	await updateClinePlanArtifactApplicationStatus({
+		workspacePath: workspaceRepoPath,
+		slug: artifacts.taskGraph.slug,
+		applicationStatus: "applied",
+	});
 
 	return {
 		ok: true,
 		workspacePath: workspaceRepoPath,
 		plan: {
+			artifactId: artifacts.artifactId,
 			slug: artifacts.taskGraph.slug,
 			title: artifacts.taskGraph.title,
 			specPath: artifacts.specPath,
@@ -1933,7 +1943,7 @@ export async function inferClinePlanSlugForTask(input: {
 	workspacePath: string;
 	taskId: string;
 }): Promise<string | null> {
-	const plansRoot = join(input.workspacePath, ".cline", "kanban", "plans");
+	const plansRoot = join(input.workspacePath, ".cline", "nklein", "plans");
 	const entries = await readdir(plansRoot, { withFileTypes: true }).catch(() => []);
 	const matches: { slug: string; exact: boolean }[] = [];
 	for (const entry of entries
@@ -2377,11 +2387,11 @@ async function runTaskCommand(handler: () => Promise<JsonRecord>): Promise<void>
 }
 
 export function registerTaskCommand(program: Command): void {
-	const task = program.command("task").alias("tasks").description("Manage Kanban board tasks from the CLI.");
+	const task = program.command("task").alias("tasks").description("Manage !Klein board tasks from the CLI.");
 
 	task
 		.command("list")
-		.description("List Kanban tasks for a workspace.")
+		.description("List !Klein tasks for a workspace.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option(
 			"--column <column>",
@@ -2609,7 +2619,7 @@ export function registerTaskCommand(program: Command): void {
 	task
 		.command("expand-plan-task")
 		.description("Apply approved replacement tasks to a saved plan DAG and re-link dependencies.")
-		.requiredOption("--plan-slug <slug>", "Saved plan slug under .cline/kanban/plans/<slug>.")
+		.requiredOption("--plan-slug <slug>", "Saved plan slug under .cline/nklein/plans/<slug>.")
 		.requiredOption("--task-id <id>", "Plan task ID to replace.")
 		.requiredOption(
 			"--replacements-json <json>",
@@ -2721,10 +2731,10 @@ export function registerTaskCommand(program: Command): void {
 			[
 				"",
 				"Dependency direction:",
-				"  If both linked tasks are in backlog, Kanban preserves the order you pass:",
+				"  If both linked tasks are in backlog, !Klein preserves the order you pass:",
 				"  --task-id waits on --linked-task-id, and on the board the arrow points into",
 				"  --linked-task-id.",
-				"  Once only one linked task remains in backlog, Kanban reorients the saved link",
+				"  Once only one linked task remains in backlog, !Klein reorients the saved link",
 				"  so the backlog task is the waiting dependent task and the other task is the",
 				"  prerequisite.",
 				"  When the prerequisite finishes review and moves to done, the waiting backlog",
@@ -2747,7 +2757,7 @@ export function registerTaskCommand(program: Command): void {
 	task
 		.command("decompose")
 		.description("Create backlog tasks and dependency links from a saved Cline plan task graph.")
-		.requiredOption("--slug <slug>", "Plan slug under .cline/kanban/plans/<slug>.")
+		.requiredOption("--slug <slug>", "Plan slug under .cline/nklein/plans/<slug>.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option("--base-ref <branch>", "Task base branch/ref. Defaults to the workspace branch.")
 		.action(async (options: { slug: string; projectPath?: string; baseRef?: string }) => {
