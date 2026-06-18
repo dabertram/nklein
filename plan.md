@@ -513,8 +513,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       cards, showing prerequisite/dependent relationships, card status, prompt-derived complexity, likely
       files, and model/agent hints from existing board data. Decomposition-created cards now also carry a
       backend `Model fit:` marker from the routing guard when connected candidates were checked, and the DAG
-      panel renders a distinct backend fit badge from that marker. Still open: whole-plan graph review before
-      execution, editable approval, and revised-card flags.
+      panel renders a distinct backend fit badge from that marker. The panel now walks the full connected
+      dependency component for the selected card instead of stopping at immediate prerequisites/dependents.
+      Still open: editable approval before execution and revised-card flags.
 - [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"

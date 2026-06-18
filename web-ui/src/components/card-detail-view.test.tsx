@@ -687,6 +687,10 @@ describe("CardDetailView", () => {
 				"web-ui/src/test.ts",
 			],
 		});
+		const indirect = createCard("plan-docs", {
+			title: "Document flow",
+			prompt: "Document the flow.\n\nComplexity: 20/100",
+		});
 
 		await act(async () => {
 			root.render(
@@ -694,11 +698,12 @@ describe("CardDetailView", () => {
 					selection={createSelection({
 						columnId: "planning",
 						card: selected,
-						extraCards: [prerequisite, dependent],
+						extraCards: [prerequisite, dependent, indirect],
 					})}
 					dependencies={[
 						{ id: "dep-1", fromTaskId: "plan-ui", toTaskId: "plan-api", createdAt: 1 },
 						{ id: "dep-2", fromTaskId: "plan-polish", toTaskId: "plan-ui", createdAt: 2 },
+						{ id: "dep-3", fromTaskId: "plan-docs", toTaskId: "plan-polish", createdAt: 3 },
 					]}
 					currentProjectId="workspace-1"
 					sessionSummary={null}
@@ -716,12 +721,14 @@ describe("CardDetailView", () => {
 		});
 
 		expect(container.textContent).toContain("Plan DAG");
-		expect(container.textContent).toContain("2 linked cards");
+		expect(container.textContent).toContain("3 linked cards");
 		expect(container.textContent).toContain("Build UI");
 		expect(container.textContent).toContain("Blocked by prerequisite");
 		expect(container.textContent).toContain("Build API");
 		expect(container.textContent).toContain("Unblocks dependent");
 		expect(container.textContent).toContain("Polish flow");
+		expect(container.textContent).toContain("Linked plan card");
+		expect(container.textContent).toContain("Document flow");
 		expect(container.textContent).toContain("Complexity 80/100");
 		expect(container.textContent).toContain("Fit needs review");
 		expect(container.textContent).toContain("Backend fit validated");

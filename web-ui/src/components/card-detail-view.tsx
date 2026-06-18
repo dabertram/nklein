@@ -495,7 +495,7 @@ function TaskActivitySurface({
 interface PlanningDagNode {
 	card: BoardCard;
 	columnTitle: string;
-	relation: "selected" | "blocked-by" | "unblocks";
+	relation: "selected" | "blocked-by" | "unblocks" | "related";
 }
 
 function parseComplexityFromPrompt(prompt: string): number | null {
@@ -550,6 +550,9 @@ function getDagNodeToneClassName(relation: PlanningDagNode["relation"]): string 
 	if (relation === "blocked-by") {
 		return "border-status-gold/40 bg-status-gold/5";
 	}
+	if (relation === "related") {
+		return "border-border-bright bg-surface-0";
+	}
 	return "border-status-green/30 bg-status-green/5";
 }
 
@@ -559,24 +562,60 @@ function buildPlanningDagNodes(selection: CardSelection, dependencies: readonly 
 			column.cards.map((card) => [card.id, { card, columnTitle: column.title }]),
 		),
 	);
-	const nodes: PlanningDagNode[] = [
-		{ card: selection.card, columnTitle: selection.column.title, relation: "selected" },
-	];
+	const directPrerequisiteIds = new Set<string>();
+	const directDependentIds = new Set<string>();
+	const linkedByTaskId = new Map<string, Set<string>>();
 	for (const dependency of dependencies) {
 		if (dependency.fromTaskId === selection.card.id) {
-			const prerequisite = cardsById.get(dependency.toTaskId);
-			if (prerequisite) {
-				nodes.push({ ...prerequisite, relation: "blocked-by" });
-			}
+			directPrerequisiteIds.add(dependency.toTaskId);
 		}
 		if (dependency.toTaskId === selection.card.id) {
-			const dependent = cardsById.get(dependency.fromTaskId);
-			if (dependent) {
-				nodes.push({ ...dependent, relation: "unblocks" });
+			directDependentIds.add(dependency.fromTaskId);
+		}
+		for (const [left, right] of [
+			[dependency.fromTaskId, dependency.toTaskId],
+			[dependency.toTaskId, dependency.fromTaskId],
+		] as const) {
+			const linked = linkedByTaskId.get(left) ?? new Set<string>();
+			linked.add(right);
+			linkedByTaskId.set(left, linked);
+		}
+	}
+	const orderedTaskIds: string[] = [];
+	const visitedTaskIds = new Set<string>();
+	const queue = [selection.card.id];
+	for (let index = 0; index < queue.length; index += 1) {
+		const taskId = queue[index];
+		if (!taskId || visitedTaskIds.has(taskId)) {
+			continue;
+		}
+		visitedTaskIds.add(taskId);
+		if (cardsById.has(taskId)) {
+			orderedTaskIds.push(taskId);
+		}
+		for (const linkedTaskId of linkedByTaskId.get(taskId) ?? []) {
+			if (!visitedTaskIds.has(linkedTaskId)) {
+				queue.push(linkedTaskId);
 			}
 		}
 	}
-	return nodes;
+	return orderedTaskIds.map((taskId) => {
+		const cardEntry = cardsById.get(taskId);
+		if (!cardEntry) {
+			return { card: selection.card, columnTitle: selection.column.title, relation: "selected" };
+		}
+		return {
+			...cardEntry,
+			relation:
+				taskId === selection.card.id
+					? "selected"
+					: directPrerequisiteIds.has(taskId)
+						? "blocked-by"
+						: directDependentIds.has(taskId)
+							? "unblocks"
+							: "related",
+		};
+	});
 }
 
 function PlanningDagReviewPanel({
@@ -619,7 +658,9 @@ function PlanningDagReviewPanel({
 									? "Selected card"
 									: node.relation === "blocked-by"
 										? "Blocked by prerequisite"
-										: "Unblocks dependent"}
+										: node.relation === "unblocks"
+											? "Unblocks dependent"
+											: "Linked plan card"}
 							</div>
 							<div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] text-text-tertiary">
 								<span>{complexity === null ? "Complexity unknown" : `Complexity ${complexity}/100`}</span>
