@@ -330,7 +330,7 @@ async function tryOpenExistingServer(options: { noOpen: boolean; shouldAutoOpenB
 	const projectUrl = workspaceId
 		? buildKanbanRuntimeUrl(`/${encodeURIComponent(workspaceId)}`)
 		: getKanbanRuntimeOrigin();
-	console.log(`Kanban already running at ${getKanbanRuntimeOrigin()}`);
+	console.log(`!Klein already running at ${getKanbanRuntimeOrigin()}`);
 	if (!options.noOpen && options.shouldAutoOpenBrowser) {
 		try {
 			const { openInBrowser } = await import("./server/browser.js");

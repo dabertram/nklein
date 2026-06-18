@@ -231,7 +231,7 @@ export function useReviewReadyNotifications({
 		setPendingReviewReadyNotificationCount(0);
 	}, [activeWorkspaceId]);
 
-	const baseTitle = workspaceTitle || "Kanban";
+	const baseTitle = workspaceTitle || "!Klein";
 	const documentTitle =
 		pendingReviewReadyNotificationCount > 0 ? `(${pendingReviewReadyNotificationCount}) ${baseTitle}` : baseTitle;
 	useDocumentTitle(documentTitle);

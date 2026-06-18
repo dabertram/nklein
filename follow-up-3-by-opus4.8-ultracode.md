@@ -108,8 +108,8 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 - [x] Confirm the man page: `man/kanban.1` was deleted; ensure `man/nklein.1` exists and is the one referenced by `package.json` `man`.
 
 ### A8. Sweep + regression guard
-- [ ] After the above, run a residual grep (`Kanban`, `KANBAN`, `kanban` minus documented keeps) and reconcile.
-- [ ] Add a tiny test (or CI grep) that fails if a **new** user-facing `Kanban`/`Cline` (app-brand) string appears in `web-ui/src` or CLI output — so the rename can't silently regress. Allowlist the engine references.
+- [x] After the above, run a residual grep (`Kanban`, `KANBAN`, `kanban` minus documented keeps) and reconcile.
+- [x] Add a tiny test (or CI grep) that fails if a **new** user-facing `Kanban`/`Cline` (app-brand) string appears in `web-ui/src` or CLI output — so the rename can't silently regress. Allowlist the engine references.
 
 ---
 
