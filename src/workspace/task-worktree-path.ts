@@ -2,7 +2,7 @@ import {
 	NKLEIN_RUNTIME_HOME_DIR_NAME,
 	TASK_WORKTREES_DIR_NAME,
 	TASK_WORKTREES_HOME_DIR_NAME,
-} from "../config/runtime-paths";
+} from "../config/runtime-path-constants";
 
 const WORKTREE_TASK_ID_INVALID_MESSAGE = "Invalid task id for worktree path.";
 

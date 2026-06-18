@@ -4,7 +4,11 @@ import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
-import { CLINE_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME, TASK_WORKTREES_DIR_NAME } from "../config/runtime-paths";
+import {
+	CLINE_HOME_DIR_NAME,
+	NKLEIN_RUNTIME_DIR_NAME,
+	TASK_WORKTREES_DIR_NAME,
+} from "../config/runtime-path-constants";
 import {
 	type RuntimeBoardColumnId,
 	type RuntimeBoardData,

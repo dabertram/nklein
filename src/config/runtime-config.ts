@@ -18,7 +18,7 @@ import type {
 import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskClineSettingsSchema } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
-import { CLINE_HOME_DIR_NAME, NKLEIN_PROJECT_CONFIG_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "./runtime-paths";
+import { CLINE_HOME_DIR_NAME, NKLEIN_PROJECT_CONFIG_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "./runtime-path-constants";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 
 interface RuntimeGlobalConfigFileShape {
