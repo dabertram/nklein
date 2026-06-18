@@ -8,6 +8,7 @@ import {
 	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,
 	addPlanGapScopeCardToBoard,
+	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
 	inferClinePlanSlugForTask,
 	markTaskNeedsDecompositionOnBoard,
@@ -697,6 +698,36 @@ describe("task plan-gap adaptation", () => {
 			description:
 				'Added Planning integration card "abcde" for plan gap reported by task "task-1": The API and UI cards need shared payload migration glue.',
 			evidence: "src/api.ts and web-ui/src/form.ts disagree.",
+		});
+	});
+
+	it("formats adaptive decision and scope revision entries", () => {
+		expect(
+			buildPlanGapAdaptationRevision({
+				taskId: "task-1",
+				adaptationTaskId: "decision",
+				kind: "missing_decision",
+				description: "Choose the default provider.",
+				evidence: "Acceptance output asked which provider to use.",
+			}),
+		).toEqual({
+			kind: "decision_card_added",
+			description:
+				'Added Planning decision card "decision" for plan gap reported by task "task-1": Choose the default provider.',
+			evidence: "Acceptance output asked which provider to use.",
+		});
+		expect(
+			buildPlanGapAdaptationRevision({
+				taskId: "task-1",
+				adaptationTaskId: "split",
+				kind: "scope_too_large",
+				description: "Split the oversized card.",
+			}),
+		).toEqual({
+			kind: "scope_split_card_added",
+			description:
+				'Added Planning split card "split" for plan gap reported by task "task-1": Split the oversized card.',
+			evidence: null,
 		});
 	});
 });

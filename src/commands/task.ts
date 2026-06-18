@@ -1833,6 +1833,34 @@ export function buildPlanGapIntegrationRevision(input: {
 	};
 }
 
+export function buildPlanGapAdaptationRevision(input: {
+	taskId: string;
+	adaptationTaskId: string;
+	kind: Extract<PlanGapKind, "missing_decision" | "contradictory_requirement" | "scope_too_large">;
+	description: string;
+	evidence?: string | null;
+}): {
+	kind: string;
+	description: string;
+	evidence: string | null;
+} {
+	const evidence = input.evidence?.trim() ? input.evidence.trim() : null;
+	const revisionKind = input.kind === "scope_too_large" ? "scope_split_card_added" : "decision_card_added";
+	const label =
+		input.kind === "scope_too_large"
+			? "Planning split card"
+			: input.kind === "contradictory_requirement"
+				? "Planning contradiction card"
+				: "Planning decision card";
+	return {
+		kind: revisionKind,
+		description: `Added ${label} "${input.adaptationTaskId}" for plan gap reported by task "${input.taskId}": ${
+			input.description.trim() || input.kind
+		}`,
+		evidence,
+	};
+}
+
 function matchesPlanBoardTaskId(input: { taskId: string; planSlug: string; planTaskId: string }): {
 	matches: boolean;
 	exact: boolean;
@@ -2126,6 +2154,24 @@ async function recordTaskPlanGapCommand(input: {
 		adaptationCreated = mutation.value.created;
 		if (mutation.saved) {
 			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
+		}
+		const adaptationTaskId = typeof adaptationTask.id === "string" ? adaptationTask.id : null;
+		if (adaptationTaskId && planSlug && adaptationCreated) {
+			const revision = buildPlanGapAdaptationRevision({
+				taskId: input.taskId,
+				adaptationTaskId,
+				kind: input.kind,
+				description: input.description,
+				evidence: input.evidence,
+			});
+			revisionsPath = await appendClinePlanRevision({
+				workspacePath: workspaceRepoPath,
+				slug: planSlug,
+				taskId: input.taskId,
+				kind: revision.kind,
+				description: revision.description,
+				evidence: revision.evidence ?? undefined,
+			});
 		}
 	}
 	return {

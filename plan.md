@@ -459,7 +459,9 @@ plowing ahead or silently failing.
       collision-suffixed card IDs when unambiguous, so automatic integration-card adaptation can append to
       `revisions.md` without a manual `--plan-slug`. Recursive `decompose_project.expansions` now write an
       initial `recursive_split` revision listing each expanded task and pointing to the rewritten dependency
-      graph in `tasks.json`. Still open: append concrete revision entries when future adaptive splits/re-links land.
+      graph in `tasks.json`. Decision/contradiction and scope-too-large adaptation cards now append concrete
+      `decision_card_added` or `scope_split_card_added` revision entries when the owning plan is known.
+      Still open: append concrete revision entries when future direct DAG replacement/re-linking lands.
 
 ---
 
