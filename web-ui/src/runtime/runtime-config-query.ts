@@ -45,6 +45,7 @@ import type {
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeSelfImprovementProjectResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceResponse,
@@ -255,6 +256,14 @@ export async function createDevTestProject(
 ): Promise<RuntimeDevTestProjectResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.projects.createDevTestProject.mutate(input);
+}
+
+export async function createSelfImprovementProject(
+	workspaceId: string | null,
+	input: { notes?: string; evidenceBundlePath?: string; confirmSelfProject: true },
+): Promise<RuntimeSelfImprovementProjectResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.projects.createSelfImprovementProject.mutate(input);
 }
 
 export async function cleanupDevTestProjects(workspaceId: string | null): Promise<RuntimeDevTestCleanupResponse> {

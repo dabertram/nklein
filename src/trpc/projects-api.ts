@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { cp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
@@ -18,6 +19,8 @@ import type {
 	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 	RuntimeProjectTaskCounts,
+	RuntimeSelfImprovementProjectRequest,
+	RuntimeSelfImprovementProjectResponse,
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
 import {
@@ -25,7 +28,9 @@ import {
 	parseProjectAddRequest,
 	parseProjectArtifactMigrationRequest,
 	parseProjectRemoveRequest,
+	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
+import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import {
 	getCanonicalTaskWorktreesHomePath,
@@ -119,6 +124,40 @@ export function createDevTestBoard(input: {
 		],
 		dependencies: [],
 	};
+}
+
+function buildSelfImprovementTaskPrompt(input: {
+	workspacePath: string;
+	notes?: string | null;
+	evidenceBundlePath?: string | null;
+}): string {
+	const lines = [
+		"/nklein-ts",
+		"",
+		"Improve !Klein using the currently running development checkout.",
+		"",
+		"Source:",
+		`- Current dev checkout: ${input.workspacePath}`,
+		"",
+		"Main driver:",
+		"- Keep improving support for small local LLMs on limited hardware.",
+		"- Preserve the local-only, forward-moving fork direction.",
+		"- Keep protected-test guardrails intact; do not weaken protected tests without explicit human approval.",
+	];
+	if (input.evidenceBundlePath?.trim()) {
+		lines.push("", "Evidence:", `- Bundle: ${input.evidenceBundlePath.trim()}`);
+	}
+	if (input.notes?.trim()) {
+		lines.push("", "User notes:", input.notes.trim());
+	}
+	lines.push(
+		"",
+		"Acceptance:",
+		"- Make the smallest coherent improvement that addresses the evidence or notes.",
+		"- Add or update focused tests.",
+		"- Run the relevant focused checks and report exact commands/results.",
+	);
+	return lines.join("\n");
 }
 
 export interface CreateProjectsApiDependencies {
@@ -443,6 +482,136 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					scenario: null,
 					workspacePath: null,
 					evidenceRootPath: null,
+					error: message,
+				};
+			}
+		},
+		createSelfImprovementProject: async (
+			_preferredWorkspaceId,
+			input?: RuntimeSelfImprovementProjectRequest,
+		): Promise<RuntimeSelfImprovementProjectResponse> => {
+			if (process.env.NODE_ENV !== "development") {
+				return {
+					ok: false,
+					project: null,
+					task: null,
+					workspacePath: null,
+					source: null,
+					error: "Self-improvement projects are only available when NODE_ENV=development.",
+				};
+			}
+			const body = parseSelfImprovementProjectRequest(input);
+			if (body?.confirmSelfProject !== true) {
+				return {
+					ok: false,
+					project: null,
+					task: null,
+					workspacePath: null,
+					source: "current_dev_checkout",
+					requiresSelfProjectConfirmation: true,
+					error: "Creating a !Klein self-improvement project needs confirmation.",
+				};
+			}
+			try {
+				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
+				if (!sourceRepoPath) {
+					return {
+						ok: false,
+						project: null,
+						task: null,
+						workspacePath: null,
+						source: "current_dev_checkout",
+						error: "Could not resolve the currently running development checkout.",
+					};
+				}
+				await deps.assertPathIsDirectory(sourceRepoPath);
+				if (!deps.hasGitRepository(sourceRepoPath)) {
+					return {
+						ok: false,
+						project: null,
+						task: null,
+						workspacePath: sourceRepoPath,
+						source: "current_dev_checkout",
+						error: "The currently running checkout is not a git repository.",
+					};
+				}
+				const commitResult = await ensureInitialCommit(sourceRepoPath);
+				if (!commitResult.ok) {
+					return {
+						ok: false,
+						project: null,
+						task: null,
+						workspacePath: sourceRepoPath,
+						source: "current_dev_checkout",
+						error: commitResult.error ?? "Failed to ensure initial commit.",
+					};
+				}
+				const gitRepositoryCreatedByKanban = await isGitRepositoryCreatedByKanban(sourceRepoPath);
+				const context = await loadWorkspaceContext(sourceRepoPath, {
+					gitRepositoryCreatedByKanban,
+				});
+				deps.rememberWorkspace(context.workspaceId, context.repoPath);
+				await deps.setActiveWorkspace(context.workspaceId, context.repoPath);
+
+				const state = await loadWorkspaceState(context.repoPath);
+				const baseRef = state.git.currentBranch ?? state.git.defaultBranch ?? state.git.branches[0] ?? "HEAD";
+				const now = Date.now();
+				const created = addTaskToColumn(
+					state.board,
+					"backlog",
+					{
+						title: "Improve !Klein from current evidence",
+						prompt: buildSelfImprovementTaskPrompt({
+							workspacePath: context.repoPath,
+							notes: body?.notes,
+							evidenceBundlePath: body?.evidenceBundlePath,
+						}),
+						startInPlanMode: true,
+						autoReviewEnabled: true,
+						agentId: "cline",
+						generatedFromPlan: {
+							artifactKind: "spec",
+							planSlug: "self-improvement-current-dev-checkout",
+							planTaskId: "seed-self-improvement-task",
+							sourceTaskId: null,
+						},
+						filesLikelyTouched: [
+							...(body?.evidenceBundlePath ? [body.evidenceBundlePath] : []),
+							"follow-up-3-by-opus4.8-ultracode.md",
+						],
+						baseRef,
+					},
+					randomUUID,
+					now,
+				);
+				await saveWorkspaceState(context.repoPath, {
+					board: created.board,
+					sessions: state.sessions,
+				});
+
+				const taskCounts = await deps.summarizeProjectTaskCounts(context.workspaceId, context.repoPath);
+				const project = deps.createProjectSummary({
+					workspaceId: context.workspaceId,
+					repoPath: context.repoPath,
+					taskCounts,
+					gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
+				});
+				void deps.broadcastRuntimeProjectsUpdated(context.workspaceId);
+				return {
+					ok: true,
+					project,
+					task: created.task,
+					workspacePath: context.repoPath,
+					source: "current_dev_checkout",
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					ok: false,
+					project: null,
+					task: null,
+					workspacePath: null,
+					source: "current_dev_checkout",
 					error: message,
 				};
 			}

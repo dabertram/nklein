@@ -84,6 +84,8 @@ import type {
 	RuntimeProjectRemoveResponse,
 	RuntimeProjectsResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeSelfImprovementProjectRequest,
+	RuntimeSelfImprovementProjectResponse,
 	RuntimeShellSessionStartRequest,
 	RuntimeShellSessionStartResponse,
 	RuntimeSlashCommandsResponse,
@@ -208,6 +210,8 @@ import {
 	runtimeProjectRemoveResponseSchema,
 	runtimeProjectsResponseSchema,
 	runtimeRunUpdateResponseSchema,
+	runtimeSelfImprovementProjectRequestSchema,
+	runtimeSelfImprovementProjectResponseSchema,
 	runtimeShellSessionStartRequestSchema,
 	runtimeShellSessionStartResponseSchema,
 	runtimeSlashCommandsResponseSchema,
@@ -487,6 +491,10 @@ export interface RuntimeTrpcContext {
 			preferredWorkspaceId: string | null,
 			input: RuntimeDevTestProjectRequest,
 		) => Promise<RuntimeDevTestProjectResponse>;
+		createSelfImprovementProject: (
+			preferredWorkspaceId: string | null,
+			input: RuntimeSelfImprovementProjectRequest,
+		) => Promise<RuntimeSelfImprovementProjectResponse>;
 		cleanupDevTestProjects: (preferredWorkspaceId: string | null) => Promise<RuntimeDevTestCleanupResponse>;
 		removeProject: (
 			preferredWorkspaceId: string | null,
@@ -938,6 +946,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeDevTestProjectResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.projectsApi.createDevTestProject(ctx.requestedWorkspaceId, input);
+			}),
+		createSelfImprovementProject: t.procedure
+			.input(runtimeSelfImprovementProjectRequestSchema)
+			.output(runtimeSelfImprovementProjectResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.projectsApi.createSelfImprovementProject(ctx.requestedWorkspaceId, input);
 			}),
 		cleanupDevTestProjects: t.procedure.output(runtimeDevTestCleanupResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.projectsApi.cleanupDevTestProjects(ctx.requestedWorkspaceId);

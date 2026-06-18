@@ -16,6 +16,7 @@
 - Added topic-based guidance routing for decomposition-generated cards, injecting the matching `/nklein-security`, `/nklein-ui`, or `/nklein-ts` skill command from a maintained topic map.
 - Added structured protected-test edit denial payloads with `intent`, `diff`, `reason`, and `expectedEffects`, so blocked agents can ask for exact human review through the existing follow-up question channel.
 - Added a create-task prompt template menu with quick starts for bug fixes, small features, tests, security review, and decomposition.
+- Added a gated Developer Tools self-improvement flow that loads the currently running dev checkout, accepts optional notes/evidence, and seeds a protected-guarded Cline Backlog task.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.

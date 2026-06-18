@@ -13,6 +13,7 @@ import {
 	getWorkspaceDirectoryPath,
 	listWorkspaceIndexEntries,
 	loadWorkspaceContext,
+	loadWorkspaceState,
 	saveWorkspaceState,
 } from "../../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../../src/terminal/session-manager";
@@ -50,6 +51,25 @@ function initGitRepository(path: string): void {
 		if (config.status !== 0) {
 			throw new Error(`Failed to configure git repository at ${path}`);
 		}
+	}
+}
+
+function commitAll(path: string, message: string): void {
+	const add = spawnSync("git", ["add", "-A"], {
+		cwd: path,
+		stdio: "ignore",
+		env: createGitTestEnv(),
+	});
+	if (add.status !== 0) {
+		throw new Error(`Failed to stage git repository at ${path}`);
+	}
+	const commit = spawnSync("git", ["commit", "--allow-empty", "-m", message], {
+		cwd: path,
+		stdio: "ignore",
+		env: createGitTestEnv(),
+	});
+	if (commit.status !== 0) {
+		throw new Error(`Failed to commit git repository at ${path}`);
 	}
 }
 
@@ -146,6 +166,87 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable Kanban tasks");
 		expect(backlog[0]?.prompt).not.toContain("Acceptance command for implementation leaves");
 		expect(board.dependencies).toHaveLength(0);
+	});
+});
+
+describe("self-improvement project creation", () => {
+	const previousNodeEnv = process.env.NODE_ENV;
+
+	afterEach(() => {
+		if (previousNodeEnv === undefined) {
+			delete process.env.NODE_ENV;
+		} else {
+			process.env.NODE_ENV = previousNodeEnv;
+		}
+	});
+
+	it("requires explicit self-project confirmation", async () => {
+		process.env.NODE_ENV = "development";
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				initGitRepository(cleanupCwd);
+				commitAll(cleanupCwd, "Initial self project");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.hasGitRepository = vi.fn(() => true);
+				const api = createProjectsApi(deps);
+
+				const result = await api.createSelfImprovementProject(null, {});
+
+				expect(result.ok).toBe(false);
+				expect(result.requiresSelfProjectConfirmation).toBe(true);
+				expect(deps.setActiveWorkspace).not.toHaveBeenCalled();
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("loads the running dev checkout and seeds an evidence-backed Cline task", async () => {
+		process.env.NODE_ENV = "development";
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				writeFileSync(join(cleanupCwd, "README.md"), "# self\n", "utf8");
+				initGitRepository(cleanupCwd);
+				commitAll(cleanupCwd, "Initial self project");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.hasGitRepository = vi.fn(() => true);
+				const api = createProjectsApi(deps);
+
+				const result = await api.createSelfImprovementProject(null, {
+					confirmSelfProject: true,
+					notes: "Focus on local model reliability.",
+					evidenceBundlePath: "/tmp/evidence/self-task",
+				});
+
+				expect(result.ok).toBe(true);
+				expect(result.source).toBe("current_dev_checkout");
+				expect(result.workspacePath ? realpathSync(result.workspacePath) : null).toBe(realpathSync(cleanupCwd));
+				expect(result.task?.agentId).toBe("cline");
+				expect(result.task?.startInPlanMode).toBe(true);
+				expect(result.task?.autoReviewEnabled).toBe(true);
+				expect(result.task?.generatedFromPlan).toEqual({
+					artifactKind: "spec",
+					planSlug: "self-improvement-current-dev-checkout",
+					planTaskId: "seed-self-improvement-task",
+					sourceTaskId: null,
+				});
+				expect(result.task?.prompt).toContain("Current dev checkout");
+				expect(result.task?.prompt).toContain("Focus on local model reliability.");
+				expect(result.task?.prompt).toContain("/tmp/evidence/self-task");
+				expect(result.task?.filesLikelyTouched).toEqual([
+					"/tmp/evidence/self-task",
+					"follow-up-3-by-opus4.8-ultracode.md",
+				]);
+				const state = await loadWorkspaceState(cleanupCwd);
+				const backlog = state.board.columns.find((column) => column.id === "backlog")?.cards ?? [];
+				expect(backlog[0]?.id).toBe(result.task?.id);
+				expect(deps.setActiveWorkspace).toHaveBeenCalled();
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
 	});
 });
 

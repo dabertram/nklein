@@ -23,6 +23,7 @@ import {
 	type RuntimeProjectAddRequest,
 	type RuntimeProjectArtifactMigrationRequest,
 	type RuntimeProjectRemoveRequest,
+	type RuntimeSelfImprovementProjectRequest,
 	type RuntimeShellSessionStartRequest,
 	type RuntimeTaskChatAbortRequest,
 	type RuntimeTaskChatCancelRequest,
@@ -62,6 +63,7 @@ import {
 	runtimeProjectAddRequestSchema,
 	runtimeProjectArtifactMigrationRequestSchema,
 	runtimeProjectRemoveRequestSchema,
+	runtimeSelfImprovementProjectRequestSchema,
 	runtimeShellSessionStartRequestSchema,
 	runtimeTaskChatAbortRequestSchema,
 	runtimeTaskChatCancelRequestSchema,
@@ -206,6 +208,17 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 		confirmSelfProject: parsed.confirmSelfProject,
 		allowTaskWorktreeProject: parsed.allowTaskWorktreeProject,
 	};
+}
+
+export function parseSelfImprovementProjectRequest(value: unknown): RuntimeSelfImprovementProjectRequest {
+	const parsed = parseWithSchema(runtimeSelfImprovementProjectRequestSchema, value);
+	return parsed
+		? {
+				notes: parsed.notes?.trim() || undefined,
+				evidenceBundlePath: parsed.evidenceBundlePath?.trim() || undefined,
+				confirmSelfProject: parsed.confirmSelfProject,
+			}
+		: undefined;
 }
 
 export function parseProjectRemoveRequest(value: unknown): RuntimeProjectRemoveRequest {

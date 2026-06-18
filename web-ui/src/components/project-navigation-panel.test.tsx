@@ -28,12 +28,14 @@ const BOARD_SURFACE_HORIZONTAL_CHROME_PX = 40;
 
 const cleanupDevTestProjectsMock = vi.hoisted(() => vi.fn());
 const createDevTestProjectMock = vi.hoisted(() => vi.fn());
+const createSelfImprovementProjectMock = vi.hoisted(() => vi.fn());
 const migrateAccidentalProjectArtifactsMock = vi.hoisted(() => vi.fn());
 const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	cleanupDevTestProjects: cleanupDevTestProjectsMock,
 	createDevTestProject: createDevTestProjectMock,
+	createSelfImprovementProject: createSelfImprovementProjectMock,
 	migrateAccidentalProjectArtifacts: migrateAccidentalProjectArtifactsMock,
 	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
 }));
@@ -124,6 +126,15 @@ function getButtonByText(container: HTMLElement, text: string): HTMLButtonElemen
 	return button;
 }
 
+function setTextAreaValue(textarea: HTMLTextAreaElement, value: string): void {
+	const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+	if (!valueSetter) {
+		throw new Error("Expected textarea value setter");
+	}
+	valueSetter.call(textarea, value);
+	textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("ProjectNavigationPanel width persistence", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -146,6 +157,25 @@ describe("ProjectNavigationPanel width persistence", () => {
 		localStorage.clear();
 		cleanupDevTestProjectsMock.mockReset();
 		createDevTestProjectMock.mockReset();
+		createSelfImprovementProjectMock.mockReset();
+		createSelfImprovementProjectMock.mockResolvedValue({
+			ok: true,
+			project: PROJECTS[0],
+			task: {
+				id: "self-task",
+				title: "Improve !Klein",
+				prompt: "Improve !Klein.",
+				startInPlanMode: true,
+				autoReviewEnabled: true,
+				autoReviewMode: "commit",
+				agentId: "cline",
+				baseRef: "main",
+				createdAt: 1,
+				updatedAt: 1,
+			},
+			workspacePath: "/tmp/kanban",
+			source: "current_dev_checkout",
+		});
 		migrateAccidentalProjectArtifactsMock.mockReset();
 		migrateAccidentalProjectArtifactsMock.mockResolvedValue({
 			ok: true,
@@ -352,6 +382,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 
 		expect(container.textContent).not.toContain("Create fixture projects");
 		expect(container.textContent).not.toContain("Create mid task project");
+		expect(container.textContent).not.toContain("Create self-improvement project");
 	});
 
 	it("shows dev-test project tools in debug mode", () => {
@@ -360,6 +391,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).toContain("Create fixture projects");
 		expect(container.textContent).toContain("Create mid task project");
 		expect(container.textContent).toContain("Create complex product project");
+		expect(container.textContent).toContain("Create self-improvement project");
 	});
 
 	it("requires confirmation before creating dev-test projects", () => {
@@ -393,6 +425,53 @@ describe("ProjectNavigationPanel width persistence", () => {
 				"Delete marked !Klein dev-test projects, their task worktrees, and saved dev-test task patches?",
 			);
 			expect(cleanupDevTestProjectsMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("requires confirmation before creating a self-improvement project", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ debugModeEnabled: true });
+
+			act(() => {
+				getButtonByText(container, "Create self-improvement project").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Create a !Klein self-improvement project from the currently running development checkout?",
+			);
+			expect(createSelfImprovementProjectMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("creates a confirmed self-improvement project with user notes", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		const onSelectProject = vi.fn();
+		try {
+			renderPanel({ debugModeEnabled: true, onSelectProject });
+			const notes = container.querySelector("textarea");
+			if (!(notes instanceof HTMLTextAreaElement)) {
+				throw new Error("Expected self-improvement notes field.");
+			}
+
+			act(() => {
+				setTextAreaValue(notes, "Use the latest evidence bundle.");
+			});
+			await act(async () => {
+				getButtonByText(container, "Create self-improvement project").click();
+				await Promise.resolve();
+			});
+
+			expect(createSelfImprovementProjectMock).toHaveBeenCalledWith("project-1", {
+				confirmSelfProject: true,
+				notes: "Use the latest evidence bundle.",
+				evidenceBundlePath: undefined,
+			});
+			expect(onSelectProject).toHaveBeenCalledWith("project-1");
 		} finally {
 			confirmSpy.mockRestore();
 		}

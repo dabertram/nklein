@@ -671,6 +671,26 @@ export const runtimeDevTestProjectResponseSchema = z.object({
 });
 export type RuntimeDevTestProjectResponse = z.infer<typeof runtimeDevTestProjectResponseSchema>;
 
+export const runtimeSelfImprovementProjectRequestSchema = z
+	.object({
+		notes: z.string().optional(),
+		evidenceBundlePath: z.string().optional(),
+		confirmSelfProject: z.boolean().optional(),
+	})
+	.optional();
+export type RuntimeSelfImprovementProjectRequest = z.infer<typeof runtimeSelfImprovementProjectRequestSchema>;
+
+export const runtimeSelfImprovementProjectResponseSchema = z.object({
+	ok: z.boolean(),
+	project: runtimeProjectSummarySchema.nullable(),
+	task: runtimeBoardCardSchema.nullable(),
+	workspacePath: z.string().nullable(),
+	source: z.literal("current_dev_checkout").nullable(),
+	requiresSelfProjectConfirmation: z.boolean().optional(),
+	error: z.string().optional(),
+});
+export type RuntimeSelfImprovementProjectResponse = z.infer<typeof runtimeSelfImprovementProjectResponseSchema>;
+
 export const runtimeDevTestCleanupResponseSchema = z.object({
 	ok: z.boolean(),
 	removedProjects: z.number(),

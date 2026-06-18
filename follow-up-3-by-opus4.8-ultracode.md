@@ -145,14 +145,14 @@ Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cli
 
 ### C2. One-click "Create !Klein self-improvement project" (internal loop)
 !Klein creates its own workspace, loads the evidence, analyzes → plans → works on a branch.
-- [ ] Entry point: a gated button (Developer Tools / "Lab") near the evidence action and on dev-test runs.
+- [x] Entry point: a gated button (Developer Tools / "Lab") near the evidence action and on dev-test runs.
 - [ ] **Source selector:**
-  - [ ] **v1 (now):** "Currently running code" — the dev checkout. Detect dev mode via `process.env.NODE_ENV === "development"` (`src/server/middleware.ts:21`) and the asset-dir resolution in `src/server/assets.ts`.
+  - [x] **v1 (now):** "Currently running code" — the dev checkout. Detect dev mode via `process.env.NODE_ENV === "development"` (`src/server/middleware.ts:21`) and the asset-dir resolution in `src/server/assets.ts`.
   - [ ] **Later:** branch / tag / commit from the GitHub repo. Extend `src/workspace/git-clone.ts` to accept a ref, and add `ref?` to `ProjectAddRequest` in `src/core/api-contract.ts`.
   - [ ] **Version pinning (non-dev sources):** check out exactly the **commit SHA recorded in the evidence bundle** so the agent fixes the version the evidence came from, not `HEAD`.
-- [ ] **User notes/guidance:** a free-text field merged into the seeded task prompt (`RuntimeCreateTaskInput.prompt` + `generatedFromPlan`); attach the evidence files as task context (`filesLikelyTouched` + an evidence note).
-- [ ] Gate behind the existing self-project confirmation (`addProject({ confirmSelfProject: true })`, `src/trpc/projects-api.ts:298`).
-- [ ] Couple with §D so the spawned agent is automatically under the protected-test guardrail.
+- [x] **User notes/guidance:** a free-text field merged into the seeded task prompt (`RuntimeCreateTaskInput.prompt` + `generatedFromPlan`); attach the evidence files as task context (`filesLikelyTouched` + an evidence note).
+- [x] Gate behind the existing self-project confirmation (`addProject({ confirmSelfProject: true })`, `src/trpc/projects-api.ts:298`).
+- [x] Couple with §D so the spawned agent is automatically under the protected-test guardrail.
 
 ### C3. Embedding model example next to the selector (quick win)
 The embedding settings live in `web-ui/src/components/runtime-settings-dialog.tsx` (global ≈ L2699–2724, project override ≈ L2766–2798). Placeholders currently imply Ollama only.
@@ -162,7 +162,7 @@ The embedding settings live in `web-ui/src/components/runtime-settings-dialog.ts
 - [x] Optional polish (→ §H): a **"Test endpoint"** button (call `/models` or a 1-token embed and show ✓/✗) and a model dropdown populated from the endpoint's `/models`, so there's zero guesswork.
 
 ### C4. Discoverability
-- [ ] Ensure the dev-test + evidence + self-improvement actions are reachable from a **clearly-labeled, gated** UI surface (not CLI/tRPC-only). Verify against §B "dev-test web UI" finding.
+- [x] Ensure the dev-test + evidence + self-improvement actions are reachable from a **clearly-labeled, gated** UI surface (not CLI/tRPC-only). Verify against §B "dev-test web UI" finding.
 
 ---
 
@@ -180,7 +180,7 @@ Goal: a small model can work on !Klein's own code without silently breaking feat
 - [x] **D3. Block by default** — `src/core/agent-write-guard.ts` now identifies protected-suite paths, and editor/write/apply-patch approvals plus direct write-file tools reject edits to `test/protected/**` and `vitest.protected.config.ts` without explicit human approval.
 - [ ] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
 - [ ] **D5. Audit + tests** — log every protected-test approval to telemetry (what/why); tests for both the blocked path and the approved-unblock path.
-- [ ] **D6.** Make the protected suite apply *automatically* inside the §C2 self-improvement project so the guardrail is on by default when !Klein edits itself.
+- [x] **D6.** Make the protected suite apply *automatically* inside the §C2 self-improvement project so the guardrail is on by default when !Klein edits itself.
 
 ---
 
@@ -272,7 +272,7 @@ Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/cline-sdk/cline-local-only
 
 Constraints honored: the kanban board stays the core idea; **no surfaced feature is dropped**; current responsiveness/perf are acceptable so these are opt-in, not urgent.
 
-- [ ] A clearly-labeled, gated **"Lab" / Developer Tools** surface housing dev-test, evidence, and self-improvement actions (replaces the current CLI/tRPC-only access).
+- [x] A clearly-labeled, gated **"Lab" / Developer Tools** surface housing dev-test, evidence, and self-improvement actions (replaces the current CLI/tRPC-only access).
 - [ ] An **evidence drawer** on a card: transcript + diff + telemetry + the one-click copy/seed actions in one place.
 - [x] Embedding **"Test endpoint"** button + model dropdown (from §C3).
 - [ ] A **command palette** (⌘K) + keyboard-first navigation — additive, discoverable, doesn't change the board.
@@ -293,7 +293,7 @@ Each is additive. If none are "exceptionally convincing," shipping only the Lab 
 - [ ] **App icon/logo** — keep `ClineIcon` next to the `!Klein` wordmark, or design a Klein mark? (Pure design call.) (§A1)
 - [x] **Embedding model id bump** — keep `kanban-local-lexical-vector-v1` until a deliberate lexical-cache invalidation is needed; OpenAI-compatible embeddings already separate cache entries by provider/model key. (§A7 / §F1)
 - [x] **Guidance-skill priority** — start with `security`, `ui`, `ts`. (§E)
-- [ ] **Self-improvement v1 scope** — confirm v1 = "currently running code (dev mode)" only, branch/tag/commit later. (§C2)
+- [x] **Self-improvement v1 scope** — confirm v1 = "currently running code (dev mode)" only, branch/tag/commit later. (§C2)
 
 ---
 

@@ -39,6 +39,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import {
 	cleanupDevTestProjects,
 	createDevTestProject,
+	createSelfImprovementProject,
 	migrateAccidentalProjectArtifacts,
 } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
@@ -133,6 +134,8 @@ export function ProjectNavigationPanel({
 		isCleaningUp: boolean;
 		evidencePath: string | null;
 	}>({ runningPreset: null, isCleaningUp: false, evidencePath: null });
+	const [selfImprovementNotes, setSelfImprovementNotes] = useState("");
+	const [isCreatingSelfImprovementProject, setIsCreatingSelfImprovementProject] = useState(false);
 	const [migratingProjectId, setMigratingProjectId] = useState<string | null>(null);
 	const projectsWithHealthIssues = sortedProjects.filter((project) => (project.healthIssues?.length ?? 0) > 0);
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
@@ -504,7 +507,10 @@ export function ProjectNavigationPanel({
 								}
 								runningPreset={devTestProjectState.runningPreset}
 								isCleaningUp={devTestProjectState.isCleaningUp}
+								isCreatingSelfImprovementProject={isCreatingSelfImprovementProject}
 								evidencePath={devTestProjectState.evidencePath}
+								selfImprovementNotes={selfImprovementNotes}
+								onSelfImprovementNotesChange={setSelfImprovementNotes}
 								onRun={async (preset) => {
 									setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
 									try {
@@ -599,6 +605,39 @@ export function ProjectNavigationPanel({
 										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
 									} finally {
 										setDevTestProjectState((current) => ({ ...current, isCleaningUp: false }));
+									}
+								}}
+								onCreateSelfImprovementProject={async () => {
+									if (
+										!window.confirm(
+											"Create a !Klein self-improvement project from the currently running development checkout?",
+										)
+									) {
+										return;
+									}
+									setIsCreatingSelfImprovementProject(true);
+									try {
+										const created = await createSelfImprovementProject(currentProjectId, {
+											confirmSelfProject: true,
+											notes: selfImprovementNotes,
+											evidenceBundlePath: devTestProjectState.evidencePath ?? undefined,
+										});
+										if (!created.ok || !created.project || !created.task) {
+											throw new Error(created.error ?? "Could not create the self-improvement project.");
+										}
+										onSelectProject(created.project.id);
+										setSelfImprovementNotes("");
+										showAppToast({
+											intent: "success",
+											icon: "check",
+											message: "Self-improvement project created with a seeded Backlog task.",
+											timeout: 5000,
+										});
+									} catch (error) {
+										const message = error instanceof Error ? error.message : String(error);
+										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+									} finally {
+										setIsCreatingSelfImprovementProject(false);
 									}
 								}}
 							/>
@@ -819,21 +858,30 @@ function DevTestProjectCard({
 	disabled,
 	runningPreset,
 	isCleaningUp,
+	isCreatingSelfImprovementProject,
 	evidencePath,
+	selfImprovementNotes,
+	onSelfImprovementNotesChange,
 	onRun,
 	onCopyEvidence,
 	onCleanup,
+	onCreateSelfImprovementProject,
 }: {
 	disabled: boolean;
 	runningPreset: RuntimeDevTestProjectPreset | null;
 	isCleaningUp: boolean;
+	isCreatingSelfImprovementProject: boolean;
 	evidencePath: string | null;
+	selfImprovementNotes: string;
+	onSelfImprovementNotesChange: (value: string) => void;
 	onRun: (preset: RuntimeDevTestProjectPreset) => Promise<void>;
 	onCopyEvidence: () => Promise<void>;
 	onCleanup: () => Promise<void>;
+	onCreateSelfImprovementProject: () => Promise<void>;
 }): React.ReactElement {
 	const isRunningMidTask = runningPreset === "mid_task";
 	const isRunningComplexProject = runningPreset === "complex_dag";
+	const isBusy = disabled || isCreatingSelfImprovementProject;
 
 	return (
 		<div className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
@@ -842,16 +890,47 @@ function DevTestProjectCard({
 				<div className="min-w-0">
 					<p className="m-0 text-xs font-semibold text-text-primary">Dev Test Scenarios</p>
 					<p className="mt-1 mb-0 text-[11px] leading-4 text-text-secondary">
-						Create fixture projects with one spec and one initial decomposition task.
+						Create fixture projects or load the current dev checkout for !Klein self-improvement.
 					</p>
 				</div>
 			</div>
 			<div className="grid gap-2">
+				<div className="rounded-md border border-border bg-surface-1 px-2 py-2">
+					<div className="mb-2 flex items-start gap-2">
+						<Lightbulb size={14} className="mt-0.5 shrink-0 text-status-gold" />
+						<div className="min-w-0">
+							<p className="m-0 text-[12px] font-semibold text-text-primary">Self-improvement</p>
+							<p className="mt-1 mb-0 text-[11px] leading-4 text-text-secondary">
+								Use the currently running code and seed a Backlog task with optional notes.
+							</p>
+						</div>
+					</div>
+					<textarea
+						value={selfImprovementNotes}
+						onChange={(event) => onSelfImprovementNotesChange(event.currentTarget.value)}
+						placeholder="Optional notes for the seeded task"
+						rows={3}
+						className="mb-2 min-h-16 w-full resize-y rounded-md border border-border-bright bg-surface-2 px-2 py-1.5 text-[12px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+						disabled={isBusy}
+					/>
+					<Button
+						size="sm"
+						variant="primary"
+						icon={isCreatingSelfImprovementProject ? <Spinner size={14} /> : <Lightbulb size={14} />}
+						disabled={isBusy}
+						onClick={() => {
+							void onCreateSelfImprovementProject();
+						}}
+						fill
+					>
+						{isCreatingSelfImprovementProject ? "Creating..." : "Create self-improvement project"}
+					</Button>
+				</div>
 				<Button
 					size="sm"
 					variant="default"
 					icon={isRunningMidTask ? <Spinner size={14} /> : <Play size={14} />}
-					disabled={disabled}
+					disabled={isBusy}
 					onClick={() => {
 						if (!window.confirm("Create a marked !Klein dev-test project and make it the active project?")) {
 							return;
@@ -866,7 +945,7 @@ function DevTestProjectCard({
 					size="sm"
 					variant="default"
 					icon={isRunningComplexProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
-					disabled={disabled}
+					disabled={isBusy}
 					onClick={() => {
 						if (
 							!window.confirm("Create a marked !Klein complex dev-test project and make it the active project?")
@@ -884,7 +963,7 @@ function DevTestProjectCard({
 						size="sm"
 						variant="ghost"
 						icon={<Clipboard size={14} />}
-						disabled={runningPreset !== null}
+						disabled={isBusy || runningPreset !== null}
 						onClick={() => {
 							void onCopyEvidence();
 						}}
@@ -898,7 +977,7 @@ function DevTestProjectCard({
 					size="sm"
 					variant="ghost"
 					icon={isCleaningUp ? <Spinner size={14} /> : <Trash2 size={14} />}
-					disabled={disabled}
+					disabled={isBusy}
 					onClick={() => {
 						if (
 							!window.confirm(
