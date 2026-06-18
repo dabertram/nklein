@@ -429,16 +429,22 @@ plowing ahead or silently failing.
       silently broadening a task. Acceptance verification now also records plan gaps for missing acceptance
       contracts and exhausted repair/escalation attempts. Still open: classifying richer acceptance failures
       that prove a specific missing dependency, contradiction, or scope miss.
-- [ ] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
+- [~] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
-      guardrails (L2.4) so adaptation can't loop.
+      guardrails (L2.4) so adaptation can't loop. **Progress:** `kanban task plan-gap --kind
+      integration_needed` now inserts a Planning integration card with plan mode, auto-review, evidence, and
+      the current branch/default branch as its base ref. Still open: bounded recursive splits for scope gaps,
+      user-question pauses for ambiguity/contradiction, DAG re-linking, and loop caps across repeated
+      adaptations.
 - [~] **Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
       motivated it) in the plan artifacts, so the evolving plan stays auditable and the DAG view (L4) can
       flag "revised" cards. **Progress:** new decomposition plans now include a first-class
       `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
-      `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Still open:
-      append concrete revision entries when automatic adaptation adds/splits/re-links cards.
+      `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
+      integration-card adaptation returns the created Planning card alongside the gap response. Still open:
+      append concrete revision entries when automatic adaptation adds/splits/re-links cards without an
+      explicit plan slug.
 
 ---
 

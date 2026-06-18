@@ -1451,6 +1451,57 @@ function buildIntegrationCardPrompt(conflict: TaskWorktreeAutoMergeConflict): st
 	].join("\n\n");
 }
 
+function buildPlanGapIntegrationCardPrompt(input: {
+	taskId: string;
+	description: string;
+	evidence?: string | null;
+}): string {
+	const lines = [
+		`Add the missing integration step reported by task "${input.taskId}".`,
+		"",
+		input.description.trim() || "An execution task reported that the plan needs an integration step.",
+	];
+	if (input.evidence?.trim()) {
+		lines.push("", `Evidence: ${input.evidence.trim()}`);
+	}
+	lines.push(
+		"",
+		"Review the completed and in-progress plan work, implement only the missing integration glue, and keep the acceptance contract explicit.",
+	);
+	return lines.join("\n");
+}
+
+export function addPlanGapIntegrationCardToBoard(input: {
+	state: RuntimeWorkspaceStateResponse;
+	taskId: string;
+	description: string;
+	evidence?: string | null;
+	baseRef: string;
+	createId?: () => string;
+}): {
+	board: RuntimeWorkspaceStateResponse["board"];
+	task: RuntimeBoardCard;
+} {
+	const created = addTaskToColumn(
+		input.state.board,
+		"planning",
+		{
+			title: `Integrate plan gap from ${input.taskId}`,
+			prompt: buildPlanGapIntegrationCardPrompt(input),
+			startInPlanMode: true,
+			autoReviewEnabled: true,
+			autoReviewMode: "commit",
+			agentId: "cline",
+			baseRef: input.baseRef,
+		},
+		input.createId ?? (() => globalThis.crypto.randomUUID()),
+	);
+	return {
+		board: created.board,
+		task: created.task,
+	};
+}
+
 async function createIntegrationCardForMergeConflict(input: {
 	workspaceRepoPath: string;
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
@@ -1579,6 +1630,33 @@ async function recordTaskPlanGapCommand(input: {
 				evidence: input.evidence,
 			})
 		: null;
+	let integrationTask: JsonRecord | null = null;
+	if (input.kind === "integration_needed") {
+		const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
+		const runtimeClient = createRuntimeTrpcClient(workspaceId);
+		const mutation = await mutateWorkspaceState<JsonRecord>(workspaceRepoPath, (latestState) => {
+			const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
+			const created = addPlanGapIntegrationCardToBoard({
+				state: latestState,
+				taskId: input.taskId,
+				description: input.description,
+				evidence: input.evidence,
+				baseRef,
+			});
+			const nextState: RuntimeWorkspaceStateResponse = {
+				...latestState,
+				board: created.board,
+			};
+			return {
+				board: created.board,
+				value: formatTaskRecord(nextState, created.task, "planning"),
+			};
+		});
+		integrationTask = mutation.value;
+		if (mutation.saved) {
+			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
+		}
+	}
 	return {
 		ok: true,
 		workspacePath: workspaceRepoPath,
@@ -1586,6 +1664,7 @@ async function recordTaskPlanGapCommand(input: {
 		kind: input.kind,
 		description: input.description,
 		revisionsPath,
+		integrationTask,
 	};
 }
 

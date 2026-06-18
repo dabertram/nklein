@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	addPlanGapIntegrationCardToBoard,
 	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
@@ -319,5 +320,37 @@ describe("task start command blocking", () => {
 			blockedKind: "needs_decomposition",
 			blockedReason: "Task start blocked: this card needs decomposition.",
 		});
+	});
+});
+
+describe("task plan-gap adaptation", () => {
+	it("adds an integration card for integration-needed gaps", () => {
+		const state = createWorkspaceState("Acceptance check: npm test");
+
+		const result = addPlanGapIntegrationCardToBoard({
+			state,
+			taskId: "task-1",
+			description: "The API and UI cards both changed the saved payload and need a shared migration.",
+			evidence: "src/api.ts and web-ui/src/form.ts disagree about field names.",
+			baseRef: "main",
+			createId: () => "abcde-integration-task",
+		});
+		const planningCard = result.board.columns
+			.find((column) => column.id === "planning")
+			?.cards.find((card) => card.id === result.task.id);
+
+		expect(result.task.id).toBe("abcde");
+		expect(planningCard).toMatchObject({
+			id: "abcde",
+			title: "Integrate plan gap from task-1",
+			startInPlanMode: true,
+			autoReviewEnabled: true,
+			autoReviewMode: "commit",
+			agentId: "cline",
+			baseRef: "main",
+		});
+		expect(planningCard?.prompt).toContain('reported by task "task-1"');
+		expect(planningCard?.prompt).toContain("shared migration");
+		expect(planningCard?.prompt).toContain("Evidence: src/api.ts");
 	});
 });
