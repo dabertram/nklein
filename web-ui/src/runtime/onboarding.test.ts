@@ -127,11 +127,12 @@ describe("runtime onboarding helpers", () => {
 				existingRoles: undefined,
 				providerId: " ollama ",
 				modelId: " qwen3 ",
+				reasoningEffort: "medium",
 			}),
 		).toEqual({
-			architect: { providerId: "ollama", modelId: "qwen3" },
-			worker: { providerId: "ollama", modelId: "qwen3" },
-			reviewer: { providerId: "ollama", modelId: "qwen3" },
+			architect: { providerId: "ollama", modelId: "qwen3", reasoningEffort: "medium" },
+			worker: { providerId: "ollama", modelId: "qwen3", reasoningEffort: "medium" },
+			reviewer: { providerId: "ollama", modelId: "qwen3", reasoningEffort: "medium" },
 		});
 	});
 

@@ -58,6 +58,7 @@
 - Debounced Cline model-registry persistence so observations update the in-memory MCSR immediately while locked disk writes are coalesced, with fractional EWMA speed stats preserved across reloads.
 - Switched Cline model-registry event extraction to the SDK session-event types, recording observations from typed usage events plus Kanban-measured request duration instead of guessed `run-finished` payloads.
 - Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.
+- Added first-run Cline onboarding controls for setting a local model context-window override and seeding model roles with the selected reasoning effort.
 - Hardened `kanban dev smoke-eval` to score only local Cline providers and include the selected local model plus guard, overflow, and timeout telemetry counts in the evidence bundle.
 - Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
 - Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.

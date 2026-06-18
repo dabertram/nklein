@@ -1,5 +1,6 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
+import { RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
 import { Check } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -8,7 +9,7 @@ import { cn } from "@/components/ui/cn";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import { isClineProviderAuthenticated } from "@/runtime/native-agent";
 import { buildFirstRunLocalModelRoles } from "@/runtime/onboarding";
-import { saveRuntimeConfig } from "@/runtime/runtime-config-query";
+import { saveClineModelContextWindowOverride, saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
@@ -409,6 +410,7 @@ export function TaskStartAgentOnboardingCarousel({
 	const [activeAgentId, setActiveAgentId] = useState<RuntimeAgentId | null>(selectedAgentId);
 	const [selectionError, setSelectionError] = useState<string | null>(null);
 	const [clineSetupError, setClineSetupError] = useState<string | null>(null);
+	const [clineContextWindowInput, setClineContextWindowInput] = useState("");
 	const selectionSavePromiseRef = useRef<Promise<AgentSelectionResult> | null>(null);
 
 	useEffect(() => {
@@ -438,6 +440,8 @@ export function TaskStartAgentOnboardingCarousel({
 			}),
 		[agents],
 	);
+	const selectedClineProviderModel = clineSettings.providerModels.find((model) => model.id === clineSettings.modelId);
+	const selectedModelContextWindow = selectedClineProviderModel?.contextWindow ?? null;
 
 	const handleAgentSelect = (agentId: RuntimeAgentId) => {
 		if (activeAgentId === agentId) {
@@ -505,7 +509,29 @@ export function TaskStartAgentOnboardingCarousel({
 			providerId: clineSettings.providerId,
 			modelId: clineSettings.modelId,
 			baseUrl: clineSettings.baseUrl,
+			reasoningEffort: clineSettings.reasoningEffort,
 		});
+		const trimmedContextWindow = clineContextWindowInput.trim();
+		if (trimmedContextWindow) {
+			const contextWindow = Number(trimmedContextWindow);
+			if (!Number.isInteger(contextWindow) || contextWindow < RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS) {
+				const message = `Context window must be at least ${RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS.toLocaleString()} tokens.`;
+				setClineSetupError(message);
+				return { ok: false, message };
+			}
+			try {
+				await saveClineModelContextWindowOverride(workspaceId, {
+					providerId: clineSettings.providerId,
+					modelId: clineSettings.modelId,
+					endpoint: clineSettings.baseUrl?.trim() || null,
+					contextWindow,
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setClineSetupError(message);
+				return { ok: false, message };
+			}
+		}
 		if (firstRunRoles) {
 			try {
 				await saveRuntimeConfig(workspaceId, { modelRoles: firstRunRoles });
@@ -517,7 +543,14 @@ export function TaskStartAgentOnboardingCarousel({
 		}
 		onClineSetupSaved?.();
 		return { ok: true };
-	}, [activeAgentId, clineSettings, onClineSetupSaved, runtimeConfig?.modelRoles, workspaceId]);
+	}, [
+		activeAgentId,
+		clineContextWindowInput,
+		clineSettings,
+		onClineSetupSaved,
+		runtimeConfig?.modelRoles,
+		workspaceId,
+	]);
 
 	useEffect(() => {
 		onDoneActionChange?.(handleDoneAction);
@@ -639,6 +672,37 @@ export function TaskStartAgentOnboardingCarousel({
 										onError={setClineSetupError}
 										onSaved={onClineSetupSaved}
 									/>
+									<div className="mt-2 rounded-md border border-border bg-surface-1 p-2">
+										<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
+											<div className="min-w-0">
+												<div className="text-[12px] font-medium text-text-primary">Context window</div>
+												<div className="mt-0.5 text-[11px] text-text-secondary">
+													{selectedModelContextWindow
+														? `${selectedModelContextWindow.toLocaleString()} tokens reported`
+														: "No window reported"}
+												</div>
+											</div>
+											<input
+												value={clineContextWindowInput}
+												onChange={(event) => setClineContextWindowInput(event.target.value)}
+												placeholder="64000"
+												inputMode="numeric"
+												className="h-8 min-w-0 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+												aria-label="Cline context window override"
+											/>
+										</div>
+										<div className="mt-2 flex flex-wrap gap-1.5">
+											{(["architect", "worker", "reviewer"] as const).map((roleId) => (
+												<span
+													key={roleId}
+													className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-secondary"
+												>
+													{roleId}: {clineSettings.modelId || "select model"}
+													{clineSettings.reasoningEffort ? ` · ${clineSettings.reasoningEffort}` : ""}
+												</span>
+											))}
+										</div>
+									</div>
 									{clineSetupError ? (
 										<div className="mt-2 rounded-md border border-status-red/30 bg-status-red/5 p-2 text-[12px] text-text-primary">
 											{clineSetupError}

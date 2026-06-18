@@ -1,5 +1,10 @@
 import { isClineProviderAuthenticated } from "@/runtime/native-agent";
-import type { RuntimeAgentId, RuntimeClineProviderSettings, RuntimeModelRoles } from "@/runtime/types";
+import type {
+	RuntimeAgentId,
+	RuntimeClineProviderSettings,
+	RuntimeClineReasoningEffort,
+	RuntimeModelRoles,
+} from "@/runtime/types";
 
 const BUILT_IN_LOCAL_CLINE_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
@@ -57,6 +62,7 @@ export function buildFirstRunLocalModelRoles(input: {
 	providerId: string;
 	modelId: string;
 	baseUrl?: string | null;
+	reasoningEffort?: RuntimeClineReasoningEffort | "" | null;
 }): RuntimeModelRoles | null {
 	const providerId = input.providerId.trim();
 	const modelId = input.modelId.trim();
@@ -86,6 +92,7 @@ export function buildFirstRunLocalModelRoles(input: {
 			...role,
 			providerId,
 			modelId,
+			...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
 		};
 		changed = true;
 	}

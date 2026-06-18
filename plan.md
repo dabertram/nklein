@@ -527,9 +527,10 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       detected local Ollama / LM Studio endpoints and loaded models from the existing provider/model APIs; and
       finishing Cline setup seeds empty architect/worker/reviewer roles from the selected local provider/model
       without overwriting configured role choices or accepting non-local providers. Cline settings now provides
-      explicit per-model context-window Save/Clear controls backed by the MCSR override API. Still open:
-      putting that override flow directly into first-run onboarding, richer role tuning, and a more guided
-      endpoint install/start flow.
+      explicit per-model context-window Save/Clear controls backed by the MCSR override API. First-run
+      onboarding now includes a context-window override input on the Cline setup card and seeds empty model
+      roles with the selected local model plus selected reasoning effort. Still open: a more guided endpoint
+      install/start flow.
 - [x] ~~**Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers
