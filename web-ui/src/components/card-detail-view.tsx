@@ -215,6 +215,138 @@ function getDiagnosticSeverityClassName(severity: RuntimeTaskDiagnosticEvent["se
 	return "text-text-secondary";
 }
 
+interface TaskActivityStep {
+	label: string;
+	status: string;
+	detail: string;
+	tone: "active" | "done" | "waiting" | "issue" | "muted";
+}
+
+function formatActivityTokenCount(tokens: number): string {
+	if (tokens >= 1_000) {
+		return `${Math.round(tokens / 100) / 10}k`;
+	}
+	return String(tokens);
+}
+
+function getActivityToneClassName(tone: TaskActivityStep["tone"]): string {
+	if (tone === "active") {
+		return "border-status-blue text-status-blue";
+	}
+	if (tone === "done") {
+		return "border-status-green text-status-green";
+	}
+	if (tone === "waiting") {
+		return "border-status-gold text-status-gold";
+	}
+	if (tone === "issue") {
+		return "border-status-red text-status-red";
+	}
+	return "border-border-bright text-text-tertiary";
+}
+
+function buildTaskActivitySteps(
+	selection: CardSelection,
+	summary: RuntimeTaskSessionSummary | null,
+): TaskActivityStep[] {
+	const modelParts = [summary?.providerId, summary?.modelId].filter(
+		(part): part is string => typeof part === "string" && part.trim().length > 0,
+	);
+	const contextBreakdown = summary?.contextBudgetBreakdown ?? null;
+	const contextPercent = contextBreakdown
+		? Math.round((contextBreakdown.projectedTokens / contextBreakdown.effectiveContextWindow) * 100)
+		: null;
+	const hookActivity = summary?.latestHookActivity;
+	const acceptanceDetail =
+		selection.column.id === "completed"
+			? "Completed"
+			: selection.column.id === "review"
+				? "Ready for review"
+				: selection.card.autoReviewEnabled
+					? `Auto-review ${selection.card.autoReviewMode ?? "commit"}`
+					: "Manual review";
+	return [
+		{
+			label: "Planning",
+			status: selection.column.id === "planning" ? "In planning" : "Ready",
+			detail: selection.card.startInPlanMode ? "Plan mode requested" : "Execution card",
+			tone: selection.column.id === "planning" ? "active" : "done",
+		},
+		{
+			label: "Routing",
+			status: summary?.state === "running" ? "Selected" : modelParts.length > 0 ? "Known" : "Pending",
+			detail:
+				modelParts.length > 0
+					? modelParts.join(" / ")
+					: (summary?.agentId ?? selection.card.agentId ?? "Default agent"),
+			tone: summary?.state === "running" ? "active" : modelParts.length > 0 ? "done" : "waiting",
+		},
+		{
+			label: "Context",
+			status: contextPercent === null ? "Waiting" : `${Math.min(100, Math.max(0, contextPercent))}%`,
+			detail: contextBreakdown
+				? `${formatActivityTokenCount(contextBreakdown.projectedTokens)} / ${formatActivityTokenCount(
+						contextBreakdown.effectiveContextWindow,
+					)} tokens`
+				: "No budget snapshot yet",
+			tone:
+				contextPercent === null
+					? "waiting"
+					: contextPercent >= 100
+						? "issue"
+						: contextPercent >= 85
+							? "waiting"
+							: "done",
+		},
+		{
+			label: "Tool calls",
+			status: hookActivity?.toolName ? hookActivity.toolName : summary?.state === "running" ? "Active" : "Idle",
+			detail: hookActivity?.activityText ?? "No live tool activity",
+			tone: summary?.state === "running" ? "active" : "muted",
+		},
+		{
+			label: "Acceptance",
+			status: selection.column.title,
+			detail: acceptanceDetail,
+			tone: selection.column.id === "completed" ? "done" : selection.column.id === "review" ? "waiting" : "muted",
+		},
+	];
+}
+
+function TaskActivitySurface({
+	selection,
+	sessionSummary,
+}: {
+	selection: CardSelection;
+	sessionSummary: RuntimeTaskSessionSummary | null;
+}): React.ReactElement {
+	const steps = useMemo(() => buildTaskActivitySteps(selection, sessionSummary), [selection, sessionSummary]);
+	return (
+		<div className="border-b border-border bg-surface-1 px-3 py-2">
+			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
+				<Activity size={14} className="shrink-0 text-text-secondary" />
+				<span>Activity</span>
+				<span className="truncate text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
+			</div>
+			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+				{steps.map((step) => (
+					<div key={step.label} className="min-w-0 rounded-md border border-border bg-surface-0 px-2 py-1.5">
+						<div className="flex min-w-0 items-center gap-1.5">
+							<span
+								className={cn("h-2 w-2 shrink-0 rounded-full border", getActivityToneClassName(step.tone))}
+								aria-hidden="true"
+							/>
+							<span className="truncate text-[11px] font-medium text-text-primary">{step.label}</span>
+							<span className="truncate text-[11px] text-text-tertiary">{step.status}</span>
+						</div>
+						<div className="mt-1 truncate text-[11px] text-text-secondary">{step.detail}</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
 function TaskDiagnosticsPanel({
 	workspaceId,
 	taskId,
@@ -861,6 +993,7 @@ export function CardDetailView({
 									hideExpand
 								/>
 							) : null}
+							<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1001,6 +1134,7 @@ export function CardDetailView({
 										onToggleExpand={handleToggleDiffExpand}
 									/>
 								) : null}
+								<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (

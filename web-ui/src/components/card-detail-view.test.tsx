@@ -545,6 +545,75 @@ describe("CardDetailView", () => {
 		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
 	});
 
+	it("renders the live task activity surface from the session summary", async () => {
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection()}
+					currentProjectId="workspace-1"
+					selectedAgentId="cline"
+					sessionSummary={{
+						taskId: "task-1",
+						state: "running",
+						agentId: "cline",
+						workspacePath: null,
+						pid: null,
+						startedAt: null,
+						updatedAt: Date.now(),
+						lastOutputAt: null,
+						reviewReason: null,
+						exitCode: null,
+						lastHookAt: null,
+						latestHookActivity: {
+							activityText: "Using read_file: src/example.ts",
+							toolName: "read_file",
+							toolInputSummary: "src/example.ts",
+							finalMessage: null,
+							hookEventName: "tool_start",
+							notificationType: null,
+							source: "cline-sdk",
+						},
+						warningMessage: null,
+						providerId: "lmstudio",
+						modelId: "qwen3",
+						endpoint: null,
+						sharedEndpointId: "lmstudio:default",
+						contextBudgetBreakdown: {
+							systemPromptTokens: 100,
+							toolSchemaTokens: 100,
+							taskPromptTokens: 100,
+							userMessageTokens: 100,
+							includedFileContentTokens: 100,
+							otherHistoryTokens: 100,
+							reservedPromptOverheadTokens: 100,
+							reservedOutputTokens: 100,
+							usedWorkingTokens: 800,
+							freeWorkingTokens: 39_200,
+							effectiveContextWindow: 40_000,
+							projectedTokens: 12_000,
+						},
+					}}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Activity");
+		expect(container.textContent).toContain("Routing");
+		expect(container.textContent).toContain("lmstudio / qwen3");
+		expect(container.textContent).toContain("Context");
+		expect(container.textContent).toContain("12k / 40k tokens");
+		expect(container.textContent).toContain("read_file");
+	});
+
 	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {
 		await act(async () => {
 			root.render(

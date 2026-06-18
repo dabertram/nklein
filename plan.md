@@ -513,10 +513,14 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       embedding provider/model, cache path, and search availability). The board Local swarm strip now also
       shows a compact code-intelligence chip (`ready`, `issue`, repo-map ready, or code-index coverage).
       Still open: live indexing/build progress while a task is actively using these tools.
-- [ ] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
+- [~] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw
-      detail for technical users; collapsed to a plain status for everyone else.
+      detail for technical users; collapsed to a plain status for everyone else. **Progress:** card detail now
+      includes a compact Activity surface above diagnostics, populated from the selected card and live session
+      summary: planning/execution state, provider/model routing, context-budget usage, current tool activity,
+      and acceptance/review state. Still open: explicit routing rationale, retrieval/indexing progress,
+      acceptance-gate result history, and merge-step status as first-class expandable events.
 - [ ] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
       and explained in plain language with an "advanced" reveal for raw values: model roles & roster,
       per-model context-window override, routing/guard thresholds, concurrency cap,
@@ -532,7 +536,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 
       | Capability | Primary Surface | Remaining Visibility Gap |
       | --- | --- | --- |
-      | Local-only routing / cloud blocks | model picker, blocked card reason, start errors | none known |
+      | Local-only routing / cloud blocks | model picker, blocked card reason, start errors, card Activity surface | routing rationale detail |
       | MCSR model stats | Cline chat Model Telemetry panel | consider global/settings promotion |
       | Effective context budget | Cline chat segmented bar, running-card mini bar | none known |
       | Decomposition plans | Planning lane cards, plan artifact paths | DAG review graph |
