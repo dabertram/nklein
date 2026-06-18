@@ -14,12 +14,14 @@ const {
 	mockDiffViewerPanel,
 	mockClineAppendToDraft,
 	mockClineSendText,
+	mockFetchTaskDiagnostics,
 } = vi.hoisted(() => ({
 	mockAgentTerminalPanel: vi.fn((_props: { panelBackgroundColor?: string; terminalBackgroundColor?: string }) => null),
 	mockClineAgentChatPanel: vi.fn((..._args: unknown[]) => null),
 	mockDiffViewerPanel: vi.fn((..._args: unknown[]) => null),
 	mockClineAppendToDraft: vi.fn(),
 	mockClineSendText: vi.fn(async () => {}),
+	mockFetchTaskDiagnostics: vi.fn(async () => ({ ok: true, events: [] })),
 }));
 
 vi.mock("react-hotkeys-hook", () => ({
@@ -66,6 +68,10 @@ vi.mock("@/resize/resizable-bottom-pane", () => ({
 
 vi.mock("@/runtime/use-runtime-workspace-changes", () => ({
 	useRuntimeWorkspaceChanges: (...args: unknown[]) => mockUseRuntimeWorkspaceChanges(...args),
+}));
+
+vi.mock("@/runtime/runtime-config-query", () => ({
+	fetchTaskDiagnostics: mockFetchTaskDiagnostics,
 }));
 
 vi.mock("@/stores/workspace-metadata-store", () => ({
@@ -184,6 +190,8 @@ describe("CardDetailView", () => {
 		mockDiffViewerPanel.mockClear();
 		mockClineAppendToDraft.mockClear();
 		mockClineSendText.mockClear();
+		mockFetchTaskDiagnostics.mockReset();
+		mockFetchTaskDiagnostics.mockResolvedValue({ ok: true, events: [] });
 		mockUseRuntimeWorkspaceChanges.mockReturnValue({
 			changes: {
 				files: [
@@ -264,6 +272,61 @@ describe("CardDetailView", () => {
 
 		expect(container.querySelector('button[aria-label="Collapse expanded diff view"]')).toBeNull();
 		expect(container.querySelector('button[aria-label="Expand split diff view"]')).toBeInstanceOf(HTMLButtonElement);
+	});
+
+	it("loads local diagnostics for the selected card", async () => {
+		mockFetchTaskDiagnostics.mockResolvedValue({
+			ok: true,
+			events: [
+				{
+					schemaVersion: 1,
+					signal: "plan_gap",
+					severity: "warning",
+					message: "Missing integration step",
+					taskId: "task-1",
+					runId: null,
+					providerId: "ollama",
+					modelId: "qwen",
+					workspacePath: null,
+					createdAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+				},
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection()}
+					currentProjectId="workspace-1"
+					sessionSummary={null}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		const diagnosticsButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Diagnostics"),
+		);
+		expect(diagnosticsButton).toBeInstanceOf(HTMLButtonElement);
+		if (!(diagnosticsButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected diagnostics button.");
+		}
+
+		await act(async () => {
+			diagnosticsButton.click();
+		});
+
+		expect(mockFetchTaskDiagnostics).toHaveBeenCalledWith("workspace-1", "task-1", 20);
+		expect(container.textContent).toContain("plan_gap");
+		expect(container.textContent).toContain("Missing integration step");
 	});
 
 	it("clears stale diff content when switching from all changes to last turn", async () => {

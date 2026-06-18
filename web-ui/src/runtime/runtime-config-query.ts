@@ -38,6 +38,7 @@ import type {
 	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskDiagnosticsResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
 
@@ -164,6 +165,15 @@ export async function fetchClineCodeIntelligenceStatus(
 ): Promise<RuntimeClineCodeIntelligenceStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getClineCodeIntelligenceStatus.query();
+}
+
+export async function fetchTaskDiagnostics(
+	workspaceId: string | null,
+	taskId: string,
+	limit?: number,
+): Promise<RuntimeTaskDiagnosticsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTaskDiagnostics.query({ taskId, limit });
 }
 
 export async function buildClineAdvisorRequest(

@@ -2,7 +2,11 @@ import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { LocalSelfObservationSink, resolveSelfObservationLogPath } from "../../../src/telemetry/self-observation-sink";
+import {
+	LocalSelfObservationSink,
+	readSelfObservationEvents,
+	resolveSelfObservationLogPath,
+} from "../../../src/telemetry/self-observation-sink";
 
 async function createTelemetryRoot(): Promise<string> {
 	return await mkdtemp(join(tmpdir(), "kanban-self-observation-"));
@@ -80,6 +84,63 @@ describe("self observation sink", () => {
 		});
 
 		await expect(readFile(join(rootDir, "2026-01-03.jsonl"), "utf8")).resolves.toContain("Backfilled event");
+	});
+
+	it("reads recent task-scoped telemetry newest first", async () => {
+		const rootDir = await createTelemetryRoot();
+		const sink = new LocalSelfObservationSink({ rootDir });
+
+		await sink.record({
+			signal: "runtime_error",
+			severity: "error",
+			message: "Older task event",
+			taskId: "task-1",
+			createdAt: Date.UTC(2026, 0, 2, 3, 0, 0),
+		});
+		await sink.record({
+			signal: "plan_gap",
+			severity: "warning",
+			message: "Other task event",
+			taskId: "task-2",
+			createdAt: Date.UTC(2026, 0, 3, 3, 0, 0),
+		});
+		await sink.record({
+			signal: "tool_error",
+			severity: "warning",
+			message: "Newer task event",
+			taskId: "task-1",
+			createdAt: Date.UTC(2026, 0, 4, 3, 0, 0),
+		});
+		await writeFile(join(rootDir, "2026-01-05.jsonl"), "{not json}\n", "utf8");
+
+		const events = await readSelfObservationEvents({ rootDir, taskId: "task-1", limit: 5 });
+
+		expect(events.map((event) => event.message)).toEqual(["Newer task event", "Older task event"]);
+		expect(events.every((event) => event.taskId === "task-1")).toBe(true);
+	});
+
+	it("limits telemetry reads", async () => {
+		const rootDir = await createTelemetryRoot();
+		const sink = new LocalSelfObservationSink({ rootDir });
+
+		await sink.record({
+			signal: "custom",
+			severity: "info",
+			message: "First",
+			taskId: "task-1",
+			createdAt: Date.UTC(2026, 0, 2, 1, 0, 0),
+		});
+		await sink.record({
+			signal: "custom",
+			severity: "info",
+			message: "Second",
+			taskId: "task-1",
+			createdAt: Date.UTC(2026, 0, 2, 2, 0, 0),
+		});
+
+		await expect(readSelfObservationEvents({ rootDir, taskId: "task-1", limit: 1 })).resolves.toMatchObject([
+			{ message: "Second" },
+		]);
 	});
 
 	it("prunes daily telemetry files outside retention", async () => {

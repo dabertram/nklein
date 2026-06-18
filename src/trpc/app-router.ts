@@ -87,6 +87,8 @@ import type {
 	RuntimeTaskChatReloadResponse,
 	RuntimeTaskChatSendRequest,
 	RuntimeTaskChatSendResponse,
+	RuntimeTaskDiagnosticsRequest,
+	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskSessionInputRequest,
 	RuntimeTaskSessionInputResponse,
 	RuntimeTaskSessionStartRequest,
@@ -190,6 +192,8 @@ import {
 	runtimeTaskChatReloadResponseSchema,
 	runtimeTaskChatSendRequestSchema,
 	runtimeTaskChatSendResponseSchema,
+	runtimeTaskDiagnosticsRequestSchema,
+	runtimeTaskDiagnosticsResponseSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionInputResponseSchema,
 	runtimeTaskSessionStartRequestSchema,
@@ -252,6 +256,10 @@ export interface RuntimeTrpcContext {
 			input: RuntimeSwarmStopRequest,
 		) => Promise<RuntimeSwarmStopResponse>;
 		clearSwarmStop: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeSwarmStopResponse>;
+		getTaskDiagnostics: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskDiagnosticsRequest,
+		) => Promise<RuntimeTaskDiagnosticsResponse>;
 		sendTaskSessionInput: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionInputRequest,
@@ -528,6 +536,12 @@ export const runtimeAppRouter = t.router({
 		clearSwarmStop: workspaceProcedure.output(runtimeSwarmStopResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.runtimeApi.clearSwarmStop(ctx.workspaceScope);
 		}),
+		getTaskDiagnostics: workspaceProcedure
+			.input(runtimeTaskDiagnosticsRequestSchema)
+			.output(runtimeTaskDiagnosticsResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getTaskDiagnostics(ctx.workspaceScope, input);
+			}),
 		sendTaskSessionInput: workspaceProcedure
 			.input(runtimeTaskSessionInputRequestSchema)
 			.output(runtimeTaskSessionInputResponseSchema)

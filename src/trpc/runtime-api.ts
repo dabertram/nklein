@@ -72,6 +72,7 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
+import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { resolveTaskCwd } from "../workspace/task-worktree";
@@ -346,6 +347,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return {
 				ok: true,
 				signal: null,
+			};
+		},
+		getTaskDiagnostics: async (_workspaceScope, input) => {
+			return {
+				ok: true,
+				events: await readSelfObservationEvents({
+					taskId: input.taskId,
+					limit: input.limit ?? 25,
+				}),
 			};
 		},
 		saveClineProviderSettings: async (_workspaceScope, input) => {

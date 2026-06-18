@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readdir, unlink } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -48,6 +48,13 @@ export interface SelfObservationSinkOptions {
 export interface SelfObservationSink {
 	record(event: SelfObservationEventInput): Promise<void>;
 	getLogPath(timestamp?: number): string;
+}
+
+export interface ReadSelfObservationEventsOptions {
+	rootDir?: string;
+	taskId?: string | null;
+	limit?: number;
+	now?: number;
 }
 
 const DEFAULT_SELF_OBSERVATION_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
@@ -130,6 +137,98 @@ function normalizeEvent(input: SelfObservationEventInput, now: number): SelfObse
 
 export function resolveSelfObservationLogPath(rootDir: string | undefined, timestamp: number): string {
 	return join(resolveRootDir(rootDir), `${formatLogDate(timestamp)}.jsonl`);
+}
+
+function isSelfObservationSignal(value: unknown): value is SelfObservationSignal {
+	return (
+		value === "runtime_error" ||
+		value === "provider_error" ||
+		value === "tool_error" ||
+		value === "context_overflow" ||
+		value === "verification_failed" ||
+		value === "slow_turn" ||
+		value === "budget_wall" ||
+		value === "repeated_read" ||
+		value === "tool_argument_error" ||
+		value === "task_abandoned" ||
+		value === "task_escalated" ||
+		value === "decomposition_rejected" ||
+		value === "plan_gap" ||
+		value === "eval_score" ||
+		value === "custom"
+	);
+}
+
+function isSelfObservationSeverity(value: unknown): value is SelfObservationSeverity {
+	return value === "debug" || value === "info" || value === "warning" || value === "error";
+}
+
+function parseSelfObservationEventRecord(line: string): SelfObservationEventRecord | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(line);
+	} catch {
+		return null;
+	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return null;
+	}
+	const record = parsed as Record<string, unknown>;
+	if (
+		record.schemaVersion !== 1 ||
+		!isSelfObservationSignal(record.signal) ||
+		!isSelfObservationSeverity(record.severity) ||
+		typeof record.message !== "string" ||
+		typeof record.createdAt !== "number"
+	) {
+		return null;
+	}
+	return {
+		schemaVersion: 1,
+		signal: record.signal,
+		severity: record.severity,
+		message: record.message,
+		taskId: typeof record.taskId === "string" ? record.taskId : null,
+		runId: typeof record.runId === "string" ? record.runId : null,
+		providerId: typeof record.providerId === "string" ? record.providerId : null,
+		modelId: typeof record.modelId === "string" ? record.modelId : null,
+		workspacePath: typeof record.workspacePath === "string" ? record.workspacePath : null,
+		metadata:
+			record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+				? (record.metadata as Record<string, unknown>)
+				: undefined,
+		createdAt: record.createdAt,
+	};
+}
+
+export async function readSelfObservationEvents(
+	options: ReadSelfObservationEventsOptions = {},
+): Promise<SelfObservationEventRecord[]> {
+	const rootDir = resolveRootDir(options.rootDir);
+	const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 50)));
+	const normalizedTaskId = normalizeOptionalString(options.taskId);
+	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+	const logFiles = entries
+		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+		.map((entry) => entry.name)
+		.sort()
+		.reverse();
+	const events: SelfObservationEventRecord[] = [];
+	for (const fileName of logFiles) {
+		const text = await readFile(join(rootDir, fileName), "utf8").catch(() => "");
+		const records = text
+			.split("\n")
+			.filter(Boolean)
+			.map(parseSelfObservationEventRecord)
+			.filter((record): record is SelfObservationEventRecord => record !== null)
+			.filter((record) => !normalizedTaskId || record.taskId === normalizedTaskId)
+			.sort((left, right) => right.createdAt - left.createdAt);
+		events.push(...records);
+		if (events.length >= limit) {
+			return events.slice(0, limit);
+		}
+	}
+	return events;
 }
 
 export class LocalSelfObservationSink implements SelfObservationSink {

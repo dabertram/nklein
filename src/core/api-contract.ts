@@ -1321,6 +1321,50 @@ export const runtimeSwarmStopResponseSchema = z.object({
 });
 export type RuntimeSwarmStopResponse = z.infer<typeof runtimeSwarmStopResponseSchema>;
 
+export const runtimeTaskDiagnosticsRequestSchema = z.object({
+	taskId: z.string(),
+	limit: z.number().int().positive().max(100).optional(),
+});
+export type RuntimeTaskDiagnosticsRequest = z.infer<typeof runtimeTaskDiagnosticsRequestSchema>;
+
+export const runtimeTaskDiagnosticEventSchema = z.object({
+	schemaVersion: z.literal(1),
+	signal: z.enum([
+		"runtime_error",
+		"provider_error",
+		"tool_error",
+		"context_overflow",
+		"verification_failed",
+		"slow_turn",
+		"budget_wall",
+		"repeated_read",
+		"tool_argument_error",
+		"task_abandoned",
+		"task_escalated",
+		"decomposition_rejected",
+		"plan_gap",
+		"eval_score",
+		"custom",
+	]),
+	severity: z.enum(["debug", "info", "warning", "error"]),
+	message: z.string(),
+	taskId: z.string().nullable().optional(),
+	runId: z.string().nullable().optional(),
+	providerId: z.string().nullable().optional(),
+	modelId: z.string().nullable().optional(),
+	workspacePath: z.string().nullable().optional(),
+	metadata: z.record(z.string(), z.unknown()).optional(),
+	createdAt: z.number(),
+});
+export type RuntimeTaskDiagnosticEvent = z.infer<typeof runtimeTaskDiagnosticEventSchema>;
+
+export const runtimeTaskDiagnosticsResponseSchema = z.object({
+	ok: z.boolean(),
+	events: z.array(runtimeTaskDiagnosticEventSchema),
+	error: z.string().optional(),
+});
+export type RuntimeTaskDiagnosticsResponse = z.infer<typeof runtimeTaskDiagnosticsResponseSchema>;
+
 export const runtimeTaskSessionInputRequestSchema = z.object({
 	taskId: z.string(),
 	text: z.string(),

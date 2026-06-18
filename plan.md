@@ -484,10 +484,12 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
       Planning lane before cards flow to execution. Keep it lightweight (existing board primitives or a
       small graph lib).
-- [ ] **Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
+- [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"
-      advisor.
+      advisor.~~ The telemetry sink now has a bounded JSONL reader, runtime exposes typed
+      `getTaskDiagnostics`, and the card detail view includes a collapsible Diagnostics panel that loads
+      recent local events for the selected task without invoking an LLM.
 - [ ] **First-run local-model setup wizard.** On first launch (or when no local model is configured),
       detect running Ollama / LM Studio endpoints, list loaded models, let the user set context windows and
       assign roles (architect/worker/reviewer → `modelRoles`). Directly fixes today's cloud-defaulted,
