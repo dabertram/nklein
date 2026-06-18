@@ -23,6 +23,7 @@ import type { BranchSelectOption } from "@/components/branch-select-dropdown";
 import { BranchSelectDropdown } from "@/components/branch-select-dropdown";
 import { TaskAgentModelPicker, useTaskAgentModelPicker } from "@/components/task-agent-model-picker";
 import { TaskPromptComposer } from "@/components/task-prompt-composer";
+import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -448,8 +449,8 @@ export function TaskCreateDialog({
 							workspaceId={workspaceId}
 							showAttachImageButton={false}
 						/>
-						<div className="flex items-center justify-between mt-1.5">
-							<p className="text-[11px] text-text-tertiary">
+						<div className="flex flex-col gap-2 mt-1.5 sm:flex-row sm:items-center sm:justify-between">
+							<p className="mb-0 text-[11px] text-text-tertiary">
 								Use <code className="rounded bg-surface-3 px-1 py-px font-mono text-[11px]">@file</code> to
 								reference files. Drag and drop or{" "}
 								<code className="rounded bg-surface-3 px-1 py-px font-mono text-[11px]">
@@ -457,16 +458,19 @@ export function TaskCreateDialog({
 								</code>{" "}
 								to add images.
 							</p>
-							{detectedItems.length >= 2 ? (
-								<button
-									type="button"
-									onClick={handleSplitIntoTasks}
-									className="inline-flex items-center gap-1.5 text-[12px] text-status-blue hover:text-[#86BEFF] cursor-pointer shrink-0"
-								>
-									<List size={12} />
-									Split into {detectedItems.length} tasks
-								</button>
-							) : null}
+							<div className="flex shrink-0 flex-wrap items-center gap-2">
+								<TaskPromptTemplateMenu onSelectTemplate={onPromptChange} />
+								{detectedItems.length >= 2 ? (
+									<button
+										type="button"
+										onClick={handleSplitIntoTasks}
+										className="inline-flex items-center gap-1.5 text-[12px] text-status-blue hover:text-[#86BEFF] cursor-pointer shrink-0"
+									>
+										<List size={12} />
+										Split into {detectedItems.length} tasks
+									</button>
+								) : null}
+							</div>
 						</div>
 					</div>
 				) : (

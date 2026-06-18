@@ -7,6 +7,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { BranchSelectDropdown, type BranchSelectOption } from "@/components/branch-select-dropdown";
 import { TaskAgentModelPicker, useTaskAgentModelPicker } from "@/components/task-agent-model-picker";
 import { TaskPromptComposer } from "@/components/task-prompt-composer";
+import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { RuntimeAgentId, RuntimeClineReasoningEffort, RuntimeTaskClineSettings } from "@/runtime/types";
@@ -240,6 +241,9 @@ export function TaskInlineCreateCard({
 					<code className="rounded bg-surface-3 px-1 py-px font-mono text-[11px]">{pasteShortcutLabel}</code> to
 					add images.
 				</p>
+				<div className="mt-2">
+					<TaskPromptTemplateMenu onSelectTemplate={onPromptChange} />
+				</div>
 			</div>
 
 			<div className="flex flex-col gap-2 mt-3">

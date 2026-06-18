@@ -249,7 +249,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] Lost-session recovery + observable auto-review are present; keep them surfaced.
 
 ### G3. Features (user-workflow leverage)
-- [ ] Prompt-template / quick-start library (the create-task flow has none today).
+- [x] Prompt-template / quick-start library (the create-task flow has none today).
 - [ ] "Import context into a task" from a file, a GitHub issue (`gh issue view`), or a PR diff.
 - [x] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
 - [x] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
