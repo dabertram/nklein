@@ -180,7 +180,9 @@ export default function App(): ReactElement {
 		debugModeEnabled,
 		isDebugDialogOpen,
 		isResetAllStatePending,
+		dataDirectoryPath,
 		handleOpenDebugDialog,
+		handleOpenDataDirectory,
 		handleShowStartupOnboardingDialog,
 		handleDebugDialogOpenChange,
 		handleResetAllState,
@@ -1221,6 +1223,8 @@ export default function App(): ReactElement {
 					open={isDebugDialogOpen}
 					onOpenChange={handleDebugDialogOpenChange}
 					isResetAllStatePending={isResetAllStatePending}
+					dataDirectoryPath={dataDirectoryPath}
+					onOpenDataDirectory={handleOpenDataDirectory}
 					onShowStartupOnboardingDialog={handleShowStartupOnboardingDialog}
 					onResetAllState={handleResetAllState}
 				/>

@@ -8,6 +8,7 @@
 - Taught the desktop runtime health probe to recognize both the current `!Klein` browser title and the legacy `Kanban` title during the rename transition, so packaged shells can still attach to already-running older runtimes.
 - Added a small brand-regression guard that scans UI/CLI user-visible strings and fails if a new accidental app-brand `Cline`/`Kanban` string slips back in outside the explicit engine/legacy allowlist.
 - Hid cloud-only Cline account/sign-in affordances in the local-only UI, filtered cloud providers out of task/setup/settings pickers, gated Featurebase/cloud feedback behind the shared runtime cloud-support flag, and removed the `Cloud` timeout-profile option when cloud providers are disabled.
+- Added an `Open data dir` shortcut to Developer Tools, verified the gated dev-test sidebar tools are present in the web UI, and cleaned up stale follow-up checklist statuses so the docs match the shipped debug/developer surfaces.
 - Added automatic migration from legacy `~/.cline/kanban` runtime data into `~/.cline/nklein`, plus browser localStorage key migration from `kanban.*` to `nklein.*`, so existing installs keep their plans, telemetry, dev runs, config, code index, and UI preferences.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.

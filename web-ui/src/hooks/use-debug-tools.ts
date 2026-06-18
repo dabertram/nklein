@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { notifyError } from "@/components/app-toaster";
-import { resetRuntimeDebugState } from "@/runtime/runtime-config-query";
+import { openFileOnHost, resetRuntimeDebugState } from "@/runtime/runtime-config-query";
 import type { RuntimeConfigResponse } from "@/runtime/types";
 
 interface UseDebugToolsParams {
@@ -14,10 +14,26 @@ interface UseDebugToolsResult {
 	debugModeEnabled: boolean;
 	isDebugDialogOpen: boolean;
 	isResetAllStatePending: boolean;
+	dataDirectoryPath: string | null;
 	handleOpenDebugDialog: () => void;
+	handleOpenDataDirectory: () => void;
 	handleShowStartupOnboardingDialog: () => void;
 	handleDebugDialogOpenChange: (nextOpen: boolean) => void;
 	handleResetAllState: () => void;
+}
+
+function resolveRuntimeDataDirectoryPath(config: RuntimeConfigResponse | null): string | null {
+	const globalConfigPath = config?.globalConfigPath?.trim() ?? "";
+	if (!globalConfigPath) {
+		return null;
+	}
+	if (globalConfigPath.endsWith("/config.json")) {
+		return globalConfigPath.slice(0, -"/config.json".length);
+	}
+	if (globalConfigPath.endsWith("\\config.json")) {
+		return globalConfigPath.slice(0, -"\\config.json".length);
+	}
+	return null;
 }
 
 export function useDebugTools({
@@ -29,6 +45,9 @@ export function useDebugTools({
 	const [isResetAllStatePending, setIsResetAllStatePending] = useState(false);
 	const debugModeEnabled =
 		(settingsRuntimeProjectConfig?.debugModeEnabled ?? runtimeProjectConfig?.debugModeEnabled ?? false) === true;
+	const dataDirectoryPath =
+		resolveRuntimeDataDirectoryPath(settingsRuntimeProjectConfig) ??
+		resolveRuntimeDataDirectoryPath(runtimeProjectConfig);
 
 	const handleOpenDebugDialog = useCallback(() => {
 		setIsDebugDialogOpen(true);
@@ -42,6 +61,17 @@ export function useDebugTools({
 		setIsDebugDialogOpen(false);
 		onOpenStartupOnboardingDialog();
 	}, [onOpenStartupOnboardingDialog]);
+
+	const handleOpenDataDirectory = useCallback(() => {
+		if (!dataDirectoryPath) {
+			notifyError("Could not determine the !Klein data directory.");
+			return;
+		}
+		void openFileOnHost(null, dataDirectoryPath).catch((error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			notifyError(`Could not open !Klein data directory: ${message}`);
+		});
+	}, [dataDirectoryPath]);
 
 	const handleResetAllState = useCallback(() => {
 		if (isResetAllStatePending) {
@@ -66,7 +96,9 @@ export function useDebugTools({
 		debugModeEnabled,
 		isDebugDialogOpen,
 		isResetAllStatePending,
+		dataDirectoryPath,
 		handleOpenDebugDialog,
+		handleOpenDataDirectory,
 		handleShowStartupOnboardingDialog,
 		handleDebugDialogOpenChange,
 		handleResetAllState,

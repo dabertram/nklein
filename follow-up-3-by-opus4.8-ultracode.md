@@ -127,8 +127,8 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 ### B2. Confirmed-open / verify
 - [~] **Persistence-ownership split (follow-up-2 F3).** The F3 section is checked `[x]`, but the "Suggested implementation order" line 296 still shows it `[ ]`, and a sub-agent flagged it partial. **Action:** verify whether board saves can still overwrite runtime-owned session state. If not fully split: board persistence owns cards/lanes/deps/meta; runtime services own session/heartbeat/checkpoints/progress; stop UI board saves from carrying session snapshots. Files: `src/state/workspace-state.ts`, `src/trpc/runtime-api.ts`, the board-save path.
 - [ ] **Real semantic embeddings (plan.md M2/M3).** Still lexical bag-of-words (`kanban-local-lexical-vector-v1`), honestly labeled but not semantic. See §F1.
-- [~] **Dev-test web UI (follow-up-2 F6).** F6 claims dev-test creation moved into a gated Developer Tools area, but a sub-agent found no web-ui trigger (only CLI/tRPC). **Verify**; feeds §C.
-- [ ] **Doc hygiene:** fix `follow-up-2-by-gpt5.5-medium.md` so the "Suggested implementation order" checkboxes (items 4 & 7) match the completed sections — they're stale and misleading.
+- [x] **Dev-test web UI (follow-up-2 F6).** Verified: `web-ui/src/components/project-navigation-panel.tsx` already exposes gated dev-test creation/cleanup and evidence-path actions in debug mode, with coverage in `project-navigation-panel.test.tsx`.
+- [x] **Doc hygiene:** fixed `follow-up-2-by-gpt5.5-medium.md` so the "Suggested implementation order" checkboxes (items 4 & 7) match the completed sections.
 - [x] Confirm `CHANGELOG.md [Upcoming]` reflects this pass (rename + any items implemented).
 
 ---
@@ -252,7 +252,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [ ] Prompt-template / quick-start library (the create-task flow has none today).
 - [ ] "Import context into a task" from a file, a GitHub issue (`gh issue view`), or a PR diff.
 - [ ] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
-- [ ] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
+- [x] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
 - [ ] Consolidated evidence/diff viewer panel (ties to §C1).
 
 ### G4. Observability

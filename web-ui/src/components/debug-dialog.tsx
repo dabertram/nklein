@@ -1,4 +1,4 @@
-import { Bug, RotateCcw } from "lucide-react";
+import { Bug, FolderOpen, RotateCcw } from "lucide-react";
 import { type ReactElement, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,16 @@ export function DebugDialog({
 	open,
 	onOpenChange,
 	isResetAllStatePending,
+	dataDirectoryPath,
+	onOpenDataDirectory,
 	onShowStartupOnboardingDialog,
 	onResetAllState,
 }: {
 	open: boolean;
 	onOpenChange: (nextOpen: boolean) => void;
 	isResetAllStatePending: boolean;
+	dataDirectoryPath: string | null;
+	onOpenDataDirectory: () => void;
 	onShowStartupOnboardingDialog: () => void;
 	onResetAllState: () => void;
 }): ReactElement {
@@ -57,6 +61,26 @@ export function DebugDialog({
 							className="mt-3"
 						>
 							Show onboarding
+						</Button>
+					</div>
+					<div className="rounded-md border border-border bg-surface-2 p-3">
+						<p className="text-sm font-medium text-text-primary">Open data directory</p>
+						<p className="mt-1 text-xs text-text-secondary">
+							Open <code>~/.cline/nklein</code> so you can inspect plans, telemetry, config, and dev-run evidence
+							on disk.
+						</p>
+						{dataDirectoryPath ? (
+							<p className="mt-2 mb-0 break-all font-mono text-[11px] text-text-tertiary">{dataDirectoryPath}</p>
+						) : null}
+						<Button
+							variant="default"
+							size="sm"
+							icon={<FolderOpen size={14} />}
+							disabled={isResetAllStatePending || !dataDirectoryPath}
+							onClick={onOpenDataDirectory}
+							className="mt-3"
+						>
+							Open data dir
 						</Button>
 					</div>
 					<div className="rounded-md border border-border bg-surface-2 p-3">
