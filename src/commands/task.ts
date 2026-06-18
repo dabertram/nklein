@@ -1502,6 +1502,26 @@ export function addPlanGapIntegrationCardToBoard(input: {
 	};
 }
 
+export function buildPlanGapIntegrationRevision(input: {
+	taskId: string;
+	integrationTaskId: string;
+	description: string;
+	evidence?: string | null;
+}): {
+	kind: string;
+	description: string;
+	evidence: string | null;
+} {
+	const evidence = input.evidence?.trim() ? input.evidence.trim() : null;
+	return {
+		kind: "integration_card_added",
+		description: `Added Planning integration card "${input.integrationTaskId}" for plan gap reported by task "${input.taskId}": ${
+			input.description.trim() || "missing integration work"
+		}`,
+		evidence,
+	};
+}
+
 async function createIntegrationCardForMergeConflict(input: {
 	workspaceRepoPath: string;
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
@@ -1620,7 +1640,7 @@ async function recordTaskPlanGapCommand(input: {
 		description: input.description,
 		evidence: input.evidence,
 	});
-	const revisionsPath = input.planSlug?.trim()
+	let revisionsPath = input.planSlug?.trim()
 		? await appendClinePlanRevision({
 				workspacePath: workspaceRepoPath,
 				slug: input.planSlug,
@@ -1655,6 +1675,23 @@ async function recordTaskPlanGapCommand(input: {
 		integrationTask = mutation.value;
 		if (mutation.saved) {
 			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
+		}
+		const integrationTaskId = typeof integrationTask.id === "string" ? integrationTask.id : null;
+		if (integrationTaskId && input.planSlug?.trim()) {
+			const revision = buildPlanGapIntegrationRevision({
+				taskId: input.taskId,
+				integrationTaskId,
+				description: input.description,
+				evidence: input.evidence,
+			});
+			revisionsPath = await appendClinePlanRevision({
+				workspacePath: workspaceRepoPath,
+				slug: input.planSlug,
+				taskId: input.taskId,
+				kind: revision.kind,
+				description: revision.description,
+				evidence: revision.evidence ?? undefined,
+			});
 		}
 	}
 	return {

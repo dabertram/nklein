@@ -444,9 +444,10 @@ plowing ahead or silently failing.
       flag "revised" cards. **Progress:** new decomposition plans now include a first-class
       `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
       `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
-      integration-card adaptation returns the created Planning card alongside the gap response. Still open:
-      append concrete revision entries when automatic adaptation adds/splits/re-links cards without an
-      explicit plan slug.
+      integration-card adaptation returns the created Planning card alongside the gap response and appends a
+      concrete `integration_card_added` revision entry when a plan slug is available. Still open: infer the
+      relevant plan slug for automatic adaptation when callers omit it, and append concrete revision entries
+      when future automatic splits/re-links land.
 
 ---
 

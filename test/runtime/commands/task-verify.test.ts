@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	addPlanGapIntegrationCardToBoard,
+	buildPlanGapIntegrationRevision,
 	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
@@ -352,5 +353,21 @@ describe("task plan-gap adaptation", () => {
 		expect(planningCard?.prompt).toContain('reported by task "task-1"');
 		expect(planningCard?.prompt).toContain("shared migration");
 		expect(planningCard?.prompt).toContain("Evidence: src/api.ts");
+	});
+
+	it("formats the automatic integration-card revision entry", () => {
+		const revision = buildPlanGapIntegrationRevision({
+			taskId: "task-1",
+			integrationTaskId: "abcde",
+			description: "The API and UI cards need shared payload migration glue.",
+			evidence: "src/api.ts and web-ui/src/form.ts disagree.",
+		});
+
+		expect(revision).toEqual({
+			kind: "integration_card_added",
+			description:
+				'Added Planning integration card "abcde" for plan gap reported by task "task-1": The API and UI cards need shared payload migration glue.',
+			evidence: "src/api.ts and web-ui/src/form.ts disagree.",
+		});
 	});
 });
