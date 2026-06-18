@@ -455,9 +455,12 @@ Default to a clean summary; reveal depth on demand (expanders, tooltips, an "adv
 The hard rule: **no capability we built since branching from `main` is invisible** — if it runs, the user
 can see *that* it ran, *what* it decided, and *why*, both during work and afterward in settings.
 
-- [ ] **Board as swarm cockpit.** Each running card shows a live mini-status: role/model, a compact form
+- [x] ~~**Board as swarm cockpit.** Each running card shows a live mini-status: role/model, a compact form
       of the L1.6 token bar, tok/s + elapsed (from MCSR / session timing), current tool, and turn count.
-      Reuse the data already flowing through the session summary — no new poll loop.
+      Reuse the data already flowing through the session summary — no new poll loop.~~ Running cards now
+      enrich the existing session activity area with compact token counts, approximate output tok/s, elapsed
+      runtime, current tool/activity, turn checkpoint, and a tiny context-budget bar from the backend
+      breakdown; the existing card model badge continues to show role/model selection.
 - [~] **Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
       utilization, a concurrency-cap slider (wired to `maxConcurrentTasks`, L2.2), and a prominent
       **Pause/Stop swarm** control that fires the L2.4 stop signal. **Progress:** the board now renders a
@@ -496,8 +499,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       **Progress:** settings now has a refreshable Code intelligence panel backed by a typed runtime API.
       It reports repo-map availability/files/symbols/truncation and code-index cache coverage
       (indexed chunks/total chunks, indexed files/total files, stale/missing files, last indexed,
-      embedding provider/model, cache path, and search availability). Still open: board-level chip and live
-      indexing/build progress while a task is actively using these tools.
+      embedding provider/model, cache path, and search availability). The board Local swarm strip now also
+      shows a compact code-intelligence chip (`ready`, `issue`, repo-map ready, or code-index coverage).
+      Still open: live indexing/build progress while a task is actively using these tools.
 - [ ] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw

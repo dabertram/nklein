@@ -34,6 +34,12 @@ interface CardSessionActivity {
 	text: string;
 }
 
+interface ContextBudgetMiniStatus {
+	percent: number;
+	label: string;
+	barClassName: string;
+}
+
 function formatShortAge(timestamp: number | null | undefined): string | null {
 	if (timestamp == null) {
 		return null;
@@ -69,15 +75,61 @@ function formatRunDuration(startedAt: number | null | undefined): string | null 
 	return `${minutes}m`;
 }
 
+function formatCompactTokenCount(tokens: number): string {
+	if (tokens >= 1_000_000) {
+		return `${Math.round(tokens / 100_000) / 10}m`;
+	}
+	if (tokens >= 1_000) {
+		return `${Math.round(tokens / 100) / 10}k`;
+	}
+	return String(tokens);
+}
+
+function buildContextBudgetMiniStatus(summary: RuntimeTaskSessionSummary | undefined): ContextBudgetMiniStatus | null {
+	const breakdown = summary?.contextBudgetBreakdown;
+	if (!breakdown) {
+		return null;
+	}
+	const percent = Math.min(
+		100,
+		Math.max(0, Math.round((breakdown.projectedTokens / breakdown.effectiveContextWindow) * 100)),
+	);
+	const barClassName =
+		percent >= 90
+			? "bg-status-red"
+			: percent >= 75
+				? "bg-status-orange"
+				: percent >= 55
+					? "bg-status-gold"
+					: "bg-status-green";
+	return {
+		percent,
+		label: `Ctx ${percent}%`,
+		barClassName,
+	};
+}
+
 function buildSessionTelemetryLine(summary: RuntimeTaskSessionSummary | undefined): string | null {
 	if (!summary) {
 		return null;
 	}
 	const parts: string[] = [];
 	if (summary.latestUsage) {
-		const inputTokens = Math.round(summary.latestUsage.inputTokens / 100) / 10;
-		const outputTokens = Math.round(summary.latestUsage.outputTokens / 100) / 10;
-		parts.push(`${inputTokens}k in/${outputTokens}k out`);
+		parts.push(
+			`${formatCompactTokenCount(summary.latestUsage.inputTokens)} in/${formatCompactTokenCount(summary.latestUsage.outputTokens)} out`,
+		);
+		const elapsedSeconds = summary.startedAt
+			? Math.max(1, Math.round((Date.now() - summary.startedAt) / 1000))
+			: null;
+		if (summary.state === "running" && elapsedSeconds) {
+			const tokenRate = Math.round((summary.latestUsage.outputTokens / elapsedSeconds) * 10) / 10;
+			if (Number.isFinite(tokenRate) && tokenRate > 0) {
+				parts.push(`${tokenRate} tok/s`);
+			}
+		}
+	}
+	if (summary.latestTurnCheckpoint) {
+		parts.push(`Turn ${summary.latestTurnCheckpoint.turn}`);
 	}
 	const runDuration = formatRunDuration(summary.startedAt);
 	if (summary.state === "running" && runDuration) {
@@ -341,6 +393,7 @@ export function BoardCard({
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
 	const rawSessionActivity = useMemo(() => getCardSessionActivity(sessionSummary), [sessionSummary]);
 	const sessionTelemetryLine = useMemo(() => buildSessionTelemetryLine(sessionSummary), [sessionSummary]);
+	const contextBudgetMiniStatus = useMemo(() => buildContextBudgetMiniStatus(sessionSummary), [sessionSummary]);
 	const lastSessionActivityRef = useRef<CardSessionActivity | null>(null);
 	const lastSessionActivityCardIdRef = useRef<string | null>(null);
 	if (lastSessionActivityCardIdRef.current !== card.id) {
@@ -849,6 +902,19 @@ export function BoardCard({
 											>
 												{sessionTelemetryLine}
 											</p>
+										) : null}
+										{contextBudgetMiniStatus ? (
+											<div className="mt-1 flex h-1.5 items-center gap-1.5">
+												<div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-4">
+													<div
+														className={cn("h-full rounded-sm", contextBudgetMiniStatus.barClassName)}
+														style={{ width: `${contextBudgetMiniStatus.percent}%` }}
+													/>
+												</div>
+												<span className="shrink-0 font-mono text-[10px] leading-none text-text-tertiary">
+													{contextBudgetMiniStatus.label}
+												</span>
+											</div>
 										) : null}
 									</div>
 								</div>

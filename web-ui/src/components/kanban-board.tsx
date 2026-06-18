@@ -8,7 +8,7 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
-import { PauseCircle, PlayCircle } from "lucide-react";
+import { Database, PauseCircle, PlayCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,8 +18,13 @@ import { DependencyOverlay } from "@/components/dependencies/dependency-overlay"
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchClineCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
-import type { RuntimeSwarmStopSignal, RuntimeTaskSessionSummary } from "@/runtime/types";
+import type {
+	RuntimeClineCodeIntelligenceStatusResponse,
+	RuntimeSwarmStopSignal,
+	RuntimeTaskSessionSummary,
+} from "@/runtime/types";
 import { canCreateTaskDependency } from "@/state/board-state";
 import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
@@ -27,6 +32,23 @@ import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/typ
 const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
 
 export type RequestProgrammaticCardMove = (move: ProgrammaticCardMoveInFlight) => boolean;
+
+function formatCodeIntelligenceChip(status: RuntimeClineCodeIntelligenceStatusResponse | null): string {
+	if (!status) {
+		return "Code intel ...";
+	}
+	if (status.repoMap.error || status.codeIndex.error) {
+		return "Code intel issue";
+	}
+	if (status.repoMap.available && status.codeIndex.searchAvailable) {
+		return "Code intel ready";
+	}
+	if (status.codeIndex.totalChunks > 0) {
+		const percent = Math.round((status.codeIndex.indexedChunks / status.codeIndex.totalChunks) * 100);
+		return `Code index ${percent}%`;
+	}
+	return status.repoMap.available ? "Repo map ready" : "Code intel warming";
+}
 
 function isRectVerticallyVisibleWithinContainer(rect: DOMRect, containerRect: DOMRect): boolean {
 	return rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
@@ -103,6 +125,8 @@ export function KanbanBoard({
 		useState<ProgrammaticCardMoveInFlight | null>(null);
 	const [swarmStopSignal, setSwarmStopSignal] = useState<RuntimeSwarmStopSignal | null>(null);
 	const [isSwarmStopLoading, setIsSwarmStopLoading] = useState(false);
+	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
+		useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
 	const dependencyLinking = useDependencyLinking({
 		canLinkTasks: (fromTaskId, toTaskId) => canCreateTaskDependency(data, fromTaskId, toTaskId),
 		onCreateDependency,
@@ -120,6 +144,7 @@ export function KanbanBoard({
 	useEffect(() => {
 		if (!currentProjectId) {
 			setSwarmStopSignal(null);
+			setCodeIntelligenceStatus(null);
 			return;
 		}
 		let cancelled = false;
@@ -133,6 +158,18 @@ export function KanbanBoard({
 			() => {
 				if (!cancelled) {
 					setSwarmStopSignal(null);
+				}
+			},
+		);
+		void fetchClineCodeIntelligenceStatus(currentProjectId).then(
+			(response) => {
+				if (!cancelled) {
+					setCodeIntelligenceStatus(response);
+				}
+			},
+			() => {
+				if (!cancelled) {
+					setCodeIntelligenceStatus(null);
 				}
 			},
 		);
@@ -448,6 +485,10 @@ export function KanbanBoard({
 					<span>Waiting {swarmCounts.waiting}</span>
 					<span>Blocked {swarmCounts.blocked}</span>
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
+					<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">
+						<Database size={12} />
+						{formatCodeIntelligenceChip(codeIntelligenceStatus)}
+					</span>
 				</div>
 				<Button
 					variant={swarmStopSignal ? "default" : "danger"}

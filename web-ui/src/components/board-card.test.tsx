@@ -695,6 +695,50 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("Thinking...");
 	});
 
+	it("shows compact running telemetry and context budget on active cards", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", {
+						startedAt: Date.now() - 10_000,
+						latestUsage: {
+							inputTokens: 12_400,
+							outputTokens: 120,
+						},
+						latestTurnCheckpoint: {
+							turn: 3,
+							ref: "refs/kanban/task-1/turn-3",
+							commit: "abc123",
+							createdAt: Date.now(),
+						},
+						contextBudgetBreakdown: {
+							systemPromptTokens: 100,
+							toolSchemaTokens: 200,
+							taskPromptTokens: 300,
+							userMessageTokens: 100,
+							includedFileContentTokens: 500,
+							otherHistoryTokens: 400,
+							reservedPromptOverheadTokens: 100,
+							reservedOutputTokens: 1_000,
+							usedWorkingTokens: 1_600,
+							freeWorkingTokens: 2_400,
+							effectiveContextWindow: 4_000,
+							projectedTokens: 2_000,
+						},
+					})}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("12.4k in/120 out");
+		expect(container.textContent).toContain("12 tok/s");
+		expect(container.textContent).toContain("Turn 3");
+		expect(container.textContent).toContain("Ctx 50%");
+	});
+
 	it("shows normal agent messages without the agent prefix", async () => {
 		await act(async () => {
 			root.render(
