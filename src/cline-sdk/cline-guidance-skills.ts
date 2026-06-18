@@ -25,6 +25,12 @@ Checklist:
 - For local servers, bind to loopback by default; cookies need HttpOnly, SameSite=Strict, Path, Max-Age, and Secure when TLS is active.
 - For agent writes, preserve protected-test, max-file-size, max-line-count, and secret-scan guardrails.
 
+Example:
+\`\`\`ts
+const secret = findPotentialSecretInText(input.newText);
+if (secret) return { approved: false, reason: \`Blocked write: potential \${secret.label}.\` };
+\`\`\`
+
 !Klein specifics:
 - Runtime security code usually lives in \`src/security/\`, \`src/server/\`, \`src/core/agent-write-guard.ts\`, and \`src/cline-sdk/\`.
 - Desktop hardening lives under \`packages/desktop/src/\`.
@@ -48,6 +54,13 @@ Checklist:
 - Use Lucide icons in icon buttons, Radix for headless controls, and Tailwind v4 utilities over custom CSS.
 - Preserve the always-dark theme. Use tokens such as \`bg-surface-0\`, \`bg-surface-1\`, \`bg-surface-2\`, \`text-text-primary\`, \`text-text-secondary\`, \`border-border\`, and \`text-accent\`.
 - Make mobile and desktop text fit without overlap. Keep fixed-format controls dimensionally stable.
+
+Example:
+\`\`\`tsx
+<Button variant="ghost" size="sm" icon={<Clipboard size={14} />} aria-label="Copy evidence">
+  Copy evidence
+</Button>
+\`\`\`
 
 !Klein specifics:
 - Web UI code lives in \`web-ui/src/components/\`, \`web-ui/src/hooks/\`, \`web-ui/src/state/\`, and \`web-ui/src/runtime/\`.
@@ -73,6 +86,11 @@ Checklist:
 - Prefer structured data parsing over ad hoc string manipulation when a schema or parser exists.
 - Keep edits scoped. Add abstractions only when they reduce real duplication or clarify ownership.
 - Tests should match risk: narrow unit tests for local helpers, broader runtime/integration tests for cross-module behavior.
+
+Example:
+\`\`\`ts
+type EvidenceState = { status: "idle" } | { status: "copying"; taskId: string };
+\`\`\`
 
 !Klein specifics:
 - Root runtime tests live in \`test/runtime/\`; web UI tests live beside components or hooks.

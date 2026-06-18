@@ -229,7 +229,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] Model roles + router (`src/cline-sdk/cline-task-router.ts`) route simple→small, complex→larger-local. Keep; surface the decision in the UI so the operator understands why a model was picked.
 
 ### F5. Few-shot, codebase-specific examples
-- [ ] For matched topics (§E), include 1–2 concrete !Klein code examples in the prompt (a real component using the tokens/primitives). Few-shot from *this* repo beats generic instruction for small models.
+- [x] For matched topics (§E), include 1–2 concrete !Klein code examples in the prompt (a real component using the tokens/primitives). Few-shot from *this* repo beats generic instruction for small models.
 
 ### F6. AGENTS.md discipline
 - [x] !Klein's `AGENTS.md` already follows the high-signal, non-obvious, boundaries-explicit pattern that the 2,500-repo study found effective. Keep resisting verbose auto-generated bloat.
