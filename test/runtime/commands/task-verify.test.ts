@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import {
+	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,
+	addPlanGapScopeCardToBoard,
 	buildPlanGapIntegrationRevision,
 	inferClinePlanSlugForTask,
 	markTaskNeedsDecompositionOnBoard,
@@ -264,8 +266,79 @@ describe("task verify command helper", () => {
 			taskId: "task-1",
 			kind: "missing_dependency",
 			description:
-				"Acceptance failed after repair attempts with output that points to a missing dependency or file the plan did not provide.",
+				"Acceptance failed after repair attempts with output that points to a missing dependency, config, schema, or file the plan did not provide.",
 			evidence: "Command: npm test\nOutput: Error: Cannot find module './auth/types'",
+		});
+	});
+
+	it.each([
+		{
+			name: "missing environment config",
+			output: "DATABASE_URL environment variable DATABASE_URL is not set",
+			kind: "missing_dependency",
+			description:
+				"Acceptance failed after repair attempts with output that points to a missing dependency, config, schema, or file the plan did not provide.",
+		},
+		{
+			name: "missing database schema",
+			output: 'Prisma error: relation "accounts" does not exist. Missing migration?',
+			kind: "missing_dependency",
+			description:
+				"Acceptance failed after repair attempts with output that points to a missing dependency, config, schema, or file the plan did not provide.",
+		},
+		{
+			name: "unresolved product decision",
+			output: "Acceptance blocked: ambiguous behavior, confirm which provider should be the default.",
+			kind: "missing_decision",
+			description:
+				"Acceptance failed after repair attempts with output that points to an unresolved decision or ambiguity in the plan.",
+		},
+		{
+			name: "conflicting requirements",
+			output: "The dark mode requirement conflicts with the fixed light theme requirement.",
+			kind: "contradictory_requirement",
+			description:
+				"Acceptance failed after repair attempts with output that points to contradictory or incompatible plan requirements.",
+		},
+		{
+			name: "resource exhaustion",
+			output: "Context length exceeded after reading too many files; decompose this task before continuing.",
+			kind: "scope_too_large",
+			description:
+				"Acceptance failed after repair attempts with output that suggests the task scope is too large for a single card.",
+		},
+	] as const)("classifies acceptance plan gaps for $name", async ({ output, kind, description }) => {
+		const recordPlanGap = vi.fn();
+		await runVerifyTaskAcceptanceCommand(
+			{
+				cwd: "/repo",
+				taskId: "task-1",
+				repairAttempt: 3,
+				maxRepairAttempts: 2,
+			},
+			{
+				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
+				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
+				resolveTaskCwd: vi.fn(async () => "/worktree"),
+				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				runAcceptanceGate: vi.fn(async () => ({
+					present: true,
+					command: "npm test",
+					passed: false,
+					exitCode: 1,
+					output,
+					durationMs: 5,
+				})),
+				recordPlanGap,
+			},
+		);
+
+		expect(recordPlanGap).toHaveBeenCalledWith({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			kind,
+			description,
+			evidence: `Command: npm test\nOutput: ${output}`,
 		});
 	});
 
@@ -514,6 +587,101 @@ describe("task plan-gap adaptation", () => {
 		expect(planningCard?.prompt).toContain('reported by task "task-1"');
 		expect(planningCard?.prompt).toContain("shared migration");
 		expect(planningCard?.prompt).toContain("Evidence: src/api.ts");
+		expect(result.created).toBe(true);
+	});
+
+	it("deduplicates repeated integration-needed adaptations", () => {
+		const first = addPlanGapIntegrationCardToBoard({
+			state: createWorkspaceState("Acceptance check: npm test"),
+			taskId: "task-1",
+			description: "The API and UI cards both changed the saved payload and need a shared migration.",
+			baseRef: "main",
+			createId: () => "abcde-integration-task",
+		});
+		const state: RuntimeWorkspaceStateResponse = {
+			...createWorkspaceState("Acceptance check: npm test"),
+			board: first.board,
+		};
+		const second = addPlanGapIntegrationCardToBoard({
+			state,
+			taskId: "task-1",
+			description: "The API and UI cards both changed the saved payload and need a shared migration.",
+			baseRef: "main",
+			createId: () => "second-integration-task",
+		});
+		const planningCards = second.board.columns.find((column) => column.id === "planning")?.cards ?? [];
+
+		expect(second.created).toBe(false);
+		expect(second.task.id).toBe(first.task.id);
+		expect(planningCards.filter((card) => card.title === "Integrate plan gap from task-1")).toHaveLength(1);
+	});
+
+	it("adds a decision pause card for ambiguity and deduplicates repeats", () => {
+		const first = addPlanGapDecisionCardToBoard({
+			state: createWorkspaceState("Acceptance check: npm test"),
+			taskId: "task-1",
+			kind: "missing_decision",
+			description: "Choose the default provider before implementation continues.",
+			evidence: "The acceptance output asked which provider should be default.",
+			baseRef: "main",
+			createId: () => "decision-task",
+		});
+		const state: RuntimeWorkspaceStateResponse = {
+			...createWorkspaceState("Acceptance check: npm test"),
+			board: first.board,
+		};
+		const second = addPlanGapDecisionCardToBoard({
+			state,
+			taskId: "task-1",
+			kind: "missing_decision",
+			description: "Choose the default provider before implementation continues.",
+			baseRef: "main",
+			createId: () => "duplicate-decision-task",
+		});
+		const planningCard = first.board.columns.find((column) => column.id === "planning")?.cards[0];
+
+		expect(first.created).toBe(true);
+		expect(second.created).toBe(false);
+		expect(second.task.id).toBe(first.task.id);
+		expect(planningCard).toMatchObject({
+			id: "decis",
+			title: "Resolve plan decision gap from task-1",
+			startInPlanMode: true,
+			autoReviewEnabled: false,
+			agentId: "cline",
+			baseRef: "main",
+		});
+		expect(planningCard?.prompt).toContain("Ask the user for the smallest decision");
+	});
+
+	it("adds a scope adaptation card and blocks the oversized source card", () => {
+		const result = addPlanGapScopeCardToBoard({
+			state: createWorkspaceState("Acceptance check: npm test"),
+			taskId: "task-1",
+			description: "The card exceeded the context budget and needs smaller replacement leaves.",
+			evidence: "Context length exceeded.",
+			baseRef: "main",
+			createId: () => "split-task",
+		});
+		const sourceCard = result.board.columns
+			.find((column) => column.id === "in_progress")
+			?.cards.find((card) => card.id === "task-1");
+		const planningCard = result.board.columns.find((column) => column.id === "planning")?.cards[0];
+
+		expect(result.created).toBe(true);
+		expect(sourceCard).toMatchObject({
+			blockedKind: "needs_decomposition",
+			blockedReason: "The card exceeded the context budget and needs smaller replacement leaves.",
+		});
+		expect(planningCard).toMatchObject({
+			id: "split",
+			title: "Split oversized plan gap from task-1",
+			startInPlanMode: true,
+			autoReviewEnabled: false,
+			agentId: "cline",
+			baseRef: "main",
+		});
+		expect(planningCard?.prompt).toContain("recursive expansions");
 	});
 
 	it("formats the automatic integration-card revision entry", () => {

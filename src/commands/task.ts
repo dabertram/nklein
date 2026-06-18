@@ -151,6 +151,55 @@ function buildAcceptanceFailureEvidence(input: { command: string | null; output:
 		.slice(0, 2_000);
 }
 
+const ACCEPTANCE_PLAN_GAP_CLASSIFIERS: readonly {
+	kind: PlanGapKind;
+	description: string;
+	patterns: readonly RegExp[];
+}[] = [
+	{
+		kind: "missing_decision",
+		description:
+			"Acceptance failed after repair attempts with output that points to an unresolved decision or ambiguity in the plan.",
+		patterns: [
+			/\b(ambiguous|unclear|needs clarification|need clarification|cannot determine|unable to determine)\b/,
+			/\b(choose between|decide whether|requires a decision|requires user decision|confirm which|which .+ should)\b/,
+			/\b(no default specified|missing product decision|missing design decision|unknown requirement)\b/,
+		],
+	},
+	{
+		kind: "contradictory_requirement",
+		description:
+			"Acceptance failed after repair attempts with output that points to contradictory or incompatible plan requirements.",
+		patterns: [
+			/\b(contradict|contradiction|conflicting requirement|mutually exclusive|incompatible requirement)\b/,
+			/\b(conflicts with|cannot both|exclusive with|violates required invariant)\b/,
+		],
+	},
+	{
+		kind: "missing_dependency",
+		description:
+			"Acceptance failed after repair attempts with output that points to a missing dependency, config, schema, or file the plan did not provide.",
+		patterns: [
+			/\b(enoent|err_module_not_found|module not found|cannot find module|cannot find package)\b/,
+			/\b(could not resolve|cannot resolve|failed to resolve|could not locate|no such file or directory)\b/,
+			/\b(command not found|executable file not found|spawn .+ enoent|missing binary)\b/,
+			/\b(missing required (environment variable|env var|config|configuration)|environment variable .+ is not set)\b/,
+			/\b(api key|token|credential|secret) (is )?(missing|required|not set|undefined)\b/,
+			/\b(relation .+ does not exist|table .+ does not exist|no such table|column .+ does not exist|missing migration)\b/,
+		],
+	},
+	{
+		kind: "scope_too_large",
+		description:
+			"Acceptance failed after repair attempts with output that suggests the task scope is too large for a single card.",
+		patterns: [
+			/\b(scope too large|too broad|timed out|timeout|out of memory|heap out of memory)\b/,
+			/\b(context length exceeded|token limit|exceeded .+ limit|resource exhausted|too many files)\b/,
+			/\b(complexity \d+\/\d+|split .+ before continuing|decompose .+ before continuing)\b/,
+		],
+	},
+];
+
 function classifyAcceptanceFailurePlanGap(input: {
 	acceptancePresent: boolean;
 	repairAction: ClineAcceptanceRepairAction | null;
@@ -177,33 +226,14 @@ function classifyAcceptanceFailurePlanGap(input: {
 
 	const evidence = buildAcceptanceFailureEvidence(input);
 	const normalizedOutput = input.output.toLowerCase();
-	if (
-		/\b(enoent|module not found|cannot find module|could not resolve|cannot resolve|no such file or directory)\b/.test(
-			normalizedOutput,
-		)
-	) {
-		return {
-			kind: "missing_dependency",
-			description:
-				"Acceptance failed after repair attempts with output that points to a missing dependency or file the plan did not provide.",
-			evidence,
-		};
-	}
-	if (/\b(contradict|conflicting requirement|mutually exclusive|incompatible requirement)\b/.test(normalizedOutput)) {
-		return {
-			kind: "contradictory_requirement",
-			description:
-				"Acceptance failed after repair attempts with output that points to contradictory or incompatible plan requirements.",
-			evidence,
-		};
-	}
-	if (/\b(scope too large|too broad|timed out|timeout|out of memory|heap out of memory)\b/.test(normalizedOutput)) {
-		return {
-			kind: "scope_too_large",
-			description:
-				"Acceptance failed after repair attempts with output that suggests the task scope is too large for a single card.",
-			evidence,
-		};
+	for (const classifier of ACCEPTANCE_PLAN_GAP_CLASSIFIERS) {
+		if (classifier.patterns.some((pattern) => pattern.test(normalizedOutput))) {
+			return {
+				kind: classifier.kind,
+				description: classifier.description,
+				evidence,
+			};
+		}
 	}
 	return {
 		kind: "other",
@@ -1554,6 +1584,20 @@ function buildPlanGapIntegrationCardPrompt(input: {
 	return lines.join("\n");
 }
 
+function findBoardTaskByTitle(
+	board: RuntimeWorkspaceStateResponse["board"],
+	title: string,
+): { columnId: RuntimeBoardColumnId; task: RuntimeBoardCard } | null {
+	for (const column of board.columns) {
+		for (const task of column.cards) {
+			if (task.title === title) {
+				return { columnId: column.id, task };
+			}
+		}
+	}
+	return null;
+}
+
 export function addPlanGapIntegrationCardToBoard(input: {
 	state: RuntimeWorkspaceStateResponse;
 	taskId: string;
@@ -1564,12 +1608,22 @@ export function addPlanGapIntegrationCardToBoard(input: {
 }): {
 	board: RuntimeWorkspaceStateResponse["board"];
 	task: RuntimeBoardCard;
+	created: boolean;
 } {
+	const title = `Integrate plan gap from ${input.taskId}`;
+	const existing = findBoardTaskByTitle(input.state.board, title);
+	if (existing) {
+		return {
+			board: input.state.board,
+			task: existing.task,
+			created: false,
+		};
+	}
 	const created = addTaskToColumn(
 		input.state.board,
 		"planning",
 		{
-			title: `Integrate plan gap from ${input.taskId}`,
+			title,
 			prompt: buildPlanGapIntegrationCardPrompt(input),
 			startInPlanMode: true,
 			autoReviewEnabled: true,
@@ -1582,6 +1636,138 @@ export function addPlanGapIntegrationCardToBoard(input: {
 	return {
 		board: created.board,
 		task: created.task,
+		created: true,
+	};
+}
+
+function buildPlanGapDecisionCardPrompt(input: {
+	taskId: string;
+	kind: Extract<PlanGapKind, "missing_decision" | "contradictory_requirement">;
+	description: string;
+	evidence?: string | null;
+}): string {
+	const label = input.kind === "contradictory_requirement" ? "contradiction" : "missing decision";
+	const lines = [
+		`Resolve the ${label} reported by task "${input.taskId}".`,
+		"",
+		input.description.trim() || "Execution found a plan decision that must be answered before work continues.",
+	];
+	if (input.evidence?.trim()) {
+		lines.push("", `Evidence: ${input.evidence.trim()}`);
+	}
+	lines.push(
+		"",
+		"Ask the user for the smallest decision that unblocks the plan, record the answer in the plan decisions/revisions artifacts when available, and update affected cards before implementation continues.",
+	);
+	return lines.join("\n");
+}
+
+function buildPlanGapScopeCardPrompt(input: { taskId: string; description: string; evidence?: string | null }): string {
+	const lines = [
+		`Split the oversized task reported by "${input.taskId}".`,
+		"",
+		input.description.trim() || "Execution found this card is too large for one autonomous task.",
+	];
+	if (input.evidence?.trim()) {
+		lines.push("", `Evidence: ${input.evidence.trim()}`);
+	}
+	lines.push(
+		"",
+		"Inspect the source card and produce bounded replacement leaves. Prefer the existing decomposition workflow with recursive expansions so dependencies can be re-linked through the saved task graph instead of broadening the source card.",
+	);
+	return lines.join("\n");
+}
+
+export function addPlanGapDecisionCardToBoard(input: {
+	state: RuntimeWorkspaceStateResponse;
+	taskId: string;
+	kind: Extract<PlanGapKind, "missing_decision" | "contradictory_requirement">;
+	description: string;
+	evidence?: string | null;
+	baseRef: string;
+	createId?: () => string;
+}): {
+	board: RuntimeWorkspaceStateResponse["board"];
+	task: RuntimeBoardCard;
+	created: boolean;
+} {
+	const title =
+		input.kind === "contradictory_requirement"
+			? `Resolve plan contradiction from ${input.taskId}`
+			: `Resolve plan decision gap from ${input.taskId}`;
+	const existing = findBoardTaskByTitle(input.state.board, title);
+	if (existing) {
+		return {
+			board: input.state.board,
+			task: existing.task,
+			created: false,
+		};
+	}
+	const created = addTaskToColumn(
+		input.state.board,
+		"planning",
+		{
+			title,
+			prompt: buildPlanGapDecisionCardPrompt(input),
+			startInPlanMode: true,
+			autoReviewEnabled: false,
+			autoReviewMode: "commit",
+			agentId: "cline",
+			baseRef: input.baseRef,
+		},
+		input.createId ?? (() => globalThis.crypto.randomUUID()),
+	);
+	return {
+		board: created.board,
+		task: created.task,
+		created: true,
+	};
+}
+
+export function addPlanGapScopeCardToBoard(input: {
+	state: RuntimeWorkspaceStateResponse;
+	taskId: string;
+	description: string;
+	evidence?: string | null;
+	baseRef: string;
+	createId?: () => string;
+}): {
+	board: RuntimeWorkspaceStateResponse["board"];
+	task: RuntimeBoardCard;
+	created: boolean;
+} {
+	const blockedBoard = markTaskNeedsDecompositionOnBoard(
+		input.state.board,
+		input.taskId,
+		input.description.trim() || "Plan gap reported this card is too large and needs decomposition.",
+	);
+	const title = `Split oversized plan gap from ${input.taskId}`;
+	const existing = findBoardTaskByTitle(blockedBoard, title);
+	if (existing) {
+		return {
+			board: blockedBoard,
+			task: existing.task,
+			created: false,
+		};
+	}
+	const created = addTaskToColumn(
+		blockedBoard,
+		"planning",
+		{
+			title,
+			prompt: buildPlanGapScopeCardPrompt(input),
+			startInPlanMode: true,
+			autoReviewEnabled: false,
+			autoReviewMode: "commit",
+			agentId: "cline",
+			baseRef: input.baseRef,
+		},
+		input.createId ?? (() => globalThis.crypto.randomUUID()),
+	);
+	return {
+		board: created.board,
+		task: created.task,
+		created: true,
 	};
 }
 
@@ -1792,33 +1978,43 @@ async function recordTaskPlanGapCommand(input: {
 			})
 		: null;
 	let integrationTask: JsonRecord | null = null;
+	let adaptationTask: JsonRecord | null = null;
+	let adaptationCreated = false;
 	if (input.kind === "integration_needed") {
 		const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
 		const runtimeClient = createRuntimeTrpcClient(workspaceId);
-		const mutation = await mutateWorkspaceState<JsonRecord>(workspaceRepoPath, (latestState) => {
-			const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
-			const created = addPlanGapIntegrationCardToBoard({
-				state: latestState,
-				taskId: input.taskId,
-				description: input.description,
-				evidence: input.evidence,
-				baseRef,
-			});
-			const nextState: RuntimeWorkspaceStateResponse = {
-				...latestState,
-				board: created.board,
-			};
-			return {
-				board: created.board,
-				value: formatTaskRecord(nextState, created.task, "planning"),
-			};
-		});
-		integrationTask = mutation.value;
+		const mutation = await mutateWorkspaceState<{ task: JsonRecord; created: boolean }>(
+			workspaceRepoPath,
+			(latestState) => {
+				const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
+				const created = addPlanGapIntegrationCardToBoard({
+					state: latestState,
+					taskId: input.taskId,
+					description: input.description,
+					evidence: input.evidence,
+					baseRef,
+				});
+				const nextState: RuntimeWorkspaceStateResponse = {
+					...latestState,
+					board: created.board,
+				};
+				return {
+					board: created.board,
+					value: {
+						task: formatTaskRecord(nextState, created.task, "planning"),
+						created: created.created,
+					},
+				};
+			},
+		);
+		integrationTask = mutation.value.task;
+		adaptationTask = mutation.value.task;
+		adaptationCreated = mutation.value.created;
 		if (mutation.saved) {
 			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
 		}
 		const integrationTaskId = typeof integrationTask.id === "string" ? integrationTask.id : null;
-		if (integrationTaskId && planSlug) {
+		if (integrationTaskId && planSlug && adaptationCreated) {
 			const revision = buildPlanGapIntegrationRevision({
 				taskId: input.taskId,
 				integrationTaskId,
@@ -1835,6 +2031,56 @@ async function recordTaskPlanGapCommand(input: {
 			});
 		}
 	}
+	if (
+		input.kind === "missing_decision" ||
+		input.kind === "contradictory_requirement" ||
+		input.kind === "scope_too_large"
+	) {
+		const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
+		const runtimeClient = createRuntimeTrpcClient(workspaceId);
+		const mutation = await mutateWorkspaceState<{ task: JsonRecord; created: boolean }>(
+			workspaceRepoPath,
+			(latestState) => {
+				const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
+				const adapted =
+					input.kind === "scope_too_large"
+						? addPlanGapScopeCardToBoard({
+								state: latestState,
+								taskId: input.taskId,
+								description: input.description,
+								evidence: input.evidence,
+								baseRef,
+							})
+						: addPlanGapDecisionCardToBoard({
+								state: latestState,
+								taskId: input.taskId,
+								kind:
+									input.kind === "contradictory_requirement"
+										? "contradictory_requirement"
+										: "missing_decision",
+								description: input.description,
+								evidence: input.evidence,
+								baseRef,
+							});
+				const nextState: RuntimeWorkspaceStateResponse = {
+					...latestState,
+					board: adapted.board,
+				};
+				return {
+					board: adapted.board,
+					value: {
+						task: formatTaskRecord(nextState, adapted.task, "planning"),
+						created: adapted.created,
+					},
+				};
+			},
+		);
+		adaptationTask = mutation.value.task;
+		adaptationCreated = mutation.value.created;
+		if (mutation.saved) {
+			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
+		}
+	}
 	return {
 		ok: true,
 		workspacePath: workspaceRepoPath,
@@ -1844,6 +2090,8 @@ async function recordTaskPlanGapCommand(input: {
 		planSlug,
 		revisionsPath,
 		integrationTask,
+		adaptationTask,
+		adaptationCreated,
 	};
 }
 
