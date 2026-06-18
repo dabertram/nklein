@@ -15,12 +15,14 @@ import {
 	Circle,
 	CircleDot,
 	Clipboard,
+	Database,
 	ExternalLink,
 	FolderOpen,
 	GitCommit,
 	Palette,
 	Play,
 	Plus,
+	RefreshCw,
 	Search,
 	Settings,
 	SlidersHorizontal,
@@ -57,6 +59,7 @@ import {
 } from "@/runtime/cline-context-window-policy";
 import {
 	buildClineAdvisorRequest,
+	fetchClineCodeIntelligenceStatus,
 	fetchClineProviderModels,
 	openFileOnHost,
 	runClineSmokeEval,
@@ -66,6 +69,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeClineAdvisorKind,
 	RuntimeClineAdvisorRequest,
+	RuntimeClineCodeIntelligenceStatusResponse,
 	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
@@ -875,6 +879,149 @@ function ClineDogfoodSuggestion({
 					<code className="block rounded-md border border-border bg-surface-1 px-2 py-1.5 text-[12px] text-text-primary break-all">
 						{result.nextCommand}
 					</code>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function formatCodeIntelligenceUpdatedAt(updatedAt: number | null): string {
+	if (updatedAt === null) {
+		return "never";
+	}
+	const elapsedMs = Math.max(0, Date.now() - updatedAt);
+	const minutes = Math.floor(elapsedMs / 60_000);
+	if (minutes < 1) {
+		return "<1m ago";
+	}
+	if (minutes < 60) {
+		return `${minutes}m ago`;
+	}
+	const hours = Math.floor(minutes / 60);
+	if (hours < 48) {
+		return `${hours}h ago`;
+	}
+	return `${Math.floor(hours / 24)}d ago`;
+}
+
+function formatCodeIndexCoverage(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string {
+	if (status.totalChunks === 0) {
+		return "No source chunks found";
+	}
+	const percent = Math.round((status.indexedChunks / status.totalChunks) * 100);
+	return `${status.indexedChunks}/${status.totalChunks} chunks (${percent}%)`;
+}
+
+function ClineCodeIntelligenceStatusPanel({
+	workspaceId,
+	open,
+	disabled,
+	onError,
+}: {
+	workspaceId: string | null;
+	open: boolean;
+	disabled: boolean;
+	onError: (message: string | null) => void;
+}): React.ReactElement {
+	const [isLoading, setIsLoading] = useState(false);
+	const [status, setStatus] = useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
+	const [detailsOpen, setDetailsOpen] = useState(false);
+
+	const refreshStatus = useCallback(() => {
+		if (!open || !workspaceId) {
+			return;
+		}
+		onError(null);
+		setIsLoading(true);
+		void fetchClineCodeIntelligenceStatus(workspaceId)
+			.then((response) => {
+				setStatus(response);
+			})
+			.catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				onError(`Could not load code intelligence status: ${message}`);
+			})
+			.finally(() => {
+				setIsLoading(false);
+			});
+	}, [onError, open, workspaceId]);
+
+	useEffect(() => {
+		refreshStatus();
+	}, [refreshStatus]);
+
+	const codeIndex = status?.codeIndex ?? null;
+	const repoMap = status?.repoMap ?? null;
+	const statusText = codeIndex
+		? `${formatCodeIndexCoverage(codeIndex)} indexed · repo map ${repoMap?.available ? "ready" : "unavailable"}`
+		: "Status not loaded";
+
+	return (
+		<div className="mt-4 border-t border-border pt-4">
+			<div className="flex items-center justify-between gap-3">
+				<div className="min-w-0">
+					<h6 className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
+						<Database size={14} />
+						Code intelligence
+					</h6>
+					<p className="text-[12px] text-text-secondary mt-1 mb-0">{statusText}</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						size="sm"
+						variant="ghost"
+						disabled={disabled || !status}
+						onClick={() => {
+							setDetailsOpen((currentValue) => !currentValue);
+						}}
+					>
+						Details
+					</Button>
+					<Button
+						size="sm"
+						variant="default"
+						icon={<RefreshCw size={14} />}
+						disabled={disabled || isLoading || !workspaceId}
+						onClick={refreshStatus}
+					>
+						{isLoading ? "Refreshing..." : "Refresh"}
+					</Button>
+				</div>
+			</div>
+			{status ? (
+				<div className="mt-2 grid gap-2 text-[12px] text-text-secondary sm:grid-cols-2">
+					<div className="rounded-md border border-border bg-surface-2 px-2 py-2">
+						<div className="font-medium text-text-primary">Repo map</div>
+						<div>{repoMap?.filesScanned ?? 0} files scanned</div>
+						<div>{repoMap?.symbols ?? 0} symbols</div>
+						<div>{repoMap?.truncated ? "Truncated" : "Within token budget"}</div>
+					</div>
+					<div className="rounded-md border border-border bg-surface-2 px-2 py-2">
+						<div className="font-medium text-text-primary">Code index</div>
+						<div>{codeIndex ? formatCodeIndexCoverage(codeIndex) : "Not loaded"}</div>
+						<div>
+							{codeIndex?.indexedFiles ?? 0}/{codeIndex?.totalFiles ?? 0} files indexed
+						</div>
+						<div>Updated {formatCodeIntelligenceUpdatedAt(codeIndex?.updatedAt ?? null)}</div>
+					</div>
+				</div>
+			) : null}
+			{detailsOpen && status ? (
+				<div className="mt-2 rounded-md border border-border bg-surface-2 px-2 py-2 text-[12px] text-text-secondary">
+					<div>Search: {status.codeIndex.searchAvailable ? "available" : "not ready"}</div>
+					<div>Stale files: {status.codeIndex.staleFiles}</div>
+					<div>Missing files: {status.codeIndex.missingFiles}</div>
+					<div>
+						Embedding: {status.codeIndex.embeddingProvider ?? "none"} /{" "}
+						{status.codeIndex.embeddingModel ?? "none"}
+					</div>
+					<div className="break-all">Cache: {status.codeIndex.cachePath ?? "none"}</div>
+					{status.repoMap.error ? (
+						<div className="text-status-red">Repo map error: {status.repoMap.error}</div>
+					) : null}
+					{status.codeIndex.error ? (
+						<div className="text-status-red">Code index error: {status.codeIndex.error}</div>
+					) : null}
 				</div>
 			) : null}
 		</div>
@@ -2091,6 +2238,12 @@ export function RuntimeSettingsDialog({
 									}
 									onError={setSaveError}
 									onSaved={handleClineSetupSaved}
+								/>
+								<ClineCodeIntelligenceStatusPanel
+									workspaceId={workspaceId}
+									open={open}
+									disabled={controlsDisabled}
+									onError={setSaveError}
 								/>
 								<ClineAdvisorActions
 									workspaceId={workspaceId}

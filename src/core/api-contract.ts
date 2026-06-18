@@ -888,6 +888,35 @@ export const runtimeClineModelRegistryResponseSchema = z.object({
 });
 export type RuntimeClineModelRegistryResponse = z.infer<typeof runtimeClineModelRegistryResponseSchema>;
 
+export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
+	repoMap: z.object({
+		filesScanned: z.number().int().nonnegative(),
+		symbols: z.number().int().nonnegative(),
+		tokenCount: z.number().int().nonnegative(),
+		truncated: z.boolean(),
+		available: z.boolean(),
+		error: z.string().nullable(),
+	}),
+	codeIndex: z.object({
+		cachePath: z.string().nullable(),
+		cacheExists: z.boolean(),
+		embeddingProvider: z.string().nullable(),
+		embeddingModel: z.string().nullable(),
+		updatedAt: z.number().int().nonnegative().nullable(),
+		totalFiles: z.number().int().nonnegative(),
+		totalChunks: z.number().int().nonnegative(),
+		indexedFiles: z.number().int().nonnegative(),
+		indexedChunks: z.number().int().nonnegative(),
+		staleFiles: z.number().int().nonnegative(),
+		missingFiles: z.number().int().nonnegative(),
+		searchAvailable: z.boolean(),
+		error: z.string().nullable(),
+	}),
+});
+export type RuntimeClineCodeIntelligenceStatusResponse = z.infer<
+	typeof runtimeClineCodeIntelligenceStatusResponseSchema
+>;
+
 export const runtimeClineAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

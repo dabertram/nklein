@@ -1685,11 +1685,11 @@ export function registerTaskCommand(program: Command): void {
 		.option("--agent-id <id>", "Agent override: cline | claude | codex | droid | gemini | opencode | default.")
 		.option(
 			"--cline-provider <id>",
-			'Cline provider override (e.g. anthropic, openai, cline). Use "default" for workspace default.',
+			'Cline provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" for workspace default.',
 		)
 		.option(
 			"--cline-model <id>",
-			'Cline model override (e.g. claude-sonnet-4-20250514). Use "default" for workspace default.',
+			'Cline model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" for workspace default.',
 		)
 		.option(
 			"--cline-reasoning-effort <level>",
@@ -1748,9 +1748,9 @@ export function registerTaskCommand(program: Command): void {
 		)
 		.option(
 			"--cline-provider <id>",
-			'Cline provider override (e.g. anthropic, openai, cline). Use "default" to clear.',
+			'Cline provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" to clear.',
 		)
-		.option("--cline-model <id>", 'Cline model override (e.g. claude-sonnet-4-20250514). Use "default" to clear.')
+		.option("--cline-model <id>", 'Cline model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" to clear.')
 		.option(
 			"--cline-reasoning-effort <level>",
 			'Cline reasoning effort override: default | low | medium | high | xhigh. Use "inherit" to clear.',

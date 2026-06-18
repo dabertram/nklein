@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ClineCodeEmbeddingProvider } from "../../../src/cline-sdk/cline-code-embeddings";
-import { searchClineCodeIndex } from "../../../src/cline-sdk/cline-code-index";
+import { getClineCodeIndexStatus, searchClineCodeIndex } from "../../../src/cline-sdk/cline-code-index";
 
 async function createWorkspace(): Promise<string> {
 	const workspacePath = await mkdtemp(join(tmpdir(), "kanban-code-index-"));
@@ -101,6 +101,39 @@ describe("cline code index", () => {
 		};
 		const currentChunkCount = parsed.files.reduce((total, file) => total + file.chunks.length, 0);
 		expect(parsed.embeddings).toHaveLength(currentChunkCount);
+	});
+
+	it("reports indexed, missing, and stale source chunks from the persisted cache", async () => {
+		const workspacePath = await createWorkspace();
+		const cachePath = join(workspacePath, ".cline", "kanban", "code-index-status-test.json");
+		await searchClineCodeIndex({
+			workspacePath,
+			query: "storage persistence",
+			chunkLines: 4,
+			cachePath,
+		});
+
+		const indexed = await getClineCodeIndexStatus({ workspacePath, chunkLines: 4, cachePath });
+		expect(indexed.cacheExists).toBe(true);
+		expect(indexed.embeddingProvider).toBe("local_lexical");
+		expect(indexed.embeddingModel).toBe("kanban-local-lexical-vector-v1");
+		expect(indexed.totalFiles).toBe(1);
+		expect(indexed.totalChunks).toBeGreaterThan(1);
+		expect(indexed.indexedFiles).toBe(1);
+		expect(indexed.indexedChunks).toBe(indexed.totalChunks);
+		expect(indexed.missingFiles).toBe(0);
+		expect(indexed.staleFiles).toBe(0);
+		expect(indexed.searchAvailable).toBe(true);
+
+		await writeFile(join(workspacePath, "src", "new-file.ts"), "export const newSymbol = true;\n", "utf8");
+		await writeFile(join(workspacePath, "src", "storage-adapter.ts"), "export const changed = true;\n", "utf8");
+
+		const stale = await getClineCodeIndexStatus({ workspacePath, chunkLines: 4, cachePath });
+		expect(stale.totalFiles).toBe(2);
+		expect(stale.indexedFiles).toBe(0);
+		expect(stale.staleFiles).toBe(1);
+		expect(stale.missingFiles).toBe(1);
+		expect(stale.searchAvailable).toBe(false);
 	});
 
 	it("separates cache entries by embedding provider cache key", async () => {

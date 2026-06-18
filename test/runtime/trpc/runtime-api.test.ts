@@ -2755,6 +2755,38 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.models[1]?.contextWindow.effective).toBe(32_000);
 	});
 
+	it("returns Cline code intelligence status for the workspace", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-code-intelligence-status-"));
+		mkdirSync(join(workspacePath, "src"), { recursive: true });
+		writeFileSync(
+			join(workspacePath, "src", "status.ts"),
+			["export function statusSymbol() {", '  return "ready";', "}"].join("\n"),
+			"utf8",
+		);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.getClineCodeIntelligenceStatus({
+			workspaceId: "workspace-1",
+			workspacePath,
+		});
+
+		expect(response.repoMap.available).toBe(true);
+		expect(response.repoMap.filesScanned).toBe(1);
+		expect(response.repoMap.symbols).toBeGreaterThan(0);
+		expect(response.codeIndex.totalFiles).toBe(1);
+		expect(response.codeIndex.totalChunks).toBe(1);
+		expect(response.codeIndex.cacheExists).toBe(false);
+		expect(response.codeIndex.searchAvailable).toBe(false);
+	});
+
 	it("builds a model freshness advisor request from the runtime model registry", async () => {
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,

@@ -59,10 +59,11 @@ deliberate code change in **one** place, never a setting.
 Design it as a single **default-deny allow-list** module — not scattered `throw`s — so the lockdown is
 auditable and the eventual "unleash cloud" switch is one file.
 
-> **Progress (already implemented in this branch — verified: `npm run typecheck` + `check:cline-boundary`
-> pass, policy unit test 7/7 green):** the policy module, the primary dispatch gate, and the registry
-> dedupe are **done**. The remaining L0 items (runtime-api hard-stop, defaults, UI catalog/picker filter,
-> router/role filtering, cloud-pinned resume, remaining tests) are **open** and are the next agent's work.
+> **Progress (implemented in this branch — verified by typecheck, Cline boundary checks, runtime/provider
+> tests, and local-only policy tests):** the policy module, dispatch gates, registry dedupe, runtime hard-stop,
+> safe defaults, UI catalog/picker filtering, router/role filtering, cloud-pinned resume handling, and boundary
+> scan coverage are **done**. Re-enabling cloud remains a deliberate code change in
+> `cline-local-only-policy.ts`, not a runtime toggle.
 
 - [x] ~~**Create `src/cline-sdk/cline-local-only-policy.ts`** — the single source of truth.~~ *(done)*
   - [x] ~~`LOCAL_PROVIDER_IDS = { "ollama", "lmstudio", "lm-studio" }`~~ — done; `cline-model-registry.ts`
@@ -103,13 +104,14 @@ auditable and the eventual "unleash cloud" switch is one file.
 - [x] ~~**Make existing cloud-pinned cards safe.** Any task whose persisted `clineSettings` names a
       cloud provider hard-stops on (re)start with the clear message — including resume-from-persistence
       and the overflow-recovery restart path. No migration that silently rewrites them.~~
-- [~] **Tests:** policy unit test is **done**
+- [x] ~~**Tests:** policy unit test is **done**
       ([test/runtime/cline-sdk/cline-local-only-policy.test.ts](test/runtime/cline-sdk/cline-local-only-policy.test.ts),
-      7/7 green — covers cloud-id deny, local-id allow, managed-OAuth-always-cloud, custom local-baseUrl
+      8/8 green — covers cloud-id deny, local-id allow, managed-OAuth-always-cloud, custom local-baseUrl
       allow, host classification, typed-error guard). **Now also covered:** catalog/picker omit cloud, cloud
       selections are ignored on load, cloud saves/OAuth are blocked, cloud-pinned starts hard-stop, and the
-      router never returns a cloud candidate. **Still open:** boundary grep test for cloud provider ids outside
-      `cline-local-only-policy.ts` and the provider catalog finding no *dispatch* path.
+      router never returns a cloud candidate. The local-only policy test now also scans production TypeScript
+      for concrete cloud-provider literals and fails unless the occurrence is confined to a documented boundary
+      file; CLI Cline provider/model examples now point at local models.~~
 
 ---
 
@@ -474,10 +476,15 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       detect running Ollama / LM Studio endpoints, list loaded models, let the user set context windows and
       assign roles (architect/worker/reviewer → `modelRoles`). Directly fixes today's cloud-defaulted,
       null-window, `openrouter`-selected starting state.
-- [ ] **Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
+- [~] **Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers
       `cline-repo-map.ts` / `cline-code-index.ts` / `cline-code-search.ts`, which have **no UI today**.
+      **Progress:** settings now has a refreshable Code intelligence panel backed by a typed runtime API.
+      It reports repo-map availability/files/symbols/truncation and code-index cache coverage
+      (indexed chunks/total chunks, indexed files/total files, stale/missing files, last indexed,
+      embedding provider/model, cache path, and search availability). Still open: board-level chip and live
+      indexing/build progress while a task is actively using these tools.
 - [ ] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw
@@ -659,7 +666,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | L6 hardcoded policy constants vs success #6 | ⬜ open | Context eng |
 | L7 team-progress / id collision / SDK event shapes | ⬜ open | various |
 | 32k context policy | ✅ resolved | MCSR |
-| Cloud hard-disable | ◧ in progress (policy module + dispatch gate + registry dedupe + policy test done; runtime-api hard-stop / defaults / UI filter / router open) | L0 |
+| Cloud hard-disable | ✅ resolved (policy module, dispatch/runtime gates, defaults, UI filter, router/role filtering, cloud-pinned resume, boundary scan) | L0 |
 | 1.1M overflow / authoritative guard | ⬜ open (NEW, top priority) | L1.1 |
 | 1s timeouts (code bug; config is "unlimited") / broken session restart / retry storms | ⬜ open (NEW, top priority) | L1.2–L1.4 |
 | Cloud persisted everywhere (provider=openrouter, agent=cline, dev seed=cline) | ⬜ open (NEW) | L0 |
@@ -672,7 +679,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | Per-card diagnostics drawer + first-run setup wizard | ⬜ open (NEW UI) | L4 |
 | Naive idea intake → clarifying questions → workable plan | ⬜ open (NEW) | L3.3 |
 | Adaptive re-planning on execution-discovered gaps | ⬜ open (NEW) | L3.4 |
-| Code-index / repo-map status & progress in UI | ⬜ open (NEW UI) | L4 |
+| Code-index / repo-map status & progress in UI | ◧ in progress (settings status panel landed; board chip/live progress open) | L4 |
 | Progressive-disclosure visibility for all since-branch features (+ coverage matrix) | ⬜ open (NEW UI) | L4 |
 | CHANGELOG `## [Upcoming]` populated (124 commits) + maintained going forward | ⬜ open (NEW) | Changelog |
 

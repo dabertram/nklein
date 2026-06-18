@@ -80,6 +80,7 @@ const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
+const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const addMcpServerMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
@@ -194,6 +195,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
+	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
 	fetchClineProviderModels: fetchClineProviderModelsMock,
 	openFileOnHost: openFileOnHostMock,
 	runClineSmokeEval: runClineSmokeEvalMock,
@@ -325,6 +327,32 @@ describe("RuntimeSettingsDialog", () => {
 			modelId: "qwen3.5-9b",
 			endpoint: "http://127.0.0.1:11434",
 		});
+		fetchClineCodeIntelligenceStatusMock.mockReset();
+		fetchClineCodeIntelligenceStatusMock.mockResolvedValue({
+			repoMap: {
+				filesScanned: 12,
+				symbols: 34,
+				tokenCount: 900,
+				truncated: false,
+				available: true,
+				error: null,
+			},
+			codeIndex: {
+				cachePath: "/repo/.cline/kanban/code-index-v1.json",
+				cacheExists: true,
+				embeddingProvider: "local_lexical",
+				embeddingModel: "kanban-local-lexical-vector-v1",
+				updatedAt: Date.now(),
+				totalFiles: 12,
+				totalChunks: 20,
+				indexedFiles: 10,
+				indexedChunks: 16,
+				staleFiles: 1,
+				missingFiles: 1,
+				searchAvailable: true,
+				error: null,
+			},
+		});
 		fetchClineProviderModelsMock.mockReset();
 		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "openrouter") {
@@ -395,6 +423,28 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(findButtonByText(document.body, "Send feedback")).toBeNull();
 		expect(findButtonByText(document.body, "Report issue")).toBeNull();
+	});
+
+	it("shows Cline code intelligence status in settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		await waitForCondition(() => document.body.textContent?.includes("16/20 chunks") === true);
+
+		expect(fetchClineCodeIntelligenceStatusMock).toHaveBeenCalledWith("workspace-1");
+		expect(document.body.textContent).toContain("Code intelligence");
+		expect(document.body.textContent).toContain("16/20 chunks (80%) indexed");
+		expect(document.body.textContent).toContain("repo map ready");
+		expect(document.body.textContent).toContain("12 files scanned");
+		expect(document.body.textContent).toContain("34 symbols");
 	});
 
 	it("calls the layout reset callback when reset layout is clicked", async () => {

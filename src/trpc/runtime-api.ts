@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
+import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
 import { isClineContextWindowPolicyError } from "../cline-sdk/cline-context-window-policy";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
@@ -22,6 +23,7 @@ import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-s
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
 import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
+import { buildClineRepoMap } from "../cline-sdk/cline-repo-map";
 import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
 import { routeClineTask } from "../cline-sdk/cline-task-router";
 import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
@@ -837,6 +839,64 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
 					}),
 			};
+		},
+		getClineCodeIntelligenceStatus: async (workspaceScope) => {
+			if (!workspaceScope) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "A workspace is required to inspect code intelligence status.",
+				});
+			}
+			const [repoMapResult, codeIndexResult] = await Promise.allSettled([
+				buildClineRepoMap({ workspacePath: workspaceScope.workspacePath }),
+				getClineCodeIndexStatus({ workspacePath: workspaceScope.workspacePath }),
+			]);
+			const repoMap =
+				repoMapResult.status === "fulfilled"
+					? {
+							filesScanned: repoMapResult.value.filesScanned,
+							symbols: repoMapResult.value.symbols.length,
+							tokenCount: repoMapResult.value.tokenCount,
+							truncated: repoMapResult.value.truncated,
+							available: repoMapResult.value.symbols.length > 0,
+							error: null,
+						}
+					: {
+							filesScanned: 0,
+							symbols: 0,
+							tokenCount: 0,
+							truncated: false,
+							available: false,
+							error:
+								repoMapResult.reason instanceof Error
+									? repoMapResult.reason.message
+									: String(repoMapResult.reason),
+						};
+			const codeIndex =
+				codeIndexResult.status === "fulfilled"
+					? {
+							...codeIndexResult.value,
+							error: null,
+						}
+					: {
+							cachePath: null,
+							cacheExists: false,
+							embeddingProvider: null,
+							embeddingModel: null,
+							updatedAt: null,
+							totalFiles: 0,
+							totalChunks: 0,
+							indexedFiles: 0,
+							indexedChunks: 0,
+							staleFiles: 0,
+							missingFiles: 0,
+							searchAvailable: false,
+							error:
+								codeIndexResult.reason instanceof Error
+									? codeIndexResult.reason.message
+									: String(codeIndexResult.reason),
+						};
+			return { repoMap, codeIndex };
 		},
 		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildClineModelFreshnessAdvisorRequest();

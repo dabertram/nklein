@@ -68,6 +68,21 @@ export interface ClineCodeIndexSearchResult {
 	};
 }
 
+export interface ClineCodeIndexStatus {
+	cachePath: string | null;
+	cacheExists: boolean;
+	embeddingProvider: string | null;
+	embeddingModel: string | null;
+	updatedAt: number | null;
+	totalFiles: number;
+	totalChunks: number;
+	indexedFiles: number;
+	indexedChunks: number;
+	staleFiles: number;
+	missingFiles: number;
+	searchAvailable: boolean;
+}
+
 export interface SearchClineCodeIndexOptions {
 	workspacePath: string;
 	query: string;
@@ -77,6 +92,13 @@ export interface SearchClineCodeIndexOptions {
 	cachePath?: string | null;
 	useCache?: boolean;
 	embeddingProvider?: ClineCodeEmbeddingProvider;
+}
+
+export interface GetClineCodeIndexStatusOptions {
+	workspacePath: string;
+	maxFiles?: number;
+	chunkLines?: number;
+	cachePath?: string | null;
 }
 
 interface SourceFile {
@@ -243,6 +265,15 @@ async function loadVectorCache(options: {
 			hitCount: 0,
 			missCount: 0,
 		};
+	}
+}
+
+async function readCachedCodeIndex(cachePath: string): Promise<CachedCodeIndex | null> {
+	try {
+		const parsed: unknown = JSON.parse(await readFile(cachePath, "utf8"));
+		return isCachedCodeIndex(parsed) ? parsed : null;
+	} catch {
+		return null;
 	}
 }
 
@@ -438,5 +469,53 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 			cacheHitCount: vectorCache.hitCount,
 			cacheMissCount: vectorCache.missCount,
 		},
+	};
+}
+
+export async function getClineCodeIndexStatus(options: GetClineCodeIndexStatusOptions): Promise<ClineCodeIndexStatus> {
+	const maxFiles = asPositiveInteger(options.maxFiles, DEFAULT_MAX_FILES);
+	const chunkLines = Math.min(asPositiveInteger(options.chunkLines, DEFAULT_CHUNK_LINES), 200);
+	const cachePath = options.cachePath === null ? null : (options.cachePath ?? defaultCachePath(options.workspacePath));
+	const cachedIndex = cachePath ? await readCachedCodeIndex(cachePath) : null;
+	const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
+	const cachedFileByPath = new Map((cachedIndex?.files ?? []).map((file) => [file.path, file]));
+	let totalChunks = 0;
+	let indexedFiles = 0;
+	let indexedChunks = 0;
+	let staleFiles = 0;
+	let missingFiles = 0;
+
+	for (const filePath of filePaths) {
+		const relativePath = relative(options.workspacePath, filePath);
+		const fileStat = await stat(filePath);
+		const content = await readFile(filePath, "utf8");
+		totalChunks += chunkFile({ path: relativePath, content }, chunkLines).length;
+		const cachedFile = cachedFileByPath.get(relativePath);
+		if (!cachedFile) {
+			missingFiles += 1;
+			continue;
+		}
+		const isStale = cachedFile.size !== fileStat.size || cachedFile.mtimeMs !== fileStat.mtimeMs;
+		if (isStale) {
+			staleFiles += 1;
+			continue;
+		}
+		indexedFiles += 1;
+		indexedChunks += cachedFile.chunks.length;
+	}
+
+	return {
+		cachePath,
+		cacheExists: cachedIndex !== null,
+		embeddingProvider: cachedIndex?.embeddingProvider ?? null,
+		embeddingModel: cachedIndex?.embeddingModel ?? null,
+		updatedAt: cachedIndex?.updatedAt ?? null,
+		totalFiles: filePaths.length,
+		totalChunks,
+		indexedFiles,
+		indexedChunks,
+		staleFiles,
+		missingFiles,
+		searchAvailable: indexedChunks > 0,
 	};
 }

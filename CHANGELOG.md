@@ -41,6 +41,8 @@
 - Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.
 - Added an expandable Cline model telemetry panel backed by the MCSR, showing local-only model endpoint, context-window, throughput, latency, capability, samples, and missing-window prompts.
 - Improved fallback Cline model labels on task cards so raw provider-qualified GPT/Claude IDs render as readable model names when the provider catalog is not loaded.
+- Replaced cloud Cline examples in task CLI help with local-model examples and added a production-source boundary scan for cloud-provider literals.
+- Added a Cline code-intelligence status panel in settings, exposing repo-map availability and code-index cache coverage, staleness, embedding metadata, cache path, and search readiness.
 
 ## [0.1.68]
 

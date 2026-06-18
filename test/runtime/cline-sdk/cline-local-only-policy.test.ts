@@ -1,3 +1,5 @@
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	assertLocalProviderAllowed,
@@ -8,6 +10,56 @@ import {
 	isLocalProvider,
 	LOCAL_PROVIDER_IDS,
 } from "../../../src/cline-sdk/cline-local-only-policy";
+
+const CLOUD_PROVIDER_SENTINEL_PATTERN = /\b(openrouter|anthropic|openai-codex|openai-native|oca|claude-sonnet)\b/;
+
+const CLOUD_LITERAL_ALLOWLIST = new Map<string, string>([
+	[
+		"src/cline-sdk/cline-local-only-policy.ts",
+		"The policy owns the managed-cloud denylist and local-only error wording.",
+	],
+	[
+		"src/cline-sdk/cline-provider-service.ts",
+		"The provider service blocks managed Cline OAuth/cloud settings before persistence or dispatch.",
+	],
+	[
+		"src/cline-sdk/sdk-provider-boundary.ts",
+		"The SDK boundary maps managed Cline OAuth provider settings into SDK-owned shapes.",
+	],
+	[
+		"src/core/api-contract.ts",
+		"The runtime API contract exposes the managed Cline OAuth enum for saved settings compatibility.",
+	],
+	[
+		"src/cline-sdk/cline-advisor.ts",
+		"Advisor source URLs are user-triggered research references, not dispatch defaults.",
+	],
+	[
+		"src/cline-sdk/cline-web-research-tool.ts",
+		"Web-research allowed domains are user-triggered research references, not dispatch defaults.",
+	],
+	["src/core/agent-catalog.ts", "Claude Code install docs are for the separate Claude CLI agent."],
+	[
+		"src/terminal/agent-session-adapters.ts",
+		"OpenCode provider ordering belongs to the separate OpenCode CLI adapter, not Cline dispatch.",
+	],
+]);
+
+async function collectTypeScriptSourceFiles(directory: string): Promise<string[]> {
+	const entries = await readdir(directory, { withFileTypes: true });
+	const files: string[] = [];
+	for (const entry of entries) {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) {
+			files.push(...(await collectTypeScriptSourceFiles(path)));
+			continue;
+		}
+		if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+			files.push(path);
+		}
+	}
+	return files;
+}
 
 describe("cline local-only policy", () => {
 	it("ships with cloud disabled", () => {
@@ -93,5 +145,23 @@ describe("cline local-only policy", () => {
 			expect((error as CloudProviderDisabledError).providerId).toBe("openrouter");
 			expect((error as CloudProviderDisabledError).message).toContain("local-only mode");
 		}
+	});
+
+	it("keeps production cloud-provider literals confined to documented boundary files", async () => {
+		const sourceFiles = await collectTypeScriptSourceFiles("src");
+		const violations: string[] = [];
+		for (const file of sourceFiles) {
+			const normalizedPath = relative(process.cwd(), file);
+			const contents = await readFile(file, "utf8");
+			if (!CLOUD_PROVIDER_SENTINEL_PATTERN.test(contents)) {
+				continue;
+			}
+			if (CLOUD_LITERAL_ALLOWLIST.has(normalizedPath)) {
+				continue;
+			}
+			violations.push(normalizedPath);
+		}
+
+		expect(violations, `Unexpected Cline cloud-provider literals outside local-only boundaries`).toEqual([]);
 	});
 });
