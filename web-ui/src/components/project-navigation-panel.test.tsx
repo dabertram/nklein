@@ -481,11 +481,55 @@ describe("ProjectNavigationPanel width persistence", () => {
 		renderPanel({ projects: ACCIDENTAL_PROJECTS });
 
 		expect(container.textContent).toContain("Project Health");
-		expect(container.textContent).toContain("Task worktree projects need a decision before cleanup.");
-		expect(container.textContent).toContain("1 artifacts");
+		expect(container.textContent).toContain("Diagnostics need review before cleanup or continued work.");
+		expect(container.textContent).toContain("Task worktree added as project");
+		expect(container.textContent).toContain("1 issue");
+		expect(container.textContent).toContain("1 artifact");
 		expect(container.textContent).toContain("Inspect");
 		expect(container.textContent).toContain("Migrate");
 		expect(container.textContent).toContain("Remove");
+	});
+
+	it("shows all project health diagnostics for a project", () => {
+		renderPanel({
+			projects: [
+				{
+					...(PROJECTS[0] as RuntimeProjectSummary),
+					healthIssues: [
+						{
+							kind: "lost_session_pending_artifacts",
+							severity: "error",
+							title: "Lost session has pending artifacts",
+							message: "Inspect the source card before cleanup.",
+							taskId: "task-1",
+							parentWorkspaceId: null,
+							parentWorkspacePath: null,
+							artifactCount: 2,
+							canRemove: false,
+							canMigrateArtifacts: false,
+						},
+						{
+							kind: "pending_plan_artifacts",
+							severity: "warning",
+							title: "Pending generated plan artifacts",
+							message: "Apply or reject generated artifacts.",
+							taskId: null,
+							parentWorkspaceId: null,
+							parentWorkspacePath: null,
+							artifactCount: 3,
+							canRemove: false,
+							canMigrateArtifacts: false,
+						},
+					],
+				},
+			],
+		});
+
+		expect(container.textContent).toContain("2 issues");
+		expect(container.textContent).toContain("Lost session has pending artifacts");
+		expect(container.textContent).toContain("Pending generated plan artifacts");
+		expect(container.textContent).toContain("2 artifacts");
+		expect(container.textContent).toContain("3 artifacts");
 	});
 
 	it("requires confirmation before migrating accidental project artifacts", async () => {

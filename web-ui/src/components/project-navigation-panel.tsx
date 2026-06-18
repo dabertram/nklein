@@ -783,19 +783,22 @@ function ProjectHealthCard({
 				<div className="min-w-0">
 					<p className="m-0 text-xs font-semibold text-text-primary">Project Health</p>
 					<p className="mt-1 mb-0 text-[11px] leading-4 text-text-secondary">
-						Task worktree projects need a decision before cleanup.
+						Diagnostics need review before cleanup or continued work.
 					</p>
 				</div>
 			</div>
 			<div className="grid gap-2">
 				{projects.map((project) => {
-					const issue = project.healthIssues?.[0];
-					if (!issue) {
+					const issues = project.healthIssues ?? [];
+					if (issues.length === 0) {
 						return null;
 					}
 					const isMigrating = migratingProjectId === project.id;
-					const parentPath = issue.parentWorkspacePath
-						? formatPathForDisplay(issue.parentWorkspacePath)
+					const primaryIssue = issues[0];
+					const migratableIssue = issues.find((issue) => issue.canMigrateArtifacts);
+					const canRemoveProject = issues.some((issue) => issue.canRemove);
+					const parentPath = primaryIssue?.parentWorkspacePath
+						? formatPathForDisplay(primaryIssue.parentWorkspacePath)
 						: "No parent detected";
 					return (
 						<div key={project.id} className="rounded-md border border-border bg-surface-2 px-2.5 py-2">
@@ -807,15 +810,29 @@ function ProjectHealthCard({
 								<span
 									className={cn(
 										"shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold",
-										issue.severity === "error"
+										issues.some((issue) => issue.severity === "error")
 											? "bg-status-red/20 text-status-red"
 											: "bg-status-orange/20 text-status-orange",
 									)}
 								>
-									{issue.artifactCount} artifacts
+									{issues.length} issue{issues.length === 1 ? "" : "s"}
 								</span>
 							</div>
-							<p className="mt-1.5 mb-2 text-[11px] leading-4 text-text-secondary">{issue.message}</p>
+							<div className="mt-1.5 mb-2 grid gap-1.5">
+								{issues.map((issue) => (
+									<div key={`${issue.kind}:${issue.taskId ?? "project"}`} className="text-[11px] leading-4">
+										<div className="flex items-center justify-between gap-2">
+											<span className="font-medium text-text-primary">{issue.title}</span>
+											{issue.artifactCount > 0 ? (
+												<span className="shrink-0 text-text-tertiary">
+													{issue.artifactCount} artifact{issue.artifactCount === 1 ? "" : "s"}
+												</span>
+											) : null}
+										</div>
+										<p className="m-0 text-text-secondary">{issue.message}</p>
+									</div>
+								))}
+							</div>
 							<div className="grid grid-cols-3 gap-1.5">
 								<Button
 									size="sm"
@@ -830,9 +847,11 @@ function ProjectHealthCard({
 									variant="default"
 									icon={isMigrating ? <Spinner size={14} /> : <Clipboard size={14} />}
 									onClick={() => {
-										void onMigrateArtifacts(project, issue);
+										if (migratableIssue) {
+											void onMigrateArtifacts(project, migratableIssue);
+										}
 									}}
-									disabled={disabled || isMigrating || !issue.canMigrateArtifacts}
+									disabled={disabled || isMigrating || !migratableIssue}
 								>
 									Migrate
 								</Button>
@@ -841,7 +860,7 @@ function ProjectHealthCard({
 									variant="ghost"
 									icon={<Trash2 size={14} />}
 									onClick={() => onRemove(project)}
-									disabled={disabled || isMigrating || !issue.canRemove}
+									disabled={disabled || isMigrating || !canRemoveProject}
 								>
 									Remove
 								</Button>

@@ -256,7 +256,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [ ] Consolidated evidence/diff viewer panel (ties to §C1).
 
 ### G4. Observability
-- [ ] A project-health dashboard surfacing the diagnostics already logged (accidental worktree projects, missing parents, lost sessions w/ pending artifacts, stale artifacts) — the data exists; give it a home.
+- [x] A project-health dashboard surfacing the diagnostics already logged (accidental worktree projects, missing parents, lost sessions w/ pending artifacts, stale artifacts) — the data exists; give it a home.
 
 ### G5. Hide all cloud options (cloud is disabled) — user-prioritized
 Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/cline-sdk/cline-local-only-policy.ts`), so cloud UI is dead weight and confusing. **Decision: hide all cloud options for now** — *hide, don't delete*; keep them behind the policy flag so a future re-enable is a one-switch change.
