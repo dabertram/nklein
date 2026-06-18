@@ -13,6 +13,7 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
+import { RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -50,6 +51,7 @@ import {
 	createAssistantMessage,
 	createDefaultSummary,
 	createMessage,
+	isClineUserAttentionTool,
 	isCreditLimitError,
 	now,
 	setOrCreateAssistantMessage,
@@ -113,6 +115,13 @@ interface ClineTaskFailureBackoffState {
 interface ClineTaskNoDiffState {
 	commit: string;
 	count: number;
+}
+
+interface ClineTaskRepeatedToolState {
+	fingerprint: string;
+	count: number;
+	toolName: string;
+	toolInputSummary: string | null;
 }
 
 const CLINE_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
@@ -478,6 +487,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
 	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
 	private readonly noDiffCheckpointByTaskId = new Map<string, ClineTaskNoDiffState>();
+	private readonly repeatedToolCallByTaskId = new Map<string, ClineTaskRepeatedToolState>();
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly activeToolTaskIds = new Set<string>();
@@ -1248,6 +1258,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		this.noDiffCheckpointByTaskId.delete(request.taskId);
+		this.repeatedToolCallByTaskId.delete(request.taskId);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
@@ -1482,6 +1493,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.repeatedToolCallByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
@@ -1510,6 +1522,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.repeatedToolCallByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
@@ -1585,6 +1598,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return null;
 		}
 		this.failureBackoffByTaskId.delete(taskId);
+		this.repeatedToolCallByTaskId.delete(taskId);
 		if (!this.sessionRuntime.getTaskSessionId(taskId)) {
 			if (isHomeAgentSessionId(taskId) && !this.sessionRuntime.canRestartTaskSession(taskId)) {
 				return null;
@@ -1778,6 +1792,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.repeatedToolCallByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -1969,6 +1984,71 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return nextState;
 	}
 
+	private enforceRepeatedToolCallGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {
+		if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
+			return null;
+		}
+		const toolCall = this.readRepeatedToolCallCandidate(summary);
+		if (!toolCall) {
+			return null;
+		}
+		const previous = this.repeatedToolCallByTaskId.get(summary.taskId);
+		const nextState: ClineTaskRepeatedToolState =
+			previous?.fingerprint === toolCall.fingerprint
+				? {
+						...toolCall,
+						count: previous.count + 1,
+					}
+				: {
+						...toolCall,
+						count: 1,
+					};
+		this.repeatedToolCallByTaskId.set(summary.taskId, nextState);
+		if (nextState.count < RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK) {
+			return null;
+		}
+		const entry = this.messageRepository.getTaskEntry(summary.taskId);
+		if (!entry || entry.summary.reviewReason === "attention") {
+			return null;
+		}
+		const toolInputText = nextState.toolInputSummary ? ` (${nextState.toolInputSummary})` : "";
+		return this.parkTaskForAutonomyBudget({
+			taskId: summary.taskId,
+			entry,
+			message: `Kanban paused this task after ${nextState.count} repeated ${nextState.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`,
+			metadata: {
+				guardrail: "repeated_tool_calls",
+				count: nextState.count,
+				limit: RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+				toolName: nextState.toolName,
+				toolInputSummary: nextState.toolInputSummary,
+			},
+		});
+	}
+
+	private readRepeatedToolCallCandidate(
+		summary: RuntimeTaskSessionSummary,
+	): Omit<ClineTaskRepeatedToolState, "count"> | null {
+		const activity = summary.latestHookActivity;
+		if (activity?.source !== "cline-sdk") {
+			return null;
+		}
+		const hookEventName = activity.hookEventName?.trim().toLowerCase();
+		if (hookEventName !== "tool_call" && hookEventName !== "tool_call_start") {
+			return null;
+		}
+		const toolName = activity.toolName?.trim();
+		if (!toolName || isClineUserAttentionTool(toolName)) {
+			return null;
+		}
+		const toolInputSummary = activity.toolInputSummary?.trim() || null;
+		return {
+			fingerprint: `${toolName.toLowerCase()}\n${toolInputSummary ?? ""}`,
+			toolName,
+			toolInputSummary,
+		};
+	}
+
 	private parkTaskForAutonomyBudget(input: {
 		taskId: string;
 		entry: ClineTaskSessionEntry;
@@ -1977,6 +2057,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
 		this.noDiffCheckpointByTaskId.delete(input.taskId);
+		this.repeatedToolCallByTaskId.delete(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
 			signal: "budget_wall",
@@ -2022,6 +2103,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
 		this.noDiffCheckpointByTaskId.clear();
+		this.repeatedToolCallByTaskId.clear();
 		this.teamProgressListeners.clear();
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {
@@ -2036,7 +2118,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
-		this.messageRepository.emitSummary(summary);
+		const guardedSummary = this.enforceRepeatedToolCallGuard(summary) ?? summary;
+		this.messageRepository.emitSummary(guardedSummary);
 	}
 
 	private emitMessage(taskId: string, message: ClineTaskMessage): void {

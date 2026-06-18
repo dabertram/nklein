@@ -92,6 +92,7 @@ export const runtimeClineReasoningEffortSchema = z.enum(["low", "medium", "high"
 export type RuntimeClineReasoningEffort = z.infer<typeof runtimeClineReasoningEffortSchema>;
 export const RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 export const RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH = 12;
+export const RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK = 5;
 
 export function clampRuntimeSwarmCardStartBatchSize(value: number): number {
 	if (!Number.isFinite(value) || value <= 0) {

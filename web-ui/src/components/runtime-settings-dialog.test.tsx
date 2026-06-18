@@ -519,6 +519,8 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("2 hours");
 		expect(document.body.textContent).toContain("No-diff checkpoints");
 		expect(document.body.textContent).toContain("4 repeats");
+		expect(document.body.textContent).toContain("Repeated tool calls");
+		expect(document.body.textContent).toContain("5 repeats");
 	});
 
 	it("shows Cline code intelligence status in settings", async () => {

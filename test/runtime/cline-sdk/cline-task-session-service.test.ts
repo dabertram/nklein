@@ -1749,6 +1749,96 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.listMessages("task-1").at(-1)?.content).toContain("no new diff commit");
 	});
 
+	it("parks a task after repeated tool calls with the same input", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		for (let index = 1; index <= 4; index += 1) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `tool-${index}`,
+				toolName: "Read",
+				input: { file: "a.ts" },
+			});
+			expect(service.getSummary("task-1")?.state).toBe("running");
+		}
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "tool-5",
+			toolName: "Read",
+			input: { file: "a.ts" },
+		});
+
+		const summary = service.getSummary("task-1");
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("repeated Read tool calls"),
+			latestHookActivity: {
+				hookEventName: "guardrail",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "budget_wall",
+				severity: "warning",
+				taskId: "task-1",
+				providerId: "lmstudio",
+				modelId: "qwen3",
+				metadata: expect.objectContaining({
+					guardrail: "repeated_tool_calls",
+					count: 5,
+					limit: 5,
+					toolName: "Read",
+					toolInputSummary: expect.stringContaining("a.ts"),
+				}),
+			}),
+		);
+		expect(service.listMessages("task-1").at(-1)?.content).toContain("repeated Read tool calls");
+	});
+
+	it("resets repeated tool-call tracking when the tool input changes", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		for (let index = 1; index <= 4; index += 1) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `tool-a-${index}`,
+				toolName: "Read",
+				input: { file: "a.ts" },
+			});
+		}
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "tool-b-1",
+			toolName: "Read",
+			input: { file: "b.ts" },
+		});
+
+		expect(service.getSummary("task-1")?.state).toBe("running");
+		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartClineSessionRuntimeResult>();

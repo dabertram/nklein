@@ -35,6 +35,7 @@
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
 - Recorded typed self-observation telemetry when native Cline reaches the consecutive mistake guardrail and stopped the task through the SDK callback, making repeated tool/API failure stalls diagnosable.
 - Added a Cline autonomous turn-budget guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
+- Added a Kanban repeated-tool stall watchdog for Cline tasks, parking sessions after 5 repeated non-attention tool starts with the same input and surfacing the limit in settings.
 - Added a board-level Local swarm strip with running/waiting/blocked counts and a Pause/Resume control wired to typed runtime swarm-stop endpoints.
 - Added an inline Local swarm concurrency slider that saves `maxConcurrentTasks` from the board header.
 - Added local shared-endpoint ids to Cline session summaries and surfaced per-endpoint running utilization in the board Local swarm strip.

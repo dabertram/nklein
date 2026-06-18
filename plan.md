@@ -330,7 +330,7 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       `decisions.md` is now a first-class plan artifact generated from answered/assumed clarifying
       questions, exposed through CLI/API/tool outputs, and compactly injected with the shared spec into
       decomposition-created card prompts.
-- [~] **Swarm guardrails (backend).** A per-autonomous-run budget (max total turns / wall-time / cards), a
+- [x] **Swarm guardrails (backend).** A per-autonomous-run budget (max total turns / wall-time / cards), a
       **stall watchdog** that auto-parks a card with no diff or repeated identical tool calls after N turns
       (extends the existing "5 consecutive identical calls" stopper), and a swarm-level **stop signal** the
       UI Stop button triggers (L4). Bounded autonomy so an overnight run can't run away. **Progress:**
@@ -345,8 +345,9 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       also watches for repeated no-diff checkpoints and parks sessions that keep producing the same commit
       without new diff progress. The board cockpit now exposes the stop signal as a Pause/Resume control.
       Start-all and dependent auto-start batches now share a 12-card swarm batch budget, enforced from the
-      shared runtime contract and surfaced in settings. Still open: a richer repeated-tool stall watchdog
-      beyond the SDK mistake-limit guard.
+      shared runtime contract and surfaced in settings. Cline task sessions now also park tasks after 5
+      repeated non-attention tool starts with the same summarized input, recording `repeated_tool_calls`
+      `budget_wall` telemetry and surfacing the guardrail in settings.
 
 ---
 

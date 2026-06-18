@@ -6,7 +6,10 @@ import * as RadixPopover from "@radix-ui/react-popover";
 import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
-import { RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH } from "@runtime-contract";
+import {
+	RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
+} from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import {
 	Bell,
@@ -202,6 +205,11 @@ const LOCAL_SWARM_GUARDRAIL_ROWS = [
 		label: "No-diff checkpoints",
 		value: "4 repeats",
 		detail: "Parks tasks that checkpoint the same commit repeatedly.",
+	},
+	{
+		label: "Repeated tool calls",
+		value: `${RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK} repeats`,
+		detail: "Parks tasks that keep starting the same tool with the same input.",
 	},
 	{
 		label: "Repeated tool/API mistakes",
