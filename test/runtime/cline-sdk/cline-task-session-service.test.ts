@@ -1689,6 +1689,66 @@ describe("InMemoryClineTaskSessionService", () => {
 		}
 	});
 
+	it("parks a task after repeated no-diff checkpoints", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		for (let turn = 1; turn <= 3; turn += 1) {
+			const summary = service.applyTurnCheckpoint("task-1", {
+				turn,
+				ref: `refs/kanban/checkpoints/task-1/turn/${turn}`,
+				commit: "same-commit",
+				createdAt: turn,
+			});
+			expect(summary?.state).toBe("running");
+		}
+
+		const summary = service.applyTurnCheckpoint("task-1", {
+			turn: 4,
+			ref: "refs/kanban/checkpoints/task-1/turn/4",
+			commit: "same-commit",
+			createdAt: 4,
+		});
+
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("no new diff commit"),
+			latestTurnCheckpoint: {
+				turn: 4,
+				commit: "same-commit",
+			},
+			latestHookActivity: {
+				hookEventName: "guardrail",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "budget_wall",
+				severity: "warning",
+				taskId: "task-1",
+				providerId: "lmstudio",
+				modelId: "qwen3",
+				metadata: expect.objectContaining({
+					guardrail: "repeated_no_diff_checkpoints",
+					count: 4,
+					limit: 4,
+					turn: 4,
+					checkpointCommit: "same-commit",
+				}),
+			}),
+		);
+		expect(service.listMessages("task-1").at(-1)?.content).toContain("no new diff commit");
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartClineSessionRuntimeResult>();

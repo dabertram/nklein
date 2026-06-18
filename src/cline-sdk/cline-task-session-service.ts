@@ -87,6 +87,7 @@ const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
 const CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
 const CLINE_MAX_AUTONOMOUS_WALL_TIME_MS = 2 * 60 * 60 * 1000;
+const CLINE_MAX_REPEATED_NO_DIFF_CHECKPOINTS = 4;
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
 type ClineSdkToolResultBlock = Extract<ClineSdkContentBlock, { type: "tool_result" }>;
 type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
@@ -107,6 +108,11 @@ interface ClineTaskFailureBackoffState {
 	fingerprint: string;
 	count: number;
 	parked: boolean;
+}
+
+interface ClineTaskNoDiffState {
+	commit: string;
+	count: number;
 }
 
 const CLINE_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
@@ -471,6 +477,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly launchConfigByTaskId = new Map<string, ClineTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
 	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
+	private readonly noDiffCheckpointByTaskId = new Map<string, ClineTaskNoDiffState>();
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly activeToolTaskIds = new Set<string>();
@@ -1240,6 +1247,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
+		this.noDiffCheckpointByTaskId.delete(request.taskId);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
@@ -1473,6 +1481,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
+		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
@@ -1500,6 +1509,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.endpointByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
+		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
@@ -1767,6 +1777,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
+		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -1909,6 +1920,22 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				},
 			});
 		}
+		const noDiffState = this.recordNoDiffCheckpoint(taskId, checkpoint);
+		if (noDiffState.count >= CLINE_MAX_REPEATED_NO_DIFF_CHECKPOINTS) {
+			return this.parkTaskForAutonomyBudget({
+				taskId,
+				entry,
+				message: `Kanban paused this task after ${noDiffState.count} consecutive checkpoints produced no new diff commit. Review progress, then send a new instruction to continue.`,
+				metadata: {
+					guardrail: "repeated_no_diff_checkpoints",
+					count: noDiffState.count,
+					limit: CLINE_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
+					turn: checkpoint.turn,
+					checkpointRef: checkpoint.ref,
+					checkpointCommit: checkpoint.commit,
+				},
+			});
+		}
 		const startedAt = entry.summary.startedAt;
 		const elapsedMs =
 			typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0 ? now() - startedAt : null;
@@ -1930,6 +1957,18 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		});
 	}
 
+	private recordNoDiffCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): ClineTaskNoDiffState {
+		const commit = checkpoint.commit.trim();
+		if (!commit) {
+			this.noDiffCheckpointByTaskId.delete(taskId);
+			return { commit: "", count: 0 };
+		}
+		const previous = this.noDiffCheckpointByTaskId.get(taskId);
+		const nextState = previous?.commit === commit ? { commit, count: previous.count + 1 } : { commit, count: 1 };
+		this.noDiffCheckpointByTaskId.set(taskId, nextState);
+		return nextState;
+	}
+
 	private parkTaskForAutonomyBudget(input: {
 		taskId: string;
 		entry: ClineTaskSessionEntry;
@@ -1937,6 +1976,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
+		this.noDiffCheckpointByTaskId.delete(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
 			signal: "budget_wall",
@@ -1981,6 +2021,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelIdByTaskId.clear();
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
+		this.noDiffCheckpointByTaskId.clear();
 		this.teamProgressListeners.clear();
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {

@@ -341,9 +341,10 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       guardrail is reached. Cline task sessions now enforce a per-task autonomous turn budget, abort the
       session at the limit, park the card for review, and record `budget_wall` telemetry with checkpoint
       evidence. They now enforce a per-task autonomous wall-time budget through the same checkpoint path,
-      aborting and parking over-budget tasks with `max_autonomous_wall_time` telemetry. The board cockpit now
-      exposes the stop signal as a Pause/Resume control. Still open: card budgets and a richer no-diff/
-      repeated-tool stall watchdog beyond the SDK mistake-limit guard.
+      aborting and parking over-budget tasks with `max_autonomous_wall_time` telemetry. The checkpoint path
+      also watches for repeated no-diff checkpoints and parks sessions that keep producing the same commit
+      without new diff progress. The board cockpit now exposes the stop signal as a Pause/Resume control.
+      Still open: card budgets and a richer repeated-tool stall watchdog beyond the SDK mistake-limit guard.
 
 ---
 
