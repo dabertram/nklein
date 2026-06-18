@@ -43,6 +43,7 @@ import type {
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeContextBudgetBreakdown,
+	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskClineSettings,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -263,6 +264,10 @@ interface ClarifyingQuestionPrompt {
 	options: ClarifyingQuestionOption[];
 }
 
+interface ProtectedTestApprovalPrompt {
+	request: RuntimeProtectedTestApprovalPayload;
+}
+
 const CLARIFYING_OPTION_PATTERN = /^\s*(?:[-*]\s*)?(?:(?<id>[A-Z]|\d+)[).:-]\s+)?(?<label>.+?)(?:\s+-\s+.+)?$/i;
 
 function normalizeClarifyingOptionLabel(label: string): string {
@@ -317,6 +322,80 @@ export function extractClarifyingQuestionPrompt(
 		question,
 		options,
 	};
+}
+
+function isProtectedTestApprovalPayload(value: unknown): value is RuntimeProtectedTestApprovalPayload {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const record = value as Record<string, unknown>;
+	return (
+		typeof record.intent === "string" &&
+		typeof record.diff === "string" &&
+		typeof record.reason === "string" &&
+		typeof record.expectedEffects === "string"
+	);
+}
+
+function findJsonObjectCandidates(text: string): string[] {
+	const candidates: string[] = [];
+	for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
+		let depth = 0;
+		let inString = false;
+		let escaped = false;
+		for (let index = start; index < text.length; index += 1) {
+			const char = text[index];
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (char === "\\") {
+				escaped = true;
+				continue;
+			}
+			if (char === '"') {
+				inString = !inString;
+				continue;
+			}
+			if (inString) {
+				continue;
+			}
+			if (char === "{") {
+				depth += 1;
+			} else if (char === "}") {
+				depth -= 1;
+				if (depth === 0) {
+					candidates.push(text.slice(start, index + 1));
+					break;
+				}
+			}
+		}
+	}
+	return candidates;
+}
+
+export function extractProtectedTestApprovalPrompt(
+	messages: readonly ClineChatMessage[],
+): ProtectedTestApprovalPrompt | null {
+	const latestMessage = [...messages]
+		.reverse()
+		.find((message) => message.role !== "status" && message.role !== "reasoning");
+	if (latestMessage?.role !== "assistant" && latestMessage?.role !== "tool") {
+		return null;
+	}
+	const content = latestMessage.content;
+	if (!content.includes("protected test suite") || !content.includes("expectedEffects")) {
+		return null;
+	}
+	for (const candidate of findJsonObjectCandidates(content)) {
+		try {
+			const parsed = JSON.parse(candidate);
+			if (isProtectedTestApprovalPayload(parsed)) {
+				return { request: parsed };
+			}
+		} catch {}
+	}
+	return null;
 }
 
 function formatCompactDuration(milliseconds: number): string {
@@ -494,6 +573,10 @@ export interface ClineAgentChatPanelProps {
 	) => Promise<ClineChatActionResult>;
 	onCancelTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
+	onGrantProtectedTestApproval?: (
+		taskId: string,
+		approval: RuntimeProtectedTestApprovalPayload,
+	) => Promise<ClineChatActionResult>;
 	incomingMessages?: ClineChatMessage[] | null;
 	incomingMessage?: ClineChatMessage | null;
 	teamProgress?: RuntimeClineTeamProgressEvent[];
@@ -530,6 +613,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			onSendMessage,
 			onCancelTurn,
 			onLoadMessages,
+			onGrantProtectedTestApproval,
 			incomingMessages,
 			incomingMessage,
 			teamProgress = [],
@@ -607,6 +691,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		// TODO: Persist per-task mode immediately when toggled so page refresh restores unsent mode changes.
 		const modeByTaskIdRef = useRef<Map<string, RuntimeTaskSessionMode>>(new Map());
 		const [composerError, setComposerError] = useState<string | null>(null);
+		const [isGrantingProtectedApproval, setIsGrantingProtectedApproval] = useState(false);
 		const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
 		const [isSavingModel, setIsSavingModel] = useState(false);
 		const [isClearingChat, setIsClearingChat] = useState(false);
@@ -752,6 +837,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
 				: null;
 		const clarifyingQuestionPrompt = useMemo(() => extractClarifyingQuestionPrompt(messages), [messages]);
+		const protectedTestApprovalPrompt = useMemo(() => extractProtectedTestApprovalPrompt(messages), [messages]);
 
 		const isPinnedToBottom = useCallback((container: HTMLDivElement): boolean => {
 			const remainingDistance = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -944,6 +1030,28 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			},
 			[clineSettings.hasUnsavedChanges, handleSendText, isSavingModel, mode, persistClineModelSettings],
 		);
+		const handleGrantProtectedTestApproval = useCallback(async () => {
+			if (!protectedTestApprovalPrompt || !onGrantProtectedTestApproval) {
+				return;
+			}
+			setIsGrantingProtectedApproval(true);
+			setComposerError(null);
+			try {
+				const granted = await onGrantProtectedTestApproval(taskId, protectedTestApprovalPrompt.request);
+				if (!granted.ok) {
+					setComposerError(granted.message ?? "Could not approve protected-test edit.");
+					return;
+				}
+				await handleSendComposerText(
+					[
+						"Approved this exact protected-test edit.",
+						"Retry the same edit once. Do not change any other protected test path without asking again.",
+					].join(" "),
+				);
+			} finally {
+				setIsGrantingProtectedApproval(false);
+			}
+		}, [handleSendComposerText, onGrantProtectedTestApproval, protectedTestApprovalPrompt, taskId]);
 
 		useImperativeHandle(
 			ref,
@@ -1109,6 +1217,28 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					) : null}
 				</div>
 				<div className="px-2 py-3">
+					{protectedTestApprovalPrompt && onGrantProtectedTestApproval ? (
+						<div className="mb-2 rounded-lg border border-status-orange/40 bg-status-orange/5 px-2 py-2">
+							<div className="mb-1 text-xs font-medium text-text-primary">Protected test edit approval</div>
+							<div className="mb-2 text-xs text-text-secondary">
+								{protectedTestApprovalPrompt.request.intent}
+							</div>
+							<div className="mb-2 grid gap-1 text-[11px] text-text-tertiary">
+								<div>{protectedTestApprovalPrompt.request.reason}</div>
+								<div>{protectedTestApprovalPrompt.request.expectedEffects}</div>
+							</div>
+							<Button
+								variant="primary"
+								size="sm"
+								disabled={isGrantingProtectedApproval || isSending}
+								onClick={() => {
+									void handleGrantProtectedTestApproval();
+								}}
+							>
+								{isGrantingProtectedApproval ? "Approving..." : "Approve Exact Edit"}
+							</Button>
+						</div>
+					) : null}
 					{clarifyingQuestionPrompt ? (
 						<div className="mb-2 rounded-lg border border-border bg-surface-1 px-2 py-2">
 							<div className="mb-2 text-xs text-text-secondary">{clarifyingQuestionPrompt.question}</div>

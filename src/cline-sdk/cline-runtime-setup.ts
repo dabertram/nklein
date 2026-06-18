@@ -1,6 +1,7 @@
 import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
+	buildProtectedTestApprovalRequest,
 	countTextLines,
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 	findPotentialSecretInText,
@@ -8,6 +9,7 @@ import {
 	formatProtectedTestBlockReason,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
+import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
 import { CLINE_GUIDANCE_SKILL_DEFAULTS } from "./cline-guidance-skills";
@@ -28,6 +30,8 @@ import {
 export interface KanbanToolApprovalOptions {
 	contextWindow?: number | null;
 	maxAgentWritableFileLines?: number | null;
+	taskId?: string | null;
+	protectedTestApprovals?: ProtectedTestApprovalStore;
 }
 
 async function readFileLineCount(path: string): Promise<number | null> {
@@ -239,6 +243,7 @@ async function approveEditorTool(
 	workspacePath: string,
 	request: ClineSdkToolApprovalRequest,
 	maxAgentWritableFileLines: number,
+	options: KanbanToolApprovalOptions,
 ): Promise<ClineSdkToolApprovalResult> {
 	if (!request.input || typeof request.input !== "object") {
 		return {
@@ -257,6 +262,23 @@ async function approveEditorTool(
 	const newText = typeof input.new_text === "string" ? input.new_text : "";
 	const protectedPath = findProtectedTestPath(rawPath);
 	if (protectedPath) {
+		const approvalRequest = buildProtectedTestApprovalRequest({
+			toolName: request.toolName,
+			path: protectedPath,
+			diff: newText,
+			reason: "The editor tool attempted to change a protected test-suite file.",
+			expectedEffects: "The protected test-suite file would be edited with the supplied new text.",
+		});
+		const grant = options.protectedTestApprovals?.consume({
+			taskId: options.taskId,
+			request: approvalRequest,
+		});
+		if (grant) {
+			return {
+				approved: true,
+				reason: `Approved by !Klein runtime for ${request.toolName}: one-use protected-test approval granted at ${new Date(grant.approvedAt).toISOString()}.`,
+			};
+		}
 		return {
 			approved: false,
 			reason: formatProtectedTestBlockReason({
@@ -312,6 +334,7 @@ async function approveEditorTool(
 async function approveWriteFilesTool(
 	request: ClineSdkToolApprovalRequest,
 	maxAgentWritableFileLines: number,
+	options: KanbanToolApprovalOptions,
 ): Promise<ClineSdkToolApprovalResult> {
 	const writeRequests = parseWriteFilesRequests(request.input);
 	if (writeRequests.length === 0) {
@@ -323,6 +346,23 @@ async function approveWriteFilesTool(
 	for (const writeRequest of writeRequests) {
 		const protectedPath = findProtectedTestPath(writeRequest.path);
 		if (protectedPath) {
+			const approvalRequest = buildProtectedTestApprovalRequest({
+				toolName: request.toolName,
+				path: protectedPath,
+				diff: writeRequest.content,
+				reason: "The write-file tool attempted to replace a protected test-suite file.",
+				expectedEffects: "The protected test-suite file would be replaced with the supplied content.",
+			});
+			const grant = options.protectedTestApprovals?.consume({
+				taskId: options.taskId,
+				request: approvalRequest,
+			});
+			if (grant) {
+				return {
+					approved: true,
+					reason: `Approved by !Klein runtime for ${request.toolName}: one-use protected-test approval granted at ${new Date(grant.approvedAt).toISOString()}.`,
+				};
+			}
 			return {
 				approved: false,
 				reason: formatProtectedTestBlockReason({
@@ -359,6 +399,7 @@ async function approveApplyPatchTool(
 	workspacePath: string,
 	request: ClineSdkToolApprovalRequest,
 	maxAgentWritableFileLines: number,
+	options: KanbanToolApprovalOptions,
 ): Promise<ClineSdkToolApprovalResult> {
 	const targets = parseApplyPatchTargets(request.input);
 	if (targets.length === 0) {
@@ -370,6 +411,23 @@ async function approveApplyPatchTool(
 	for (const target of targets) {
 		const protectedPath = findProtectedTestPath(target.path);
 		if (protectedPath) {
+			const approvalRequest = buildProtectedTestApprovalRequest({
+				toolName: request.toolName,
+				path: protectedPath,
+				diff: target.type === "delete" ? `Delete ${target.path}` : target.addedText,
+				reason: "The patch tool attempted to change a protected test-suite path.",
+				expectedEffects: "The protected test-suite path would be changed by the supplied patch.",
+			});
+			const grant = options.protectedTestApprovals?.consume({
+				taskId: options.taskId,
+				request: approvalRequest,
+			});
+			if (grant) {
+				return {
+					approved: true,
+					reason: `Approved by !Klein runtime for ${request.toolName}: one-use protected-test approval granted at ${new Date(grant.approvedAt).toISOString()}.`,
+				};
+			}
 			return {
 				approved: false,
 				reason: formatProtectedTestBlockReason({
@@ -429,16 +487,20 @@ export function createKanbanToolApprovalPolicy(
 			const maxAgentWritableFileLines = normalizeMaxAgentWritableFileLines(
 				options.maxAgentWritableFileLines ?? DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 			);
+			const approvalOptions: KanbanToolApprovalOptions = {
+				...options,
+				protectedTestApprovals: options.protectedTestApprovals ?? protectedTestApprovalStore,
+			};
 			switch (request.toolName) {
 				case "read_files":
 					return await approveReadFilesTool(workspacePath, request, options);
 				case "editor":
-					return await approveEditorTool(workspacePath, request, maxAgentWritableFileLines);
+					return await approveEditorTool(workspacePath, request, maxAgentWritableFileLines, approvalOptions);
 				case "write_file":
 				case "write_files":
-					return await approveWriteFilesTool(request, maxAgentWritableFileLines);
+					return await approveWriteFilesTool(request, maxAgentWritableFileLines, approvalOptions);
 				case "apply_patch":
-					return await approveApplyPatchTool(workspacePath, request, maxAgentWritableFileLines);
+					return await approveApplyPatchTool(workspacePath, request, maxAgentWritableFileLines, approvalOptions);
 				default:
 					return {
 						approved: true,
@@ -586,7 +648,11 @@ export async function createClineRuntimeSetup(workspacePath: string): Promise<Cl
 		loadRules: () => loadClineSdkRulesForSystemPrompt(userInstructionService),
 		toolPolicies: createKanbanToolPolicies(),
 		requestToolApproval: toolApprovalPolicy.requestToolApproval,
-		createToolApproval: (options = {}) => createKanbanToolApprovalPolicy(workspacePath, options).requestToolApproval,
+		createToolApproval: (options = {}) =>
+			createKanbanToolApprovalPolicy(workspacePath, {
+				...options,
+				protectedTestApprovals: options.protectedTestApprovals ?? protectedTestApprovalStore,
+			}).requestToolApproval,
 		dispose: async () => {
 			try {
 				userInstructionService.stop();

@@ -8,6 +8,7 @@ import {
 	estimateClineRequestHistoryTokens,
 	estimateClineRequestMessageTokens,
 	extractClarifyingQuestionPrompt,
+	extractProtectedTestApprovalPrompt,
 	findClineModelRegistryEntry,
 	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
@@ -116,6 +117,19 @@ function createRuntimeConfig(agentTimeoutMode: RuntimeConfigResponse["agentTimeo
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
+		codeEmbeddingDefaults: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
 		effectiveCommand: null,
 		globalConfigPath: "/tmp/global-config",
 		projectConfigPath: null,
@@ -1279,6 +1293,78 @@ describe("ClineAgentChatPanel", () => {
 			{ id: "A", label: "Minimal beta", responseText: "Answer: A. Minimal beta" },
 			{ id: "B", label: "Full release", responseText: "Answer: B. Full release" },
 		]);
+	});
+
+	it("extracts protected-test approval payloads from blocked messages", () => {
+		const prompt = extractProtectedTestApprovalPrompt([
+			{
+				id: "assistant-1",
+				role: "assistant",
+				content:
+					'Blocked editor: test/protected/protected-tests.json is part of the protected test suite. {"intent":"Change protected test suite path test/protected/protected-tests.json via editor.","diff":"{}","reason":"Review exact edit.","expectedEffects":"Protected behavior changes."}',
+				createdAt: 1,
+			},
+		]);
+
+		expect(prompt?.request).toEqual({
+			intent: "Change protected test suite path test/protected/protected-tests.json via editor.",
+			diff: "{}",
+			reason: "Review exact edit.",
+			expectedEffects: "Protected behavior changes.",
+		});
+	});
+
+	it("grants a protected-test approval from the chat panel", async () => {
+		const onSendMessage = vi.fn(async () => ({ ok: true }));
+		const onGrantProtectedTestApproval = vi.fn(async () => ({ ok: true }));
+		const messages: ClineChatMessage[] = [
+			{
+				id: "assistant-1",
+				role: "assistant",
+				content:
+					'Blocked editor: test/protected/protected-tests.json is part of the protected test suite. {"intent":"Change protected test suite path test/protected/protected-tests.json via editor.","diff":"{}","reason":"Review exact edit.","expectedEffects":"Protected behavior changes."}',
+				createdAt: 1,
+			},
+		];
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("idle")}
+					onLoadMessages={async () => messages}
+					onSendMessage={onSendMessage}
+					onGrantProtectedTestApproval={onGrantProtectedTestApproval}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const approveButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Approve Exact Edit",
+		);
+		expect(approveButton).toBeInstanceOf(HTMLButtonElement);
+		if (!(approveButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected protected approval button.");
+		}
+
+		await act(async () => {
+			approveButton.click();
+			await Promise.resolve();
+		});
+
+		expect(onGrantProtectedTestApproval).toHaveBeenCalledWith("task-1", {
+			intent: "Change protected test suite path test/protected/protected-tests.json via editor.",
+			diff: "{}",
+			reason: "Review exact edit.",
+			expectedEffects: "Protected behavior changes.",
+		});
+		expect(onSendMessage).toHaveBeenCalledWith(
+			"task-1",
+			"Approved this exact protected-test edit. Retry the same edit once. Do not change any other protected test path without asking again.",
+			{ mode: "act" },
+		);
 	});
 
 	it("sends a clarifying question chip answer through the existing chat turn", async () => {

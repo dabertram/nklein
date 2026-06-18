@@ -65,6 +65,7 @@ import type {
 	RuntimeBoardCard,
 	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
+	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeTaskEvidenceResponse,
 	RuntimeTaskSessionSummary,
@@ -88,6 +89,7 @@ import {
 	parseClineProviderSettingsSaveRequest,
 	parseClineUpdateProviderRequest,
 	parseCommandRunRequest,
+	parseProtectedTestApprovalGrantRequest,
 	parseRuntimeConfigSaveRequest,
 	parseShellSessionStartRequest,
 	parseTaskChatAbortRequest,
@@ -101,6 +103,7 @@ import {
 	parseTaskSessionStopRequest,
 } from "../core/api-validation";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
@@ -1974,6 +1977,39 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				return {
 					ok: false,
 					summary: null,
+					error: message,
+				};
+			}
+		},
+		grantProtectedTestApproval: async (workspaceScope, input): Promise<RuntimeProtectedTestApprovalGrantResponse> => {
+			try {
+				const body = parseProtectedTestApprovalGrantRequest(input);
+				const approvedAt = Date.now();
+				protectedTestApprovalStore.grant({
+					taskId: body.taskId,
+					workspacePath: workspaceScope.workspacePath,
+					request: body.approval,
+					approvedAt,
+				});
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: "Protected-test edit approval granted.",
+					taskId: body.taskId,
+					workspacePath: workspaceScope.workspacePath,
+					metadata: {
+						operation: "grant_protected_test_approval",
+						intent: body.approval.intent,
+						reason: body.approval.reason,
+						expectedEffects: body.approval.expectedEffects,
+						approvedAt,
+					},
+				});
+				return { ok: true };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					ok: false,
 					error: message,
 				};
 			}

@@ -727,6 +727,49 @@ describe("createRuntimeApi startTaskSession", () => {
 		providerSelectionPath = "";
 	});
 
+	it("records telemetry when granting a protected-test approval", async () => {
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.grantProtectedTestApproval(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-approval",
+				approval: {
+					intent: "Change protected test suite path test/protected/protected-tests.json via editor.",
+					diff: "{}",
+					reason: "The editor tool attempted to change a protected test-suite file.",
+					expectedEffects: "The protected test-suite file would be edited with the supplied new text.",
+				},
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				message: "Protected-test edit approval granted.",
+				taskId: "task-approval",
+				workspacePath: "/tmp/repo",
+				metadata: expect.objectContaining({
+					operation: "grant_protected_test_approval",
+					intent: "Change protected test suite path test/protected/protected-tests.json via editor.",
+				}),
+			}),
+		);
+	});
+
 	it("reuses an existing worktree path before falling back to ensure", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 

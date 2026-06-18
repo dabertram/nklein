@@ -10,6 +10,7 @@ import { type ClineChatActionResult, useClineChatRuntimeActions } from "@/hooks/
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskChatMessage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -76,6 +77,10 @@ export interface UseTaskSessionsResult {
 	) => Promise<ClineChatActionResult>;
 	abortTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
 	cancelTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
+	grantProtectedTestApproval: (
+		taskId: string,
+		approval: RuntimeProtectedTestApprovalPayload,
+	) => Promise<ClineChatActionResult>;
 	fetchTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
 	cleanupTaskWorkspace: (taskId: string) => Promise<RuntimeWorktreeDeleteResponse | null>;
 	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
@@ -124,6 +129,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		loadTaskChatMessages: fetchTaskChatMessages,
 		abortTaskChatTurn,
 		cancelTaskChatTurn,
+		grantProtectedTestApproval,
 	} = useClineChatRuntimeActions({
 		currentProjectId,
 		onSessionSummary: upsertSession,
@@ -309,6 +315,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		sendTaskChatMessage,
 		abortTaskChatTurn,
 		cancelTaskChatTurn,
+		grantProtectedTestApproval,
 		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
 		fetchTaskWorkspaceInfo,

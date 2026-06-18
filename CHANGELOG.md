@@ -15,6 +15,7 @@
 - Added a separate protected-test runner (`npm run test:protected`) with a curated manifest and co-located rationale docs, plus write-guard blocks for protected-suite paths and config files.
 - Added topic-based guidance routing for decomposition-generated cards, injecting the matching `/nklein-security`, `/nklein-ui`, or `/nklein-ts` skill command from a maintained topic map.
 - Added structured protected-test edit denial payloads with `intent`, `diff`, `reason`, and `expectedEffects`, so blocked agents can ask for exact human review through the existing follow-up question channel.
+- Added one-use protected-test edit approvals in the Cline chat panel, scoped to the exact structured request and audited to local telemetry before the matching retry is allowed.
 - Added a create-task prompt template menu with quick starts for bug fixes, small features, tests, security review, and decomposition.
 - Added a gated Developer Tools self-improvement flow that loads the currently running dev checkout, accepts optional notes/evidence, and seeds a protected-guarded Cline Backlog task.
 - Added Git clone ref selection for project add, letting cloned projects check out a branch, tag, or commit in detached mode after clone.

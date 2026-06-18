@@ -225,6 +225,7 @@ export default function App(): ReactElement {
 		stopTaskSession,
 		sendTaskSessionInput,
 		sendTaskChatMessage,
+		grantProtectedTestApproval,
 		cancelTaskChatTurn,
 		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
@@ -1177,6 +1178,7 @@ export default function App(): ReactElement {
 									}}
 									onSendClineChatMessage={sendTaskChatMessage}
 									onCancelClineChatTurn={cancelTaskChatTurn}
+									onGrantProtectedTestApproval={grantProtectedTestApproval}
 									onMarkTaskInterrupted={markTaskInterrupted}
 									onLoadClineChatMessages={fetchTaskChatMessages}
 									latestClineChatMessage={latestSelectedTaskChatMessage}

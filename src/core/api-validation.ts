@@ -23,6 +23,7 @@ import {
 	type RuntimeProjectAddRequest,
 	type RuntimeProjectArtifactMigrationRequest,
 	type RuntimeProjectRemoveRequest,
+	type RuntimeProtectedTestApprovalGrantRequest,
 	type RuntimeSelfImprovementProjectRequest,
 	type RuntimeShellSessionStartRequest,
 	type RuntimeTaskChatAbortRequest,
@@ -63,6 +64,7 @@ import {
 	runtimeProjectAddRequestSchema,
 	runtimeProjectArtifactMigrationRequestSchema,
 	runtimeProjectRemoveRequestSchema,
+	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeSelfImprovementProjectRequestSchema,
 	runtimeShellSessionStartRequestSchema,
 	runtimeTaskChatAbortRequestSchema,
@@ -327,6 +329,23 @@ export function parseTaskChatSendRequest(value: unknown): RuntimeTaskChatSendReq
 		...parsed,
 		taskId,
 		text,
+	};
+}
+
+export function parseProtectedTestApprovalGrantRequest(value: unknown): RuntimeProtectedTestApprovalGrantRequest {
+	const parsed = parseWithSchema(runtimeProtectedTestApprovalGrantRequestSchema, value);
+	const taskId = parsed.taskId.trim();
+	if (!taskId) {
+		throw new Error("Protected-test approval taskId cannot be empty.");
+	}
+	return {
+		taskId,
+		approval: {
+			intent: parsed.approval.intent.trim(),
+			diff: parsed.approval.diff.trim(),
+			reason: parsed.approval.reason.trim(),
+			expectedEffects: parsed.approval.expectedEffects.trim(),
+		},
 	};
 }
 

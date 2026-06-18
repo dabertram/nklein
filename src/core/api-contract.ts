@@ -1734,6 +1734,26 @@ export const runtimeTaskChatSendResponseSchema = z.object({
 });
 export type RuntimeTaskChatSendResponse = z.infer<typeof runtimeTaskChatSendResponseSchema>;
 
+export const runtimeProtectedTestApprovalPayloadSchema = z.object({
+	intent: z.string(),
+	diff: z.string(),
+	reason: z.string(),
+	expectedEffects: z.string(),
+});
+export type RuntimeProtectedTestApprovalPayload = z.infer<typeof runtimeProtectedTestApprovalPayloadSchema>;
+
+export const runtimeProtectedTestApprovalGrantRequestSchema = z.object({
+	taskId: z.string(),
+	approval: runtimeProtectedTestApprovalPayloadSchema,
+});
+export type RuntimeProtectedTestApprovalGrantRequest = z.infer<typeof runtimeProtectedTestApprovalGrantRequestSchema>;
+
+export const runtimeProtectedTestApprovalGrantResponseSchema = z.object({
+	ok: z.boolean(),
+	error: z.string().optional(),
+});
+export type RuntimeProtectedTestApprovalGrantResponse = z.infer<typeof runtimeProtectedTestApprovalGrantResponseSchema>;
+
 export const runtimeTaskChatReloadRequestSchema = z.object({
 	taskId: z.string(),
 });

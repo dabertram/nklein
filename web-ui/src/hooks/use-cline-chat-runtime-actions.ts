@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeClineReasoningEffort,
+	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskChatMessage,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
@@ -40,6 +41,10 @@ interface UseClineChatRuntimeActionsResult {
 	loadTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
 	abortTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
 	cancelTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
+	grantProtectedTestApproval: (
+		taskId: string,
+		approval: RuntimeProtectedTestApprovalPayload,
+	) => Promise<ClineChatActionResult>;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -141,10 +146,32 @@ export function useClineChatRuntimeActions({
 		[currentProjectId, onSessionSummary],
 	);
 
+	const grantProtectedTestApproval = useCallback(
+		async (taskId: string, approval: RuntimeProtectedTestApprovalPayload): Promise<ClineChatActionResult> => {
+			if (!currentProjectId) {
+				return { ok: false, message: "No project selected." };
+			}
+			try {
+				const payload = await getRuntimeTrpcClient(currentProjectId).runtime.grantProtectedTestApproval.mutate({
+					taskId,
+					approval,
+				});
+				if (!payload.ok) {
+					return { ok: false, message: payload.error ?? "Could not approve protected-test edit." };
+				}
+				return { ok: true };
+			} catch (error) {
+				return { ok: false, message: toErrorMessage(error) };
+			}
+		},
+		[currentProjectId],
+	);
+
 	return {
 		sendTaskChatMessage,
 		loadTaskChatMessages,
 		abortTaskChatTurn,
 		cancelTaskChatTurn,
+		grantProtectedTestApproval,
 	};
 }

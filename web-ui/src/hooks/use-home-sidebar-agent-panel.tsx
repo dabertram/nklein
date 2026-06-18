@@ -97,10 +97,11 @@ export function useHomeSidebarAgentPanel({
 	useEffect(() => {
 		currentTaskIdRef.current = taskId;
 	}, [taskId]);
-	const { sendTaskChatMessage, loadTaskChatMessages, cancelTaskChatTurn } = useClineChatRuntimeActions({
-		currentProjectId,
-		onSessionSummary: upsertSessionSummary,
-	});
+	const { sendTaskChatMessage, loadTaskChatMessages, cancelTaskChatTurn, grantProtectedTestApproval } =
+		useClineChatRuntimeActions({
+			currentProjectId,
+			onSessionSummary: upsertSessionSummary,
+		});
 
 	const selectedAgentLabel = useMemo(() => {
 		if (!runtimeProjectConfig) {
@@ -168,6 +169,7 @@ export function useHomeSidebarAgentPanel({
 				onSendMessage={handleSendHomeClineChatMessage}
 				onCancelTurn={handleCancelHomeClineChatTurn}
 				onLoadMessages={handleLoadHomeClineChatMessages}
+				onGrantProtectedTestApproval={grantProtectedTestApproval}
 				incomingMessage={latestHomeTaskChatMessage}
 				incomingMessages={homeTaskChatMessages}
 				teamProgress={homeTeamProgress}

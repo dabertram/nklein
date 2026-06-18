@@ -83,6 +83,8 @@ import type {
 	RuntimeProjectRemoveRequest,
 	RuntimeProjectRemoveResponse,
 	RuntimeProjectsResponse,
+	RuntimeProtectedTestApprovalGrantRequest,
+	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
@@ -209,6 +211,8 @@ import {
 	runtimeProjectRemoveRequestSchema,
 	runtimeProjectRemoveResponseSchema,
 	runtimeProjectsResponseSchema,
+	runtimeProtectedTestApprovalGrantRequestSchema,
+	runtimeProtectedTestApprovalGrantResponseSchema,
 	runtimeRunUpdateResponseSchema,
 	runtimeSelfImprovementProjectRequestSchema,
 	runtimeSelfImprovementProjectResponseSchema,
@@ -335,6 +339,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskChatSendRequest,
 		) => Promise<RuntimeTaskChatSendResponse>;
+		grantProtectedTestApproval: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeProtectedTestApprovalGrantRequest,
+		) => Promise<RuntimeProtectedTestApprovalGrantResponse>;
 		reloadTaskChatSession: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskChatReloadRequest,
@@ -684,6 +692,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeTaskChatSendResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.sendTaskChatMessage(ctx.workspaceScope, input);
+			}),
+		grantProtectedTestApproval: workspaceProcedure
+			.input(runtimeProtectedTestApprovalGrantRequestSchema)
+			.output(runtimeProtectedTestApprovalGrantResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.grantProtectedTestApproval(ctx.workspaceScope, input);
 			}),
 		abortTaskChatTurn: workspaceProcedure
 			.input(runtimeTaskChatAbortRequestSchema)

@@ -178,8 +178,8 @@ Goal: a small model can work on !Klein's own code without silently breaking feat
   - [x] `test/protected/README.md` explains what protected means, why the suite exists, the explicit-approval rule, and how to propose a change.
   - [x] `test/protected/protected-tests.json` carries a one-line rationale per protected test group.
 - [x] **D3. Block by default** — `src/core/agent-write-guard.ts` now identifies protected-suite paths, and editor/write/apply-patch approvals plus direct write-file tools reject edits to `test/protected/**` and `vitest.protected.config.ts` without explicit human approval.
-- [ ] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
-- [ ] **D5. Audit + tests** — log every protected-test approval to telemetry (what/why); tests for both the blocked path and the approved-unblock path.
+- [x] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
+- [x] **D5. Audit + tests** — log every protected-test approval to telemetry (what/why); tests for both the blocked path and the approved-unblock path.
 - [x] **D6.** Make the protected suite apply *automatically* inside the §C2 self-improvement project so the guardrail is on by default when !Klein edits itself.
 
 ---

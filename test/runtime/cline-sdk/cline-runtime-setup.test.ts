@@ -14,6 +14,8 @@ import {
 	ensureKanbanDefaultSkills,
 	ensureKanbanDefaultWorkflows,
 } from "../../../src/cline-sdk/cline-runtime-setup";
+import { buildProtectedTestApprovalRequest } from "../../../src/core/agent-write-guard";
+import { createProtectedTestApprovalStore } from "../../../src/core/protected-test-approval-store";
 
 const TEMP_PREFIX = "kanban-runtime-setup-";
 const execFileAsync = promisify(execFile);
@@ -134,6 +136,46 @@ describe("createKanbanToolApprovalPolicy", () => {
 		);
 		expect(result.reason).toContain('"diff":"{}"');
 		expect(result.reason).toContain('"expectedEffects":');
+	});
+
+	it("allows one exact protected-test edit after explicit approval", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const approvalStore = createProtectedTestApprovalStore();
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-approval",
+			protectedTestApprovals: approvalStore,
+		});
+		const request = createApprovalRequest({
+			toolName: "editor",
+			input: {
+				path: "test/protected/protected-tests.json",
+				new_text: "{}",
+			},
+		});
+		const approval = buildProtectedTestApprovalRequest({
+			toolName: "editor",
+			path: "test/protected/protected-tests.json",
+			diff: "{}",
+			reason: "The editor tool attempted to change a protected test-suite file.",
+			expectedEffects: "The protected test-suite file would be edited with the supplied new text.",
+		});
+
+		const blocked = await policy.requestToolApproval(request);
+		expect(blocked.approved).toBe(false);
+
+		approvalStore.grant({
+			taskId: "task-approval",
+			request: approval,
+			approvedAt: 123,
+		});
+
+		const approved = await policy.requestToolApproval(request);
+		expect(approved.approved).toBe(true);
+		expect(approved.reason).toContain("one-use protected-test approval");
+
+		const blockedAgain = await policy.requestToolApproval(request);
+		expect(blockedAgain.approved).toBe(false);
 	});
 
 	it("blocks apply_patch calls that introduce obvious secrets", async () => {

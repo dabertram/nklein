@@ -48,6 +48,7 @@ import type {
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
+	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticEvent,
 	RuntimeTaskSessionMode,
@@ -1367,6 +1368,7 @@ export function CardDetailView({
 	onSendReviewComments,
 	onSendClineChatMessage,
 	onCancelClineChatTurn,
+	onGrantProtectedTestApproval,
 	onMarkTaskInterrupted,
 	onLoadClineChatMessages,
 	latestClineChatMessage,
@@ -1434,6 +1436,10 @@ export function CardDetailView({
 		options?: { mode?: RuntimeTaskSessionMode },
 	) => Promise<ClineChatActionResult>;
 	onCancelClineChatTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
+	onGrantProtectedTestApproval?: (
+		taskId: string,
+		approval: RuntimeProtectedTestApprovalPayload,
+	) => Promise<ClineChatActionResult>;
 	onMarkTaskInterrupted?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadClineChatMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
 	latestClineChatMessage?: ClineChatMessage | null;
@@ -1689,6 +1695,7 @@ export function CardDetailView({
 			onSendMessage={onSendClineChatMessage}
 			onCancelTurn={onCancelClineChatTurn}
 			onLoadMessages={onLoadClineChatMessages}
+			onGrantProtectedTestApproval={onGrantProtectedTestApproval}
 			incomingMessages={streamedClineChatMessages}
 			incomingMessage={latestClineChatMessage}
 			teamProgress={clineTeamProgress}
