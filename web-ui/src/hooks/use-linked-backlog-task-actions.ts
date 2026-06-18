@@ -32,7 +32,7 @@ export function useLinkedBacklogTaskActions({
 	kickoffTaskInProgress,
 	activeTaskSessionCount,
 	maxConcurrentTasks,
-	startBacklogTaskWithAnimation,
+	startWaitingTaskWithAnimation,
 	waitForBacklogStartAnimationAvailability,
 }: {
 	board: BoardData;
@@ -49,7 +49,7 @@ export function useLinkedBacklogTaskActions({
 	) => Promise<boolean>;
 	activeTaskSessionCount: number;
 	maxConcurrentTasks: number;
-	startBacklogTaskWithAnimation?: (task: BoardCard) => Promise<boolean>;
+	startWaitingTaskWithAnimation?: (task: BoardCard, fromColumnId: BoardColumnId) => Promise<boolean>;
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
 }): {
 	handleCreateDependency: (fromTaskId: string, toTaskId: string) => void;
@@ -80,7 +80,7 @@ export function useLinkedBacklogTaskActions({
 							: result.reason === "trash_task"
 								? "Links cannot include done tasks."
 								: result.reason === "non_backlog"
-									? "Links must include at least one Backlog task."
+									? "Links must include at least one waiting task."
 									: "Could not create link.";
 				showAppToast({
 					intent: "warning",
@@ -136,21 +136,25 @@ export function useLinkedBacklogTaskActions({
 					: currentSelectedTaskId,
 			);
 
-			const readyTasks = finished.readyTaskIds
-				.map((readyTaskId) => findCardSelection(finished.board, readyTaskId)?.card ?? null)
-				.filter((readyTask): readyTask is BoardCard => readyTask !== null);
+			const readyTaskSelections = finished.readyTaskIds
+				.map((readyTaskId) => findCardSelection(finished.board, readyTaskId))
+				.filter((readyTaskSelection): readyTaskSelection is NonNullable<typeof readyTaskSelection> => {
+					return readyTaskSelection !== null;
+				});
 			const normalizedMaxConcurrentTasks = Math.max(1, Math.trunc(maxConcurrentTasks));
 			const activeTasksAfterFinish = Math.max(0, activeTaskSessionCount - 1);
 			const availableStartSlots = Math.max(0, normalizedMaxConcurrentTasks - activeTasksAfterFinish);
-			const readyTasksToStart = readyTasks.slice(0, availableStartSlots);
+			const readyTasksToStart = readyTaskSelections.slice(0, availableStartSlots);
 
 			if (readyTasksToStart.length > 0) {
 				maybeRequestNotificationPermissionForTaskStart();
 				let startedTaskCount = 0;
-				if (startBacklogTaskWithAnimation) {
+				if (startWaitingTaskWithAnimation) {
 					const startedTaskPromises: Promise<boolean>[] = [];
-					for (const [index, readyTask] of readyTasksToStart.entries()) {
-						startedTaskPromises.push(startBacklogTaskWithAnimation(readyTask));
+					for (const [index, readyTaskSelection] of readyTasksToStart.entries()) {
+						startedTaskPromises.push(
+							startWaitingTaskWithAnimation(readyTaskSelection.card, readyTaskSelection.column.id),
+						);
 						if (index < readyTasksToStart.length - 1) {
 							await waitForBacklogStartAnimationAvailability?.();
 						}
@@ -160,8 +164,8 @@ export function useLinkedBacklogTaskActions({
 				} else {
 					setBoard((currentBoardState) => {
 						let nextBoardState = currentBoardState;
-						for (const readyTask of readyTasksToStart) {
-							const moved = moveTaskToColumn(nextBoardState, readyTask.id, "in_progress", {
+						for (const readyTaskSelection of readyTasksToStart) {
+							const moved = moveTaskToColumn(nextBoardState, readyTaskSelection.card.id, "in_progress", {
 								insertAtTop: true,
 							});
 							if (moved.moved) {
@@ -170,10 +174,15 @@ export function useLinkedBacklogTaskActions({
 						}
 						return nextBoardState;
 					});
-					for (const readyTask of readyTasksToStart) {
-						const started = await kickoffTaskInProgress(readyTask, readyTask.id, "backlog", {
-							optimisticMove: true,
-						});
+					for (const readyTaskSelection of readyTasksToStart) {
+						const started = await kickoffTaskInProgress(
+							readyTaskSelection.card,
+							readyTaskSelection.card.id,
+							readyTaskSelection.column.id,
+							{
+								optimisticMove: true,
+							},
+						);
 						if (started) {
 							startedTaskCount += 1;
 						}
@@ -195,7 +204,7 @@ export function useLinkedBacklogTaskActions({
 			maybeRequestNotificationPermissionForTaskStart,
 			setBoard,
 			setSelectedTaskId,
-			startBacklogTaskWithAnimation,
+			startWaitingTaskWithAnimation,
 			stopTaskSession,
 			waitForBacklogStartAnimationAvailability,
 		],

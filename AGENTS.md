@@ -34,6 +34,7 @@ Architecture opinions
 
 Git guardrails
 - NEVER commit unless user asks.
+- Keep `CHANGELOG.md` current: every feature, fix, or behavior change should add or update the `## [Upcoming]` section in the same change.
 
 GitHub issues
 When reading issues:

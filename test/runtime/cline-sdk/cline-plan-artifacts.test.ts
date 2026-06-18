@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -54,6 +54,23 @@ describe("cline plan artifacts", () => {
 			slug: "Habit Tracker",
 			spec: "# Spec\n",
 			plan: "# Plan\n",
+			questions: [
+				{
+					id: "q1",
+					question: "Should reminders be included?",
+					status: "assumed-default",
+					options: [
+						{
+							id: "no",
+							label: "No reminders",
+							description: "Keep the first slice focused.",
+							recommended: true,
+						},
+					],
+					answer: null,
+					assumption: "No reminders in the first slice.",
+				},
+			],
 			taskGraph: {
 				schemaVersion: 1,
 				slug: "will-be-normalized",
@@ -79,6 +96,9 @@ describe("cline plan artifacts", () => {
 
 		expect(artifacts.spec).toBe("# Spec\n");
 		expect(artifacts.plan).toBe("# Plan\n");
+		expect(artifacts.questionsMarkdown).toContain("Should reminders be included?");
+		expect(artifacts.questionsMarkdown).toContain("Assumption: No reminders in the first slice.");
+		await expect(readFile(artifacts.questionsPath, "utf8")).resolves.toContain("# Questions");
 		expect(artifacts.taskGraph.slug).toBe("habit-tracker");
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(artifacts.taskGraph.tasks[0]?.testFirst).toBe(true);

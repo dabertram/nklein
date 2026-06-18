@@ -4,7 +4,8 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
+const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
 
 export interface ClineAcceptanceGateExecution {
@@ -42,7 +43,7 @@ export function extractClineAcceptanceCommand(taskPrompt: string): string | null
 	return command ? command : null;
 }
 
-function resolveShellExecution(command: string): { binary: string; args: string[] } {
+export function resolveShellExecution(command: string): { binary: string; args: string[] } {
 	if (process.platform === "win32") {
 		const shell = process.env.COMSPEC?.trim() || "cmd.exe";
 		return { binary: shell, args: ["/d", "/s", "/c", command] };
@@ -70,6 +71,10 @@ async function defaultRunCommand(execution: ClineAcceptanceGateExecution): Promi
 			cwd: execution.cwd,
 			timeout: execution.timeoutMs,
 			maxBuffer: DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES,
+			env: {
+				...process.env,
+				PATH: process.env.PATH?.trim() || DEFAULT_ACCEPTANCE_PATH,
+			},
 		});
 		return {
 			exitCode: 0,

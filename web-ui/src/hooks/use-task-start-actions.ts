@@ -37,7 +37,7 @@ export function getStartableBacklogTaskIds(board: BoardData): string[] {
 	});
 
 	backlogCards?.forEach((card) => {
-		if (card.blockedKind === "needs_decomposition") {
+		if (card.blockedKind !== undefined) {
 			return;
 		}
 		const dependency = board.dependencies.find((d) => d.fromTaskId === card.id);

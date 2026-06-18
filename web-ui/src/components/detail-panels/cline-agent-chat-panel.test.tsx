@@ -7,6 +7,7 @@ import {
 	type ClineAgentChatPanelHandle,
 	estimateClineRequestHistoryTokens,
 	estimateClineRequestMessageTokens,
+	extractClarifyingQuestionPrompt,
 	findClineModelRegistryEntry,
 	formatClineCardContentDisplay,
 	formatClineContextBudgetDisplay,
@@ -608,6 +609,39 @@ describe("ClineAgentChatPanel", () => {
 		expect(container.textContent).toContain("worker");
 		expect(container.textContent).toContain("implementation");
 		expect(container.textContent).toContain("running");
+	});
+
+	it("renders the backend context budget bar when a breakdown is available", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running", null, {
+						contextBudgetBreakdown: {
+							systemPromptTokens: 2_000,
+							toolSchemaTokens: 500,
+							taskPromptTokens: 3_000,
+							userMessageTokens: 4_000,
+							includedFileContentTokens: 0,
+							otherHistoryTokens: 1_000,
+							reservedPromptOverheadTokens: 1_200,
+							reservedOutputTokens: 8_000,
+							usedWorkingTokens: 11_700,
+							freeWorkingTokens: 60_300,
+							effectiveContextWindow: 80_000,
+							projectedTokens: 19_700,
+						},
+					})}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		expect(container.textContent).toContain("Context");
+		expect(container.textContent).toContain("20k / 80k tokens");
+		expect(container.textContent).toContain("80k available context");
 	});
 
 	it("keeps completed reasoning collapsed after the stream finishes", async () => {
@@ -1224,6 +1258,71 @@ describe("ClineAgentChatPanel", () => {
 			modelId: "new-model",
 			reasoningEffort: "high",
 		});
+	});
+
+	it("extracts clarifying question options from assistant messages", () => {
+		const prompt = extractClarifyingQuestionPrompt([
+			{
+				id: "assistant-1",
+				role: "assistant",
+				content: [
+					"Which launch scope should I assume?",
+					"A. Minimal beta (recommended) - storage and UI only",
+					"B. Full release - storage, UI, reminders, and sync",
+				].join("\n"),
+				createdAt: 1,
+			},
+		]);
+
+		expect(prompt?.question).toBe("Which launch scope should I assume?");
+		expect(prompt?.options).toEqual([
+			{ id: "A", label: "Minimal beta", responseText: "Answer: A. Minimal beta" },
+			{ id: "B", label: "Full release", responseText: "Answer: B. Full release" },
+		]);
+	});
+
+	it("sends a clarifying question chip answer through the existing chat turn", async () => {
+		const onSendMessage = vi.fn(async () => ({ ok: true }));
+		const messages: ClineChatMessage[] = [
+			{
+				id: "assistant-1",
+				role: "assistant",
+				content: [
+					"Which launch scope should I assume?",
+					"A. Minimal beta (recommended) - storage and UI only",
+					"B. Full release - storage, UI, reminders, and sync",
+				].join("\n"),
+				createdAt: 1,
+			},
+		];
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("idle")}
+					onLoadMessages={async () => messages}
+					onSendMessage={onSendMessage}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const optionButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Minimal beta",
+		);
+		expect(optionButton).toBeInstanceOf(HTMLButtonElement);
+		if (!(optionButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected clarifying option button.");
+		}
+
+		await act(async () => {
+			optionButton.click();
+			await Promise.resolve();
+		});
+
+		expect(onSendMessage).toHaveBeenCalledWith("task-1", "Answer: A. Minimal beta", { mode: "act" });
 	});
 
 	it("defaults the composer mode from the task and sends using the selected mode", async () => {

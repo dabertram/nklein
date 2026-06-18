@@ -36,6 +36,7 @@ function createBoard(dependencies: BoardDependency[] = []): BoardData {
 				title: "Backlog",
 				cards: [createTask("task-1", "Backlog task", 1), createTask("task-3", "Second backlog task", 3)],
 			},
+			{ id: "planning", title: "Planning", cards: [] },
 			{ id: "in_progress", title: "In Progress", cards: [] },
 			{
 				id: "review",
@@ -77,7 +78,7 @@ function HookHarness({
 	boardFactory,
 	onSnapshot,
 	kickoffTaskInProgress,
-	startBacklogTaskWithAnimation,
+	startWaitingTaskWithAnimation,
 	waitForBacklogStartAnimationAvailability,
 	stopTaskSession,
 	cleanupTaskWorkspace,
@@ -92,7 +93,7 @@ function HookHarness({
 		fromColumnId: BoardColumnId,
 		options?: { optimisticMove?: boolean },
 	) => Promise<boolean>;
-	startBacklogTaskWithAnimation?: (task: BoardCard) => Promise<boolean>;
+	startWaitingTaskWithAnimation?: (task: BoardCard, fromColumnId: BoardColumnId) => Promise<boolean>;
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
 	stopTaskSession?: (taskId: string) => Promise<void>;
 	cleanupTaskWorkspace?: (taskId: string) => Promise<unknown>;
@@ -110,7 +111,7 @@ function HookHarness({
 		kickoffTaskInProgress: kickoffTaskInProgress ?? (async () => true),
 		activeTaskSessionCount,
 		maxConcurrentTasks,
-		startBacklogTaskWithAnimation,
+		startWaitingTaskWithAnimation,
 		waitForBacklogStartAnimationAvailability,
 	});
 
@@ -329,7 +330,7 @@ describe("useLinkedBacklogTaskActions", () => {
 	it("uses animated backlog starts for dependency-unblocked tasks when available", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const kickoffTaskInProgress = vi.fn(async () => true);
-		const startBacklogTaskWithAnimation = vi.fn(async (task: BoardCard) => task.id === "task-1");
+		const startWaitingTaskWithAnimation = vi.fn(async (task: BoardCard) => task.id === "task-1");
 		const waitForBacklogStartAnimationAvailability = vi.fn(async () => {});
 		const boardFactory = () =>
 			createBoard([
@@ -342,7 +343,7 @@ describe("useLinkedBacklogTaskActions", () => {
 				<HookHarness
 					boardFactory={boardFactory}
 					kickoffTaskInProgress={kickoffTaskInProgress}
-					startBacklogTaskWithAnimation={startBacklogTaskWithAnimation}
+					startWaitingTaskWithAnimation={startWaitingTaskWithAnimation}
 					waitForBacklogStartAnimationAvailability={waitForBacklogStartAnimationAvailability}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -364,11 +365,59 @@ describe("useLinkedBacklogTaskActions", () => {
 			await initialSnapshot.confirmMoveTaskToTrash(reviewTask, initialSnapshot.board);
 		});
 
-		expect(startBacklogTaskWithAnimation).toHaveBeenCalledTimes(2);
-		expect(startBacklogTaskWithAnimation.mock.calls[0]?.[0]).toMatchObject({ id: "task-1" });
-		expect(startBacklogTaskWithAnimation.mock.calls[1]?.[0]).toMatchObject({ id: "task-3" });
+		expect(startWaitingTaskWithAnimation).toHaveBeenCalledTimes(2);
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[0]).toMatchObject({ id: "task-1" });
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[1]).toBe("backlog");
+		expect(startWaitingTaskWithAnimation.mock.calls[1]?.[0]).toMatchObject({ id: "task-3" });
+		expect(startWaitingTaskWithAnimation.mock.calls[1]?.[1]).toBe("backlog");
 		expect(waitForBacklogStartAnimationAvailability).toHaveBeenCalledTimes(1);
 		expect(kickoffTaskInProgress).not.toHaveBeenCalled();
+		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
+	});
+
+	it("uses animated Planning starts for dependency-unblocked Planning tasks", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const startWaitingTaskWithAnimation = vi.fn(async () => true);
+		const boardFactory = (): BoardData => ({
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [createTask("task-1", "Generated task", 1)] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [createTask("task-2", "Review task", 2)] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [{ id: "dep-1", fromTaskId: "task-1", toTaskId: "task-2", createdAt: 10 }],
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					boardFactory={boardFactory}
+					startWaitingTaskWithAnimation={startWaitingTaskWithAnimation}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		const initialSnapshot = latestSnapshot as HookSnapshot;
+		const reviewTask = initialSnapshot.board.columns.find((column) => column.id === "review")?.cards[0];
+		if (!reviewTask) {
+			throw new Error("Expected a review task.");
+		}
+
+		await act(async () => {
+			await initialSnapshot.confirmMoveTaskToTrash(reviewTask, initialSnapshot.board);
+		});
+
+		expect(startWaitingTaskWithAnimation).toHaveBeenCalledTimes(1);
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[0]).toMatchObject({ id: "task-1" });
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[1]).toBe("planning");
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
 	});
 
@@ -443,7 +492,7 @@ describe("useLinkedBacklogTaskActions", () => {
 		const firstKickoff = createDeferred<boolean>();
 		const secondKickoff = createDeferred<boolean>();
 		const waitForSecondAnimation = createDeferred<void>();
-		const startBacklogTaskWithAnimation = vi.fn((task: BoardCard) => {
+		const startWaitingTaskWithAnimation = vi.fn((task: BoardCard) => {
 			if (task.id === "task-1") {
 				return firstKickoff.promise;
 			}
@@ -462,7 +511,7 @@ describe("useLinkedBacklogTaskActions", () => {
 			root.render(
 				<HookHarness
 					boardFactory={boardFactory}
-					startBacklogTaskWithAnimation={startBacklogTaskWithAnimation}
+					startWaitingTaskWithAnimation={startWaitingTaskWithAnimation}
 					waitForBacklogStartAnimationAvailability={waitForBacklogStartAnimationAvailability}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -486,16 +535,18 @@ describe("useLinkedBacklogTaskActions", () => {
 			await Promise.resolve();
 		});
 
-		expect(startBacklogTaskWithAnimation).toHaveBeenCalledTimes(1);
-		expect(startBacklogTaskWithAnimation.mock.calls[0]?.[0]).toMatchObject({ id: "task-1" });
+		expect(startWaitingTaskWithAnimation).toHaveBeenCalledTimes(1);
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[0]).toMatchObject({ id: "task-1" });
+		expect(startWaitingTaskWithAnimation.mock.calls[0]?.[1]).toBe("backlog");
 
 		await act(async () => {
 			waitForSecondAnimation.resolve();
 			await Promise.resolve();
 		});
 
-		expect(startBacklogTaskWithAnimation).toHaveBeenCalledTimes(2);
-		expect(startBacklogTaskWithAnimation.mock.calls[1]?.[0]).toMatchObject({ id: "task-3" });
+		expect(startWaitingTaskWithAnimation).toHaveBeenCalledTimes(2);
+		expect(startWaitingTaskWithAnimation.mock.calls[1]?.[0]).toMatchObject({ id: "task-3" });
+		expect(startWaitingTaskWithAnimation.mock.calls[1]?.[1]).toBe("backlog");
 
 		await act(async () => {
 			firstKickoff.resolve(true);

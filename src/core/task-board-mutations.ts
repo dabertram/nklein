@@ -203,18 +203,18 @@ function resolveDependencyEndpoints(
 	) {
 		return { reason: "trash_task" };
 	}
-	const firstIsBacklog = firstColumnId === "backlog";
-	const secondIsBacklog = secondColumnId === "backlog";
-	if (firstIsBacklog && secondIsBacklog) {
+	const firstIsWaiting = firstColumnId === "backlog" || firstColumnId === "planning";
+	const secondIsWaiting = secondColumnId === "backlog" || secondColumnId === "planning";
+	if (firstIsWaiting && secondIsWaiting) {
 		return {
 			backlogTaskId: firstTaskId,
 			linkedTaskId: secondTaskId,
 		};
 	}
-	if (!firstIsBacklog && !secondIsBacklog) {
+	if (!firstIsWaiting && !secondIsWaiting) {
 		return { reason: "non_backlog" };
 	}
-	return firstIsBacklog
+	return firstIsWaiting
 		? { backlogTaskId: firstTaskId, linkedTaskId: secondTaskId }
 		: { backlogTaskId: secondTaskId, linkedTaskId: firstTaskId };
 }
@@ -232,7 +232,8 @@ function getLinkedBacklogTaskIdsReadyAfterTaskTrashed(
 		if (dependency.toTaskId !== taskId) {
 			continue;
 		}
-		if (getTaskColumnId(board, dependency.fromTaskId) !== "backlog") {
+		const waitingColumnId = getTaskColumnId(board, dependency.fromTaskId);
+		if (waitingColumnId !== "backlog" && waitingColumnId !== "planning") {
 			continue;
 		}
 		readyTaskIds.add(dependency.fromTaskId);

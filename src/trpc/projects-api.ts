@@ -1,15 +1,18 @@
 import { readdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { resolveClineDevTestProjectScenario, scaffoldClineDevTestProject } from "../cline-sdk/cline-dev-test-project";
+import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardData,
 	RuntimeDevTestCleanupResponse,
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListResponse,
+	RuntimeModelRoles,
 	RuntimeProjectAddResponse,
 	RuntimeProjectSummary,
 	RuntimeProjectTaskCounts,
+	RuntimeTaskClineSettings,
 } from "../core/api-contract";
 import { parseDirectoryListRequest, parseProjectAddRequest, parseProjectRemoveRequest } from "../core/api-validation";
 import {
@@ -58,8 +61,14 @@ export function createDevTestBoard(input: {
 	title: string;
 	prompt: string;
 	acceptanceCommand: string;
+	modelRoles?: RuntimeModelRoles;
 	now: number;
 }): RuntimeBoardData {
+	const workerSettings = input.modelRoles?.worker;
+	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
+		(settings): settings is RuntimeTaskClineSettings => Boolean(settings.providerId || settings.modelId),
+	);
+	const clineSettings = workerSettings ?? firstRoleSettings;
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,
@@ -67,6 +76,7 @@ export function createDevTestBoard(input: {
 		startInPlanMode: true,
 		autoReviewEnabled: true,
 		agentId: "cline" as const,
+		...(clineSettings ? { clineSettings } : {}),
 		baseRef: "main",
 		createdAt: input.now,
 		updatedAt: input.now,
@@ -258,11 +268,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				await deps.setActiveWorkspace(context.workspaceId, context.repoPath);
 
 				const now = Date.now();
+				const runtimeConfig = await loadRuntimeConfig(context.repoPath);
 				const board = createDevTestBoard({
 					taskId: DEV_TEST_TASK_ID,
 					title: scenario.title,
 					prompt: scenario.prompt,
 					acceptanceCommand: scenario.acceptanceCommand,
+					modelRoles: runtimeConfig.modelRoles,
 					now,
 				});
 				const state = await saveWorkspaceState(context.repoPath, {

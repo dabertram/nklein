@@ -165,7 +165,7 @@ export const runtimeBoardCardSchema = z
 		images: z.array(runtimeTaskImageSchema).optional(),
 		agentId: runtimeAgentIdSchema.optional(),
 		clineSettings: runtimeTaskClineSettingsSchema.optional(),
-		blockedKind: z.enum(["needs_decomposition"]).optional(),
+		blockedKind: z.enum(["needs_decomposition", "local_model_required"]).optional(),
 		blockedReason: z.string().optional(),
 		clineProviderId: z.string().optional(),
 		clineModelId: z.string().optional(),
@@ -314,6 +314,22 @@ export const runtimeTaskSessionUsageSchema = z.object({
 });
 export type RuntimeTaskSessionUsage = z.infer<typeof runtimeTaskSessionUsageSchema>;
 
+export const runtimeContextBudgetBreakdownSchema = z.object({
+	systemPromptTokens: z.number().int().nonnegative(),
+	toolSchemaTokens: z.number().int().nonnegative(),
+	taskPromptTokens: z.number().int().nonnegative(),
+	userMessageTokens: z.number().int().nonnegative(),
+	includedFileContentTokens: z.number().int().nonnegative(),
+	otherHistoryTokens: z.number().int().nonnegative(),
+	reservedPromptOverheadTokens: z.number().int().nonnegative(),
+	reservedOutputTokens: z.number().int().nonnegative(),
+	usedWorkingTokens: z.number().int().nonnegative(),
+	freeWorkingTokens: z.number().int().nonnegative(),
+	effectiveContextWindow: z.number().int().positive(),
+	projectedTokens: z.number().int().nonnegative(),
+});
+export type RuntimeContextBudgetBreakdown = z.infer<typeof runtimeContextBudgetBreakdownSchema>;
+
 export const runtimeTaskSessionSummarySchema = z.object({
 	taskId: z.string(),
 	state: runtimeTaskSessionStateSchema,
@@ -333,6 +349,7 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	latestHookActivity: runtimeTaskHookActivitySchema.nullable().default(null),
 	warningMessage: z.string().nullable().optional(),
 	latestUsage: runtimeTaskSessionUsageSchema.nullable().optional(),
+	contextBudgetBreakdown: runtimeContextBudgetBreakdownSchema.nullable().optional(),
 	latestTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
 	previousTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
 });
@@ -909,6 +926,7 @@ export const runtimeClineDogfoodBacklogResponseSchema = z.object({
 	rootPath: z.string(),
 	specPath: z.string(),
 	planPath: z.string(),
+	questionsPath: z.string(),
 	taskGraphPath: z.string(),
 	slug: z.string(),
 	taskCount: z.number().int().nonnegative(),
@@ -1230,7 +1248,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 	ok: z.boolean(),
 	summary: runtimeTaskSessionSummarySchema.nullable(),
 	error: z.string().optional(),
-	errorCode: z.enum(["needs_decomposition", "routing_escalation"]).optional(),
+	errorCode: z.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled"]).optional(),
 });
 export type RuntimeTaskSessionStartResponse = z.infer<typeof runtimeTaskSessionStartResponseSchema>;
 

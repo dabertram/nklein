@@ -16,7 +16,7 @@ function createModel(id: string, name: string): RuntimeClineProviderModel {
 }
 
 describe("buildClineAgentModelPickerOptions", () => {
-	it("returns recommended models first for the cline provider", () => {
+	it("does not pin cloud recommendations for any provider", () => {
 		const models: RuntimeClineProviderModel[] = [
 			createModel("openai/gpt-5.5", "GPT-5.5"),
 			createModel("openai/gpt-5.2", "GPT-5.2"),
@@ -27,9 +27,10 @@ describe("buildClineAgentModelPickerOptions", () => {
 
 		const result = buildClineAgentModelPickerOptions("cline", models);
 
-		expect(result.options.map((option) => option.value)).toEqual([...CLINE_RECOMMENDED_MODEL_IDS, "openai/gpt-5.2"]);
-		expect(result.recommendedModelIds).toEqual([...CLINE_RECOMMENDED_MODEL_IDS]);
-		expect(result.shouldPinSelectedModelToTop).toBe(false);
+		expect(result.options.map((option) => option.value)).toEqual(models.map((model) => model.id));
+		expect(CLINE_RECOMMENDED_MODEL_IDS).toEqual([]);
+		expect(result.recommendedModelIds).toEqual([]);
+		expect(result.shouldPinSelectedModelToTop).toBe(true);
 	});
 
 	it("keeps original ordering for non-cline providers", () => {
@@ -106,8 +107,7 @@ describe("cline model labels", () => {
 	});
 
 	it("resolves known model IDs to display names", () => {
-		expect(resolveClineModelDisplayName("openai/gpt-5.5")).toBe("GPT-5.5");
-		expect(resolveClineModelDisplayName("deepseek/deepseek-v4-pro")).toBe("DeepSeek V4 Pro");
+		expect(resolveClineModelDisplayName("llama-3.1-8b")).toBe("llama-3.1-8b");
 		expect(resolveClineModelDisplayName("openai/unknown-model")).toBe("openai/unknown-model");
 	});
 });

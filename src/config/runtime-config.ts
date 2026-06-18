@@ -103,11 +103,6 @@ const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_AGENT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_CLOUD_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_CLOUD_STREAM_TIMEOUT_MS = 15 * 60 * 1000;
-const DEFAULT_CLOUD_TOOL_TIMEOUT_MS = 15 * 60 * 1000;
-const DEFAULT_CLOUD_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
-const DEFAULT_CLOUD_CONVERSATION_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in a worktree on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
@@ -219,16 +214,7 @@ function resolveProfileTimeoutDefaults(profile: RuntimeAgentTimeoutProfile): {
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 } {
-	if (profile === "cloud") {
-		return {
-			requestTimeoutMs: DEFAULT_CLOUD_REQUEST_TIMEOUT_MS,
-			streamTimeoutMs: DEFAULT_CLOUD_STREAM_TIMEOUT_MS,
-			toolTimeoutMs: DEFAULT_CLOUD_TOOL_TIMEOUT_MS,
-			agentTimeoutMs: DEFAULT_CLOUD_AGENT_TIMEOUT_MS,
-			conversationTimeoutMs: DEFAULT_CLOUD_CONVERSATION_TIMEOUT_MS,
-		};
-	}
-	if (profile === "local") {
+	if (profile === "cloud" || profile === "local") {
 		return {
 			requestTimeoutMs: DEFAULT_LOCAL_REQUEST_TIMEOUT_MS,
 			streamTimeoutMs: DEFAULT_LOCAL_STREAM_TIMEOUT_MS,

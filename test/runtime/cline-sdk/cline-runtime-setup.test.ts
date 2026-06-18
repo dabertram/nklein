@@ -95,7 +95,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(status.stdout).not.toContain("kanban-decompose.md");
 	});
 
-	it("resolves Kanban decomposition without creating workspace workflow files", async () => {
+	it("seeds and resolves the Kanban decomposition workflow during runtime setup", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 
@@ -105,8 +105,39 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 			expect(resolved).toContain("You are decomposing a project-scale idea for Kanban.");
 			expect(resolved).toContain("Title: Built-in workflow");
-			await expect(access(join(workspacePath, ".clinerules", "workflows", "kanban-decompose.md"))).rejects.toThrow();
+			await expect(access(join(workspacePath, ".clinerules", "workflows", "kanban-decompose.md"))).resolves.toBe(
+				undefined,
+			);
 			await expect(access(join(workspacePath, ".cline", "workflows", "kanban-decompose.md"))).rejects.toThrow();
+		} finally {
+			await runtimeSetup.dispose();
+		}
+	});
+
+	it("resolves user-edited Kanban decomposition workflows instead of the built-in default", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const workflowPath = await ensureKanbanDefaultWorkflows(workspacePath);
+		await writeFile(
+			workflowPath,
+			[
+				"---",
+				"name: kanban-decompose",
+				"description: Custom decomposition workflow.",
+				"---",
+				"",
+				"Custom Kanban decomposition workflow.",
+			].join("\n"),
+			"utf8",
+		);
+
+		const runtimeSetup = await createClineRuntimeSetup(workspacePath);
+		try {
+			const resolved = runtimeSetup.resolvePrompt("/kanban-decompose\n\nTitle: Custom workflow");
+
+			expect(resolved).toContain("Custom Kanban decomposition workflow.");
+			expect(resolved).toContain("Title: Custom workflow");
+			expect(resolved).not.toContain("You are decomposing a project-scale idea for Kanban.");
 		} finally {
 			await runtimeSetup.dispose();
 		}

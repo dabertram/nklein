@@ -53,6 +53,10 @@ function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardCol
 	return summary.mode === "plan" ? "planning" : "in_progress";
 }
 
+function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
+	return columnId === "backlog" || columnId === "planning";
+}
+
 function buildDecompositionPlanningPrompt(task: BoardCard): string {
 	return [
 		"/kanban-decompose",
@@ -358,10 +362,10 @@ export function useBoardInteractions({
 			const started = await startTaskSession(task);
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
-				if (started.errorCode === "needs_decomposition") {
+				if (started.errorCode === "needs_decomposition" || started.errorCode === "cloud_provider_disabled") {
 					setBoard((currentBoard) => {
 						const marked = updateTaskBlockedState(currentBoard, taskId, {
-							kind: "needs_decomposition",
+							kind: started.errorCode === "needs_decomposition" ? "needs_decomposition" : "local_model_required",
 							reason: started.message ?? "This task needs to be decomposed before it can start.",
 						});
 						return marked.updated ? marked.board : currentBoard;
@@ -398,44 +402,49 @@ export function useBoardInteractions({
 		[ensureTaskWorkspace, fetchTaskWorkspaceInfo, selectedTaskId, setBoard, startTaskSession],
 	);
 
-	const startBacklogTaskImmediately = useCallback(
-		async (task: BoardCard): Promise<boolean> => {
+	const startWaitingTaskImmediately = useCallback(
+		async (task: BoardCard, fromColumnId: BoardColumnId): Promise<boolean> => {
 			const selection = findCardSelection(board, task.id);
-			if (selection?.column.id !== "backlog") {
+			if (selection?.column.id !== fromColumnId || !isStartableSourceColumnId(fromColumnId)) {
 				return false;
 			}
 
 			setBoard((currentBoard) => {
 				const currentSelection = findCardSelection(currentBoard, task.id);
-				if (currentSelection?.column.id !== "backlog") {
+				if (currentSelection?.column.id !== fromColumnId) {
 					return currentBoard;
 				}
 				const moved = moveTaskToColumn(currentBoard, task.id, getTaskActiveColumnId(task), { insertAtTop: true });
 				return moved.moved ? moved.board : currentBoard;
 			});
 
-			return kickoffTaskInProgress(task, task.id, "backlog", {
+			return kickoffTaskInProgress(task, task.id, fromColumnId, {
 				optimisticMove: true,
 			});
 		},
 		[board, kickoffTaskInProgress, setBoard],
 	);
 
-	const startBacklogTaskWithAnimation = useCallback(
-		async (task: BoardCard): Promise<boolean> => {
+	const startWaitingTaskWithAnimation = useCallback(
+		async (task: BoardCard, fromColumnId: BoardColumnId): Promise<boolean> => {
+			if (!isStartableSourceColumnId(fromColumnId)) {
+				return false;
+			}
 			if (selectedCard) {
-				return startBacklogTaskImmediately(task);
+				return startWaitingTaskImmediately(task, fromColumnId);
 			}
 
-			await waitForBacklogCardHeightToSettle(task.id);
+			if (fromColumnId === "backlog") {
+				await waitForBacklogCardHeightToSettle(task.id);
+			}
 
-			const programmaticMoveAttempt = tryProgrammaticCardMove(task.id, "backlog", getTaskActiveColumnId(task));
+			const programmaticMoveAttempt = tryProgrammaticCardMove(task.id, fromColumnId, getTaskActiveColumnId(task));
 			if (programmaticMoveAttempt === "blocked") {
 				await waitForProgrammaticCardMoveAvailability();
-				return startBacklogTaskWithAnimation(task);
+				return startWaitingTaskWithAnimation(task, fromColumnId);
 			}
 			if (programmaticMoveAttempt === "unavailable") {
-				return kickoffTaskInProgress(task, task.id, "backlog", {
+				return kickoffTaskInProgress(task, task.id, fromColumnId, {
 					optimisticMove: false,
 				});
 			}
@@ -460,7 +469,7 @@ export function useBoardInteractions({
 			kickoffTaskInProgress,
 			resolvePendingProgrammaticStartMove,
 			selectedCard,
-			startBacklogTaskImmediately,
+			startWaitingTaskImmediately,
 			tryProgrammaticCardMove,
 			waitForBacklogCardHeightToSettle,
 			waitForProgrammaticCardMoveAvailability,
@@ -536,7 +545,7 @@ export function useBoardInteractions({
 		kickoffTaskInProgress,
 		activeTaskSessionCount,
 		maxConcurrentTasks,
-		startBacklogTaskWithAnimation,
+		startWaitingTaskWithAnimation,
 		waitForBacklogStartAnimationAvailability: waitForProgrammaticCardMoveAvailability,
 	});
 
@@ -692,13 +701,13 @@ export function useBoardInteractions({
 	const handleStartTask = useCallback(
 		(taskId: string) => {
 			const selection = findCardSelection(board, taskId);
-			if (selection?.column.id !== "backlog") {
+			if (!selection || !isStartableSourceColumnId(selection.column.id)) {
 				return;
 			}
 			maybeRequestNotificationPermissionForTaskStart();
-			void startBacklogTaskWithAnimation(selection.card);
+			void startWaitingTaskWithAnimation(selection.card, selection.column.id);
 		},
-		[board, maybeRequestNotificationPermissionForTaskStart, startBacklogTaskWithAnimation],
+		[board, maybeRequestNotificationPermissionForTaskStart, startWaitingTaskWithAnimation],
 	);
 
 	const handleStartAllBacklogTasks = useCallback(

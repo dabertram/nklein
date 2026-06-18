@@ -6,7 +6,7 @@ import {
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
-import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN, resolveKanbanDecomposePrompt } from "./cline-decomposition-workflow";
+import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import { parseWriteFilesRequests } from "./cline-write-files-tool";
 import {
@@ -458,6 +458,7 @@ export async function ensureKanbanDefaultWorkflows(workspacePath: string): Promi
 }
 
 export async function createClineRuntimeSetup(workspacePath: string): Promise<ClineRuntimeSetup> {
+	await ensureKanbanDefaultWorkflows(workspacePath);
 	const userInstructionService = createClineSdkUserInstructionService(workspacePath);
 	const toolApprovalPolicy = createKanbanToolApprovalPolicy(workspacePath);
 	try {
@@ -466,8 +467,7 @@ export async function createClineRuntimeSetup(workspacePath: string): Promise<Cl
 
 	return {
 		userInstructionService,
-		resolvePrompt: (prompt: string) =>
-			resolveClineSdkWorkflowSlashCommand(resolveKanbanDecomposePrompt(prompt), userInstructionService),
+		resolvePrompt: (prompt: string) => resolveClineSdkWorkflowSlashCommand(prompt, userInstructionService),
 		loadRules: () => loadClineSdkRulesForSystemPrompt(userInstructionService),
 		toolPolicies: createKanbanToolPolicies(),
 		requestToolApproval: toolApprovalPolicy.requestToolApproval,

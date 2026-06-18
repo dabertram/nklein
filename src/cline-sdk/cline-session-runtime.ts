@@ -7,7 +7,12 @@ import type {
 	AgentBeforeModelResult,
 	AgentMessage,
 } from "@clinebot/shared";
-import type { RuntimeClineReasoningEffort, RuntimeTaskImage, RuntimeTaskSessionMode } from "../core/api-contract";
+import {
+	type RuntimeClineReasoningEffort,
+	type RuntimeTaskImage,
+	type RuntimeTaskSessionMode,
+	runtimeClineReasoningEffortSchema,
+} from "../core/api-contract";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
@@ -59,6 +64,97 @@ const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
 type ClineSdkRuntimeExtension = NonNullable<ClineSdkLocalRuntimeOptions["extensions"]>[number];
+const KANBAN_SESSION_METADATA_KEY = "kanban";
+
+export interface ClinePersistedLaunchConfig {
+	providerId: string;
+	modelId: string;
+	baseUrl?: string | null;
+	reasoningEffort?: RuntimeClineReasoningEffort | null;
+	contextWindow?: number | null;
+	maxAgentWritableFileLines?: number | null;
+	apiTimeoutMs?: number | null;
+	turnTimeoutMs?: number | null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readOptionalString(record: Record<string, unknown>, key: string): string | null | undefined {
+	if (!Object.hasOwn(record, key)) {
+		return undefined;
+	}
+	const value = record[key];
+	if (value === null) {
+		return null;
+	}
+	return typeof value === "string" ? value : undefined;
+}
+
+function readOptionalNumber(record: Record<string, unknown>, key: string): number | null | undefined {
+	if (!Object.hasOwn(record, key)) {
+		return undefined;
+	}
+	const value = record[key];
+	if (value === null) {
+		return null;
+	}
+	return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : undefined;
+}
+
+function readOptionalReasoningEffort(
+	record: Record<string, unknown>,
+	key: string,
+): RuntimeClineReasoningEffort | null | undefined {
+	if (!Object.hasOwn(record, key)) {
+		return undefined;
+	}
+	const value = record[key];
+	if (value === null) {
+		return null;
+	}
+	const parsed = runtimeClineReasoningEffortSchema.safeParse(value);
+	return parsed.success ? parsed.data : undefined;
+}
+
+export function readKanbanLaunchConfigFromSessionRecord(
+	record: ClineSdkSessionRecord,
+): ClinePersistedLaunchConfig | null {
+	const metadata = asRecord(record.metadata);
+	const kanban = asRecord(metadata?.[KANBAN_SESSION_METADATA_KEY]);
+	const launchConfig = asRecord(kanban?.launchConfig);
+	if (!launchConfig) {
+		return null;
+	}
+	const providerId = readOptionalString(launchConfig, "providerId")?.trim().toLowerCase();
+	const modelId = readOptionalString(launchConfig, "modelId")?.trim();
+	if (!providerId || !modelId) {
+		return null;
+	}
+	return {
+		providerId,
+		modelId,
+		...(readOptionalString(launchConfig, "baseUrl") !== undefined
+			? { baseUrl: readOptionalString(launchConfig, "baseUrl") }
+			: {}),
+		...(readOptionalReasoningEffort(launchConfig, "reasoningEffort") !== undefined
+			? { reasoningEffort: readOptionalReasoningEffort(launchConfig, "reasoningEffort") }
+			: {}),
+		...(readOptionalNumber(launchConfig, "contextWindow") !== undefined
+			? { contextWindow: readOptionalNumber(launchConfig, "contextWindow") }
+			: {}),
+		...(readOptionalNumber(launchConfig, "maxAgentWritableFileLines") !== undefined
+			? { maxAgentWritableFileLines: readOptionalNumber(launchConfig, "maxAgentWritableFileLines") }
+			: {}),
+		...(readOptionalNumber(launchConfig, "apiTimeoutMs") !== undefined
+			? { apiTimeoutMs: readOptionalNumber(launchConfig, "apiTimeoutMs") }
+			: {}),
+		...(readOptionalNumber(launchConfig, "turnTimeoutMs") !== undefined
+			? { turnTimeoutMs: readOptionalNumber(launchConfig, "turnTimeoutMs") }
+			: {}),
+	};
+}
 
 function createRepoMapRailMessage(text: string): AgentMessage {
 	return {
@@ -360,6 +456,39 @@ async function persistKanbanTitleToClineSessionMetadata(
 	}
 }
 
+function toPersistedLaunchConfig(request: StartClineSessionRuntimeRequest): ClinePersistedLaunchConfig {
+	return {
+		providerId: request.providerId.trim().toLowerCase(),
+		modelId: request.modelId.trim(),
+		...(request.baseUrl !== undefined ? { baseUrl: request.baseUrl?.trim() || null } : {}),
+		...(request.reasoningEffort !== undefined ? { reasoningEffort: request.reasoningEffort } : {}),
+		...(request.contextWindow !== undefined ? { contextWindow: request.contextWindow } : {}),
+		...(request.maxAgentWritableFileLines !== undefined
+			? { maxAgentWritableFileLines: request.maxAgentWritableFileLines }
+			: {}),
+		...(request.apiTimeoutMs !== undefined ? { apiTimeoutMs: request.apiTimeoutMs } : {}),
+		...(request.turnTimeoutMs !== undefined ? { turnTimeoutMs: request.turnTimeoutMs } : {}),
+	};
+}
+
+async function persistKanbanLaunchConfigToClineSessionMetadata(
+	sessionHost: ClineSessionHostBoundary,
+	sessionId: string,
+	request: StartClineSessionRuntimeRequest,
+): Promise<void> {
+	try {
+		await sessionHost.update?.(sessionId, {
+			metadata: {
+				[KANBAN_SESSION_METADATA_KEY]: {
+					launchConfig: toPersistedLaunchConfig(request),
+				},
+			},
+		});
+	} catch {
+		// Best-effort only — live in-memory restart config still covers the current process.
+	}
+}
+
 // Own the SDK session host plus the taskId <-> sessionId bindings so higher layers can stay task-oriented.
 export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 	private readonly onTaskEvent: ((taskId: string, event: unknown) => void) | null;
@@ -394,6 +523,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
 			contextWindow: request.contextWindow,
+			maxAgentWritableFileLines: request.maxAgentWritableFileLines,
 			apiTimeoutMs: request.apiTimeoutMs,
 			turnTimeoutMs: request.turnTimeoutMs,
 			systemPrompt: request.systemPrompt,
@@ -610,6 +740,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		}
 
 		await persistKanbanTitleToClineSessionMetadata(sessionHost, startResult.sessionId, request.taskTitle);
+		await persistKanbanLaunchConfigToClineSessionMetadata(sessionHost, startResult.sessionId, request);
 
 		return {
 			sessionId: startResult.sessionId,

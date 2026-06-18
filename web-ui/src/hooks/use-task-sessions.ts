@@ -42,7 +42,7 @@ interface SendTaskSessionInputResult {
 interface StartTaskSessionResult {
 	ok: boolean;
 	message?: string;
-	errorCode?: "needs_decomposition" | "routing_escalation";
+	errorCode?: "needs_decomposition" | "routing_escalation" | "cloud_provider_disabled";
 }
 
 interface StartTaskSessionOptions {

@@ -19,6 +19,7 @@ function createBoard(): RuntimeBoardData {
 	return {
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: [] },
+			{ id: "planning", title: "Planning", cards: [] },
 			{ id: "in_progress", title: "In Progress", cards: [] },
 			{ id: "review", title: "Review", cards: [] },
 			{ id: "completed", title: "Completed", cards: [] },
@@ -117,7 +118,7 @@ function createRoutingCandidate(input: {
 }
 
 describe("applyClinePlanTaskGraphToBoard", () => {
-	it("creates backlog cards and dependency links from a task graph", () => {
+	it("creates planning cards and dependency links from a task graph", () => {
 		const result = applyClinePlanTaskGraphToBoard({
 			board: createBoard(),
 			taskGraph: createTaskGraph(),
@@ -418,6 +419,22 @@ describe("cline decomposition tools", () => {
 				title: "Habit Tracker",
 				spec: "Track habits.",
 				plan: "Build storage before UI.",
+				questions: [
+					{
+						id: "q1",
+						question: "Should reminders be included in the first slice?",
+						status: "assumed-default",
+						options: [
+							{
+								id: "no",
+								label: "No reminders",
+								description: "Keep the initial implementation focused.",
+								recommended: true,
+							},
+						],
+						assumption: "Reminders are out of scope for the first slice.",
+					},
+				],
 				tasks: createTaskGraph().tasks,
 			},
 			undefined as never,
@@ -427,6 +444,8 @@ describe("cline decomposition tools", () => {
 			taskCount: number;
 			applied: boolean;
 			createdTaskCount: number;
+			modelFitValidated: boolean;
+			questionsPath: string;
 			taskGraphPath: string;
 			instruction: string;
 		};
@@ -436,10 +455,38 @@ describe("cline decomposition tools", () => {
 		expect(result.taskCount).toBe(2);
 		expect(result.applied).toBe(false);
 		expect(result.createdTaskCount).toBe(0);
+		expect(result.modelFitValidated).toBe(false);
 		expect(result.instruction).toContain("kanban task decompose --slug habit-tracker");
 		expect(result.instruction).toContain("Apply them through Kanban, not by editing task files");
-		expect(result.instruction).toContain("connected-model fit is checked during apply");
+		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
+		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
+		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
+	});
+
+	it("rejects decompose_project artifacts while clarifying questions remain open", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-open-questions-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		await expect(
+			tool.execute(
+				{
+					slug: "Habit Tracker",
+					title: "Habit Tracker",
+					spec: "Track habits.",
+					plan: "Build storage before UI.",
+					questions: [
+						{
+							id: "q1",
+							question: "Should reminders be included?",
+							status: "open",
+						},
+					],
+					tasks: createTaskGraph().tasks,
+				},
+				undefined as never,
+			),
+		).rejects.toThrow("still open");
 	});
 
 	it("applies decompose_project artifacts to a Git-backed Kanban workspace", async () => {
@@ -476,6 +523,7 @@ describe("cline decomposition tools", () => {
 				createdTaskCount: number;
 				createdDependencyCount: number;
 				taskIdByPlanTaskId: Record<string, string>;
+				modelFitValidated: boolean;
 				instruction: string;
 			};
 
@@ -483,16 +531,18 @@ describe("cline decomposition tools", () => {
 			expect(result.applied).toBe(true);
 			expect(result.createdTaskCount).toBe(2);
 			expect(result.createdDependencyCount).toBe(1);
+			expect(result.modelFitValidated).toBe(false);
 			expect(result.taskIdByPlanTaskId).toMatchObject({
 				storage: "habit-tracker-storage",
 				ui: "habit-tracker-ui",
 			});
-			expect(result.instruction).toContain("created 2 backlog cards and 1 dependency");
+			expect(result.instruction).toContain("created 2 Planning cards and 1 dependency");
+			expect(result.instruction).toContain("connected local model fit will be enforced when each card starts");
 			expect(result.instruction).not.toContain("kanban task decompose");
 
 			const state = await loadWorkspaceState(workspacePath);
-			const backlogCards = state.board.columns.find((column) => column.id === "backlog")?.cards ?? [];
-			expect(new Set(backlogCards.map((card) => card.id))).toEqual(
+			const planningCards = state.board.columns.find((column) => column.id === "planning")?.cards ?? [];
+			expect(new Set(planningCards.map((card) => card.id))).toEqual(
 				new Set(["habit-tracker-storage", "habit-tracker-ui"]),
 			);
 			expect(state.board.dependencies).toHaveLength(1);
@@ -547,6 +597,113 @@ describe("cline decomposition tools", () => {
 		expect(taskGraph).toContain('"schemaVersion": 1');
 		expect(taskGraph).toContain('"acceptanceCommand": "npm test"');
 		expect(taskGraph).toContain('"dependsOn": [');
+	});
+
+	it("recursively expands oversized tasks in decompose_project before writing artifacts", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-recursive-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Split a broad feature into executable leaves.",
+				defaultAcceptanceCommand: "npm test",
+				tasks: [
+					{
+						id: "feature",
+						title: "Build habit tracking feature",
+						prompt: "Implement the whole feature.",
+						complexity: 95,
+						filesLikelyTouched: ["src/storage.ts", "src/App.tsx", "src/sync.ts", "src/styles.css"],
+					},
+					{
+						id: "release",
+						title: "Release wiring",
+						prompt: "Wire the final release path.",
+						dependsOn: ["feature"],
+						complexity: 20,
+						filesLikelyTouched: ["src/release.ts"],
+					},
+				],
+				expansions: {
+					feature: [
+						{
+							id: "storage",
+							title: "Build storage",
+							prompt: "Implement habit persistence.",
+							complexity: 35,
+							filesLikelyTouched: ["src/storage.ts"],
+						},
+						{
+							id: "ui",
+							title: "Build UI",
+							prompt: "Implement the broad UI.",
+							dependsOn: ["storage"],
+							complexity: 90,
+							filesLikelyTouched: ["src/App.tsx", "src/styles.css", "src/routes.tsx", "src/state.ts"],
+						},
+					],
+					ui: [
+						{
+							id: "ui-state",
+							title: "Build UI state",
+							prompt: "Implement the UI state slice.",
+							dependsOn: ["storage"],
+							complexity: 40,
+							filesLikelyTouched: ["src/state.ts"],
+						},
+						{
+							id: "ui-view",
+							title: "Build UI view",
+							prompt: "Implement the UI view slice.",
+							dependsOn: ["ui-state"],
+							complexity: 45,
+							filesLikelyTouched: ["src/App.tsx", "src/styles.css"],
+						},
+					],
+				},
+			},
+			undefined as never,
+		)) as {
+			ok: boolean;
+			taskCount: number;
+			taskGraphPath: string;
+		};
+
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(4);
+		const taskGraph = JSON.parse(await readFile(result.taskGraphPath, "utf8")) as ClinePlanTaskGraph;
+		expect(taskGraph.tasks.map((task) => task.id)).toEqual(["storage", "ui-state", "ui-view", "release"]);
+		expect(taskGraph.tasks.find((task) => task.id === "release")?.dependsOn).toEqual(["ui-view"]);
+		expect(taskGraph.tasks.every((task) => task.acceptanceCommand === "npm test")).toBe(true);
+	});
+
+	it("rejects recursive expansions that exceed the depth limit", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-depth-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		await expect(
+			tool.execute(
+				{
+					slug: "Habit Tracker",
+					title: "Habit Tracker",
+					spec: "Track habits.",
+					plan: "Split too deeply.",
+					defaultAcceptanceCommand: "npm test",
+					tasks: [{ id: "a", title: "A", prompt: "A", complexity: 90 }],
+					expansions: {
+						a: [{ id: "b", title: "B", prompt: "B", complexity: 90 }],
+						b: [{ id: "c", title: "C", prompt: "C", complexity: 90 }],
+						c: [{ id: "d", title: "D", prompt: "D", complexity: 90 }],
+						d: [{ id: "e", title: "E", prompt: "E", complexity: 90 }],
+						e: [{ id: "f", title: "F", prompt: "F", complexity: 20 }],
+					},
+				},
+				undefined as never,
+			),
+		).rejects.toThrow("recursive expansion depth limit");
 	});
 
 	it("validates expanded replacement task graphs", async () => {

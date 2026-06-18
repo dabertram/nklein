@@ -2,21 +2,9 @@ import type { SearchSelectOption } from "@/components/search-select-dropdown";
 import { formatClineModelContextWindowLabel } from "@/runtime/cline-context-window-policy";
 import type { RuntimeClineProviderModel, RuntimeClineReasoningEffort } from "@/runtime/types";
 
-const CLINE_PROVIDER_ID = "cline";
+export const CLINE_RECOMMENDED_MODEL_IDS = [] as const;
 
-export const CLINE_RECOMMENDED_MODEL_IDS = [
-	"anthropic/claude-sonnet-4.6",
-	"anthropic/claude-opus-4.7",
-	"openai/gpt-5.5",
-	"deepseek/deepseek-v4-pro",
-] as const;
-
-const CLINE_MODEL_NAME_BY_ID: Record<string, string> = {
-	"anthropic/claude-sonnet-4.6": "Claude Sonnet 4.6",
-	"anthropic/claude-opus-4.7": "Claude Opus 4.7",
-	"openai/gpt-5.5": "GPT-5.5",
-	"deepseek/deepseek-v4-pro": "DeepSeek V4 Pro",
-};
+const CLINE_MODEL_NAME_BY_ID: Record<string, string> = {};
 
 export const CLINE_REASONING_EFFORT_OPTIONS: SearchSelectOption[] = [
 	{ value: "", label: "Default" },
@@ -33,33 +21,17 @@ export interface BuildClineAgentModelPickerOptionsResult {
 }
 
 export function buildClineAgentModelPickerOptions(
-	providerId: string,
+	_providerId: string,
 	providerModels: readonly RuntimeClineProviderModel[],
 ): BuildClineAgentModelPickerOptionsResult {
 	const defaultOptions = providerModels.map((model) => ({
 		value: model.id,
 		label: formatClineModelContextWindowLabel(model),
 	}));
-	if (providerId.trim().toLowerCase() !== CLINE_PROVIDER_ID) {
-		return {
-			options: defaultOptions,
-			recommendedModelIds: [],
-			shouldPinSelectedModelToTop: true,
-		};
-	}
-
-	const optionsById = new Map(defaultOptions.map((option) => [option.value, option] as const));
-	const recommendedOptions = CLINE_RECOMMENDED_MODEL_IDS.map((modelId) => optionsById.get(modelId)).filter(
-		(option): option is SearchSelectOption => option !== undefined,
-	);
-	const recommendedModelIds = recommendedOptions.map((option) => option.value);
-	const recommendedModelIdSet = new Set(recommendedModelIds);
-	const nonRecommendedOptions = defaultOptions.filter((option) => !recommendedModelIdSet.has(option.value));
-
 	return {
-		options: [...recommendedOptions, ...nonRecommendedOptions],
-		recommendedModelIds,
-		shouldPinSelectedModelToTop: false,
+		options: defaultOptions,
+		recommendedModelIds: [],
+		shouldPinSelectedModelToTop: true,
 	};
 }
 

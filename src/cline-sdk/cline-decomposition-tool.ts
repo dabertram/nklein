@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentTool } from "@clinebot/shared";
+import { z } from "zod";
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardCard,
@@ -10,8 +11,10 @@ import type {
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import {
+	type ClinePlanQuestion,
 	type ClinePlanTask,
 	type ClinePlanTaskGraph,
+	clinePlanQuestionSchema,
 	clinePlanTaskGraphSchema,
 	clinePlanTaskSchema,
 	writeClinePlanArtifacts,
@@ -26,6 +29,7 @@ import {
 
 const MAX_DECOMPOSED_TASK_COMPLEXITY = 75;
 const MAX_DECOMPOSED_TASK_LIKELY_FILES = 3;
+const MAX_DECOMPOSED_TASK_EXPANSION_DEPTH = 4;
 
 export interface ApplyClinePlanTaskGraphInput {
 	board: RuntimeBoardData;
@@ -72,16 +76,20 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		slug: clinePlanTaskGraphSchema.shape.slug,
 		spec: clinePlanTaskSchema.shape.prompt.describe("Concise requirements markdown."),
 		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
+		questions: z.array(clinePlanQuestionSchema).optional(),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
+		expansions: z.record(z.string(), z.array(clinePlanTaskSchema)).optional(),
 	});
 type DecomposeProjectToolInput = {
 	slug: string;
 	spec: string;
 	plan: string;
+	questions: ClinePlanQuestion[];
 	title: string;
 	tasks: ClinePlanTask[];
 	taskGraph: ClinePlanTaskGraph;
 	defaultAcceptanceCommand?: string | null;
+	expansions: Record<string, ClinePlanTask[]>;
 };
 
 function slugifyTaskId(input: string): string {
@@ -115,6 +123,118 @@ function buildTaskPrompt(task: ClinePlanTask): string {
 	return sections.join("\n\n");
 }
 
+function uniqStrings(values: readonly string[]): string[] {
+	return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
+}
+
+function normalizeTaskAcceptanceCommand(task: ClinePlanTask, defaultAcceptanceCommand: string | null): ClinePlanTask {
+	return {
+		...task,
+		acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
+		dependsOn: uniqStrings(task.dependsOn),
+	};
+}
+
+interface ExpandedTaskReplacement {
+	entryTaskIds: string[];
+	terminalTaskIds: string[];
+}
+
+interface ExpandedTaskResult extends ExpandedTaskReplacement {
+	tasks: ClinePlanTask[];
+}
+
+function expandDecomposeProjectTasks(input: {
+	tasks: ClinePlanTask[];
+	expansions: Record<string, ClinePlanTask[]>;
+	defaultAcceptanceCommand: string | null;
+	maxDepth?: number;
+}): ClinePlanTask[] {
+	const maxDepth = input.maxDepth ?? MAX_DECOMPOSED_TASK_EXPANSION_DEPTH;
+	const replacementByTaskId = new Map<string, ExpandedTaskReplacement>();
+	const usedExpansionTaskIds = new Set<string>();
+	const visitingTaskIds = new Set<string>();
+
+	const expandTask = (task: ClinePlanTask, depth: number): ExpandedTaskResult => {
+		const normalizedTask = normalizeTaskAcceptanceCommand(task, input.defaultAcceptanceCommand);
+		const replacementTasks = input.expansions[normalizedTask.id];
+		if (!replacementTasks) {
+			return {
+				tasks: [normalizedTask],
+				entryTaskIds: [normalizedTask.id],
+				terminalTaskIds: [normalizedTask.id],
+			};
+		}
+		if (replacementTasks.length === 0) {
+			throw new Error(`Expansion for task ${normalizedTask.id} must include at least one replacement task.`);
+		}
+		if (depth >= maxDepth) {
+			throw new Error(
+				`Task ${normalizedTask.id} exceeds the recursive expansion depth limit of ${maxDepth}; escalate instead of splitting indefinitely.`,
+			);
+		}
+		if (visitingTaskIds.has(normalizedTask.id)) {
+			throw new Error(`Recursive expansion cycle detected at task ${normalizedTask.id}.`);
+		}
+		usedExpansionTaskIds.add(normalizedTask.id);
+		visitingTaskIds.add(normalizedTask.id);
+		const childResults = replacementTasks.map((replacementTask) => expandTask(replacementTask, depth + 1));
+		visitingTaskIds.delete(normalizedTask.id);
+
+		const childTasks = childResults.flatMap((result) => result.tasks);
+		const childTaskIds = new Set(childTasks.map((childTask) => childTask.id));
+		const dependedOnByChildTaskIds = new Set<string>();
+		for (const childTask of childTasks) {
+			for (const dependencyTaskId of childTask.dependsOn) {
+				if (childTaskIds.has(dependencyTaskId)) {
+					dependedOnByChildTaskIds.add(dependencyTaskId);
+				}
+			}
+		}
+		const entryTaskIds = childTasks
+			.filter((childTask) => !childTask.dependsOn.some((dependencyTaskId) => childTaskIds.has(dependencyTaskId)))
+			.map((childTask) => childTask.id);
+		const terminalTaskIds = childTasks
+			.filter((childTask) => !dependedOnByChildTaskIds.has(childTask.id))
+			.map((childTask) => childTask.id);
+		if (entryTaskIds.length === 0 || terminalTaskIds.length === 0) {
+			throw new Error(`Expansion for task ${normalizedTask.id} must be an acyclic replacement graph.`);
+		}
+		const entryTaskIdSet = new Set(entryTaskIds);
+		const tasksWithInheritedDependencies = childTasks.map((childTask) =>
+			entryTaskIdSet.has(childTask.id)
+				? {
+						...childTask,
+						dependsOn: uniqStrings([...normalizedTask.dependsOn, ...childTask.dependsOn]),
+					}
+				: childTask,
+		);
+		replacementByTaskId.set(normalizedTask.id, {
+			entryTaskIds,
+			terminalTaskIds,
+		});
+		return {
+			tasks: tasksWithInheritedDependencies,
+			entryTaskIds,
+			terminalTaskIds,
+		};
+	};
+
+	const expandedTasks = input.tasks.flatMap((task) => expandTask(task, 0).tasks);
+	const unknownExpansionTaskIds = Object.keys(input.expansions).filter((taskId) => !usedExpansionTaskIds.has(taskId));
+	if (unknownExpansionTaskIds.length > 0) {
+		throw new Error(`Expansion references unknown task id ${unknownExpansionTaskIds[0]}.`);
+	}
+	return expandedTasks.map((task) => ({
+		...task,
+		dependsOn: uniqStrings(
+			task.dependsOn.flatMap(
+				(dependencyTaskId) => replacementByTaskId.get(dependencyTaskId)?.terminalTaskIds ?? [dependencyTaskId],
+			),
+		).filter((dependencyTaskId) => dependencyTaskId !== task.id),
+	}));
+}
+
 function validateTaskSizingContract(task: ClinePlanTask): void {
 	if (!task.acceptanceCommand?.trim()) {
 		throw new Error(`Task ${task.id} is missing an acceptanceCommand; split or specify an objective check.`);
@@ -131,6 +251,22 @@ function validateTaskSizingContract(task: ClinePlanTask): void {
 		throw new Error(
 			`Task ${task.id} touches ${task.filesLikelyTouched.length} likely files; split it to ${MAX_DECOMPOSED_TASK_LIKELY_FILES} files or fewer before decomposing.`,
 		);
+	}
+}
+
+function validatePlanQuestions(questions: readonly ClinePlanQuestion[]): void {
+	for (const question of questions) {
+		if (question.status === "open") {
+			throw new Error(
+				`Clarifying question ${question.id} is still open; answer it or record an assumed-default before writing plan artifacts.`,
+			);
+		}
+		if (question.status === "answered" && !question.answer?.trim()) {
+			throw new Error(`Clarifying question ${question.id} is marked answered but missing an answer.`);
+		}
+		if (question.status === "assumed-default" && !question.assumption?.trim()) {
+			throw new Error(`Clarifying question ${question.id} is marked assumed-default but missing an assumption.`);
+		}
 	}
 }
 
@@ -211,23 +347,30 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 	if (parsed.tasks.length === 0) {
 		throw new Error("decompose_project requires at least one task.");
 	}
+	const questions = parsed.questions ?? [];
+	validatePlanQuestions(questions);
+	const expansions = parsed.expansions ?? {};
+	const tasks = expandDecomposeProjectTasks({
+		tasks: parsed.tasks,
+		expansions,
+		defaultAcceptanceCommand,
+	});
 	const taskGraph = {
 		schemaVersion: 1 as const,
 		slug: parsed.slug,
 		title: parsed.title.trim() || parsed.slug,
-		tasks: parsed.tasks.map((task) => ({
-			...task,
-			acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
-		})),
+		tasks,
 	};
 	return {
 		slug: parsed.slug,
 		spec: parsed.spec,
 		plan: parsed.plan,
+		questions,
 		title: parsed.title,
-		tasks: parsed.tasks,
+		tasks,
 		taskGraph,
 		defaultAcceptanceCommand,
+		expansions,
 	};
 }
 
@@ -285,7 +428,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 		usedBoardTaskIds.add(taskId);
 		const created = addTaskToColumn(
 			board,
-			"backlog",
+			"planning",
 			{
 				taskId,
 				title: task.title,
@@ -369,7 +512,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					createdDependencyCount: applied.createdDependencies.length,
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 					baseRef,
-					message: `Applied task graph to Kanban: created ${pluralizeCount(applied.createdTasks.length, "backlog card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
+					message: `Applied task graph to Kanban: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
 				},
 			};
 		});
@@ -398,6 +541,37 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				slug: { type: "string", description: "Short stable plan slug, for example habit-insights." },
 				spec: { type: "string", description: "Approved concise specification markdown, not a file path." },
 				plan: { type: "string", description: "Implementation plan markdown." },
+				questions: {
+					type: "array",
+					description:
+						"Clarifying questions considered before writing the plan. Open questions are rejected; record answered items or explicit assumed defaults.",
+					items: {
+						type: "object",
+						properties: {
+							id: { type: "string" },
+							question: { type: "string" },
+							status: { type: "string", enum: ["open", "answered", "assumed-default"] },
+							options: {
+								type: "array",
+								items: {
+									type: "object",
+									properties: {
+										id: { type: "string" },
+										label: { type: "string" },
+										description: { type: "string" },
+										recommended: { type: "boolean" },
+									},
+									required: ["id", "label"],
+									additionalProperties: false,
+								},
+							},
+							answer: { type: "string" },
+							assumption: { type: "string" },
+						},
+						required: ["id", "question", "status"],
+						additionalProperties: false,
+					},
+				},
 				title: { type: "string", description: "Project/task graph title." },
 				tasks: {
 					type: "array",
@@ -425,18 +599,44 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 					type: "string",
 					description: "Optional acceptance command applied to tasks that omit acceptanceCommand.",
 				},
+				expansions: {
+					type: "object",
+					description:
+						"Optional recursive replacement map. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. Kanban expands these before validation and rewrites dependencies to terminal replacement leaves.",
+					additionalProperties: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								id: { type: "string" },
+								title: { type: "string" },
+								prompt: { type: "string" },
+								dependsOn: { type: "array", items: { type: "string" } },
+								complexity: { type: "number" },
+								suggestedRole: { type: "string" },
+								filesLikelyTouched: { type: "array", items: { type: "string" } },
+								acceptanceCommand: { type: "string" },
+								testFirst: { type: "boolean" },
+								acceptanceTestPrompt: { type: "string" },
+							},
+							required: ["id", "title", "prompt"],
+							additionalProperties: false,
+						},
+					},
+				},
 			},
 			required: ["slug", "spec", "plan", "title", "tasks"],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const { slug, spec, plan, taskGraph } = normalizeDecomposeProjectToolInput(input);
+			const { slug, spec, plan, questions, taskGraph } = normalizeDecomposeProjectToolInput(input);
 			const validation = validateClinePlanTaskGraph({ taskGraph });
 			const artifacts = await writeClinePlanArtifacts({
 				workspacePath,
 				slug,
 				spec,
 				plan,
+				questions,
 				taskGraph: validation.taskGraph,
 			});
 			const applied = await applyDecomposeProjectArtifactsToWorkspace({
@@ -452,12 +652,14 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				createdTaskCount: applied.createdTaskCount,
 				createdDependencyCount: applied.createdDependencyCount,
 				taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+				modelFitValidated: false,
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
+				questionsPath: artifacts.questionsPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
-					? `${applied.message} Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
-					: `Artifacts passed schema and sizing validation but were not applied automatically. ${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply.`,
+					? `${applied.message} Schema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
+					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. ${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
 			};
 		},
 	};
@@ -467,7 +669,7 @@ function createExpandTaskTool(): AgentTool {
 	return {
 		name: "expand_task",
 		description:
-			"Validate a recursively split replacement task graph for an oversized task. Use this when a task fails the decomposition sizing or model-fit guard.",
+			"Validate a recursively split replacement task graph for an oversized task. Prefer decompose_project.expansions for the final submission; use this only to check a replacement graph before submitting it.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -486,7 +688,7 @@ function createExpandTaskTool(): AgentTool {
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
 				instruction:
-					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Use these replacement task leaves in decompose_project's tasks input instead of editing plan artifacts directly.",
+					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Put these replacement task leaves in decompose_project.expansions for the oversized task instead of editing plan artifacts directly.",
 			};
 		},
 	};

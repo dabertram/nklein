@@ -26,9 +26,17 @@ const turnCheckpointMocks = vi.hoisted(() => ({
 	deleteTaskTurnCheckpointRef: vi.fn(),
 }));
 
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+}));
+
 vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
 	captureTaskTurnCheckpoint: turnCheckpointMocks.captureTaskTurnCheckpoint,
 	deleteTaskTurnCheckpointRef: turnCheckpointMocks.deleteTaskTurnCheckpointRef,
+}));
+
+vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
 }));
 
 function createDeferred<T>() {
@@ -147,6 +155,7 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 					baseUrl: request.baseUrl,
 					reasoningEffort: request.reasoningEffort,
 					contextWindow: request.contextWindow,
+					maxAgentWritableFileLines: request.maxAgentWritableFileLines,
 					apiTimeoutMs: request.apiTimeoutMs,
 					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt: request.systemPrompt,
@@ -409,6 +418,7 @@ describe("InMemoryClineTaskSessionService", () => {
 	beforeEach(() => {
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockReset();
 		turnCheckpointMocks.deleteTaskTurnCheckpointRef.mockReset();
+		selfObservationMocks.recordSelfObservation.mockReset();
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockImplementation(
 			async (input: { taskId: string; turn: number }) => ({
 				turn: input.turn,
@@ -1014,7 +1024,12 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				prompt: expect.stringContaining("Call the `decompose_project` tool"),
+				prompt: expect.stringContaining("use the `/kanban-decompose` workflow command"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("workspace's overridable Kanban workflow rules"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
@@ -1751,6 +1766,45 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.listMessages("task-1").map((message) => message.content)).toContain("Try again");
 	});
 
+	it("parks a task after repeated identical restart failures", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		runtime.startTaskSessionMock.mockRejectedValue(new Error("No previous Cline session config is available."));
+
+		await service.reloadTaskSession("task-1");
+		await service.reloadTaskSession("task-1");
+		await service.reloadTaskSession("task-1");
+
+		expect(service.getSummary("task-1")?.state).toBe("failed");
+		expect(service.getSummary("task-1")?.latestHookActivity?.activityText).toContain(
+			"parked after repeated failures",
+		);
+		expect(service.listMessages("task-1").at(-1)?.content).toContain("Kanban parked this task");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				metadata: expect.objectContaining({
+					consecutiveFailures: 3,
+					parked: true,
+				}),
+			}),
+		);
+		const observationCountAfterParking = selfObservationMocks.recordSelfObservation.mock.calls.length;
+
+		await service.reloadTaskSession("task-1");
+
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledTimes(observationCountAfterParking);
+	});
+
 	it("compacts persisted history and retries send when context window is exceeded", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.sendTaskSessionInputMock.mockRejectedValueOnce(
@@ -1822,6 +1876,76 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 	});
 
+	it("restarts from persisted launch metadata after compaction when runtime config cache is empty", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-1-persisted",
+				source: "core" as ClinePersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "qwen-local",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/tmp/workspace-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: {
+							providerId: "lmstudio",
+							modelId: "qwen-local",
+							baseUrl: "http://127.0.0.1:1234/v1",
+							contextWindow: 8_000,
+							maxAgentWritableFileLines: 900,
+							apiTimeoutMs: 3_600_000,
+							turnTimeoutMs: null,
+						},
+					},
+				},
+			},
+			messages: [
+				{ role: "user", content: `Initial prompt ${"a".repeat(40_000)}` },
+				{ role: "assistant", content: `First response ${"b".repeat(40_000)}` },
+				{ role: "user", content: `Second request ${"c".repeat(40_000)}` },
+				{ role: "assistant", content: `Second response ${"d".repeat(40_000)}` },
+			],
+		});
+
+		const reboundSummary = await service.rebindPersistedTaskSession("task-1");
+		expect(reboundSummary?.state).toBe("awaiting_review");
+
+		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
+
+		expect(nextSummary?.state).toBe("running");
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
+		const startCall = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(startCall).toEqual(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "qwen-local",
+				baseUrl: "http://127.0.0.1:1234/v1",
+				contextWindow: 8_000,
+				maxAgentWritableFileLines: 900,
+				apiTimeoutMs: 3_600_000,
+				turnTimeoutMs: null,
+				prompt: "resolved:Try again",
+			}),
+		);
+		expect(startCall?.systemPrompt).toContain("Model context window: 8,000 tokens");
+		expect(startCall?.initialMessages?.length).toBeLessThan(4);
+		expect(
+			service.listMessages("task-1").some((message) => message.content.includes("No previous Cline session")),
+		).toBe(false);
+	});
+
 	it("proactively compacts before sending when projected context budget is too high", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
@@ -1832,7 +1956,7 @@ describe("InMemoryClineTaskSessionService", () => {
 				startedAt: "2026-03-17T10:00:00.000Z",
 				updatedAt: "2026-03-17T10:05:00.000Z",
 				interactive: true,
-				provider: "cline",
+				provider: "lmstudio",
 				model: "model-1",
 				cwd: "/tmp/worktree",
 				workspaceRoot: "/tmp/workspace-root",
@@ -1891,6 +2015,81 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
 		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "context_overflow",
+				severity: "warning",
+				taskId: "task-1",
+				metadata: expect.objectContaining({
+					action: "compacted",
+					contextWindow: 8_000,
+				}),
+			}),
+		);
+	});
+
+	it("caps oversized advertised context windows before starting the SDK runtime", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+			providerId: "lmstudio",
+			modelId: "huge-advertised-model",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			contextWindow: 1_000_000,
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		const startCall = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(startCall?.contextWindow).toBe(200_000);
+		expect(startCall?.systemPrompt).toContain("Model context window: 200,000 tokens");
+		expect(service.getSummary("task-1")?.contextBudgetBreakdown).toEqual(
+			expect.objectContaining({
+				effectiveContextWindow: 200_000,
+				projectedTokens: expect.any(Number),
+				reservedOutputTokens: expect.any(Number),
+			}),
+		);
+	});
+
+	it("blocks a prompt-only overflow before starting the SDK runtime", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: `Oversized request ${"overflow ".repeat(20_000)}`,
+			providerId: "lmstudio",
+			modelId: "small-local-model",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			contextWindow: 8_000,
+		});
+
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		});
+		expect(runtime.startTaskSessionMock).not.toHaveBeenCalled();
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "context_overflow",
+				severity: "error",
+				taskId: "task-1",
+				providerId: "lmstudio",
+				modelId: "small-local-model",
+				metadata: expect.objectContaining({
+					action: "blocked",
+					contextWindow: 8_000,
+					maxEffectiveContextWindow: 200_000,
+				}),
+			}),
+		);
+		expect(service.listMessages("task-1").some((message) => message.content.includes("Context would overflow"))).toBe(
+			true,
+		);
 	});
 
 	it("does not interrupt an active turn to compact a critically large queued prompt", async () => {
@@ -1919,13 +2118,13 @@ describe("InMemoryClineTaskSessionService", () => {
 			taskId: "task-1",
 			cwd: "/tmp/worktree",
 			prompt: "Initial prompt",
-			contextWindow: 2_000,
+			contextWindow: 8_000,
 		});
 		await vi.waitFor(() => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 
-		await service.sendTaskSessionInput("task-1", "x".repeat(5_000));
+		await service.sendTaskSessionInput("task-1", "x".repeat(50_000));
 
 		await vi.waitFor(() => {
 			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(

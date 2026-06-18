@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createInMemoryClineSessionRuntime } from "../../../src/cline-sdk/cline-session-runtime";
+import {
+	createInMemoryClineSessionRuntime,
+	readKanbanLaunchConfigFromSessionRecord,
+} from "../../../src/cline-sdk/cline-session-runtime";
 import type { ClineSdkSessionRecord, ClineSdkStartSessionInput } from "../../../src/cline-sdk/sdk-runtime-boundary";
 
 function createNoopMcpRuntimeService() {
@@ -546,7 +549,11 @@ describe("InMemoryClineSessionRuntime", () => {
 	});
 
 	it("persists provided task title to session metadata when supported", async () => {
-		const update = vi.fn(async () => ({ updated: true }));
+		const update = vi.fn(
+			async (_sessionId: string, _updates: { metadata?: Record<string, unknown>; title?: string | null }) => ({
+				updated: true,
+			}),
+		);
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 				sessionId: input.config?.sessionId ?? "session-1",
@@ -582,6 +589,16 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(result.sessionId).toBeTruthy();
 		expect(update).toHaveBeenCalledWith(result.sessionId, {
 			title: "Readable task title",
+		});
+		expect(update).toHaveBeenCalledWith(result.sessionId, {
+			metadata: {
+				kanban: {
+					launchConfig: expect.objectContaining({
+						providerId: "anthropic",
+						modelId: "claude-sonnet-4-6",
+					}),
+				},
+			},
 		});
 	});
 
@@ -626,7 +643,72 @@ describe("InMemoryClineSessionRuntime", () => {
 				sessionId: expect.any(String),
 			}),
 		);
-		expect(update).toHaveBeenCalledTimes(1);
+		expect(update).toHaveBeenCalledTimes(2);
+	});
+
+	it("persists and reads Kanban launch config from session metadata", async () => {
+		const update = vi.fn(
+			async (_sessionId: string, _updates: { metadata?: Record<string, unknown>; title?: string | null }) => ({
+				updated: true,
+			}),
+		);
+		const fakeHost = {
+			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			update,
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		const result = await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "lmstudio",
+			modelId: "qwen-local",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			reasoningEffort: "medium",
+			contextWindow: 80_000,
+			maxAgentWritableFileLines: 1_200,
+			apiTimeoutMs: 3_600_000,
+			turnTimeoutMs: null,
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+		const metadataUpdate = update.mock.calls.find((call) => call[1].metadata)?.[1];
+		const record = {
+			...createPersistedRecord({
+				sessionId: result.sessionId,
+				status: "completed",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+			}),
+			metadata: metadataUpdate?.metadata,
+		};
+
+		expect(readKanbanLaunchConfigFromSessionRecord(record)).toEqual({
+			providerId: "lmstudio",
+			modelId: "qwen-local",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			reasoningEffort: "medium",
+			contextWindow: 80_000,
+			maxAgentWritableFileLines: 1_200,
+			apiTimeoutMs: 3_600_000,
+			turnTimeoutMs: null,
+		});
 	});
 
 	it("routes host events through the pending requested session id before start resolves", async () => {

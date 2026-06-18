@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { extractClineAcceptanceCommand, runClineAcceptanceGate } from "../../../src/cline-sdk/cline-acceptance-gate";
+import {
+	extractClineAcceptanceCommand,
+	resolveShellExecution,
+	runClineAcceptanceGate,
+} from "../../../src/cline-sdk/cline-acceptance-gate";
 
 describe("cline acceptance gate", () => {
 	it("extracts acceptance commands from decomposed task prompts", () => {
@@ -32,6 +36,16 @@ describe("cline acceptance gate", () => {
 			exitCode: null,
 			output: "",
 			durationMs: 0,
+		});
+	});
+
+	it("uses a non-login shell for acceptance commands on POSIX", () => {
+		if (process.platform === "win32") {
+			return;
+		}
+		expect(resolveShellExecution("npm test")).toEqual({
+			binary: "/bin/sh",
+			args: ["-c", "npm test"],
 		});
 	});
 
@@ -68,6 +82,19 @@ describe("cline acceptance gate", () => {
 			output: "ok",
 			durationMs: 25,
 		});
+	});
+
+	it("handles output larger than the old 2 MB exec buffer", async () => {
+		if (process.platform === "win32") {
+			return;
+		}
+		const result = await runClineAcceptanceGate({
+			workspacePath: process.cwd(),
+			taskPrompt: "Acceptance check: node -e \"process.stdout.write('x'.repeat(3 * 1024 * 1024))\"",
+		});
+
+		expect(result.passed).toBe(true);
+		expect(result.output.length).toBe(3 * 1024 * 1024);
 	});
 
 	it("records failed verification observations", async () => {

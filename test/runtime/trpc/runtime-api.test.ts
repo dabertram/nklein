@@ -209,7 +209,7 @@ function createModelRegistryEntry(input: {
 		key: input.key,
 		providerId: input.providerId,
 		modelId: input.modelId,
-		endpoint: input.endpoint ?? null,
+		endpoint: input.endpoint ?? (input.providerId === "anthropic" ? "http://127.0.0.1:1234/v1" : null),
 		contextWindow: {
 			advertised: input.contextWindow,
 			observed: null,
@@ -256,7 +256,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		selectedShortcutLabel: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
-		agentTimeoutProfile: "cloud",
+		agentTimeoutProfile: "local",
 		requestTimeoutMs: null,
 		streamTimeoutMs: null,
 		toolTimeoutMs: null,
@@ -304,16 +304,20 @@ function setSelectedProviderSettings(
 		};
 	} | null,
 ): void {
-	oauthMocks.getLastUsedProviderSettings.mockReturnValue(settings ?? undefined);
+	const normalizedSettings =
+		settings && settings.provider === "anthropic" && settings.baseUrl === undefined
+			? { ...settings, baseUrl: "http://127.0.0.1:1234/v1" }
+			: settings;
+	oauthMocks.getLastUsedProviderSettings.mockReturnValue(normalizedSettings ?? undefined);
 	oauthMocks.getProviderSettings.mockImplementation((providerId: string) =>
-		settings && settings.provider === providerId ? settings : undefined,
+		normalizedSettings && normalizedSettings.provider === providerId ? normalizedSettings : undefined,
 	);
 	if (!providerSelectionPath) {
 		return;
 	}
 	rmSync(providerSelectionPath, { force: true });
-	if (settings) {
-		writeSelectedProviderId(settings.provider);
+	if (normalizedSettings) {
+		writeSelectedProviderId(normalizedSettings.provider);
 	}
 }
 
@@ -582,6 +586,12 @@ describe("createRuntimeApi startTaskSession", () => {
 				defaultModelId: "claude-sonnet-4-6",
 				capabilities: ["tools"],
 			},
+			{
+				id: "ollama",
+				name: "Ollama",
+				defaultModelId: "qwen3.5-9b",
+				capabilities: ["tools"],
+			},
 		]);
 		llmsModelMocks.getModelsForProvider.mockImplementation(async (providerId: string) => {
 			if (providerId !== "cline") {
@@ -789,7 +799,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				mode: "act",
 				startInPlanMode: true,
 				resumeFromTrash: undefined,
-				requestTimeoutMs: 300_000,
+				requestTimeoutMs: 3_600_000,
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
@@ -1016,8 +1026,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(false);
-		expect(response.errorCode).toBe("needs_decomposition");
-		expect(response.error).toContain("needs decomposition");
+		expect(response.errorCode).toBe("routing_escalation");
+		expect(response.error).toContain("No connected model is capable enough or large enough");
 		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
@@ -1130,6 +1140,68 @@ describe("createRuntimeApi startTaskSession", () => {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
 				reasoningEffort: "medium",
+			}),
+		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("clamps stale one-second Cline timeout settings to the local timeout floor", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Timeout floor task",
+				clineSettings: {
+					requestTimeoutMs: 1_000,
+					streamTimeoutMs: 1_000,
+					toolTimeoutMs: 1_000,
+					agentTimeoutMs: 1_000,
+					conversationTimeoutMs: 1_000,
+				},
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestTimeoutMs: 60_000,
+				streamTimeoutMs: 60_000,
+				toolTimeoutMs: 60_000,
+				turnTimeoutMs: 60_000,
+				conversationTimeoutMs: 60_000,
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
@@ -1416,17 +1488,15 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		);
 
-		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				providerId: "cline",
-				modelId: "anthropic/claude-opus-4.6",
-				apiKey: "saved-cline-api-key",
-			}),
-		);
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
+		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("fails early when the cline provider is selected without cline credentials", async () => {
+	it("ignores a persisted cline cloud provider selection", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		delete process.env.CLINE_API_KEY;
@@ -1469,12 +1539,12 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(false);
 		expect(response.summary).toBeNull();
-		expect(response.error).toContain("no Cline credentials are configured");
+		expect(response.error).toContain("No native Cline provider is configured");
 		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("allows the cline provider to launch when CLINE_API_KEY is present in the environment", async () => {
+	it("blocks the cline provider even when CLINE_API_KEY is present in the environment", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		process.env.CLINE_API_KEY = "env-cline-api-key";
@@ -1516,13 +1586,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		);
 
-		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				providerId: "cline",
-				apiKey: "env-cline-api-key",
-			}),
-		);
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
+		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("starts home agent sessions in the workspace root without resolving a task worktree", async () => {
@@ -1744,28 +1813,15 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		);
 
-		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidClineCredentials).toHaveBeenCalledTimes(1);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				apiKey: "workos:oauth-access",
-			}),
-		);
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
+		});
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
-		expect(oauthMocks.saveProviderSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				provider: "cline",
-				auth: expect.objectContaining({
-					accessToken: "workos:oauth-access",
-					refreshToken: "oauth-refresh",
-					accountId: "acct-1",
-				}),
-			}),
-			expect.objectContaining({
-				tokenSource: "oauth",
-				setLastUsed: true,
-			}),
-		);
+		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
 	});
 
 	it("does not use OAuth credentials for non-OAuth providers", async () => {
@@ -2155,22 +2211,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ taskId: "__home_agent__:workspace-1:cline" },
 		);
 
-		expect(response).toEqual({
-			ok: true,
-			summary,
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith({
-			taskId: "__home_agent__:workspace-1:cline",
-			cwd: "/tmp/repo",
-			prompt: "",
-			resumeFromPersistence: true,
-			providerId: "openrouter",
-			modelId: "openrouter/auto",
-			apiKey: "sk-or-test",
-			baseUrl: "https://openrouter.ai/api/v1",
-			reasoningEffort: undefined,
-			contextWindow: 128_000,
-		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("rebinds persisted non-home chat sessions before retrying the first send after restart", async () => {
@@ -2275,24 +2321,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ taskId: "__home_agent__:workspace-1", text: "hello home" },
 		);
 
-		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "__home_agent__:workspace-1",
-				cwd: "/tmp/repo",
-				prompt: "hello home",
-				providerId: "cline",
-				apiKey: "workos:oauth-access",
-			}),
-		);
-		expect(oauthMocks.getValidClineCredentials).toHaveBeenCalledWith(
-			expect.objectContaining({
-				access: "seed-token",
-				refresh: "seed-refresh",
-			}),
-			expect.any(Object),
-		);
-		expect(response.message).toEqual(latestMessage);
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
+		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 
 	it("starts home chat sessions from persisted history with current launch config", async () => {
@@ -2331,19 +2366,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ taskId: "__home_agent__:workspace-1", text: "continue home" },
 		);
 
-		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "__home_agent__:workspace-1",
-				cwd: "/tmp/repo",
-				prompt: "continue home",
-				resumeFromPersistence: true,
-				providerId: "cline",
-				apiKey: "workos:oauth-access",
-			}),
-		);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledTimes(1);
-		expect(response.message).toEqual(latestMessage);
+		expect(response).toMatchObject({
+			ok: false,
+			summary: null,
+			error: expect.stringContaining("No native Cline provider is configured"),
+		});
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("home chat auto-start keeps manual API key for non-OAuth providers", async () => {
@@ -2408,23 +2436,23 @@ describe("createRuntimeApi startTaskSession", () => {
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
-			model: "claude-sonnet-4-6",
+			provider: "ollama",
+			model: "qwen3.5-9b",
 		});
 
 		const catalogResponse = await api.getClineProviderCatalog({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
-		expect(catalogResponse.providers.some((provider) => provider.id === "cline")).toBe(true);
-		expect(catalogResponse.providers.find((provider) => provider.id === "cline")?.enabled).toBe(true);
+		expect(catalogResponse.providers.some((provider) => provider.id === "cline")).toBe(false);
+		expect(catalogResponse.providers.find((provider) => provider.id === "ollama")?.enabled).toBe(true);
 
 		const modelsResponse = await api.getClineProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ providerId: "cline" },
+			{ providerId: "ollama" },
 		);
-		expect(modelsResponse.providerId).toBe("cline");
-		expect(modelsResponse.models.some((model) => model.id === "claude-sonnet-4-6")).toBe(true);
+		expect(modelsResponse.providerId).toBe("ollama");
+		expect(modelsResponse.models.some((model) => model.id === "qwen3.5-9b")).toBe(true);
 	});
 
 	it("returns the model registry snapshot sorted by recency", async () => {
@@ -2671,6 +2699,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.slug).toBe("runtime-dogfood");
 		expect(response.taskCount).toBe(1);
 		expect(response.nextCommand).toContain("kanban task decompose --slug runtime-dogfood");
+		expect(existsSync(response.questionsPath)).toBe(true);
 		expect(existsSync(response.taskGraphPath)).toBe(true);
 	});
 
@@ -2721,17 +2750,16 @@ describe("createRuntimeApi startTaskSession", () => {
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "openrouter",
-			model: "openrouter/auto",
-			apiKey: "openrouter-key",
-			baseUrl: "https://openrouter.ai/api/v1",
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
 		});
 		localProviderMocks.getLocalProviderModels.mockResolvedValue({
-			providerId: "openrouter",
+			providerId: "ollama",
 			models: [
 				{
-					id: "openrouter/free",
-					name: "OpenRouter Free",
+					id: "qwen3.5-9b",
+					name: "Qwen 3.5 9B",
 					supportsReasoning: true,
 				},
 			],
@@ -2739,24 +2767,23 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		const response = await api.getClineProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ providerId: "openrouter" },
+			{ providerId: "ollama" },
 		);
 
 		expect(localProviderMocks.getLocalProviderModels).toHaveBeenCalledWith(
-			"openrouter",
+			"ollama",
 			expect.objectContaining({
-				providerId: "openrouter",
-				modelId: "openrouter/auto",
-				apiKey: "openrouter-key",
-				baseUrl: "https://openrouter.ai/api/v1",
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
+				baseUrl: "http://127.0.0.1:11434",
 			}),
 		);
 		expect(response).toEqual({
-			providerId: "openrouter",
+			providerId: "ollama",
 			models: [
 				{
-					id: "openrouter/free",
-					name: "OpenRouter Free",
+					id: "qwen3.5-9b",
+					name: "Qwen 3.5 9B",
 					supportsReasoningEffort: true,
 				},
 			],
@@ -2777,7 +2804,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			provider: "deepseek",
 			model: "deepseek-chat",
 			apiKey: "deepseek-key",
-			baseUrl: "https://api.deepseek.com/v1",
+			baseUrl: "http://127.0.0.1:4000/v1",
 		});
 		localProviderMocks.getLocalProviderModels.mockResolvedValue({
 			providerId: "deepseek",
@@ -2815,6 +2842,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				providerId: "deepseek",
 				modelId: "deepseek-chat",
 				apiKey: "deepseek-key",
+				baseUrl: "http://127.0.0.1:4000/v1",
 			}),
 		);
 		expect(response.models).toEqual(
@@ -2832,7 +2860,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("loads Cline provider models from the SDK catalog key mapping", async () => {
+	it("does not load managed Cline provider models in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -2874,15 +2902,9 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ providerId: "cline" },
 		);
 
-		expect(llmsModelMocks.resolveProviderModelCatalogKeys).toHaveBeenCalledWith("cline");
-		expect(llmsModelMocks.resolveProviderConfig).toHaveBeenCalledWith(
-			"openrouter",
-			expect.objectContaining({
-				loadLatestOnInit: true,
-			}),
-			undefined,
-		);
-		expect(response.models.some((model) => model.id === "deepseek/deepseek-v4-flash")).toBe(true);
+		expect(response).toEqual({ providerId: "cline", models: [] });
+		expect(llmsModelMocks.resolveProviderModelCatalogKeys).not.toHaveBeenCalled();
+		expect(llmsModelMocks.resolveProviderConfig).not.toHaveBeenCalled();
 	});
 
 	it("falls back to the queried provider's saved model when provider model loading fails", async () => {
@@ -2925,15 +2947,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ providerId: "openrouter" },
 		);
 
-		expect(response).toEqual({
-			providerId: "openrouter",
-			models: [
-				{
-					id: "openrouter/free",
-					name: "openrouter/free",
-				},
-			],
-		});
+		expect(response).toEqual({ providerId: "openrouter", models: [] });
 	});
 
 	it("adds a custom OpenAI-compatible provider through the SDK-backed flow", async () => {
@@ -3021,7 +3035,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("returns cline account profile for cline OAuth users", async () => {
+	it("does not fetch cline account profile in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3046,19 +3060,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(response.profile).toEqual({
-			accountId: "acct-1",
-			email: "saoud@example.com",
-			displayName: "Saoud",
-		});
-		expect(clineAccountMocks.constructedOptions[0]?.apiBaseUrl).toBe("https://api.cline.bot");
-		expect(clineAccountMocks.fetchMe).toHaveBeenCalledTimes(1);
+		expect(response.profile).toBeNull();
+		expect(clineAccountMocks.constructedOptions).toHaveLength(0);
+		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
 		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
-		const getAuthToken = clineAccountMocks.constructedOptions[0]?.getAuthToken;
-		await expect(getAuthToken?.()).resolves.toBe("workos:oauth-access");
 	});
 
-	it("refreshes cline OAuth credentials and retries profile lookup when direct profile fetch fails", async () => {
+	it("does not refresh cline OAuth credentials for profile lookup in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3090,18 +3098,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(response.profile).toEqual({
-			accountId: "acct-1",
-			email: "saoud@example.com",
-			displayName: "Saoud",
-		});
-		expect(clineAccountMocks.fetchMe).toHaveBeenCalledTimes(2);
-		expect(oauthMocks.getValidClineCredentials).toHaveBeenCalledTimes(1);
-		const refreshedGetAuthToken = clineAccountMocks.constructedOptions[1]?.getAuthToken;
-		await expect(refreshedGetAuthToken?.()).resolves.toBe("workos:oauth-access");
+		expect(response.profile).toBeNull();
+		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 
-	it("blocks kanban when remote config explicitly disables it", async () => {
+	it("does not fetch cline remote config in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3137,11 +3139,11 @@ describe("createRuntimeApi startTaskSession", () => {
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(response.enabled).toBe(false);
-		expect(clineAccountMocks.fetchRemoteConfig).toHaveBeenCalledTimes(1);
+		expect(response.enabled).toBe(true);
+		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
-	it("allows kanban when remote config fetch fails", async () => {
+	it("keeps kanban enabled without cline remote config in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3183,9 +3185,9 @@ describe("createRuntimeApi startTaskSession", () => {
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(initialResponse.enabled).toBe(false);
+		expect(initialResponse.enabled).toBe(true);
 		expect(failedFetchResponse.enabled).toBe(true);
-		expect(clineAccountMocks.fetchRemoteConfig).toHaveBeenCalledTimes(2);
+		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
 	it("allows kanban by default for non-cline providers", async () => {
@@ -3212,7 +3214,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
-	it("runs oauth login for selected provider and persists provider settings", async () => {
+	it("blocks cline oauth login in local-only mode", async () => {
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
@@ -3234,39 +3236,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ provider: "cline" },
 		);
-		expect(response.ok).toBe(true);
+		expect(response.ok).toBe(false);
 		expect(response.provider).toBe("cline");
-		expect(response.settings).toEqual(
-			expect.objectContaining({
-				providerId: "cline",
-				oauthProvider: "cline",
-				oauthAccessTokenConfigured: true,
-				oauthRefreshTokenConfigured: true,
-				oauthAccountId: "acct-1",
-			}),
-		);
-		expect(oauthMocks.saveProviderSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				provider: "cline",
-				auth: expect.objectContaining({
-					accessToken: "workos:oauth-access",
-					refreshToken: "oauth-refresh",
-					accountId: "acct-1",
-				}),
-			}),
-			expect.objectContaining({
-				tokenSource: "oauth",
-				setLastUsed: true,
-			}),
-		);
-		expect(oauthMocks.loginClineOAuth).toHaveBeenCalledTimes(1);
-		expect(bumpClineSessionContextVersion).toHaveBeenCalledTimes(1);
-		const loginInput = oauthMocks.loginClineOAuth.mock.calls[0]?.[0] as
-			| {
-					callbacks?: { onManualCodeInput?: unknown };
-			  }
-			| undefined;
-		expect(loginInput?.callbacks?.onManualCodeInput).toBeUndefined();
+		expect(response.error).toContain("Cloud models are disabled");
+		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
+		expect(oauthMocks.loginClineOAuth).not.toHaveBeenCalled();
+		expect(bumpClineSessionContextVersion).not.toHaveBeenCalled();
 	});
 
 	it("bumps cline session context when provider settings are saved", async () => {
@@ -3282,21 +3257,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			bumpClineSessionContextVersion,
 		});
 		setSelectedProviderSettings({
-			provider: "openrouter",
-			model: "openrouter/auto",
-			apiKey: "openrouter-key",
-			baseUrl: "https://openrouter.ai/api/v1",
+			provider: "ollama",
+			model: "qwen3.5-9b",
 		});
 
 		const response = await api.saveClineProviderSettings(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{
-				providerId: "openrouter",
-				modelId: "openrouter/free",
+				providerId: "ollama",
+				modelId: "qwen3.5-9b",
 			},
 		);
 
-		expect(response.providerId).toBe("openrouter");
+		expect(response.providerId).toBe("ollama");
 		expect(bumpClineSessionContextVersion).toHaveBeenCalledTimes(1);
 	});
 
@@ -3617,7 +3590,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		}
 	});
 
-	it("returns JWT from SDK method", async () => {
+	it("does not fetch Featurebase JWT in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3640,12 +3613,13 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			featurebaseJwt: "jwt-token-123",
 		});
 
-		const response = await api.getFeaturebaseToken({
-			workspaceId: "workspace-1",
-			workspacePath: "/tmp/repo",
-		});
-
-		expect(response).toEqual({ featurebaseJwt: "jwt-token-123" });
+		await expect(
+			api.getFeaturebaseToken({
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			}),
+		).rejects.toThrow("No provider settings configured.");
+		expect(clineAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
 	});
 
 	it("throws when no provider settings configured", async () => {
@@ -3691,10 +3665,10 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 				workspaceId: "workspace-1",
 				workspacePath: "/tmp/repo",
 			}),
-		).rejects.toThrow("Featurebase token requires a Cline provider.");
+		).rejects.toThrow("No provider settings configured.");
 	});
 
-	it("retries after OAuth refresh when first attempt fails", async () => {
+	it("does not refresh OAuth for Featurebase in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -3730,14 +3704,14 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			featurebaseJwt: "refreshed-jwt-456",
 		});
 
-		const response = await api.getFeaturebaseToken({
-			workspaceId: "workspace-1",
-			workspacePath: "/tmp/repo",
-		});
-
-		expect(response).toEqual({ featurebaseJwt: "refreshed-jwt-456" });
-		expect(clineAccountMocks.fetchFeaturebaseToken).toHaveBeenCalledTimes(2);
-		expect(oauthMocks.getValidClineCredentials).toHaveBeenCalledTimes(1);
+		await expect(
+			api.getFeaturebaseToken({
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			}),
+		).rejects.toThrow("No provider settings configured.");
+		expect(clineAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 });
 

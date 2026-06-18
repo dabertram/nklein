@@ -40,8 +40,8 @@ import type { AgentTool } from "@clinebot/shared";
 
 export type ManagedClineOauthProviderId = "cline" | "oca" | "openai-codex";
 export type SdkReasoningEffort = NonNullable<NonNullable<ProviderSettings["reasoning"]>["effort"]>;
-export const SDK_DEFAULT_PROVIDER_ID = "cline";
-export const SDK_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
+export const SDK_DEFAULT_PROVIDER_ID = "lmstudio";
+export const SDK_DEFAULT_MODEL_ID = "";
 export const CLINE_MODEL_CATALOG_DEFAULTS = {
 	loadLatestOnInit: true,
 	loadPrivateOnAuth: true,

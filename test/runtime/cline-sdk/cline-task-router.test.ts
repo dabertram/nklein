@@ -62,11 +62,11 @@ describe("routeClineTask", () => {
 			fitBudgetTokens: 8_000,
 			candidates: [
 				{
-					entry: createEntry({ key: "local:small:default", capability: 45, contextWindow: 16_000 }),
+					entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 16_000 }),
 					role: "worker",
 				},
 				{
-					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
+					entry: createEntry({ key: "openrouter:large:default", capability: 90, contextWindow: 200_000 }),
 					role: "architect",
 				},
 			],
@@ -74,47 +74,23 @@ describe("routeClineTask", () => {
 
 		expect(decision).toMatchObject({
 			type: "assign",
-			modelKey: "local:small:default",
+			modelKey: "ollama:small:default",
 			role: "worker",
 		});
 	});
 
-	it("routes up when the preferred model is unrealistic", () => {
-		const decision = routeClineTask({
-			difficulty: 70,
-			fitBudgetTokens: 12_000,
-			preferredModelKey: "local:small:default",
-			candidates: [
-				{
-					entry: createEntry({ key: "local:small:default", capability: 45, contextWindow: 16_000 }),
-					role: "worker",
-				},
-				{
-					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
-					role: "architect",
-				},
-			],
-		});
-
-		expect(decision).toMatchObject({
-			type: "route_up",
-			modelKey: "cloud:large:default",
-			fromModelKey: "local:small:default",
-		});
-	});
-
-	it("keeps a feasible preferred model instead of routing down to the cheapest fit", () => {
+	it("keeps a feasible preferred local model instead of routing down to a smaller sufficient model", () => {
 		const decision = routeClineTask({
 			difficulty: 40,
 			fitBudgetTokens: 8_000,
-			preferredModelKey: "cloud:large:default",
+			preferredModelKey: "ollama:large:default",
 			candidates: [
 				{
-					entry: createEntry({ key: "local:small:default", capability: 45, contextWindow: 16_000 }),
+					entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 32_000 }),
 					role: "worker",
 				},
 				{
-					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
+					entry: createEntry({ key: "ollama:large:default", capability: 85, contextWindow: 80_000 }),
 					role: "architect",
 				},
 			],
@@ -122,8 +98,57 @@ describe("routeClineTask", () => {
 
 		expect(decision).toMatchObject({
 			type: "assign",
-			modelKey: "cloud:large:default",
+			modelKey: "ollama:large:default",
 			role: "architect",
+			reason: expect.stringContaining("preferred model"),
+		});
+	});
+
+	it("decomposes instead of routing up into a cloud candidate", () => {
+		const decision = routeClineTask({
+			difficulty: 70,
+			fitBudgetTokens: 12_000,
+			preferredModelKey: "ollama:small:default",
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 16_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "openrouter:large:default", capability: 90, contextWindow: 200_000 }),
+					role: "architect",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "decompose",
+			requiredCapability: 70,
+			requiredContextWindow: 12_000,
+		});
+	});
+
+	it("drops a cloud preferred model and assigns the smallest local fit", () => {
+		const decision = routeClineTask({
+			difficulty: 40,
+			fitBudgetTokens: 8_000,
+			preferredModelKey: "openrouter:large:default",
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 16_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "openrouter:large:default", capability: 90, contextWindow: 200_000 }),
+					role: "architect",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "assign",
+			modelKey: "ollama:small:default",
+			role: "worker",
 		});
 	});
 
@@ -134,11 +159,11 @@ describe("routeClineTask", () => {
 			promptTokens: 1_000,
 			candidates: [
 				{
-					entry: createEntry({ key: "local:tiny:default", capability: 45, contextWindow: 8_000 }),
+					entry: createEntry({ key: "ollama:tiny:default", capability: 45, contextWindow: 8_000 }),
 					role: "worker",
 				},
 				{
-					entry: createEntry({ key: "cloud:large:default", capability: 90, contextWindow: 200_000 }),
+					entry: createEntry({ key: "openrouter:large:default", capability: 90, contextWindow: 200_000 }),
 					role: "architect",
 				},
 			],
@@ -146,7 +171,30 @@ describe("routeClineTask", () => {
 
 		expect(decision).toMatchObject({
 			type: "assign",
-			modelKey: "local:tiny:default",
+			modelKey: "ollama:tiny:default",
+		});
+	});
+
+	it("uses each local candidate's own context window when assigning 32k versus 80k models", () => {
+		const decision = routeClineTask({
+			difficulty: 35,
+			fitBudgetTokens: 80_000,
+			promptTokens: 30_000,
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:ctx32k:default", capability: 45, contextWindow: 32_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "ollama:ctx80k:default", capability: 45, contextWindow: 80_000 }),
+					role: "worker",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "assign",
+			modelKey: "ollama:ctx80k:default",
 		});
 	});
 
@@ -159,7 +207,7 @@ describe("routeClineTask", () => {
 			candidates: [
 				{
 					entry: createEntry({
-						key: "local:slow:default",
+						key: "ollama:slow:default",
 						capability: 60,
 						contextWindow: 16_000,
 						prefillTokensPerSecond: 500,
@@ -169,7 +217,7 @@ describe("routeClineTask", () => {
 				},
 				{
 					entry: createEntry({
-						key: "local:fast:default",
+						key: "ollama:fast:default",
 						capability: 60,
 						contextWindow: 16_000,
 						prefillTokensPerSecond: 2_000,
@@ -182,7 +230,7 @@ describe("routeClineTask", () => {
 
 		expect(decision).toMatchObject({
 			type: "assign",
-			modelKey: "local:fast:default",
+			modelKey: "ollama:fast:default",
 		});
 	});
 
@@ -191,8 +239,8 @@ describe("routeClineTask", () => {
 			difficulty: 70,
 			fitBudgetTokens: 80_000,
 			candidates: [
-				{ entry: createEntry({ key: "local:smart-small-window:default", capability: 80, contextWindow: 16_000 }) },
-				{ entry: createEntry({ key: "cloud:large-weak:default", capability: 40, contextWindow: 200_000 }) },
+				{ entry: createEntry({ key: "ollama:smart-small-window:default", capability: 80, contextWindow: 16_000 }) },
+				{ entry: createEntry({ key: "openrouter:large-weak:default", capability: 40, contextWindow: 200_000 }) },
 			],
 		});
 
@@ -208,8 +256,8 @@ describe("routeClineTask", () => {
 			difficulty: 90,
 			fitBudgetTokens: 200_000,
 			candidates: [
-				{ entry: createEntry({ key: "local:small:default", capability: 45, contextWindow: 16_000 }) },
-				{ entry: createEntry({ key: "cloud:mid:default", capability: 70, contextWindow: 80_000 }) },
+				{ entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 16_000 }) },
+				{ entry: createEntry({ key: "openrouter:mid:default", capability: 70, contextWindow: 80_000 }) },
 			],
 		});
 

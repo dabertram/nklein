@@ -274,7 +274,7 @@ describe("getClineAccountBalance", () => {
 		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
 	});
 
-	it("returns personal balance when no active org", async () => {
+	it("does not fetch personal cloud balance in local-only mode", async () => {
 		setSelectedProviderSettings({
 			provider: "cline",
 			auth: { accessToken: "test-token" },
@@ -293,14 +293,12 @@ describe("getClineAccountBalance", () => {
 		const service = createClineProviderService();
 		const result = await service.getClineAccountBalance();
 
-		expect(result).toEqual({
-			balance: 5_000_000,
-			activeAccountLabel: "Personal",
-			activeOrganizationId: null,
-		});
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(clineAccountMocks.fetchBalance).not.toHaveBeenCalled();
 	});
 
-	it("returns org balance when an active org exists", async () => {
+	it("does not fetch organization cloud balance in local-only mode", async () => {
 		setSelectedProviderSettings({
 			provider: "cline",
 			auth: { accessToken: "test-token" },
@@ -321,11 +319,9 @@ describe("getClineAccountBalance", () => {
 		const service = createClineProviderService();
 		const result = await service.getClineAccountBalance();
 
-		expect(result).toEqual({
-			balance: 26_617_620,
-			activeAccountLabel: "Test Org",
-			activeOrganizationId: "org-1",
-		});
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(clineAccountMocks.fetchOrganizationBalance).not.toHaveBeenCalled();
 	});
 
 	it("returns all-null without error when fetch fails and OAuth refresh is unavailable", async () => {
@@ -365,7 +361,7 @@ describe("getClineAccountOrganizations", () => {
 		expect(result).toEqual({ organizations: [] });
 	});
 
-	it("returns organizations from profile", async () => {
+	it("does not fetch cloud organizations in local-only mode", async () => {
 		setSelectedProviderSettings({
 			provider: "cline",
 			auth: { accessToken: "test-token" },
@@ -383,19 +379,8 @@ describe("getClineAccountOrganizations", () => {
 		const service = createClineProviderService();
 		const result = await service.getClineAccountOrganizations();
 
-		expect(result.organizations).toHaveLength(2);
-		expect(result.organizations[0]).toEqual({
-			organizationId: "org-1",
-			name: "Org A",
-			active: true,
-			roles: ["owner"],
-		});
-		expect(result.organizations[1]).toEqual({
-			organizationId: "org-2",
-			name: "Org B",
-			active: false,
-			roles: ["member"],
-		});
+		expect(result).toEqual({ organizations: [] });
+		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
 	});
 });
 
@@ -405,7 +390,7 @@ describe("switchClineAccount", () => {
 		clineAccountMocks.constructedOptions = [];
 	});
 
-	it("returns ok true on successful switch", async () => {
+	it("refuses cloud account switching in local-only mode", async () => {
 		setSelectedProviderSettings({
 			provider: "cline",
 			auth: { accessToken: "test-token" },
@@ -415,11 +400,11 @@ describe("switchClineAccount", () => {
 		const service = createClineProviderService();
 		const result = await service.switchClineAccount("org-1");
 
-		expect(result).toEqual({ ok: true });
-		expect(clineAccountMocks.switchAccount).toHaveBeenCalledWith("org-1");
+		expect(result).toEqual({ ok: false, error: "No provider settings configured." });
+		expect(clineAccountMocks.switchAccount).not.toHaveBeenCalled();
 	});
 
-	it("returns ok true when switching to personal (null)", async () => {
+	it("refuses switching to personal cloud account in local-only mode", async () => {
 		setSelectedProviderSettings({
 			provider: "cline",
 			auth: { accessToken: "test-token" },
@@ -429,8 +414,8 @@ describe("switchClineAccount", () => {
 		const service = createClineProviderService();
 		const result = await service.switchClineAccount(null);
 
-		expect(result).toEqual({ ok: true });
-		expect(clineAccountMocks.switchAccount).toHaveBeenCalledWith(undefined);
+		expect(result).toEqual({ ok: false, error: "No provider settings configured." });
+		expect(clineAccountMocks.switchAccount).not.toHaveBeenCalled();
 	});
 
 	it("returns error on failure", async () => {

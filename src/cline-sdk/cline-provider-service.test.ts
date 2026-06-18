@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listSdkProviderModelsMock = vi.hoisted(() => vi.fn());
+const listSdkProviderCatalogMock = vi.hoisted(() => vi.fn());
 const getSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
 const getLastUsedSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveSdkProviderSettingsMock = vi.hoisted(() => vi.fn());
@@ -20,7 +21,7 @@ vi.mock("./sdk-provider-boundary", () => ({
 	fetchSdkOrgData: vi.fn(),
 	getLastUsedSdkProviderSettings: getLastUsedSdkProviderSettingsMock,
 	getSdkProviderSettings: getSdkProviderSettingsMock,
-	listSdkProviderCatalog: vi.fn(),
+	listSdkProviderCatalog: listSdkProviderCatalogMock,
 	listSdkProviderModels: listSdkProviderModelsMock,
 	loginManagedOauthProvider: vi.fn(),
 	refreshManagedOauthCredentials: vi.fn(),
@@ -63,6 +64,7 @@ afterEach(() => {
 describe("createClineProviderService provider selection", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		listSdkProviderCatalogMock.mockResolvedValue([]);
 	});
 
 	it("ignores SDK last-used cloud settings until Kanban explicitly selects a provider", async () => {
@@ -84,12 +86,12 @@ describe("createClineProviderService provider selection", () => {
 
 		writeProviderSelection("cline");
 		expect(service.getProviderSettingsSummary()).toMatchObject({
-			providerId: "cline",
-			modelId: "anthropic/claude-sonnet-4.6",
+			providerId: null,
+			modelId: null,
 		});
 	});
 
-	it("persists a Kanban-owned provider selection when settings are saved", async () => {
+	it("persists a Kanban-owned local provider selection when settings are saved", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "worker-model",
@@ -101,9 +103,31 @@ describe("createClineProviderService provider selection", () => {
 			},
 		]);
 		getSdkProviderSettingsMock.mockReturnValue({
-			provider: "anthropic",
+			provider: "ollama",
 			model: "worker-model",
 		});
+		const service = createClineProviderService();
+
+		await expect(
+			service.saveProviderSettings({
+				providerId: "ollama",
+				modelId: "worker-model",
+			}),
+		).resolves.toMatchObject({
+			providerId: "ollama",
+			modelId: "worker-model",
+		});
+
+		expect(JSON.parse(readFileSync(providerSelectionPath, "utf8"))).toMatchObject({ providerId: "ollama" });
+		expect(saveSdkProviderSettingsMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				settings: expect.objectContaining({ provider: "ollama", model: "worker-model" }),
+				setLastUsed: true,
+			}),
+		);
+	});
+
+	it("rejects cloud provider settings before persisting them", async () => {
 		const service = createClineProviderService();
 
 		await expect(
@@ -111,18 +135,31 @@ describe("createClineProviderService provider selection", () => {
 				providerId: "anthropic",
 				modelId: "worker-model",
 			}),
-		).resolves.toMatchObject({
-			providerId: "anthropic",
-			modelId: "worker-model",
-		});
+		).rejects.toThrow("Cloud models are disabled");
+		expect(saveSdkProviderSettingsMock).not.toHaveBeenCalled();
+		expect(() => readFileSync(providerSelectionPath, "utf8")).toThrow();
+	});
 
-		expect(JSON.parse(readFileSync(providerSelectionPath, "utf8"))).toMatchObject({ providerId: "anthropic" });
-		expect(saveSdkProviderSettingsMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				settings: expect.objectContaining({ provider: "anthropic", model: "worker-model" }),
-				setLastUsed: true,
-			}),
-		);
+	it("omits cloud providers from the catalog and does not re-add a cloud selection", async () => {
+		writeProviderSelection("openrouter");
+		listSdkProviderCatalogMock.mockResolvedValue([
+			{ id: "cline", name: "Cline", defaultModelId: "anthropic/claude-sonnet-4.6" },
+			{ id: "openrouter", name: "OpenRouter", defaultModelId: "anthropic/claude-sonnet-4.6" },
+			{ id: "ollama", name: "Ollama" },
+			{ id: "lmstudio", name: "LM Studio" },
+		]);
+		getSdkProviderSettingsMock.mockImplementation((providerId: string) => ({
+			provider: providerId,
+			model: providerId === "openrouter" ? "anthropic/claude-sonnet-4.6" : undefined,
+		}));
+		const service = createClineProviderService();
+
+		await expect(service.getProviderCatalog()).resolves.toMatchObject({
+			providers: [expect.objectContaining({ id: "lmstudio" }), expect.objectContaining({ id: "ollama" })],
+		});
+		const catalog = await service.getProviderCatalog();
+		expect(catalog.providers.map((provider) => provider.id)).not.toContain("cline");
+		expect(catalog.providers.map((provider) => provider.id)).not.toContain("openrouter");
 	});
 });
 
@@ -488,14 +525,14 @@ describe("loadProviderModelsWithFallback", () => {
 			},
 		]);
 		getSdkProviderSettingsMock.mockReturnValue({
-			provider: "anthropic",
+			provider: "ollama",
 			model: "small-model",
 		} as never);
 		const service = createClineProviderService();
 
 		await expect(
 			service.saveProviderSettings({
-				providerId: "anthropic",
+				providerId: "ollama",
 				modelId: "small-model",
 			}),
 		).rejects.toThrow("requires at least 32,000");
@@ -545,18 +582,18 @@ describe("loadProviderModelsWithFallback", () => {
 			},
 		]);
 		getSdkProviderSettingsMock.mockReturnValue({
-			provider: "anthropic",
+			provider: "ollama",
 			model: "worker-model",
 		} as never);
 		const service = createClineProviderService();
 
 		await expect(
 			service.saveProviderSettings({
-				providerId: "anthropic",
+				providerId: "ollama",
 				modelId: "worker-model",
 			}),
 		).resolves.toMatchObject({
-			providerId: "anthropic",
+			providerId: "ollama",
 			modelId: "worker-model",
 		});
 	});

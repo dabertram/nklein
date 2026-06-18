@@ -37,6 +37,7 @@ import type {
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
+	RuntimeContextBudgetBreakdown,
 	RuntimeTaskClineSettings,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -161,6 +162,80 @@ export function formatClineContextBudgetDisplay(options: {
 	};
 }
 
+function formatTokenCount(tokens: number): string {
+	return tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens);
+}
+
+function getContextBudgetTone(projectedTokens: number, effectiveContextWindow: number): string {
+	if (projectedTokens >= effectiveContextWindow) {
+		return "bg-status-red";
+	}
+	const ratio = effectiveContextWindow > 0 ? projectedTokens / effectiveContextWindow : 0;
+	if (ratio >= 0.95) {
+		return "bg-status-red";
+	}
+	if (ratio >= 0.85) {
+		return "bg-status-orange";
+	}
+	if (ratio >= 0.7) {
+		return "bg-status-gold";
+	}
+	return "bg-status-green";
+}
+
+function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetBreakdown }): ReactElement {
+	const segments = [
+		{ label: "System", tokens: breakdown.systemPromptTokens, className: "bg-status-purple" },
+		{ label: "Tools", tokens: breakdown.toolSchemaTokens, className: "bg-status-blue" },
+		{ label: "Task", tokens: breakdown.taskPromptTokens, className: "bg-accent" },
+		{ label: "User", tokens: breakdown.userMessageTokens, className: "bg-status-green" },
+		{ label: "Files", tokens: breakdown.includedFileContentTokens, className: "bg-status-gold" },
+		{ label: "History", tokens: breakdown.otherHistoryTokens, className: "bg-status-orange" },
+		{ label: "Prompt reserve", tokens: breakdown.reservedPromptOverheadTokens, className: "bg-surface-4" },
+		{ label: "Output reserve", tokens: breakdown.reservedOutputTokens, className: "bg-border-bright" },
+	].filter((segment) => segment.tokens > 0);
+	const percent = Math.min(
+		100,
+		Math.max(0, Math.round((breakdown.projectedTokens / breakdown.effectiveContextWindow) * 100)),
+	);
+	const toneClassName = getContextBudgetTone(breakdown.projectedTokens, breakdown.effectiveContextWindow);
+	const summaryText = `${formatTokenCount(breakdown.projectedTokens)} / ${formatTokenCount(
+		breakdown.effectiveContextWindow,
+	)} tokens (${percent}%)`;
+	return (
+		<div
+			className="flex min-w-[220px] max-w-full flex-col gap-1"
+			role="group"
+			aria-label={`Context budget ${summaryText}`}
+		>
+			<div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+				<span className="text-text-secondary">Context</span>
+				<span>{summaryText}</span>
+			</div>
+			<div className="relative h-2 w-full overflow-hidden rounded-sm bg-surface-2">
+				<div
+					className={`absolute inset-y-0 left-0 opacity-20 ${toneClassName}`}
+					style={{ width: `${percent}%` }}
+					aria-hidden="true"
+				/>
+				<div className="relative flex h-full w-full">
+					{segments.map((segment) => {
+						const width = Math.max(1, (segment.tokens / breakdown.effectiveContextWindow) * 100);
+						return (
+							<div
+								key={segment.label}
+								className={segment.className}
+								style={{ width: `${width}%` }}
+								title={`${segment.label}: ~${formatTokenCount(segment.tokens)} tokens`}
+							/>
+						);
+					})}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function findClineModelRegistryEntry(
 	entries: readonly RuntimeClineModelRegistryEntry[],
 	providerId: string,
@@ -208,6 +283,73 @@ export function formatClineCardContentDisplay(options: {
 	const cardText = [options.taskTitle?.trim(), options.taskPrompt?.trim()].filter(Boolean).join("\n\n");
 	const estimatedTokens = countClineDisplayTokens(cardText);
 	return `Card content: ~${estimatedTokens.toLocaleString()} tokens`;
+}
+
+interface ClarifyingQuestionOption {
+	id: string;
+	label: string;
+	responseText: string;
+}
+
+interface ClarifyingQuestionPrompt {
+	question: string;
+	options: ClarifyingQuestionOption[];
+}
+
+const CLARIFYING_OPTION_PATTERN = /^\s*(?:[-*]\s*)?(?:(?<id>[A-Z]|\d+)[).:-]\s+)?(?<label>.+?)(?:\s+-\s+.+)?$/i;
+
+function normalizeClarifyingOptionLabel(label: string): string {
+	return label
+		.replace(/\*\*/g, "")
+		.replace(/\s*\((?:recommended|default)\)\s*/gi, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+export function extractClarifyingQuestionPrompt(
+	messages: readonly ClineChatMessage[],
+): ClarifyingQuestionPrompt | null {
+	const latestMessage = [...messages]
+		.reverse()
+		.find((message) => message.role !== "status" && message.role !== "reasoning");
+	if (latestMessage?.role !== "assistant") {
+		return null;
+	}
+	const lines = latestMessage.content
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+	if (lines.length === 0 || !latestMessage.content.includes("?")) {
+		return null;
+	}
+	const question = lines.find((line) => line.includes("?")) ?? lines[0] ?? "";
+	const options = lines
+		.map((line, index): ClarifyingQuestionOption | null => {
+			const match = CLARIFYING_OPTION_PATTERN.exec(line);
+			const label = match?.groups?.label ? normalizeClarifyingOptionLabel(match.groups.label) : "";
+			if (!label || label.includes("?")) {
+				return null;
+			}
+			const hasOptionMarker = Boolean(match?.groups?.id) || /^[-*]\s+/.test(line);
+			if (!hasOptionMarker) {
+				return null;
+			}
+			const id = match?.groups?.id?.toUpperCase() ?? String(index + 1);
+			return {
+				id,
+				label,
+				responseText: `Answer: ${id}. ${label}`,
+			};
+		})
+		.filter((option): option is ClarifyingQuestionOption => option !== null)
+		.slice(0, 5);
+	if (options.length < 2) {
+		return null;
+	}
+	return {
+		question,
+		options,
+	};
 }
 
 function formatCompactDuration(milliseconds: number): string {
@@ -596,6 +738,23 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 				}),
 			[contextScope, estimatedContextTokens, estimatedNextPromptTokens, selectedModel?.contextWindow],
 		);
+		const currentRequestContextText = useMemo(() => {
+			const breakdown = summary?.contextBudgetBreakdown;
+			if (!breakdown) {
+				return estimatedContextBudget.text;
+			}
+			const percent = Math.min(
+				100,
+				Math.max(0, Math.round((breakdown.projectedTokens / breakdown.effectiveContextWindow) * 100)),
+			);
+			const overageTokens = Math.max(0, breakdown.projectedTokens - breakdown.effectiveContextWindow);
+			const overageText = overageTokens > 0 ? ` · over by ~${formatTokenCount(overageTokens)}` : "";
+			const stateLabel =
+				overageTokens > 0 ? "overflow" : percent >= 95 ? "critical" : percent >= 85 ? "warning" : "healthy";
+			return `current request ~${formatTokenCount(breakdown.projectedTokens)} tokens · ${formatTokenCount(
+				breakdown.effectiveContextWindow,
+			)} available context (${percent}%${overageText} · ${stateLabel})`;
+		}, [estimatedContextBudget.text, summary?.contextBudgetBreakdown]);
 		const cardContentText = useMemo(
 			() => formatClineCardContentDisplay({ taskTitle, taskPrompt }),
 			[taskPrompt, taskTitle],
@@ -606,14 +765,15 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					summary,
 					messages,
 					nowMs,
-					currentRequestContextText: estimatedContextBudget.text,
+					currentRequestContextText,
 				}),
-			[estimatedContextBudget.text, summary, messages, nowMs],
+			[currentRequestContextText, summary, messages, nowMs],
 		);
 		const attachmentWarningMessage =
 			draftImages.length > 0 && selectedModel?.supportsVision === false
 				? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
 				: null;
+		const clarifyingQuestionPrompt = useMemo(() => extractClarifyingQuestionPrompt(messages), [messages]);
 
 		const isPinnedToBottom = useCallback((container: HTMLDivElement): boolean => {
 			const remainingDistance = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -892,6 +1052,9 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 						<div className="text-[11px] text-text-secondary">{cardContentText}</div>
 						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
 						{modelRegistryText ? <div className="text-[11px] text-text-tertiary">{modelRegistryText}</div> : null}
+						{summary?.contextBudgetBreakdown ? (
+							<ClineContextBudgetBar breakdown={summary.contextBudgetBreakdown} />
+						) : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}
@@ -949,6 +1112,26 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					</div>
 				</div>
 				<div className="px-2 py-3">
+					{clarifyingQuestionPrompt ? (
+						<div className="mb-2 rounded-lg border border-border bg-surface-1 px-2 py-2">
+							<div className="mb-2 text-xs text-text-secondary">{clarifyingQuestionPrompt.question}</div>
+							<div className="flex flex-wrap gap-2">
+								{clarifyingQuestionPrompt.options.map((option) => (
+									<Button
+										key={option.id}
+										variant="ghost"
+										size="sm"
+										disabled={isSavingModel || isSending}
+										onClick={() => {
+											void handleSendComposerText(option.responseText);
+										}}
+									>
+										{option.label}
+									</Button>
+								))}
+							</div>
+						</div>
+					) : null}
 					<ClineChatComposer
 						taskId={taskId}
 						draft={draft}

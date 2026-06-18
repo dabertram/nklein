@@ -1,4 +1,5 @@
 import { buildKanbanContextSafetyBudgets } from "./cline-context-budgets";
+import { isLocalProvider } from "./cline-local-only-policy";
 import type { ClineModelRegistryEntry } from "./cline-model-registry";
 
 export interface ClineTaskRoutingCandidate {
@@ -110,13 +111,15 @@ function scoreCandidates(request: ClineTaskRoutingRequest): ScoredCandidate[] {
 	const promptTokens = request.promptTokens && request.promptTokens > 0 ? request.promptTokens : null;
 	const outputTokens = request.outputTokens && request.outputTokens > 0 ? request.outputTokens : null;
 	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
-	return request.candidates.map((candidate) => ({
-		...candidate,
-		capability: getCandidateCapability(candidate),
-		contextWindow: getCandidateContextWindow(candidate),
-		requiredContextWindow: estimateCandidateRequiredContextWindow(candidate, promptTokens, fitBudgetTokens),
-		predictedWallTimeMs: estimateWallTimeMs(candidate, promptTokens, outputTokens),
-	}));
+	return request.candidates
+		.filter((candidate) => isLocalProvider(candidate.entry.providerId, candidate.entry.endpoint))
+		.map((candidate) => ({
+			...candidate,
+			capability: getCandidateCapability(candidate),
+			contextWindow: getCandidateContextWindow(candidate),
+			requiredContextWindow: estimateCandidateRequiredContextWindow(candidate, promptTokens, fitBudgetTokens),
+			predictedWallTimeMs: estimateWallTimeMs(candidate, promptTokens, outputTokens),
+		}));
 }
 
 function compareCandidates(left: ScoredCandidate, right: ScoredCandidate): number {

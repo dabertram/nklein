@@ -12,6 +12,7 @@ import { isClineContextWindowPolicyError } from "../cline-sdk/cline-context-wind
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
+import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../cline-sdk/cline-local-only-policy";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
@@ -121,16 +122,7 @@ function getProfileTimeoutDefaults(profile: "cloud" | "local" | "custom"): {
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 } {
-	if (profile === "cloud") {
-		return {
-			requestTimeoutMs: 5 * 60 * 1000,
-			streamTimeoutMs: 15 * 60 * 1000,
-			toolTimeoutMs: 15 * 60 * 1000,
-			agentTimeoutMs: 30 * 60 * 1000,
-			conversationTimeoutMs: 60 * 60 * 1000,
-		};
-	}
-	if (profile === "local") {
+	if (profile === "cloud" || profile === "local") {
 		return {
 			requestTimeoutMs: 60 * 60 * 1000,
 			streamTimeoutMs: 24 * 60 * 60 * 1000,
@@ -153,6 +145,15 @@ function scaleTimeoutMs(value: number | null, factor: number): number | null {
 		return null;
 	}
 	return Math.max(0, Math.trunc(value * factor));
+}
+
+const MIN_POSITIVE_CLINE_TIMEOUT_MS = 60 * 1000;
+
+function enforceLocalClineTimeoutFloor(value: number | null): number | null {
+	if (value === null || value === 0) {
+		return value;
+	}
+	return Math.max(MIN_POSITIVE_CLINE_TIMEOUT_MS, value);
 }
 
 function resolveEffectiveTaskTimeoutSettings(input: {
@@ -206,11 +207,11 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 	return {
 		timeoutMode,
 		timeoutProfile,
-		requestTimeoutMs: scaleTimeoutMs(requestTimeoutMs, scale),
-		streamTimeoutMs: scaleTimeoutMs(streamTimeoutMs, scale),
-		toolTimeoutMs: scaleTimeoutMs(toolTimeoutMs, scale),
-		agentTimeoutMs: scaleTimeoutMs(agentTimeoutMs, scale),
-		conversationTimeoutMs: scaleTimeoutMs(conversationTimeoutMs, scale),
+		requestTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(requestTimeoutMs, scale)),
+		streamTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(streamTimeoutMs, scale)),
+		toolTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(toolTimeoutMs, scale)),
+		agentTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(agentTimeoutMs, scale)),
+		conversationTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(conversationTimeoutMs, scale)),
 	};
 }
 
@@ -430,6 +431,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					if (routedCandidate) {
 						clineLaunchConfig = routedCandidate.launchConfig;
 					}
+					assertLocalProviderAllowed({
+						providerId: clineLaunchConfig.providerId,
+						baseUrl: clineLaunchConfig.baseUrl,
+					});
 					const endpointDecision = scheduleClineEndpointStart({
 						taskId: body.taskId,
 						providerId: clineLaunchConfig.providerId,
@@ -544,6 +549,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					ok: false,
 					summary: null,
 					error: message,
+					...(isCloudProviderDisabledError(error) ? { errorCode: "cloud_provider_disabled" as const } : {}),
 				};
 			}
 		},
@@ -807,6 +813,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				rootPath: artifacts.rootPath,
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
+				questionsPath: artifacts.questionsPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				slug: artifacts.taskGraph.slug,
 				taskCount: artifacts.taskGraph.tasks.length,

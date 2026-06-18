@@ -25,7 +25,7 @@ import type {
 } from "../core/api-contract";
 import { openInBrowser } from "../server/browser";
 import { assertClineContextWindowPolicy } from "./cline-context-window-policy";
-import { assertLocalProviderAllowed } from "./cline-local-only-policy";
+import { assertLocalProviderAllowed, isLocalProvider } from "./cline-local-only-policy";
 import { type ClineModelRegistryEntry, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { createKanbanClineLogger } from "./cline-runtime-logger";
 import {
@@ -108,6 +108,13 @@ function readKanbanSelectedProviderId(): string | null {
 	} catch {
 		return null;
 	}
+}
+
+function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" | "baseUrl"> | null): boolean {
+	if (!settings) {
+		return false;
+	}
+	return isLocalProvider(settings.provider, settings.baseUrl);
 }
 
 function writeKanbanSelectedProviderId(providerId: string): void {
@@ -746,7 +753,8 @@ function getSelectedProviderSettings(): SdkProviderSettings | null {
 	if (!resolvedProviderId) {
 		return null;
 	}
-	return getSdkProviderSettings(resolvedProviderId) ?? { provider: resolvedProviderId };
+	const settings = getSdkProviderSettings(resolvedProviderId) ?? { provider: resolvedProviderId };
+	return isLocalProviderSettings(settings) ? settings : null;
 }
 
 async function resolveDefaultModelIdForProvider(providerId: string): Promise<string | null> {
@@ -1238,6 +1246,9 @@ export function createClineProviderService() {
 			const providers: RuntimeClineProviderCatalogItem[] = await listSdkProviderCatalog()
 				.then((sdkProviders) =>
 					sdkProviders
+						.filter((provider) =>
+							isLocalProvider(provider.id, provider.baseUrl ?? getSdkProviderSettings(provider.id)?.baseUrl),
+						)
 						.map((provider) => ({
 							id: provider.id,
 							name: provider.name,
@@ -1249,10 +1260,10 @@ export function createClineProviderService() {
 							env: provider.env,
 						}))
 						.sort((left, right) => {
-							if (left.id === "cline") {
+							if (left.id === "lmstudio") {
 								return -1;
 							}
-							if (right.id === "cline") {
+							if (right.id === "lmstudio") {
 								return 1;
 							}
 							return left.name.localeCompare(right.name);
@@ -1260,7 +1271,12 @@ export function createClineProviderService() {
 				)
 				.catch(() => []);
 
-			if (selectedProviderId.length > 0 && !providers.some((provider) => provider.id === selectedProviderId)) {
+			const selectedSettings = getSdkProviderSettings(selectedProviderId);
+			if (
+				selectedProviderId.length > 0 &&
+				isLocalProvider(selectedProviderId, selectedSettings?.baseUrl) &&
+				!providers.some((provider) => provider.id === selectedProviderId)
+			) {
 				providers.unshift({
 					id: selectedProviderId,
 					name: selectedProviderId,
@@ -1280,6 +1296,13 @@ export function createClineProviderService() {
 
 		async getProviderModels(providerId: string): Promise<RuntimeClineProviderModelsResponse> {
 			const normalizedProviderId = providerId.trim().toLowerCase();
+			const providerSettings = getSdkProviderSettings(normalizedProviderId);
+			if (normalizedProviderId.length > 0 && !isLocalProvider(normalizedProviderId, providerSettings?.baseUrl)) {
+				return {
+					providerId: normalizedProviderId || providerId,
+					models: [],
+				};
+			}
 			const providerModels =
 				normalizedProviderId.length > 0
 					? (await loadProviderModelsWithMeasuredWindows(normalizedProviderId))
@@ -1301,7 +1324,7 @@ export function createClineProviderService() {
 				};
 			}
 
-			const configuredModel = getSdkProviderSettings(normalizedProviderId)?.model?.trim() ?? "";
+			const configuredModel = providerSettings?.model?.trim() ?? "";
 			if (configuredModel.length > 0) {
 				return {
 					providerId: normalizedProviderId || providerId,
@@ -1317,6 +1340,10 @@ export function createClineProviderService() {
 
 		async addCustomProvider(input: AddCustomClineProviderInput): Promise<RuntimeClineProviderSettings> {
 			const providerId = input.providerId.trim().toLowerCase();
+			if (!providerId) {
+				throw new Error("Provider ID cannot be empty.");
+			}
+			assertLocalProviderAllowed({ providerId, baseUrl: input.baseUrl });
 			const existingProviders = await listSdkProviderCatalog().catch(() => []);
 			if (existingProviders.some((provider) => provider.id.trim().toLowerCase() === providerId)) {
 				throw new Error(`Provider "${providerId}" already exists.`);
@@ -1351,6 +1378,8 @@ export function createClineProviderService() {
 			if (!providerId) {
 				throw new Error("Provider ID cannot be empty.");
 			}
+			const existingSettings = getSdkProviderSettings(providerId) ?? { provider: providerId };
+			assertLocalProviderAllowed({ providerId, baseUrl: input.baseUrl ?? existingSettings.baseUrl });
 
 			await updateSdkCustomProvider({
 				providerId,
@@ -1365,7 +1394,6 @@ export function createClineProviderService() {
 				capabilities: input.capabilities,
 			});
 
-			const existingSettings = getSdkProviderSettings(providerId) ?? { provider: providerId };
 			const isLastUsed = getLastUsedSdkProviderSettings()?.provider?.trim().toLowerCase() === providerId;
 			saveSdkProviderSettings({
 				settings: existingSettings,
@@ -1566,6 +1594,7 @@ export function createClineProviderService() {
 			if (!isManagedOauthProviderId(providerId)) {
 				delete nextSettings.auth;
 			}
+			assertLocalProviderAllowed({ providerId, baseUrl: nextSettings.baseUrl });
 
 			await assertProviderModelMeetsContextRequirement({
 				providerId,
@@ -1593,6 +1622,7 @@ export function createClineProviderService() {
 					provider: input.providerId,
 				};
 				const baseUrl = input.baseUrl?.trim() || null;
+				assertLocalProviderAllowed({ providerId: input.providerId, baseUrl });
 				const credentials = await loginManagedOauthProvider({
 					providerId: input.providerId,
 					baseUrl,
@@ -1640,6 +1670,7 @@ export function createClineProviderService() {
 		},
 
 		async startDeviceAuth(): Promise<RuntimeClineDeviceAuthStartResponse> {
+			assertLocalProviderAllowed({ providerId: "cline" });
 			const result = await startSdkDeviceAuth();
 			return {
 				deviceCode: result.deviceCode,
@@ -1662,6 +1693,7 @@ export function createClineProviderService() {
 					provider: providerId,
 				};
 				const apiBaseUrl = input.baseUrl?.trim() || DEFAULT_CLINE_API_BASE_URL;
+				assertLocalProviderAllowed({ providerId, baseUrl: apiBaseUrl });
 				const credentials = await completeSdkDeviceAuth({
 					deviceCode: input.deviceCode,
 					expiresInSeconds: input.expiresInSeconds,

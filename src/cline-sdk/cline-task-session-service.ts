@@ -7,6 +7,7 @@ import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
+	RuntimeContextBudgetBreakdown,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -25,7 +26,6 @@ import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
 } from "./cline-context-overflow-compaction";
-import { KANBAN_DECOMPOSE_PROMPT } from "./cline-decomposition-workflow";
 import { applyClineSessionEvent } from "./cline-event-adapter";
 import {
 	type ClineMessageRepository,
@@ -35,9 +35,11 @@ import {
 import { extractClineModelRegistryObservationFromEvent, getDefaultClineModelRegistry } from "./cline-model-registry";
 import { type ClineRuntimeSetup, createClineRuntimeSetup } from "./cline-runtime-setup";
 import {
+	type ClinePersistedTaskSessionSnapshot,
 	type ClineSessionRuntime,
 	type CreateInMemoryClineSessionRuntimeOptions,
 	createInMemoryClineSessionRuntime,
+	readKanbanLaunchConfigFromSessionRecord,
 } from "./cline-session-runtime";
 import {
 	type ClineTaskMessage,
@@ -76,6 +78,7 @@ const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
 const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
+const KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS = 200_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
@@ -86,6 +89,14 @@ interface ClineTaskTimeoutSettings {
 	toolTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 }
+
+interface ClineTaskFailureBackoffState {
+	fingerprint: string;
+	count: number;
+	parked: boolean;
+}
+
+const CLINE_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
 
 export interface StartClineTaskSessionRequest {
 	taskId: string;
@@ -125,6 +136,10 @@ export interface ClineTaskLaunchConfigOverrides {
 	contextWindow?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
+}
+
+interface ClineTaskRestartLaunchConfig extends ClineTaskLaunchConfigOverrides {
+	maxAgentWritableFileLines?: number | null;
 }
 
 export function buildKanbanEfficiencyRules(options: {
@@ -298,8 +313,7 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 	const trimmedPrompt = prompt.trim();
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
-		"Kanban decomposition is available during planning; when the task should be split into dependent cards, follow these decomposition instructions:",
-		KANBAN_DECOMPOSE_PROMPT.trimEnd(),
+		"Kanban decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable Kanban workflow rules are applied.",
 		"Do not modify implementation files, do not use write tools outside Kanban planning artifacts, and do not implement product code yet.",
 		"Continue autonomously through the planning workflow when the task can be completed with Kanban-managed tools.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
@@ -311,7 +325,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly modelIdByTaskId = new Map<string, string>();
 	private readonly endpointByTaskId = new Map<string, string | null>();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
+	private readonly launchConfigByTaskId = new Map<string, ClineTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
+	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly activeToolTaskIds = new Set<string>();
@@ -366,6 +382,114 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return UNCONFIGURED_PROVIDER_ID;
 	}
 
+	private cacheLaunchConfig(taskId: string, launchConfig: ClineTaskRestartLaunchConfig): ClineTaskRestartLaunchConfig {
+		const normalized: ClineTaskRestartLaunchConfig = {
+			providerId: launchConfig.providerId.trim().toLowerCase(),
+			modelId: launchConfig.modelId.trim(),
+			...(Object.hasOwn(launchConfig, "apiKey") ? { apiKey: launchConfig.apiKey } : {}),
+			...(Object.hasOwn(launchConfig, "baseUrl") ? { baseUrl: launchConfig.baseUrl?.trim() || null } : {}),
+			...(Object.hasOwn(launchConfig, "reasoningEffort") ? { reasoningEffort: launchConfig.reasoningEffort } : {}),
+			...(Object.hasOwn(launchConfig, "contextWindow") ? { contextWindow: launchConfig.contextWindow } : {}),
+			...(Object.hasOwn(launchConfig, "maxAgentWritableFileLines")
+				? { maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines }
+				: {}),
+			...(Object.hasOwn(launchConfig, "apiTimeoutMs") ? { apiTimeoutMs: launchConfig.apiTimeoutMs } : {}),
+			...(Object.hasOwn(launchConfig, "turnTimeoutMs") ? { turnTimeoutMs: launchConfig.turnTimeoutMs } : {}),
+		};
+		this.launchConfigByTaskId.set(taskId, normalized);
+		this.providerIdByTaskId.set(taskId, normalized.providerId);
+		this.modelIdByTaskId.set(taskId, normalized.modelId);
+		this.endpointByTaskId.set(taskId, normalized.baseUrl ?? null);
+		if (Object.hasOwn(normalized, "contextWindow")) {
+			this.resolveContextWindowForTask(taskId, normalized.contextWindow);
+		}
+		return normalized;
+	}
+
+	private resolvePersistedLaunchConfig(input: {
+		taskId: string;
+		persistedSnapshot?: ClinePersistedTaskSessionSnapshot | null;
+	}): ClineTaskRestartLaunchConfig | null {
+		const cached = this.launchConfigByTaskId.get(input.taskId);
+		if (cached) {
+			return cached;
+		}
+		const persisted = input.persistedSnapshot
+			? readKanbanLaunchConfigFromSessionRecord(input.persistedSnapshot.record)
+			: null;
+		if (!persisted) {
+			return null;
+		}
+		return this.cacheLaunchConfig(input.taskId, persisted);
+	}
+
+	private async startRuntimeTaskSessionFromLaunchConfig(input: {
+		taskId: string;
+		cwd: string;
+		prompt: string;
+		initialMessages?: ClineSdkPersistedMessage[];
+		images?: RuntimeTaskImage[];
+		mode?: RuntimeTaskSessionMode;
+		launchConfig: ClineTaskRestartLaunchConfig;
+		systemPrompt?: string | null;
+		contextScope?: "full" | "smart" | "minimal" | "custom";
+		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
+	}): Promise<{ result: unknown; warnings?: string[] }> {
+		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
+		const runtimeSetup = await this.ensureRuntimeSetup(input.cwd);
+		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
+		let systemPrompt =
+			input.systemPrompt?.trim() ||
+			(await resolveClineSdkSystemPrompt({
+				cwd: input.cwd,
+				providerId: launchConfig.providerId,
+				rules: runtimeSetup.loadRules(),
+			}));
+		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
+		if (appendedSystemPrompt) {
+			systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
+		}
+		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
+			contextScope: input.contextScope ?? "smart",
+			contextWindow: requestContextWindow,
+			timeoutMode: input.timeoutMode ?? "normal",
+			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+		})}`;
+
+		this.markModelRequestStarted(input.taskId);
+		const startResult = await this.sessionRuntime.startTaskSession({
+			taskId: input.taskId,
+			cwd: input.cwd,
+			prompt: input.prompt,
+			initialMessages: input.initialMessages,
+			images: input.images,
+			providerId: launchConfig.providerId,
+			modelId: launchConfig.modelId,
+			mode: input.mode,
+			apiKey: launchConfig.apiKey,
+			baseUrl: launchConfig.baseUrl,
+			reasoningEffort: launchConfig.reasoningEffort,
+			contextWindow: requestContextWindow,
+			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines,
+			apiTimeoutMs: launchConfig.apiTimeoutMs,
+			turnTimeoutMs: launchConfig.turnTimeoutMs,
+			systemPrompt,
+			userInstructionService: runtimeSetup.userInstructionService,
+			requestToolApproval: runtimeSetup.createToolApproval({
+				contextWindow: requestContextWindow,
+				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+			}),
+			toolPolicies: runtimeSetup.toolPolicies,
+			onTeamEvent: (event, teamName) => {
+				this.emitTeamProgress(input.taskId, event, teamName);
+			},
+		});
+		return {
+			result: startResult.result,
+			warnings: startResult.warnings,
+		};
+	}
+
 	private isClineProviderForTask(taskId: string): boolean {
 		return this.resolveProviderIdForTask(taskId) === "cline";
 	}
@@ -382,36 +506,57 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.activeToolTaskIds.delete(taskId);
 		const errorMessage = toErrorMessage(error);
 		const creditLimitError = this.isClineProviderForTask(taskId) && isCreditLimitError(errorMessage);
+		const failureFingerprint = `${context}:${errorMessage}`;
+		const previousFailure = this.failureBackoffByTaskId.get(taskId);
+		const consecutiveFailures = previousFailure?.fingerprint === failureFingerprint ? previousFailure.count + 1 : 1;
+		const alreadyParked = previousFailure?.fingerprint === failureFingerprint && previousFailure.parked;
+		if (alreadyParked) {
+			return;
+		}
+		const shouldPark = consecutiveFailures >= CLINE_FAILURE_BACKOFF_PARK_THRESHOLD;
+		this.failureBackoffByTaskId.set(taskId, {
+			fingerprint: failureFingerprint,
+			count: consecutiveFailures,
+			parked: shouldPark,
+		});
 		recordSelfObservation({
 			signal: creditLimitError ? "provider_error" : "runtime_error",
 			severity: "error",
-			message: `Cline SDK ${context} failed: ${errorMessage}`,
+			message: shouldPark
+				? `Cline SDK ${context} failed ${consecutiveFailures} consecutive times; parking task: ${errorMessage}`
+				: `Cline SDK ${context} failed: ${errorMessage}`,
 			taskId,
 			providerId: this.resolveProviderIdForTask(taskId),
 			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
 			metadata: {
 				context,
 				creditLimitError,
+				consecutiveFailures,
+				parked: shouldPark,
 			},
 		});
 		if (!creditLimitError) {
 			const systemMessage = createMessage(
 				taskId,
 				"system",
-				`Cline SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`,
+				shouldPark
+					? `Cline SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so Kanban parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
+					: `Cline SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`,
 			);
 			entry.messages.push(systemMessage);
 			this.emitMessage(taskId, systemMessage);
 		}
 		clearActiveTurnState(entry);
 		const errorSummary = updateSummary(entry, {
-			state: "awaiting_review",
+			state: shouldPark ? "failed" : "awaiting_review",
 			reviewReason: "error",
 			lastOutputAt: now(),
 			lastHookAt: now(),
 			warningMessage: creditLimitError ? null : errorMessage,
 			latestHookActivity: {
-				activityText: `${context === "start" ? "Start" : "Send"} failed: ${errorMessage}`,
+				activityText: shouldPark
+					? `${context === "start" ? "Start" : "Send"} parked after repeated failures: ${errorMessage}`
+					: `${context === "start" ? "Start" : "Send"} failed: ${errorMessage}`,
 				toolName: null,
 				toolInputSummary: null,
 				finalMessage: errorMessage,
@@ -531,36 +676,54 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 		if (this.sessionRuntime.getTaskSessionId(input.taskId)) {
 			const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
-			const contextWindow = this.resolveKnownContextWindowForTask(
-				input.taskId,
-				input.launchConfigOverrides?.contextWindow,
-			);
+			const restartLaunchConfig =
+				input.launchConfigOverrides ??
+				this.resolvePersistedLaunchConfig({
+					taskId: input.taskId,
+					persistedSnapshot,
+				});
+			const contextWindow = this.resolveKnownContextWindowForTask(input.taskId, restartLaunchConfig?.contextWindow);
 			const initialMessages = this.prepareMessagesForKnownContextWindow({
+				taskId: input.taskId,
 				messages: persistedSnapshot?.messages,
 				prompt: input.prompt,
 				images: input.images,
 				contextWindow,
 			});
 			await this.sessionRuntime.stopTaskSession(input.taskId);
-			this.markModelRequestStarted(input.taskId);
-			const restartedSession = await this.sessionRuntime.restartTaskSession({
-				taskId: input.taskId,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages,
-				launchConfigOverrides: input.launchConfigOverrides,
-				onTeamEvent: (event, teamName) => {
-					this.emitTeamProgress(input.taskId, event, teamName);
-				},
-			});
-			if (input.launchConfigOverrides) {
-				this.providerIdByTaskId.set(input.taskId, input.launchConfigOverrides.providerId.trim().toLowerCase());
+			if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+				this.markModelRequestStarted(input.taskId);
+				const restartedSession = await this.sessionRuntime.restartTaskSession({
+					taskId: input.taskId,
+					prompt: input.prompt,
+					mode: input.mode,
+					images: input.images,
+					initialMessages,
+					launchConfigOverrides: restartLaunchConfig ?? undefined,
+					onTeamEvent: (event, teamName) => {
+						this.emitTeamProgress(input.taskId, event, teamName);
+					},
+				});
+				if (restartLaunchConfig) {
+					this.cacheLaunchConfig(input.taskId, restartLaunchConfig);
+				}
+				return {
+					result: restartedSession.result,
+					warnings: restartedSession.warnings,
+				};
 			}
-			return {
-				result: restartedSession.result,
-				warnings: restartedSession.warnings,
-			};
+			if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
+				return await this.startRuntimeTaskSessionFromLaunchConfig({
+					taskId: input.taskId,
+					cwd: persistedSnapshot.record.cwd,
+					prompt: input.prompt,
+					mode: input.mode,
+					images: input.images,
+					initialMessages,
+					launchConfig: restartLaunchConfig,
+				});
+			}
+			throw new Error(`No previous Cline session config is available for task ${input.taskId}.`);
 		}
 
 		if (isHomeAgentSessionId(input.taskId) && !this.sessionRuntime.canRestartTaskSession(input.taskId)) {
@@ -568,31 +731,53 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId);
-		const contextWindow = this.resolveKnownContextWindowForTask(
-			input.taskId,
-			input.launchConfigOverrides?.contextWindow,
-		);
+		const restartLaunchConfig =
+			input.launchConfigOverrides ??
+			this.resolvePersistedLaunchConfig({
+				taskId: input.taskId,
+				persistedSnapshot,
+			});
+		const contextWindow = this.resolveKnownContextWindowForTask(input.taskId, restartLaunchConfig?.contextWindow);
 		const initialMessages = this.prepareMessagesForKnownContextWindow({
+			taskId: input.taskId,
 			messages: persistedSnapshot?.messages,
 			prompt: input.prompt,
 			images: input.images,
 			contextWindow,
 		});
-		const restartedSession = await this.sessionRuntime.restartTaskSession({
-			taskId: input.taskId,
-			prompt: input.prompt,
-			mode: input.mode,
-			images: input.images,
-			initialMessages,
-			launchConfigOverrides: input.launchConfigOverrides,
-			onTeamEvent: (event, teamName) => {
-				this.emitTeamProgress(input.taskId, event, teamName);
-			},
-		});
-		return {
-			result: restartedSession.result,
-			warnings: restartedSession.warnings,
-		};
+		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			this.markModelRequestStarted(input.taskId);
+			const restartedSession = await this.sessionRuntime.restartTaskSession({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages,
+				launchConfigOverrides: restartLaunchConfig ?? undefined,
+				onTeamEvent: (event, teamName) => {
+					this.emitTeamProgress(input.taskId, event, teamName);
+				},
+			});
+			if (restartLaunchConfig) {
+				this.cacheLaunchConfig(input.taskId, restartLaunchConfig);
+			}
+			return {
+				result: restartedSession.result,
+				warnings: restartedSession.warnings,
+			};
+		}
+		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
+			return await this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: input.taskId,
+				cwd: persistedSnapshot.record.cwd,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages,
+				launchConfig: restartLaunchConfig,
+			});
+		}
+		throw new Error(`No previous Cline session config is available for task ${input.taskId}.`);
 	}
 
 	private async retryAfterContextOverflow(input: {
@@ -622,23 +807,42 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (!compactedMessages) {
 			return null;
 		}
+		const restartLaunchConfig = this.resolvePersistedLaunchConfig({
+			taskId: input.taskId,
+			persistedSnapshot,
+		});
 
 		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
-		this.markModelRequestStarted(input.taskId);
-		const restartedSession = await this.sessionRuntime.restartTaskSession({
-			taskId: input.taskId,
-			prompt: input.prompt,
-			mode: input.mode,
-			images: input.images,
-			initialMessages: compactedMessages,
-			onTeamEvent: (event, teamName) => {
-				this.emitTeamProgress(input.taskId, event, teamName);
-			},
-		});
-		return {
-			result: restartedSession.result,
-			warnings: restartedSession.warnings,
-		};
+		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			this.markModelRequestStarted(input.taskId);
+			const restartedSession = await this.sessionRuntime.restartTaskSession({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: compactedMessages,
+				launchConfigOverrides: restartLaunchConfig ?? undefined,
+				onTeamEvent: (event, teamName) => {
+					this.emitTeamProgress(input.taskId, event, teamName);
+				},
+			});
+			return {
+				result: restartedSession.result,
+				warnings: restartedSession.warnings,
+			};
+		}
+		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
+			return await this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: input.taskId,
+				cwd: persistedSnapshot.record.cwd,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: compactedMessages,
+				launchConfig: restartLaunchConfig,
+			});
+		}
+		throw new Error(`No previous Cline session config is available for task ${input.taskId}.`);
 	}
 
 	private estimateNextPromptTokens(prompt: string, images?: RuntimeTaskImage[]): number {
@@ -650,9 +854,56 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		);
 	}
 
+	private buildContextBudgetBreakdown(input: {
+		systemPrompt?: string | null;
+		messages?: ClineSdkPersistedMessage[] | null;
+		prompt: string;
+		images?: RuntimeTaskImage[];
+		contextWindow: number;
+	}): RuntimeContextBudgetBreakdown {
+		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
+		const messages = input.messages ?? [];
+		const systemPromptTokens = input.systemPrompt ? countKanbanTextTokens(input.systemPrompt) : 0;
+		const taskPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const historyTokens = countKanbanPersistedMessagesTokens(messages);
+		const userMessageTokens = messages.reduce((sum, message) => {
+			if (message.role !== "user") {
+				return sum;
+			}
+			return sum + countKanbanPersistedMessagesTokens([message]);
+		}, 0);
+		const otherHistoryTokens = Math.max(0, historyTokens - userMessageTokens);
+		const projectedTokens =
+			systemPromptTokens +
+			taskPromptTokens +
+			userMessageTokens +
+			otherHistoryTokens +
+			budgets.promptOverheadReserveTokens +
+			budgets.outputReserveTokens;
+		const usedWorkingTokens = Math.max(0, projectedTokens - budgets.outputReserveTokens);
+		return {
+			systemPromptTokens,
+			toolSchemaTokens: 0,
+			taskPromptTokens,
+			userMessageTokens,
+			includedFileContentTokens: 0,
+			otherHistoryTokens,
+			reservedPromptOverheadTokens: budgets.promptOverheadReserveTokens,
+			reservedOutputTokens: budgets.outputReserveTokens,
+			usedWorkingTokens,
+			freeWorkingTokens: Math.max(0, input.contextWindow - projectedTokens),
+			effectiveContextWindow: input.contextWindow,
+			projectedTokens,
+		};
+	}
+
+	private normalizeEffectiveContextWindow(contextWindow: number): number {
+		return Math.min(Math.trunc(contextWindow), KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS);
+	}
+
 	private resolveContextWindowForTask(taskId: string, launchContextWindow?: number | null): number | null {
 		if (typeof launchContextWindow === "number" && Number.isFinite(launchContextWindow) && launchContextWindow > 0) {
-			const normalized = Math.trunc(launchContextWindow);
+			const normalized = this.normalizeEffectiveContextWindow(launchContextWindow);
 			this.contextWindowByTaskId.set(taskId, normalized);
 			return normalized;
 		}
@@ -660,21 +911,56 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
-		return this.resolveContextWindowForTask(taskId, launchContextWindow) ?? DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS;
+		const contextWindow =
+			this.resolveContextWindowForTask(taskId, launchContextWindow) ?? DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS;
+		return this.normalizeEffectiveContextWindow(contextWindow);
+	}
+
+	private recordContextBudgetGuard(input: {
+		taskId: string;
+		action: "compacted" | "blocked";
+		contextWindow: number;
+		originalProjectedTokens: number;
+		projectedTokens: number;
+		originalHistoryTokens: number;
+		compactedHistoryTokens: number;
+		nextPromptTokens: number;
+	}): void {
+		recordSelfObservation({
+			signal: "context_overflow",
+			severity: input.action === "blocked" ? "error" : "warning",
+			message:
+				input.action === "blocked"
+					? `Pre-send context guard blocked an oversized prompt before provider dispatch (~${input.projectedTokens.toLocaleString()} projected tokens for ${input.contextWindow.toLocaleString()} available).`
+					: `Pre-send context guard compacted history before provider dispatch (~${input.originalProjectedTokens.toLocaleString()} → ~${input.projectedTokens.toLocaleString()} projected tokens).`,
+			taskId: input.taskId,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				action: input.action,
+				contextWindow: input.contextWindow,
+				originalProjectedTokens: input.originalProjectedTokens,
+				projectedTokens: input.projectedTokens,
+				originalHistoryTokens: input.originalHistoryTokens,
+				compactedHistoryTokens: input.compactedHistoryTokens,
+				nextPromptTokens: input.nextPromptTokens,
+				sendReserveTokens: CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
+				maxEffectiveContextWindow: KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS,
+			},
+		});
 	}
 
 	private prepareMessagesForKnownContextWindow(input: {
+		taskId: string;
 		messages?: ClineSdkPersistedMessage[] | null;
 		prompt: string;
 		images?: RuntimeTaskImage[];
 		contextWindow: number;
 	}): ClineSdkPersistedMessage[] | undefined {
 		const messages = input.messages ?? [];
-		if (messages.length === 0) {
-			return undefined;
-		}
-
 		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const originalHistoryTokens = countKanbanPersistedMessagesTokens(messages);
+		const originalProjectedTokens = originalHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
 		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
 		const historyTargetTokens = Math.max(
 			1,
@@ -683,15 +969,40 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				input.contextWindow - nextPromptTokens - CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
 			),
 		);
-		const compactedMessages = compactKanbanMessagesForContextTarget(messages, historyTargetTokens) ?? messages;
-		const projectedTokens =
-			countKanbanPersistedMessagesTokens(compactedMessages) + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
+		const compactedMessages =
+			messages.length > 0
+				? (compactKanbanMessagesForContextTarget(messages, historyTargetTokens) ?? messages)
+				: messages;
+		const compactedHistoryTokens = countKanbanPersistedMessagesTokens(compactedMessages);
+		const projectedTokens = compactedHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
 		if (projectedTokens > input.contextWindow) {
+			this.recordContextBudgetGuard({
+				taskId: input.taskId,
+				action: "blocked",
+				contextWindow: input.contextWindow,
+				originalProjectedTokens,
+				projectedTokens,
+				originalHistoryTokens,
+				compactedHistoryTokens,
+				nextPromptTokens,
+			});
 			throw new Error(
 				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after Kanban compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
 			);
 		}
-		return compactedMessages;
+		if (compactedMessages !== messages || originalProjectedTokens > input.contextWindow) {
+			this.recordContextBudgetGuard({
+				taskId: input.taskId,
+				action: "compacted",
+				contextWindow: input.contextWindow,
+				originalProjectedTokens,
+				projectedTokens,
+				originalHistoryTokens,
+				compactedHistoryTokens,
+				nextPromptTokens,
+			});
+		}
+		return compactedMessages.length > 0 ? compactedMessages : undefined;
 	}
 
 	private async maybeCompactBeforeContextOverflow(input: {
@@ -706,6 +1017,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
 		const compactedMessages = this.prepareMessagesForKnownContextWindow({
+			taskId: input.taskId,
 			messages: persistedSnapshot?.messages,
 			prompt: input.prompt,
 			images: input.images,
@@ -735,21 +1047,42 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 
 		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
-		const restartedSession = await this.sessionRuntime.restartTaskSession({
-			taskId: input.taskId,
-			prompt: input.prompt,
-			mode: input.mode,
-			images: input.images,
-			initialMessages: compactedMessages,
-			launchConfigOverrides: input.launchConfigOverrides,
-			onTeamEvent: (event, teamName) => {
-				this.emitTeamProgress(input.taskId, event, teamName);
-			},
-		});
-		return {
-			result: restartedSession.result,
-			warnings: restartedSession.warnings,
-		};
+		const restartLaunchConfig =
+			input.launchConfigOverrides ??
+			this.resolvePersistedLaunchConfig({
+				taskId: input.taskId,
+				persistedSnapshot,
+			});
+		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			this.markModelRequestStarted(input.taskId);
+			const restartedSession = await this.sessionRuntime.restartTaskSession({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: compactedMessages,
+				launchConfigOverrides: restartLaunchConfig ?? undefined,
+				onTeamEvent: (event, teamName) => {
+					this.emitTeamProgress(input.taskId, event, teamName);
+				},
+			});
+			return {
+				result: restartedSession.result,
+				warnings: restartedSession.warnings,
+			};
+		}
+		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
+			return await this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: input.taskId,
+				cwd: persistedSnapshot.record.cwd,
+				prompt: input.prompt,
+				mode: input.mode,
+				images: input.images,
+				initialMessages: compactedMessages,
+				launchConfig: restartLaunchConfig,
+			});
+		}
+		throw new Error(`No previous Cline session config is available for task ${input.taskId}.`);
 	}
 
 	async startTaskSession(request: StartClineTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
@@ -762,13 +1095,23 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		) {
 			return cloneSummary(existing.summary);
 		}
-
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
 		this.endpointByTaskId.set(request.taskId, request.baseUrl?.trim() || null);
+		this.cacheLaunchConfig(request.taskId, {
+			providerId,
+			modelId,
+			apiKey: request.apiKey,
+			baseUrl: request.baseUrl,
+			reasoningEffort: request.reasoningEffort,
+			contextWindow: requestContextWindow,
+			maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+			apiTimeoutMs: request.requestTimeoutMs,
+			turnTimeoutMs: request.turnTimeoutMs,
+		});
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
 		const normalizedPrompt = request.prompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
@@ -861,17 +1204,29 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				}
 				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 					contextScope: request.contextScope ?? "smart",
-					contextWindow: request.contextWindow ?? null,
+					contextWindow: requestContextWindow,
 					timeoutMode: request.timeoutMode ?? "normal",
 					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 				})}`;
 
 				const initialMessages = this.prepareMessagesForKnownContextWindow({
+					taskId: request.taskId,
 					messages: persistedResumeSnapshot?.messages ?? request.initialMessages,
 					prompt: runtimePrompt,
 					images: request.images,
 					contextWindow: requestContextWindow,
 				});
+				this.emitSummary(
+					updateSummary(entry, {
+						contextBudgetBreakdown: this.buildContextBudgetBreakdown({
+							systemPrompt,
+							messages: initialMessages,
+							prompt: runtimePrompt,
+							images: request.images,
+							contextWindow: requestContextWindow,
+						}),
+					}),
+				);
 				if (entry.summary.state === "running") {
 					this.scheduleStreamTimeout(request.taskId);
 					this.scheduleConversationTimeout(request.taskId);
@@ -890,13 +1245,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					apiKey: request.apiKey,
 					baseUrl: request.baseUrl,
 					reasoningEffort: request.reasoningEffort,
-					contextWindow: request.contextWindow,
+					contextWindow: requestContextWindow,
 					apiTimeoutMs: request.requestTimeoutMs,
 					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
 					requestToolApproval: runtimeSetup.createToolApproval({
-						contextWindow: request.contextWindow ?? null,
+						contextWindow: requestContextWindow,
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 					}),
 					toolPolicies: runtimeSetup.toolPolicies,
@@ -905,6 +1260,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					},
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);
+				this.failureBackoffByTaskId.delete(request.taskId);
 				if (warningMessage) {
 					this.emitSummary(
 						updateSummary(entry, {
@@ -951,7 +1307,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelIdByTaskId.delete(taskId);
 		this.endpointByTaskId.delete(taskId);
+		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.failureBackoffByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
@@ -978,6 +1336,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelIdByTaskId.delete(taskId);
 		this.endpointByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.failureBackoffByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
@@ -1052,6 +1411,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (normalized.length === 0 && !hasImages) {
 			return null;
 		}
+		this.failureBackoffByTaskId.delete(taskId);
 		if (!this.sessionRuntime.getTaskSessionId(taskId)) {
 			if (isHomeAgentSessionId(taskId) && !this.sessionRuntime.canRestartTaskSession(taskId)) {
 				return null;
@@ -1100,6 +1460,19 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						launchConfigOverrides?.contextWindow,
 					);
 					try {
+						const persistedSnapshotForBudget = await this.sessionRuntime
+							.readPersistedTaskSession(taskId)
+							.catch(() => null);
+						this.emitSummary(
+							updateSummary(entry, {
+								contextBudgetBreakdown: this.buildContextBudgetBreakdown({
+									messages: persistedSnapshotForBudget?.messages,
+									prompt: resolvedPrompt,
+									images,
+									contextWindow: resolvedContextWindow,
+								}),
+							}),
+						);
 						if (!queueDelivery) {
 							const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
 								taskId,
@@ -1138,6 +1511,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				})
 				.then(({ result, warnings }) => {
 					const warningMessage = formatStartWarnings(warnings);
+					this.failureBackoffByTaskId.delete(taskId);
 					if (warningMessage) {
 						this.emitSummary(
 							updateSummary(entry, {
@@ -1225,7 +1599,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelIdByTaskId.delete(taskId);
 		this.endpointByTaskId.delete(taskId);
+		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.failureBackoffByTaskId.delete(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -1260,6 +1636,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (!snapshot) {
 			return existingEntry ? cloneSummary(existingEntry.summary) : null;
 		}
+		this.resolvePersistedLaunchConfig({
+			taskId,
+			persistedSnapshot: snapshot,
+		});
 		const startedAt = Date.parse(snapshot.record.startedAt);
 		const updatedAt = Date.parse(snapshot.record.updatedAt || snapshot.record.startedAt);
 		const persistedCwd = typeof snapshot.record.cwd === "string" ? snapshot.record.cwd.trim() : "";

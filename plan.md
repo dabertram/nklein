@@ -76,40 +76,40 @@ auditable and the eventual "unleash cloud" switch is one file.
       is called in [cline-provider-service.ts](src/cline-sdk/cline-provider-service.ts) right after the
       provider id is resolved and **before** any OAuth/API-key/network work. This alone makes it impossible
       to dispatch to cloud (a `cline`-defaulted card now throws `CloudProviderDisabledError` here).
-- [ ] **Belt-and-suspenders at task start** — in `runtime-api.ts` `startTaskSession`
+- [x] ~~**Belt-and-suspenders at task start** — in `runtime-api.ts` `startTaskSession`
       (~[runtime-api.ts:348](src/trpc/runtime-api.ts#L348)): re-assert after `resolveLaunchConfig`, and
       translate `CloudProviderDisabledError` into a **hard-stop + parked card** with the clear message
-      (chosen behavior: refuse, don't auto-substitute). Surface it in the task summary, not a silent retry.
-- [ ] **Stop the cloud default everywhere it's persisted.** A fresh install (and existing state) must
+      (chosen behavior: refuse, don't auto-substitute). Surface it in the task summary, not a silent retry.~~
+- [x] ~~**Stop the cloud default everywhere it's persisted.** A fresh install (and existing state) must
       **never** auto-select cloud:
-  - [ ] `SDK_DEFAULT_PROVIDER_ID` / `SDK_DEFAULT_MODEL_ID`
+  - [x] `SDK_DEFAULT_PROVIDER_ID` / `SDK_DEFAULT_MODEL_ID`
         ([sdk-provider-boundary.ts:43-44](src/cline-sdk/sdk-provider-boundary.ts#L43)) and the runtime
         default agent ([runtime-config.ts](src/config/runtime-config.ts), `selectedAgentId` defaults to `cline`).
-  - [ ] The persisted provider selection — observed value is `openrouter` (cloud) in
+  - [x] The persisted provider selection — observed value is `openrouter` (cloud) in
         `~/.cline/kanban/cline-provider-selection.json`; a cloud selection must be rejected/ignored on load
         (fall through to a local provider or the hard-stop), not silently honored.
-  - [ ] The Dev Test Project seeds cards with `agentId: "cline"` (seen in dev-run `config-snapshot.json`) —
+  - [x] The Dev Test Project seeds cards with `agentId: "cline"` (seen in dev-run `config-snapshot.json`) —
         seed the configured **local** agent/role instead.
   - With no local model configured, starting a task hard-stops with the configure-a-local-model message
-    instead of falling back to `cline`.
-- [ ] **Filter the provider catalog & model picker** so cloud options never render:
+    instead of falling back to `cline`.~~
+- [x] ~~**Filter the provider catalog & model picker** so cloud options never render:
       `getProviderCatalog()` ([cline-provider-service.ts:1229](src/cline-sdk/cline-provider-service.ts#L1229)),
       `fetchClineProviderCatalog()` ([runtime-config-query.ts:122-154](web-ui/src/runtime/runtime-config-query.ts#L122)),
       and the hardcoded cloud recommendations in
-      [cline-model-picker-options.ts:5-19](web-ui/src/components/detail-panels/cline-model-picker-options.ts#L5).
-- [ ] **Block cloud at routing/role resolution too** — the capability router
+      [cline-model-picker-options.ts:5-19](web-ui/src/components/detail-panels/cline-model-picker-options.ts#L5).~~
+- [x] ~~**Block cloud at routing/role resolution too** — the capability router
       ([cline-task-router.ts](src/cline-sdk/cline-task-router.ts)) and role resolution
-      (`modelRoles`) must drop cloud candidates so a "route up" can never escalate *into* cloud.
-- [ ] **Make existing cloud-pinned cards safe.** Any task whose persisted `clineSettings` names a
+      (`modelRoles`) must drop cloud candidates so a "route up" can never escalate *into* cloud.~~
+- [x] ~~**Make existing cloud-pinned cards safe.** Any task whose persisted `clineSettings` names a
       cloud provider hard-stops on (re)start with the clear message — including resume-from-persistence
-      and the overflow-recovery restart path. No migration that silently rewrites them.
+      and the overflow-recovery restart path. No migration that silently rewrites them.~~
 - [~] **Tests:** policy unit test is **done**
       ([test/runtime/cline-sdk/cline-local-only-policy.test.ts](test/runtime/cline-sdk/cline-local-only-policy.test.ts),
       7/7 green — covers cloud-id deny, local-id allow, managed-OAuth-always-cloud, custom local-baseUrl
-      allow, host classification, typed-error guard). **Still open:** (a) a test that every cloud id throws
-      at `resolveLaunchConfig`, (b) catalog/picker omit cloud, (c) a cloud-pinned card hard-stops with the
-      typed error, (d) the router never returns a cloud candidate, and a boundary test that grepping for
-      cloud provider ids outside `cline-local-only-policy.ts` and the provider catalog finds no *dispatch* path.
+      allow, host classification, typed-error guard). **Now also covered:** catalog/picker omit cloud, cloud
+      selections are ignored on load, cloud saves/OAuth are blocked, cloud-pinned starts hard-stop, and the
+      router never returns a cloud candidate. **Still open:** boundary grep test for cloud provider ids outside
+      `cline-local-only-policy.ts` and the provider catalog finding no *dispatch* path.
 
 ---
 
@@ -122,53 +122,62 @@ instead of storming. These are the concrete failures behind the telemetry above.
 ### L1.1 — Authoritative, never-overflow pre-send guard
 - [x] ~~A proactive pre-send guard exists~~ ([cline-task-session-service.ts:666-695](src/cline-sdk/cline-task-session-service.ts#L666)) —
       it compacts history and throws if projected tokens exceed the window.
-- [ ] **Fix the window it trusts.** The guard compacts to the model's *advertised* window; the cloud
+- [~] **Fix the window it trusts.** The guard compacts to the model's *advertised* window; the cloud
       Sonnet advertised ~1M, so it compacted-to-1M and sent 1.1M. The effective window must be
       `min(advertised, user-configured, Kanban hard ceiling)`. Replace the 1M-trusting path so the
       guard target is the **effective** window, sourced consistently with what the SDK actually uses
       (see `resolveKnownContextWindowForTask` / `DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS`,
       [cline-task-session-service.ts:662-664](src/cline-sdk/cline-task-session-service.ts#L662)).
-- [ ] **Add an absolute Kanban-owned ceiling.** A hard cap (derived from the resolved local window, with
+      **Progress:** session start/restart now normalizes the launch context window through a Kanban-owned
+      effective ceiling before building prompts, approvals, initial messages, or dispatching to the SDK.
+      Still open: source the local model's MCSR/user-configured effective window more richly across all
+      budget displays and scheduling paths.
+- [x] ~~**Add an absolute Kanban-owned ceiling.** A hard cap (derived from the resolved local window, with
       a sane maximum) above which a request is **never** assembled or sent, regardless of what any
       provider advertises. If, after maximal compaction, projected tokens still exceed the effective
       window → **stop the task with a clear message**, never send. (Local-only makes this cheap to be
-      strict about: local windows are knowable, e.g. the in-use `qwen3.5-9b-…-ctx80k` = 80k.)
-- [ ] **Convert overflow telemetry from reactive to also-proactive.** Today `context_overflow` is
+      strict about: local windows are knowable, e.g. the in-use `qwen3.5-9b-…-ctx80k` = 80k.)~~
+- [x] ~~**Convert overflow telemetry from reactive to also-proactive.** Today `context_overflow` is
       emitted only after a provider 400 ([cline-task-session-service.ts:608-618](src/cline-sdk/cline-task-session-service.ts#L608)).
       Emit a *pre-send* "would-overflow, compacted/blocked" signal so the data shows the guard working,
-      not just failures.
+      not just failures.~~
 
 ### L1.2 — Fix session restart / resume (the 453× error)
-- [ ] **`"No previous Cline session config is available"` on restart.** The overflow-recovery path calls
+- [x] ~~**`"No previous Cline session config is available"` on restart.** The overflow-recovery path calls
       `restartTaskSession(... launchConfigOverrides ...)` ([:737-748](src/cline-sdk/cline-task-session-service.ts#L737))
       but the launch config isn't reliably available, so the restart throws — turning a recoverable
       overflow into a hard failure (and feeding the "max consecutive mistakes" cascade). Persist the
       resolved launch config with the session and reuse it on restart/resume; add a regression test that
       compacts → restarts → succeeds without a config lookup failure. (Tribal-knowledge match:
-      AGENTS.md notes the host won't expose its session map — restart must come from persisted history.)
+      AGENTS.md notes the host won't expose its session map — restart must come from persisted history.)~~
+      Done via public SDK session metadata (`kanban.launchConfig`) plus service-level fallback starts when
+      the runtime's private last-start cache is empty; no host session-map casting.
 
 ### L1.3 — Local-appropriate timeouts (the 227× "1 seconds" error)
-- [ ] **Find and fix the 1-second tool/stream timeouts.** `config.json` has `agentTimeoutMode:
+- [~] **Find and fix the 1-second tool/stream timeouts.** `config.json` has `agentTimeoutMode:
       "unlimited"` and every timeout field `null`, yet telemetry shows `"timeout after 1 seconds"` ×227 —
       so this is a **code default/bug**, not user config (likely a `null → 1` or seconds/ms confusion).
       Trace `timeoutMode` / tool-execution + stream-inactivity timeouts from `clineSettings`
       ([api-contract.ts](src/core/api-contract.ts)) through the session runtime; a 1s timeout is fatal on
       a slow local model (low prefill tok/s). Defaults must be local-model-aware (scale to MCSR
       wall-time-per-1k-tokens, or at minimum a generous local floor) and honor `"unlimited"`. Verify no
-      path resolves a timeout to `1`.
+      path resolves a timeout to `1`. **Progress:** legacy `cloud` timeout profiles now resolve to the
+      generous local floors in runtime config and runtime dispatch; stale positive task/global timeouts now
+      clamp to at least 60 seconds before reaching Cline start/stream/tool scheduling; `unlimited` still
+      resolves to `null`. Still open: MCSR-aware scaling from measured local prefill/decode speed.
 
 ### L1.4 — Error back-off (no retry storms)
-- [ ] **Don't loop on the same error.** Even with cloud gone, ensure repeated identical failures back
+- [x] ~~**Don't loop on the same error.** Even with cloud gone, ensure repeated identical failures back
       off and respect `maxConsecutiveMistakes` (SDK-native) instead of re-emitting hundreds of identical
       signals. The "Detected N consecutive identical calls" stopper exists; extend the same discipline to
-      start/send failures so a broken card parks instead of storming the telemetry.
+      start/send failures so a broken card parks instead of storming the telemetry.~~
 
 ### L1.5 — Acceptance gate must not freeze on a login shell  *(plan2.md L4)*
-- [ ] `resolveShellExecution` runs `"$SHELL" -lc <command>`
+- [x] ~~`resolveShellExecution` runs `"$SHELL" -lc <command>`
       ([cline-acceptance-gate.ts:45-83](src/cline-sdk/cline-acceptance-gate.ts#L45)). AGENTS.md
       explicitly warns profile-loading shells on hot paths freeze conda/nvm setups. Use a non-login
       shell or direct exec with an explicit PATH; raise/stream `maxBuffer` (currently 2 MB → a passing
-      command with large output throws `ENOBUFS` → false failure).
+      command with large output throws `ENOBUFS` → false failure).~~
 
 ### L1.6 — Context budget visualization bar (UI)  *(replaces "request context / available context / health")*
 
@@ -179,14 +188,16 @@ yellow → orange → red as it fills/overflows. This makes the very failure mod
 visible instead of buried in a text label.
 
 **Backend — expose a faithful breakdown (don't let the UI guess):**
-- [ ] Add a structured `ContextBudgetBreakdown` per task, computed from the **same source as the pre-send
+- [~] Add a structured `ContextBudgetBreakdown` per task, computed from the **same source as the pre-send
       guard (L1.1)** so it reflects what will be sent, not a frontend estimate. Segments:
       `systemPromptTokens` (append-system-prompt + SDK base system prompt + rules),
       `toolSchemaTokens`, `taskPromptTokens` (card title/prompt + injected task info),
       `userMessageTokens`, `includedFileContentTokens` (retained `read_files` output),
       `otherHistoryTokens`, plus the reserves from `buildKanbanContextSafetyBudgets`
       (`reservedPromptOverheadTokens`, `reservedOutputTokens`), `usedWorkingTokens`, `freeWorkingTokens`,
-      and `effectiveContextWindow`.
+      and `effectiveContextWindow`. **Progress:** summaries now expose a breakdown driven by the same
+      effective context window and token counters as the pre-send guard; tool schema and precise retained
+      file-output segmentation still need SDK/deeper message-source integration.
 - [ ] Source system/tool token counts from the **SDK** where it exposes them (per AGENTS.md prefer
       SDK-provided counts); otherwise estimate with the existing `gpt-tokenizer`
       (`countKanbanTextTokens`, `estimateNextPromptTokens`, `countKanbanPersistedMessagesTokens`).
@@ -197,11 +208,11 @@ visible instead of buried in a text label.
       that heuristic is exactly why an 80k local model showed "healthy" at 87k.
 
 **Frontend (web-ui) — the bar:**
-- [ ] New stacked, segmented bar component (Tailwind + design tokens, dark theme) rendering the segments
+- [x] ~~New stacked, segmented bar component (Tailwind + design tokens, dark theme) rendering the segments
       in order — system prompt · tool schemas · task/user prompt · included file content · other history ·
       reserved working · reserved output — each sized to its share of the effective window, filling the bar
       left→right; reserved output/overhead shown as distinct trailing (muted/hatched) segments so headroom
-      is visible.
+      is visible.~~
 - [ ] **Health color ramp on the fill:** usage `< ~70%` green (`status-green`), `~70–85%` gold
       (`status-gold`), `~85–95%` orange (`status-orange`), `≥95%` or overflow red (`status-red`) — a smooth
       green→yellow→orange→red gradient; an over-limit marker when projected tokens exceed the window.
@@ -256,16 +267,16 @@ while running distinct endpoints truly in parallel — without thrashing the mac
 - [ ] **Make `modelRoles` active, not read-only.** Roles resolve to whichever connected *local* model
       best fits the role's capability tier via the MCSR; auto-assignment by decomposition `complexity`
       writes `clineSettings`; all assignment goes through the router/guard.
-- [ ] **Plan2.md H2:** the router picks `feasible[0]` (smallest sufficient) and then mislabels a feasible
+- [x] ~~**Plan2.md H2:** the router picks `feasible[0]` (smallest sufficient) and then mislabels a feasible
       user-pick as `route_up` to a *smaller* model with a false reason
       ([cline-task-router.ts:122-151](src/cline-sdk/cline-task-router.ts#L122),
       [runtime-api.ts:401-423](src/trpc/runtime-api.ts#L401)). Fix: if the preferred model is in the
       feasible set, **`assign` it**; only `route_up` when preferred is absent/infeasible; fix the reason
-      string. (Local-only: candidate pool is local models only.)
-- [ ] **Plan2.md H1 (re-verify, then cross off):** confirm a small *local* model can be `assign`ed at
+      string. (Local-only: candidate pool is local models only.)~~
+- [x] ~~**Plan2.md H1 (re-verify, then cross off):** confirm a small *local* model can be `assign`ed at
       30k–80k — fit budget must come from the **candidate's** window, not the largest one
       ([cline-task-start-guard.ts:45-53](src/cline-sdk/cline-task-start-guard.ts#L45)). Add a 32k/80k
-      assignment test.
+      assignment test.~~
 
 ### L2.4 — Swarm coordination & safety
 *(Reality check: on a single local GPU, "parallel" is mostly time-sliced queueing — LM Studio/Ollama
@@ -307,43 +318,53 @@ L2 executor — fully autonomously, recursively splitting anything too big.
 - [x] ~~`Planning` column exists in the board enum~~ ([api-contract.ts](src/core/api-contract.ts)).
 
 ### L3.2 — Open gaps
-- [ ] **Land cards in the Planning lane, not Backlog.** `applyClinePlanTaskGraphToBoard` adds cards to
-      `backlog` ([:286-302](src/cline-sdk/cline-decomposition-tool.ts#L286)); the plan's flow is a
-      read-only Planning session → reviewable cards in **Planning** before they flow to `in_progress`.
-      Wire the Planning lane through `board-state.ts` + the executor.
-- [ ] **Ship the decomposition prompt as an overridable rule, not a hardcoded string.** It currently
-      lives in `KANBAN_DECOMPOSE_PROMPT` ([cline-decomposition-workflow.ts:3-26](src/cline-sdk/cline-decomposition-workflow.ts#L3));
-      move it into `userInstructionService` (versioned, user-overridable rule/workflow) per the plan.
-- [ ] **Automatic recursive expand loop.** Today `expand_task` is manual — the model must call it and then
-      re-call `decompose_project`. Make the decomposer split until every leaf passes the guard against
-      **connected local models**, bounded by a max depth; if even atomic leaves are infeasible, escalate
-      to the human with a clear explanation. This is what makes "small-model-executable" a *measured*
-      property, not a hope.
-- [ ] **Plan2.md M8:** `decompose_project.execute` validates **without** `routingCandidates`
-      ([:277-302](src/cline-sdk/cline-decomposition-tool.ts#L277)), so the model is told its graph is
-      "valid" without the model-fit check (enforced only later at apply time,
-      [task.ts:800-818](src/commands/task.ts#L800)). Thread connected local candidates into the tool, or
-      have it state explicitly that fit is validated at apply time.
-- [ ] **Plan2.md L7:** decomposition task ids `slugify(slug)-slugify(task.id)` can collide
-      ([:211](src/cline-sdk/cline-decomposition-tool.ts#L211)) — disambiguate.
+- [x] ~~Land cards in the Planning lane, not Backlog.~~ `applyClinePlanTaskGraphToBoard` now adds cards to
+      `planning`, persisted runtime boards normalize the Planning column, dependency links treat Planning as a
+      waiting lane, and runnable Planning cards can flow into `in_progress`
+      ([cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts),
+      [workspace-state.ts](src/state/workspace-state.ts),
+      [task-board-mutations.ts](src/core/task-board-mutations.ts),
+      [use-board-interactions.ts](web-ui/src/hooks/use-board-interactions.ts)).
+- [x] ~~Ship the decomposition prompt as an overridable rule, not a hardcoded string.~~ Runtime setup now
+      seeds `kanban-decompose.md` as a user-editable workflow, resolves `/kanban-decompose` through
+      `userInstructionService`, preserves user edits, and plan-mode task starts reference the workflow
+      command instead of embedding the default prompt body
+      ([cline-runtime-setup.ts](src/cline-sdk/cline-runtime-setup.ts),
+      [cline-task-session-service.ts](src/cline-sdk/cline-task-session-service.ts),
+      [cline-decomposition-workflow.ts](src/cline-sdk/cline-decomposition-workflow.ts)).
+- [x] ~~Automatic recursive expand loop.~~ `decompose_project` now accepts a recursive `expansions` map,
+      applies replacements before validation, rewrites dependencies from expanded parents to terminal leaves,
+      enforces a bounded expansion depth, and keeps `expand_task` as a validation helper rather than the
+      primary submission loop. Final leaves still pass the sizing and connected-local-model feasibility guards,
+      making "small-model-executable" a measured property before artifacts are accepted
+      ([cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts),
+      [cline-decomposition-workflow.ts](src/cline-sdk/cline-decomposition-workflow.ts)).
+- [x] ~~Plan2.md M8: `decompose_project.execute` validates without `routingCandidates`.~~ The tool result now
+      includes `modelFitValidated: false` and explicitly states that schema/sizing passed while connected
+      local model fit is enforced later at apply/start time
+      ([cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts)).
+- [x] ~~Plan2.md L7: decomposition task ids `slugify(slug)-slugify(task.id)` can collide.~~ Colliding
+      plan-task slugs and repeated graph applies are disambiguated with suffixes, and dependency mapping is
+      covered by regression tests
+      ([cline-decomposition-tool.test.ts](test/runtime/cline-sdk/cline-decomposition-tool.test.ts)).
 
 ### L3.3 — Naive idea intake → clarification → workable plan
 **Outcome:** A user (technical or not) types a loose, half-formed idea into the Planning lane, and Kanban
 *interrogates* it — surfacing ambiguities, gaps, and contradictions as plain-language questions — **before**
 committing to a spec/plan/DAG. The result reflects the user's actual intent, not the model's first guess.
-- [ ] **Clarification round in the planning workflow.** Before emitting `spec.md`, the planning session
-      (read-only, architect role) must first analyze the idea for ambiguities / missing decisions /
-      contradictions and **ask the user targeted questions** — preferring concrete multiple-choice options
-      with a recommended default, free-text allowed. Encode this as a step in the decomposition
-      rule/workflow (the overridable `userInstructionService` rule from L3.2), not a hardcoded string.
-- [ ] **Structured open-questions artifact.** Track unresolved questions as a first-class artifact
-      (`.cline/kanban/plans/<slug>/questions.md` or in the plan JSON), each with status
-      (open / answered / assumed-default). Spec/plan generation is gated on either an answer or an explicit
-      **recorded assumption** ("assumed X because unanswered; flagged for review") — so the user can
-      fire-and-forget yet still see exactly what was assumed.
-- [ ] **Question UI for both audiences.** Present clarifying questions in the chat as answerable
-      chips/options (non-tech friendly) with a free-text fallback (tech friendly); answers feed straight
-      back into the planning turn. Reuse the existing chat turn-taking — no new session type.
+- [x] ~~Clarification round in the planning workflow.~~ The overridable `kanban-decompose` workflow now
+      instructs planning sessions to inspect ambiguous ideas, ask targeted option-based questions with a
+      recommended default, and record answers or assumptions before writing artifacts
+      ([cline-decomposition-workflow.ts](src/cline-sdk/cline-decomposition-workflow.ts)).
+- [x] ~~Structured open-questions artifact.~~ `decompose_project.questions` records answered questions and
+      assumed defaults, unresolved `open` questions are rejected before artifacts are written, and
+      `.cline/kanban/plans/<slug>/questions.md` is emitted/exposed with plan artifacts
+      ([cline-plan-artifacts.ts](src/cline-sdk/cline-plan-artifacts.ts),
+      [cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts)).
+- [x] ~~Question UI for both audiences.~~ The Cline chat panel now detects option-style clarifying
+      questions in the latest assistant turn, renders answer chips, and sends selected answers through the
+      existing chat turn while keeping the free-text composer available
+      ([cline-agent-chat-panel.tsx](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx)).
 - [ ] **Plain-language plan summary.** Alongside the technical spec/plan, emit a short non-technical
       summary ("here's what I'll build, in N steps; here are the open assumptions") shown atop the Planning
       DAG review (L4) so a non-technical user can approve with confidence.

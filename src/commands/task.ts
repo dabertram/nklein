@@ -68,6 +68,7 @@ interface DecompositionRejectionInput {
 	title?: string;
 	specPath?: string;
 	planPath?: string;
+	questionsPath?: string;
 	taskGraphPath?: string;
 	error: unknown;
 	recordObservation?: RecordSelfObservation;
@@ -158,6 +159,7 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			title: input.title ?? null,
 			specPath: input.specPath ?? null,
 			planPath: input.planPath ?? null,
+			questionsPath: input.questionsPath ?? null,
 			taskGraphPath: input.taskGraphPath ?? null,
 			error: message,
 		},
@@ -824,7 +826,7 @@ async function decomposeTaskGraph(input: {
 			return {
 				board: result.board,
 				value: {
-					createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "backlog")),
+					createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "planning")),
 					createdDependencies: result.createdDependencies.map((dependency) =>
 						formatDependencyRecord(nextState, dependency),
 					),
@@ -839,6 +841,7 @@ async function decomposeTaskGraph(input: {
 			title: artifacts.taskGraph.title,
 			specPath: artifacts.specPath,
 			planPath: artifacts.planPath,
+			questionsPath: artifacts.questionsPath,
 			taskGraphPath: artifacts.taskGraphPath,
 			error,
 		});
@@ -853,6 +856,7 @@ async function decomposeTaskGraph(input: {
 			title: artifacts.taskGraph.title,
 			specPath: artifacts.specPath,
 			planPath: artifacts.planPath,
+			questionsPath: artifacts.questionsPath,
 			taskGraphPath: artifacts.taskGraphPath,
 		},
 		tasks: applied.createdTasks,

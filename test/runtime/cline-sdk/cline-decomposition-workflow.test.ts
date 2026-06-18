@@ -2,31 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import {
 	KANBAN_DECOMPOSE_PROMPT,
-	resolveKanbanDecomposePrompt,
+	KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN,
+	KANBAN_DECOMPOSE_WORKFLOW_NAME,
 } from "../../../src/cline-sdk/cline-decomposition-workflow";
 
-describe("resolveKanbanDecomposePrompt", () => {
-	it("expands the Kanban decomposition command as a built-in prompt", () => {
-		const resolved = resolveKanbanDecomposePrompt(
-			"/kanban-decompose\n\nProject-scale task to decompose:\nTitle: Complex dev scenario\n",
+describe("Kanban decomposition workflow defaults", () => {
+	it("defines an overridable workflow with the built-in decomposition instructions", () => {
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(`name: ${KANBAN_DECOMPOSE_WORKFLOW_NAME}`);
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(KANBAN_DECOMPOSE_PROMPT.trimEnd());
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Call the `decompose_project` tool");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("title, tasks, and defaultAcceptanceCommand");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("apply the generated graph through the command it returns");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Only tell the user the exact `kanban task decompose");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("id, title, prompt, dependsOn[], complexity");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain("Create reviewable Kanban tasks from the specification");
+		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(
+			"Do not manually create or edit `.cline/kanban/plans/**`, `tasks.json`",
 		);
-
-		expect(resolved).toContain(KANBAN_DECOMPOSE_PROMPT.trimEnd());
-		expect(resolved).toContain("Call the `decompose_project` tool");
-		expect(resolved).toContain("title, tasks, and defaultAcceptanceCommand");
-		expect(resolved).toContain("apply the generated graph through the command it returns");
-		expect(resolved).toContain("Only tell the user the exact `kanban task decompose");
-		expect(resolved).toContain("id, title, prompt, dependsOn[], complexity");
-		expect(resolved).toContain("Create reviewable Kanban tasks from the specification");
-		expect(resolved).toContain("Do not manually create or edit `.cline/kanban/plans/**`, `tasks.json`");
-		expect(resolved).toContain("Project-scale task to decompose:");
-		expect(resolved).toContain("Title: Complex dev scenario");
-		expect(resolved).not.toContain("name: kanban-decompose");
-	});
-
-	it("keeps ordinary prompts unchanged", () => {
-		const prompt = "Implement the next card without using a workflow command.";
-
-		expect(resolveKanbanDecomposePrompt(prompt)).toBe(prompt);
 	});
 });

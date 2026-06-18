@@ -27,7 +27,7 @@ export interface TaskDraft {
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
-	blockedKind?: "needs_decomposition";
+	blockedKind?: "needs_decomposition" | "local_model_required";
 	blockedReason?: string;
 	baseRef: string;
 }
@@ -262,7 +262,9 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
 		...(clineSettings !== undefined ? { clineSettings } : {}),
-		...(card.blockedKind === "needs_decomposition" ? { blockedKind: "needs_decomposition" as const } : {}),
+		...(card.blockedKind === "needs_decomposition" || card.blockedKind === "local_model_required"
+			? { blockedKind: card.blockedKind }
+			: {}),
 		...(typeof card.blockedReason === "string" && card.blockedReason.trim()
 			? { blockedReason: card.blockedReason.trim() }
 			: {}),
@@ -637,7 +639,7 @@ export function updateTaskBlockedState(
 	board: BoardData,
 	taskId: string,
 	blocked: {
-		kind: "needs_decomposition";
+		kind: "needs_decomposition" | "local_model_required";
 		reason: string;
 	} | null,
 ): { board: BoardData; updated: boolean } {

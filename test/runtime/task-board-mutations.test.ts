@@ -14,6 +14,7 @@ function createBoard(): RuntimeBoardData {
 	return {
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: [] },
+			{ id: "planning", title: "Planning", cards: [] },
 			{ id: "in_progress", title: "In Progress", cards: [] },
 			{ id: "review", title: "Review", cards: [] },
 			{ id: "trash", title: "Done", cards: [] },
@@ -53,6 +54,51 @@ describe("deleteTasksFromBoard", () => {
 		expect(deleted.deleted).toBe(true);
 		expect(deleted.deletedTaskIds.sort()).toEqual(["aaaaa", "bbbbb"]);
 		expect(deleted.board.columns.find((column) => column.id === "trash")?.cards).toEqual([]);
+	});
+});
+
+describe("planning task dependencies", () => {
+	it("allows planning-to-planning links and reorients them when one task starts", () => {
+		const createA = addTaskToColumn(
+			createBoard(),
+			"planning",
+			{ prompt: "Task A", baseRef: "main" },
+			() => "aaaaa111",
+		);
+		const createB = addTaskToColumn(
+			createA.board,
+			"planning",
+			{ prompt: "Task B", baseRef: "main" },
+			() => "bbbbb111",
+		);
+
+		const linked = addTaskDependency(createB.board, "aaaaa", "bbbbb");
+		const movedA = moveTaskToColumn(linked.board, "aaaaa", "in_progress");
+
+		expect(linked.added).toBe(true);
+		expect(linked.dependency).toMatchObject({ fromTaskId: "aaaaa", toTaskId: "bbbbb" });
+		expect(movedA.board.dependencies).toEqual([expect.objectContaining({ fromTaskId: "bbbbb", toTaskId: "aaaaa" })]);
+	});
+
+	it("reports planning children as ready when their prerequisite finishes review", () => {
+		const createA = addTaskToColumn(
+			createBoard(),
+			"planning",
+			{ prompt: "Task A", baseRef: "main" },
+			() => "aaaaa111",
+		);
+		const createB = addTaskToColumn(
+			createA.board,
+			"planning",
+			{ prompt: "Task B", baseRef: "main" },
+			() => "bbbbb111",
+		);
+		const linked = addTaskDependency(createB.board, "aaaaa", "bbbbb");
+		const movedPrerequisite = moveTaskToColumn(linked.board, "bbbbb", "review");
+
+		const trashed = trashTaskAndGetReadyLinkedTaskIds(movedPrerequisite.board, "bbbbb");
+
+		expect(trashed.readyTaskIds).toEqual(["aaaaa"]);
 	});
 });
 

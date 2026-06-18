@@ -536,7 +536,9 @@ export function BoardCard({
 	const blockedReason =
 		card.blockedKind === "needs_decomposition"
 			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
-			: null;
+			: card.blockedKind === "local_model_required"
+				? (card.blockedReason ?? "Configure a local Cline model before starting this task.")
+				: null;
 
 	const activeDescriptionDisplay = isDescriptionExpanded ? descriptionDisplay.expanded : descriptionDisplay.collapsed;
 
@@ -673,7 +675,7 @@ export function BoardCard({
 										</p>
 									)}
 								</div>
-								{columnId === "backlog" ? (
+								{columnId === "backlog" || columnId === "planning" ? (
 									<Button
 										icon={<Play size={14} />}
 										variant="ghost"
