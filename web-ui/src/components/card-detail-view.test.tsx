@@ -96,33 +96,41 @@ function createCard(id: string): BoardCard {
 	};
 }
 
-function createSelection(): CardSelection {
-	const card = createCard("task-1");
+function createSelection(
+	options: { columnId?: BoardColumn["id"]; card?: BoardCard; extraCards?: BoardCard[] } = {},
+): CardSelection {
+	const card = options.card ?? createCard("task-1");
 	const columns: BoardColumn[] = [
 		{
 			id: "backlog",
 			title: "Backlog",
-			cards: [card],
+			cards: options.columnId === undefined || options.columnId === "backlog" ? [card] : [],
+		},
+		{
+			id: "planning",
+			title: "Planning",
+			cards: options.columnId === "planning" ? [card, ...(options.extraCards ?? [])] : (options.extraCards ?? []),
 		},
 		{
 			id: "in_progress",
 			title: "In Progress",
-			cards: [],
+			cards: options.columnId === "in_progress" ? [card] : [],
 		},
 		{
 			id: "review",
 			title: "Review",
-			cards: [],
+			cards: options.columnId === "review" ? [card] : [],
 		},
 		{
 			id: "trash",
 			title: "Done",
-			cards: [],
+			cards: options.columnId === "trash" ? [card] : [],
 		},
 	];
+	const column = columns.find((candidate) => candidate.cards.some((candidateCard) => candidateCard.id === card.id));
 	return {
 		card,
-		column: columns[0]!,
+		column: column ?? columns[0]!,
 		allColumns: columns,
 	};
 }
@@ -612,6 +620,72 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Context");
 		expect(container.textContent).toContain("12k / 40k tokens");
 		expect(container.textContent).toContain("read_file");
+	});
+
+	it("shows a planning DAG review panel for linked Planning cards", async () => {
+		const selected = createCard("plan-ui", {
+			title: "Build UI",
+			prompt: "Implement UI.\n\nComplexity: 45/100",
+			filesLikelyTouched: ["web-ui/src/App.tsx"],
+			agentId: "cline",
+			clineSettings: {
+				providerId: "lmstudio",
+				modelId: "qwen3",
+			},
+		});
+		const prerequisite = createCard("plan-api", {
+			title: "Build API",
+			prompt: "Implement API.\n\nComplexity: 35/100",
+			filesLikelyTouched: ["src/api.ts"],
+		});
+		const dependent = createCard("plan-polish", {
+			title: "Polish flow",
+			prompt: "Polish the flow.\n\nComplexity: 80/100",
+			filesLikelyTouched: [
+				"web-ui/src/flow.tsx",
+				"web-ui/src/copy.ts",
+				"web-ui/src/styles.css",
+				"web-ui/src/test.ts",
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection({
+						columnId: "planning",
+						card: selected,
+						extraCards: [prerequisite, dependent],
+					})}
+					dependencies={[
+						{ id: "dep-1", fromTaskId: "plan-ui", toTaskId: "plan-api", createdAt: 1 },
+						{ id: "dep-2", fromTaskId: "plan-polish", toTaskId: "plan-ui", createdAt: 2 },
+					]}
+					currentProjectId="workspace-1"
+					sessionSummary={null}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Plan DAG");
+		expect(container.textContent).toContain("2 linked cards");
+		expect(container.textContent).toContain("Build UI");
+		expect(container.textContent).toContain("Blocked by prerequisite");
+		expect(container.textContent).toContain("Build API");
+		expect(container.textContent).toContain("Unblocks dependent");
+		expect(container.textContent).toContain("Polish flow");
+		expect(container.textContent).toContain("Complexity 80/100");
+		expect(container.textContent).toContain("Fit needs review");
+		expect(container.textContent).toContain("web-ui/src/flow.tsx, web-ui/src/copy.ts, web-ui/src/styles.css +1");
 	});
 
 	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {

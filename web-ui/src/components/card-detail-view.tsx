@@ -1,5 +1,15 @@
 import type { DropResult } from "@hello-pangea/dnd";
-import { Activity, Files, GitCompareArrows, Maximize2, MessageSquare, Minimize2, RefreshCw, X } from "lucide-react";
+import {
+	Activity,
+	Files,
+	GitBranch,
+	GitCompareArrows,
+	Maximize2,
+	MessageSquare,
+	Minimize2,
+	RefreshCw,
+	X,
+} from "lucide-react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -33,7 +43,7 @@ import type {
 import { useRuntimeWorkspaceChanges } from "@/runtime/use-runtime-workspace-changes";
 import { useTaskWorkspaceStateVersionValue } from "@/stores/workspace-metadata-store";
 import { useTerminalThemeColors } from "@/terminal/theme-colors";
-import { type BoardCard, type CardSelection, getTaskAutoReviewCancelButtonLabel } from "@/types";
+import { type BoardCard, type BoardDependency, type CardSelection, getTaskAutoReviewCancelButtonLabel } from "@/types";
 import { useWindowEvent } from "@/utils/react-use";
 
 // We still poll the open detail diff because line content can change without changing
@@ -347,6 +357,135 @@ function TaskActivitySurface({
 	);
 }
 
+interface PlanningDagNode {
+	card: BoardCard;
+	columnTitle: string;
+	relation: "selected" | "blocked-by" | "unblocks";
+}
+
+function parseComplexityFromPrompt(prompt: string): number | null {
+	const match = prompt.match(/^Complexity:\s*(\d{1,3})\/100\s*$/im);
+	if (!match) {
+		return null;
+	}
+	const value = Number(match[1]);
+	return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
+}
+
+function formatDagModelLabel(card: BoardCard): string {
+	const providerId = card.clineSettings?.providerId?.trim();
+	const modelId = card.clineSettings?.modelId?.trim();
+	if (providerId && modelId) {
+		return `${providerId} / ${modelId}`;
+	}
+	if (card.agentId === "cline" || card.clineSettings) {
+		return "Cline local model";
+	}
+	return card.agentId ?? "Default agent";
+}
+
+function getDagNodeToneClassName(relation: PlanningDagNode["relation"]): string {
+	if (relation === "selected") {
+		return "border-accent bg-accent/5";
+	}
+	if (relation === "blocked-by") {
+		return "border-status-gold/40 bg-status-gold/5";
+	}
+	return "border-status-green/30 bg-status-green/5";
+}
+
+function buildPlanningDagNodes(selection: CardSelection, dependencies: readonly BoardDependency[]): PlanningDagNode[] {
+	const cardsById = new Map(
+		selection.allColumns.flatMap((column) =>
+			column.cards.map((card) => [card.id, { card, columnTitle: column.title }]),
+		),
+	);
+	const nodes: PlanningDagNode[] = [
+		{ card: selection.card, columnTitle: selection.column.title, relation: "selected" },
+	];
+	for (const dependency of dependencies) {
+		if (dependency.fromTaskId === selection.card.id) {
+			const prerequisite = cardsById.get(dependency.toTaskId);
+			if (prerequisite) {
+				nodes.push({ ...prerequisite, relation: "blocked-by" });
+			}
+		}
+		if (dependency.toTaskId === selection.card.id) {
+			const dependent = cardsById.get(dependency.fromTaskId);
+			if (dependent) {
+				nodes.push({ ...dependent, relation: "unblocks" });
+			}
+		}
+	}
+	return nodes;
+}
+
+function PlanningDagReviewPanel({
+	selection,
+	dependencies,
+}: {
+	selection: CardSelection;
+	dependencies: readonly BoardDependency[];
+}): React.ReactElement | null {
+	const nodes = useMemo(() => buildPlanningDagNodes(selection, dependencies), [dependencies, selection]);
+	if (selection.column.id !== "planning" && nodes.length <= 1) {
+		return null;
+	}
+	const edgeCount = nodes.length - 1;
+	return (
+		<div className="border-b border-border bg-surface-1 px-3 py-2">
+			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
+				<GitBranch size={14} className="shrink-0 text-text-secondary" />
+				<span>Plan DAG</span>
+				<span className="truncate text-text-tertiary">
+					{edgeCount > 0 ? `${edgeCount} linked ${edgeCount === 1 ? "card" : "cards"}` : "No linked cards"}
+				</span>
+			</div>
+			<div className="grid grid-cols-1 gap-1.5 xl:grid-cols-3">
+				{nodes.map((node) => {
+					const complexity = parseComplexityFromPrompt(node.card.prompt);
+					const likelyFiles = node.card.filesLikelyTouched ?? [];
+					return (
+						<div
+							key={`${node.relation}:${node.card.id}`}
+							className={cn("min-w-0 rounded-md border px-2 py-1.5", getDagNodeToneClassName(node.relation))}
+						>
+							<div className="flex min-w-0 items-center gap-1.5">
+								<span className="truncate text-[11px] font-medium text-text-primary">{node.card.title}</span>
+								<span className="shrink-0 text-[11px] text-text-tertiary">{node.columnTitle}</span>
+							</div>
+							<div className="mt-1 truncate text-[11px] text-text-secondary">
+								{node.relation === "selected"
+									? "Selected card"
+									: node.relation === "blocked-by"
+										? "Blocked by prerequisite"
+										: "Unblocks dependent"}
+							</div>
+							<div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] text-text-tertiary">
+								<span>{complexity === null ? "Complexity unknown" : `Complexity ${complexity}/100`}</span>
+								<span
+									className={
+										complexity !== null && complexity <= 75 ? "text-status-green" : "text-status-orange"
+									}
+								>
+									{complexity !== null && complexity <= 75 ? "Fit likely" : "Fit needs review"}
+								</span>
+								<span className="truncate">{formatDagModelLabel(node.card)}</span>
+							</div>
+							{likelyFiles.length > 0 ? (
+								<div className="mt-1 truncate text-[11px] text-text-tertiary">
+									{likelyFiles.slice(0, 3).join(", ")}
+									{likelyFiles.length > 3 ? ` +${likelyFiles.length - 3}` : ""}
+								</div>
+							) : null}
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
 function TaskDiagnosticsPanel({
 	workspaceId,
 	taskId,
@@ -560,6 +699,7 @@ function DiffToolbar({
 
 export function CardDetailView({
 	selection,
+	dependencies = [],
 	currentProjectId,
 	workspacePath,
 	selectedAgentId = null,
@@ -619,6 +759,7 @@ export function CardDetailView({
 	onTaskClineSettingsChanged,
 }: {
 	selection: CardSelection;
+	dependencies?: BoardDependency[];
 	currentProjectId: string | null;
 	workspacePath?: string | null;
 	selectedAgentId?: RuntimeAgentId | null;
@@ -994,6 +1135,7 @@ export function CardDetailView({
 								/>
 							) : null}
 							<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
+							<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1135,6 +1277,7 @@ export function CardDetailView({
 									/>
 								) : null}
 								<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
+								<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (

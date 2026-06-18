@@ -496,11 +496,14 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       used for dispatch, and now synthesizes read-only zero-sample rows for configured local provider/model
       selections and model-role roster entries before telemetry exists. Still open: consider promoting the
       panel into a global/settings observability surface.
-- [ ] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
+- [~] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
       graph with complexity, assigned role/model, and a per-leaf **fit badge** (green = a connected local
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
       Planning lane before cards flow to execution. Keep it lightweight (existing board primitives or a
-      small graph lib).
+      small graph lib). **Progress:** Planning card detail now includes a compact DAG review panel for linked
+      cards, showing prerequisite/dependent relationships, card status, prompt-derived complexity, likely
+      files, and model/agent hints from existing board data. Still open: whole-plan graph review before
+      execution, editable approval, revised-card flags, and backend-owned connected-local-model fit badges.
 - [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"

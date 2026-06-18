@@ -1038,6 +1038,7 @@ export default function App(): ReactElement {
 							<div className="absolute inset-0 flex min-h-0 min-w-0">
 								<CardDetailView
 									selection={selectedCard}
+									dependencies={board.dependencies}
 									currentProjectId={currentProjectId}
 									workspacePath={workspacePath}
 									selectedAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
