@@ -2200,6 +2200,63 @@ describe("InMemoryClineTaskSessionService", () => {
 		).toBe(false);
 	});
 
+	it("blocks persisted cloud launch metadata on the overflow restart path", async () => {
+		const { service, runtime } = createTrackedService();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-1-persisted-cloud",
+				source: "core" as ClinePersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "openrouter",
+				model: "cloud-model",
+				cwd: "/tmp/worktree",
+				workspaceRoot: "/tmp/workspace-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: {
+							providerId: "openrouter",
+							modelId: "cloud-model",
+							baseUrl: "https://openrouter.ai/api/v1",
+							contextWindow: 8_000,
+							maxAgentWritableFileLines: 900,
+							apiTimeoutMs: 3_600_000,
+							turnTimeoutMs: null,
+						},
+					},
+				},
+			},
+			messages: [
+				{ role: "user", content: `Initial prompt ${"a".repeat(40_000)}` },
+				{ role: "assistant", content: `First response ${"b".repeat(40_000)}` },
+				{ role: "user", content: `Second request ${"c".repeat(40_000)}` },
+				{ role: "assistant", content: `Second response ${"d".repeat(40_000)}` },
+			],
+		});
+
+		const reboundSummary = await service.rebindPersistedTaskSession("task-1");
+		expect(reboundSummary?.state).toBe("awaiting_review");
+
+		const nextSummary = await service.sendTaskSessionInput("task-1", "Try again");
+
+		expect(nextSummary?.state).toBe("running");
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
+		});
+		expect(runtime.startTaskSessionMock).not.toHaveBeenCalled();
+		expect(runtime.stopTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(service.getSummary("task-1")?.warningMessage).toContain("Cloud models are disabled");
+		expect(
+			service.listMessages("task-1").some((message) => message.content.includes("Cloud models are disabled")),
+		).toBe(true);
+	});
+
 	it("proactively compacts before sending when projected context budget is too high", async () => {
 		const { service, runtime } = createTrackedService();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
@@ -2282,7 +2339,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 	});
 
-	it("caps oversized advertised context windows before starting the SDK runtime", async () => {
+	it("keeps large advertised context windows end-to-end", async () => {
 		const { service, runtime } = createTrackedService();
 
 		await service.startTaskSession({
@@ -2299,12 +2356,12 @@ describe("InMemoryClineTaskSessionService", () => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		const startCall = runtime.startTaskSessionMock.mock.calls[0]?.[0];
-		expect(startCall?.contextWindow).toBe(200_000);
-		expect(startCall?.systemPrompt).toContain("Model context window: 200,000 tokens");
+		expect(startCall?.contextWindow).toBe(1_000_000);
+		expect(startCall?.systemPrompt).toContain("Model context window: 1,000,000 tokens");
 		const breakdown = service.getSummary("task-1")?.contextBudgetBreakdown;
 		expect(breakdown).toEqual(
 			expect.objectContaining({
-				effectiveContextWindow: 200_000,
+				effectiveContextWindow: 1_000_000,
 				projectedTokens: expect.any(Number),
 				reservedOutputTokens: expect.any(Number),
 			}),
@@ -2401,13 +2458,18 @@ describe("InMemoryClineTaskSessionService", () => {
 				metadata: expect.objectContaining({
 					action: "blocked",
 					contextWindow: 8_000,
-					maxEffectiveContextWindow: 200_000,
+					effectiveContextWindow: 8_000,
 				}),
 			}),
 		);
-		expect(service.listMessages("task-1").some((message) => message.content.includes("Context would overflow"))).toBe(
-			true,
-		);
+		expect(
+			service
+				.listMessages("task-1")
+				.some(
+					(message) =>
+						message.content.includes("Your message") && message.content.includes("larger than this model"),
+				),
+		).toBe(true);
 	});
 
 	it("does not interrupt an active turn to compact a critically large queued prompt", async () => {

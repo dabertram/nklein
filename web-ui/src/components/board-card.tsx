@@ -256,12 +256,58 @@ function isCardCreditLimitError(summary: RuntimeTaskSessionSummary | undefined):
 	return summary.latestHookActivity?.notificationType === "credit_limit";
 }
 
+function getPlainLanguageIssueText(summary: RuntimeTaskSessionSummary): string | null {
+	if (summary.state !== "awaiting_review" && summary.state !== "failed" && summary.state !== "interrupted") {
+		return null;
+	}
+	const rawText = [
+		summary.warningMessage,
+		summary.latestHookActivity?.finalMessage,
+		summary.latestHookActivity?.activityText,
+	]
+		.filter((value): value is string => Boolean(value?.trim()))
+		.join(" ")
+		.toLowerCase();
+	if (!rawText) {
+		return null;
+	}
+	if (rawText.includes("cloud models are disabled") || rawText.includes("cloud/paid provider")) {
+		return "Paused: this card targets a cloud model. Choose an Ollama or LM Studio model, then continue.";
+	}
+	if (rawText.includes("larger than this model") || rawText.includes("context would overflow")) {
+		return "Paused: the prompt is too large for this model. Shorten the message or switch to a larger context window.";
+	}
+	if (rawText.includes("shared endpoint") || rawText.includes("endpoint")) {
+		return "Waiting: another card is using this local model endpoint. Let it finish or choose a different endpoint.";
+	}
+	if (rawText.includes("autonomous wall time")) {
+		return "Paused: the autonomous time budget was reached. Review progress, then send a new instruction to continue.";
+	}
+	if (rawText.includes("same error") || rawText.includes("retry storms")) {
+		return "Parked: the same failure repeated. Fix the cause shown in the transcript, then send a new message.";
+	}
+	if (summary.state === "failed") {
+		return "Parked: this card failed repeatedly. Open it for the error and next recovery step.";
+	}
+	if (summary.reviewReason === "error") {
+		return "Paused: the agent hit an error. Open the card, fix the cause, then continue.";
+	}
+	return null;
+}
+
 function getCardSessionActivity(summary: RuntimeTaskSessionSummary | undefined): CardSessionActivity | null {
 	if (!summary) {
 		return null;
 	}
 	if (isCardCreditLimitError(summary)) {
 		return { dotColor: SESSION_ACTIVITY_COLOR.warning, text: "Out of credits" };
+	}
+	const plainIssueText = getPlainLanguageIssueText(summary);
+	if (plainIssueText) {
+		return {
+			dotColor: summary.state === "failed" ? SESSION_ACTIVITY_COLOR.error : SESSION_ACTIVITY_COLOR.warning,
+			text: plainIssueText,
+		};
 	}
 	const hookActivity = summary.latestHookActivity;
 	const activityText = hookActivity?.activityText?.trim();

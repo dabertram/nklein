@@ -59,6 +59,54 @@ function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
 	return columnId === "backlog" || columnId === "planning";
 }
 
+function getExplicitClineModelKey(card: BoardCard): string | null {
+	const providerId = card.clineSettings?.providerId?.trim();
+	const modelId = card.clineSettings?.modelId?.trim();
+	if (!modelId) {
+		return null;
+	}
+	return `${providerId ?? ""}:${modelId}`;
+}
+
+function getRunningClineModelKeys(sessions: Record<string, RuntimeTaskSessionSummary>): Set<string> {
+	const keys = new Set<string>();
+	for (const summary of Object.values(sessions)) {
+		if (summary.state !== "running") {
+			continue;
+		}
+		const modelId = summary.modelId?.trim();
+		if (!modelId) {
+			continue;
+		}
+		keys.add(`${summary.providerId?.trim() ?? ""}:${modelId}`);
+		keys.add(`:${modelId}`);
+	}
+	return keys;
+}
+
+function sortTaskIdsByLoadedClineModel(
+	taskIds: readonly string[],
+	board: BoardData,
+	sessions: Record<string, RuntimeTaskSessionSummary>,
+): string[] {
+	const runningModelKeys = getRunningClineModelKeys(sessions);
+	if (runningModelKeys.size === 0) {
+		return [...taskIds];
+	}
+	return taskIds
+		.map((taskId, index) => {
+			const card = findCardSelection(board, taskId)?.card ?? null;
+			const modelKey = card ? getExplicitClineModelKey(card) : null;
+			return {
+				taskId,
+				index,
+				loadedModelPriority: modelKey && runningModelKeys.has(modelKey) ? 0 : 1,
+			};
+		})
+		.sort((left, right) => left.loadedModelPriority - right.loadedModelPriority || left.index - right.index)
+		.map((entry) => entry.taskId);
+}
+
 function buildDecompositionPlanningPrompt(task: BoardCard): string {
 	return [
 		"/kanban-decompose",
@@ -732,7 +780,8 @@ export function useBoardInteractions({
 		(taskIds?: string[]) => {
 			const requestedTaskIds =
 				taskIds ?? board.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id) ?? [];
-			if (requestedTaskIds.length === 0) {
+			const orderedTaskIds = sortTaskIdsByLoadedClineModel(requestedTaskIds, board, sessions);
+			if (orderedTaskIds.length === 0) {
 				return;
 			}
 			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
@@ -746,7 +795,7 @@ export function useBoardInteractions({
 			const startedTaskIds = new Set<string>();
 			const activeFileOwners = getSessionActiveTaskCardsForFileOverlap(board, sessions);
 
-			for (const taskId of requestedTaskIds) {
+			for (const taskId of orderedTaskIds) {
 				if (!taskId || startedTaskIds.has(taskId)) {
 					continue;
 				}

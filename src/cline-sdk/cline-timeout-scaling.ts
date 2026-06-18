@@ -8,6 +8,8 @@ import {
 const CLINE_TIMEOUT_SPEED_BUFFER_MS = 60 * 1000;
 const CLINE_TIMEOUT_SPEED_MULTIPLIER = 3;
 const CLINE_TIMEOUT_OUTPUT_TOKENS_ESTIMATE = 1_000;
+const CLINE_TIMEOUT_COLD_START_PREFILL_TOKENS_PER_SECOND_PRIOR = 25;
+const CLINE_TIMEOUT_COLD_START_DECODE_TOKENS_PER_SECOND_PRIOR = 4;
 
 export interface ClineTimeoutSettings {
 	timeoutMode: "normal" | "long" | "extended" | "unlimited";
@@ -117,6 +119,28 @@ function estimateModelFirstTokenDurationMs(input: {
 	]);
 }
 
+function estimateColdStartRequestDurationMs(input: {
+	contextWindow: number | null | undefined;
+	promptTokens: number;
+	outputTokens: number;
+}): number | null {
+	const contextWindow =
+		typeof input.contextWindow === "number" && Number.isFinite(input.contextWindow) && input.contextWindow > 0
+			? Math.trunc(input.contextWindow)
+			: null;
+	if (contextWindow === null) {
+		return null;
+	}
+	const promptTokens = Math.max(
+		Math.trunc(input.promptTokens),
+		Math.min(contextWindow, Math.round(contextWindow * 0.5)),
+	);
+	const outputTokens = Math.max(0, Math.trunc(input.outputTokens));
+	const prefillMs = (promptTokens / CLINE_TIMEOUT_COLD_START_PREFILL_TOKENS_PER_SECOND_PRIOR) * 1000;
+	const decodeMs = (outputTokens / CLINE_TIMEOUT_COLD_START_DECODE_TOKENS_PER_SECOND_PRIOR) * 1000;
+	return normalizePositiveTimeoutEstimate(prefillMs + decodeMs);
+}
+
 export function applyMcsrAwareLocalTimeoutScaling<TTimeouts extends ClineTimeoutSettings>(input: {
 	timeouts: TTimeouts;
 	launchConfig: ClineTimeoutLaunchModel;
@@ -137,7 +161,21 @@ export function applyMcsrAwareLocalTimeoutScaling<TTimeouts extends ClineTimeout
 	});
 	const speed = input.modelRegistry.models[modelKey]?.speed ?? null;
 	if (!speed || speed.samples <= 0) {
-		return input.timeouts;
+		const coldStartMinimumMs = scaleObservedDurationForTimeout(
+			estimateColdStartRequestDurationMs({
+				contextWindow: input.modelRegistry.models[modelKey]?.contextWindow.effective,
+				promptTokens: input.promptTokens,
+				outputTokens: CLINE_TIMEOUT_OUTPUT_TOKENS_ESTIMATE,
+			}),
+		);
+		return {
+			...input.timeouts,
+			requestTimeoutMs: raisePositiveTimeout(input.timeouts.requestTimeoutMs, coldStartMinimumMs),
+			streamTimeoutMs: raisePositiveTimeout(input.timeouts.streamTimeoutMs, coldStartMinimumMs),
+			toolTimeoutMs: raisePositiveTimeout(input.timeouts.toolTimeoutMs, coldStartMinimumMs),
+			agentTimeoutMs: raisePositiveTimeout(input.timeouts.agentTimeoutMs, coldStartMinimumMs),
+			conversationTimeoutMs: raisePositiveTimeout(input.timeouts.conversationTimeoutMs, coldStartMinimumMs),
+		};
 	}
 	const requestMinimumMs = scaleObservedDurationForTimeout(
 		estimateModelRequestDurationMs({

@@ -28,7 +28,7 @@ import {
 	isContextOverflowError,
 } from "./cline-context-overflow-compaction";
 import { applyClineSessionEvent } from "./cline-event-adapter";
-import { isLocalProvider } from "./cline-local-only-policy";
+import { assertLocalProviderAllowed, isLocalProvider } from "./cline-local-only-policy";
 import {
 	type ClineMessageRepository,
 	createInMemoryClineMessageRepository,
@@ -83,7 +83,6 @@ const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
 const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
-const KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS = 200_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
@@ -596,6 +595,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 	}): Promise<{ result: unknown; warnings?: string[] }> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
+		assertLocalProviderAllowed({
+			providerId: launchConfig.providerId,
+			baseUrl: launchConfig.baseUrl,
+		});
 		const runtimeSetup = await this.ensureRuntimeSetup(input.cwd);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
 		let systemPrompt =
@@ -1058,7 +1061,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private normalizeEffectiveContextWindow(contextWindow: number): number {
-		return Math.min(Math.trunc(contextWindow), KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS);
+		return Math.trunc(contextWindow);
 	}
 
 	private resolveContextWindowForTask(taskId: string, launchContextWindow?: number | null): number | null {
@@ -1105,7 +1108,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				compactedHistoryTokens: input.compactedHistoryTokens,
 				nextPromptTokens: input.nextPromptTokens,
 				sendReserveTokens: CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
-				maxEffectiveContextWindow: KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS,
+				effectiveContextWindow: input.contextWindow,
 			},
 		});
 	}
@@ -1136,6 +1139,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const compactedHistoryTokens = countKanbanPersistedMessagesTokens(compactedMessages);
 		const projectedTokens = compactedHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
 		if (projectedTokens > input.contextWindow) {
+			const promptOnlyProjectedTokens = nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
+			const promptAloneOverflows = promptOnlyProjectedTokens > input.contextWindow;
 			this.recordContextBudgetGuard({
 				taskId: input.taskId,
 				action: "blocked",
@@ -1146,6 +1151,11 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				compactedHistoryTokens,
 				nextPromptTokens,
 			});
+			if (promptAloneOverflows) {
+				throw new Error(
+					`Your message (~${nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask Kanban to summarize pasted content first, or pick a larger-window local model.`,
+				);
+			}
 			throw new Error(
 				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after Kanban compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
 			);

@@ -53,8 +53,12 @@ describe("cline repo map", () => {
 		expect(repoMap.symbols.map((symbol) => symbol.name)).toContain("calculateScore");
 		expect(repoMap.symbols.map((symbol) => symbol.name)).toContain("renderScore");
 		expect(repoMap.symbols.map((symbol) => symbol.name)).not.toContain("ignoredSymbol");
-		expect(repoMap.symbols[0]?.referenceCount).toBeGreaterThanOrEqual(repoMap.symbols.at(-1)?.referenceCount ?? 0);
+		expect(repoMap.symbols[0]?.rankScore).toBeGreaterThanOrEqual(repoMap.symbols.at(-1)?.rankScore ?? 0);
+		expect(repoMap.symbols.find((symbol) => symbol.name === "calculateScore")?.rankScore).toBeGreaterThan(
+			repoMap.symbols.find((symbol) => symbol.name === "scoreLabel")?.rankScore ?? 0,
+		);
 		expect(repoMap.rendered).toContain("Repo map:");
+		expect(repoMap.rendered).toContain("rank=");
 		expect(repoMap.rendered).toContain("src/score.ts");
 	});
 

@@ -173,7 +173,7 @@ export function routeClineTask(request: ClineTaskRoutingRequest): ClineTaskRouti
 				modelKey: selected.entry.key,
 				role: selected.role ?? null,
 				fromModelKey: preferred.entry.key,
-				reason: `Preferred model cannot satisfy difficulty ${difficulty} and the candidate-specific context fit guard.`,
+				reason: `Preferred model does not fit the required capability/window; selected the smallest candidate satisfying difficulty ${difficulty} and the candidate-specific context fit guard.`,
 			};
 		}
 		return {

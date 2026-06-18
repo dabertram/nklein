@@ -104,6 +104,31 @@ describe("routeClineTask", () => {
 		});
 	});
 
+	it("routes away from a preferred local model that cannot fit the required window", () => {
+		const decision = routeClineTask({
+			difficulty: 40,
+			fitBudgetTokens: 60_000,
+			preferredModelKey: "ollama:small:default",
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:small:default", capability: 55, contextWindow: 16_000 }),
+					role: "worker",
+				},
+				{
+					entry: createEntry({ key: "lmstudio:wide:default", capability: 60, contextWindow: 80_000 }),
+					role: "architect",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "route_up",
+			modelKey: "lmstudio:wide:default",
+			fromModelKey: "ollama:small:default",
+			reason: expect.stringContaining("does not fit the required capability/window"),
+		});
+	});
+
 	it("decomposes instead of routing up into a cloud candidate", () => {
 		const decision = routeClineTask({
 			difficulty: 70,

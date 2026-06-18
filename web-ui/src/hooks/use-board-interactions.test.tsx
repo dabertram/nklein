@@ -66,6 +66,25 @@ function createBoard(): BoardData {
 	};
 }
 
+function createRunningClineSession(taskId: string, providerId: string, modelId: string): RuntimeTaskSessionSummary {
+	return {
+		taskId,
+		state: "running",
+		agentId: "cline",
+		workspacePath: "/tmp/workspace",
+		pid: null,
+		startedAt: 1,
+		updatedAt: 1,
+		lastOutputAt: 1,
+		reviewReason: null,
+		exitCode: null,
+		lastHookAt: 1,
+		latestHookActivity: null,
+		providerId,
+		modelId,
+	};
+}
+
 const NOOP_STOP_SESSION = async (): Promise<void> => {};
 const NOOP_CLEANUP_WORKSPACE = async (): Promise<null> => null;
 const NOOP_FETCH_WORKSPACE_INFO = async (): Promise<null> => null;
@@ -101,6 +120,7 @@ function HookHarness({
 	ensureTaskWorkspace,
 	startTaskSession,
 	selectedCard = null,
+	initialSessions = {},
 	setSelectedTaskIdOverride,
 	activeTaskSessionCount = 0,
 	maxConcurrentTasks = 3,
@@ -114,12 +134,13 @@ function HookHarness({
 		card: BoardCard;
 		column: { id: "backlog" | "planning" | "in_progress" | "review" | "trash" };
 	} | null;
+	initialSessions?: Record<string, RuntimeTaskSessionSummary>;
 	setSelectedTaskIdOverride?: Dispatch<SetStateAction<string | null>>;
 	activeTaskSessionCount?: number;
 	maxConcurrentTasks?: number;
 	onSnapshot?: (snapshot: HookSnapshot) => void;
 }): null {
-	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
+	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>(initialSessions);
 	const [, setSelectedTaskId] = useState<string | null>(null);
 	const [, setIsClearTrashDialogOpen] = useState(false);
 	const [, setIsGitHistoryOpen] = useState(false);
@@ -513,6 +534,98 @@ describe("useBoardInteractions", () => {
 		expect(startTaskSession).toHaveBeenCalledTimes(12);
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toHaveLength(12);
 		expect(currentBoard.columns.find((column) => column.id === "backlog")?.cards).toHaveLength(3);
+	});
+
+	it("prioritizes backlog cards for the already loaded Cline model during manual start-all", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						createTask("task-cold", "Cold model task", 1, {
+							filesLikelyTouched: ["src/cold.ts"],
+						}),
+						{
+							...createTask("task-loaded", "Loaded model task", 2, {
+								filesLikelyTouched: ["src/loaded.ts"],
+							}),
+							clineSettings: {
+								providerId: "lmstudio",
+								modelId: "qwen-loaded",
+							},
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					activeTaskSessionCount={1}
+					maxConcurrentTasks={2}
+					initialSessions={{
+						"running-loaded-model": createRunningClineSession("running-loaded-model", "lmstudio", "qwen-loaded"),
+					}}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartAllBacklogTasks();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(startTaskSession).toHaveBeenCalledTimes(1);
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-loaded" }), {
+			queueOnEndpointBusy: undefined,
+		});
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
+			"task-loaded",
+		]);
 	});
 
 	it("blocks single-card starts when the active task capacity is full", async () => {

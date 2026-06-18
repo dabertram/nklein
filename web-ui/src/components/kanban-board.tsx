@@ -64,6 +64,17 @@ function formatEndpointUtilizationChip(endpoint: EndpointUtilizationSummary): st
 	return `${endpoint.endpointId} ${endpoint.running} active${modelLabel ? ` (${modelLabel}${suffix})` : ""}`;
 }
 
+function buildEndpointParallelismNudge(input: {
+	waiting: number;
+	running: number;
+	endpoints: readonly EndpointUtilizationSummary[];
+}): string | null {
+	if (input.waiting <= 0 || input.running <= 0 || input.endpoints.length !== 1) {
+		return null;
+	}
+	return "One endpoint is serializing work; add another Ollama or LM Studio endpoint for parallel starts.";
+}
+
 function isRectVerticallyVisibleWithinContainer(rect: DOMRect, containerRect: DOMRect): boolean {
 	return rect.top >= containerRect.top && rect.bottom <= containerRect.bottom;
 }
@@ -184,6 +195,15 @@ export function KanbanBoard({
 			}))
 			.sort((left, right) => right.running - left.running || left.endpointId.localeCompare(right.endpointId));
 	}, [taskSessions]);
+	const endpointParallelismNudge = useMemo(
+		() =>
+			buildEndpointParallelismNudge({
+				waiting: swarmCounts.waiting,
+				running: swarmCounts.running,
+				endpoints: endpointUtilization,
+			}),
+		[endpointUtilization, swarmCounts.running, swarmCounts.waiting],
+	);
 
 	useEffect(() => {
 		setConcurrencyCapDraft(configuredConcurrencyCap);
@@ -573,6 +593,11 @@ export function KanbanBoard({
 					))}
 					{endpointUtilization.length > 2 ? (
 						<span className="text-text-tertiary">+{endpointUtilization.length - 2} endpoints</span>
+					) : null}
+					{endpointParallelismNudge ? (
+						<span className="hidden max-w-80 truncate text-status-gold lg:inline">
+							{endpointParallelismNudge}
+						</span>
 					) : null}
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
 					<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">

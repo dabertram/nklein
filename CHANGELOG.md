@@ -4,10 +4,13 @@
 
 - Enforced local-only Cline model usage: cloud provider selections are ignored or hard-stopped, cloud providers and recommendations are hidden from the picker, routing drops cloud candidates, and cloud-blocked cards are parked with a clear local-model message.
 - Added a Kanban-owned effective context ceiling for Cline starts/restarts and proactive pre-send overflow telemetry, so oversized prompts are compacted or blocked before provider dispatch.
+- Removed the 200k effective-context clamp for local Cline models, preserving million-token advertised windows end-to-end while keeping overflow guards, native compaction, and budget bars on the same resolved window.
+- Improved oversized single-prompt failures with a specific recovery message, cold-start timeout floors for models without speed samples, and a regression guard that blocks persisted cloud launch metadata during overflow restarts.
 - Passed MCSR/user effective context windows through runtime routing into native Cline starts and chat budget displays, preventing provider-advertised windows from overruling Kanban's effective guard.
 - Persisted sanitized Cline launch metadata with SDK sessions and reused it during resume/overflow recovery, preventing recoverable compaction restarts from failing with missing session config.
 - Treated legacy cloud timeout profiles as local-model timeouts and clamped positive Cline timeouts to at least 60 seconds, so slow local model sessions cannot inherit stale one-second request, stream, tool, agent, or conversation limits.
 - Raised positive local Cline timeouts from MCSR speed observations at task start, using measured wall-time-per-1k prompt tokens, prefill/decode rates, TTFT, and wall-time samples while preserving unlimited mode.
+- Added an effectively unlimited timeout mode as the fix for the HTTP "body timeout error" (undici `UND_ERR_BODY_TIMEOUT`) that otherwise aborts long-running local model streams: selecting it disables Kanban's request, stream, tool, agent, and conversation timeouts so a slow local model can finish a long turn without its response body being timed out mid-stream.
 - Parked Cline tasks after repeated identical start/send failures, suppressing duplicate failure telemetry and system messages once a task is clearly stuck.
 - Hardened Cline acceptance checks to use a non-login shell with an explicit PATH fallback and a larger output buffer, avoiding shell-init hangs and false failures from large passing output.
 - Added a backend-fed Cline context budget breakdown and segmented chat-panel bar using the effective context window, with fallback to the existing estimate when breakdown data is unavailable.
@@ -40,6 +43,7 @@
 - Added a Cline autonomous turn-budget guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
 - Added a Kanban repeated-tool stall watchdog for Cline tasks, parking sessions after 5 repeated non-attention tool starts with the same input and surfacing the limit in settings.
 - Added a board-level Local swarm strip with running/waiting/blocked counts and a Pause/Resume control wired to typed runtime swarm-stop endpoints.
+- Added Local swarm nudges for single-endpoint serialization and model-load-aware start-all ordering that prefers cards targeting an already-running local model.
 - Added an inline Local swarm concurrency slider that saves `maxConcurrentTasks` from the board header.
 - Added local shared-endpoint ids to Cline session summaries and surfaced per-endpoint running utilization in the board Local swarm strip.
 - Enriched running task cards with compact swarm telemetry: token counts, approximate output tok/s, elapsed time, turn count, current activity/tool, and a mini context-budget bar.
@@ -63,6 +67,7 @@
 - Fixed Cline team-progress summaries so `task_end` events with string-shaped errors are reported as failures instead of completions.
 - Named and documented Cline context-budget policy constants for reserve caps, unknown-window fallbacks, pressure curves, and file chunk sizing without changing budget behavior.
 - Documented the Cline repo-map heuristic and refreshed cached repo maps after successful workspace-mutating tools, so code-orientation context no longer stays stale after edits.
+- Upgraded Cline repo maps with TypeScript AST symbol extraction, PageRank-style reference/import ranking, stable prompt-prefix ordering, and tests for refreshed, first-position repo-map rails.
 - Debounced Cline model-registry persistence so observations update the in-memory MCSR immediately while locked disk writes are coalesced, with fractional EWMA speed stats preserved across reloads.
 - Switched Cline model-registry event extraction to the SDK session-event types, recording observations from typed usage events plus Kanban-measured request duration instead of guessed `run-finished` payloads.
 - Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.

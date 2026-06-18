@@ -739,6 +739,36 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("Ctx 50%");
 	});
 
+	it("shows plain-language recovery text for parked local-only errors", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="review"
+					sessionSummary={createSummary("awaiting_review", {
+						reviewReason: "error",
+						warningMessage:
+							'Cloud models are disabled in this build (local-only mode). The provider "openrouter" is a cloud/paid provider.',
+						latestHookActivity: {
+							activityText: "Send failed: Cloud models are disabled in this build",
+							toolName: null,
+							toolInputSummary: null,
+							finalMessage: "Cloud models are disabled in this build",
+							hookEventName: "agent_error",
+							notificationType: null,
+							source: "cline-sdk",
+						},
+					})}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Paused: this card targets a cloud model.");
+		expect(container.textContent).toContain("Choose an Ollama or LM Studio model");
+		expect(container.textContent).not.toContain("openrouter");
+	});
+
 	it("shows normal agent messages without the agent prefix", async () => {
 		await act(async () => {
 			root.render(

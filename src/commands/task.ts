@@ -970,6 +970,7 @@ async function decomposeTaskGraph(input: {
 		createdTasks: JsonRecord[];
 		createdDependencies: JsonRecord[];
 		taskIdByPlanTaskId: Record<string, string>;
+		preview: JsonRecord;
 	};
 	try {
 		applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
@@ -1001,6 +1002,7 @@ async function decomposeTaskGraph(input: {
 						formatDependencyRecord(nextState, dependency),
 					),
 					taskIdByPlanTaskId: result.taskIdByPlanTaskId,
+					preview: result.preview as unknown as JsonRecord,
 				},
 			};
 		});
@@ -1038,6 +1040,7 @@ async function decomposeTaskGraph(input: {
 		tasks: applied.createdTasks,
 		dependencies: applied.createdDependencies,
 		taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+		preview: applied.preview,
 		count: applied.createdTasks.length,
 	};
 }

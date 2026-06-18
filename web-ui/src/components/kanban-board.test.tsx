@@ -312,6 +312,7 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("Waiting 1");
 		expect(container.textContent).toContain("Blocked 1");
 		expect(container.textContent).toContain("lmstudio:default 1 active (qwen3)");
+		expect(container.textContent).toContain("One endpoint is serializing work");
 		expect(container.textContent).toContain("Code intel");
 		expect(container.querySelector("button")?.textContent).toContain("Pause");
 		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);

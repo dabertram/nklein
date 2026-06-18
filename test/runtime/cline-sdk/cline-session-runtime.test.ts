@@ -139,9 +139,13 @@ function createToolContext(toolName: string, isError = false): AgentAfterToolCon
 }
 
 function readInjectedRepoMapText(result: AgentBeforeModelResult | undefined): string {
-	const message = result?.messages?.at(-1);
+	const message = result?.messages?.find((candidate) => candidate.metadata?.kind === "kanban_repo_map_rail");
 	const textPart = message?.content.find((part) => part.type === "text");
 	return textPart?.type === "text" ? textPart.text : "";
+}
+
+function readInjectedRepoMapIndex(result: AgentBeforeModelResult | undefined): number {
+	return result?.messages?.findIndex((candidate) => candidate.metadata?.kind === "kanban_repo_map_rail") ?? -1;
 }
 
 describe("InMemoryClineSessionRuntime", () => {
@@ -555,7 +559,9 @@ describe("InMemoryClineSessionRuntime", () => {
 			throw new Error("Expected context-focus hooks to be wired");
 		}
 
-		const initialText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
+		const initialResult = await beforeModel(createModelContext(workspacePath));
+		const initialText = readInjectedRepoMapText(initialResult);
+		expect(readInjectedRepoMapIndex(initialResult)).toBe(0);
 		expect(initialText).toContain("oldFeature");
 
 		await writeFile(sourcePath, "export function newFeature() { return true; }\n", "utf8");

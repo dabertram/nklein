@@ -74,6 +74,8 @@ function createRoutingCandidate(input: {
 	role: string | null;
 	capability: number;
 	contextWindow: number;
+	prefillTokensPerSecond?: number;
+	decodeTokensPerSecond?: number;
 }): ClineTaskRoutingCandidate {
 	return {
 		role: input.role,
@@ -93,8 +95,8 @@ function createRoutingCandidate(input: {
 				promptTokensEwma: null,
 				outputTokensEwma: null,
 				totalTokensEwma: null,
-				prefillTokensPerSecondEwma: null,
-				decodeTokensPerSecondEwma: null,
+				prefillTokensPerSecondEwma: input.prefillTokensPerSecond ?? null,
+				decodeTokensPerSecondEwma: input.decodeTokensPerSecond ?? null,
 				ttftMsEwma: null,
 				wallTimeMsEwma: null,
 				wallTimeMsPer1kPromptTokensEwma: null,
@@ -298,12 +300,16 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 					role: "worker",
 					capability: 35,
 					contextWindow: 64_000,
+					prefillTokensPerSecond: 200,
+					decodeTokensPerSecond: 20,
 				}),
 				createRoutingCandidate({
 					key: "deepseek-coder-33b",
 					role: "architect",
 					capability: 70,
 					contextWindow: 64_000,
+					prefillTokensPerSecond: 100,
+					decodeTokensPerSecond: 10,
 				}),
 			],
 		});
@@ -324,6 +330,12 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.createdTasks[1]?.prompt).toContain(
 			"Model fit: validated by Kanban routing guard (ollama / deepseek-coder-33b, role architect, context 64,000, capability 70)",
 		);
+		expect(result.preview.summary).toContain("across 2 cards");
+		expect(result.preview.tasks[0]).toMatchObject({
+			planTaskId: "storage",
+			modelLabel: "ollama/qwen3.5-9b",
+			estimatedWallTimeMs: expect.any(Number),
+		});
 	});
 
 	it("does not keep suggested role settings when routing selects the default model", () => {
@@ -635,6 +647,10 @@ describe("cline decomposition tools", () => {
 				taskIdByPlanTaskId: Record<string, string>;
 				modelFitValidated: boolean;
 				instruction: string;
+				preview: {
+					summary: string;
+					taskCount: number;
+				};
 			};
 
 			expect(result.ok).toBe(true);
@@ -647,6 +663,9 @@ describe("cline decomposition tools", () => {
 				ui: "habit-tracker-ui",
 			});
 			expect(result.instruction).toContain("created 2 Planning cards and 1 dependency");
+			expect(result.instruction).toContain("Dry-run preview:");
+			expect(result.preview.taskCount).toBe(2);
+			expect(result.preview.summary).toContain("across 2 cards");
 			expect(result.instruction).toContain("connected local model fit will be enforced when each card starts");
 			expect(result.instruction).not.toContain("kanban task decompose");
 

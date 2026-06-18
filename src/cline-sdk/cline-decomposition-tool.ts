@@ -57,6 +57,7 @@ export interface ApplyClinePlanTaskGraphResult {
 	createdTasks: RuntimeBoardCard[];
 	createdDependencies: RuntimeBoardDependency[];
 	taskIdByPlanTaskId: Record<string, string>;
+	preview: ClinePlanTaskGraphPreview;
 }
 
 export interface ValidateClinePlanTaskGraphResult {
@@ -84,6 +85,21 @@ export interface ApplyDecomposeProjectArtifactsResult {
 	taskIdByPlanTaskId: Record<string, string>;
 	baseRef: string | null;
 	message: string;
+	preview: ClinePlanTaskGraphPreview;
+}
+
+export interface ClinePlanTaskEstimate {
+	planTaskId: string;
+	title: string;
+	modelLabel: string;
+	estimatedWallTimeMs: number | null;
+}
+
+export interface ClinePlanTaskGraphPreview {
+	taskCount: number;
+	totalEstimatedWallTimeMs: number | null;
+	tasks: ClinePlanTaskEstimate[];
+	summary: string;
 }
 
 function pluralizeCount(count: number, singular: string, plural = `${singular}s`): string {
@@ -623,6 +639,82 @@ function formatTaskModelFitEvidence(candidate: ClineTaskRoutingCandidate | null 
 	return `validated by Kanban routing guard (${candidate.entry.providerId} / ${candidate.entry.modelId}${roleText}${contextWindowText}${capabilityText})`;
 }
 
+function estimateTaskWallTimeMs(
+	candidate: ClineTaskRoutingCandidate | null | undefined,
+	promptTokens: number,
+): number | null {
+	if (!candidate) {
+		return null;
+	}
+	const speed = candidate.entry.speed;
+	const prefillMs = speed.prefillTokensPerSecondEwma ? (promptTokens / speed.prefillTokensPerSecondEwma) * 1000 : null;
+	const decodeMs = speed.decodeTokensPerSecondEwma ? (1_000 / speed.decodeTokensPerSecondEwma) * 1000 : null;
+	if (prefillMs === null && decodeMs === null) {
+		return speed.wallTimeMsEwma;
+	}
+	return Math.round((prefillMs ?? 0) + (decodeMs ?? 0) + (speed.ttftMsEwma ?? 0));
+}
+
+function formatEstimateDuration(ms: number | null): string {
+	if (ms === null) {
+		return "unknown";
+	}
+	const minutes = Math.max(1, Math.round(ms / 60_000));
+	if (minutes < 60) {
+		return `~${minutes} min`;
+	}
+	const hours = Math.floor(minutes / 60);
+	const remainingMinutes = minutes % 60;
+	return remainingMinutes > 0 ? `~${hours}h ${remainingMinutes}m` : `~${hours}h`;
+}
+
+export function previewClinePlanTaskGraph(input: {
+	taskGraph: ClinePlanTaskGraph;
+	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+	sharedContext?: ClinePlanTaskSharedContext;
+}): ClinePlanTaskGraphPreview {
+	const taskGraph = validateClinePlanTaskGraph({
+		taskGraph: input.taskGraph,
+		routingCandidates: input.routingCandidates,
+	}).taskGraph;
+	const tasks = taskGraph.tasks.map((task) => {
+		const taskPrompt = buildTaskPrompt(task, input.sharedContext);
+		const promptTokens = estimateClineStartPromptTokens({
+			prompt: taskPrompt,
+			taskTitle: task.title,
+		});
+		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPrompt, input.routingCandidates);
+		const modelLabel = selectedRoutingCandidate
+			? `${selectedRoutingCandidate.entry.providerId}/${selectedRoutingCandidate.entry.modelId}`
+			: "model selected at start";
+		return {
+			planTaskId: task.id,
+			title: task.title,
+			modelLabel,
+			estimatedWallTimeMs: estimateTaskWallTimeMs(selectedRoutingCandidate, promptTokens),
+		};
+	});
+	const knownEstimates = tasks
+		.map((task) => task.estimatedWallTimeMs)
+		.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+	const totalEstimatedWallTimeMs =
+		knownEstimates.length === tasks.length ? knownEstimates.reduce((total, value) => total + value, 0) : null;
+	const previewLines = tasks
+		.slice(0, 6)
+		.map((task) => `${task.title}: ${formatEstimateDuration(task.estimatedWallTimeMs)} on ${task.modelLabel}`);
+	const extraCount = Math.max(0, tasks.length - previewLines.length);
+	return {
+		taskCount: tasks.length,
+		totalEstimatedWallTimeMs,
+		tasks,
+		summary: [
+			`${formatEstimateDuration(totalEstimatedWallTimeMs)} across ${pluralizeCount(tasks.length, "card")}`,
+			...previewLines,
+			...(extraCount > 0 ? [`+${extraCount} more ${extraCount === 1 ? "card" : "cards"}`] : []),
+		].join("\n"),
+	};
+}
+
 function collectBoardTaskIds(board: RuntimeBoardData): Set<string> {
 	return new Set(board.columns.flatMap((column) => column.cards.map((card) => card.id)));
 }
@@ -638,6 +730,11 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const taskIdByPlanTaskId: Record<string, string> = {};
 	const usedBoardTaskIds = collectBoardTaskIds(board);
 	const now = input.now ?? Date.now();
+	const preview = previewClinePlanTaskGraph({
+		taskGraph,
+		routingCandidates: input.routingCandidates,
+		sharedContext: input.sharedContext,
+	});
 
 	for (const task of taskGraph.tasks) {
 		const taskPromptForRouting = buildTaskPrompt(task, input.sharedContext);
@@ -702,6 +799,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 		createdTasks,
 		createdDependencies,
 		taskIdByPlanTaskId,
+		preview,
 	};
 }
 
@@ -711,6 +809,10 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	sharedContext?: ClinePlanTaskSharedContext;
 }): Promise<ApplyDecomposeProjectArtifactsResult> {
 	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
+	const fallbackPreview = previewClinePlanTaskGraph({
+		taskGraph: input.taskGraph,
+		sharedContext: input.sharedContext,
+	});
 	try {
 		const result = await mutateWorkspaceState<ApplyDecomposeProjectArtifactsResult>(input.workspacePath, (state) => {
 			const baseRef = state.git.currentBranch ?? state.git.defaultBranch;
@@ -725,6 +827,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 						taskIdByPlanTaskId: {},
 						baseRef: null,
 						message: "Could not determine a base branch, so the task graph was persisted but not applied.",
+						preview: fallbackPreview,
 					},
 				};
 			}
@@ -745,6 +848,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 					baseRef,
 					message: `Applied task graph to Kanban: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
+					preview: applied.preview,
 				},
 			};
 		});
@@ -758,6 +862,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 			taskIdByPlanTaskId: {},
 			baseRef: null,
 			message: `Could not apply the task graph automatically: ${message}`,
+			preview: fallbackPreview,
 		};
 	}
 }
@@ -896,6 +1001,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				createdTaskCount: applied.createdTaskCount,
 				createdDependencyCount: applied.createdDependencyCount,
 				taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+				preview: applied.preview,
 				modelFitValidated: false,
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
@@ -905,8 +1011,8 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
-					? `${applied.message} Schema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
-					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. ${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
+					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
+					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through Kanban, not by editing task files: kanban task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
 			};
 		},
 	};

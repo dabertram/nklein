@@ -209,7 +209,6 @@ async function appendRepoMapBeforeModel(
 	return {
 		...baseResult,
 		messages: [
-			...messages,
 			createRepoMapRailMessage(
 				[
 					"[Kanban repo map: compact codebase orientation]",
@@ -219,6 +218,7 @@ async function appendRepoMapBeforeModel(
 					"Use this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.",
 				].join("\n"),
 			),
+			...messages,
 		],
 	};
 }
