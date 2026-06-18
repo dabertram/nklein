@@ -85,6 +85,7 @@ const KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS = 200_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
+const CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
 type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
 type ClineSdkToolResultBlock = Extract<ClineSdkContentBlock, { type: "tool_result" }>;
 type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
@@ -1864,8 +1865,57 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (!summary) {
 			return null;
 		}
-		this.emitSummary(summary);
-		return summary;
+		const guardedSummary = this.enforceTurnBudget(taskId, checkpoint) ?? summary;
+		this.emitSummary(guardedSummary);
+		return guardedSummary;
+	}
+
+	private enforceTurnBudget(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null {
+		if (isHomeAgentSessionId(taskId) || checkpoint.turn < CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK) {
+			return null;
+		}
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (!entry || entry.summary.reviewReason === "attention") {
+			return null;
+		}
+		this.clearTaskTimeouts(taskId);
+		void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
+		const message = `Kanban paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`;
+		recordSelfObservation({
+			signal: "budget_wall",
+			severity: "warning",
+			message,
+			taskId,
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				guardrail: "max_autonomous_turns",
+				turn: checkpoint.turn,
+				limit: CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK,
+				checkpointRef: checkpoint.ref,
+				checkpointCommit: checkpoint.commit,
+			},
+		});
+		const systemMessage = createMessage(taskId, "system", message);
+		entry.messages.push(systemMessage);
+		this.emitMessage(taskId, systemMessage);
+		clearActiveTurnState(entry);
+		return updateSummary(entry, {
+			state: "awaiting_review",
+			reviewReason: "attention",
+			lastOutputAt: now(),
+			lastHookAt: now(),
+			warningMessage: message,
+			latestHookActivity: {
+				activityText: message,
+				toolName: null,
+				toolInputSummary: null,
+				finalMessage: message,
+				hookEventName: "guardrail",
+				notificationType: "warning",
+				source: "kanban",
+			},
+		});
 	}
 
 	async dispose(): Promise<void> {

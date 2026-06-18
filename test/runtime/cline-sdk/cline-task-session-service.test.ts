@@ -1586,6 +1586,54 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.getSummary("task-1")?.latestTurnCheckpoint?.commit).toBe("commit-2");
 	});
 
+	it("parks a task when the autonomous turn budget is reached", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		const summary = service.applyTurnCheckpoint("task-1", {
+			turn: 12,
+			ref: "refs/kanban/checkpoints/task-1/turn/12",
+			commit: "commit-12",
+			createdAt: 12,
+		});
+
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("12 autonomous turns"),
+			latestTurnCheckpoint: {
+				turn: 12,
+				commit: "commit-12",
+			},
+			latestHookActivity: {
+				hookEventName: "guardrail",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "budget_wall",
+				severity: "warning",
+				taskId: "task-1",
+				providerId: "lmstudio",
+				modelId: "qwen3",
+				metadata: expect.objectContaining({
+					guardrail: "max_autonomous_turns",
+					turn: 12,
+					limit: 12,
+				}),
+			}),
+		);
+		expect(service.listMessages("task-1").at(-1)?.content).toContain("paused this task");
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartClineSessionRuntimeResult>();
