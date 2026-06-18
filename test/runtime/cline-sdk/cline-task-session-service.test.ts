@@ -2047,13 +2047,16 @@ describe("InMemoryClineTaskSessionService", () => {
 		const startCall = runtime.startTaskSessionMock.mock.calls[0]?.[0];
 		expect(startCall?.contextWindow).toBe(200_000);
 		expect(startCall?.systemPrompt).toContain("Model context window: 200,000 tokens");
-		expect(service.getSummary("task-1")?.contextBudgetBreakdown).toEqual(
+		const breakdown = service.getSummary("task-1")?.contextBudgetBreakdown;
+		expect(breakdown).toEqual(
 			expect.objectContaining({
 				effectiveContextWindow: 200_000,
 				projectedTokens: expect.any(Number),
 				reservedOutputTokens: expect.any(Number),
 			}),
 		);
+		expect(breakdown?.systemPromptTokens).toBeGreaterThan(0);
+		expect(breakdown?.toolSchemaTokens).toBeGreaterThan(0);
 	});
 
 	it("blocks a prompt-only overflow before starting the SDK runtime", async () => {

@@ -63,6 +63,7 @@ import {
 import {
 	type ClineSdkPersistedMessage,
 	type ClineSdkSlashCommand,
+	type ClineSdkStartSessionInput,
 	type ClineSdkTeamEvent,
 	listClineSdkWorkflowSlashCommands,
 	resolveClineSdkSystemPrompt,
@@ -319,12 +320,34 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");
 }
+
+function estimateKanbanToolSchemaTokens(toolPolicies?: ClineSdkStartSessionInput["toolPolicies"]): number {
+	if (!toolPolicies) {
+		return 0;
+	}
+	const enabledToolNames = Object.entries(toolPolicies)
+		.filter(([, policy]) => policy?.enabled !== false)
+		.map(([toolName]) => toolName)
+		.sort();
+	if (enabledToolNames.length === 0) {
+		return 0;
+	}
+	return countKanbanTextTokens(
+		JSON.stringify({
+			nativeSdkToolsEnabled: true,
+			kanbanToolPolicies: enabledToolNames,
+		}),
+	);
+}
+
 export class InMemoryClineTaskSessionService implements ClineTaskSessionService {
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
 	private readonly modelIdByTaskId = new Map<string, string>();
 	private readonly endpointByTaskId = new Map<string, string | null>();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
+	private readonly systemPromptByTaskId = new Map<string, string>();
+	private readonly toolSchemaTokensByTaskId = new Map<string, number>();
 	private readonly launchConfigByTaskId = new Map<string, ClineTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
 	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
@@ -856,6 +879,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	private buildContextBudgetBreakdown(input: {
 		systemPrompt?: string | null;
+		toolSchemaTokens?: number | null;
 		messages?: ClineSdkPersistedMessage[] | null;
 		prompt: string;
 		images?: RuntimeTaskImage[];
@@ -864,6 +888,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
 		const messages = input.messages ?? [];
 		const systemPromptTokens = input.systemPrompt ? countKanbanTextTokens(input.systemPrompt) : 0;
+		const toolSchemaTokens =
+			typeof input.toolSchemaTokens === "number" && Number.isFinite(input.toolSchemaTokens)
+				? Math.max(0, Math.trunc(input.toolSchemaTokens))
+				: 0;
 		const taskPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
 		const historyTokens = countKanbanPersistedMessagesTokens(messages);
 		const userMessageTokens = messages.reduce((sum, message) => {
@@ -875,6 +903,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const otherHistoryTokens = Math.max(0, historyTokens - userMessageTokens);
 		const projectedTokens =
 			systemPromptTokens +
+			toolSchemaTokens +
 			taskPromptTokens +
 			userMessageTokens +
 			otherHistoryTokens +
@@ -883,7 +912,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const usedWorkingTokens = Math.max(0, projectedTokens - budgets.outputReserveTokens);
 		return {
 			systemPromptTokens,
-			toolSchemaTokens: 0,
+			toolSchemaTokens,
 			taskPromptTokens,
 			userMessageTokens,
 			includedFileContentTokens: 0,
@@ -1208,6 +1237,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					timeoutMode: request.timeoutMode ?? "normal",
 					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 				})}`;
+				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
+				this.systemPromptByTaskId.set(request.taskId, systemPrompt);
+				this.toolSchemaTokensByTaskId.set(request.taskId, toolSchemaTokens);
 
 				const initialMessages = this.prepareMessagesForKnownContextWindow({
 					taskId: request.taskId,
@@ -1220,6 +1252,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					updateSummary(entry, {
 						contextBudgetBreakdown: this.buildContextBudgetBreakdown({
 							systemPrompt,
+							toolSchemaTokens,
 							messages: initialMessages,
 							prompt: runtimePrompt,
 							images: request.images,
@@ -1466,6 +1499,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						this.emitSummary(
 							updateSummary(entry, {
 								contextBudgetBreakdown: this.buildContextBudgetBreakdown({
+									systemPrompt: this.systemPromptByTaskId.get(taskId) ?? null,
+									toolSchemaTokens: this.toolSchemaTokensByTaskId.get(taskId) ?? 0,
 									messages: persistedSnapshotForBudget?.messages,
 									prompt: resolvedPrompt,
 									images,

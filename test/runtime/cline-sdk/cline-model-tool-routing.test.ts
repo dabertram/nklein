@@ -4,14 +4,16 @@ import { buildKanbanModelToolRoutingRules } from "../../../src/cline-sdk/cline-m
 
 describe("cline model tool routing", () => {
 	it("trims fragile default tools for small local models", () => {
-		expect(buildKanbanModelToolRoutingRules()).toEqual([
+		const rules = buildKanbanModelToolRoutingRules();
+
+		expect(rules).toEqual([
 			expect.objectContaining({
 				name: "kanban-small-local-model-tool-trim",
 				mode: "any",
-				providerIdIncludes: expect.arrayContaining(["ollama", "lmstudio"]),
 				modelIdIncludes: expect.arrayContaining(["qwen", "llama", "mistral"]),
-				disableTools: ["fetch_web_content", "skills", "ask_question"],
+				disableTools: ["fetch_web_content", "skills", "ask_question", "editor"],
 			}),
 		]);
+		expect(rules[0]).not.toHaveProperty("providerIdIncludes");
 	});
 });

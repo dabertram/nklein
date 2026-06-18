@@ -292,13 +292,13 @@ function validateTaskGraphReferences(taskGraph: ClinePlanTaskGraph): number {
 	return dependencyCount;
 }
 
-function validateTaskRoutingFeasibility(
+function selectTaskRoutingCandidate(
 	task: ClinePlanTask,
 	taskPrompt: string,
 	routingCandidates: readonly ClineTaskRoutingCandidate[] | undefined,
-): void {
+): ClineTaskRoutingCandidate | null | undefined {
 	if (!routingCandidates || routingCandidates.length === 0) {
-		return;
+		return undefined;
 	}
 	const promptTokens = estimateClineStartPromptTokens({
 		prompt: taskPrompt,
@@ -325,6 +325,7 @@ function validateTaskRoutingFeasibility(
 			`Task ${task.id} failed the model feasibility guard: ${formatClineTaskRoutingBlockMessage(routingDecision)}`,
 		);
 	}
+	return routingCandidates.find((candidate) => candidate.entry.key === routingDecision.modelKey) ?? null;
 }
 
 export function validateClinePlanTaskGraph(input: {
@@ -334,7 +335,7 @@ export function validateClinePlanTaskGraph(input: {
 	const taskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
 	for (const task of taskGraph.tasks) {
 		validateTaskSizingContract(task);
-		validateTaskRoutingFeasibility(task, buildTaskPrompt(task), input.routingCandidates);
+		selectTaskRoutingCandidate(task, buildTaskPrompt(task), input.routingCandidates);
 	}
 	return {
 		taskGraph,
@@ -380,8 +381,9 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 function resolveTaskRoleSettings(
 	task: ClinePlanTask,
 	modelRoleSettings: Record<string, RuntimeTaskClineSettings> | undefined,
+	selectedRole: string | null | undefined,
 ): RuntimeTaskClineSettings | undefined {
-	const role = task.suggestedRole?.trim();
+	const role = (selectedRole === undefined ? task.suggestedRole : selectedRole)?.trim();
 	if (!role || !modelRoleSettings) {
 		return undefined;
 	}
@@ -423,6 +425,9 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 
 	for (const task of taskGraph.tasks) {
 		const taskPrompt = buildTaskPrompt(task);
+		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPrompt, input.routingCandidates);
+		const selectedRole =
+			selectedRoutingCandidate === undefined ? undefined : (selectedRoutingCandidate?.role ?? null);
 		const baseTaskId = `${slugifyTaskId(taskGraph.slug)}-${slugifyTaskId(task.id)}`;
 		let taskId = baseTaskId;
 		for (let suffix = 2; usedBoardTaskIds.has(taskId); suffix += 1) {
@@ -441,7 +446,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 				autoReviewMode: "commit",
 				agentId: "cline",
 				baseRef: input.baseRef,
-				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings),
+				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
 			},
 			input.randomUuid,
 			now,

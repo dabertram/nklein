@@ -170,4 +170,58 @@ describe("cline endpoint scheduler", () => {
 			sharedEndpointId: "http://127.0.0.1:11434",
 		});
 	});
+
+	it("serializes custom local providers by endpoint when registry data is cold", () => {
+		const decision = scheduleClineEndpointStart({
+			taskId: "task-2",
+			providerId: "openai-compatible",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:1234/v1",
+			modelRegistry: {
+				schemaVersion: 1,
+				updatedAt: 0,
+				models: {},
+			},
+			runningSessions: [
+				{
+					taskId: "task-1",
+					state: "running",
+					providerId: "openai-compatible",
+					modelId: "llama",
+					endpoint: "http://127.0.0.1:1234/v1",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			ok: false,
+			blockedByTaskId: "task-1",
+			sharedEndpointId: "http://127.0.0.1:1234/v1",
+		});
+	});
+
+	it("allows custom local providers on distinct endpoints to run in parallel", () => {
+		const decision = scheduleClineEndpointStart({
+			taskId: "task-2",
+			providerId: "openai-compatible",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:1235/v1",
+			modelRegistry: {
+				schemaVersion: 1,
+				updatedAt: 0,
+				models: {},
+			},
+			runningSessions: [
+				{
+					taskId: "task-1",
+					state: "running",
+					providerId: "openai-compatible",
+					modelId: "llama",
+					endpoint: "http://127.0.0.1:1234/v1",
+				},
+			],
+		});
+
+		expect(decision).toEqual({ ok: true });
+	});
 });

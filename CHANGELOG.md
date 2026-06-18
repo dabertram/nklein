@@ -18,6 +18,11 @@
 - Added lightweight clarifying-question answer chips to the Cline chat panel, with answers sent through the existing planning chat turn and free-text composer still available.
 - Added `summary.md` to decomposition plan artifacts and exposed `summaryPath`, giving the later Planning DAG review a plain-language summary to display.
 - Tightened the Cline context budget display to use effective model-window wording, retain the segmented health-colored bar, and label fallback estimates as fallback working budgets instead of available model context.
+- Improved Cline context budget breakdowns by retaining the SDK system prompt per task and estimating enabled Kanban tool-schema overhead instead of leaving tool tokens at zero.
+- Enforced the project task concurrency cap across UI starts, dependency auto-starts, and backend runtime starts, while preserving the fast Codex restore path by counting only already-loaded Cline services.
+- Unified local endpoint serialization with the local-only provider policy, so custom local OpenAI-compatible endpoints are serialized by URL while distinct local endpoints can run in parallel.
+- Broadened Cline model tool-routing rules so weak local model families, including custom local OpenAI-compatible providers, receive a trimmed SDK default toolset while stronger models keep the full tool surface.
+- Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 
 ## [0.1.68]
 

@@ -65,7 +65,7 @@ function createTaskGraph(): ClinePlanTaskGraph {
 
 function createRoutingCandidate(input: {
 	key: string;
-	role: string;
+	role: string | null;
 	capability: number;
 	contextWindow: number;
 }): ClineTaskRoutingCandidate {
@@ -247,6 +247,78 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			modelId: "qwen3.5-9b",
 			reasoningEffort: "medium",
 		});
+	});
+
+	it("writes the routed role settings when a task routes above its suggested role", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			modelRoleSettings: {
+				worker: {
+					providerId: "ollama",
+					modelId: "qwen3.5-9b",
+					reasoningEffort: "low",
+				},
+				architect: {
+					providerId: "lmstudio",
+					modelId: "deepseek-coder-33b",
+					reasoningEffort: "high",
+				},
+			},
+			routingCandidates: [
+				createRoutingCandidate({
+					key: "qwen3.5-9b",
+					role: "worker",
+					capability: 35,
+					contextWindow: 64_000,
+				}),
+				createRoutingCandidate({
+					key: "deepseek-coder-33b",
+					role: "architect",
+					capability: 70,
+					contextWindow: 64_000,
+				}),
+			],
+		});
+
+		expect(result.createdTasks[0]?.clineSettings).toEqual({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			reasoningEffort: "low",
+		});
+		expect(result.createdTasks[1]?.clineSettings).toEqual({
+			providerId: "lmstudio",
+			modelId: "deepseek-coder-33b",
+			reasoningEffort: "high",
+		});
+	});
+
+	it("does not keep suggested role settings when routing selects the default model", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			modelRoleSettings: {
+				worker: {
+					providerId: "ollama",
+					modelId: "qwen3.5-9b",
+				},
+			},
+			routingCandidates: [
+				createRoutingCandidate({
+					key: "default-local",
+					role: null,
+					capability: 80,
+					contextWindow: 64_000,
+				}),
+			],
+		});
+
+		expect(result.createdTasks[0]?.clineSettings).toBeUndefined();
+		expect(result.createdTasks[1]?.clineSettings).toBeUndefined();
 	});
 
 	it("rejects unknown dependency references", () => {

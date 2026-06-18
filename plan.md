@@ -198,9 +198,10 @@ visible instead of buried in a text label.
       and `effectiveContextWindow`. **Progress:** summaries now expose a breakdown driven by the same
       effective context window and token counters as the pre-send guard; tool schema and precise retained
       file-output segmentation still need SDK/deeper message-source integration.
-- [ ] Source system/tool token counts from the **SDK** where it exposes them (per AGENTS.md prefer
-      SDK-provided counts); otherwise estimate with the existing `gpt-tokenizer`
-      (`countKanbanTextTokens`, `estimateNextPromptTokens`, `countKanbanPersistedMessagesTokens`).
+- [x] ~~Source system/tool token counts from the SDK where it exposes them; otherwise estimate with the
+      existing `gpt-tokenizer`.~~ The SDK does not expose a public per-request system/tool breakdown here,
+      so Kanban now counts the exact system prompt it passes to the SDK and estimates enabled Kanban
+      tool-schema overhead from the active tool policy surface with `countKanbanTextTokens`.
 - [x] ~~Flow the breakdown through the runtime session summary / tRPC alongside `contextWindowByTaskId`.~~
       `RuntimeTaskSessionSummary.contextBudgetBreakdown` carries the backend breakdown to the chat panel.
 - [x] ~~Use the real effective window (L1.1 / MCSR), not the 200k/120k/160k "smart budget" heuristic in
@@ -242,28 +243,44 @@ while running distinct endpoints truly in parallel — without thrashing the mac
       ([task-board-mutations.ts](src/core/task-board-mutations.ts)).
 
 ### L2.2 — The missing executor (the real gap)
-- [ ] **Active concurrency enforcement.** `maxConcurrentTasks` is stored but **never enforced** — no code
+- [x] ~~**Active concurrency enforcement.** `maxConcurrentTasks` is stored but **never enforced** — no code
       starts/stops tasks against it. Build a scheduler that tracks running sessions and admits new starts
-      only under the cap.
-- [ ] **Auto-start unblocked cards.** When a card completes/commits, automatically start every card whose
+      only under the cap.~~ Implemented across single-card starts, backlog batch starts, dependency auto-starts,
+      and runtime API starts; backend enforcement counts running/review project task sessions across terminal and
+      already-loaded Cline services without cold-starting Cline just to enforce the cap.
+- [x] ~~**Auto-start unblocked cards.** When a card completes/commits, automatically start every card whose
       `dependsOn[]` is now satisfied, subject to the cap and per-endpoint serialization. This is the
-      payoff of decomposition (L3): feed it a correct DAG and it runs hands-off.
+      payoff of decomposition (L3): feed it a correct DAG and it runs hands-off.~~ Existing linked-task
+      completion/trash and auto-review flows now auto-start only the newly unblocked backlog cards that fit
+      under the concurrency cap. Per-endpoint serialization remains tracked separately below.
 - [ ] **Local-endpoint serialization, parallel across endpoints.** Serialize tasks that target the *same*
       local endpoint (one 9B server can't serve many at once); parallelize across *distinct* local
       endpoints. Drive ordering/pacing from the MCSR wall-time estimate (tokens ÷ measured decode rate +
       prefill) so we don't fire everything at once and thrash one server.
-- [ ] **Plan2.md H3 (re-scoped):** `getSharedEndpointId` defaults a `sharedEndpointId` for *every*
+- [x] ~~**Plan2.md H3 (re-scoped):** `getSharedEndpointId` defaults a `sharedEndpointId` for *every*
       registry entry ([cline-model-registry.ts:212-216](src/cline-sdk/cline-model-registry.ts#L212));
       under local-only the failure mode flips — ensure serialization keys are correct *per local GPU/endpoint*
-      and that two distinct local endpoints never collide onto one shared id. (Cloud serialization is now moot.)
+      and that two distinct local endpoints never collide onto one shared id. (Cloud serialization is now moot.)~~
+      The scheduler and registry now share the local-only policy for endpoint serialization, including custom
+      local OpenAI-compatible providers, and regression tests cover same-endpoint blocking plus distinct-endpoint
+      parallel starts.
 - [ ] **Per-model tool routing for weak local models.** Wire the SDK's native `model-tool-routing`
       (`ToolRoutingRule`) so a small local model gets a trimmed, sequential toolset and a strong local
       model gets the full set. Config we own at the boundary — no SDK fork.
+      Partial: Kanban now passes a typed SDK `ToolRoutingRule` that trims fragile/default tools
+      (`fetch_web_content`, `skills`, `ask_question`, `editor`) for small local model families, including
+      custom local OpenAI-compatible providers whose provider id cannot be matched from SDK rules. Strong
+      models keep the full default toolset. Remaining: the installed public Cline core config type does not
+      expose `maxParallelToolCalls`, so forcing all weak-model tools to sequential execution should wait for
+      a typed SDK boundary rather than smuggling an undeclared field.
 
 ### L2.3 — Roster/roles wired to routing
-- [ ] **Make `modelRoles` active, not read-only.** Roles resolve to whichever connected *local* model
+- [x] ~~**Make `modelRoles` active, not read-only.** Roles resolve to whichever connected *local* model
       best fits the role's capability tier via the MCSR; auto-assignment by decomposition `complexity`
-      writes `clineSettings`; all assignment goes through the router/guard.
+      writes `clineSettings`; all assignment goes through the router/guard.~~ Decomposition apply now validates
+      each leaf through the Cline router/guard and writes the router-selected role's settings onto the created
+      Planning card, including route-up cases where a suggested `worker` task needs a stronger configured role.
+      If the router selects the default local model, stale suggested role overrides are intentionally not copied.
 - [x] ~~**Plan2.md H2:** the router picks `feasible[0]` (smallest sufficient) and then mislabels a feasible
       user-pick as `route_up` to a *smaller* model with a false reason
       ([cline-task-router.ts:122-151](src/cline-sdk/cline-task-router.ts#L122),

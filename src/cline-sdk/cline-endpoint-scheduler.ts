@@ -1,4 +1,5 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { isLocalProvider } from "./cline-local-only-policy";
 import {
 	buildClineModelRegistryKey,
 	type ClineModelRegistryKeyInput,
@@ -27,8 +28,6 @@ export type ClineEndpointSchedulingDecision =
 			reason: string;
 	  };
 
-const LOCAL_SERIALIZED_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
-
 function normalizeProviderId(providerId: string): string {
 	return providerId.trim().toLowerCase();
 }
@@ -44,10 +43,11 @@ function normalizeEndpoint(endpoint: string | null | undefined): string | null {
 
 function getFallbackSharedEndpointId(input: ClineModelRegistryKeyInput): string | null {
 	const providerId = normalizeProviderId(input.providerId);
-	if (!LOCAL_SERIALIZED_PROVIDER_IDS.has(providerId)) {
+	const endpoint = normalizeEndpoint(input.endpoint);
+	if (!isLocalProvider(providerId, endpoint)) {
 		return null;
 	}
-	return normalizeEndpoint(input.endpoint) ?? `${providerId}:default`;
+	return endpoint ?? `${providerId}:default`;
 }
 
 function getSharedEndpointId(snapshot: ClineModelRegistrySnapshot, input: ClineModelRegistryKeyInput): string | null {
@@ -57,7 +57,7 @@ function getSharedEndpointId(snapshot: ClineModelRegistrySnapshot, input: ClineM
 	if (providerId.length === 0 || modelId.length === 0) {
 		return null;
 	}
-	if (!LOCAL_SERIALIZED_PROVIDER_IDS.has(providerId)) {
+	if (!isLocalProvider(providerId, endpoint)) {
 		return null;
 	}
 	const key = buildClineModelRegistryKey({ providerId, modelId, endpoint });

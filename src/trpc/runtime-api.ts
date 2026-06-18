@@ -34,6 +34,7 @@ import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtim
 import type {
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
 } from "../core/api-contract";
 import {
@@ -80,6 +81,7 @@ export interface CreateRuntimeApiDependencies {
 	setActiveRuntimeConfig: (config: RuntimeConfigState) => void;
 	getScopedTerminalManager: (scope: RuntimeTrpcWorkspaceScope) => Promise<TerminalSessionManager>;
 	getScopedClineTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<ClineTaskSessionService>;
+	getLoadedScopedClineTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => ClineTaskSessionService | null;
 	resolveInteractiveShellCommand: () => { binary: string; args: string[] };
 	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
 	broadcastClineMcpAuthStatusesUpdated?: (
@@ -215,6 +217,29 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 	};
 }
 
+function isActiveProjectTaskSession(summary: RuntimeTaskSessionSummary): boolean {
+	return (
+		!isHomeAgentSessionId(summary.taskId) &&
+		summary.state !== "idle" &&
+		(summary.state === "running" || summary.state === "awaiting_review")
+	);
+}
+
+function countActiveProjectTaskSessions(summaries: RuntimeTaskSessionSummary[], startingTaskId: string): number {
+	const activeTaskIds = new Set<string>();
+	for (const summary of summaries) {
+		if (summary.taskId === startingTaskId || !isActiveProjectTaskSession(summary)) {
+			continue;
+		}
+		activeTaskIds.add(summary.taskId);
+	}
+	return activeTaskIds.size;
+}
+
+function createConcurrencyLimitStartError(maxConcurrentTasks: number): string {
+	return `Maximum concurrent task limit reached (${maxConcurrentTasks}). Wait for a running task to finish, or stop an active task before starting another.`;
+}
+
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const clineProviderService = createClineProviderService();
 	const clineMcpSettingsService = createClineMcpSettingsService();
@@ -301,6 +326,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					runtimeConfig: scopedRuntimeConfig,
 					taskSettings: body.clineSettings,
 				});
+				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
+				if (!isHomeAgentSessionId(body.taskId)) {
+					const loadedClineTaskSessionService =
+						deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
+					const activeProjectTaskCount = countActiveProjectTaskSessions(
+						[...terminalManager.listSummaries(), ...(loadedClineTaskSessionService?.listSummaries() ?? [])],
+						body.taskId,
+					);
+					if (activeProjectTaskCount >= scopedRuntimeConfig.maxConcurrentTasks) {
+						return {
+							ok: false,
+							summary: null,
+							error: createConcurrencyLimitStartError(scopedRuntimeConfig.maxConcurrentTasks),
+						};
+					}
+				}
 				const taskCwd = isHomeAgentSessionId(body.taskId)
 					? workspaceScope.workspacePath
 					: await resolveExistingTaskCwdOrEnsure({
@@ -323,7 +364,6 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				//   session-level persistence for these;
 				//   if the user changes the model on the card, the next session launch
 				//   (including trash-restore) uses the updated values.
-				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				const previousTerminalAgentId = body.resumeFromTrash
 					? (terminalManager.getSummary(body.taskId)?.agentId ?? null)
 					: null;
@@ -335,8 +375,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					// If the terminal summary already has a concrete non-Cline agentId,
 					// skip Cline persisted-session probing. That probe can cold-start the
 					// Cline session host and adds multi-second latency to Codex restores.
-					const clineSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-					const persistedSession = await clineSessionService
+					const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+					const persistedSession = await clineTaskSessionService
 						.rebindPersistedTaskSession(body.taskId)
 						.catch(() => null);
 					if (persistedSession) {

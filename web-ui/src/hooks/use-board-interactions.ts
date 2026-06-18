@@ -430,6 +430,10 @@ export function useBoardInteractions({
 			if (!isStartableSourceColumnId(fromColumnId)) {
 				return false;
 			}
+			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
+			if (availableStartSlots === 0) {
+				return false;
+			}
 			if (selectedCard) {
 				return startWaitingTaskImmediately(task, fromColumnId);
 			}
@@ -467,6 +471,8 @@ export function useBoardInteractions({
 		},
 		[
 			kickoffTaskInProgress,
+			activeTaskSessionCount,
+			maxConcurrentTasks,
 			resolvePendingProgrammaticStartMove,
 			selectedCard,
 			startWaitingTaskImmediately,

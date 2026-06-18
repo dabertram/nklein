@@ -201,6 +201,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,
 				getScopedTerminalManager,
 				getScopedClineTaskSessionService,
+				getLoadedScopedClineTaskSessionService: (workspaceScope) =>
+					clineTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
 				resolveInteractiveShellCommand: deps.resolveInteractiveShellCommand,
 				runCommand: deps.runCommand,
 				broadcastClineMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastClineMcpAuthStatusesUpdated,

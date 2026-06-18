@@ -435,6 +435,63 @@ describe("useBoardInteractions", () => {
 		]);
 	});
 
+	it("blocks single-card starts when the active task capacity is full", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const board = createBoard();
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={board}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					activeTaskSessionCount={2}
+					maxConcurrentTasks={2}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+		});
+
+		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
+		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
+		expect(startTaskSession).not.toHaveBeenCalled();
+		expect(setBoard).not.toHaveBeenCalledWith(expect.any(Function));
+	});
+
 	it("skips tasks parked for decomposition during manual start-all", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		let currentBoard: BoardData = {

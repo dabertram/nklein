@@ -2,15 +2,11 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import { LOCAL_PROVIDER_IDS } from "./cline-local-only-policy";
+import { isLocalProvider } from "./cline-local-only-policy";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
 const DEFAULT_CAPABILITY_PRIOR = 35;
-// Local inference servers (one GPU/endpoint) are serialized by the scheduler. Source of truth is the
-// local-only policy so the set never drifts from the lockdown's notion of "local".
-const LOCAL_SERIALIZED_PROVIDER_IDS = LOCAL_PROVIDER_IDS;
-
 export interface ClineModelRegistryKeyInput {
 	providerId: string;
 	modelId: string;
@@ -153,9 +149,7 @@ function normalizeEndpoint(endpoint: string | null | undefined): string | null {
 }
 
 function getDefaultSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
-	return LOCAL_SERIALIZED_PROVIDER_IDS.has(input.providerId)
-		? (input.endpoint ?? `${input.providerId}:default`)
-		: null;
+	return isLocalProvider(input.providerId, input.endpoint) ? (input.endpoint ?? `${input.providerId}:default`) : null;
 }
 
 export function buildClineModelRegistryKey(input: ClineModelRegistryKeyInput): string {

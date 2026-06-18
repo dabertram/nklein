@@ -301,7 +301,7 @@ describe("InMemoryClineSessionRuntime", () => {
 					toolRoutingRules: expect.arrayContaining([
 						expect.objectContaining({
 							name: "kanban-small-local-model-tool-trim",
-							disableTools: ["fetch_web_content", "skills", "ask_question"],
+							disableTools: ["fetch_web_content", "skills", "ask_question", "editor"],
 						}),
 					]),
 				}),

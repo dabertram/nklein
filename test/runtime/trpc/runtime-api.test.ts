@@ -151,12 +151,27 @@ vi.mock("../../../src/cline-sdk/cline-eval-harness.js", () => ({
 import type { RuntimeTrpcContext } from "../../../src/trpc/app-router";
 import { type CreateRuntimeApiDependencies, createRuntimeApi } from "../../../src/trpc/runtime-api";
 
+type ScopedTerminalManager = Awaited<ReturnType<CreateRuntimeApiDependencies["getScopedTerminalManager"]>>;
+
+function withDefaultTerminalListSummaries(manager: ScopedTerminalManager): ScopedTerminalManager {
+	const managerWithOptionalList = manager as unknown as {
+		listSummaries?: () => RuntimeTaskSessionSummary[];
+	};
+	if (managerWithOptionalList.listSummaries) {
+		return manager;
+	}
+	managerWithOptionalList.listSummaries = vi.fn((): RuntimeTaskSessionSummary[] => []);
+	return manager;
+}
+
 function createTestRuntimeApi(
 	deps: Omit<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow"> &
 		Partial<Pick<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow">>,
 ): RuntimeTrpcContext["runtimeApi"] {
 	return createRuntimeApi({
 		...deps,
+		getScopedTerminalManager: async (scope) =>
+			withDefaultTerminalListSummaries(await deps.getScopedTerminalManager(scope)),
 		getUpdateStatus:
 			deps.getUpdateStatus ??
 			vi.fn(() => ({
@@ -724,6 +739,93 @@ describe("createRuntimeApi startTaskSession", () => {
 			baseRef: "main",
 			ensure: true,
 		});
+	});
+
+	it("blocks project task starts when the terminal active task capacity is full", async () => {
+		const terminalManager = {
+			listSummaries: vi.fn(() => [createSummary({ taskId: "task-2", state: "running" })]),
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => ({
+				...createRuntimeConfigState(),
+				maxConcurrentTasks: 1,
+			})),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Investigate startup freeze",
+			},
+		);
+
+		expect(response).toEqual({
+			ok: false,
+			summary: null,
+			error: "Maximum concurrent task limit reached (1). Wait for a running task to finish, or stop an active task before starting another.",
+		});
+		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("counts active Cline sessions when enforcing project task capacity", async () => {
+		const terminalManager = {
+			listSummaries: vi.fn(() => []),
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.listSummaries.mockReturnValue([
+			createSummary({ taskId: "task-2", state: "awaiting_review", agentId: "cline", pid: null }),
+		]);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.maxConcurrentTasks = 1;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Continue task",
+			},
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.error).toContain("Maximum concurrent task limit reached (1)");
+		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
+		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("routes cline start sessions to cline task session service", async () => {

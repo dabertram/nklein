@@ -121,9 +121,19 @@ describe("cline model registry", () => {
 			outputTokens: 100,
 			wallTimeMs: 1_000,
 		});
+		const customLocalEntry = await registry.recordRequest({
+			providerId: "openai-compatible",
+			modelId: "local-qwen",
+			endpoint: "http://127.0.0.1:1234/v1",
+			contextWindow: 16_000,
+			promptTokens: 1_000,
+			outputTokens: 100,
+			wallTimeMs: 1_000,
+		});
 
 		expect(cloudEntry.constraints.sharedEndpointId).toBeNull();
 		expect(localEntry.constraints.sharedEndpointId).toBe("http://127.0.0.1:11434");
+		expect(customLocalEntry.constraints.sharedEndpointId).toBe("http://127.0.0.1:1234/v1");
 	});
 });
 
