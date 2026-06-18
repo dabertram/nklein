@@ -62,6 +62,7 @@ describe("useAppHotkeys", () => {
 					handleToggleExpandHomeTerminal={() => {}}
 					handleOpenCreateTask={() => {}}
 					handleOpenSettings={handleOpenSettings}
+					handleOpenCommandPalette={() => {}}
 					handleToggleGitHistory={handleToggleGitHistory}
 					handleCloseGitHistory={() => {}}
 					onStartAllTasks={() => {}}
@@ -89,6 +90,44 @@ describe("useAppHotkeys", () => {
 		expect(handleOpenSettings).toHaveBeenCalledTimes(1);
 	});
 
+	it("opens the command palette on Mod+K", async () => {
+		const handleOpenCommandPalette = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					selectedCard={null}
+					isDetailTerminalOpen={false}
+					isHomeTerminalOpen={false}
+					isHomeGitHistoryOpen={false}
+					canUseCreateTaskShortcut
+					handleToggleDetailTerminal={() => {}}
+					handleToggleHomeTerminal={() => {}}
+					handleToggleExpandDetailTerminal={() => {}}
+					handleToggleExpandHomeTerminal={() => {}}
+					handleOpenCreateTask={() => {}}
+					handleOpenSettings={() => {}}
+					handleOpenCommandPalette={handleOpenCommandPalette}
+					handleToggleGitHistory={() => {}}
+					handleCloseGitHistory={() => {}}
+					onStartAllTasks={() => {}}
+				/>,
+			);
+		});
+
+		const commandPaletteCall = mockUseHotkeys.mock.calls.find(([shortcut]) => shortcut === "mod+k");
+		if (!commandPaletteCall || typeof commandPaletteCall[1] !== "function") {
+			throw new Error("Expected command palette shortcut to be registered.");
+		}
+
+		act(() => {
+			const commandPaletteHandler = commandPaletteCall[1] as () => void;
+			commandPaletteHandler();
+		});
+
+		expect(handleOpenCommandPalette).toHaveBeenCalledTimes(1);
+	});
+
 	it("closes home git history on Escape", async () => {
 		const handleCloseGitHistory = vi.fn();
 
@@ -106,6 +145,7 @@ describe("useAppHotkeys", () => {
 					handleToggleExpandHomeTerminal={() => {}}
 					handleOpenCreateTask={() => {}}
 					handleOpenSettings={() => {}}
+					handleOpenCommandPalette={() => {}}
 					handleToggleGitHistory={() => {}}
 					handleCloseGitHistory={handleCloseGitHistory}
 					onStartAllTasks={() => {}}
@@ -143,6 +183,7 @@ describe("useAppHotkeys", () => {
 					handleToggleExpandHomeTerminal={() => {}}
 					handleOpenCreateTask={() => {}}
 					handleOpenSettings={() => {}}
+					handleOpenCommandPalette={() => {}}
 					handleToggleGitHistory={() => {}}
 					handleCloseGitHistory={() => {}}
 					onStartAllTasks={onStartAllTasks}
@@ -180,6 +221,7 @@ describe("useAppHotkeys", () => {
 					handleToggleExpandHomeTerminal={() => {}}
 					handleOpenCreateTask={handleOpenCreateTask}
 					handleOpenSettings={() => {}}
+					handleOpenCommandPalette={() => {}}
 					handleToggleGitHistory={() => {}}
 					handleCloseGitHistory={() => {}}
 					onStartAllTasks={() => {}}

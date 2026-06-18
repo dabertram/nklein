@@ -18,6 +18,7 @@ interface UseAppHotkeysInput {
 	handleToggleExpandHomeTerminal: () => void;
 	handleOpenCreateTask: () => void;
 	handleOpenSettings: () => void;
+	handleOpenCommandPalette: () => void;
 	handleToggleGitHistory: () => void;
 	handleCloseGitHistory: () => void;
 	onStartAllTasks: () => void;
@@ -35,6 +36,7 @@ export function useAppHotkeys({
 	handleToggleExpandHomeTerminal,
 	handleOpenCreateTask,
 	handleOpenSettings,
+	handleOpenCommandPalette,
 	handleToggleGitHistory,
 	handleCloseGitHistory,
 	onStartAllTasks,
@@ -104,6 +106,17 @@ export function useAppHotkeys({
 		},
 		{ preventDefault: true },
 		[canUseCreateTaskShortcut, handleOpenCreateTask],
+	);
+
+	useHotkeys(
+		"mod+k",
+		handleOpenCommandPalette,
+		{
+			enableOnFormTags: true,
+			enableOnContentEditable: true,
+			preventDefault: true,
+		},
+		[handleOpenCommandPalette],
 	);
 
 	useHotkeys(

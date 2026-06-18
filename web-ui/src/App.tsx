@@ -9,6 +9,7 @@ import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import { CardDetailView } from "@/components/card-detail-view";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
+import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { GitHistoryView } from "@/components/git-history-view";
@@ -100,6 +101,7 @@ export default function App(): ReactElement {
 	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("projects");
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
+	const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 	const [pendingTaskStartAfterEditId, setPendingTaskStartAfterEditId] = useState<string | null>(null);
 	const taskEditorResetRef = useRef<() => void>(() => {});
 	const lastStreamErrorRef = useRef<string | null>(null);
@@ -683,6 +685,10 @@ export default function App(): ReactElement {
 		setSelectedTaskId,
 	});
 
+	const handleOpenCommandPalette = useCallback(() => {
+		setIsCommandPaletteOpen(true);
+	}, []);
+
 	useAppHotkeys({
 		selectedCard,
 		isDetailTerminalOpen,
@@ -695,6 +701,7 @@ export default function App(): ReactElement {
 		handleToggleExpandHomeTerminal: handleToggleExpandHomeTerminal,
 		handleOpenCreateTask,
 		handleOpenSettings,
+		handleOpenCommandPalette,
 		handleToggleGitHistory,
 		handleCloseGitHistory,
 		onStartAllTasks: handleStartAllBacklogTasksFromBoard,
@@ -1218,6 +1225,20 @@ export default function App(): ReactElement {
 						refreshSettingsRuntimeProjectConfig();
 					}}
 					onAccountSwitched={refreshKanbanAccess}
+				/>
+				<CommandPalette
+					open={isCommandPaletteOpen}
+					onOpenChange={setIsCommandPaletteOpen}
+					hasProject={!hasNoProjects && currentProjectId !== null}
+					showDebugCommands={debugModeEnabled}
+					onCreateTask={handleOpenCreateTask}
+					onAddProject={() => {
+						void handleAddProject();
+					}}
+					onOpenSettings={handleOpenSettings}
+					onOpenDebugTools={debugModeEnabled ? handleOpenDebugDialog : undefined}
+					onToggleGitHistory={handleToggleGitHistory}
+					onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 				/>
 				<DebugDialog
 					open={isDebugDialogOpen}
