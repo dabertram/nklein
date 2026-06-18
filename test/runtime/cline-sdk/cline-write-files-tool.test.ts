@@ -80,6 +80,25 @@ describe("createWriteFilesTool", () => {
 		await expect(readFile(join(workspacePath, ".env"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 	});
 
+	it("blocks protected suite paths before writing any batch entries", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 10 });
+
+		await expect(
+			tool.execute(
+				{
+					files: [
+						{ path: "safe.txt", content: "safe\n" },
+						{ path: "test/protected/protected-tests.json", content: "{}\n" },
+					],
+				},
+				TOOL_CONTEXT,
+			),
+		).rejects.toThrow("protected test suite");
+		await expect(readFile(join(workspacePath, "safe.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+	});
+
 	it("rejects batches with missing content instead of silently dropping entries", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

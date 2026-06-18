@@ -3,10 +3,12 @@
 // workspace actions, but detailed Cline, terminal, and config behavior
 // should stay in focused services instead of accumulating here.
 
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
@@ -64,8 +66,11 @@ import type {
 	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskEvidenceResponse,
 	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
+	RuntimeWorkspaceChangesResponse,
+	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import {
 	parseClineAccountSwitchRequest,
@@ -74,6 +79,7 @@ import {
 	parseClineAdvisorSendRequest,
 	parseClineDeviceAuthCompleteRequest,
 	parseClineDogfoodBacklogRequest,
+	parseClineEndpointModelDiscoveryRequest,
 	parseClineMcpOAuthRequest,
 	parseClineMcpSettingsSaveRequest,
 	parseClineModelContextWindowOverrideRequest,
@@ -89,6 +95,7 @@ import {
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
 	parseTaskChatSendRequest,
+	parseTaskEvidenceRequest,
 	parseTaskSessionInputRequest,
 	parseTaskSessionStartRequest,
 	parseTaskSessionStopRequest,
@@ -98,9 +105,11 @@ import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/s
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
+import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 import {
 	mergeTaskWorktreesInDependencyOrder,
@@ -113,6 +122,8 @@ import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 type ResolvedClineLaunchConfig = Awaited<
 	ReturnType<ReturnType<typeof createClineProviderService>["resolveLaunchConfig"]>
 >;
+
+const execFileAsync = promisify(execFile);
 
 interface AdvisorChatCompletionInput {
 	launchConfig: ResolvedClineLaunchConfig;
@@ -276,6 +287,7 @@ export interface CreateRuntimeApiDependencies {
 	prepareForStateReset?: () => Promise<void>;
 	taskStartQueue?: RuntimeTaskStartQueue;
 	getDogfoodTelemetryRoot?: () => string;
+	getEvidenceBundleRoot?: () => string;
 	getUpdateStatus: () => RuntimeUpdateStatusResponse;
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
 }
@@ -300,6 +312,89 @@ async function resolveExistingTaskCwdOrEnsure(options: {
 			ensure: true,
 		});
 	}
+}
+
+function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: string): RuntimeBoardCard | null {
+	for (const column of board.columns) {
+		const card = column.cards.find((candidate) => candidate.id === taskId);
+		if (card) {
+			return card;
+		}
+	}
+	return null;
+}
+
+async function resolveGitCommit(cwd: string, ref: string): Promise<string | null> {
+	try {
+		const { stdout } = await execFileAsync("git", ["rev-parse", ref], {
+			cwd,
+			timeout: 5_000,
+			maxBuffer: 128 * 1024,
+		});
+		const commit = stdout.trim();
+		return commit || null;
+	} catch {
+		return null;
+	}
+}
+
+function truncateEvidenceText(value: string, maxChars: number): string {
+	const normalized = value.trimEnd();
+	if (normalized.length <= maxChars) {
+		return normalized;
+	}
+	return `${normalized.slice(0, maxChars).trimEnd()}\n[truncated after ${maxChars.toLocaleString()} characters]`;
+}
+
+function renderWorkspaceChangesEvidence(changes: RuntimeWorkspaceChangesResponse | null): string | null {
+	if (!changes || changes.files.length === 0) {
+		return null;
+	}
+	const sections: string[] = [];
+	for (const file of changes.files.slice(0, 20)) {
+		sections.push(
+			[
+				`diff --nklein ${file.path}`,
+				`status: ${file.status}; additions: ${file.additions}; deletions: ${file.deletions}`,
+				file.previousPath ? `previous: ${file.previousPath}` : null,
+				file.oldText !== null ? "--- old" : null,
+				file.oldText !== null ? truncateEvidenceText(file.oldText, 4_000) : null,
+				file.newText !== null ? "+++ new" : null,
+				file.newText !== null ? truncateEvidenceText(file.newText, 4_000) : null,
+			]
+				.filter((line): line is string => line !== null)
+				.join("\n"),
+		);
+	}
+	if (changes.files.length > 20) {
+		sections.push(`[${changes.files.length - 20} additional changed files omitted from evidence preview]`);
+	}
+	return `${sections.join("\n\n")}\n`;
+}
+
+function buildTaskEvidencePromptBlock(input: {
+	task: RuntimeBoardCard;
+	workspacePath: string;
+	taskCwd: string;
+	baseCommit: string | null;
+	bundlePath: string;
+	transcriptCount: number;
+	changeCount: number;
+}): string {
+	return [
+		"Here is evidence from a !Klein task.",
+		"",
+		`Evidence bundle: ${input.bundlePath}`,
+		`Workspace: ${input.workspacePath}`,
+		`Task worktree: ${input.taskCwd}`,
+		`Task: ${input.task.title?.trim() || input.task.id} (${input.task.id})`,
+		`Base ref: ${input.task.baseRef}`,
+		`Base commit: ${input.baseCommit ?? "unknown"}`,
+		`Transcript files: ${input.transcriptCount}`,
+		`Changed files captured: ${input.changeCount}`,
+		"",
+		"Please inspect the files in the evidence bundle, especially summary.md, transcript/, diff.patch, and config-snapshot.json. Then diagnose the issue, propose the smallest safe fix, and update the code/tests accordingly.",
+	].join("\n");
 }
 
 function getProfileTimeoutDefaults(profile: "cloud" | "local" | "custom"): {
@@ -1399,6 +1494,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const body = parseClineProviderModelsRequest(input);
 			return await clineProviderService.getProviderModels(body.providerId);
 		},
+		discoverClineEndpointModels: async (_workspaceScope, input) => {
+			const body = parseClineEndpointModelDiscoveryRequest(input);
+			return await clineProviderService.discoverEndpointModels(body);
+		},
 		getClineModelRegistry: async (workspaceScope) => {
 			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
 			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
@@ -1623,6 +1722,98 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				providerId: launchConfig.providerId,
 				modelId,
 				endpoint: launchConfig.baseUrl ?? null,
+			};
+		},
+		collectTaskEvidence: async (workspaceScope, input): Promise<RuntimeTaskEvidenceResponse> => {
+			if (!workspaceScope) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "A workspace is required to collect task evidence.",
+				});
+			}
+			const body = parseTaskEvidenceRequest(input);
+			const state = await loadWorkspaceState(workspaceScope.workspacePath);
+			const task = findTaskCard(state.board, body.taskId);
+			if (!task) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: `Task ${body.taskId} was not found in this workspace.`,
+				});
+			}
+			const taskCwd = await resolveExistingTaskCwdOrEnsure({
+				cwd: workspaceScope.workspacePath,
+				taskId: task.id,
+				baseRef: task.baseRef,
+			}).catch(() => workspaceScope.workspacePath);
+			const [clineTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
+				deps.getScopedClineTaskSessionService(workspaceScope),
+				deps.loadScopedRuntimeConfig(workspaceScope),
+				resolveGitCommit(workspaceScope.workspacePath, task.baseRef),
+				getWorkspaceChanges(taskCwd)
+					.then((changes) => changes)
+					.catch(() => null),
+			]);
+			const messages = clineTaskSessionService.listMessages(task.id);
+			const diffPatch = renderWorkspaceChangesEvidence(changesResult);
+			const title = task.title?.trim() || task.id;
+			const bundle = await createEvidenceBundle({
+				rootDir: deps.getEvidenceBundleRoot?.(),
+				scenario: `task-${task.id}-${title}`,
+				outcome: task.autoReviewStatus === "failed" ? "failed" : "unknown",
+				summary: [
+					`Task: ${title} (${task.id})`,
+					`Workspace: ${workspaceScope.workspacePath}`,
+					`Task worktree: ${taskCwd}`,
+					`Base ref: ${task.baseRef}`,
+					`Base commit: ${baseCommit ?? "unknown"}`,
+					"",
+					"Prompt:",
+					task.prompt,
+				].join("\n"),
+				models: [
+					task.clineSettings?.providerId && task.clineSettings?.modelId
+						? `${task.clineSettings.providerId}/${task.clineSettings.modelId}`
+						: "default",
+				],
+				metrics: [
+					{ label: "changedFiles", value: changesResult?.files.length ?? 0 },
+					{ label: "transcriptMessages", value: messages.length },
+					{ label: "baseRef", value: task.baseRef },
+					{ label: "baseCommit", value: baseCommit },
+				],
+				transcripts: [
+					{
+						taskId: task.id,
+						title,
+						messages,
+					},
+				],
+				diffPatch,
+				configSnapshot: {
+					task,
+					runtimeConfig: {
+						codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
+						codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
+						effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
+						maxConcurrentTasks: runtimeConfig.maxConcurrentTasks,
+						lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
+					},
+					workspacePath: workspaceScope.workspacePath,
+					taskCwd,
+					baseCommit,
+				},
+			});
+			return {
+				bundlePath: bundle.bundlePath,
+				promptBlock: buildTaskEvidencePromptBlock({
+					task,
+					workspacePath: workspaceScope.workspacePath,
+					taskCwd,
+					baseCommit,
+					bundlePath: bundle.bundlePath,
+					transcriptCount: messages.length > 0 ? 1 : 0,
+					changeCount: changesResult?.files.length ?? 0,
+				}),
 			};
 		},
 		getClineMcpAuthStatuses: async (_workspaceScope) => {

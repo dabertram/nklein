@@ -4,6 +4,7 @@ import {
 	countTextLines,
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 	findPotentialSecretInText,
+	findProtectedTestPath,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
@@ -82,6 +83,10 @@ function appendPatchAddedLine(existing: string, line: string): string {
 
 function buildSecretWriteBlockReason(toolName: string, path: string, label: string): string {
 	return `Blocked ${toolName}: potential ${label} detected in ${path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`;
+}
+
+function buildProtectedTestBlockReason(toolName: string, path: string): string {
+	return `Blocked ${toolName}: ${path} is part of the protected test suite. Changing protected tests requires explicit human approval with intent, diff, reason, and expected effects.`;
 }
 
 function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
@@ -250,6 +255,13 @@ async function approveEditorTool(
 			reason: `Approved by !Klein runtime for ${request.toolName}.`,
 		};
 	}
+	const protectedPath = findProtectedTestPath(rawPath);
+	if (protectedPath) {
+		return {
+			approved: false,
+			reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+		};
+	}
 	const path = resolveToolPath(workspacePath, rawPath);
 	const currentText = (await readFile(path, "utf-8").catch(() => "")) as string;
 	const currentLines = countTextLines(currentText);
@@ -304,6 +316,13 @@ async function approveWriteFilesTool(
 		};
 	}
 	for (const writeRequest of writeRequests) {
+		const protectedPath = findProtectedTestPath(writeRequest.path);
+		if (protectedPath) {
+			return {
+				approved: false,
+				reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+			};
+		}
 		const lineCount = countTextLines(writeRequest.content);
 		if (lineCount > maxAgentWritableFileLines) {
 			return {
@@ -338,6 +357,13 @@ async function approveApplyPatchTool(
 		};
 	}
 	for (const target of targets) {
+		const protectedPath = findProtectedTestPath(target.path);
+		if (protectedPath) {
+			return {
+				approved: false,
+				reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+			};
+		}
 		if (target.type === "delete") {
 			continue;
 		}

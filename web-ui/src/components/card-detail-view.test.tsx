@@ -3,7 +3,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CardDetailView } from "@/components/card-detail-view";
-import type { RuntimeTaskDiagnosticsResponse } from "@/runtime/types";
+import type {
+	RuntimeClinePlanArtifactsResponse,
+	RuntimeTaskAcceptanceVerifyResponse,
+	RuntimeTaskDiagnosticsResponse,
+	RuntimeTaskWorktreeMergeResponse,
+} from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
 import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardCard, BoardColumn, CardSelection } from "@/types";
@@ -16,6 +21,12 @@ const {
 	mockClineAppendToDraft,
 	mockClineSendText,
 	mockFetchTaskDiagnostics,
+	mockFetchClinePlanArtifacts,
+	mockApplyClinePlanArtifact,
+	mockRejectClinePlanArtifact,
+	mockVerifyTaskAcceptance,
+	mockMergeTaskWorktrees,
+	mockCollectTaskEvidence,
 } = vi.hoisted(() => ({
 	mockAgentTerminalPanel: vi.fn((_props: { panelBackgroundColor?: string; terminalBackgroundColor?: string }) => null),
 	mockClineAgentChatPanel: vi.fn((..._args: unknown[]) => null),
@@ -23,6 +34,12 @@ const {
 	mockClineAppendToDraft: vi.fn(),
 	mockClineSendText: vi.fn(async () => {}),
 	mockFetchTaskDiagnostics: vi.fn(async (): Promise<RuntimeTaskDiagnosticsResponse> => ({ ok: true, events: [] })),
+	mockFetchClinePlanArtifacts: vi.fn(async (): Promise<RuntimeClinePlanArtifactsResponse> => ({ artifacts: [] })),
+	mockApplyClinePlanArtifact: vi.fn(),
+	mockRejectClinePlanArtifact: vi.fn(),
+	mockVerifyTaskAcceptance: vi.fn(),
+	mockMergeTaskWorktrees: vi.fn(),
+	mockCollectTaskEvidence: vi.fn(),
 }));
 
 vi.mock("react-hotkeys-hook", () => ({
@@ -72,7 +89,13 @@ vi.mock("@/runtime/use-runtime-workspace-changes", () => ({
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
+	applyClinePlanArtifact: mockApplyClinePlanArtifact,
+	collectTaskEvidence: mockCollectTaskEvidence,
+	fetchClinePlanArtifacts: mockFetchClinePlanArtifacts,
 	fetchTaskDiagnostics: mockFetchTaskDiagnostics,
+	mergeTaskWorktrees: mockMergeTaskWorktrees,
+	rejectClinePlanArtifact: mockRejectClinePlanArtifact,
+	verifyTaskAcceptance: mockVerifyTaskAcceptance,
 }));
 
 vi.mock("@/stores/workspace-metadata-store", () => ({
@@ -202,6 +225,54 @@ describe("CardDetailView", () => {
 		mockClineSendText.mockClear();
 		mockFetchTaskDiagnostics.mockReset();
 		mockFetchTaskDiagnostics.mockResolvedValue({ ok: true, events: [] });
+		mockFetchClinePlanArtifacts.mockReset();
+		mockFetchClinePlanArtifacts.mockResolvedValue({ artifacts: [] });
+		mockApplyClinePlanArtifact.mockReset();
+		mockRejectClinePlanArtifact.mockReset();
+		mockVerifyTaskAcceptance.mockReset();
+		mockCollectTaskEvidence.mockReset();
+		mockCollectTaskEvidence.mockResolvedValue({
+			bundlePath: "/tmp/evidence/task-1",
+			promptBlock: "Here is evidence from a !Klein task.",
+		});
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: vi.fn(async () => {}),
+			},
+		});
+		mockVerifyTaskAcceptance.mockResolvedValue({
+			ok: true,
+			taskId: "task-1",
+			taskWorkspacePath: "/tmp/worktree",
+			acceptance: {
+				present: true,
+				command: "npm test",
+				passed: true,
+				exitCode: 0,
+				output: "ok",
+				durationMs: 10,
+			},
+			message: "Acceptance check passed: npm test.",
+		} satisfies RuntimeTaskAcceptanceVerifyResponse);
+		mockMergeTaskWorktrees.mockReset();
+		mockMergeTaskWorktrees.mockResolvedValue({
+			ok: true,
+			column: "review",
+			mergedTaskIds: ["task-1"],
+			skippedTaskIds: [],
+			steps: [
+				{
+					type: "merged",
+					taskId: "task-1",
+					headCommit: "abc123",
+					reason: "task worktree HEAD merged into the base worktree.",
+				},
+			],
+			conflict: null,
+			blocked: null,
+			message: "Merged 1 task worktrees; skipped 0.",
+		} satisfies RuntimeTaskWorktreeMergeResponse);
 		mockUseRuntimeWorkspaceChanges.mockReturnValue({
 			changes: {
 				files: [
@@ -754,6 +825,144 @@ describe("CardDetailView", () => {
 			approveButton?.click();
 		});
 		expect(handleApprovePlanningCard).toHaveBeenCalledWith("plan-ui");
+	});
+
+	it("exposes verify and merge actions for review cards with acceptance checks", async () => {
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection({
+						columnId: "review",
+						card: createCard("task-1", {
+							prompt: "Ship the change.\n\nAcceptance check: npm test",
+						}),
+					})}
+					currentProjectId="workspace-1"
+					sessionSummary={null}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		const verifyButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Verify",
+		);
+		const mergeButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Merge",
+		);
+		expect(verifyButton).toBeInstanceOf(HTMLButtonElement);
+		expect(mergeButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			verifyButton?.click();
+			await Promise.resolve();
+		});
+		expect(mockVerifyTaskAcceptance).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(container.textContent).toContain("Acceptance check passed");
+
+		await act(async () => {
+			mergeButton?.click();
+			await Promise.resolve();
+		});
+		expect(mockMergeTaskWorktrees).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(container.textContent).toContain("Merged 1 task worktrees");
+	});
+
+	it("collects and copies evidence for the selected card", async () => {
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection({ columnId: "review" })}
+					currentProjectId="workspace-1"
+					sessionSummary={null}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		const evidenceButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Copy evidence",
+		);
+		expect(evidenceButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			evidenceButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(mockCollectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
+		expect(container.textContent).toContain("Evidence copied. /tmp/evidence/task-1");
+	});
+
+	it("exposes a mark interrupted action for lost Cline sessions", async () => {
+		const onMarkTaskInterrupted = vi.fn(async () => ({ ok: true }));
+
+		await act(async () => {
+			root.render(
+				<CardDetailView
+					selection={createSelection({ columnId: "review" })}
+					currentProjectId="workspace-1"
+					selectedAgentId="cline"
+					sessionSummary={{
+						taskId: "task-1",
+						state: "awaiting_review",
+						agentId: "cline",
+						workspacePath: null,
+						pid: null,
+						startedAt: null,
+						updatedAt: Date.now(),
+						lastOutputAt: null,
+						reviewReason: "error",
+						exitCode: null,
+						lastHookAt: null,
+						latestHookActivity: null,
+						warningMessage:
+							"Cline session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
+						heartbeatStatus: "lost",
+					}}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onCardSelect={() => {}}
+					onTaskDragEnd={() => {}}
+					onMoveToTrash={() => {}}
+					onMarkTaskInterrupted={onMarkTaskInterrupted}
+					bottomTerminalOpen={false}
+					bottomTerminalTaskId={null}
+					bottomTerminalSummary={null}
+					onBottomTerminalClose={() => {}}
+				/>,
+			);
+		});
+
+		const markInterruptedButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Mark interrupted",
+		);
+		expect(markInterruptedButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			markInterruptedButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(onMarkTaskInterrupted).toHaveBeenCalledWith("task-1");
+		expect(container.textContent).toContain("Marked the lost task session interrupted.");
 	});
 
 	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {

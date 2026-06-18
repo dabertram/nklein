@@ -3,6 +3,7 @@ import type { AgentTool } from "@clinebot/shared";
 import {
 	countTextLines,
 	findPotentialSecretInText,
+	findProtectedTestPath,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
@@ -103,6 +104,12 @@ function createWriteTool(options: {
 			}
 			const validatedRequests: Array<{ path: string; content: string; lines: number }> = [];
 			for (const request of requests) {
+				const protectedPath = findProtectedTestPath(request.path);
+				if (protectedPath) {
+					throw new Error(
+						`Blocked ${options.name}: ${protectedPath} is part of the protected test suite. Changing protected tests requires explicit human approval with intent, diff, reason, and expected effects.`,
+					);
+				}
 				const lineCount = countTextLines(request.content);
 				if (lineCount > maxFileLines) {
 					throw new Error(

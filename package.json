@@ -1,12 +1,14 @@
 {
-  "name": "kanban",
-  "version": "0.1.68",
-  "description": "A kanban foundation for coding agents",
+  "name": "nklein",
+  "version": "0.0.1",
+  "description": "!Klein: a local-first orchestration board for coding agents",
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "keywords": [
+    "nklein",
+    "!klein",
     "kanban",
     "agents",
     "cli",
@@ -24,9 +26,9 @@
   },
   "type": "module",
   "bin": {
-    "kanban": "dist/cli.js"
+    "nklein": "dist/cli.js"
   },
-  "man": "./man/kanban.1",
+  "man": "./man/nklein.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -50,7 +52,7 @@
     "build": "npm run clean && npm run web:build && node scripts/build.mjs && shx mkdir -p dist/web-ui && shx cp -r web-ui/dist/* dist/web-ui && node scripts/upload-sentry-sourcemaps.mjs && shx chmod +x dist/cli.js",
     "dogfood": "node scripts/dogfood.mjs",
     "link": "npm run build && npm link",
-    "unlink": "npm unlink -g kanban",
+    "unlink": "npm unlink -g nklein",
     "dev": "NODE_ENV=development tsx src/cli.ts",
     "dev:full": "node scripts/dev-full.mjs",
     "web:dev": "npm --prefix web-ui run dev",
@@ -65,6 +67,7 @@
     "test": "vitest run",
     "test:fast": "vitest run test/runtime test/utilities",
     "test:integration": "vitest run test/integration",
+    "test:protected": "vitest run --config vitest.protected.config.ts",
     "test:precommit": "npm run test:fast",
     "test:watch": "vitest",
     "prepare": "husky",

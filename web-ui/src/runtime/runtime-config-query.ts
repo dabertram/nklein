@@ -10,11 +10,13 @@ import type {
 	RuntimeClineAddProviderResponse,
 	RuntimeClineAdvisorBuildRequest,
 	RuntimeClineAdvisorRequest,
+	RuntimeClineAdvisorSendResponse,
 	RuntimeClineCodeIntelligenceStatusResponse,
 	RuntimeClineDeviceAuthCompleteRequest,
 	RuntimeClineDeviceAuthCompleteResponse,
 	RuntimeClineDeviceAuthStartResponse,
 	RuntimeClineDogfoodBacklogResponse,
+	RuntimeClineEndpointModelDiscoveryResponse,
 	RuntimeClineKanbanAccessResponse,
 	RuntimeClineMcpAuthStatusResponse,
 	RuntimeClineMcpOAuthResponse,
@@ -24,6 +26,9 @@ import type {
 	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginResponse,
 	RuntimeClineOauthProvider,
+	RuntimeClinePlanArtifactApplyResponse,
+	RuntimeClinePlanArtifactRejectResponse,
+	RuntimeClinePlanArtifactsResponse,
 	RuntimeClineProviderCapability,
 	RuntimeClineProviderCatalogItem,
 	RuntimeClineProviderModel,
@@ -38,8 +43,12 @@ import type {
 	RuntimeDevTestProjectPreset,
 	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeProjectArtifactMigrationResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticsResponse,
+	RuntimeTaskEvidenceResponse,
+	RuntimeTaskWorktreeMergeResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
 
@@ -156,6 +165,19 @@ export async function fetchClineProviderModels(
 	return response.models;
 }
 
+export async function discoverClineEndpointModels(
+	workspaceId: string | null,
+	input: {
+		baseUrl: string;
+		apiKey?: string | null;
+		modelsSourceUrl?: string | null;
+		timeoutMs?: number | null;
+	},
+): Promise<RuntimeClineEndpointModelDiscoveryResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.discoverClineEndpointModels.query(input);
+}
+
 export async function fetchClineModelRegistry(workspaceId: string | null): Promise<RuntimeClineModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getClineModelRegistry.query();
@@ -198,6 +220,14 @@ export async function buildClineAdvisorRequest(
 	return await trpcClient.runtime.buildClineAdvisor.query(input);
 }
 
+export async function sendClineAdvisorRequest(
+	workspaceId: string | null,
+	input: { prompt: string; providerId: string; modelId: string },
+): Promise<RuntimeClineAdvisorSendResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.sendClineAdvisor.mutate(input);
+}
+
 export async function writeClineDogfoodBacklog(
 	workspaceId: string | null,
 	input: { suggestion?: string; slug?: string },
@@ -211,6 +241,14 @@ export async function runClineSmokeEval(workspaceId: string | null): Promise<Run
 	return await trpcClient.runtime.runClineSmokeEval.mutate();
 }
 
+export async function collectTaskEvidence(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeTaskEvidenceResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.collectTaskEvidence.mutate({ taskId });
+}
+
 export async function createDevTestProject(
 	workspaceId: string | null,
 	input?: { preset?: RuntimeDevTestProjectPreset },
@@ -222,6 +260,14 @@ export async function createDevTestProject(
 export async function cleanupDevTestProjects(workspaceId: string | null): Promise<RuntimeDevTestCleanupResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.projects.cleanupDevTestProjects.mutate();
+}
+
+export async function migrateAccidentalProjectArtifacts(
+	workspaceId: string | null,
+	projectId: string,
+): Promise<RuntimeProjectArtifactMigrationResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.projects.migrateAccidentalProjectArtifacts.mutate({ projectId });
 }
 
 export async function runClineProviderOauthLogin(
@@ -320,4 +366,44 @@ export async function fetchRuntimeUpdateStatus(workspaceId: string | null): Prom
 export async function runRuntimeUpdateNow(workspaceId: string | null): Promise<RuntimeRunUpdateResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.runUpdateNow.mutate();
+}
+
+export async function fetchClinePlanArtifacts(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeClinePlanArtifactsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.listClinePlanArtifacts.query({ taskId });
+}
+
+export async function applyClinePlanArtifact(
+	workspaceId: string | null,
+	artifactId: string,
+): Promise<RuntimeClinePlanArtifactApplyResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.applyClinePlanArtifact.mutate({ artifactId });
+}
+
+export async function rejectClinePlanArtifact(
+	workspaceId: string | null,
+	artifactId: string,
+): Promise<RuntimeClinePlanArtifactRejectResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.rejectClinePlanArtifact.mutate({ artifactId });
+}
+
+export async function verifyTaskAcceptance(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeTaskAcceptanceVerifyResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.verifyTaskAcceptance.mutate({ taskId, ensureWorktree: true });
+}
+
+export async function mergeTaskWorktrees(
+	workspaceId: string | null,
+	taskId: string,
+): Promise<RuntimeTaskWorktreeMergeResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.mergeTaskWorktrees.mutate({ taskId, column: "review" });
 }

@@ -4,8 +4,10 @@ import {
 	type RuntimeClineAccountSwitchRequest,
 	type RuntimeClineAddProviderRequest,
 	type RuntimeClineAdvisorBuildRequest,
+	type RuntimeClineAdvisorSendRequest,
 	type RuntimeClineDeviceAuthCompleteRequest,
 	type RuntimeClineDogfoodBacklogRequest,
+	type RuntimeClineEndpointModelDiscoveryRequest,
 	type RuntimeClineMcpOAuthRequest,
 	type RuntimeClineMcpSettingsSaveRequest,
 	type RuntimeClineModelContextWindowOverrideRequest,
@@ -19,6 +21,7 @@ import {
 	type RuntimeGitCheckoutRequest,
 	type RuntimeHookIngestRequest,
 	type RuntimeProjectAddRequest,
+	type RuntimeProjectArtifactMigrationRequest,
 	type RuntimeProjectRemoveRequest,
 	type RuntimeShellSessionStartRequest,
 	type RuntimeTaskChatAbortRequest,
@@ -26,6 +29,7 @@ import {
 	type RuntimeTaskChatMessagesRequest,
 	type RuntimeTaskChatReloadRequest,
 	type RuntimeTaskChatSendRequest,
+	type RuntimeTaskEvidenceRequest,
 	type RuntimeTaskSessionInputRequest,
 	type RuntimeTaskSessionStartRequest,
 	type RuntimeTaskSessionStopRequest,
@@ -39,8 +43,10 @@ import {
 	runtimeClineAccountSwitchRequestSchema,
 	runtimeClineAddProviderRequestSchema,
 	runtimeClineAdvisorBuildRequestSchema,
+	runtimeClineAdvisorSendRequestSchema,
 	runtimeClineDeviceAuthCompleteRequestSchema,
 	runtimeClineDogfoodBacklogRequestSchema,
+	runtimeClineEndpointModelDiscoveryRequestSchema,
 	runtimeClineMcpOAuthRequestSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
 	runtimeClineModelContextWindowOverrideRequestSchema,
@@ -54,6 +60,7 @@ import {
 	runtimeGitCheckoutRequestSchema,
 	runtimeHookIngestRequestSchema,
 	runtimeProjectAddRequestSchema,
+	runtimeProjectArtifactMigrationRequestSchema,
 	runtimeProjectRemoveRequestSchema,
 	runtimeShellSessionStartRequestSchema,
 	runtimeTaskChatAbortRequestSchema,
@@ -61,6 +68,7 @@ import {
 	runtimeTaskChatMessagesRequestSchema,
 	runtimeTaskChatReloadRequestSchema,
 	runtimeTaskChatSendRequestSchema,
+	runtimeTaskEvidenceRequestSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionStartRequestSchema,
 	runtimeTaskSessionStopRequestSchema,
@@ -195,6 +203,8 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 		path,
 		gitUrl,
 		initializeGit: parsed.initializeGit,
+		confirmSelfProject: parsed.confirmSelfProject,
+		allowTaskWorktreeProject: parsed.allowTaskWorktreeProject,
 	};
 }
 
@@ -207,6 +217,17 @@ export function parseProjectRemoveRequest(value: unknown): RuntimeProjectRemoveR
 	return {
 		projectId,
 		deleteGitRepository: parsed.deleteGitRepository,
+	};
+}
+
+export function parseProjectArtifactMigrationRequest(value: unknown): RuntimeProjectArtifactMigrationRequest {
+	const parsed = parseWithSchema(runtimeProjectArtifactMigrationRequestSchema, value);
+	const projectId = parsed.projectId.trim();
+	if (!projectId) {
+		throw new Error("Project ID cannot be empty.");
+	}
+	return {
+		projectId,
 	};
 }
 
@@ -338,6 +359,20 @@ export function parseClineProviderModelsRequest(value: unknown): RuntimeClinePro
 	};
 }
 
+export function parseClineEndpointModelDiscoveryRequest(value: unknown): RuntimeClineEndpointModelDiscoveryRequest {
+	const parsed = parseWithSchema(runtimeClineEndpointModelDiscoveryRequestSchema, value);
+	const baseUrl = parsed.baseUrl.trim();
+	if (!baseUrl) {
+		throw new Error("Base URL cannot be empty.");
+	}
+	return {
+		baseUrl,
+		apiKey: parsed.apiKey?.trim() || null,
+		modelsSourceUrl: parsed.modelsSourceUrl?.trim() || null,
+		timeoutMs: parsed.timeoutMs ?? null,
+	};
+}
+
 export function parseClineModelContextWindowOverrideRequest(
 	value: unknown,
 ): RuntimeClineModelContextWindowOverrideRequest {
@@ -361,6 +396,10 @@ export function parseClineModelContextWindowOverrideRequest(
 
 export function parseClineAdvisorBuildRequest(value: unknown): RuntimeClineAdvisorBuildRequest {
 	return parseWithSchema(runtimeClineAdvisorBuildRequestSchema, value);
+}
+
+export function parseClineAdvisorSendRequest(value: unknown): RuntimeClineAdvisorSendRequest {
+	return parseWithSchema(runtimeClineAdvisorSendRequestSchema, value);
 }
 
 export function parseClineDogfoodBacklogRequest(value: unknown): RuntimeClineDogfoodBacklogRequest {
@@ -638,4 +677,13 @@ export function parseDirectoryListRequest(value: unknown): RuntimeDirectoryListR
 
 export function parseClineAccountSwitchRequest(value: unknown): RuntimeClineAccountSwitchRequest {
 	return parseWithSchema(runtimeClineAccountSwitchRequestSchema, value);
+}
+
+export function parseTaskEvidenceRequest(value: unknown): RuntimeTaskEvidenceRequest {
+	const parsed = parseWithSchema(runtimeTaskEvidenceRequestSchema, value);
+	const taskId = parsed.taskId.trim();
+	if (!taskId) {
+		throw new Error("Task evidence taskId cannot be empty.");
+	}
+	return { taskId };
 }

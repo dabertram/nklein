@@ -910,6 +910,22 @@ export const runtimeClineProviderModelsResponseSchema = z.object({
 });
 export type RuntimeClineProviderModelsResponse = z.infer<typeof runtimeClineProviderModelsResponseSchema>;
 
+export const runtimeClineEndpointModelDiscoveryRequestSchema = z.object({
+	baseUrl: z.string().min(1),
+	apiKey: z.string().nullable().optional(),
+	modelsSourceUrl: z.string().nullable().optional(),
+	timeoutMs: z.number().int().positive().nullable().optional(),
+});
+export type RuntimeClineEndpointModelDiscoveryRequest = z.infer<typeof runtimeClineEndpointModelDiscoveryRequestSchema>;
+
+export const runtimeClineEndpointModelDiscoveryResponseSchema = z.object({
+	modelSourceUrl: z.string(),
+	models: z.array(runtimeClineProviderModelSchema),
+});
+export type RuntimeClineEndpointModelDiscoveryResponse = z.infer<
+	typeof runtimeClineEndpointModelDiscoveryResponseSchema
+>;
+
 export const runtimeClineModelRegistryEntrySchema = z.object({
 	key: z.string(),
 	providerId: z.string(),
@@ -1104,6 +1120,17 @@ export const runtimeClineSmokeEvalResponseSchema = z.object({
 	endpoint: z.string().nullable(),
 });
 export type RuntimeClineSmokeEvalResponse = z.infer<typeof runtimeClineSmokeEvalResponseSchema>;
+
+export const runtimeTaskEvidenceRequestSchema = z.object({
+	taskId: z.string().min(1),
+});
+export type RuntimeTaskEvidenceRequest = z.infer<typeof runtimeTaskEvidenceRequestSchema>;
+
+export const runtimeTaskEvidenceResponseSchema = z.object({
+	bundlePath: z.string(),
+	promptBlock: z.string(),
+});
+export type RuntimeTaskEvidenceResponse = z.infer<typeof runtimeTaskEvidenceResponseSchema>;
 
 export const runtimeClineProviderCapabilitySchema = z.enum([
 	"streaming",

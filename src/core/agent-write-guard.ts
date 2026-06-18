@@ -18,6 +18,25 @@ export interface AgentWriteSecretFinding {
 	label: string;
 }
 
+const PROTECTED_TEST_PATH_PREFIXES = ["test/protected/"] as const;
+const PROTECTED_TEST_FILES = new Set(["vitest.protected.config.ts"]);
+
+export function findProtectedTestPath(path: string): string | null {
+	const normalized = path.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
+	if (!normalized) {
+		return null;
+	}
+	if (PROTECTED_TEST_FILES.has(normalized)) {
+		return normalized;
+	}
+	for (const prefix of PROTECTED_TEST_PATH_PREFIXES) {
+		if (normalized === prefix.slice(0, -1) || normalized.startsWith(prefix)) {
+			return normalized;
+		}
+	}
+	return null;
+}
+
 const SECRET_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
 	{
 		label: "private key block",

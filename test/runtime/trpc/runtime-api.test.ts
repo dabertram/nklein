@@ -1,11 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineModelRegistryEntry } from "../../../src/cline-sdk/cline-model-registry";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
-import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
+import { saveWorkspaceState } from "../../../src/state/workspace-state";
 
 const agentRegistryMocks = vi.hoisted(() => ({
 	resolveAgentCommand: vi.fn(),
@@ -3263,6 +3265,71 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.codeEmbeddingSettings.source).toBe("global");
 		expect(response.codeEmbeddingSettings.effective.provider).toBe("local_lexical");
 		expect(response.codeIndex.searchAvailable).toBe(false);
+	});
+
+	it("collects a task evidence bundle and copyable prompt block", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-task-evidence-workspace-"));
+		const evidenceRoot = mkdtempSync(join(tmpdir(), "kanban-task-evidence-"));
+		execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+		const board: RuntimeBoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							id: "task-1",
+							title: "Fix local model timeout",
+							prompt: "Acceptance check: npm test",
+							startInPlanMode: false,
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 2,
+						},
+					],
+				},
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		await saveWorkspaceState(workspacePath, { board, sessions: {} });
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.listMessages.mockReturnValue([
+			{
+				id: "message-1",
+				role: "assistant",
+				content: "The timeout failed.",
+				createdAt: 10,
+			},
+		]);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+			getEvidenceBundleRoot: () => evidenceRoot,
+		});
+
+		const response = await api.collectTaskEvidence(
+			{ workspaceId: "workspace-1", workspacePath },
+			{ taskId: "task-1" },
+		);
+
+		expect(response.bundlePath).toContain(evidenceRoot);
+		expect(response.promptBlock).toContain("Here is evidence from a !Klein task.");
+		expect(response.promptBlock).toContain("Fix local model timeout");
+		expect(response.promptBlock).toContain(response.bundlePath);
+		expect(existsSync(join(response.bundlePath, "summary.md"))).toBe(true);
+		expect(existsSync(join(response.bundlePath, "config-snapshot.json"))).toBe(true);
+		expect(readFileSync(join(response.bundlePath, "summary.md"), "utf8")).toContain("Acceptance check: npm test");
+		expect(readFileSync(join(response.bundlePath, "transcript", "01-task-1.json"), "utf8")).toContain(
+			"The timeout failed.",
+		);
 	});
 
 	it("builds a model freshness advisor request from the runtime model registry", async () => {

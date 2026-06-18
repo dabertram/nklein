@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "path": "test/runtime/cline-sdk/cline-local-only-policy.test.ts",
+      "rationale": "Guards the local-only provider policy and cloud-provider hiding boundary."
+    },
+    {
+      "path": "test/runtime/cline-sdk/cline-context-window-policy.test.ts",
+      "rationale": "Guards effective context-window and overflow policy behavior for local models."
+    },
+    {
+      "path": "test/runtime/cline-sdk/cline-timeout-scaling.test.ts",
+      "rationale": "Guards timeout scaling for slow local models and body-timeout recovery behavior."
+    },
+    {
+      "path": "test/runtime/swarm-guardrails.test.ts",
+      "rationale": "Guards swarm pause/resume and autonomous guardrail behavior."
+    },
+    {
+      "path": "test/runtime/workspace-registry.test.ts",
+      "rationale": "Guards workspace identity, project health diagnostics, and ownership-sensitive project state."
+    },
+    {
+      "path": "test/runtime/cline-sdk/cline-decomposition-tool.test.ts",
+      "rationale": "Guards decomposition graph application, plan artifacts, and Planning-lane behavior."
+    }
+  ]
+}

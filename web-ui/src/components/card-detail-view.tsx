@@ -1,6 +1,8 @@
 import type { DropResult } from "@hello-pangea/dnd";
 import {
 	Activity,
+	Check,
+	Clipboard,
 	Files,
 	GitBranch,
 	GitCompareArrows,
@@ -8,11 +10,13 @@ import {
 	MessageSquare,
 	Minimize2,
 	RefreshCw,
+	Trash2,
 	X,
 } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { showAppToast } from "@/components/app-toaster";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { ClineAgentChatPanel, type ClineAgentChatPanelHandle } from "@/components/detail-panels/cline-agent-chat-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
@@ -29,16 +33,28 @@ import { ResizeHandle } from "@/resize/resize-handle";
 import { useCardDetailLayout } from "@/resize/use-card-detail-layout";
 import { useResizeDrag } from "@/resize/use-resize-drag";
 import { isNativeClineAgentSelected } from "@/runtime/native-agent";
-import { fetchTaskDiagnostics } from "@/runtime/runtime-config-query";
+import {
+	applyClinePlanArtifact,
+	collectTaskEvidence,
+	fetchClinePlanArtifacts,
+	fetchTaskDiagnostics,
+	mergeTaskWorktrees,
+	rejectClinePlanArtifact,
+	verifyTaskAcceptance,
+} from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
+	RuntimeClinePlanArtifactSummary,
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
+	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticEvent,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
+	RuntimeTaskWorktreeMergeResponse,
 	RuntimeWorkspaceChangesMode,
+	RuntimeWorkspaceStateResponse,
 } from "@/runtime/types";
 import { useRuntimeWorkspaceChanges } from "@/runtime/use-runtime-workspace-changes";
 import { useTaskWorkspaceStateVersionValue } from "@/stores/workspace-metadata-store";
@@ -725,6 +741,385 @@ function PlanningDagReviewPanel({
 	);
 }
 
+function formatArtifactTimestamp(value: number): string {
+	if (value <= 0) {
+		return "Unknown time";
+	}
+	return new Date(value).toLocaleString();
+}
+
+function PendingPlanArtifactsPanel({
+	workspaceId,
+	taskId,
+	onWorkspaceStateApplied,
+}: {
+	workspaceId: string | null;
+	taskId: string;
+	onWorkspaceStateApplied?: (state: RuntimeWorkspaceStateResponse) => void;
+}): React.ReactElement | null {
+	const [artifacts, setArtifacts] = useState<RuntimeClinePlanArtifactSummary[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [actionArtifactId, setActionArtifactId] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		if (!workspaceId) {
+			setArtifacts([]);
+			setError(null);
+			return;
+		}
+		setIsLoading(true);
+		setError(null);
+		void fetchClinePlanArtifacts(workspaceId, taskId)
+			.then((response) => {
+				if (!cancelled) {
+					setArtifacts(response.artifacts);
+				}
+			})
+			.catch((fetchError: unknown) => {
+				if (!cancelled) {
+					setError(fetchError instanceof Error ? fetchError.message : "Could not load pending plan artifacts.");
+				}
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setIsLoading(false);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [taskId, workspaceId]);
+
+	const handleApply = useCallback(
+		async (artifactId: string) => {
+			if (!workspaceId) {
+				return;
+			}
+			setActionArtifactId(artifactId);
+			setError(null);
+			try {
+				const response = await applyClinePlanArtifact(workspaceId, artifactId);
+				onWorkspaceStateApplied?.(response.workspaceState);
+				setArtifacts((current) => current.filter((artifact) => artifact.artifactId !== artifactId));
+				showAppToast({ intent: "success", message: response.message, timeout: 5000 });
+			} catch (applyError) {
+				const message = applyError instanceof Error ? applyError.message : "Could not apply plan artifact.";
+				setError(message);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			} finally {
+				setActionArtifactId(null);
+			}
+		},
+		[onWorkspaceStateApplied, workspaceId],
+	);
+
+	const handleReject = useCallback(
+		async (artifactId: string) => {
+			if (!workspaceId) {
+				return;
+			}
+			setActionArtifactId(artifactId);
+			setError(null);
+			try {
+				const response = await rejectClinePlanArtifact(workspaceId, artifactId);
+				setArtifacts((current) => current.filter((artifact) => artifact.artifactId !== artifactId));
+				showAppToast({ intent: "success", message: response.message, timeout: 5000 });
+			} catch (rejectError) {
+				const message = rejectError instanceof Error ? rejectError.message : "Could not reject plan artifact.";
+				setError(message);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			} finally {
+				setActionArtifactId(null);
+			}
+		},
+		[workspaceId],
+	);
+
+	if (artifacts.length === 0 && !isLoading && !error) {
+		return null;
+	}
+
+	return (
+		<div className="border-b border-border bg-surface-1 px-3 py-2">
+			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
+				<Activity size={14} className="shrink-0 text-text-secondary" />
+				<span>Pending plan artifacts</span>
+				<span className="truncate text-text-tertiary">
+					{artifacts.length > 0 ? `${artifacts.length} ready` : isLoading ? "Loading" : "Needs attention"}
+				</span>
+				{isLoading ? <Spinner size={12} className="ml-auto" /> : null}
+			</div>
+			{error ? <div className="mb-2 text-[12px] text-status-red">{error}</div> : null}
+			<div className="space-y-2">
+				{artifacts.map((artifact) => {
+					const isBusy = actionArtifactId === artifact.artifactId;
+					return (
+						<div key={artifact.artifactId} className="rounded-md border border-border bg-surface-0 px-2 py-2">
+							<div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+								<div className="min-w-0">
+									<div className="truncate text-[13px] font-medium text-text-primary">{artifact.title}</div>
+									<div className="mt-1 text-[11px] text-text-secondary">
+										{artifact.taskCount} tasks, {artifact.dependencyCount} dependencies ·{" "}
+										{formatArtifactTimestamp(artifact.createdAt)}
+									</div>
+								</div>
+								<div className="flex shrink-0 items-center gap-1">
+									<Button
+										size="sm"
+										variant="primary"
+										icon={isBusy ? <Spinner size={14} /> : <Check size={14} />}
+										disabled={isBusy || actionArtifactId !== null}
+										onClick={() => {
+											void handleApply(artifact.artifactId);
+										}}
+									>
+										Apply
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										icon={<Trash2 size={14} />}
+										disabled={isBusy || actionArtifactId !== null}
+										onClick={() => {
+											void handleReject(artifact.artifactId);
+										}}
+									>
+										Reject
+									</Button>
+								</div>
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+function hasAcceptanceCheck(prompt: string): boolean {
+	return /^Acceptance check:\s*(.+?)\s*$/im.test(prompt);
+}
+
+function formatVerifyResult(response: RuntimeTaskAcceptanceVerifyResponse): string {
+	const output = response.acceptance.output.trim();
+	const outputPreview = output ? ` ${output.slice(0, 240)}` : "";
+	return `${response.message}${outputPreview}`;
+}
+
+function formatMergeResult(response: RuntimeTaskWorktreeMergeResponse): string {
+	if (response.conflict) {
+		const paths = response.conflict.conflictedPaths.join(", ");
+		return paths ? `${response.message} ${paths}` : response.message;
+	}
+	return response.message;
+}
+
+function TaskRecoveryActionsPanel({
+	workspaceId,
+	selection,
+	sessionSummary,
+	onMarkTaskInterrupted,
+}: {
+	workspaceId: string | null;
+	selection: CardSelection;
+	sessionSummary: RuntimeTaskSessionSummary | null;
+	onMarkTaskInterrupted?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
+}): React.ReactElement | null {
+	const canVerify =
+		(selection.column.id === "planning" || selection.column.id === "review") &&
+		hasAcceptanceCheck(selection.card.prompt);
+	const canMerge = selection.column.id === "review";
+	const canMarkInterrupted =
+		sessionSummary?.heartbeatStatus === "lost" &&
+		sessionSummary.state !== "interrupted" &&
+		Boolean(onMarkTaskInterrupted);
+	const canCollectEvidence = Boolean(workspaceId);
+	const [verifyResult, setVerifyResult] = useState<string | null>(null);
+	const [mergeResult, setMergeResult] = useState<string | null>(null);
+	const [interruptResult, setInterruptResult] = useState<string | null>(null);
+	const [evidenceResult, setEvidenceResult] = useState<string | null>(null);
+	const [isVerifying, setIsVerifying] = useState(false);
+	const [isMerging, setIsMerging] = useState(false);
+	const [isMarkingInterrupted, setIsMarkingInterrupted] = useState(false);
+	const [isCollectingEvidence, setIsCollectingEvidence] = useState(false);
+
+	useEffect(() => {
+		setVerifyResult(null);
+		setMergeResult(null);
+		setInterruptResult(null);
+		setEvidenceResult(null);
+	}, [selection.card.id]);
+
+	const handleVerify = useCallback(async () => {
+		if (!workspaceId) {
+			return;
+		}
+		setIsVerifying(true);
+		setVerifyResult(null);
+		try {
+			const response = await verifyTaskAcceptance(workspaceId, selection.card.id);
+			setVerifyResult(formatVerifyResult(response));
+			showAppToast({
+				intent: response.ok ? "success" : "warning",
+				message: response.message,
+				timeout: 6000,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Could not verify this task.";
+			setVerifyResult(message);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsVerifying(false);
+		}
+	}, [selection.card.id, workspaceId]);
+
+	const handleMerge = useCallback(async () => {
+		if (!workspaceId) {
+			return;
+		}
+		setIsMerging(true);
+		setMergeResult(null);
+		try {
+			const response = await mergeTaskWorktrees(workspaceId, selection.card.id);
+			setMergeResult(formatMergeResult(response));
+			showAppToast({
+				intent: response.ok ? "success" : "warning",
+				message: response.message,
+				timeout: 7000,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Could not merge this task worktree.";
+			setMergeResult(message);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsMerging(false);
+		}
+	}, [selection.card.id, workspaceId]);
+
+	const handleMarkInterrupted = useCallback(async () => {
+		if (!onMarkTaskInterrupted) {
+			return;
+		}
+		setIsMarkingInterrupted(true);
+		setInterruptResult(null);
+		try {
+			const response = await onMarkTaskInterrupted(selection.card.id);
+			if (!response.ok) {
+				const message = response.message ?? "Could not mark this task interrupted.";
+				setInterruptResult(message);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+				return;
+			}
+			const message = "Marked the lost task session interrupted.";
+			setInterruptResult(message);
+			showAppToast({ intent: "success", message, timeout: 4000 });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Could not mark this task interrupted.";
+			setInterruptResult(message);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsMarkingInterrupted(false);
+		}
+	}, [onMarkTaskInterrupted, selection.card.id]);
+
+	const handleCollectEvidence = useCallback(async () => {
+		if (!workspaceId) {
+			return;
+		}
+		setIsCollectingEvidence(true);
+		setEvidenceResult(null);
+		try {
+			const response = await collectTaskEvidence(workspaceId, selection.card.id);
+			await navigator.clipboard.writeText(response.promptBlock);
+			const message = `Evidence copied. ${response.bundlePath}`;
+			setEvidenceResult(message);
+			showAppToast({ intent: "success", icon: "clipboard", message: "Evidence copied.", timeout: 5000 });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Could not collect task evidence.";
+			setEvidenceResult(message);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsCollectingEvidence(false);
+		}
+	}, [selection.card.id, workspaceId]);
+
+	if (!canVerify && !canMerge && !canMarkInterrupted && !canCollectEvidence) {
+		return null;
+	}
+
+	return (
+		<div className="border-b border-border bg-surface-1 px-3 py-2">
+			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
+				<GitCompareArrows size={14} className="shrink-0 text-text-secondary" />
+				<span>Review actions</span>
+				<span className="truncate text-text-tertiary">Verify, merge, recover, or collect evidence</span>
+			</div>
+			<div className="flex flex-wrap gap-2">
+				{canCollectEvidence ? (
+					<Button
+						size="sm"
+						variant="default"
+						icon={isCollectingEvidence ? <Spinner size={14} /> : <Clipboard size={14} />}
+						disabled={isVerifying || isMerging || isMarkingInterrupted || isCollectingEvidence}
+						onClick={() => {
+							void handleCollectEvidence();
+						}}
+					>
+						Copy evidence
+					</Button>
+				) : null}
+				{canVerify ? (
+					<Button
+						size="sm"
+						variant="default"
+						icon={isVerifying ? <Spinner size={14} /> : <Check size={14} />}
+						disabled={!workspaceId || isVerifying || isMerging || isMarkingInterrupted || isCollectingEvidence}
+						onClick={() => {
+							void handleVerify();
+						}}
+					>
+						Verify
+					</Button>
+				) : null}
+				{canMerge ? (
+					<Button
+						size="sm"
+						variant="default"
+						icon={isMerging ? <Spinner size={14} /> : <GitCompareArrows size={14} />}
+						disabled={!workspaceId || isVerifying || isMerging || isMarkingInterrupted || isCollectingEvidence}
+						onClick={() => {
+							void handleMerge();
+						}}
+					>
+						Merge
+					</Button>
+				) : null}
+				{canMarkInterrupted ? (
+					<Button
+						size="sm"
+						variant="default"
+						icon={isMarkingInterrupted ? <Spinner size={14} /> : <X size={14} />}
+						disabled={isVerifying || isMerging || isMarkingInterrupted || isCollectingEvidence}
+						onClick={() => {
+							void handleMarkInterrupted();
+						}}
+					>
+						Mark interrupted
+					</Button>
+				) : null}
+			</div>
+			{verifyResult ? <div className="mt-2 text-[12px] text-text-secondary">{verifyResult}</div> : null}
+			{mergeResult ? <div className="mt-2 text-[12px] text-text-secondary">{mergeResult}</div> : null}
+			{interruptResult ? <div className="mt-2 text-[12px] text-text-secondary">{interruptResult}</div> : null}
+			{evidenceResult ? (
+				<div className="mt-2 break-all text-[12px] text-text-secondary">{evidenceResult}</div>
+			) : null}
+		</div>
+	);
+}
+
 function TaskDiagnosticsPanel({
 	workspaceId,
 	taskId,
@@ -972,6 +1367,7 @@ export function CardDetailView({
 	onSendReviewComments,
 	onSendClineChatMessage,
 	onCancelClineChatTurn,
+	onMarkTaskInterrupted,
 	onLoadClineChatMessages,
 	latestClineChatMessage,
 	streamedClineChatMessages,
@@ -997,6 +1393,7 @@ export function CardDetailView({
 	onClineSettingsSaved,
 	onTaskClineSettingsChanged,
 	onApprovePlanningCard,
+	onWorkspaceStateApplied,
 }: {
 	selection: CardSelection;
 	dependencies?: BoardDependency[];
@@ -1037,6 +1434,7 @@ export function CardDetailView({
 		options?: { mode?: RuntimeTaskSessionMode },
 	) => Promise<ClineChatActionResult>;
 	onCancelClineChatTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
+	onMarkTaskInterrupted?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onLoadClineChatMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
 	latestClineChatMessage?: ClineChatMessage | null;
 	streamedClineChatMessages?: ClineChatMessage[] | null;
@@ -1068,6 +1466,7 @@ export function CardDetailView({
 		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
 	onApprovePlanningCard?: (taskId: string) => void;
+	onWorkspaceStateApplied?: (state: RuntimeWorkspaceStateResponse) => void;
 }): React.ReactElement {
 	const isMobile = useIsMobile();
 	const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
@@ -1385,6 +1784,17 @@ export function CardDetailView({
 								dependencies={dependencies}
 								onApprovePlanningCard={onApprovePlanningCard}
 							/>
+							<TaskRecoveryActionsPanel
+								workspaceId={currentProjectId}
+								selection={selection}
+								sessionSummary={sessionSummary}
+								onMarkTaskInterrupted={onMarkTaskInterrupted}
+							/>
+							<PendingPlanArtifactsPanel
+								workspaceId={currentProjectId}
+								taskId={selection.card.id}
+								onWorkspaceStateApplied={onWorkspaceStateApplied}
+							/>
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1534,6 +1944,17 @@ export function CardDetailView({
 									selection={selection}
 									dependencies={dependencies}
 									onApprovePlanningCard={onApprovePlanningCard}
+								/>
+								<TaskRecoveryActionsPanel
+									workspaceId={currentProjectId}
+									selection={selection}
+									sessionSummary={sessionSummary}
+									onMarkTaskInterrupted={onMarkTaskInterrupted}
+								/>
+								<PendingPlanArtifactsPanel
+									workspaceId={currentProjectId}
+									taskId={selection.card.id}
+									onWorkspaceStateApplied={onWorkspaceStateApplied}
 								/>
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">

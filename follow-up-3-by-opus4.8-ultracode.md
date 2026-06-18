@@ -103,7 +103,7 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 ### A7. Intentional keeps (document; do **not** change)
 - [x] Repo name `kanban` — documented in `README.md:7`.
 - [x] Git marker `kanban.repositoryCreatedByKanban` — documented in `AGENTS.md`; `src/workspace/initialize-repo.ts:8`, `src/cline-sdk/cline-dev-test-project.ts:131`. Renaming it would orphan ownership of existing repos.
-- [~] Internal embedding model id `kanban-local-lexical-vector-v1` — keep unless you *want* cache invalidation. If §F real embeddings land, bump the version deliberately to invalidate stale vectors.
+- [x] Internal embedding model id `kanban-local-lexical-vector-v1` — kept intentionally so lexical fallback caches are not invalidated; real embedding endpoints use provider/model-specific cache keys.
 - [x] Internal component filenames `kanban-*.tsx/.ts` — no user impact; not worth the churn.
 - [x] Confirm the man page: `man/kanban.1` was deleted; ensure `man/nklein.1` exists and is the one referenced by `package.json` `man`.
 
@@ -138,10 +138,10 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cline/kanban/dev-runs/<scenario>-<ts>/` with `summary.md`, transcripts, `telemetry.jsonl`, `config-snapshot.json`, optional `diff.patch`), and dev-test scaffolding exists (`src/cline-sdk/cline-dev-test-project.ts`, `src/trpc/projects-api.ts` `createDevTestProject`/`cleanupDevTestProjects`). But getting evidence *out* means navigating the filesystem, and there's no "now go fix it" button. This is the "rather unintuitive" pain the user called out.
 
 ### C1. One-click evidence hand-off (for an *external* coding agent)
-- [ ] Add a **"Copy evidence for agent"** action on each task card / detail panel (and on dev-test runs).
-- [ ] Reuse `createEvidenceBundle()`; extend the bundle to also capture: worktree path, base ref + **commit SHA**, resolved provider/model/role settings, the card prompt, and the latest agent transcript + diff.
-- [ ] On click, write/refresh the bundle and **copy to clipboard** both: (a) the absolute bundle folder path, and (b) a ready-to-paste prompt block ("Here is evidence from a !Klein task… files at `<path>`… please …").
-- [ ] tRPC: a `collectEvidence` action returning `{ bundlePath, promptBlock }`. Toast "Evidence copied" via `showAppToast`.
+- [ ] Add a **"Copy evidence for agent"** action on each task card / detail panel (and on dev-test runs). *(Detail panel done; task-card and dev-test-run placements still open.)*
+- [x] Reuse `createEvidenceBundle()`; extend the bundle to also capture: worktree path, base ref + **commit SHA**, resolved provider/model/role settings, the card prompt, and the latest agent transcript + diff.
+- [x] On click, write/refresh the bundle and **copy to clipboard** both: (a) the absolute bundle folder path, and (b) a ready-to-paste prompt block ("Here is evidence from a !Klein task… files at `<path>`… please …").
+- [x] tRPC: a `collectEvidence` action returning `{ bundlePath, promptBlock }`. Toast "Evidence copied" via `showAppToast`.
 
 ### C2. One-click "Create !Klein self-improvement project" (internal loop)
 !Klein creates its own workspace, loads the evidence, analyzes → plans → works on a branch.
@@ -170,14 +170,14 @@ The embedding settings live in `web-ui/src/components/runtime-settings-dialog.ts
 
 Goal: a small model can work on !Klein's own code without silently breaking features/UI, but you can still approve a test change after seeing **what / why / effects**. Enforced at edit time via the existing write guard. **Decision:** the protected suite must be **well-selected (curated, not "all tests"), physically separate from the main test suite, and documented right next to itself** so its purpose stays clear and maintainable when external/valid contributors work on the codebase.
 
-- [ ] **D1. Separate, curated protected suite.**
-  - [ ] Give the protected tests their **own location**, distinct from the main suite — e.g. `test/protected/**` (and a parallel convention for web-ui, e.g. `web-ui/src/**/__protected__/*.test.tsx`), wired as a **separate vitest project** so they run and are reasoned about independently of the everyday suite.
-  - [ ] **Curate deliberately** — only the suites that lock *surfaced behavior*: local-only policy, context-window/overflow guard, timeout scaling, swarm guardrails, workspace-identity, decomposition apply, and the key UI-surface tests. Not every test — just the ones whose failure means a feature/UI regression.
-  - [ ] For protected tests that currently live in the main suite, either **move** them into the protected location or reference them from a single manifest — but the **canonical list must be obvious and live in one place**, not scattered.
-- [ ] **D2. Co-located documentation (so it stays maintainable).**
-  - [ ] A `test/protected/README.md` next to the suite explaining: what "protected" means, why these specific tests are protected, the rule that changing them needs explicit approval, and how a contributor proposes a change.
-  - [ ] A one-line rationale per protected test/group ("guards X feature/UI"). When external valid work needs a change, the purpose and blast radius are immediately clear.
-- [ ] **D3. Block by default** — extend `src/core/agent-write-guard.ts` (already enforces the 1000-line write cap) to **reject** edits/deletes/renames to anything in the protected location/manifest.
+- [x] **D1. Separate, curated protected suite.**
+  - [x] Give the protected tests their **own location**, distinct from the main suite — `test/protected/protected-tests.json` is the canonical manifest and `vitest.protected.config.ts` runs it as a separate Vitest target.
+  - [x] **Curate deliberately** — the v1 manifest protects local-only policy, context-window/overflow policy, timeout scaling, swarm guardrails, workspace identity/health, and decomposition apply behavior.
+  - [x] Protected tests currently live in the main suite and are referenced from `test/protected/protected-tests.json`, keeping the canonical list obvious and in one place.
+- [x] **D2. Co-located documentation (so it stays maintainable).**
+  - [x] `test/protected/README.md` explains what protected means, why the suite exists, the explicit-approval rule, and how to propose a change.
+  - [x] `test/protected/protected-tests.json` carries a one-line rationale per protected test group.
+- [x] **D3. Block by default** — `src/core/agent-write-guard.ts` now identifies protected-suite paths, and editor/write/apply-patch approvals plus direct write-file tools reject edits to `test/protected/**` and `vitest.protected.config.ts` without explicit human approval.
 - [ ] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
 - [ ] **D5. Audit + tests** — log every protected-test approval to telemetry (what/why); tests for both the blocked path and the approved-unblock path.
 - [ ] **D6.** Make the protected suite apply *automatically* inside the §C2 self-improvement project so the guardrail is on by default when !Klein edits itself.
@@ -291,7 +291,7 @@ Each is additive. If none are "exceptionally convincing," shipping only the Lab 
 
 ### Still open (non-blocking)
 - [ ] **App icon/logo** — keep `ClineIcon` next to the `!Klein` wordmark, or design a Klein mark? (Pure design call.) (§A1)
-- [ ] **Embedding model id bump** — keep `kanban-local-lexical-vector-v1` or bump (forces re-index)? Recommended: keep until real embeddings land, then bump deliberately. (§A7 / §F1)
+- [x] **Embedding model id bump** — keep `kanban-local-lexical-vector-v1` until a deliberate lexical-cache invalidation is needed; OpenAI-compatible embeddings already separate cache entries by provider/model key. (§A7 / §F1)
 - [ ] **Guidance-skill priority** — which topics first? Recommended start: `security`, `ui`, `ts`. (§E)
 - [ ] **Self-improvement v1 scope** — confirm v1 = "currently running code (dev mode)" only, branch/tag/commit later. (§C2)
 

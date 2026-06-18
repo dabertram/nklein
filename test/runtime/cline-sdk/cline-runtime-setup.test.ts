@@ -110,6 +110,26 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("potential GitHub token");
 	});
 
+	it("blocks editor writes to the protected test suite", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "editor",
+				input: {
+					path: "test/protected/protected-tests.json",
+					new_text: "{}",
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("protected test suite");
+		expect(result.reason).toContain("explicit human approval");
+	});
+
 	it("blocks apply_patch calls that introduce obvious secrets", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
@@ -129,6 +149,29 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("potential AWS access key id");
+	});
+
+	it("blocks apply_patch calls that change the protected suite config", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "apply_patch",
+				input: [
+					"*** Begin Patch",
+					"*** Update File: vitest.protected.config.ts",
+					"@@",
+					"+// weaken protected config",
+					"*** End Patch",
+				].join("\n"),
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("vitest.protected.config.ts");
+		expect(result.reason).toContain("protected test suite");
 	});
 
 	it("seeds the Kanban decomposition workflow without overwriting user edits", async () => {

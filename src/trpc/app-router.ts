@@ -22,6 +22,8 @@ import type {
 	RuntimeClineDeviceAuthStartResponse,
 	RuntimeClineDogfoodBacklogRequest,
 	RuntimeClineDogfoodBacklogResponse,
+	RuntimeClineEndpointModelDiscoveryRequest,
+	RuntimeClineEndpointModelDiscoveryResponse,
 	RuntimeClineKanbanAccessResponse,
 	RuntimeClineMcpAuthStatusResponse,
 	RuntimeClineMcpOAuthRequest,
@@ -101,6 +103,8 @@ import type {
 	RuntimeTaskChatSendResponse,
 	RuntimeTaskDiagnosticsRequest,
 	RuntimeTaskDiagnosticsResponse,
+	RuntimeTaskEvidenceRequest,
+	RuntimeTaskEvidenceResponse,
 	RuntimeTaskSessionInputRequest,
 	RuntimeTaskSessionInputResponse,
 	RuntimeTaskSessionStartRequest,
@@ -142,6 +146,8 @@ import {
 	runtimeClineDeviceAuthStartResponseSchema,
 	runtimeClineDogfoodBacklogRequestSchema,
 	runtimeClineDogfoodBacklogResponseSchema,
+	runtimeClineEndpointModelDiscoveryRequestSchema,
+	runtimeClineEndpointModelDiscoveryResponseSchema,
 	runtimeClineKanbanAccessResponseSchema,
 	runtimeClineMcpAuthStatusResponseSchema,
 	runtimeClineMcpOAuthRequestSchema,
@@ -221,6 +227,8 @@ import {
 	runtimeTaskChatSendResponseSchema,
 	runtimeTaskDiagnosticsRequestSchema,
 	runtimeTaskDiagnosticsResponseSchema,
+	runtimeTaskEvidenceRequestSchema,
+	runtimeTaskEvidenceResponseSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionInputResponseSchema,
 	runtimeTaskSessionStartRequestSchema,
@@ -353,6 +361,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineProviderModelsRequest,
 		) => Promise<RuntimeClineProviderModelsResponse>;
+		discoverClineEndpointModels: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClineEndpointModelDiscoveryRequest,
+		) => Promise<RuntimeClineEndpointModelDiscoveryResponse>;
 		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
 		saveClineModelContextWindowOverride: (
 			scope: RuntimeTrpcWorkspaceScope | null,
@@ -375,6 +387,10 @@ export interface RuntimeTrpcContext {
 			input: RuntimeClineDogfoodBacklogRequest,
 		) => Promise<RuntimeClineDogfoodBacklogResponse>;
 		runClineSmokeEval: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineSmokeEvalResponse>;
+		collectTaskEvidence: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeTaskEvidenceRequest,
+		) => Promise<RuntimeTaskEvidenceResponse>;
 		runClineProviderOAuthLogin: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineOauthLoginRequest,
@@ -705,6 +721,12 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getClineProviderModels(ctx.workspaceScope, input);
 			}),
+		discoverClineEndpointModels: t.procedure
+			.input(runtimeClineEndpointModelDiscoveryRequestSchema)
+			.output(runtimeClineEndpointModelDiscoveryResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.discoverClineEndpointModels(ctx.workspaceScope, input);
+			}),
 		getClineModelRegistry: t.procedure.output(runtimeClineModelRegistryResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineModelRegistry(ctx.workspaceScope);
 		}),
@@ -743,6 +765,12 @@ export const runtimeAppRouter = t.router({
 		runClineSmokeEval: t.procedure.output(runtimeClineSmokeEvalResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.runtimeApi.runClineSmokeEval(ctx.workspaceScope);
 		}),
+		collectTaskEvidence: t.procedure
+			.input(runtimeTaskEvidenceRequestSchema)
+			.output(runtimeTaskEvidenceResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.collectTaskEvidence(ctx.workspaceScope, input);
+			}),
 		getClineMcpAuthStatuses: t.procedure.output(runtimeClineMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineMcpAuthStatuses(ctx.workspaceScope);
 		}),
