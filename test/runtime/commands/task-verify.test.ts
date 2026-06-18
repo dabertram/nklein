@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { describe, expect, it, vi } from "vitest";
+import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import {
 	addPlanGapIntegrationCardToBoard,
 	buildPlanGapIntegrationRevision,
+	inferClinePlanSlugForTask,
 	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
@@ -221,6 +226,49 @@ describe("task verify command helper", () => {
 		});
 	});
 
+	it("classifies exhausted acceptance failures that indicate missing dependencies", async () => {
+		const recordPlanGap = vi.fn();
+		await runVerifyTaskAcceptanceCommand(
+			{
+				cwd: "/repo",
+				taskId: "task-1",
+				repairAttempt: 3,
+				maxRepairAttempts: 2,
+			},
+			{
+				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
+				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
+				resolveTaskCwd: vi.fn(async () => "/worktree"),
+				loadRuntimeConfig: vi.fn(async () =>
+					createRuntimeConfigState({
+						reviewer: {
+							providerId: "anthropic",
+							modelId: "claude-sonnet",
+						},
+					}),
+				),
+				runAcceptanceGate: vi.fn(async () => ({
+					present: true,
+					command: "npm test",
+					passed: false,
+					exitCode: 1,
+					output: "Error: Cannot find module './auth/types'",
+					durationMs: 5,
+				})),
+				recordPlanGap,
+			},
+		);
+
+		expect(recordPlanGap).toHaveBeenCalledWith({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			kind: "missing_dependency",
+			description:
+				"Acceptance failed after repair attempts with output that points to a missing dependency or file the plan did not provide.",
+			evidence: "Command: npm test\nOutput: Error: Cannot find module './auth/types'",
+		});
+	});
+
 	it("returns ok false when the task has no acceptance check", async () => {
 		const recordPlanGap = vi.fn();
 		const result = await runVerifyTaskAcceptanceCommand(
@@ -325,6 +373,119 @@ describe("task start command blocking", () => {
 });
 
 describe("task plan-gap adaptation", () => {
+	it("infers the plan slug for a decomposition-created task id", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-gap-infer-"));
+		await writeClinePlanArtifacts({
+			workspacePath,
+			slug: "Checkout Rework",
+			spec: "Rework checkout.",
+			plan: "Build API before UI.",
+			taskGraph: {
+				schemaVersion: 1,
+				slug: "Checkout Rework",
+				title: "Checkout Rework",
+				tasks: [
+					{
+						id: "api",
+						title: "Build API",
+						prompt: "Implement the API.",
+						dependsOn: [],
+						complexity: 30,
+						filesLikelyTouched: ["src/api.ts"],
+						acceptanceCommand: "npm test",
+						testFirst: false,
+						acceptanceTestPrompt: null,
+						suggestedRole: null,
+					},
+				],
+			},
+		});
+
+		await expect(
+			inferClinePlanSlugForTask({
+				workspacePath,
+				taskId: "checkout-rework-api",
+			}),
+		).resolves.toBe("checkout-rework");
+	});
+
+	it("infers a plan slug for collision-suffixed task ids when unambiguous", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-gap-suffix-"));
+		await writeClinePlanArtifacts({
+			workspacePath,
+			slug: "Checkout Rework",
+			spec: "Rework checkout.",
+			plan: "Build API before UI.",
+			taskGraph: {
+				schemaVersion: 1,
+				slug: "Checkout Rework",
+				title: "Checkout Rework",
+				tasks: [
+					{
+						id: "api",
+						title: "Build API",
+						prompt: "Implement the API.",
+						dependsOn: [],
+						complexity: 30,
+						filesLikelyTouched: ["src/api.ts"],
+						acceptanceCommand: "npm test",
+						testFirst: false,
+						acceptanceTestPrompt: null,
+						suggestedRole: null,
+					},
+				],
+			},
+		});
+
+		await expect(
+			inferClinePlanSlugForTask({
+				workspacePath,
+				taskId: "checkout-rework-api-2",
+			}),
+		).resolves.toBe("checkout-rework");
+	});
+
+	it("does not infer a plan slug when multiple plans could own the task id", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-gap-ambiguous-"));
+		for (const plan of [
+			{ slug: "Checkout", taskId: "rework-api" },
+			{ slug: "Checkout Rework", taskId: "api" },
+		]) {
+			await writeClinePlanArtifacts({
+				workspacePath,
+				slug: plan.slug,
+				spec: "Rework checkout.",
+				plan: "Build API before UI.",
+				taskGraph: {
+					schemaVersion: 1,
+					slug: plan.slug,
+					title: plan.slug,
+					tasks: [
+						{
+							id: plan.taskId,
+							title: "Build API",
+							prompt: "Implement the API.",
+							dependsOn: [],
+							complexity: 30,
+							filesLikelyTouched: ["src/api.ts"],
+							acceptanceCommand: "npm test",
+							testFirst: false,
+							acceptanceTestPrompt: null,
+							suggestedRole: null,
+						},
+					],
+				},
+			});
+		}
+
+		await expect(
+			inferClinePlanSlugForTask({
+				workspacePath,
+				taskId: "checkout-rework-api",
+			}),
+		).resolves.toBeNull();
+	});
+
 	it("adds an integration card for integration-needed gaps", () => {
 		const state = createWorkspaceState("Acceptance check: npm test");
 

@@ -62,6 +62,8 @@
 - Added a Cline code-intelligence status panel in settings, exposing repo-map availability and code-index cache coverage, staleness, embedding metadata, cache path, and search readiness.
 - Made MCSR capability scores age-aware by decaying old eval/pass-rate evidence toward the static prior instead of letting stale observations dominate forever.
 - Improved startup onboarding for local Cline setup: it reopens when Cline lacks a configured local model, shows detected Ollama/LM Studio endpoints and loaded models, and seeds architect/worker/reviewer roles from the selected local model on first save.
+- Let `kanban task plan-gap` infer the owning decomposition plan from decomposition-created task IDs, so inferred integration-card adaptations append to `revisions.md` without requiring `--plan-slug`.
+- Classified exhausted acceptance failures that clearly indicate missing dependencies, contradictory requirements, or oversized scope as structured `plan_gap` events instead of always recording a generic review gap.
 
 ## [0.1.68]
 

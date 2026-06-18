@@ -1,3 +1,6 @@
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
@@ -70,6 +73,15 @@ interface RuntimeWorkspaceMutationResult<T> {
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
 
+function slugifyPlanTaskId(input: string): string {
+	const slug = input
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return slug || "task";
+}
+
 function parseAutoMergeColumn(value: string | undefined): TaskWorktreeAutoMergeColumn {
 	if (value === undefined || value === "review") {
 		return "review";
@@ -122,6 +134,79 @@ function shouldRecordAcceptancePlanGap(input: {
 	return (
 		input.acceptancePresent === false || input.repairAction === "escalate" || input.repairAction === "human_review"
 	);
+}
+
+function buildAcceptanceFailureEvidence(input: { command: string | null; output: string; taskPrompt: string }): string {
+	return [
+		input.command ? `Command: ${input.command}` : null,
+		input.output.trim() ? `Output: ${input.output}` : null,
+		!input.command && !input.output.trim() ? input.taskPrompt : null,
+	]
+		.filter((part): part is string => part !== null)
+		.join("\n")
+		.slice(0, 2_000);
+}
+
+function classifyAcceptanceFailurePlanGap(input: {
+	acceptancePresent: boolean;
+	repairAction: ClineAcceptanceRepairAction | null;
+	command: string | null;
+	output: string;
+	taskPrompt: string;
+}): { kind: PlanGapKind; description: string; evidence: string } | null {
+	if (
+		!shouldRecordAcceptancePlanGap({
+			acceptancePresent: input.acceptancePresent,
+			repairAction: input.repairAction,
+		})
+	) {
+		return null;
+	}
+	if (!input.acceptancePresent) {
+		return {
+			kind: "other",
+			description:
+				"Task is missing the required Acceptance check line, so the plan lacks a machine-checkable completion contract.",
+			evidence: input.taskPrompt.slice(0, 2_000),
+		};
+	}
+
+	const evidence = buildAcceptanceFailureEvidence(input);
+	const normalizedOutput = input.output.toLowerCase();
+	if (
+		/\b(enoent|module not found|cannot find module|could not resolve|cannot resolve|no such file or directory)\b/.test(
+			normalizedOutput,
+		)
+	) {
+		return {
+			kind: "missing_dependency",
+			description:
+				"Acceptance failed after repair attempts with output that points to a missing dependency or file the plan did not provide.",
+			evidence,
+		};
+	}
+	if (/\b(contradict|conflicting requirement|mutually exclusive|incompatible requirement)\b/.test(normalizedOutput)) {
+		return {
+			kind: "contradictory_requirement",
+			description:
+				"Acceptance failed after repair attempts with output that points to contradictory or incompatible plan requirements.",
+			evidence,
+		};
+	}
+	if (/\b(scope too large|too broad|timed out|timeout|out of memory|heap out of memory)\b/.test(normalizedOutput)) {
+		return {
+			kind: "scope_too_large",
+			description:
+				"Acceptance failed after repair attempts with output that suggests the task scope is too large for a single card.",
+			evidence,
+		};
+	}
+	return {
+		kind: "other",
+		description:
+			"Acceptance repair attempts are exhausted; the task needs plan-level review before more implementation work.",
+		evidence,
+	};
 }
 
 function printJson(payload: unknown): void {
@@ -968,31 +1053,22 @@ export async function runVerifyTaskAcceptanceCommand(
 				maxAttempts: input.maxRepairAttempts,
 				modelRoles: (await (deps.loadRuntimeConfig ?? loadRuntimeConfig)(workspaceRepoPath)).modelRoles,
 			});
-	if (
-		!ok &&
-		shouldRecordAcceptancePlanGap({
-			acceptancePresent: result.present,
-			repairAction: repair?.action ?? null,
-		})
-	) {
+	const acceptancePlanGap = !ok
+		? classifyAcceptanceFailurePlanGap({
+				acceptancePresent: result.present,
+				repairAction: repair?.action ?? null,
+				command: result.command,
+				output: result.output,
+				taskPrompt: taskRecord.task.prompt,
+			})
+		: null;
+	if (acceptancePlanGap) {
 		(deps.recordPlanGap ?? recordPlanGap)({
 			workspacePath: workspaceRepoPath,
 			taskId: input.taskId,
-			kind: "other",
-			description:
-				result.present === false
-					? "Task is missing the required Acceptance check line, so the plan lacks a machine-checkable completion contract."
-					: "Acceptance repair attempts are exhausted; the task needs plan-level review before more implementation work.",
-			evidence:
-				result.present === false
-					? taskRecord.task.prompt.slice(0, 2_000)
-					: [
-							result.command ? `Command: ${result.command}` : null,
-							result.output ? `Output: ${result.output}` : null,
-						]
-							.filter((part): part is string => part !== null)
-							.join("\n")
-							.slice(0, 2_000),
+			kind: acceptancePlanGap.kind,
+			description: acceptancePlanGap.description,
+			evidence: acceptancePlanGap.evidence,
 		});
 	}
 	return {
@@ -1522,6 +1598,58 @@ export function buildPlanGapIntegrationRevision(input: {
 	};
 }
 
+function matchesPlanBoardTaskId(input: { taskId: string; planSlug: string; planTaskId: string }): {
+	matches: boolean;
+	exact: boolean;
+} {
+	const baseTaskId = `${slugifyPlanTaskId(input.planSlug)}-${slugifyPlanTaskId(input.planTaskId)}`;
+	if (input.taskId === baseTaskId) {
+		return { matches: true, exact: true };
+	}
+	if (!input.taskId.startsWith(`${baseTaskId}-`)) {
+		return { matches: false, exact: false };
+	}
+	return {
+		matches: /^\d+$/.test(input.taskId.slice(baseTaskId.length + 1)),
+		exact: false,
+	};
+}
+
+export async function inferClinePlanSlugForTask(input: {
+	workspacePath: string;
+	taskId: string;
+}): Promise<string | null> {
+	const plansRoot = join(input.workspacePath, ".cline", "kanban", "plans");
+	const entries = await readdir(plansRoot, { withFileTypes: true }).catch(() => []);
+	const matches: { slug: string; exact: boolean }[] = [];
+	for (const entry of entries
+		.filter((candidate) => candidate.isDirectory())
+		.sort((left, right) => left.name.localeCompare(right.name))) {
+		const artifacts = await readClinePlanArtifacts(input.workspacePath, entry.name).catch(() => null);
+		if (!artifacts) {
+			continue;
+		}
+		for (const task of artifacts.taskGraph.tasks) {
+			const match = matchesPlanBoardTaskId({
+				taskId: input.taskId,
+				planSlug: artifacts.taskGraph.slug,
+				planTaskId: task.id,
+			});
+			if (match.matches) {
+				matches.push({ slug: artifacts.taskGraph.slug, exact: match.exact });
+			}
+		}
+	}
+	const exactMatches = matches.filter((match) => match.exact);
+	if (exactMatches.length === 1) {
+		return exactMatches[0].slug;
+	}
+	if (exactMatches.length > 1) {
+		return null;
+	}
+	return matches.length === 1 ? matches[0].slug : null;
+}
+
 async function createIntegrationCardForMergeConflict(input: {
 	workspaceRepoPath: string;
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
@@ -1633,6 +1761,12 @@ async function recordTaskPlanGapCommand(input: {
 	planSlug?: string;
 }): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	const planSlug =
+		input.planSlug?.trim() ||
+		(await inferClinePlanSlugForTask({
+			workspacePath: workspaceRepoPath,
+			taskId: input.taskId,
+		}));
 	recordPlanGap({
 		workspacePath: workspaceRepoPath,
 		taskId: input.taskId,
@@ -1640,10 +1774,10 @@ async function recordTaskPlanGapCommand(input: {
 		description: input.description,
 		evidence: input.evidence,
 	});
-	let revisionsPath = input.planSlug?.trim()
+	let revisionsPath = planSlug
 		? await appendClinePlanRevision({
 				workspacePath: workspaceRepoPath,
-				slug: input.planSlug,
+				slug: planSlug,
 				taskId: input.taskId,
 				kind: input.kind,
 				description: input.description,
@@ -1677,7 +1811,7 @@ async function recordTaskPlanGapCommand(input: {
 			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
 		}
 		const integrationTaskId = typeof integrationTask.id === "string" ? integrationTask.id : null;
-		if (integrationTaskId && input.planSlug?.trim()) {
+		if (integrationTaskId && planSlug) {
 			const revision = buildPlanGapIntegrationRevision({
 				taskId: input.taskId,
 				integrationTaskId,
@@ -1686,7 +1820,7 @@ async function recordTaskPlanGapCommand(input: {
 			});
 			revisionsPath = await appendClinePlanRevision({
 				workspacePath: workspaceRepoPath,
-				slug: input.planSlug,
+				slug: planSlug,
 				taskId: input.taskId,
 				kind: revision.kind,
 				description: revision.description,
@@ -1700,6 +1834,7 @@ async function recordTaskPlanGapCommand(input: {
 		taskId: input.taskId,
 		kind: input.kind,
 		description: input.description,
+		planSlug,
 		revisionsPath,
 		integrationTask,
 	};

@@ -429,8 +429,9 @@ plowing ahead or silently failing.
       self-observation events for missing decisions, contradictions, missing dependencies, oversized scope,
       and integration gaps, and the agent system prompt tells execution agents to use it instead of
       silently broadening a task. Acceptance verification now also records plan gaps for missing acceptance
-      contracts and exhausted repair/escalation attempts. Still open: classifying richer acceptance failures
-      that prove a specific missing dependency, contradiction, or scope miss.
+      contracts and exhausted repair/escalation attempts, with conservative output classification for obvious
+      missing dependency/file, contradictory requirement, and oversized-scope signatures. Still open:
+      broader domain-specific failure classifiers as real dogfood evidence accumulates.
 - [~] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
@@ -445,9 +446,11 @@ plowing ahead or silently failing.
       `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
       `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
       integration-card adaptation returns the created Planning card alongside the gap response and appends a
-      concrete `integration_card_added` revision entry when a plan slug is available. Still open: infer the
-      relevant plan slug for automatic adaptation when callers omit it, and append concrete revision entries
-      when future automatic splits/re-links land.
+      concrete `integration_card_added` revision entry when a plan slug is available. `kanban task plan-gap`
+      now also infers the owning decomposition plan from decomposition-created task IDs, including
+      collision-suffixed card IDs when unambiguous, so automatic integration-card adaptation can append to
+      `revisions.md` without a manual `--plan-slug`. Still open: append concrete revision entries when future
+      automatic splits/re-links land.
 
 ---
 
