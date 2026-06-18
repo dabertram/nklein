@@ -17,6 +17,7 @@
 - Added clarification-question support to decomposition plans: the workflow asks for questions/assumptions, `decompose_project` rejects unresolved open questions, and `questions.md` is written and exposed with plan artifacts.
 - Added lightweight clarifying-question answer chips to the Cline chat panel, with answers sent through the existing planning chat turn and free-text composer still available.
 - Added `summary.md` to decomposition plan artifacts and exposed `summaryPath`, giving the later Planning DAG review a plain-language summary to display.
+- Tightened the Cline context budget display to use effective model-window wording, retain the segmented health-colored bar, and label fallback estimates as fallback working budgets instead of available model context.
 
 ## [0.1.68]
 

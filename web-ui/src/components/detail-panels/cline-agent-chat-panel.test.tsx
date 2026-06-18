@@ -221,7 +221,7 @@ describe("ClineAgentChatPanel", () => {
 		}
 	});
 
-	it("labels the smart fallback as a working budget when the model limit is unavailable", () => {
+	it("labels the fallback as a working budget when the model limit is unavailable", () => {
 		const contextBudget = formatClineContextBudgetDisplay({
 			estimatedContextTokens: 96_000,
 			contextScope: "smart",
@@ -229,7 +229,7 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(contextBudget.limit).toBe(120_000);
-		expect(contextBudget.text).toContain("smart budget");
+		expect(contextBudget.text).toContain("fallback working budget");
 		expect(contextBudget.text).toContain("model max unavailable");
 		expect(contextBudget.text).toContain("120k");
 	});
@@ -242,9 +242,9 @@ describe("ClineAgentChatPanel", () => {
 		});
 
 		expect(contextBudget.limit).toBe(256_000);
-		expect(contextBudget.text).toContain("256k available context");
-		expect(contextBudget.text).toContain("current request ~96k tokens");
-		expect(contextBudget.text).not.toContain("smart budget");
+		expect(contextBudget.text).toContain("256k effective model window");
+		expect(contextBudget.text).toContain("estimated request ~96k tokens");
+		expect(contextBudget.text).not.toContain("fallback working budget");
 	});
 
 	it("calls out when estimated context exceeds the loaded model window", () => {
@@ -258,7 +258,7 @@ describe("ClineAgentChatPanel", () => {
 		expect(contextBudget.limit).toBe(80_000);
 		expect(contextBudget.percent).toBe(100);
 		expect(contextBudget.text).toBe(
-			"current request ~87k tokens · 80k available context (100% · over by ~7k · overflow)",
+			"estimated request ~87k tokens · 80k effective model window (100% · over by ~7k · overflow)",
 		);
 	});
 
@@ -379,11 +379,11 @@ describe("ClineAgentChatPanel", () => {
 			}),
 			messages: [],
 			nowMs: 75_000,
-			currentRequestContextText: "current request ~12k tokens · 80k available context (15% · healthy)",
+			currentRequestContextText: "request context ~12k tokens / 80k effective window (15% · healthy)",
 		});
 
 		expect(text).toBe(
-			"Model activity: waiting for response · current request ~12k tokens · 80k available context (15% · healthy) · processing since 1m 5s",
+			"Model activity: waiting for response · request context ~12k tokens / 80k effective window (15% · healthy) · processing since 1m 5s",
 		);
 	});
 
@@ -641,7 +641,7 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(container.textContent).toContain("Context");
 		expect(container.textContent).toContain("20k / 80k tokens");
-		expect(container.textContent).toContain("80k available context");
+		expect(container.textContent).toContain("80k effective window");
 	});
 
 	it("keeps completed reasoning collapsed after the stream finishes", async () => {

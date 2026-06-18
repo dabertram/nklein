@@ -201,11 +201,12 @@ visible instead of buried in a text label.
 - [ ] Source system/tool token counts from the **SDK** where it exposes them (per AGENTS.md prefer
       SDK-provided counts); otherwise estimate with the existing `gpt-tokenizer`
       (`countKanbanTextTokens`, `estimateNextPromptTokens`, `countKanbanPersistedMessagesTokens`).
-- [ ] Flow the breakdown through the runtime session summary / tRPC alongside `contextWindowByTaskId`.
-- [ ] Use the **real effective window** (L1.1 / MCSR), **not** the 200k/120k/160k "smart budget" heuristic
-      in `formatClineContextBudgetDisplay`
-      ([cline-agent-chat-panel.tsx:128-152](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L128)) —
-      that heuristic is exactly why an 80k local model showed "healthy" at 87k.
+- [x] ~~Flow the breakdown through the runtime session summary / tRPC alongside `contextWindowByTaskId`.~~
+      `RuntimeTaskSessionSummary.contextBudgetBreakdown` carries the backend breakdown to the chat panel.
+- [x] ~~Use the real effective window (L1.1 / MCSR), not the 200k/120k/160k "smart budget" heuristic in
+      `formatClineContextBudgetDisplay`.~~ Backend breakdowns display the real effective context window, and
+      frontend-only estimates now say "effective model window" when a model window exists or "fallback
+      working budget" when it does not.
 
 **Frontend (web-ui) — the bar:**
 - [x] ~~New stacked, segmented bar component (Tailwind + design tokens, dark theme) rendering the segments
@@ -213,17 +214,13 @@ visible instead of buried in a text label.
       reserved working · reserved output — each sized to its share of the effective window, filling the bar
       left→right; reserved output/overhead shown as distinct trailing (muted/hatched) segments so headroom
       is visible.~~
-- [ ] **Health color ramp on the fill:** usage `< ~70%` green (`status-green`), `~70–85%` gold
-      (`status-gold`), `~85–95%` orange (`status-orange`), `≥95%` or overflow red (`status-red`) — a smooth
-      green→yellow→orange→red gradient; an over-limit marker when projected tokens exceed the window.
-- [ ] **Replace** the current text line (`"current request ~Xk tokens · Yk available context (Z% ·
-      healthy)"`) and the separate "request context / model available context / context health" pieces with
-      this bar; keep a compact text summary + per-segment tooltips (segment label, ~tokens, %) for
-      accessibility and small layouts.
-- [ ] Update `formatClineContextBudgetDisplay` (keep percent/state logic, drive it off the real window) and
-      its tests in
-      [cline-agent-chat-panel.test.tsx](web-ui/src/components/detail-panels/cline-agent-chat-panel.test.tsx)
-      (the `"… available context (… · healthy/overflow)"` assertions). Degrade gracefully when a breakdown
+- [x] ~~Health color ramp on the fill.~~ Usage drives `status-green`, `status-gold`, `status-orange`, or
+      `status-red`, with overflow treated as red.
+- [x] ~~Replace the current text line and separate request/model/health pieces with this bar.~~ The backend
+      breakdown renders a segmented bar with compact summary text and per-segment token tooltips.
+- [x] ~~Update `formatClineContextBudgetDisplay` and its tests.~~ The fallback formatter now distinguishes
+      effective model windows from fallback working budgets, and tests cover overflow wording without
+      claiming heuristic budgets are available model context. Degrade gracefully when a breakdown
       field is unavailable — fold unknowns into an "other" segment rather than hiding the bar.
 
 ---

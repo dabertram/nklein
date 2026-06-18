@@ -149,8 +149,8 @@ export function formatClineContextBudgetDisplay(options: {
 	const percent = Math.max(0, rawPercent);
 	const displayPercent = Math.min(100, percent);
 	const limitText = modelContextWindow
-		? `${Math.round(modelContextWindow / 1000)}k available context`
-		: `${Math.round(smartScopeBudget / 1000)}k smart budget (model max unavailable)`;
+		? `${Math.round(modelContextWindow / 1000)}k effective model window`
+		: `${Math.round(smartScopeBudget / 1000)}k fallback working budget (model max unavailable)`;
 	const overageTokens = Math.max(0, options.estimatedContextTokens - limit);
 	const overageText = overageTokens > 0 ? ` · over by ~${Math.round(overageTokens / 1000)}k` : "";
 	const budgetStateLabel =
@@ -158,7 +158,7 @@ export function formatClineContextBudgetDisplay(options: {
 	return {
 		limit,
 		percent: displayPercent,
-		text: `current request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
+		text: `estimated request ~${Math.round(options.estimatedContextTokens / 1000)}k tokens · ${limitText} (${displayPercent}%${overageText} · ${budgetStateLabel})`,
 	};
 }
 
@@ -751,9 +751,9 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			const overageText = overageTokens > 0 ? ` · over by ~${formatTokenCount(overageTokens)}` : "";
 			const stateLabel =
 				overageTokens > 0 ? "overflow" : percent >= 95 ? "critical" : percent >= 85 ? "warning" : "healthy";
-			return `current request ~${formatTokenCount(breakdown.projectedTokens)} tokens · ${formatTokenCount(
+			return `request context ~${formatTokenCount(breakdown.projectedTokens)} tokens / ${formatTokenCount(
 				breakdown.effectiveContextWindow,
-			)} available context (${percent}%${overageText} · ${stateLabel})`;
+			)} effective window (${percent}%${overageText} · ${stateLabel})`;
 		}, [estimatedContextBudget.text, summary?.contextBudgetBreakdown]);
 		const cardContentText = useMemo(
 			() => formatClineCardContentDisplay({ taskTitle, taskPrompt }),
