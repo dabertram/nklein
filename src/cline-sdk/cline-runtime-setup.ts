@@ -5,6 +5,7 @@ import {
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
 	findPotentialSecretInText,
 	findProtectedTestPath,
+	formatProtectedTestBlockReason,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
@@ -85,10 +86,6 @@ function appendPatchAddedLine(existing: string, line: string): string {
 
 function buildSecretWriteBlockReason(toolName: string, path: string, label: string): string {
 	return `Blocked ${toolName}: potential ${label} detected in ${path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`;
-}
-
-function buildProtectedTestBlockReason(toolName: string, path: string): string {
-	return `Blocked ${toolName}: ${path} is part of the protected test suite. Changing protected tests requires explicit human approval with intent, diff, reason, and expected effects.`;
 }
 
 function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
@@ -257,18 +254,24 @@ async function approveEditorTool(
 			reason: `Approved by !Klein runtime for ${request.toolName}.`,
 		};
 	}
+	const newText = typeof input.new_text === "string" ? input.new_text : "";
 	const protectedPath = findProtectedTestPath(rawPath);
 	if (protectedPath) {
 		return {
 			approved: false,
-			reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+			reason: formatProtectedTestBlockReason({
+				toolName: request.toolName,
+				path: protectedPath,
+				diff: newText,
+				reason: "The editor tool attempted to change a protected test-suite file.",
+				expectedEffects: "The protected test-suite file would be edited with the supplied new text.",
+			}),
 		};
 	}
 	const path = resolveToolPath(workspacePath, rawPath);
 	const currentText = (await readFile(path, "utf-8").catch(() => "")) as string;
 	const currentLines = countTextLines(currentText);
 
-	const newText = typeof input.new_text === "string" ? input.new_text : "";
 	const oldText = typeof input.old_text === "string" ? input.old_text : null;
 	const insertLine = asNumber(input.insert_line);
 
@@ -322,7 +325,13 @@ async function approveWriteFilesTool(
 		if (protectedPath) {
 			return {
 				approved: false,
-				reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+				reason: formatProtectedTestBlockReason({
+					toolName: request.toolName,
+					path: protectedPath,
+					diff: writeRequest.content,
+					reason: "The write-file tool attempted to replace a protected test-suite file.",
+					expectedEffects: "The protected test-suite file would be replaced with the supplied content.",
+				}),
 			};
 		}
 		const lineCount = countTextLines(writeRequest.content);
@@ -363,7 +372,13 @@ async function approveApplyPatchTool(
 		if (protectedPath) {
 			return {
 				approved: false,
-				reason: buildProtectedTestBlockReason(request.toolName, protectedPath),
+				reason: formatProtectedTestBlockReason({
+					toolName: request.toolName,
+					path: protectedPath,
+					diff: target.type === "delete" ? `Delete ${target.path}` : target.addedText,
+					reason: "The patch tool attempted to change a protected test-suite path.",
+					expectedEffects: "The protected test-suite path would be changed by the supplied patch.",
+				}),
 			};
 		}
 		if (target.type === "delete") {

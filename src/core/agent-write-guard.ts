@@ -18,8 +18,16 @@ export interface AgentWriteSecretFinding {
 	label: string;
 }
 
+export interface ProtectedTestApprovalRequest {
+	intent: string;
+	diff: string;
+	reason: string;
+	expectedEffects: string;
+}
+
 const PROTECTED_TEST_PATH_PREFIXES = ["test/protected/"] as const;
 const PROTECTED_TEST_FILES = new Set(["vitest.protected.config.ts"]);
+const MAX_PROTECTED_TEST_APPROVAL_FIELD_CHARS = 1_200;
 
 export function findProtectedTestPath(path: string): string | null {
 	const normalized = path.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
@@ -35,6 +43,52 @@ export function findProtectedTestPath(path: string): string | null {
 		}
 	}
 	return null;
+}
+
+function truncateProtectedApprovalField(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.length <= MAX_PROTECTED_TEST_APPROVAL_FIELD_CHARS) {
+		return trimmed;
+	}
+	return `${trimmed.slice(0, MAX_PROTECTED_TEST_APPROVAL_FIELD_CHARS).trimEnd()}\n[truncated]`;
+}
+
+export function buildProtectedTestApprovalRequest(input: {
+	toolName: string;
+	path: string;
+	diff?: string | null;
+	reason?: string | null;
+	expectedEffects?: string | null;
+}): ProtectedTestApprovalRequest {
+	return {
+		intent: `Change protected test suite path ${input.path} via ${input.toolName}.`,
+		diff: truncateProtectedApprovalField(input.diff?.trim() ? input.diff : "(diff unavailable from tool input)"),
+		reason: truncateProtectedApprovalField(
+			input.reason?.trim()
+				? input.reason
+				: "The agent attempted to edit a protected test path. Default policy is deny until a human approves this exact edit.",
+		),
+		expectedEffects: truncateProtectedApprovalField(
+			input.expectedEffects?.trim()
+				? input.expectedEffects
+				: "Protected-suite behavior may change. Approval should be granted only after reviewing the exact edit and confirming it does not weaken the guardrail.",
+		),
+	};
+}
+
+export function formatProtectedTestBlockReason(input: {
+	toolName: string;
+	path: string;
+	diff?: string | null;
+	reason?: string | null;
+	expectedEffects?: string | null;
+}): string {
+	const request = buildProtectedTestApprovalRequest(input);
+	return [
+		`Blocked ${input.toolName}: ${input.path} is part of the protected test suite.`,
+		"Default is deny. To request a one-edit human approval, ask the user through ask_followup_question with this exact JSON payload:",
+		JSON.stringify(request),
+	].join(" ");
 }
 
 const SECRET_PATTERNS: Array<{ label: string; pattern: RegExp }> = [

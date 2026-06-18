@@ -4,6 +4,7 @@ import {
 	countTextLines,
 	findPotentialSecretInText,
 	findProtectedTestPath,
+	formatProtectedTestBlockReason,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
@@ -107,7 +108,13 @@ function createWriteTool(options: {
 				const protectedPath = findProtectedTestPath(request.path);
 				if (protectedPath) {
 					throw new Error(
-						`Blocked ${options.name}: ${protectedPath} is part of the protected test suite. Changing protected tests requires explicit human approval with intent, diff, reason, and expected effects.`,
+						formatProtectedTestBlockReason({
+							toolName: options.name,
+							path: protectedPath,
+							diff: request.content,
+							reason: "The write-file tool attempted to replace a protected test-suite file.",
+							expectedEffects: "The protected test-suite file would be replaced with the supplied content.",
+						}),
 					);
 				}
 				const lineCount = countTextLines(request.content);

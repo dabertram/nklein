@@ -95,7 +95,7 @@ describe("createWriteFilesTool", () => {
 				},
 				TOOL_CONTEXT,
 			),
-		).rejects.toThrow("protected test suite");
+		).rejects.toThrow(/protected test suite.*ask_followup_question/s);
 		await expect(readFile(join(workspacePath, "safe.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 	});
 

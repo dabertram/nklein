@@ -128,7 +128,12 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("protected test suite");
-		expect(result.reason).toContain("explicit human approval");
+		expect(result.reason).toContain("ask_followup_question");
+		expect(result.reason).toContain(
+			'"intent":"Change protected test suite path test/protected/protected-tests.json via editor."',
+		);
+		expect(result.reason).toContain('"diff":"{}"');
+		expect(result.reason).toContain('"expectedEffects":');
 	});
 
 	it("blocks apply_patch calls that introduce obvious secrets", async () => {
@@ -173,6 +178,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("vitest.protected.config.ts");
 		expect(result.reason).toContain("protected test suite");
+		expect(result.reason).toContain('"reason":"The patch tool attempted to change a protected test-suite path."');
 	});
 
 	it("seeds the Kanban decomposition workflow without overwriting user edits", async () => {
