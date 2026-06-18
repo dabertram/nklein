@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./cline-local-only-policy";
+import type { ClineSdkAgentEvent, ClineSdkSessionEvent } from "./sdk-runtime-boundary";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
@@ -30,6 +31,13 @@ export interface ClineModelRegistryRequestObservation extends ClineModelRegistry
 export interface ClineModelRegistryCapabilityObservation extends ClineModelRegistryKeyInput {
 	passed: boolean;
 	score?: number | null;
+	createdAt?: number;
+}
+
+export interface ClineModelRegistryContextWindowObservation extends ClineModelRegistryKeyInput {
+	advertisedContextWindow?: number | null;
+	observedContextWindow?: number | null;
+	userOverrideContextWindow?: number | null;
 	createdAt?: number;
 }
 
@@ -510,6 +518,31 @@ export class ClineModelRegistry {
 		return cloneEntry(entry);
 	}
 
+	async recordContextWindow(
+		observation: ClineModelRegistryContextWindowObservation,
+	): Promise<ClineModelRegistryEntry> {
+		const snapshot = await this.mutableSnapshot();
+		const observedAt = observation.createdAt ?? this.now();
+		const entry = this.getOrCreateEntry(snapshot, observation, observedAt);
+		const advertisedContextWindow = normalizePositiveInteger(observation.advertisedContextWindow);
+		const observedContextWindow = normalizePositiveInteger(observation.observedContextWindow);
+		const userOverrideContextWindow = normalizePositiveInteger(observation.userOverrideContextWindow);
+		if (advertisedContextWindow !== null) {
+			entry.contextWindow.advertised = advertisedContextWindow;
+		}
+		if (observedContextWindow !== null) {
+			entry.contextWindow.observed = observedContextWindow;
+		}
+		if (userOverrideContextWindow !== null) {
+			entry.contextWindow.userOverride = userOverrideContextWindow;
+		}
+		entry.contextWindow.effective = calculateEffectiveContextWindow(entry.contextWindow);
+		entry.updatedAt = observedAt;
+		snapshot.updatedAt = observedAt;
+		this.schedulePersist(snapshot);
+		return cloneEntry(entry);
+	}
+
 	async flush(): Promise<void> {
 		if (this.persistTimer) {
 			clearTimeout(this.persistTimer);
@@ -647,48 +680,39 @@ export function resetDefaultClineModelRegistryForTests(): void {
 
 export interface ClineModelRegistryEventObservation extends ClineModelRegistryRequestObservation {}
 
-function readUsageTokens(usage: JsonRecord): { promptTokens: number; outputTokens: number } | null {
-	const promptTokens = normalizePositiveInteger(usage.inputTokens) ?? normalizePositiveInteger(usage.promptTokens);
-	const outputTokens =
-		normalizePositiveInteger(usage.outputTokens) ??
-		normalizePositiveInteger(usage.completionTokens) ??
-		normalizePositiveInteger(usage.generatedTokens);
+type ClineSdkUsageEvent = Extract<ClineSdkAgentEvent, { type: "usage" }>;
+
+function readUsageTokens(usage: ClineSdkUsageEvent): { promptTokens: number; outputTokens: number } | null {
+	const promptTokens = normalizePositiveInteger(usage.inputTokens);
+	const outputTokens = normalizePositiveInteger(usage.outputTokens);
 	if (promptTokens === null || outputTokens === null) {
 		return null;
 	}
 	return { promptTokens, outputTokens };
 }
 
+function readUsageEvent(event: ClineSdkSessionEvent): ClineSdkUsageEvent | null {
+	if (event.type !== "agent_event") {
+		return null;
+	}
+	return event.payload.event.type === "usage" ? event.payload.event : null;
+}
+
 export function extractClineModelRegistryObservationFromEvent(
-	event: unknown,
+	event: ClineSdkSessionEvent,
 	model: ClineModelRegistryKeyInput & { contextWindow?: number | null },
 	now: number,
 	wallTimeMsFallback?: number | null,
 ): ClineModelRegistryEventObservation | null {
-	const record = asRecord(event);
-	if (record?.type !== "agent_event") {
+	const usageEvent = readUsageEvent(event);
+	if (!usageEvent) {
 		return null;
 	}
-	const payload = asRecord(record.payload);
-	const agentEvent = asRecord(payload?.event);
-	if (agentEvent?.type !== "run-finished") {
-		return null;
-	}
-	const result = asRecord(agentEvent.result);
-	const usage = asRecord(result?.usage);
-	if (!usage) {
-		return null;
-	}
-	const tokens = readUsageTokens(usage);
+	const tokens = readUsageTokens(usageEvent);
 	if (!tokens) {
 		return null;
 	}
-	const durationMs =
-		normalizePositiveNumber(result?.durationMs) ??
-		normalizePositiveNumber(result?.wallTimeMs) ??
-		normalizePositiveNumber(agentEvent.durationMs) ??
-		normalizePositiveNumber(agentEvent.wallTimeMs) ??
-		normalizePositiveNumber(wallTimeMsFallback);
+	const durationMs = normalizePositiveNumber(wallTimeMsFallback);
 	if (!durationMs) {
 		return null;
 	}
@@ -699,15 +723,9 @@ export function extractClineModelRegistryObservationFromEvent(
 		contextWindow: model.contextWindow ?? null,
 		promptTokens: tokens.promptTokens,
 		outputTokens: tokens.outputTokens,
-		cacheReadTokens: normalizePositiveInteger(usage.cacheReadTokens) ?? 0,
-		cacheWriteTokens: normalizePositiveInteger(usage.cacheWriteTokens) ?? 0,
+		cacheReadTokens: normalizePositiveInteger(usageEvent.cacheReadTokens) ?? 0,
+		cacheWriteTokens: normalizePositiveInteger(usageEvent.cacheWriteTokens) ?? 0,
 		wallTimeMs: durationMs,
-		ttftMs:
-			normalizePositiveNumber(result?.ttftMs) ??
-			normalizePositiveNumber(agentEvent.ttftMs) ??
-			normalizePositiveNumber(result?.timeToFirstTokenMs),
-		promptEvalMs: normalizePositiveNumber(result?.promptEvalMs) ?? normalizePositiveNumber(agentEvent.promptEvalMs),
-		decodeMs: normalizePositiveNumber(result?.decodeMs) ?? normalizePositiveNumber(agentEvent.decodeMs),
 		createdAt: now,
 	};
 }

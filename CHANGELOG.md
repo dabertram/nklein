@@ -34,6 +34,8 @@
 - Named and documented Cline context-budget policy constants for reserve caps, unknown-window fallbacks, pressure curves, and file chunk sizing without changing budget behavior.
 - Documented the Cline repo-map heuristic and refreshed cached repo maps after successful workspace-mutating tools, so code-orientation context no longer stays stale after edits.
 - Debounced Cline model-registry persistence so observations update the in-memory MCSR immediately while locked disk writes are coalesced, with fractional EWMA speed stats preserved across reloads.
+- Switched Cline model-registry event extraction to the SDK session-event types, recording observations from typed usage events plus Kanban-measured request duration instead of guessed `run-finished` payloads.
+- Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.
 
 ## [0.1.68]
 

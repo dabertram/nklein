@@ -7,6 +7,7 @@ import {
 	ClineModelRegistry,
 	extractClineModelRegistryObservationFromEvent,
 } from "../../../src/cline-sdk/cline-model-registry";
+import type { ClineSdkSessionEvent } from "../../../src/cline-sdk/sdk-runtime-boundary";
 
 async function createRegistryPath(): Promise<string> {
 	const dir = await mkdtemp(join(tmpdir(), "kanban-model-registry-"));
@@ -203,6 +204,54 @@ describe("cline model registry", () => {
 		expect(entry.capability.effectiveScore).toBe(52);
 	});
 
+	it("records context-window metadata with effective precedence", async () => {
+		const registryPath = await createRegistryPath();
+		const registry = new ClineModelRegistry({
+			registryPath,
+			now: () => 5_000,
+			persistDebounceMs: 60_000,
+		});
+
+		const advertisedEntry = await registry.recordContextWindow({
+			providerId: "lmstudio",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:1234/v1",
+			advertisedContextWindow: 80_000,
+		});
+		expect(advertisedEntry.contextWindow).toMatchObject({
+			advertised: 80_000,
+			observed: null,
+			userOverride: null,
+			effective: 80_000,
+		});
+
+		const observedEntry = await registry.recordContextWindow({
+			providerId: "lmstudio",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:1234/v1",
+			observedContextWindow: 64_000,
+		});
+		expect(observedEntry.contextWindow.effective).toBe(64_000);
+
+		const overrideEntry = await registry.recordContextWindow({
+			providerId: "lmstudio",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:1234/v1",
+			userOverrideContextWindow: 96_000,
+		});
+		expect(overrideEntry.contextWindow.effective).toBe(96_000);
+
+		await registry.flush();
+		const persisted = JSON.parse(await readFile(registryPath, "utf8")) as {
+			models: Record<string, { contextWindow: { advertised: number; observed: number; userOverride: number } }>;
+		};
+		expect(persisted.models["lmstudio:qwen-ctx80k:http://127.0.0.1:1234/v1"]?.contextWindow).toMatchObject({
+			advertised: 80_000,
+			observed: 64_000,
+			userOverride: 96_000,
+		});
+	});
+
 	it("does not default cloud models into a serialized shared endpoint", async () => {
 		const registry = new ClineModelRegistry({
 			registryPath: await createRegistryPath(),
@@ -242,32 +291,30 @@ describe("cline model registry", () => {
 });
 
 describe("extractClineModelRegistryObservationFromEvent", () => {
-	it("extracts run-finished usage and timing from SDK events", () => {
+	it("extracts typed usage events with Kanban-measured timing", () => {
 		const observation = extractClineModelRegistryObservationFromEvent(
 			{
 				type: "agent_event",
 				payload: {
+					sessionId: "session-1",
 					event: {
-						type: "run-finished",
-						wallTimeMs: 6_000,
-						result: {
-							usage: {
-								inputTokens: 3_000,
-								outputTokens: 150,
-								cacheReadTokens: 20,
-								cacheWriteTokens: 10,
-							},
-							ttftMs: 1_000,
-						},
+						type: "usage",
+						inputTokens: 3_000,
+						outputTokens: 150,
+						cacheReadTokens: 20,
+						cacheWriteTokens: 10,
+						totalInputTokens: 3_000,
+						totalOutputTokens: 150,
 					},
 				},
-			},
+			} satisfies ClineSdkSessionEvent,
 			{
 				providerId: "cline",
 				modelId: "default",
 				contextWindow: 80_000,
 			},
 			10_000,
+			6_000,
 		);
 
 		expect(observation).toMatchObject({
@@ -279,54 +326,51 @@ describe("extractClineModelRegistryObservationFromEvent", () => {
 			cacheReadTokens: 20,
 			cacheWriteTokens: 10,
 			wallTimeMs: 6_000,
-			ttftMs: 1_000,
 			createdAt: 10_000,
 		});
 	});
 
-	it("ignores events without complete usage and duration", () => {
+	it("ignores non-usage SDK events", () => {
 		expect(
 			extractClineModelRegistryObservationFromEvent(
 				{
 					type: "agent_event",
 					payload: {
+						sessionId: "session-1",
 						event: {
-							type: "run-finished",
-							result: {
-								usage: {
-									inputTokens: 3_000,
-								},
-							},
+							type: "done",
+							reason: "completed",
+							text: "done",
+							iterations: 1,
 						},
 					},
-				},
+				} satisfies ClineSdkSessionEvent,
 				{ providerId: "cline", modelId: "default" },
 				10_000,
+				1_000,
 			),
 		).toBeNull();
 	});
 
-	it("uses a Kanban-measured wall-time fallback when the SDK event omits duration", () => {
+	it("requires Kanban-measured wall-time for typed usage events", () => {
 		const observation = extractClineModelRegistryObservationFromEvent(
 			{
 				type: "agent_event",
 				payload: {
+					sessionId: "session-1",
 					event: {
-						type: "run-finished",
-						result: {
-							usage: {
-								inputTokens: 3_000,
-								outputTokens: 150,
-							},
-						},
+						type: "usage",
+						inputTokens: 3_000,
+						outputTokens: 150,
+						totalInputTokens: 3_000,
+						totalOutputTokens: 150,
 					},
 				},
-			},
+			} satisfies ClineSdkSessionEvent,
 			{ providerId: "cline", modelId: "default" },
 			10_000,
-			4_500,
 		);
 
-		expect(observation?.wallTimeMs).toBe(4_500);
+		expect(observation).toBeNull();
 	});
 });

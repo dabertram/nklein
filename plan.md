@@ -503,12 +503,15 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       sub-30k model.~~
       `assertClineContextWindowPolicy` is enforced at provider save, launch resolution, role candidate
       construction, runtime start, and start-guard fallback creation; tests cover null/16k rejection and 32k acceptance.
-- [ ] **Resolve & measure the local model (currently null).** `model-registry.json` shows the in-use
+- [x] ~~**Resolve & measure the local model (currently null).** `model-registry.json` shows the in-use
       lmstudio qwen with `contextWindow.{advertised,observed,userOverride,effective} = null` and
       `speed.samples = 0` — so the MCSR provides no window or speed and budgets/UI fall back to heuristics.
       Resolve the effective window for local providers (advertise from the LM Studio/Ollama API, observe
       from real requests, or honor a user override — the `…ctx80k` model is 80k) and wire the timing tap so
-      speed EWMA actually accrues. This is the data the L1.1 guard and the L1.6 bar depend on.
+      speed EWMA actually accrues. This is the data the L1.1 guard and the L1.6 bar depend on.~~
+      Local task starts now record explicit local launch context windows into the MCSR immediately, typed SDK
+      usage events record speed observations using Kanban-measured request duration, and registry context-window
+      metadata supports advertised/observed/user-override precedence with persistence coverage.
 - [x] ~~**Plan2.md M1:** capability prior never decays — `calculateEffectiveCapability` is a permanent
       equal-weight average ([cline-model-registry.ts:236-247](src/cline-sdk/cline-model-registry.ts#L236)).
       Weight the cold-start prior by `1/(1+samples)` so observed data dominates over time.~~
@@ -520,8 +523,11 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Registry observations now update the in-memory MCSR immediately, coalesce locked disk writes behind a
       debounce, and expose `flush()` for callers/tests that require durable persistence. Regression coverage
       also proves fractional EWMA speed fields survive loading persisted registry files.
-- [ ] **Plan2.md L7:** registry event extraction guesses SDK event shapes via `asRecord`/string keys
-      ([:579-630](src/cline-sdk/cline-model-registry.ts#L579)) — prefer SDK-provided event types.
+- [x] ~~**Plan2.md L7:** registry event extraction guesses SDK event shapes via `asRecord`/string keys
+      ([:579-630](src/cline-sdk/cline-model-registry.ts#L579)) — prefer SDK-provided event types.~~
+      Model-registry observation extraction now accepts typed `ClineSdkSessionEvent` values, narrows to the
+      SDK `usage` agent-event union, and relies on Kanban's measured request wall time instead of speculative
+      `run-finished` payload fields.
 
 ### Codebase intelligence (repo map + search)
 - [x] ~~**Plan2.md M4:** repo map uses line-anchored regex + raw reference counts, is `O(symbols×files)`,

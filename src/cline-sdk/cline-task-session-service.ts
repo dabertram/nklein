@@ -27,6 +27,7 @@ import {
 	isContextOverflowError,
 } from "./cline-context-overflow-compaction";
 import { applyClineSessionEvent } from "./cline-event-adapter";
+import { isLocalProvider } from "./cline-local-only-policy";
 import {
 	type ClineMessageRepository,
 	createInMemoryClineMessageRepository,
@@ -62,6 +63,7 @@ import {
 } from "./cline-watcher-registry";
 import {
 	type ClineSdkPersistedMessage,
+	type ClineSdkSessionEvent,
 	type ClineSdkSlashCommand,
 	type ClineSdkStartSessionInput,
 	type ClineSdkTeamEvent,
@@ -277,6 +279,27 @@ function readSdkAgentEvent(event: unknown): Record<string, unknown> | null {
 	}
 	const payload = asRecord(record.payload);
 	return asRecord(payload?.event);
+}
+
+function readSdkSessionEvent(event: unknown): ClineSdkSessionEvent | null {
+	const record = asRecord(event);
+	if (!record || typeof record.type !== "string") {
+		return null;
+	}
+	switch (record.type) {
+		case "agent_event":
+		case "chunk":
+		case "ended":
+		case "hook":
+		case "pending_prompt_submitted":
+		case "pending_prompts":
+		case "session_snapshot":
+		case "status":
+		case "team_progress":
+			return event as ClineSdkSessionEvent;
+		default:
+			return null;
+	}
 }
 
 function readAgentResultText(result: unknown): string | null {
@@ -1131,6 +1154,12 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
 		this.endpointByTaskId.set(request.taskId, request.baseUrl?.trim() || null);
+		this.recordLaunchContextWindow({
+			providerId,
+			modelId,
+			endpoint: request.baseUrl?.trim() || null,
+			contextWindow: request.contextWindow ?? null,
+		});
 		this.cacheLaunchConfig(request.taskId, {
 			providerId,
 			modelId,
@@ -1851,7 +1880,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private handleTaskEvent(taskId: string, event: unknown): void {
-		this.recordModelRegistryObservation(taskId, event);
+		const sdkEvent = readSdkSessionEvent(event);
+		if (sdkEvent) {
+			this.recordModelRegistryObservation(taskId, sdkEvent);
+		}
 		this.recordSdkEventObservation(taskId, event);
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
@@ -1901,7 +1933,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 	}
 
-	private recordModelRegistryObservation(taskId: string, event: unknown): void {
+	private recordModelRegistryObservation(taskId: string, event: ClineSdkSessionEvent): void {
 		const observedAt = now();
 		const observation = extractClineModelRegistryObservationFromEvent(
 			event,
@@ -1920,6 +1952,32 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		void getDefaultClineModelRegistry()
 			.recordRequest(observation)
+			.catch(() => undefined);
+	}
+
+	private recordLaunchContextWindow(input: {
+		providerId: string;
+		modelId: string;
+		endpoint: string | null;
+		contextWindow: number | null;
+	}): void {
+		if (!isLocalProvider(input.providerId, input.endpoint)) {
+			return;
+		}
+		if (
+			typeof input.contextWindow !== "number" ||
+			!Number.isFinite(input.contextWindow) ||
+			input.contextWindow <= 0
+		) {
+			return;
+		}
+		void getDefaultClineModelRegistry()
+			.recordContextWindow({
+				providerId: input.providerId,
+				modelId: input.modelId,
+				endpoint: input.endpoint,
+				advertisedContextWindow: input.contextWindow,
+			})
 			.catch(() => undefined);
 	}
 
