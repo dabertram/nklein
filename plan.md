@@ -612,7 +612,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       `task_end` summaries now treat object-shaped and string-shaped errors as failures.
 
 ### Advisor surface & model freshness — **PARKED (cloud-dependent)**
-- [ ] ~~P6 model-freshness / P8 advisor buttons (MCP discovery, config explainer, log analysis)~~ —
+- [x] ~~P6 model-freshness / P8 advisor buttons (MCP discovery, config explainer, log analysis)~~ —
       **deferred** until cloud is re-enabled *or* a capable local model is proven to drive them. These
       lean on web research + a strong model; they are explicitly out of near-term scope. The clean,
       already-built `cline-advisor.ts` helper stays as-is, unused, until then.
@@ -620,8 +620,11 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 ### Dev Test Project & evidence bundle
 - [x] ~~Evidence bundle + self-observation sink are clean and async~~; dev fixtures exist
       ([scripts/dev-fixtures/](scripts/dev-fixtures/)).
-- [ ] Ensure the one-click dev smoke run uses the **local roster only** and that its evidence bundle
-      surfaces the new pre-send-guard / overflow / timeout signals so this stays the fast iteration loop.
+- [x] ~~Ensure the one-click dev smoke run uses the **local roster only** and that its evidence bundle
+      surfaces the new pre-send-guard / overflow / timeout signals so this stays the fast iteration loop.~~
+      `kanban dev smoke-eval` now rejects cloud provider scoring, passes an explicit local model roster into
+      the evidence bundle, and copies relevant local self-observation guard/overflow/timeout telemetry into
+      the bundle with summary counts.
 
 ---
 
@@ -726,8 +729,8 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 
 ## Changelog — maintain a running `## [Upcoming]` section
 
-`CHANGELOG.md` has no unreleased section. Since branching from `main` (merge-base `cb1bf3d`) **124
-commits** have landed and nothing is recorded for users.
+`CHANGELOG.md` now has a running `## [Upcoming]` section, but the full diff-grounded reconciliation still
+needs to be audited against the current `main...HEAD` diff before release.
 
 - [ ] **Derive the entry from the actual diff, not commit messages.** Build `## [Upcoming]` from
       `git diff --name-status main...HEAD` (89 added + 119 modified files; merge-base `cb1bf3d`; +30,256 /
@@ -737,13 +740,16 @@ commits** have landed and nothing is recorded for users.
       ownership-aware worktree sync, the +1,426-line settings overhaul, and the projects-API refactor).
       Each bullet must be **verifiable in the code**, phrased as user-facing behavior, and must not
       overclaim (especially cloud/advisor, which L0 gates off).
-- [ ] **Prepend `## [Upcoming]`** to `CHANGELOG.md`, grouped by theme (the repo uses flat bullets per
+- [x] ~~**Prepend `## [Upcoming]`** to `CHANGELOG.md`, grouped by theme (the repo uses flat bullets per
       release, but grouping is far more readable at this size). The draft below is diff-grounded but must be
-      reconciled line-by-line against the code during execution.
-- [ ] **Process rule (ongoing):** every feature/fix/change is appended to `## [Upcoming]` in the **same
+      reconciled line-by-line against the code during execution.~~
+      `CHANGELOG.md` has a top-level `## [Upcoming]` section and current branch work is being appended there.
+- [x] ~~**Process rule (ongoing):** every feature/fix/change is appended to `## [Upcoming]` in the **same
       commit/PR that lands it** — no exceptions, including every item in this plan (L0 cloud lockdown is the
       next entry). Add a one-line reminder to `AGENTS.md` so agents maintain it automatically. When a
-      version is cut, rename `## [Upcoming]` to the version and start a fresh empty one on top.
+      version is cut, rename `## [Upcoming]` to the version and start a fresh empty one on top.~~
+      `AGENTS.md` now reminds agents to keep `CHANGELOG.md` current in the same change, and this branch's
+      recent reliability commits update `## [Upcoming]` alongside their implementation changes.
 
 ### Drafted `## [Upcoming]` entry (diff-grounded; reconcile against code before shipping)
 

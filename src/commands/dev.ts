@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { buildClineAdvisorRequest, type ClineAdvisorKind } from "../cline-sdk/cline-advisor";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
+import { assertLocalProviderAllowed } from "../cline-sdk/cline-local-only-policy";
 import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 
@@ -11,6 +12,7 @@ interface DevSmokeEvalOptions {
 	json?: boolean;
 	parentDir?: string;
 	evidenceRoot?: string;
+	telemetryRoot?: string;
 	git?: boolean;
 	providerId?: string;
 	modelId?: string;
@@ -55,6 +57,7 @@ function buildDevSmokeEvalModelObservation(options: DevSmokeEvalOptions) {
 	if (!providerId || !modelId) {
 		throw new Error("--provider-id and --model-id are required together when recording smoke eval capability.");
 	}
+	assertLocalProviderAllowed({ providerId, baseUrl: endpoint || null });
 	return {
 		providerId,
 		modelId,
@@ -82,6 +85,7 @@ export async function runDevSmokeEvalCommand(options: DevSmokeEvalOptions = {}):
 	const result = await runClineDevSmokeEval({
 		parentDir: options.parentDir,
 		evidenceRootDir: options.evidenceRoot,
+		telemetryRootDir: options.telemetryRoot ?? DEFAULT_TELEMETRY_ROOT,
 		initializeGit: options.git !== false,
 		modelObservation: buildDevSmokeEvalModelObservation(options),
 	});
@@ -178,6 +182,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.option("--parent-dir <path>", "Parent directory for the throwaway workspace.")
 		.option("--evidence-root <path>", "Directory for evidence bundles.")
+		.option("--telemetry-root <path>", "Telemetry JSONL root to include guard/overflow/timeout signals.")
 		.option("--no-git", "Skip git initialization in the throwaway workspace.")
 		.option("--provider-id <id>", "Provider id to score in the model capability registry.")
 		.option("--model-id <id>", "Model id to score in the model capability registry.")

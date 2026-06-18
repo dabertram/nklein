@@ -1,6 +1,9 @@
 import { execFile } from "node:child_process";
+import { readdir, readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
+import type { SelfObservationEventRecord, SelfObservationSignal } from "../telemetry/self-observation-sink";
 import {
 	type ClineDevTestProjectScenario,
 	DEFAULT_CLINE_DEV_TEST_SCENARIO,
@@ -9,11 +12,20 @@ import {
 import { type ClineModelRegistryCapabilityObservation, getDefaultClineModelRegistry } from "./cline-model-registry";
 
 const execFileAsync = promisify(execFile);
+const DEV_SMOKE_EVIDENCE_SIGNALS = new Set<SelfObservationSignal>([
+	"provider_error",
+	"context_overflow",
+	"runtime_error",
+	"slow_turn",
+	"budget_wall",
+	"tool_error",
+]);
 
 export interface ClineEvalHarnessOptions {
 	scenario?: ClineDevTestProjectScenario;
 	parentDir?: string;
 	evidenceRootDir?: string;
+	telemetryRootDir?: string;
 	initializeGit?: boolean;
 	modelObservation?: Omit<ClineModelRegistryCapabilityObservation, "passed" | "score" | "createdAt">;
 	recordCapability?: (observation: ClineModelRegistryCapabilityObservation) => Promise<unknown>;
@@ -84,6 +96,95 @@ async function readGitDiff(workspacePath: string): Promise<string | null> {
 	}
 }
 
+function isSelfObservationSeverity(value: unknown): value is SelfObservationEventRecord["severity"] {
+	return value === "debug" || value === "info" || value === "warning" || value === "error";
+}
+
+function parseDevSmokeTelemetryLine(line: string): SelfObservationEventRecord | null {
+	try {
+		const parsed = JSON.parse(line) as unknown;
+		if (!parsed || typeof parsed !== "object") {
+			return null;
+		}
+		const record = parsed as Record<string, unknown>;
+		if (record.schemaVersion !== 1 || typeof record.signal !== "string" || typeof record.message !== "string") {
+			return null;
+		}
+		if (!DEV_SMOKE_EVIDENCE_SIGNALS.has(record.signal as SelfObservationSignal)) {
+			return null;
+		}
+		const message = record.message.toLowerCase();
+		if (record.signal === "runtime_error" && !message.includes("timeout") && !message.includes("timed out")) {
+			return null;
+		}
+		return {
+			schemaVersion: 1,
+			signal: record.signal as SelfObservationSignal,
+			severity: isSelfObservationSeverity(record.severity) ? record.severity : "warning",
+			message: record.message,
+			taskId: typeof record.taskId === "string" ? record.taskId : null,
+			runId: typeof record.runId === "string" ? record.runId : null,
+			providerId: typeof record.providerId === "string" ? record.providerId : null,
+			modelId: typeof record.modelId === "string" ? record.modelId : null,
+			workspacePath: typeof record.workspacePath === "string" ? record.workspacePath : null,
+			metadata:
+				record.metadata && typeof record.metadata === "object"
+					? (record.metadata as Record<string, unknown>)
+					: undefined,
+			createdAt: typeof record.createdAt === "number" && Number.isFinite(record.createdAt) ? record.createdAt : 0,
+		};
+	} catch {
+		return null;
+	}
+}
+
+async function readDevSmokeTelemetry(input: {
+	telemetryRootDir?: string;
+	startedAt: number;
+	finishedAt: number;
+}): Promise<SelfObservationEventRecord[]> {
+	if (!input.telemetryRootDir) {
+		return [];
+	}
+	const entries = await readdir(input.telemetryRootDir, { withFileTypes: true }).catch(() => []);
+	const logFiles = entries
+		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
+		.sort((left, right) => basename(left.name).localeCompare(basename(right.name)));
+	const events: SelfObservationEventRecord[] = [];
+	for (const entry of logFiles) {
+		const text = await readFile(join(input.telemetryRootDir, entry.name), "utf8").catch(() => "");
+		for (const line of text.split(/\r?\n/u)) {
+			const parsed = line.trim() ? parseDevSmokeTelemetryLine(line) : null;
+			if (parsed && parsed.createdAt >= input.startedAt && parsed.createdAt <= input.finishedAt) {
+				events.push(parsed);
+			}
+		}
+	}
+	return events;
+}
+
+function formatModelObservation(
+	observation: Omit<ClineModelRegistryCapabilityObservation, "passed" | "score" | "createdAt"> | undefined,
+): string[] {
+	if (!observation) {
+		return [];
+	}
+	const endpoint = observation.endpoint?.trim();
+	return [`${observation.providerId}:${observation.modelId}${endpoint ? ` @ ${endpoint}` : ""}`];
+}
+
+function countTelemetrySignal(events: readonly SelfObservationEventRecord[], signal: SelfObservationSignal): number {
+	return events.filter((event) => event.signal === signal).length;
+}
+
+function countTimeoutSignals(events: readonly SelfObservationEventRecord[]): number {
+	return events.filter(
+		(event) =>
+			event.signal === "runtime_error" &&
+			(event.message.toLowerCase().includes("timeout") || event.message.toLowerCase().includes("timed out")),
+	).length;
+}
+
 export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}): Promise<ClineEvalHarnessResult> {
 	const scenario = options.scenario ?? DEFAULT_CLINE_DEV_TEST_SCENARIO;
 	const project = await scaffoldClineDevTestProject({
@@ -106,6 +207,11 @@ export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}
 		});
 	}
 	const diffPatch = await readGitDiff(project.workspacePath);
+	const telemetryEvents = await readDevSmokeTelemetry({
+		telemetryRootDir: options.telemetryRootDir,
+		startedAt,
+		finishedAt,
+	});
 	const evidenceBundle = await createEvidenceBundle({
 		rootDir: options.evidenceRootDir,
 		scenario: scenario.id,
@@ -113,17 +219,23 @@ export async function runClineDevSmokeEval(options: ClineEvalHarnessOptions = {}
 		finishedAt,
 		outcome: acceptance.passed ? "passed" : "failed",
 		summary: acceptance.passed ? "Dev smoke eval passed." : "Dev smoke eval failed.",
-		models: [],
+		models: formatModelObservation(options.modelObservation),
 		metrics: [
 			{ label: "exit code", value: acceptance.exitCode },
 			{ label: "capability score", value: capabilityScore },
 			{ label: "workspace", value: project.workspacePath },
+			{ label: "context overflow signals", value: countTelemetrySignal(telemetryEvents, "context_overflow") },
+			{ label: "provider error signals", value: countTelemetrySignal(telemetryEvents, "provider_error") },
+			{ label: "timeout runtime signals", value: countTimeoutSignals(telemetryEvents) },
 		],
 		diffPatch,
+		telemetryEvents,
 		configSnapshot: {
 			scenario,
 			workspacePath: project.workspacePath,
 			gitInitialized: project.gitInitialized,
+			localModel: options.modelObservation ?? null,
+			telemetryRootDir: options.telemetryRootDir ?? null,
 		},
 		evalResult: {
 			status: acceptance.passed ? "passed" : "failed",

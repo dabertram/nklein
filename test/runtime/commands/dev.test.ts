@@ -54,6 +54,7 @@ describe("dev command", () => {
 		await runDevSmokeEvalCommand({
 			parentDir: "/tmp/workspaces",
 			evidenceRoot: "/tmp/evidence-root",
+			telemetryRoot: "/tmp/telemetry-root",
 			git: false,
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
@@ -66,6 +67,7 @@ describe("dev command", () => {
 		expect(evalHarnessMocks.runClineDevSmokeEval).toHaveBeenCalledWith({
 			parentDir: "/tmp/workspaces",
 			evidenceRootDir: "/tmp/evidence-root",
+			telemetryRootDir: "/tmp/telemetry-root",
 			initializeGit: false,
 			modelObservation: {
 				providerId: "ollama",
@@ -75,6 +77,16 @@ describe("dev command", () => {
 		});
 		expect(writes.join("")).toContain("Dev smoke eval passed.");
 		expect(writes.join("")).toContain("Evidence: /tmp/evidence");
+	});
+
+	it("rejects cloud providers for smoke eval scoring", async () => {
+		await expect(
+			runDevSmokeEvalCommand({
+				providerId: "anthropic",
+				modelId: "claude-sonnet",
+			}),
+		).rejects.toThrow("local-only mode");
+		expect(evalHarnessMocks.runClineDevSmokeEval).not.toHaveBeenCalled();
 	});
 
 	it("requires provider and model together when scoring a smoke eval", async () => {
