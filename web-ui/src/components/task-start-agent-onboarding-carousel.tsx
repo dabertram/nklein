@@ -7,9 +7,13 @@ import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import { cn } from "@/components/ui/cn";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import { isClineProviderAuthenticated } from "@/runtime/native-agent";
+import { buildFirstRunLocalModelRoles } from "@/runtime/onboarding";
+import { saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
+	RuntimeClineProviderCatalogItem,
+	RuntimeClineProviderModel,
 	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
 } from "@/runtime/types";
@@ -113,6 +117,61 @@ function AgentStatusBadge({ label, statusClassName }: { label: string; statusCla
 		<span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium", statusClassName)}>
 			{label}
 		</span>
+	);
+}
+
+function isBuiltInLocalProviderId(providerId: string): boolean {
+	const normalized = providerId.trim().toLowerCase();
+	return normalized === "ollama" || normalized === "lmstudio" || normalized === "lm-studio";
+}
+
+function formatLocalProviderLabel(provider: RuntimeClineProviderCatalogItem): string {
+	const endpoint = provider.baseUrl?.trim();
+	return endpoint ? `${provider.name} (${endpoint})` : provider.name;
+}
+
+function LocalModelSetupStatus({
+	providers,
+	models,
+	selectedProviderId,
+	isLoadingModels,
+}: {
+	providers: RuntimeClineProviderCatalogItem[];
+	models: RuntimeClineProviderModel[];
+	selectedProviderId: string;
+	isLoadingModels: boolean;
+}): ReactElement {
+	const localProviders = providers.filter((provider) => isBuiltInLocalProviderId(provider.id));
+	const detectedProviders = localProviders.filter((provider) => provider.enabled);
+	const selectedProviderIsLocal = isBuiltInLocalProviderId(selectedProviderId);
+	const visibleModels = selectedProviderIsLocal ? models.slice(0, 4) : [];
+	return (
+		<div className="mt-2 rounded-md border border-border bg-surface-2 p-2 text-[12px] text-text-secondary">
+			<div className="font-medium text-text-primary">Local model setup</div>
+			<div className="mt-1">
+				Detected endpoints:{" "}
+				<span className="text-text-primary">
+					{detectedProviders.length > 0
+						? detectedProviders.map((provider) => formatLocalProviderLabel(provider)).join(", ")
+						: "none yet"}
+				</span>
+			</div>
+			<div className="mt-1">
+				Loaded models:{" "}
+				<span className="text-text-primary">
+					{isLoadingModels
+						? "refreshing"
+						: visibleModels.length > 0
+							? visibleModels.map((model) => model.name || model.id).join(", ")
+							: selectedProviderIsLocal
+								? "none detected"
+								: "choose Ollama or LM Studio"}
+				</span>
+				{selectedProviderIsLocal && !isLoadingModels && models.length > visibleModels.length ? (
+					<span className="text-text-tertiary"> +{models.length - visibleModels.length}</span>
+				) : null}
+			</div>
+		</div>
 	);
 }
 
@@ -441,9 +500,24 @@ export function TaskStartAgentOnboardingCarousel({
 			setClineSetupError(message);
 			return { ok: false, message };
 		}
+		const firstRunRoles = buildFirstRunLocalModelRoles({
+			existingRoles: runtimeConfig?.modelRoles,
+			providerId: clineSettings.providerId,
+			modelId: clineSettings.modelId,
+			baseUrl: clineSettings.baseUrl,
+		});
+		if (firstRunRoles) {
+			try {
+				await saveRuntimeConfig(workspaceId, { modelRoles: firstRunRoles });
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setClineSetupError(message);
+				return { ok: false, message };
+			}
+		}
 		onClineSetupSaved?.();
 		return { ok: true };
-	}, [activeAgentId, clineSettings, onClineSetupSaved]);
+	}, [activeAgentId, clineSettings, onClineSetupSaved, runtimeConfig?.modelRoles, workspaceId]);
 
 	useEffect(() => {
 		onDoneActionChange?.(handleDoneAction);
@@ -552,6 +626,12 @@ export function TaskStartAgentOnboardingCarousel({
 							</p>
 							{agent.id === "cline" ? (
 								<div className="mt-2">
+									<LocalModelSetupStatus
+										providers={clineSettings.providerCatalog}
+										models={clineSettings.providerModels}
+										selectedProviderId={clineSettings.providerId}
+										isLoadingModels={clineSettings.isLoadingProviderModels}
+									/>
 									<ClineSetupSection
 										controller={clineSettings}
 										controlsDisabled={false}

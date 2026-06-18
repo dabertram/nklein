@@ -61,6 +61,7 @@
 - Replaced cloud Cline examples in task CLI help with local-model examples and added a production-source boundary scan for cloud-provider literals.
 - Added a Cline code-intelligence status panel in settings, exposing repo-map availability and code-index cache coverage, staleness, embedding metadata, cache path, and search readiness.
 - Made MCSR capability scores age-aware by decaying old eval/pass-rate evidence toward the static prior instead of letting stale observations dominate forever.
+- Improved startup onboarding for local Cline setup: it reopens when Cline lacks a configured local model, shows detected Ollama/LM Studio endpoints and loaded models, and seeds architect/worker/reviewer roles from the selected local model on first save.
 
 ## [0.1.68]
 

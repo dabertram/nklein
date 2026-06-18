@@ -63,6 +63,8 @@ export function useStartupOnboarding(options: UseStartupOnboardingOptions): UseS
 		setIsStartupOnboardingDialogOpen(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog,
+				selectedAgentId: runtimeProjectConfig?.selectedAgentId ?? null,
+				clineProviderSettings: runtimeProjectConfig?.clineProviderSettings ?? null,
 			}),
 		);
 	}, [

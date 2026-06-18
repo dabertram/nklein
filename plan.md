@@ -502,10 +502,15 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       advisor.~~ The telemetry sink now has a bounded JSONL reader, runtime exposes typed
       `getTaskDiagnostics`, and the card detail view includes a collapsible Diagnostics panel that loads
       recent local events for the selected task without invoking an LLM.
-- [ ] **First-run local-model setup wizard.** On first launch (or when no local model is configured),
+- [~] **First-run local-model setup wizard.** On first launch (or when no local model is configured),
       detect running Ollama / LM Studio endpoints, list loaded models, let the user set context windows and
       assign roles (architect/worker/reviewer → `modelRoles`). Directly fixes today's cloud-defaulted,
-      null-window, `openrouter`-selected starting state.
+      null-window, `openrouter`-selected starting state. **Progress:** startup onboarding now reopens after
+      first-run dismissal when Cline is selected without a configured local model; the Cline agent card shows
+      detected local Ollama / LM Studio endpoints and loaded models from the existing provider/model APIs; and
+      finishing Cline setup seeds empty architect/worker/reviewer roles from the selected local provider/model
+      without overwriting configured role choices or accepting non-local providers. Still open: explicit
+      context-window setup, richer role tuning, and a more guided endpoint install/start flow.
 - [~] **Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers

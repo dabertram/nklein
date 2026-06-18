@@ -14,7 +14,10 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 
 type HookSnapshot = UseStartupOnboardingResult;
 
-function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["selectedAgentId"]): RuntimeConfigResponse {
+function createRuntimeConfigResponse(
+	selectedAgentId: RuntimeConfigResponse["selectedAgentId"],
+	overrides: Partial<RuntimeConfigResponse> = {},
+): RuntimeConfigResponse {
 	return {
 		selectedAgentId,
 		selectedShortcutLabel: null,
@@ -61,6 +64,7 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 		openPrPromptTemplate: "",
 		commitPromptTemplateDefault: "",
 		openPrPromptTemplateDefault: "",
+		...overrides,
 	};
 }
 
@@ -204,7 +208,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("stays closed once onboarding has already been shown, even when setup is incomplete", async () => {
+	it("reopens once onboarding has already been shown when Cline has no local model configured", async () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -215,6 +219,45 @@ describe("useStartupOnboarding", () => {
 					runtimeProjectConfig={createRuntimeConfigResponse("cline")}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={false}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a startup onboarding snapshot.");
+		}
+
+		const snapshot = latestSnapshot as HookSnapshot;
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
+	});
+
+	it("stays closed once onboarding has already been shown and Cline has a local model configured", async () => {
+		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					currentProjectId={"project-1"}
+					runtimeProjectConfig={createRuntimeConfigResponse("cline", {
+						clineProviderSettings: {
+							providerId: "ollama",
+							modelId: "qwen3",
+							baseUrl: null,
+							apiKeyConfigured: false,
+							oauthProvider: null,
+							oauthAccessTokenConfigured: false,
+							oauthRefreshTokenConfigured: false,
+							oauthAccountId: null,
+							oauthExpiresAt: null,
+						},
+					})}
+					isRuntimeProjectConfigLoading={false}
+					isTaskAgentReady={true}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
 					}}
