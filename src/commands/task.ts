@@ -39,6 +39,11 @@ import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 import { resolveTaskCwd } from "../workspace/task-worktree";
+import {
+	mergeTaskWorktreesInDependencyOrder,
+	type TaskWorktreeAutoMergeColumn,
+	type TaskWorktreeAutoMergeConflict,
+} from "../workspace/task-worktree-auto-merge";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
@@ -62,6 +67,16 @@ interface RuntimeWorkspaceMutationResult<T> {
 
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
+
+function parseAutoMergeColumn(value: string | undefined): TaskWorktreeAutoMergeColumn {
+	if (value === undefined || value === "review") {
+		return "review";
+	}
+	if (value === "completed" || value === "done") {
+		return "completed";
+	}
+	throw new Error('Invalid merge column. Expected "review" or "completed".');
+}
 
 interface DecompositionRejectionInput {
 	workspacePath: string;
@@ -1297,6 +1312,96 @@ async function finishTask(input: {
 	};
 }
 
+function buildIntegrationCardPrompt(conflict: TaskWorktreeAutoMergeConflict): string {
+	const paths =
+		conflict.conflictedPaths.length > 0
+			? conflict.conflictedPaths.map((path) => `- ${path}`).join("\n")
+			: "- No conflicted paths were reported by Git; inspect the aborted merge output.";
+	return [
+		`Resolve the merge conflict from task "${conflict.taskId}".`,
+		`Task head: ${conflict.headCommit}`,
+		"Conflicting paths:",
+		paths,
+		"Re-run the task worktree merge after resolving the integration changes.",
+		`Git message: ${conflict.message}`,
+	].join("\n\n");
+}
+
+async function createIntegrationCardForMergeConflict(input: {
+	workspaceRepoPath: string;
+	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
+	conflict: TaskWorktreeAutoMergeConflict;
+	baseRef: string;
+}): Promise<JsonRecord> {
+	const mutation = await mutateWorkspaceState<JsonRecord>(input.workspaceRepoPath, (latestState) => {
+		const created = addTaskToColumn(
+			latestState.board,
+			"planning",
+			{
+				title: `Resolve merge conflict for ${input.conflict.taskId}`,
+				prompt: buildIntegrationCardPrompt(input.conflict),
+				startInPlanMode: true,
+				autoReviewEnabled: true,
+				autoReviewMode: "commit",
+				agentId: "cline",
+				baseRef: input.baseRef,
+				filesLikelyTouched: input.conflict.conflictedPaths,
+			},
+			() => globalThis.crypto.randomUUID(),
+		);
+		const nextState: RuntimeWorkspaceStateResponse = {
+			...latestState,
+			board: created.board,
+		};
+		return {
+			board: created.board,
+			value: formatTaskRecord(nextState, created.task, "planning"),
+		};
+	});
+	if (mutation.saved) {
+		await notifyRuntimeWorkspaceStateUpdated(input.runtimeClient);
+	}
+	return mutation.value;
+}
+
+async function mergeTaskWorktreesCommand(input: {
+	cwd: string;
+	projectPath?: string;
+	taskId?: string;
+	column: TaskWorktreeAutoMergeColumn;
+}): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
+	const runtimeClient = createRuntimeTrpcClient(workspaceId);
+	const state = await runtimeClient.workspace.getState.query();
+	const result = await mergeTaskWorktreesInDependencyOrder({
+		repoPath: workspaceRepoPath,
+		board: state.board,
+		columns: [input.column],
+		taskIds: input.taskId ? [input.taskId] : undefined,
+	});
+	const integrationTask =
+		result.conflict && state.git.currentBranch
+			? await createIntegrationCardForMergeConflict({
+					workspaceRepoPath,
+					runtimeClient,
+					conflict: result.conflict,
+					baseRef: state.git.currentBranch,
+				})
+			: null;
+	return {
+		ok: result.ok,
+		workspacePath: workspaceRepoPath,
+		column: input.column,
+		mergedTaskIds: result.mergedTaskIds,
+		skippedTaskIds: result.skippedTaskIds,
+		steps: result.steps,
+		integrationTask,
+		conflict: result.conflict ?? null,
+		blocked: result.blocked ?? null,
+	};
+}
+
 async function deleteTaskCommand(input: {
 	cwd: string;
 	taskId?: string;
@@ -1575,6 +1680,24 @@ export function registerTaskCommand(program: Command): void {
 				);
 			},
 		);
+
+	task
+		.command("merge")
+		.description("Merge reviewed task worktrees into the base worktree in dependency order.")
+		.option("--task-id <id>", "Single task ID to merge.")
+		.option("--column <column>", "Column to merge: review | completed. Defaults to review.", parseAutoMergeColumn)
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(async (options: { taskId?: string; column?: TaskWorktreeAutoMergeColumn; projectPath?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await mergeTaskWorktreesCommand({
+						cwd: process.cwd(),
+						taskId: options.taskId,
+						column: options.column ?? "review",
+						projectPath: options.projectPath,
+					}),
+			);
+		});
 
 	task
 		.command("done")

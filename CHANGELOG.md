@@ -26,6 +26,7 @@
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Persisted `filesLikelyTouched` on decomposition-created cards and used it to skip overlapping task starts across UI single starts, start-all, dependency auto-starts, and CLI `task start`.
 - Added `decisions.md` plan artifacts and compact shared spec/decision injection for decomposition-created cards, so dependent Cline tasks inherit the same plan contracts.
+- Added `kanban task merge` to merge reviewed/completed task worktree heads into a clean base worktree in dependency order, abort conflicts, and create a Planning integration card with conflicted paths.
 
 ## [0.1.68]
 
