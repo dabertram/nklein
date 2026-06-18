@@ -124,16 +124,16 @@ instead of storming. These are the concrete failures behind the telemetry above.
 ### L1.1 — Authoritative, never-overflow pre-send guard
 - [x] ~~A proactive pre-send guard exists~~ ([cline-task-session-service.ts:666-695](src/cline-sdk/cline-task-session-service.ts#L666)) —
       it compacts history and throws if projected tokens exceed the window.
-- [~] **Fix the window it trusts.** The guard compacts to the model's *advertised* window; the cloud
+- [x] ~~**Fix the window it trusts.** The guard compacts to the model's *advertised* window; the cloud
       Sonnet advertised ~1M, so it compacted-to-1M and sent 1.1M. The effective window must be
       `min(advertised, user-configured, Kanban hard ceiling)`. Replace the 1M-trusting path so the
       guard target is the **effective** window, sourced consistently with what the SDK actually uses
       (see `resolveKnownContextWindowForTask` / `DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS`,
-      [cline-task-session-service.ts:662-664](src/cline-sdk/cline-task-session-service.ts#L662)).
-      **Progress:** session start/restart now normalizes the launch context window through a Kanban-owned
-      effective ceiling before building prompts, approvals, initial messages, or dispatching to the SDK.
-      Still open: source the local model's MCSR/user-configured effective window more richly across all
-      budget displays and scheduling paths.
+      [cline-task-session-service.ts:662-664](src/cline-sdk/cline-task-session-service.ts#L662)).~~ Session
+      start/restart now normalizes launch windows through a Kanban-owned effective ceiling before building
+      prompts, approvals, initial messages, or dispatching to the SDK; runtime routing passes the selected
+      MCSR/user effective window into the Cline session instead of the provider-advertised window; the router,
+      decomposition feasibility guard, and chat-panel fallback budget display all prefer MCSR effective windows.
 - [x] ~~**Add an absolute Kanban-owned ceiling.** A hard cap (derived from the resolved local window, with
       a sane maximum) above which a request is **never** assembled or sent, regardless of what any
       provider advertises. If, after maximal compaction, projected tokens still exceed the effective
@@ -192,16 +192,17 @@ yellow → orange → red as it fills/overflows. This makes the very failure mod
 visible instead of buried in a text label.
 
 **Backend — expose a faithful breakdown (don't let the UI guess):**
-- [~] Add a structured `ContextBudgetBreakdown` per task, computed from the **same source as the pre-send
+- [x] ~~Add a structured `ContextBudgetBreakdown` per task, computed from the **same source as the pre-send
       guard (L1.1)** so it reflects what will be sent, not a frontend estimate. Segments:
       `systemPromptTokens` (append-system-prompt + SDK base system prompt + rules),
       `toolSchemaTokens`, `taskPromptTokens` (card title/prompt + injected task info),
       `userMessageTokens`, `includedFileContentTokens` (retained `read_files` output),
       `otherHistoryTokens`, plus the reserves from `buildKanbanContextSafetyBudgets`
       (`reservedPromptOverheadTokens`, `reservedOutputTokens`), `usedWorkingTokens`, `freeWorkingTokens`,
-      and `effectiveContextWindow`. **Progress:** summaries now expose a breakdown driven by the same
+      and `effectiveContextWindow`.~~ Summaries now expose a breakdown driven by the same
       effective context window and token counters as the pre-send guard; tool schema and precise retained
-      file-output segmentation still need SDK/deeper message-source integration.
+      file-output segmentation are backend-owned, with retained `read_files` / `read_large_file` tool
+      results split into `includedFileContentTokens` instead of being folded into other history.
 - [x] ~~Source system/tool token counts from the SDK where it exposes them; otherwise estimate with the
       existing `gpt-tokenizer`.~~ The SDK does not expose a public per-request system/tool breakdown here,
       so Kanban now counts the exact system prompt it passes to the SDK and estimates enabled Kanban

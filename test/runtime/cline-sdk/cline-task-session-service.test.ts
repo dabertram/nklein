@@ -15,6 +15,7 @@ import {
 	createInMemoryClineTaskSessionService,
 } from "../../../src/cline-sdk/cline-task-session-service";
 import { createClineWatcherRegistry } from "../../../src/cline-sdk/cline-watcher-registry";
+import type { ClineSdkPersistedMessage } from "../../../src/cline-sdk/sdk-runtime-boundary";
 import type { RuntimeTaskImage, RuntimeTaskSessionMode } from "../../../src/core/api-contract";
 
 const originalArgv = [...process.argv];
@@ -2057,6 +2058,67 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(breakdown?.systemPromptTokens).toBeGreaterThan(0);
 		expect(breakdown?.toolSchemaTokens).toBeGreaterThan(0);
+	});
+
+	it("segments retained read_files tool output in the context budget breakdown", async () => {
+		const { service, runtime } = createTrackedService();
+		const initialMessages: ClineSdkPersistedMessage[] = [
+			{
+				role: "user",
+				content: "Please inspect the file.",
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "read-1",
+						name: "read_files",
+						input: {
+							files: [{ path: "src/index.ts", start_line: 1, end_line: 3 }],
+						},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "read-1",
+						content: "export function run() {\n  return true;\n}\n",
+					},
+				],
+			},
+		];
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Continue from the file context",
+			providerId: "lmstudio",
+			modelId: "local-model",
+			baseUrl: "http://127.0.0.1:1234/v1",
+			contextWindow: 80_000,
+			initialMessages,
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		const breakdown = service.getSummary("task-1")?.contextBudgetBreakdown;
+		expect(breakdown?.includedFileContentTokens).toBeGreaterThan(0);
+		expect(breakdown?.userMessageTokens).toBeGreaterThan(0);
+		expect(breakdown?.projectedTokens).toBe(
+			(breakdown?.systemPromptTokens ?? 0) +
+				(breakdown?.toolSchemaTokens ?? 0) +
+				(breakdown?.taskPromptTokens ?? 0) +
+				(breakdown?.userMessageTokens ?? 0) +
+				(breakdown?.includedFileContentTokens ?? 0) +
+				(breakdown?.otherHistoryTokens ?? 0) +
+				(breakdown?.reservedPromptOverheadTokens ?? 0) +
+				(breakdown?.reservedOutputTokens ?? 0),
+		);
 	});
 
 	it("blocks a prompt-only overflow before starting the SDK runtime", async () => {

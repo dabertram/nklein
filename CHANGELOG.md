@@ -4,6 +4,7 @@
 
 - Enforced local-only Cline model usage: cloud provider selections are ignored or hard-stopped, cloud providers and recommendations are hidden from the picker, routing drops cloud candidates, and cloud-blocked cards are parked with a clear local-model message.
 - Added a Kanban-owned effective context ceiling for Cline starts/restarts and proactive pre-send overflow telemetry, so oversized prompts are compacted or blocked before provider dispatch.
+- Passed MCSR/user effective context windows through runtime routing into native Cline starts and chat budget displays, preventing provider-advertised windows from overruling Kanban's effective guard.
 - Persisted sanitized Cline launch metadata with SDK sessions and reused it during resume/overflow recovery, preventing recoverable compaction restarts from failing with missing session config.
 - Treated legacy cloud timeout profiles as local-model timeouts and clamped positive Cline timeouts to at least 60 seconds, so slow local model sessions cannot inherit stale one-second request, stream, tool, agent, or conversation limits.
 - Raised positive local Cline timeouts from MCSR speed observations at task start, using measured wall-time-per-1k prompt tokens, prefill/decode rates, TTFT, and wall-time samples while preserving unlimited mode.
@@ -11,6 +12,7 @@
 - Hardened Cline acceptance checks to use a non-login shell with an explicit PATH fallback and a larger output buffer, avoiding shell-init hangs and false failures from large passing output.
 - Added a backend-fed Cline context budget breakdown and segmented chat-panel bar using the effective context window, with fallback to the existing estimate when breakdown data is unavailable.
 - Added routing regression coverage for preferred feasible local models and candidate-specific 32k/80k context-window assignment.
+- Split retained `read_files` / `read_large_file` results into the context budget bar's included-file segment instead of hiding that content inside other history.
 - Applied decomposed Cline task graphs into the Planning lane, normalized persisted boards to include Planning, and let dependency-unblocked Planning cards flow into execution.
 - Seeded the Kanban decomposition prompt as an overridable Cline workflow and resolved `/kanban-decompose` through the user instruction service instead of hardcoding the prompt into runtime starts.
 - Added recursive `decompose_project.expansions`, so oversized decomposition leaves can be replaced in one validated tool call with bounded-depth splitting and dependency rewriting to terminal replacement tasks.

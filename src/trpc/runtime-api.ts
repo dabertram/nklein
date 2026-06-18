@@ -250,6 +250,25 @@ function createConcurrencyLimitStartError(maxConcurrentTasks: number): string {
 	return `Maximum concurrent task limit reached (${maxConcurrentTasks}). Wait for a running task to finish, or stop an active task before starting another.`;
 }
 
+function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedClineLaunchConfig>(
+	launchConfig: TLaunchConfig,
+	candidate: ClineStartGuardCandidate<TLaunchConfig>,
+): TLaunchConfig {
+	const effectiveContextWindow = candidate.entry.contextWindow.effective;
+	if (
+		typeof effectiveContextWindow !== "number" ||
+		!Number.isFinite(effectiveContextWindow) ||
+		effectiveContextWindow <= 0 ||
+		launchConfig.contextWindow === effectiveContextWindow
+	) {
+		return launchConfig;
+	}
+	return {
+		...launchConfig,
+		contextWindow: effectiveContextWindow,
+	};
+}
+
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const clineProviderService = createClineProviderService();
 	const clineMcpSettingsService = createClineMcpSettingsService();
@@ -430,6 +449,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						role: null,
 						modelRegistry: modelRegistrySnapshot,
 					});
+					clineLaunchConfig = applyCandidateEffectiveContextWindow(clineLaunchConfig, selectedCandidate);
 					guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
 					for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
 						if (!settings.providerId && !settings.modelId) {
@@ -490,7 +510,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					}
 					const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
 					if (routedCandidate) {
-						clineLaunchConfig = routedCandidate.launchConfig;
+						clineLaunchConfig = applyCandidateEffectiveContextWindow(
+							routedCandidate.launchConfig,
+							routedCandidate,
+						);
 					}
 					assertLocalProviderAllowed({
 						providerId: clineLaunchConfig.providerId,

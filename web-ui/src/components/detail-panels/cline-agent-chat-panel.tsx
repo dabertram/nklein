@@ -652,6 +652,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			() => formatClineModelRegistryDisplay(selectedModelRegistryEntry),
 			[selectedModelRegistryEntry],
 		);
+		const selectedEffectiveContextWindow =
+			selectedModelRegistryEntry?.contextWindow.effective ?? selectedModel?.contextWindow ?? null;
 		const reasoningEnabledModelIds = useMemo(
 			() => getClineReasoningEnabledModelIds(clineSettings.providerModels),
 			[clineSettings.providerModels],
@@ -697,9 +699,9 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					estimatedContextTokens,
 					estimatedNextPromptTokens,
 					contextScope,
-					modelContextWindow: selectedModel?.contextWindow,
+					modelContextWindow: selectedEffectiveContextWindow,
 				}),
-			[contextScope, estimatedContextTokens, estimatedNextPromptTokens, selectedModel?.contextWindow],
+			[contextScope, estimatedContextTokens, estimatedNextPromptTokens, selectedEffectiveContextWindow],
 		);
 		const currentRequestContextText = useMemo(() => {
 			const breakdown = summary?.contextBudgetBreakdown;

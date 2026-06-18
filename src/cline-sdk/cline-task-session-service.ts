@@ -85,12 +85,20 @@ const KANBAN_MAX_EFFECTIVE_CONTEXT_WINDOW_TOKENS = 200_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
+type ClineSdkContentBlock = Exclude<ClineSdkPersistedMessage["content"], string>[number];
+type ClineSdkToolResultBlock = Extract<ClineSdkContentBlock, { type: "tool_result" }>;
 type ClineTaskTimeoutKind = "stream" | "tool" | "conversation";
 
 interface ClineTaskTimeoutSettings {
 	streamTimeoutMs: number | null;
 	toolTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
+}
+
+interface ContextHistoryTokenSegments {
+	userMessageTokens: number;
+	includedFileContentTokens: number;
+	otherHistoryTokens: number;
 }
 
 interface ClineTaskFailureBackoffState {
@@ -208,6 +216,79 @@ export function buildKanbanEfficiencyRules(options: {
 		`Keep about ${promptOverheadReserveText} tokens for prompt/history/tool overhead; summarize/compact before more reads if near the safe working budget.`,
 		`Suggested file-read chunk size: about ${chunkTokenBudgetText}k tokens (~${chunkCharBudgetText}k characters). Prefer the smallest slice that fully answers the immediate question.`,
 	].join("\n");
+}
+
+function toPersistedContentBlocks(message: ClineSdkPersistedMessage): ClineSdkContentBlock[] {
+	return typeof message.content === "string" ? [] : message.content;
+}
+
+function stringifyToolResultContent(content: ClineSdkToolResultBlock["content"]): string {
+	if (typeof content === "string") {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.map((item) => {
+				if (typeof item === "string") {
+					return item;
+				}
+				if (item && typeof item === "object" && "text" in item && typeof item.text === "string") {
+					return item.text;
+				}
+				return JSON.stringify(item);
+			})
+			.join("\n");
+	}
+	return JSON.stringify(content);
+}
+
+function countContextBudgetTextTokens(text: string): number {
+	return text.length > 0 ? countKanbanTextTokens(text) : 0;
+}
+
+function isFileReadToolName(toolName: string | undefined): boolean {
+	return toolName === "read_files" || toolName === "read_large_file";
+}
+
+function classifyContextHistoryTokens(messages: readonly ClineSdkPersistedMessage[]): ContextHistoryTokenSegments {
+	const totalHistoryTokens = countKanbanPersistedMessagesTokens(messages);
+	const toolNameByUseId = new Map<string, string>();
+	let userMessageTokens = 0;
+	let includedFileContentTokens = 0;
+
+	for (const message of messages) {
+		if (typeof message.content === "string") {
+			if (message.role === "user") {
+				userMessageTokens += countContextBudgetTextTokens(message.content);
+			}
+			continue;
+		}
+		for (const block of toPersistedContentBlocks(message)) {
+			if (block.type === "tool_use") {
+				toolNameByUseId.set(block.id, block.name);
+				if (block.call_id) {
+					toolNameByUseId.set(block.call_id, block.name);
+				}
+				continue;
+			}
+			if (block.type === "tool_result") {
+				const toolName = toolNameByUseId.get(block.tool_use_id);
+				if (isFileReadToolName(toolName)) {
+					includedFileContentTokens += countContextBudgetTextTokens(stringifyToolResultContent(block.content));
+				}
+				continue;
+			}
+			if (message.role === "user" && block.type === "text") {
+				userMessageTokens += countContextBudgetTextTokens(block.text);
+			}
+		}
+	}
+
+	return {
+		userMessageTokens,
+		includedFileContentTokens,
+		otherHistoryTokens: Math.max(0, totalHistoryTokens - userMessageTokens - includedFileContentTokens),
+	};
 }
 
 export interface ClineTaskSessionService {
@@ -917,20 +998,14 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				? Math.max(0, Math.trunc(input.toolSchemaTokens))
 				: 0;
 		const taskPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
-		const historyTokens = countKanbanPersistedMessagesTokens(messages);
-		const userMessageTokens = messages.reduce((sum, message) => {
-			if (message.role !== "user") {
-				return sum;
-			}
-			return sum + countKanbanPersistedMessagesTokens([message]);
-		}, 0);
-		const otherHistoryTokens = Math.max(0, historyTokens - userMessageTokens);
+		const historySegments = classifyContextHistoryTokens(messages);
 		const projectedTokens =
 			systemPromptTokens +
 			toolSchemaTokens +
 			taskPromptTokens +
-			userMessageTokens +
-			otherHistoryTokens +
+			historySegments.userMessageTokens +
+			historySegments.includedFileContentTokens +
+			historySegments.otherHistoryTokens +
 			budgets.promptOverheadReserveTokens +
 			budgets.outputReserveTokens;
 		const usedWorkingTokens = Math.max(0, projectedTokens - budgets.outputReserveTokens);
@@ -938,9 +1013,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			systemPromptTokens,
 			toolSchemaTokens,
 			taskPromptTokens,
-			userMessageTokens,
-			includedFileContentTokens: 0,
-			otherHistoryTokens,
+			userMessageTokens: historySegments.userMessageTokens,
+			includedFileContentTokens: historySegments.includedFileContentTokens,
+			otherHistoryTokens: historySegments.otherHistoryTokens,
 			reservedPromptOverheadTokens: budgets.promptOverheadReserveTokens,
 			reservedOutputTokens: budgets.outputReserveTokens,
 			usedWorkingTokens,
