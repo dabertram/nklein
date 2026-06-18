@@ -4,6 +4,7 @@
 
 - Renamed the fork's user-facing product to `!Klein` and the command-line entry point/package command to `nklein`, while preserving repository/internal compatibility names where they still matter.
 - Replaced the remaining app-brand "Cline" labels in the UI with `!Klein` (sidebar wordmark, UI error screen, runtime-disconnected screen, and offline fallback now say `!Klein` / `nklein`), while keeping genuine Cline engine/provider/account references intact.
+- Kept the current robot app mark for `!Klein 0.0.1`, renamed the sidebar icon component to `NKleinMark`, and removed the leftover `ClineIcon` UI component name.
 - Continued the rename migration across desktop metadata, protocol handling, runtime env vars, workspace headers, session cookies, runtime-home paths, and terminal/status surfaces, with one-release compatibility fallbacks for legacy `KANBAN_*` env vars plus legacy workspace header/cookie acceptance.
 - Taught the desktop runtime health probe to recognize both the current `!Klein` browser title and the legacy `Kanban` title during the rename transition, so packaged shells can still attach to already-running older runtimes.
 - Tightened the Electron shell with regression coverage for isolated/sandboxed renderer preferences, packaged devtools disabling, deny-by-default popup handling, and a CSP on the disconnected recovery page; desktop window/menu fallback titles now use `nKlein`.

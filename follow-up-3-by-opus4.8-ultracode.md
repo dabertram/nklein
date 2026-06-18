@@ -290,7 +290,7 @@ Each is additive. If none are "exceptionally convincing," shipping only the Lab 
 - ✅ **Protected tests** → keep the list **well-selected/curated, in a location separate from the main test suite, with documentation co-located** explaining each protected test's purpose so it stays maintainable when external/valid work touches the codebase. (§D)
 
 ### Still open (non-blocking)
-- [ ] **App icon/logo** — keep `ClineIcon` next to the `!Klein` wordmark, or design a Klein mark? (Pure design call.) (§A1)
+- [x] **App icon/logo** — keep the current robot mark for `!Klein 0.0.1`, but use the `NKleinMark` component name next to the `!Klein` wordmark. (§A1)
 - [x] **Embedding model id bump** — keep `kanban-local-lexical-vector-v1` until a deliberate lexical-cache invalidation is needed; OpenAI-compatible embeddings already separate cache entries by provider/model key. (§A7 / §F1)
 - [x] **Guidance-skill priority** — start with `security`, `ui`, `ts`. (§E)
 - [x] **Self-improvement v1 scope** — confirm v1 = "currently running code (dev mode)" only, branch/tag/commit later. (§C2)
