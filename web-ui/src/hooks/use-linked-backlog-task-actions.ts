@@ -14,6 +14,7 @@ import {
 import { trackTaskDependencyCreated, trackTasksAutoStartedFromDependency } from "@/telemetry/events";
 import type { BoardCard, BoardColumnId, BoardData } from "@/types";
 import { getNextDetailTaskIdAfterTrashMove } from "@/utils/detail-view-task-order";
+import { getBoardActiveTaskCardsForFileOverlap, hasLikelyTouchedFileOverlap } from "@/utils/task-file-overlap";
 
 interface RequestMoveTaskToTrashOptions {
 	optimisticMoveApplied?: boolean;
@@ -144,7 +145,22 @@ export function useLinkedBacklogTaskActions({
 			const normalizedMaxConcurrentTasks = Math.max(1, Math.trunc(maxConcurrentTasks));
 			const activeTasksAfterFinish = Math.max(0, activeTaskSessionCount - 1);
 			const availableStartSlots = Math.max(0, normalizedMaxConcurrentTasks - activeTasksAfterFinish);
-			const readyTasksToStart = readyTaskSelections.slice(0, availableStartSlots);
+			const activeFileOwners = getBoardActiveTaskCardsForFileOverlap(finished.board, new Set([task.id]));
+			const readyTasksToStart: typeof readyTaskSelections = [];
+			for (const readyTaskSelection of readyTaskSelections) {
+				if (readyTasksToStart.length >= availableStartSlots) {
+					break;
+				}
+				if (
+					hasLikelyTouchedFileOverlap(readyTaskSelection.card, [
+						...activeFileOwners,
+						...readyTasksToStart.map((selection) => selection.card),
+					])
+				) {
+					continue;
+				}
+				readyTasksToStart.push(readyTaskSelection);
+			}
 
 			if (readyTasksToStart.length > 0) {
 				maybeRequestNotificationPermissionForTaskStart();

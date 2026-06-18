@@ -14,7 +14,7 @@ vi.mock("@/telemetry/events", () => ({
 	trackTasksAutoStartedFromDependency: trackTasksAutoStartedFromDependencyMock,
 }));
 
-function createTask(taskId: string, prompt: string, createdAt: number): BoardCard {
+function createTask(taskId: string, prompt: string, createdAt: number, filesLikelyTouched?: string[]): BoardCard {
 	return {
 		id: taskId,
 		title: prompt,
@@ -22,6 +22,7 @@ function createTask(taskId: string, prompt: string, createdAt: number): BoardCar
 		startInPlanMode: false,
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
+		filesLikelyTouched,
 		baseRef: "main",
 		createdAt,
 		updatedAt: createdAt,
@@ -325,6 +326,72 @@ describe("useLinkedBacklogTaskActions", () => {
 		expect(inProgressTaskIds).toEqual(["task-1"]);
 		expect(backlogTaskIds).toEqual(["task-3"]);
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
+	});
+
+	it("skips dependency-unblocked tasks that overlap likely files with another selected start", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const kickoffTaskInProgress = vi.fn(async () => true);
+		const boardFactory = (): BoardData => ({
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						createTask("task-1", "Backlog task", 1, ["src/shared.ts"]),
+						createTask("task-3", "Second backlog task", 3, ["./src/shared.ts"]),
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{
+					id: "review",
+					title: "Review",
+					cards: [createTask("task-2", "Review task", 2)],
+				},
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [] },
+			],
+			dependencies: [
+				{ id: "dep-1", fromTaskId: "task-1", toTaskId: "task-2", createdAt: 10 },
+				{ id: "dep-2", fromTaskId: "task-3", toTaskId: "task-2", createdAt: 11 },
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					boardFactory={boardFactory}
+					kickoffTaskInProgress={kickoffTaskInProgress}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		const initialSnapshot = latestSnapshot as HookSnapshot;
+
+		await act(async () => {
+			await initialSnapshot.requestMoveTaskToCompleted("task-2", "review");
+		});
+
+		const finalSnapshot = latestSnapshot as HookSnapshot;
+		const inProgressTaskIds =
+			finalSnapshot.board.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id) ?? [];
+		const backlogTaskIds =
+			finalSnapshot.board.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id) ?? [];
+		expect(kickoffTaskInProgress).toHaveBeenCalledTimes(1);
+		expect(kickoffTaskInProgress).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "task-1" }),
+			"task-1",
+			"backlog",
+			{ optimisticMove: true },
+		);
+		expect(inProgressTaskIds).toEqual(["task-1"]);
+		expect(backlogTaskIds).toEqual(["task-3"]);
 	});
 
 	it("uses animated backlog starts for dependency-unblocked tasks when available", async () => {

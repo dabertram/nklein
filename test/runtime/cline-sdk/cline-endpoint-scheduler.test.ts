@@ -81,6 +81,39 @@ describe("cline endpoint scheduler", () => {
 		});
 	});
 
+	it("estimates remaining wait from observed model wall time", () => {
+		const snapshot = createSnapshot("gpu-0");
+		const entry = snapshot.models["ollama:qwen:local"];
+		if (!entry) {
+			throw new Error("Expected registry entry.");
+		}
+		entry.speed.wallTimeMsEwma = 120_000;
+		const decision = scheduleClineEndpointStart({
+			taskId: "task-2",
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "local",
+			modelRegistry: snapshot,
+			now: 220_000,
+			runningSessions: [
+				{
+					taskId: "task-1",
+					state: "running",
+					startedAt: 160_000,
+					providerId: "ollama",
+					modelId: "qwen",
+					endpoint: "local",
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			ok: false,
+			estimatedWaitMs: 60_000,
+			reason: expect.stringContaining("about 60s"),
+		});
+	});
+
 	it("allows cloud providers without an explicit shared endpoint", () => {
 		const decision = scheduleClineEndpointStart({
 			taskId: "task-2",

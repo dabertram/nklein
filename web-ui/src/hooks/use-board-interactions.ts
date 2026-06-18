@@ -27,6 +27,7 @@ import {
 	hasPromptedForBrowserNotificationPermission,
 	requestBrowserNotificationPermission,
 } from "@/utils/notification-permission";
+import { getSessionActiveTaskCardsForFileOverlap, hasLikelyTouchedFileOverlap } from "@/utils/task-file-overlap";
 
 interface TaskGitActionLoadingStateLike {
 	commitSource: string | null;
@@ -430,6 +431,10 @@ export function useBoardInteractions({
 			if (!isStartableSourceColumnId(fromColumnId)) {
 				return false;
 			}
+			const activeFileOwners = getSessionActiveTaskCardsForFileOverlap(board, sessions, new Set([task.id]));
+			if (hasLikelyTouchedFileOverlap(task, activeFileOwners)) {
+				return false;
+			}
 			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
 			if (availableStartSlots === 0) {
 				return false;
@@ -470,11 +475,13 @@ export function useBoardInteractions({
 			return completionPromise;
 		},
 		[
+			board,
 			kickoffTaskInProgress,
 			activeTaskSessionCount,
 			maxConcurrentTasks,
 			resolvePendingProgrammaticStartMove,
 			selectedCard,
+			sessions,
 			startWaitingTaskImmediately,
 			tryProgrammaticCardMove,
 			waitForBacklogCardHeightToSettle,
@@ -731,6 +738,7 @@ export function useBoardInteractions({
 			let nextBoard = board;
 			const pendingStarts: BoardCard[] = [];
 			const startedTaskIds = new Set<string>();
+			const activeFileOwners = getSessionActiveTaskCardsForFileOverlap(board, sessions);
 
 			for (const taskId of requestedTaskIds) {
 				if (!taskId || startedTaskIds.has(taskId)) {
@@ -744,6 +752,9 @@ export function useBoardInteractions({
 					continue;
 				}
 				if (selection.card.blockedKind === "needs_decomposition") {
+					continue;
+				}
+				if (hasLikelyTouchedFileOverlap(selection.card, [...activeFileOwners, ...pendingStarts])) {
 					continue;
 				}
 				const moved = moveTaskToColumn(nextBoard, taskId, getTaskActiveColumnId(selection.card), {
@@ -777,6 +788,7 @@ export function useBoardInteractions({
 			kickoffTaskInProgress,
 			maxConcurrentTasks,
 			maybeRequestNotificationPermissionForTaskStart,
+			sessions,
 			setBoard,
 		],
 	);

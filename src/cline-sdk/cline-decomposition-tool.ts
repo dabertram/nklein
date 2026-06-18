@@ -447,6 +447,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 				agentId: "cline",
 				baseRef: input.baseRef,
 				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
+				filesLikelyTouched: task.filesLikelyTouched,
 			},
 			input.randomUuid,
 			now,

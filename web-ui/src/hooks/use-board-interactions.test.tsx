@@ -33,7 +33,7 @@ function createTask(
 	taskId: string,
 	prompt: string,
 	createdAt: number,
-	options?: { startInPlanMode?: boolean },
+	options?: { startInPlanMode?: boolean; filesLikelyTouched?: string[] },
 ): BoardCard {
 	return {
 		id: taskId,
@@ -42,6 +42,7 @@ function createTask(
 		startInPlanMode: options?.startInPlanMode ?? false,
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
+		filesLikelyTouched: options?.filesLikelyTouched,
 		baseRef: "main",
 		createdAt,
 		updatedAt: createdAt,
@@ -490,6 +491,169 @@ describe("useBoardInteractions", () => {
 		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).not.toHaveBeenCalled();
 		expect(setBoard).not.toHaveBeenCalledWith(expect.any(Function));
+	});
+
+	it("blocks single-card starts that overlap likely files with an active task", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		const board: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [createTask("task-1", "Backlog task", 1, { filesLikelyTouched: ["src/shared.ts"] })],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{
+					id: "in_progress",
+					title: "In Progress",
+					cards: [createTask("task-2", "Active task", 2, { filesLikelyTouched: ["./src/shared.ts"] })],
+				},
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={board}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					activeTaskSessionCount={1}
+					maxConcurrentTasks={2}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.setSessions({
+				"task-2": {
+					taskId: "task-2",
+					state: "running",
+				} as RuntimeTaskSessionSummary,
+			});
+		});
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+		});
+
+		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
+		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
+		expect(startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("skips overlapping likely files during manual start-all", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						createTask("task-1", "First task", 1, { filesLikelyTouched: ["src/shared.ts"] }),
+						createTask("task-2", "Second task", 2, { filesLikelyTouched: ["src/shared.ts"] }),
+						createTask("task-3", "Third task", 3, { filesLikelyTouched: ["src/other.ts"] }),
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((updater) => {
+			currentBoard = typeof updater === "function" ? updater(currentBoard) : updater;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					maxConcurrentTasks={3}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartAllBacklogTasks();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(startTaskSession).toHaveBeenCalledTimes(2);
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-3" }));
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
+			"task-3",
+			"task-1",
+		]);
+		expect(currentBoard.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id)).toEqual([
+			"task-2",
+		]);
 	});
 
 	it("skips tasks parked for decomposition during manual start-all", async () => {

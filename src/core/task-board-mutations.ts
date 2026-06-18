@@ -21,6 +21,7 @@ export interface RuntimeCreateTaskInput {
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
+	filesLikelyTouched?: string[];
 	baseRef: string;
 }
 
@@ -68,6 +69,14 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings | null): Run
 			? { conversationTimeoutMs: settings.conversationTimeoutMs }
 			: {}),
 	};
+}
+
+function normalizeFilesLikelyTouched(files?: string[]): string[] | undefined {
+	if (!files || files.length === 0) {
+		return undefined;
+	}
+	const normalized = Array.from(new Set(files.map((path) => path.trim()).filter((path) => path.length > 0)));
+	return normalized.length > 0 ? normalized : undefined;
 }
 
 export interface RuntimeCreateTaskResult {
@@ -314,6 +323,7 @@ export function addTaskToColumn(
 	if (explicitTaskId && existingIds.has(explicitTaskId)) {
 		throw new Error(`Task "${explicitTaskId}" already exists.`);
 	}
+	const filesLikelyTouched = normalizeFilesLikelyTouched(input.filesLikelyTouched);
 	const task: RuntimeBoardCard = {
 		id: explicitTaskId || createUniqueTaskId(existingIds, randomUuid),
 		title: resolveTaskTitle(input.title, prompt),
@@ -324,6 +334,7 @@ export function addTaskToColumn(
 		images: cloneTaskImages(input.images),
 		...(input.agentId ? { agentId: input.agentId } : {}),
 		...(input.clineSettings !== undefined ? { clineSettings: cloneTaskClineSettings(input.clineSettings) } : {}),
+		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
 		baseRef,
 		createdAt: now,
 		updatedAt: now,

@@ -33,6 +33,7 @@ import {
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
 } from "../core/task-board-mutations";
+import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -999,6 +1000,16 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 	const shouldStartSession = existingSession?.state !== "running";
 
 	if (shouldStartSession) {
+		const overlappingTask = findActiveTaskLikelyTouchedFileOverlap({
+			board: runtimeState.board,
+			sessions: runtimeState.sessions,
+			task,
+		});
+		if (overlappingTask) {
+			throw new Error(
+				`Task "${task.id}" likely touches the same files as active task "${overlappingTask.id}". Wait for the active task to finish before starting this one.`,
+			);
+		}
 		const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
 			taskId: task.id,
 			baseRef: task.baseRef,

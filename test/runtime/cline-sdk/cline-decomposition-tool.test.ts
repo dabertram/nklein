@@ -130,6 +130,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.createdTasks.map((task) => task.id)).toEqual(["habit-tracker-storage", "habit-tracker-ui"]);
 		expect(result.createdTasks[0]?.prompt).toContain("Likely files:");
 		expect(result.createdTasks[0]?.prompt).toContain("Acceptance check: npm test");
+		expect(result.createdTasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(result.createdTasks[0]?.agentId).toBe("cline");
 		expect(result.createdDependencies).toHaveLength(1);
 		expect(result.createdDependencies[0]).toMatchObject({

@@ -46,6 +46,7 @@ export interface BoardCard {
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
+	filesLikelyTouched?: string[];
 	blockedKind?: "needs_decomposition" | "local_model_required";
 	blockedReason?: string;
 	baseRef: string;

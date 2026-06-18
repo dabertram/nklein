@@ -27,6 +27,7 @@ export interface TaskDraft {
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
+	filesLikelyTouched?: string[];
 	blockedKind?: "needs_decomposition" | "local_model_required";
 	blockedReason?: string;
 	baseRef: string;
@@ -415,6 +416,7 @@ export function addTaskToColumnWithResult(
 			images: draft.images,
 			agentId: draft.agentId,
 			clineSettings: draft.clineSettings,
+			filesLikelyTouched: draft.filesLikelyTouched,
 			baseRef: draft.baseRef,
 		},
 		createBrowserUuid,

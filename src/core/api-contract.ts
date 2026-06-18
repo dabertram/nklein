@@ -165,6 +165,7 @@ export const runtimeBoardCardSchema = z
 		images: z.array(runtimeTaskImageSchema).optional(),
 		agentId: runtimeAgentIdSchema.optional(),
 		clineSettings: runtimeTaskClineSettingsSchema.optional(),
+		filesLikelyTouched: z.array(z.string()).optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required"]).optional(),
 		blockedReason: z.string().optional(),
 		clineProviderId: z.string().optional(),
@@ -1249,7 +1250,10 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 	ok: z.boolean(),
 	summary: runtimeTaskSessionSummarySchema.nullable(),
 	error: z.string().optional(),
-	errorCode: z.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled"]).optional(),
+	errorCode: z
+		.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled", "endpoint_busy"])
+		.optional(),
+	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
 });
 export type RuntimeTaskSessionStartResponse = z.infer<typeof runtimeTaskSessionStartResponseSchema>;
 

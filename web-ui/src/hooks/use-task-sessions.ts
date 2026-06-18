@@ -42,7 +42,8 @@ interface SendTaskSessionInputResult {
 interface StartTaskSessionResult {
 	ok: boolean;
 	message?: string;
-	errorCode?: "needs_decomposition" | "routing_escalation" | "cloud_provider_disabled";
+	errorCode?: "needs_decomposition" | "routing_escalation" | "cloud_provider_disabled" | "endpoint_busy";
+	retryAfterMs?: number | null;
 }
 
 interface StartTaskSessionOptions {
@@ -179,6 +180,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 						ok: false,
 						message: payload.error ?? "Task session start failed.",
 						errorCode: payload.errorCode,
+						retryAfterMs: payload.retryAfterMs,
 					};
 				}
 				upsertSession(payload.summary);

@@ -482,12 +482,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						endpoint: clineLaunchConfig.baseUrl ?? null,
 						runningSessions: clineTaskSessionService.listModelEndpointSessions(),
 						modelRegistry: modelRegistrySnapshot,
+						now: Date.now(),
 					});
 					if (!endpointDecision.ok) {
 						return {
 							ok: false,
 							summary: null,
 							error: `${endpointDecision.reason} Wait for task "${endpointDecision.blockedByTaskId}" to finish, or choose a different model endpoint.`,
+							errorCode: "endpoint_busy",
+							retryAfterMs: endpointDecision.estimatedWaitMs,
 						};
 					}
 					const resolvedClineTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);

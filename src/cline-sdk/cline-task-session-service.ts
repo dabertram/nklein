@@ -231,6 +231,7 @@ export interface ClineTaskSessionService {
 	listModelEndpointSessions(): Array<{
 		taskId: string;
 		state: RuntimeTaskSessionSummary["state"];
+		startedAt: number | null;
 		providerId: string;
 		modelId: string;
 		endpoint: string | null;
@@ -1710,6 +1711,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	listModelEndpointSessions(): Array<{
 		taskId: string;
 		state: RuntimeTaskSessionSummary["state"];
+		startedAt: number | null;
 		providerId: string;
 		modelId: string;
 		endpoint: string | null;
@@ -1717,6 +1719,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return this.messageRepository.listSummaries().map((summary) => ({
 			taskId: summary.taskId,
 			state: summary.state,
+			startedAt: summary.startedAt,
 			providerId: this.providerIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_PROVIDER_ID,
 			modelId: this.modelIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_MODEL_ID,
 			endpoint: this.endpointByTaskId.get(summary.taskId) ?? null,

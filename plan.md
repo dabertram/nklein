@@ -257,6 +257,10 @@ while running distinct endpoints truly in parallel — without thrashing the mac
       local endpoint (one 9B server can't serve many at once); parallelize across *distinct* local
       endpoints. Drive ordering/pacing from the MCSR wall-time estimate (tokens ÷ measured decode rate +
       prefill) so we don't fire everything at once and thrash one server.
+      Partial: endpoint-busy decisions now carry a dedicated `endpoint_busy` response code plus an optional
+      `retryAfterMs` estimate derived from the MCSR's observed wall-time and the running session's `startedAt`,
+      giving the UI/CLI a structured pacing signal instead of a generic start failure. Full queued admission is
+      still open.
 - [x] ~~**Plan2.md H3 (re-scoped):** `getSharedEndpointId` defaults a `sharedEndpointId` for *every*
       registry entry ([cline-model-registry.ts:212-216](src/cline-sdk/cline-model-registry.ts#L212));
       under local-only the failure mode flips — ensure serialization keys are correct *per local GPU/endpoint*
@@ -296,9 +300,12 @@ while running distinct endpoints truly in parallel — without thrashing the mac
 *(Reality check: on a single local GPU, "parallel" is mostly time-sliced queueing — LM Studio/Ollama
 serve one model at a time and switching reloads weights. Same-endpoint serialization is L2.2; the wins
 below are correctness and safety of the autonomous DAG, not literal concurrency.)*
-- [ ] **File-overlap-aware parallelism.** Never schedule two concurrent cards whose `filesLikelyTouched`
+- [x] ~~**File-overlap-aware parallelism.** Never schedule two concurrent cards whose `filesLikelyTouched`
       overlap (the decomposer already emits this, L3) — serialize them to avoid worktree merge hell. Fall
-      back to dependency order when the data is missing.
+      back to dependency order when the data is missing.~~ Decomposition-created cards now persist
+      `filesLikelyTouched` structurally; UI single starts, manual start-all, dependency auto-starts, and CLI
+      `task start` skip/block overlapping active work. The generic runtime start API remains session-oriented and
+      does not receive board context.
 - [ ] **Dependency-ordered auto-merge with conflict handling.** Merge completed task worktrees back to the
       base in DAG order; on a merge conflict, auto-create an **integration card** (conflicting paths in its
       prompt) rather than failing silently. Respect the AGENTS.md worktree rule: overlapping agent edits

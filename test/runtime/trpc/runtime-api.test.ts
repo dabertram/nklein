@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import type { ClineModelRegistryEntry } from "../../../src/cline-sdk/cline-model-registry";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 
@@ -219,7 +219,7 @@ function createModelRegistryEntry(input: {
 	endpoint?: string | null;
 	contextWindow: number;
 	capability: number;
-}) {
+}): ClineModelRegistryEntry {
 	return {
 		key: input.key,
 		providerId: input.providerId,
@@ -1152,11 +1152,28 @@ describe("createRuntimeApi startTaskSession", () => {
 			{
 				taskId: "task-1",
 				state: "running",
+				startedAt: Date.now() - 30_000,
 				providerId: "ollama",
-				modelId: "llama3",
+				modelId: "qwen3.5-9b",
 				endpoint: "http://127.0.0.1:11434",
 			},
 		]);
+		const qwenEntry = createModelRegistryEntry({
+			key: "ollama:qwen3.5-9b:http://127.0.0.1:11434",
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			endpoint: "http://127.0.0.1:11434",
+			contextWindow: 64_000,
+			capability: 70,
+		});
+		qwenEntry.speed.wallTimeMsEwma = 120_000;
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[qwenEntry.key]: qwenEntry,
+			},
+		});
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -1185,8 +1202,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("endpoint_busy");
+		expect(response.retryAfterMs).toBeGreaterThan(0);
 		expect(response.error).toContain("http://127.0.0.1:11434");
 		expect(response.error).toContain("task-1");
+		expect(response.error).toContain("Estimated wait");
 		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
