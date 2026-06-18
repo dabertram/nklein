@@ -35,6 +35,8 @@
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
 - Recorded typed self-observation telemetry when native Cline reaches the consecutive mistake guardrail and stopped the task through the SDK callback, making repeated tool/API failure stalls diagnosable.
 - Added a board-level Local swarm strip with running/waiting/blocked counts and a Pause/Resume control wired to typed runtime swarm-stop endpoints.
+- Added an inline Local swarm concurrency slider that saves `maxConcurrentTasks` from the board header.
+- Added local shared-endpoint ids to Cline session summaries and surfaced per-endpoint running utilization in the board Local swarm strip.
 - Enriched running task cards with compact swarm telemetry: token counts, approximate output tok/s, elapsed time, turn count, current activity/tool, and a mini context-budget bar.
 - Added a board-level code-intelligence chip to surface repo-map/index readiness from the existing typed runtime status endpoint.
 - Added a no-LLM task Diagnostics panel backed by local self-observation JSONL telemetry and a typed runtime `getTaskDiagnostics` endpoint.

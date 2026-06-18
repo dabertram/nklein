@@ -8,7 +8,7 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
-import { Database, PauseCircle, PlayCircle } from "lucide-react";
+import { Database, PauseCircle, PlayCircle, SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,10 +18,11 @@ import { DependencyOverlay } from "@/components/dependencies/dependency-overlay"
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchClineCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
+import { fetchClineCodeIntelligenceStatus, saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeClineCodeIntelligenceStatusResponse,
+	RuntimeConfigResponse,
 	RuntimeSwarmStopSignal,
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
@@ -48,6 +49,19 @@ function formatCodeIntelligenceChip(status: RuntimeClineCodeIntelligenceStatusRe
 		return `Code index ${percent}%`;
 	}
 	return status.repoMap.available ? "Repo map ready" : "Code intel warming";
+}
+
+interface EndpointUtilizationSummary {
+	endpointId: string;
+	running: number;
+	modelIds: string[];
+}
+
+function formatEndpointUtilizationChip(endpoint: EndpointUtilizationSummary): string {
+	const modelLabel = endpoint.modelIds.slice(0, 2).join(", ");
+	const extraModelCount = Math.max(0, endpoint.modelIds.length - 2);
+	const suffix = extraModelCount > 0 ? ` +${extraModelCount}` : "";
+	return `${endpoint.endpointId} ${endpoint.running} active${modelLabel ? ` (${modelLabel}${suffix})` : ""}`;
 }
 
 function isRectVerticallyVisibleWithinContainer(rect: DOMRect, containerRect: DOMRect): boolean {
@@ -82,6 +96,8 @@ export function KanbanBoard({
 	onRequestProgrammaticCardMoveReady,
 	workspacePath,
 	currentProjectId,
+	runtimeConfig,
+	onRuntimeConfigChanged,
 	defaultClineModelId,
 }: {
 	data: BoardData;
@@ -111,6 +127,8 @@ export function KanbanBoard({
 	onRequestProgrammaticCardMoveReady?: (requestMove: RequestProgrammaticCardMove | null) => void;
 	workspacePath?: string | null;
 	currentProjectId?: string | null;
+	runtimeConfig?: RuntimeConfigResponse | null;
+	onRuntimeConfigChanged?: () => void;
 	defaultClineModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
@@ -125,6 +143,9 @@ export function KanbanBoard({
 		useState<ProgrammaticCardMoveInFlight | null>(null);
 	const [swarmStopSignal, setSwarmStopSignal] = useState<RuntimeSwarmStopSignal | null>(null);
 	const [isSwarmStopLoading, setIsSwarmStopLoading] = useState(false);
+	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
+	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
+	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
 	const dependencyLinking = useDependencyLinking({
@@ -140,6 +161,33 @@ export function KanbanBoard({
 			.reduce((total, column) => total + column.cards.filter((card) => !card.blockedKind).length, 0);
 		return { running, waiting, blocked };
 	}, [data.columns, taskSessions]);
+	const endpointUtilization = useMemo<EndpointUtilizationSummary[]>(() => {
+		const endpoints = new Map<string, { running: number; modelIds: Set<string> }>();
+		for (const summary of Object.values(taskSessions)) {
+			const endpointId = summary.state === "running" ? summary.sharedEndpointId?.trim() : "";
+			if (!endpointId) {
+				continue;
+			}
+			const current = endpoints.get(endpointId) ?? { running: 0, modelIds: new Set<string>() };
+			current.running += 1;
+			const modelId = summary.modelId?.trim();
+			if (modelId) {
+				current.modelIds.add(modelId);
+			}
+			endpoints.set(endpointId, current);
+		}
+		return [...endpoints.entries()]
+			.map(([endpointId, value]) => ({
+				endpointId,
+				running: value.running,
+				modelIds: [...value.modelIds].sort((left, right) => left.localeCompare(right)),
+			}))
+			.sort((left, right) => right.running - left.running || left.endpointId.localeCompare(right.endpointId));
+	}, [taskSessions]);
+
+	useEffect(() => {
+		setConcurrencyCapDraft(configuredConcurrencyCap);
+	}, [configuredConcurrencyCap]);
 
 	useEffect(() => {
 		if (!currentProjectId) {
@@ -177,6 +225,37 @@ export function KanbanBoard({
 			cancelled = true;
 		};
 	}, [currentProjectId]);
+
+	const handleSaveConcurrencyCap = useCallback(
+		async (nextCap: number) => {
+			const normalizedNextCap = Math.max(1, Math.trunc(nextCap));
+			if (
+				!currentProjectId ||
+				!runtimeConfig ||
+				isConcurrencyCapSaving ||
+				normalizedNextCap === configuredConcurrencyCap
+			) {
+				return;
+			}
+			setIsConcurrencyCapSaving(true);
+			try {
+				await saveRuntimeConfig(currentProjectId, { maxConcurrentTasks: normalizedNextCap });
+				onRuntimeConfigChanged?.();
+				showAppToast({
+					intent: "success",
+					message: `Swarm cap set to ${normalizedNextCap}.`,
+					timeout: 3000,
+				});
+			} catch (error) {
+				setConcurrencyCapDraft(configuredConcurrencyCap);
+				const message = error instanceof Error ? error.message : String(error);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			} finally {
+				setIsConcurrencyCapSaving(false);
+			}
+		},
+		[currentProjectId, runtimeConfig, isConcurrencyCapSaving, configuredConcurrencyCap, onRuntimeConfigChanged],
+	);
 
 	const handleToggleSwarmStop = useCallback(async () => {
 		if (!currentProjectId || isSwarmStopLoading) {
@@ -484,31 +563,73 @@ export function KanbanBoard({
 					<span>Running {swarmCounts.running}</span>
 					<span>Waiting {swarmCounts.waiting}</span>
 					<span>Blocked {swarmCounts.blocked}</span>
+					{endpointUtilization.slice(0, 2).map((endpoint) => (
+						<span
+							key={endpoint.endpointId}
+							className="inline-flex max-w-64 items-center truncate rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary"
+						>
+							{formatEndpointUtilizationChip(endpoint)}
+						</span>
+					))}
+					{endpointUtilization.length > 2 ? (
+						<span className="text-text-tertiary">+{endpointUtilization.length - 2} endpoints</span>
+					) : null}
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
 					<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">
 						<Database size={12} />
 						{formatCodeIntelligenceChip(codeIntelligenceStatus)}
 					</span>
 				</div>
-				<Button
-					variant={swarmStopSignal ? "default" : "danger"}
-					size="sm"
-					icon={
-						isSwarmStopLoading ? (
-							<Spinner size={14} />
-						) : swarmStopSignal ? (
-							<PlayCircle size={14} />
-						) : (
-							<PauseCircle size={14} />
-						)
-					}
-					disabled={!currentProjectId || isSwarmStopLoading}
-					onClick={() => {
-						void handleToggleSwarmStop();
-					}}
-				>
-					{swarmStopSignal ? "Resume" : "Pause"}
-				</Button>
+				<div className="flex shrink-0 items-center gap-2">
+					<label className="inline-flex h-7 items-center gap-2 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-secondary">
+						<SlidersHorizontal size={12} />
+						<span className="font-medium text-text-primary">Cap {concurrencyCapDraft}</span>
+						<input
+							type="range"
+							min={1}
+							max={12}
+							step={1}
+							value={concurrencyCapDraft}
+							disabled={!currentProjectId || !runtimeConfig || isConcurrencyCapSaving}
+							aria-label="Max concurrent tasks"
+							className="h-1.5 w-20 accent-accent disabled:opacity-50"
+							onChange={(event) => {
+								setConcurrencyCapDraft(Number(event.currentTarget.value));
+							}}
+							onBlur={() => {
+								void handleSaveConcurrencyCap(concurrencyCapDraft);
+							}}
+							onPointerUp={() => {
+								void handleSaveConcurrencyCap(concurrencyCapDraft);
+							}}
+							onKeyUp={(event) => {
+								if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+									void handleSaveConcurrencyCap(concurrencyCapDraft);
+								}
+							}}
+						/>
+						{isConcurrencyCapSaving ? <Spinner size={12} /> : null}
+					</label>
+					<Button
+						variant={swarmStopSignal ? "default" : "danger"}
+						size="sm"
+						icon={
+							isSwarmStopLoading ? (
+								<Spinner size={14} />
+							) : swarmStopSignal ? (
+								<PlayCircle size={14} />
+							) : (
+								<PauseCircle size={14} />
+							)
+						}
+						disabled={!currentProjectId || isSwarmStopLoading}
+						onClick={() => {
+							void handleToggleSwarmStop();
+						}}
+					>
+						{swarmStopSignal ? "Resume" : "Pause"}
+					</Button>
+				</div>
 			</div>
 			<DragDropContext
 				onBeforeCapture={handleBeforeCapture}

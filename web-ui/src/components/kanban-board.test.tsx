@@ -4,12 +4,22 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KanbanBoard, type RequestProgrammaticCardMove } from "@/components/kanban-board";
+import type { RuntimeConfigResponse, RuntimeTaskSessionSummary } from "@/runtime/types";
 import type { BoardData } from "@/types";
 
 const dndMock = vi.hoisted(() => ({
 	sensorApi: null as {
 		tryGetLock: ReturnType<typeof vi.fn>;
 	} | null,
+}));
+const runtimeConfigQueryMocks = vi.hoisted(() => ({
+	fetchClineCodeIntelligenceStatus: vi.fn(),
+	saveRuntimeConfig: vi.fn(),
+}));
+const runtimeTrpcMocks = vi.hoisted(() => ({
+	getSwarmStop: vi.fn(),
+	requestSwarmStop: vi.fn(),
+	clearSwarmStop: vi.fn(),
 }));
 
 vi.mock("@hello-pangea/dnd", async () => {
@@ -61,6 +71,21 @@ vi.mock("@/components/dependencies/use-dependency-linking", () => ({
 	}),
 }));
 
+vi.mock("@/runtime/runtime-config-query", () => ({
+	fetchClineCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus,
+	saveRuntimeConfig: runtimeConfigQueryMocks.saveRuntimeConfig,
+}));
+
+vi.mock("@/runtime/trpc-client", () => ({
+	getRuntimeTrpcClient: () => ({
+		runtime: {
+			getSwarmStop: { query: runtimeTrpcMocks.getSwarmStop },
+			requestSwarmStop: { mutate: runtimeTrpcMocks.requestSwarmStop },
+			clearSwarmStop: { mutate: runtimeTrpcMocks.clearSwarmStop },
+		},
+	}),
+}));
+
 function createRect(left: number, top: number, width: number, height: number): DOMRect {
 	return {
 		x: left,
@@ -75,6 +100,86 @@ function createRect(left: number, top: number, width: number, height: number): D
 	} as DOMRect;
 }
 
+function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse {
+	return {
+		selectedAgentId: "cline",
+		selectedShortcutLabel: null,
+		agentAutonomousModeEnabled: true,
+		agentTimeoutMode: "normal",
+		agentTimeoutProfile: "local",
+		requestTimeoutMs: 300_000,
+		streamTimeoutMs: 180_000,
+		toolTimeoutMs: 600_000,
+		agentTimeoutMs: 3_600_000,
+		conversationTimeoutMs: 7_200_000,
+		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks,
+		effectiveCommand: "cline",
+		globalConfigPath: "/tmp/global-config.json",
+		projectConfigPath: "/tmp/project/.cline/kanban/config.json",
+		readyForReviewNotificationsEnabled: true,
+		detectedCommands: ["cline"],
+		agents: [
+			{
+				id: "cline",
+				label: "Cline",
+				binary: "cline",
+				command: "cline",
+				defaultArgs: [],
+				installed: true,
+				configured: true,
+			},
+		],
+		shortcuts: [],
+		modelRoles: {},
+		clineProviderSettings: {
+			providerId: "lmstudio",
+			modelId: "local-model",
+			baseUrl: null,
+			apiKeyConfigured: false,
+			oauthProvider: null,
+			oauthAccessTokenConfigured: false,
+			oauthRefreshTokenConfigured: false,
+			oauthAccountId: null,
+			oauthExpiresAt: null,
+		},
+		commitPromptTemplate: "",
+		openPrPromptTemplate: "",
+		commitPromptTemplateDefault: "",
+		openPrPromptTemplateDefault: "",
+	};
+}
+
+function createRunningSession(taskId: string, sharedEndpointId: string, modelId: string): RuntimeTaskSessionSummary {
+	return {
+		taskId,
+		state: "running",
+		mode: "act",
+		agentId: "cline",
+		workspacePath: "/tmp/project",
+		pid: 123,
+		startedAt: Date.now() - 1000,
+		updatedAt: Date.now(),
+		lastOutputAt: Date.now(),
+		lastTokenAt: Date.now(),
+		lastHeartbeatAt: Date.now(),
+		heartbeatStatus: "healthy",
+		providerId: "lmstudio",
+		modelId,
+		endpoint: null,
+		sharedEndpointId,
+		reviewReason: null,
+		exitCode: null,
+		lastHookAt: null,
+		latestHookActivity: null,
+		warningMessage: null,
+		latestUsage: null,
+		contextBudgetBreakdown: null,
+		latestTurnCheckpoint: null,
+		previousTurnCheckpoint: null,
+	};
+}
+
 describe("KanbanBoard", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -82,6 +187,18 @@ describe("KanbanBoard", () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers();
+		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();
+		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockResolvedValue(null);
+		runtimeConfigQueryMocks.saveRuntimeConfig.mockReset();
+		runtimeConfigQueryMocks.saveRuntimeConfig.mockImplementation(
+			async (_workspaceId: string | null, input: { maxConcurrentTasks?: number }) => ({
+				...createRuntimeConfig(input.maxConcurrentTasks ?? 3),
+			}),
+		);
+		runtimeTrpcMocks.getSwarmStop.mockReset();
+		runtimeTrpcMocks.getSwarmStop.mockResolvedValue({ ok: true, signal: null });
+		runtimeTrpcMocks.requestSwarmStop.mockReset();
+		runtimeTrpcMocks.clearSwarmStop.mockReset();
 		vi.spyOn(performance, "now").mockImplementation(() => Date.now());
 		vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
 			return window.setTimeout(() => {
@@ -166,7 +283,9 @@ describe("KanbanBoard", () => {
 			root.render(
 				<KanbanBoard
 					data={board}
-					taskSessions={{}}
+					taskSessions={{
+						"task-running": createRunningSession("task-running", "lmstudio:default", "qwen3"),
+					}}
 					onCardSelect={() => {}}
 					onCreateTask={() => {}}
 					dependencies={[]}
@@ -176,12 +295,60 @@ describe("KanbanBoard", () => {
 		});
 
 		expect(container.textContent).toContain("Local swarm");
-		expect(container.textContent).toContain("Running 0");
+		expect(container.textContent).toContain("Running 1");
 		expect(container.textContent).toContain("Waiting 1");
 		expect(container.textContent).toContain("Blocked 1");
+		expect(container.textContent).toContain("lmstudio:default 1 active (qwen3)");
 		expect(container.textContent).toContain("Code intel");
 		expect(container.querySelector("button")?.textContent).toContain("Pause");
 		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+	});
+
+	it("saves the inline swarm concurrency cap", async () => {
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const handleRuntimeConfigChanged = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					currentProjectId="project-1"
+					runtimeConfig={createRuntimeConfig(3)}
+					onRuntimeConfigChanged={handleRuntimeConfigChanged}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+
+		const slider = container.querySelector<HTMLInputElement>('input[aria-label="Max concurrent tasks"]');
+		expect(container.textContent).toContain("Cap 3");
+		expect(slider?.disabled).toBe(false);
+
+		await act(async () => {
+			if (!slider) {
+				throw new Error("Expected concurrency slider.");
+			}
+			slider.value = "5";
+			slider.dispatchEvent(new Event("input", { bubbles: true }));
+			slider.dispatchEvent(new Event("pointerup", { bubbles: true }));
+		});
+
+		expect(runtimeConfigQueryMocks.saveRuntimeConfig).toHaveBeenCalledWith("project-1", { maxConcurrentTasks: 5 });
+		expect(handleRuntimeConfigChanged).toHaveBeenCalled();
 	});
 
 	it("marks the board while a programmatic move is active", async () => {

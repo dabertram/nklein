@@ -957,6 +957,11 @@ export default function App(): ReactElement {
 												taskSessions={sessions}
 												workspacePath={workspacePath}
 												currentProjectId={currentProjectId}
+												runtimeConfig={runtimeProjectConfig ?? null}
+												onRuntimeConfigChanged={() => {
+													refreshRuntimeProjectConfig();
+													refreshSettingsRuntimeProjectConfig();
+												}}
 												onCardSelect={handleCardSelect}
 												onCreateTask={handleOpenCreateTask}
 												onStartTask={handleStartTaskFromBoard}

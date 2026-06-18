@@ -1228,11 +1228,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
-		this.endpointByTaskId.set(request.taskId, request.baseUrl?.trim() || null);
+		const endpoint = request.baseUrl?.trim() || null;
+		const sharedEndpointId = this.resolveSharedEndpointId({ providerId, endpoint });
+		this.endpointByTaskId.set(request.taskId, endpoint);
 		this.recordLaunchContextWindow({
 			providerId,
 			modelId,
-			endpoint: request.baseUrl?.trim() || null,
+			endpoint,
 			contextWindow: request.contextWindow ?? null,
 		});
 		this.cacheLaunchConfig(request.taskId, {
@@ -1265,6 +1267,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					state: initialState,
 					mode: resolvedMode,
 					workspacePath: request.cwd,
+					providerId,
+					modelId,
+					endpoint,
+					sharedEndpointId,
 					startedAt: now(),
 					lastOutputAt: now(),
 					reviewReason: initialReviewReason,
@@ -1275,6 +1281,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						state: initialState,
 						mode: resolvedMode,
 						workspacePath: request.cwd,
+						providerId,
+						modelId,
+						endpoint,
+						sharedEndpointId,
 						startedAt: now(),
 						lastOutputAt: now(),
 						reviewReason: initialReviewReason,
@@ -2054,6 +2064,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				advertisedContextWindow: input.contextWindow,
 			})
 			.catch(() => undefined);
+	}
+
+	private resolveSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
+		if (!isLocalProvider(input.providerId, input.endpoint)) {
+			return null;
+		}
+		return input.endpoint ?? `${input.providerId}:default`;
 	}
 
 	private markModelRequestStarted(taskId: string): void {

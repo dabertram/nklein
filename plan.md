@@ -467,12 +467,14 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       enrich the existing session activity area with compact token counts, approximate output tok/s, elapsed
       runtime, current tool/activity, turn checkpoint, and a tiny context-budget bar from the backend
       breakdown; the existing card model badge continues to show role/model selection.
-- [~] **Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
+- [x] ~~**Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
       utilization, a concurrency-cap slider (wired to `maxConcurrentTasks`, L2.2), and a prominent
-      **Pause/Stop swarm** control that fires the L2.4 stop signal. **Progress:** the board now renders a
+      **Pause/Stop swarm** control that fires the L2.4 stop signal.~~ The board now renders a
       compact Local swarm strip with running/waiting/blocked counts plus a Pause/Resume button backed by
-      typed runtime `getSwarmStop` / `requestSwarmStop` / `clearSwarmStop` endpoints. Still open:
-      per-local-endpoint utilization and an inline concurrency-cap slider.
+      typed runtime `getSwarmStop` / `requestSwarmStop` / `clearSwarmStop` endpoints. The strip also has an
+      inline concurrency-cap slider wired to `maxConcurrentTasks` through the existing runtime config save
+      path, and running Cline session summaries expose local shared-endpoint ids so the header can group active
+      work by endpoint.
 - [~] **Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
       effective context window, measured prefill/decode tok/s, capability score, and which model is loaded.
       Show it **before** `samples>0` too (today `formatClineModelRegistryDisplay`
@@ -537,7 +539,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       | Code intelligence | settings Code intelligence panel, board code-intelligence chip | live indexing/build progress |
       | Acceptance gates / plan gaps | task Diagnostics panel, plan `revisions.md` | richer failure classification |
       | Worktree auto-merge | task done / merge CLI output, integration cards on conflict | board-level merge status history |
-      | Queued endpoint admission | `endpoint_busy` start response, queued auto-start retry | explicit queue list in UI |
+      | Queued endpoint admission | `endpoint_busy` start response, queued auto-start retry, board endpoint utilization, board swarm cap slider | explicit queue list in UI |
 
 ---
 
