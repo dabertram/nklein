@@ -54,6 +54,7 @@ describe("cline plan artifacts", () => {
 			slug: "Habit Tracker",
 			spec: "# Spec\n",
 			plan: "# Plan\n",
+			summary: "# Summary\n\nBuild habit storage in one step.",
 			questions: [
 				{
 					id: "q1",
@@ -96,9 +97,11 @@ describe("cline plan artifacts", () => {
 
 		expect(artifacts.spec).toBe("# Spec\n");
 		expect(artifacts.plan).toBe("# Plan\n");
+		expect(artifacts.summary).toBe("# Summary\n\nBuild habit storage in one step.\n");
 		expect(artifacts.questionsMarkdown).toContain("Should reminders be included?");
 		expect(artifacts.questionsMarkdown).toContain("Assumption: No reminders in the first slice.");
 		await expect(readFile(artifacts.questionsPath, "utf8")).resolves.toContain("# Questions");
+		await expect(readFile(artifacts.summaryPath, "utf8")).resolves.toContain("Build habit storage");
 		expect(artifacts.taskGraph.slug).toBe("habit-tracker");
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(artifacts.taskGraph.tasks[0]?.testFirst).toBe(true);

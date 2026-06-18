@@ -76,6 +76,7 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		slug: clinePlanTaskGraphSchema.shape.slug,
 		spec: clinePlanTaskSchema.shape.prompt.describe("Concise requirements markdown."),
 		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
+		summary: clinePlanTaskSchema.shape.prompt.optional().describe("Plain-language plan summary markdown."),
 		questions: z.array(clinePlanQuestionSchema).optional(),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
 		expansions: z.record(z.string(), z.array(clinePlanTaskSchema)).optional(),
@@ -84,6 +85,7 @@ type DecomposeProjectToolInput = {
 	slug: string;
 	spec: string;
 	plan: string;
+	summary: string | null;
 	questions: ClinePlanQuestion[];
 	title: string;
 	tasks: ClinePlanTask[];
@@ -365,6 +367,7 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 		slug: parsed.slug,
 		spec: parsed.spec,
 		plan: parsed.plan,
+		summary: parsed.summary?.trim() || null,
 		questions,
 		title: parsed.title,
 		tasks,
@@ -541,6 +544,11 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				slug: { type: "string", description: "Short stable plan slug, for example habit-insights." },
 				spec: { type: "string", description: "Approved concise specification markdown, not a file path." },
 				plan: { type: "string", description: "Implementation plan markdown." },
+				summary: {
+					type: "string",
+					description:
+						"Short plain-language summary for non-technical review: what will be built, the step count, and any assumptions.",
+				},
 				questions: {
 					type: "array",
 					description:
@@ -629,13 +637,14 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const { slug, spec, plan, questions, taskGraph } = normalizeDecomposeProjectToolInput(input);
+			const { slug, spec, plan, summary, questions, taskGraph } = normalizeDecomposeProjectToolInput(input);
 			const validation = validateClinePlanTaskGraph({ taskGraph });
 			const artifacts = await writeClinePlanArtifacts({
 				workspacePath,
 				slug,
 				spec,
 				plan,
+				summary,
 				questions,
 				taskGraph: validation.taskGraph,
 			});
@@ -656,6 +665,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
 				questionsPath: artifacts.questionsPath,
+				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
 					? `${applied.message} Schema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`

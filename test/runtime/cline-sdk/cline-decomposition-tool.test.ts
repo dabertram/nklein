@@ -419,6 +419,7 @@ describe("cline decomposition tools", () => {
 				title: "Habit Tracker",
 				spec: "Track habits.",
 				plan: "Build storage before UI.",
+				summary: "Build the habit tracker in two cards: storage first, then UI.",
 				questions: [
 					{
 						id: "q1",
@@ -446,6 +447,7 @@ describe("cline decomposition tools", () => {
 			createdTaskCount: number;
 			modelFitValidated: boolean;
 			questionsPath: string;
+			summaryPath: string;
 			taskGraphPath: string;
 			instruction: string;
 		};
@@ -461,6 +463,7 @@ describe("cline decomposition tools", () => {
 		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
 		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
+		await expect(readFile(result.summaryPath, "utf8")).resolves.toContain("two cards");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});
 

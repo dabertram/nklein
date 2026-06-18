@@ -6,6 +6,7 @@ Use Kanban's decomposition workflow instead of editing Kanban internals directly
 - Do not manually create or edit \`.cline/kanban/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state.
 - Before writing artifacts, inspect the idea for ambiguities, missing decisions, contradictions, risky defaults, and audience-facing product choices. Ask concise targeted questions when answers would change the plan; prefer concrete options with one recommended default and allow free-text.
 - If the user does not answer, you may proceed only by recording an explicit assumption. Pass all answered questions and assumptions in \`decompose_project.questions\`; unresolved \`open\` questions are rejected.
+- Prepare a short plain-language \`summary\` for non-technical review: what will be built, how many implementation steps/cards there are, and which assumptions remain.
 - Prepare a concise spec, implementation plan, and task graph in your reasoning.
 - Call the \`decompose_project\` tool with slug, spec, plan, title, tasks, and defaultAcceptanceCommand when useful. The tool wraps the tasks into the internal graph, validates dependencies/sizing, and persists the approved Kanban artifacts.
 - If any proposed leaf is too broad, include a recursive \`expansions\` map in the same \`decompose_project\` call instead of calling \`expand_task\` and then trying again. Keys are oversized task ids; values are smaller replacement tasks. Kanban expands them before validation and rewrites dependencies to the terminal replacement leaves.

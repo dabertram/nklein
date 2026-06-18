@@ -48,11 +48,13 @@ export interface ClinePlanArtifacts {
 	specPath: string;
 	planPath: string;
 	questionsPath: string;
+	summaryPath: string;
 	taskGraphPath: string;
 	spec: string;
 	plan: string;
 	questions: ClinePlanQuestion[];
 	questionsMarkdown: string;
+	summary: string;
 	taskGraph: ClinePlanTaskGraph;
 }
 
@@ -62,6 +64,7 @@ export interface WriteClinePlanArtifactsInput {
 	spec: string;
 	plan: string;
 	questions?: ClinePlanQuestion[];
+	summary?: string | null;
 	taskGraph: ClinePlanTaskGraph;
 }
 
@@ -111,6 +114,7 @@ export function resolveClinePlanArtifactPaths(
 	specPath: string;
 	planPath: string;
 	questionsPath: string;
+	summaryPath: string;
 	taskGraphPath: string;
 	slug: string;
 } {
@@ -121,6 +125,7 @@ export function resolveClinePlanArtifactPaths(
 		specPath: join(rootPath, "spec.md"),
 		planPath: join(rootPath, "plan.md"),
 		questionsPath: join(rootPath, "questions.md"),
+		summaryPath: join(rootPath, "summary.md"),
 		taskGraphPath: join(rootPath, "tasks.json"),
 		slug,
 	};
@@ -133,31 +138,36 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 		slug: paths.slug,
 	});
 	const questions = z.array(clinePlanQuestionSchema).parse(input.questions ?? []);
+	const summary = input.summary?.trim() || `# ${taskGraph.title}\n\nNo plain-language summary was provided.\n`;
 	await mkdir(paths.rootPath, { recursive: true });
 	await lockedFileSystem.writeTextFileAtomic(paths.specPath, `${input.spec.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.planPath, `${input.plan.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.questionsPath, formatQuestionsMarkdown(questions), { lock: null });
+	await lockedFileSystem.writeTextFileAtomic(paths.summaryPath, `${summary.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeJsonFileAtomic(paths.taskGraphPath, taskGraph, { lock: null });
 	return {
 		rootPath: paths.rootPath,
 		specPath: paths.specPath,
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
+		summaryPath: paths.summaryPath,
 		taskGraphPath: paths.taskGraphPath,
 		spec: input.spec,
 		plan: input.plan,
 		questions,
 		questionsMarkdown: formatQuestionsMarkdown(questions),
+		summary,
 		taskGraph,
 	};
 }
 
 export async function readClinePlanArtifacts(workspacePath: string, slug: string): Promise<ClinePlanArtifacts> {
 	const paths = resolveClinePlanArtifactPaths(workspacePath, slug);
-	const [spec, plan, questionsMarkdown, taskGraphRaw] = await Promise.all([
+	const [spec, plan, questionsMarkdown, summary, taskGraphRaw] = await Promise.all([
 		readFile(paths.specPath, "utf8"),
 		readFile(paths.planPath, "utf8"),
 		readFile(paths.questionsPath, "utf8").catch(() => ""),
+		readFile(paths.summaryPath, "utf8").catch(() => ""),
 		readFile(paths.taskGraphPath, "utf8"),
 	]);
 	return {
@@ -165,11 +175,13 @@ export async function readClinePlanArtifacts(workspacePath: string, slug: string
 		specPath: paths.specPath,
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
+		summaryPath: paths.summaryPath,
 		taskGraphPath: paths.taskGraphPath,
 		spec,
 		plan,
 		questions: [],
 		questionsMarkdown,
+		summary,
 		taskGraph: clinePlanTaskGraphSchema.parse(JSON.parse(taskGraphRaw)),
 	};
 }

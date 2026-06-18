@@ -365,9 +365,12 @@ committing to a spec/plan/DAG. The result reflects the user's actual intent, not
       questions in the latest assistant turn, renders answer chips, and sends selected answers through the
       existing chat turn while keeping the free-text composer available
       ([cline-agent-chat-panel.tsx](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx)).
-- [ ] **Plain-language plan summary.** Alongside the technical spec/plan, emit a short non-technical
-      summary ("here's what I'll build, in N steps; here are the open assumptions") shown atop the Planning
-      DAG review (L4) so a non-technical user can approve with confidence.
+- [x] ~~Plain-language plan summary.~~ Alongside the technical spec/plan, `decompose_project` now accepts
+      a plain-language `summary`, writes `.cline/kanban/plans/<slug>/summary.md`, exposes `summaryPath`,
+      and the workflow asks for what will be built, the step/card count, and assumptions. The L4 DAG review
+      can render this artifact directly
+      ([cline-plan-artifacts.ts](src/cline-sdk/cline-plan-artifacts.ts),
+      [cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts)).
 
 ### L3.4 — Adaptive re-planning (handle oversights found during execution)
 **Outcome:** Plans aren't frozen. When working a card reveals something the plan missed — a contradiction,

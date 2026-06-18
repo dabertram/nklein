@@ -16,6 +16,7 @@
 - Made `decompose_project` explicit when connected local model fit has not been validated yet, and kept slug-colliding decomposed task IDs disambiguated with regression coverage.
 - Added clarification-question support to decomposition plans: the workflow asks for questions/assumptions, `decompose_project` rejects unresolved open questions, and `questions.md` is written and exposed with plan artifacts.
 - Added lightweight clarifying-question answer chips to the Cline chat panel, with answers sent through the existing planning chat turn and free-text composer still available.
+- Added `summary.md` to decomposition plan artifacts and exposed `summaryPath`, giving the later Planning DAG review a plain-language summary to display.
 
 ## [0.1.68]
 

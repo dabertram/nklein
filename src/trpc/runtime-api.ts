@@ -814,6 +814,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
 				questionsPath: artifacts.questionsPath,
+				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				slug: artifacts.taskGraph.slug,
 				taskCount: artifacts.taskGraph.tasks.length,
