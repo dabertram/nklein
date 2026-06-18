@@ -10,6 +10,7 @@ import { disposeCliTelemetryService } from "./cline-sdk/cline-telemetry-service.
 import { registerDevCommand } from "./commands/dev";
 import { registerHooksCommand } from "./commands/hooks";
 import { registerTaskCommand } from "./commands/task";
+import { runLegacyNameMigration } from "./config/legacy-name-migration";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
 import type { RuntimeCommandRunResponse } from "./core/api-contract";
 import { createGitProcessEnv } from "./core/git-process-env";
@@ -776,6 +777,7 @@ function createProgram(invocationArgs: string[]): Command {
 
 async function run(): Promise<void> {
 	const argv = process.argv.slice(2);
+	await runLegacyNameMigration();
 	const program = createProgram(argv);
 	await program.parseAsync(argv, { from: "user" });
 	if (!shouldAutoOpenBrowserTabForInvocation(argv)) {

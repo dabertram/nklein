@@ -6,6 +6,7 @@ import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
 import { assertLocalProviderAllowed } from "../cline-sdk/cline-local-only-policy";
 import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { resolveProjectInputPath } from "../projects/project-path";
 
 interface DevSmokeEvalOptions {
@@ -45,7 +46,7 @@ interface DevAdvisorPromptOptions {
 
 type DevAdvisorShortcutOptions = Omit<DevAdvisorPromptOptions, "kind">;
 
-const DEFAULT_TELEMETRY_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
+const DEFAULT_TELEMETRY_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "telemetry");
 
 function buildDevSmokeEvalModelObservation(options: DevSmokeEvalOptions) {
 	const providerId = options.providerId?.trim();

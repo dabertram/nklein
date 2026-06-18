@@ -5,6 +5,7 @@
 - Renamed the fork's user-facing product to `!Klein` and the command-line entry point/package command to `nklein`, while preserving repository/internal compatibility names where they still matter.
 - Replaced the remaining app-brand "Cline" labels in the UI with `!Klein` (sidebar wordmark, UI error screen, runtime-disconnected screen now says "Run `nklein`"), while keeping genuine Cline engine/provider/account references intact.
 - Continued the rename migration across desktop metadata, protocol handling, runtime env vars, workspace headers, session cookies, runtime-home paths, and terminal/status surfaces, with one-release compatibility fallbacks for legacy `KANBAN_*` env vars plus legacy workspace header/cookie acceptance.
+- Added automatic migration from legacy `~/.cline/kanban` runtime data into `~/.cline/nklein`, plus browser localStorage key migration from `kanban.*` to `nklein.*`, so existing installs keep their plans, telemetry, dev runs, config, code index, and UI preferences.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.

@@ -93,12 +93,12 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 - [ ] Hardcoded `.cline/kanban/*` paths: `src/trpc/runtime-api.ts`, `src/workspace/project-health.ts`, `src/cline-sdk/cline-code-index.ts`, `src/cline-sdk/cline-plan-artifacts.ts`, `web-ui/src/components/debug-dialog.tsx` (~lines 65/94), and test fixtures. Centralize through the constants above so this is one change, not dozens.
 
 ### A6. Migration utility (new) — the "+ migration" half of the decision
-- [ ] New `src/config/legacy-name-migration.ts`, invoked once at runtime startup:
-  - [ ] If `~/.cline/kanban` exists and `~/.cline/nklein` does not, migrate (move or copy) `plans/`, `config.json`, `code-index-v1.json`, `telemetry/`, `dev-runs/`.
-  - [ ] Write a `migrated-from-kanban` marker so it never runs twice; log a structured outcome (counts, any path it couldn't move).
-  - [ ] Treat failure as non-fatal but surfaced (ties into §G observability) — never silently lose data.
-- [ ] `web-ui/src/storage/local-storage-store.ts`: migrate the **21** `kanban.*` keys → `nklein.*` with read-old-then-write-new fallback. Keep the enum the single source of truth so the prefix changes in one place.
-- [ ] Tests: seed a fake `~/.cline/kanban` and fake localStorage, assert post-migration state, assert idempotency on a second run.
+- [x] New `src/config/legacy-name-migration.ts`, invoked once at runtime startup:
+  - [x] If `~/.cline/kanban` exists and `~/.cline/nklein` does not, migrate (move or copy) `plans/`, `config.json`, `code-index-v1.json`, `telemetry/`, `dev-runs/`.
+  - [x] Write a `migrated-from-kanban` marker so it never runs twice; log a structured outcome (counts, any path it couldn't move).
+  - [x] Treat failure as non-fatal but surfaced (ties into §G observability) — never silently lose data.
+- [x] `web-ui/src/storage/local-storage-store.ts`: migrate the **21** `kanban.*` keys → `nklein.*` with read-old-then-write-new fallback. Keep the enum the single source of truth so the prefix changes in one place.
+- [x] Tests: seed a fake `~/.cline/kanban` and fake localStorage, assert post-migration state, assert idempotency on a second run.
 
 ### A7. Intentional keeps (document; do **not** change)
 - [x] Repo name `kanban` — documented in `README.md:7`.
@@ -129,7 +129,7 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 - [ ] **Real semantic embeddings (plan.md M2/M3).** Still lexical bag-of-words (`kanban-local-lexical-vector-v1`), honestly labeled but not semantic. See §F1.
 - [~] **Dev-test web UI (follow-up-2 F6).** F6 claims dev-test creation moved into a gated Developer Tools area, but a sub-agent found no web-ui trigger (only CLI/tRPC). **Verify**; feeds §C.
 - [ ] **Doc hygiene:** fix `follow-up-2-by-gpt5.5-medium.md` so the "Suggested implementation order" checkboxes (items 4 & 7) match the completed sections — they're stale and misleading.
-- [ ] Confirm `CHANGELOG.md [Upcoming]` reflects this pass (rename + any items implemented).
+- [x] Confirm `CHANGELOG.md [Upcoming]` reflects this pass (rename + any items implemented).
 
 ---
 

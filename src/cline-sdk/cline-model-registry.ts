@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./cline-local-only-policy";
 import type { ClineSdkAgentEvent, ClineSdkSessionEvent } from "./sdk-runtime-boundary";
@@ -116,7 +117,7 @@ interface ClineModelRegistryFileShape {
 type JsonRecord = Record<string, unknown>;
 
 function getDefaultModelRegistryPath(): string {
-	return join(homedir(), ".cline", "kanban", "model-registry.json");
+	return join(resolveNkleinRuntimeHomePath(homedir()), "model-registry.json");
 }
 
 function asRecord(value: unknown): JsonRecord | null {

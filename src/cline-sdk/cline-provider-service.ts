@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type {
 	RuntimeClineAccountBalanceResponse,
 	RuntimeClineAccountOrganizationsResponse,
@@ -92,7 +93,7 @@ type SdkReasoningEffort = NonNullable<NonNullable<SdkProviderSettings["reasoning
 function getKanbanProviderSelectionPath(): string {
 	return (
 		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH?.trim() ||
-		join(homedir(), ".cline", "kanban", "cline-provider-selection.json")
+		join(resolveNkleinRuntimeHomePath(homedir()), "cline-provider-selection.json")
 	);
 }
 

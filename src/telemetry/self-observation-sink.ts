@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 
 export type SelfObservationSeverity = "debug" | "info" | "warning" | "error";
 
@@ -57,9 +58,11 @@ export interface ReadSelfObservationEventsOptions {
 	now?: number;
 }
 
-const DEFAULT_SELF_OBSERVATION_ROOT = join(homedir(), ".cline", "kanban", "telemetry");
+const DEFAULT_SELF_OBSERVATION_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "telemetry");
 const DEFAULT_RETENTION_DAYS = 30;
 const SECRET_KEY_PATTERN = /(api[_-]?key|authorization|bearer|cookie|password|secret|token)/i;
+const PROMPT_KEY_PATTERN =
+	/^(prompt|systemPrompt|userPrompt|assistantPrompt|spec|plan|summary|questionsMarkdown|decisionsMarkdown|revisionsMarkdown|transcript|messages|content)$/i;
 const SECRET_VALUE_PATTERN =
 	/(sk-[a-z0-9_-]{12,}|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[a-z0-9_]{12,}|xox[baprs]-[a-z0-9-]{12,}|bearer\s+[a-z0-9._-]{12,}|eyJ[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\.[a-z0-9_-]{10,})/gi;
 const ABSOLUTE_PATH_PATTERN = /(?:^|[\s(["'])((?:\/[^\s"'()]+){2,}|[A-Za-z]:\\[^\s"'()]+(?:\\[^\s"'()]+)+)/g;
@@ -98,7 +101,11 @@ function redactValue(value: unknown): unknown {
 	if (value && typeof value === "object") {
 		const entries = Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
 			key,
-			SECRET_KEY_PATTERN.test(key) ? "[REDACTED]" : redactValue(entryValue),
+			SECRET_KEY_PATTERN.test(key)
+				? "[REDACTED]"
+				: PROMPT_KEY_PATTERN.test(key)
+					? "[REDACTED_TEXT]"
+					: redactValue(entryValue),
 		]);
 		return Object.fromEntries(entries);
 	}

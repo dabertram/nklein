@@ -6,6 +6,7 @@ import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { PasscodeGateProvider } from "@/components/passcode-gate";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { isThemeId } from "@/hooks/use-theme";
+import { LocalStorageKey, migrateLegacyLocalStorageKeys, readLocalStorageItem } from "@/storage/local-storage-store";
 import { TelemetryProvider } from "@/telemetry/posthog-provider";
 import { initializeSentry } from "@/telemetry/sentry";
 import "@/styles/globals.css";
@@ -14,7 +15,8 @@ initializeSentry();
 
 // Apply the persisted theme synchronously before first paint to prevent a flash.
 try {
-	const _savedTheme = localStorage.getItem("kanban.theme");
+	migrateLegacyLocalStorageKeys();
+	const _savedTheme = readLocalStorageItem(LocalStorageKey.Theme);
 	if (isThemeId(_savedTheme) && _savedTheme !== "default") {
 		document.documentElement.setAttribute("data-theme", _savedTheme);
 	}

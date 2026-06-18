@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 export const CLINE_HOME_DIR_NAME = ".cline";
 export const NKLEIN_RUNTIME_DIR_NAME = "nklein";
 export const LEGACY_KANBAN_RUNTIME_DIR_NAME = "kanban";
@@ -6,3 +8,11 @@ export const LEGACY_KANBAN_RUNTIME_HOME_DIR_NAME = `${CLINE_HOME_DIR_NAME}/${LEG
 export const NKLEIN_PROJECT_CONFIG_DIR_NAME = NKLEIN_RUNTIME_DIR_NAME;
 export const TASK_WORKTREES_HOME_DIR_NAME = `${CLINE_HOME_DIR_NAME}/worktrees`;
 export const TASK_WORKTREES_DIR_NAME = "worktrees";
+
+export function resolveNkleinRuntimeHomePath(homePath: string): string {
+	return join(homePath, CLINE_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME);
+}
+
+export function resolveLegacyKanbanRuntimeHomePath(homePath: string): string {
+	return join(homePath, CLINE_HOME_DIR_NAME, LEGACY_KANBAN_RUNTIME_DIR_NAME);
+}
