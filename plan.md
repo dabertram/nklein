@@ -451,8 +451,9 @@ plowing ahead or silently failing.
       concrete `integration_card_added` revision entry when a plan slug is available. `kanban task plan-gap`
       now also infers the owning decomposition plan from decomposition-created task IDs, including
       collision-suffixed card IDs when unambiguous, so automatic integration-card adaptation can append to
-      `revisions.md` without a manual `--plan-slug`. Still open: append concrete revision entries when future
-      automatic splits/re-links land.
+      `revisions.md` without a manual `--plan-slug`. Recursive `decompose_project.expansions` now write an
+      initial `recursive_split` revision listing each expanded task and pointing to the rewritten dependency
+      graph in `tasks.json`. Still open: append concrete revision entries when future adaptive splits/re-links land.
 
 ---
 

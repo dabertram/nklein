@@ -168,6 +168,29 @@ function uniqStrings(values: readonly string[]): string[] {
 	return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
 }
 
+function formatExpansionRevisionMarkdown(expansions: Record<string, ClinePlanTask[]>): string | null {
+	const expansionEntries = Object.entries(expansions).filter(([, replacements]) => replacements.length > 0);
+	if (expansionEntries.length === 0) {
+		return null;
+	}
+	const lines = [
+		"# Revisions",
+		"",
+		`## ${new Date().toISOString()} - recursive_split`,
+		"",
+		"Recursive task expansion was applied before plan artifacts were written.",
+		"",
+		"Expanded tasks:",
+		...expansionEntries.map(([taskId, replacements]) => {
+			const replacementIds = replacements.map((task) => task.id).join(", ");
+			return `- ${taskId} -> ${replacementIds}`;
+		}),
+		"",
+		"Dependency rewrites are reflected in tasks.json.",
+	];
+	return `${lines.join("\n")}\n`;
+}
+
 function normalizeTaskAcceptanceCommand(task: ClinePlanTask, defaultAcceptanceCommand: string | null): ClinePlanTask {
 	return {
 		...task,
@@ -684,7 +707,8 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const { slug, spec, plan, summary, questions, taskGraph } = normalizeDecomposeProjectToolInput(input);
+			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
+				normalizeDecomposeProjectToolInput(input);
 			const validation = validateClinePlanTaskGraph({ taskGraph });
 			const artifacts = await writeClinePlanArtifacts({
 				workspacePath,
@@ -693,6 +717,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				plan,
 				summary,
 				questions,
+				revisions: formatExpansionRevisionMarkdown(expansions),
 				taskGraph: validation.taskGraph,
 			});
 			const applied = await applyDecomposeProjectArtifactsToWorkspace({

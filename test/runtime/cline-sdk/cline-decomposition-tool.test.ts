@@ -768,6 +768,7 @@ describe("cline decomposition tools", () => {
 			ok: boolean;
 			taskCount: number;
 			taskGraphPath: string;
+			revisionsPath: string;
 		};
 
 		expect(result.ok).toBe(true);
@@ -776,6 +777,11 @@ describe("cline decomposition tools", () => {
 		expect(taskGraph.tasks.map((task) => task.id)).toEqual(["storage", "ui-state", "ui-view", "release"]);
 		expect(taskGraph.tasks.find((task) => task.id === "release")?.dependsOn).toEqual(["ui-view"]);
 		expect(taskGraph.tasks.every((task) => task.acceptanceCommand === "npm test")).toBe(true);
+		const revisionsMarkdown = await readFile(result.revisionsPath, "utf8");
+		expect(revisionsMarkdown).toContain("recursive_split");
+		expect(revisionsMarkdown).toContain("- feature -> storage, ui");
+		expect(revisionsMarkdown).toContain("- ui -> ui-state, ui-view");
+		expect(revisionsMarkdown).toContain("Dependency rewrites are reflected in tasks.json.");
 	});
 
 	it("rejects recursive expansions that exceed the depth limit", async () => {
