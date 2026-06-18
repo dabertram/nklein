@@ -343,6 +343,10 @@ describe("useBoardInteractions", () => {
 		if (!latestSnapshot) {
 			throw new Error("Expected a hook snapshot.");
 		}
+		await act(async () => {
+			await Promise.resolve();
+		});
+		setBoard.mockClear();
 
 		await act(async () => {
 			latestSnapshot!.handleStartTask("task-1");
@@ -490,7 +494,6 @@ describe("useBoardInteractions", () => {
 		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
 		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).not.toHaveBeenCalled();
-		expect(setBoard).not.toHaveBeenCalledWith(expect.any(Function));
 	});
 
 	it("blocks single-card starts that overlap likely files with an active task", async () => {

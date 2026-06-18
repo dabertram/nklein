@@ -22,6 +22,11 @@ import {
 	buildClineSelectedModelButtonText,
 	getClineReasoningEnabledModelIds,
 } from "@/components/detail-panels/cline-model-picker-options";
+import {
+	ClineModelRegistryPanel,
+	findClineModelRegistryEntry,
+	formatClineModelRegistryDisplay,
+} from "@/components/detail-panels/cline-model-registry-panel";
 import { ClineThinkingIndicator } from "@/components/detail-panels/cline-thinking-indicator";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
@@ -33,7 +38,6 @@ import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import { fetchClineModelRegistry } from "@/runtime/runtime-config-query";
 import type {
-	RuntimeClineModelRegistryEntry,
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
@@ -55,6 +59,8 @@ function countClineDisplayTokens(text: string): number {
 // Approximate token cost of the short summary the host substitutes for a compacted
 // read_files result body (header + tool input recap + guidance lines).
 const READ_FILES_COMPACTED_OVERHEAD_TOKENS = 64;
+
+export { findClineModelRegistryEntry, formatClineModelRegistryDisplay };
 
 function normalizeClineToolName(name: string | null | undefined): string {
 	return typeof name === "string" ? name.toLowerCase().replace(/[^a-z]/g, "") : "";
@@ -234,46 +240,6 @@ function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetB
 			</div>
 		</div>
 	);
-}
-
-export function findClineModelRegistryEntry(
-	entries: readonly RuntimeClineModelRegistryEntry[],
-	providerId: string,
-	modelId: string,
-): RuntimeClineModelRegistryEntry | null {
-	const normalizedProviderId = providerId.trim().toLowerCase();
-	const normalizedModelId = modelId.trim();
-	if (!normalizedProviderId || !normalizedModelId) {
-		return null;
-	}
-	return (
-		entries.find(
-			(entry) =>
-				entry.providerId.trim().toLowerCase() === normalizedProviderId &&
-				entry.modelId.trim() === normalizedModelId,
-		) ?? null
-	);
-}
-
-export function formatClineModelRegistryDisplay(entry: RuntimeClineModelRegistryEntry | null): string | null {
-	if (!entry || entry.speed.samples <= 0) {
-		return null;
-	}
-	const parts: string[] = [];
-	if (entry.contextWindow.effective) {
-		parts.push(`${Math.round(entry.contextWindow.effective / 1000)}k measured window`);
-	}
-	if (entry.speed.prefillTokensPerSecondEwma) {
-		parts.push(`${Math.round(entry.speed.prefillTokensPerSecondEwma)} tok/s in`);
-	}
-	if (entry.speed.decodeTokensPerSecondEwma) {
-		parts.push(`${Math.round(entry.speed.decodeTokensPerSecondEwma)} tok/s out`);
-	}
-	if (entry.speed.wallTimeMsPer1kPromptTokensEwma) {
-		parts.push(`${Math.round(entry.speed.wallTimeMsPer1kPromptTokensEwma)} ms/1k`);
-	}
-	parts.push(`cap ${Math.round(entry.capability.effectiveScore)}`);
-	return parts.length > 0 ? `Model telemetry: ${parts.join(" · ")}` : null;
 }
 
 export function formatClineCardContentDisplay(options: {
@@ -643,6 +609,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
 		const [isSavingModel, setIsSavingModel] = useState(false);
 		const [isClearingChat, setIsClearingChat] = useState(false);
+		const [isModelRegistryPanelOpen, setIsModelRegistryPanelOpen] = useState(false);
 		const [nowMs, setNowMs] = useState(() => Date.now());
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskClineSettings?.contextScope ?? "smart",
@@ -676,14 +643,10 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			queryFn: fetchSelectedWorkspaceModelRegistry,
 			retainDataOnError: true,
 		});
+		const modelRegistryEntries = modelRegistryQuery.data?.models ?? [];
 		const selectedModelRegistryEntry = useMemo(
-			() =>
-				findClineModelRegistryEntry(
-					modelRegistryQuery.data?.models ?? [],
-					clineSettings.providerId,
-					clineSettings.modelId,
-				),
-			[clineSettings.modelId, clineSettings.providerId, modelRegistryQuery.data?.models],
+			() => findClineModelRegistryEntry(modelRegistryEntries, clineSettings.providerId, clineSettings.modelId),
+			[clineSettings.modelId, clineSettings.providerId, modelRegistryEntries],
 		);
 		const modelRegistryText = useMemo(
 			() => formatClineModelRegistryDisplay(selectedModelRegistryEntry),
@@ -1108,8 +1071,26 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 							>
 								Clear Chat + Summarize
 							</Button>
+							<Button
+								variant={isModelRegistryPanelOpen ? "default" : "ghost"}
+								size="sm"
+								onClick={() => {
+									setIsModelRegistryPanelOpen((currentValue) => !currentValue);
+								}}
+							>
+								Telemetry
+							</Button>
 						</div>
 					</div>
+					{isModelRegistryPanelOpen ? (
+						<ClineModelRegistryPanel
+							entries={modelRegistryEntries}
+							selectedProviderId={clineSettings.providerId}
+							selectedModelId={clineSettings.modelId}
+							nowMs={nowMs}
+							isLoading={modelRegistryQuery.isLoading}
+						/>
+					) : null}
 				</div>
 				<div className="px-2 py-3">
 					{clarifyingQuestionPrompt ? (

@@ -12,7 +12,11 @@ import { isClineContextWindowPolicyError } from "../cline-sdk/cline-context-wind
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
-import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../cline-sdk/cline-local-only-policy";
+import {
+	assertLocalProviderAllowed,
+	isCloudProviderDisabledError,
+	isLocalProvider,
+} from "../cline-sdk/cline-local-only-policy";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
@@ -826,10 +830,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return {
 				schemaVersion: snapshot.schemaVersion,
 				updatedAt: snapshot.updatedAt,
-				models: Object.values(snapshot.models).sort((left, right) => {
-					const updatedDelta = right.updatedAt - left.updatedAt;
-					return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
-				}),
+				models: Object.values(snapshot.models)
+					.filter((entry) => isLocalProvider(entry.providerId, entry.endpoint))
+					.sort((left, right) => {
+						const updatedDelta = right.updatedAt - left.updatedAt;
+						return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
+					}),
 			};
 		},
 		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {

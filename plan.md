@@ -449,12 +449,18 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 - [ ] **Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
       utilization, a concurrency-cap slider (wired to `maxConcurrentTasks`, L2.2), and a prominent
       **Pause/Stop swarm** control that fires the L2.4 stop signal.
-- [ ] **Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
+- [~] **Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
       effective context window, measured prefill/decode tok/s, capability score, and which model is loaded.
       Show it **before** `samples>0` too (today `formatClineModelRegistryDisplay`
       ([cline-agent-chat-panel.tsx:183-202](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L183))
       hides it) and prompt **"set context window"** when it's `null` (the current state). Cloud providers
-      never appear here (L0).
+      never appear here (L0). **Progress:** the Cline chat panel now has an expandable Model Telemetry panel
+      backed by the typed MCSR snapshot. It lists local-only registry entries, pins the selected model first,
+      shows effective window, endpoint/shared-endpoint id, prefill/decode tok/s, latency, sample count, last
+      observation, and capability, and still renders unmeasured zero-sample entries with a "Set context window"
+      prompt. The runtime registry endpoint filters out cloud/remote providers with the same local-only policy
+      used for dispatch. Still open: include configured local roster entries that have not yet produced a
+      registry entry, and consider promoting the panel into a global/settings observability surface.
 - [ ] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
       graph with complexity, assigned role/model, and a per-leaf **fit badge** (green = a connected local
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
@@ -662,7 +668,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | Swarm coordination: file-overlap parallelism + ordered merge | ⬜ open (NEW) | L2.4 |
 | Shared decision blackboard for dependent cards | ✅ resolved | L2.4 |
 | Swarm guardrails: run budget + stall watchdog + stop | ⬜ open (NEW) | L2.4 / L4 |
-| Operator UI: cockpit, swarm header+Stop, model panel, DAG review | ⬜ open (NEW UI) | L4 |
+| Operator UI: cockpit, swarm header+Stop, model panel, DAG review | ◧ in progress (task-detail MCSR panel landed; cockpit/header/DAG/global surface open) | L4 |
 | Per-card diagnostics drawer + first-run setup wizard | ⬜ open (NEW UI) | L4 |
 | Naive idea intake → clarifying questions → workable plan | ⬜ open (NEW) | L3.3 |
 | Adaptive re-planning on execution-discovered gaps | ⬜ open (NEW) | L3.4 |

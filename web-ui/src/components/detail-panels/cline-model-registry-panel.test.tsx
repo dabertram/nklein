@@ -1,0 +1,173 @@
+import { act, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+	ClineModelRegistryPanel,
+	formatClineModelRegistryPanelSummary,
+} from "@/components/detail-panels/cline-model-registry-panel";
+import type { RuntimeClineModelRegistryEntry } from "@/runtime/types";
+
+function createModelRegistryEntry(
+	overrides: Partial<RuntimeClineModelRegistryEntry> = {},
+): RuntimeClineModelRegistryEntry {
+	return {
+		key: "ollama:qwen:local",
+		providerId: "ollama",
+		modelId: "qwen",
+		endpoint: "http://localhost:11434",
+		contextWindow: {
+			advertised: null,
+			observed: 16_000,
+			userOverride: null,
+			effective: 16_000,
+		},
+		speed: {
+			samples: 2,
+			promptTokensEwma: 1_500,
+			outputTokensEwma: 75,
+			totalTokensEwma: 1_575,
+			prefillTokensPerSecondEwma: 800,
+			decodeTokensPerSecondEwma: 40,
+			ttftMsEwma: 500,
+			wallTimeMsEwma: 3_000,
+			wallTimeMsPer1kPromptTokensEwma: 2_000,
+			lastPromptTokens: 1_000,
+			lastOutputTokens: 50,
+			lastWallTimeMs: 2_000,
+			lastObservedAt: 120_000,
+		},
+		capability: {
+			samples: 1,
+			staticPrior: 35,
+			evalScore: null,
+			externalScore: null,
+			observedPassRate: 1,
+			effectiveScore: 68,
+			lastObservedAt: 120_000,
+		},
+		constraints: {
+			sharedEndpointId: "ollama-local",
+			inputCostPerMillionTokens: null,
+			outputCostPerMillionTokens: null,
+		},
+		createdAt: 10,
+		updatedAt: 120_000,
+		...overrides,
+	};
+}
+
+function renderPanel(root: Root, element: ReactElement): void {
+	root.render(element);
+}
+
+describe("ClineModelRegistryPanel", () => {
+	let container: HTMLDivElement;
+	let root: Root;
+	let previousActEnvironment: boolean | undefined;
+
+	beforeEach(() => {
+		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
+			.IS_REACT_ACT_ENVIRONMENT;
+		(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+		container = document.createElement("div");
+		document.body.appendChild(container);
+		root = createRoot(container);
+	});
+
+	afterEach(() => {
+		act(() => {
+			root.unmount();
+		});
+		container.remove();
+		if (previousActEnvironment === undefined) {
+			delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+		} else {
+			(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+				previousActEnvironment;
+		}
+	});
+
+	it("summarizes endpoint, context window, speed, and capability", () => {
+		const summary = formatClineModelRegistryPanelSummary(createModelRegistryEntry(), 180_000);
+
+		expect(summary).toBe(
+			"ollama/qwen · endpoint ollama-local · window 16k · in 800 tok/s · out 40 tok/s · latency 2000 ms/1k · cap 68 · 2 samples · last 1m ago",
+		);
+	});
+
+	it("renders every observed model and pins the selected model first", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineModelRegistryPanel
+					entries={[
+						createModelRegistryEntry({
+							key: "cline:sonnet:default",
+							providerId: "cline",
+							modelId: "sonnet",
+							endpoint: null,
+							constraints: {
+								sharedEndpointId: null,
+								inputCostPerMillionTokens: null,
+								outputCostPerMillionTokens: null,
+							},
+						}),
+						createModelRegistryEntry(),
+					]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const text = container.textContent ?? "";
+		expect(text).toContain("Model Telemetry");
+		expect(text).toContain("ollama/qwen");
+		expect(text).toContain("cline/sonnet");
+		expect(text).toContain("Endpoint: ollama-local");
+		expect(text).toContain("Window: 16k");
+		expect(text).toContain("In 800 tok/s");
+		expect(text.indexOf("ollama/qwen")).toBeLessThan(text.indexOf("cline/sonnet"));
+	});
+
+	it("shows unmeasured models and prompts for missing context windows", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineModelRegistryPanel
+					entries={[
+						createModelRegistryEntry({
+							contextWindow: {
+								advertised: null,
+								observed: null,
+								userOverride: null,
+								effective: null,
+							},
+							speed: {
+								...createModelRegistryEntry().speed,
+								samples: 0,
+								prefillTokensPerSecondEwma: null,
+								decodeTokensPerSecondEwma: null,
+								wallTimeMsPer1kPromptTokensEwma: null,
+								lastObservedAt: null,
+							},
+						}),
+					]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const text = container.textContent ?? "";
+		expect(text).toContain("ollama/qwen");
+		expect(text).toContain("Set context window");
+		expect(text).toContain("Window: unknown");
+		expect(text).toContain("Samples: 0");
+	});
+});

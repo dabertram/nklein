@@ -63,7 +63,21 @@ export function resolveClineModelDisplayName(modelId: string): string {
 	if (!trimmedModelId) {
 		return modelId;
 	}
-	return CLINE_MODEL_NAME_BY_ID[trimmedModelId] ?? trimmedModelId;
+	const configuredName = CLINE_MODEL_NAME_BY_ID[trimmedModelId];
+	if (configuredName) {
+		return configuredName;
+	}
+	const modelName = trimmedModelId.split("/").at(-1) ?? trimmedModelId;
+	if (/^gpt-/i.test(modelName)) {
+		return modelName.replace(/^gpt-/i, "GPT-");
+	}
+	if (/^claude-/i.test(modelName)) {
+		return modelName
+			.split("-")
+			.map((part) => (part.length > 0 ? `${part[0]?.toUpperCase()}${part.slice(1)}` : part))
+			.join(" ");
+	}
+	return trimmedModelId;
 }
 
 export function buildClineSelectedModelButtonText({

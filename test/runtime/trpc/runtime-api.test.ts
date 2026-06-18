@@ -2625,10 +2625,10 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(modelsResponse.models.some((model) => model.id === "qwen3.5-9b")).toBe(true);
 	});
 
-	it("returns the model registry snapshot sorted by recency", async () => {
+	it("returns the local model registry snapshot sorted by recency", async () => {
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,
-			updatedAt: 30,
+			updatedAt: 40,
 			models: {
 				"ollama:qwen:local": {
 					key: "ollama:qwen:local",
@@ -2673,6 +2673,14 @@ describe("createRuntimeApi startTaskSession", () => {
 					createdAt: 10,
 					updatedAt: 20,
 				},
+				"openai-compatible:local:lan": createModelRegistryEntry({
+					key: "openai-compatible:local:lan",
+					providerId: "openai-compatible",
+					modelId: "local",
+					endpoint: "http://192.168.1.20:1234/v1",
+					contextWindow: 32_000,
+					capability: 45,
+				}),
 				"cline:sonnet:default": {
 					key: "cline:sonnet:default",
 					providerId: "cline",
@@ -2716,6 +2724,14 @@ describe("createRuntimeApi startTaskSession", () => {
 					createdAt: 5,
 					updatedAt: 30,
 				},
+				"openai-compatible:gpt:remote": createModelRegistryEntry({
+					key: "openai-compatible:gpt:remote",
+					providerId: "openai-compatible",
+					modelId: "gpt",
+					endpoint: "https://api.example.com/v1",
+					contextWindow: 200_000,
+					capability: 85,
+				}),
 			},
 		});
 		const api = createTestRuntimeApi({
@@ -2733,10 +2749,10 @@ describe("createRuntimeApi startTaskSession", () => {
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(response.updatedAt).toBe(30);
-		expect(response.models.map((model) => model.key)).toEqual(["cline:sonnet:default", "ollama:qwen:local"]);
-		expect(response.models[0]?.contextWindow.effective).toBe(200_000);
-		expect(response.models[1]?.speed.prefillTokensPerSecondEwma).toBe(800);
+		expect(response.updatedAt).toBe(40);
+		expect(response.models.map((model) => model.key)).toEqual(["ollama:qwen:local", "openai-compatible:local:lan"]);
+		expect(response.models[0]?.speed.prefillTokensPerSecondEwma).toBe(800);
+		expect(response.models[1]?.contextWindow.effective).toBe(32_000);
 	});
 
 	it("builds a model freshness advisor request from the runtime model registry", async () => {

@@ -73,6 +73,11 @@ describe("cline model labels", () => {
 		).toBe("GPT-5.4");
 	});
 
+	it("formats raw provider-qualified fallback model ids for compact card labels", () => {
+		expect(resolveClineModelDisplayName("openai/gpt-5.5")).toBe("GPT-5.5");
+		expect(resolveClineModelDisplayName("anthropic/claude-sonnet-4.6")).toBe("Claude Sonnet 4.6");
+	});
+
 	it("returns model IDs that support reasoning effort", () => {
 		const models: RuntimeClineProviderModel[] = [
 			{ id: "model-a", name: "Model A", supportsReasoningEffort: true },

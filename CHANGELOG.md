@@ -39,6 +39,8 @@
 - Hardened `kanban dev smoke-eval` to score only local Cline providers and include the selected local model plus guard, overflow, and timeout telemetry counts in the evidence bundle.
 - Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
 - Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.
+- Added an expandable Cline model telemetry panel backed by the MCSR, showing local-only model endpoint, context-window, throughput, latency, capability, samples, and missing-window prompts.
+- Improved fallback Cline model labels on task cards so raw provider-qualified GPT/Claude IDs render as readable model names when the provider catalog is not loaded.
 
 ## [0.1.68]
 
