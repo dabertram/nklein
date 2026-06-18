@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import { buildShellCommandLine } from "../../../src/core/shell";
-import { TerminalSessionManager } from "../../../src/terminal/session-manager";
+import { applyAgentEgressRestrictionEnvironment, TerminalSessionManager } from "../../../src/terminal/session-manager";
 
 function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTaskSessionSummary {
 	return {
@@ -49,6 +49,22 @@ describe("TerminalSessionManager", () => {
 		expect(commandLine).toContain("cline");
 		expect(commandLine).toContain("--auto-approve-all");
 		expect(commandLine).toContain("hello world");
+	});
+
+	it("keeps agent egress env unchanged unless best-effort local-only mode is enabled", () => {
+		const env = { PATH: "/usr/bin", HTTP_PROXY: "http://proxy.example" };
+		expect(applyAgentEgressRestrictionEnvironment(env, {})).toBe(env);
+
+		const restricted = applyAgentEgressRestrictionEnvironment(env, {
+			NKLEIN_AGENT_EGRESS_RESTRICTION: "best_effort_local_only",
+		});
+
+		expect(restricted).not.toBe(env);
+		expect(restricted.HTTP_PROXY).toBe("http://127.0.0.1:9");
+		expect(restricted.HTTPS_PROXY).toBe("http://127.0.0.1:9");
+		expect(restricted.ALL_PROXY).toBe("http://127.0.0.1:9");
+		expect(restricted.NO_PROXY).toContain("127.0.0.1");
+		expect(restricted.NKLEIN_AGENT_EGRESS_RESTRICTED).toBe("best_effort_local_only");
 	});
 
 	it("stores hook activity metadata on sessions", () => {

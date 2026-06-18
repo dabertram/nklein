@@ -73,6 +73,7 @@
 - Tightened acceptance auto-repair prompts so failing assertions and TypeScript/compiler errors are extracted as explicit next-turn constraints before the bounded raw output.
 - Centralized passcode session cookie construction and added coverage for strict `HttpOnly`/`SameSite=Strict` flags plus TLS-only `Secure` cookies while keeping the runtime bound to `127.0.0.1` by default.
 - Added obvious-secret scanning to Cline agent write approvals and direct write-file tools, blocking private keys, provider tokens, GitHub tokens, AWS access keys, and long credential assignments before files are written.
+- Added an opt-in best-effort local-only egress environment for task-agent PTYs via `NKLEIN_AGENT_EGRESS_RESTRICTION=best_effort_local_only`, blackholing proxy-aware outbound traffic while preserving loopback access for local runtimes.
 - Added a backend-fed Cline context budget breakdown and segmented chat-panel bar using the effective context window, with fallback to the existing estimate when breakdown data is unavailable.
 - Added routing regression coverage for preferred feasible local models and candidate-specific 32k/80k context-window assignment.
 - Split retained `read_files` / `read_large_file` results into the context budget bar's included-file segment instead of hiding that content inside other history.

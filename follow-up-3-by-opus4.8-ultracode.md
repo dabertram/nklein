@@ -242,7 +242,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] **Electron checklist pass** (`packages/desktop`): confirmed and locked `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `webSecurity: true`, packaged devtools-off behavior, deny-by-default `setWindowOpenHandler`, same-origin navigation blocking, and a CSP-protected disconnected fallback page. Also fixed the remaining OS window-title/menu fallback to `nKlein`.
 - [x] **Bind the local runtime to `127.0.0.1` only** by default; audited `src/security/passcode-manager.ts` token handling and locked Set-Cookie flags (`HttpOnly`, `SameSite=Strict`, `Path=/`, `Max-Age`, and `Secure` under TLS) behind `buildSessionCookieHeader()` regression coverage.
 - [x] **Secret scanning in the agent-write path** for the self-improvement flow — write approvals and direct write-file tools now block obvious private keys, provider tokens, GitHub tokens, AWS access keys, and long credential assignments before writing to disk.
-- [ ] Optional: egress restriction for agent worktrees (the local-only policy already blocks cloud providers; this extends it to arbitrary network calls during a task).
+- [x] Optional: egress restriction for agent worktrees (implemented as opt-in best-effort proxy-aware egress restriction for task-agent PTYs; OS-level sandboxing remains out of scope).
 
 ### G2. Reliability
 - [x] Finish/verify the persistence-ownership split (§B2).

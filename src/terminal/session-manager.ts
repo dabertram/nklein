@@ -192,6 +192,33 @@ function buildTerminalEnvironment(
 	};
 }
 
+const AGENT_EGRESS_RESTRICTION_ENV = "NKLEIN_AGENT_EGRESS_RESTRICTION";
+const AGENT_EGRESS_RESTRICTION_MARKER_ENV = "NKLEIN_AGENT_EGRESS_RESTRICTED";
+const BEST_EFFORT_LOCAL_ONLY_EGRESS = "best_effort_local_only";
+const LOOPBACK_NO_PROXY = "localhost,127.0.0.1,::1,0.0.0.0";
+const BLACKHOLE_PROXY_URL = "http://127.0.0.1:9";
+
+export function applyAgentEgressRestrictionEnvironment(
+	env: Record<string, string | undefined>,
+	processEnv: NodeJS.ProcessEnv = process.env,
+): Record<string, string | undefined> {
+	if (processEnv[AGENT_EGRESS_RESTRICTION_ENV]?.trim() !== BEST_EFFORT_LOCAL_ONLY_EGRESS) {
+		return env;
+	}
+	return {
+		...env,
+		HTTP_PROXY: BLACKHOLE_PROXY_URL,
+		HTTPS_PROXY: BLACKHOLE_PROXY_URL,
+		ALL_PROXY: BLACKHOLE_PROXY_URL,
+		http_proxy: BLACKHOLE_PROXY_URL,
+		https_proxy: BLACKHOLE_PROXY_URL,
+		all_proxy: BLACKHOLE_PROXY_URL,
+		NO_PROXY: LOOPBACK_NO_PROXY,
+		no_proxy: LOOPBACK_NO_PROXY,
+		[AGENT_EGRESS_RESTRICTION_MARKER_ENV]: BEST_EFFORT_LOCAL_ONLY_EGRESS,
+	};
+}
+
 function hasCodexInteractivePrompt(text: string): boolean {
 	const stripped = stripAnsi(text);
 	return /(?:^|[\n\r])\s*›\s*/u.test(stripped);
@@ -336,7 +363,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 			workspaceId: request.workspaceId,
 		});
 
-		const env = buildTerminalEnvironment(request.env, launch.env);
+		const env = applyAgentEgressRestrictionEnvironment(buildTerminalEnvironment(request.env, launch.env));
 
 		// Adapters can wrap the configured agent binary when they need extra runtime wiring
 		// (for example, Codex uses a wrapper script to watch session logs for hook transitions).
