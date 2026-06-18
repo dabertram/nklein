@@ -20,6 +20,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { runtimeAgentIdSchema, runtimeClineReasoningEffortSchema } from "../core/api-contract";
+import { type PlanGapKind, planGapKindSchema, recordPlanGap } from "../core/plan-gap";
 import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
 import {
@@ -77,6 +78,10 @@ function parseAutoMergeColumn(value: string | undefined): TaskWorktreeAutoMergeC
 		return "completed";
 	}
 	throw new Error('Invalid merge column. Expected "review" or "completed".');
+}
+
+function parsePlanGapKind(value: string): PlanGapKind {
+	return planGapKindSchema.parse(value);
 }
 
 interface DecompositionRejectionInput {
@@ -1433,6 +1438,31 @@ async function clearTaskSwarmStopCommand(input: { cwd: string; projectPath?: str
 	};
 }
 
+async function recordTaskPlanGapCommand(input: {
+	cwd: string;
+	projectPath?: string;
+	taskId: string;
+	kind: PlanGapKind;
+	description: string;
+	evidence?: string;
+}): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	recordPlanGap({
+		workspacePath: workspaceRepoPath,
+		taskId: input.taskId,
+		kind: input.kind,
+		description: input.description,
+		evidence: input.evidence,
+	});
+	return {
+		ok: true,
+		workspacePath: workspaceRepoPath,
+		taskId: input.taskId,
+		kind: input.kind,
+		description: input.description,
+	};
+}
+
 async function deleteTaskCommand(input: {
 	cwd: string;
 	taskId?: string;
@@ -1759,6 +1789,40 @@ export function registerTaskCommand(program: Command): void {
 					}),
 			);
 		});
+
+	task
+		.command("plan-gap")
+		.description("Record a structured plan gap discovered while executing a task.")
+		.requiredOption("--task-id <id>", "Task ID that discovered the gap.")
+		.requiredOption(
+			"--kind <kind>",
+			"Gap kind: missing_decision | contradictory_requirement | missing_dependency | scope_too_large | integration_needed | other.",
+			parsePlanGapKind,
+		)
+		.requiredOption("--description <text>", "Plain-language description of the blocking gap.")
+		.option("--evidence <text>", "Optional evidence such as error text, missing path, or conflicting requirement.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(
+			async (options: {
+				taskId: string;
+				kind: PlanGapKind;
+				description: string;
+				evidence?: string;
+				projectPath?: string;
+			}) => {
+				await runTaskCommand(
+					async () =>
+						await recordTaskPlanGapCommand({
+							cwd: process.cwd(),
+							projectPath: options.projectPath,
+							taskId: options.taskId,
+							kind: options.kind,
+							description: options.description,
+							evidence: options.evidence,
+						}),
+				);
+			},
+		);
 
 	task
 		.command("done")

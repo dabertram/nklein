@@ -327,6 +327,24 @@ Notes:
 - A missing or failing acceptance check exits non-zero and prints JSON with \`ok: false\`.
 - Use this before moving implementation tasks to completed.
 
+## task plan-gap
+
+Purpose: record a structured gap in the current plan instead of guessing when execution discovers missing decisions, contradictions, missing dependencies, oversized scope, or an integration step that was not planned.
+
+Command:
+\`${kanbanCommand} task plan-gap --task-id <task_id> --kind <kind> --description <text> [--evidence <text>] [--project-path <path>]\`
+
+Parameters:
+- \`--task-id <task_id>\` required task ID that discovered the gap.
+- \`--kind <kind>\` required one of: \`missing_decision\`, \`contradictory_requirement\`, \`missing_dependency\`, \`scope_too_large\`, \`integration_needed\`, \`other\`.
+- \`--description <text>\` required plain-language description of the blocking gap.
+- \`--evidence <text>\` optional concrete evidence such as error text, a missing file/path, or the conflicting requirements.
+- \`--project-path <path>\` optional workspace path. If omitted, Kanban uses the current directory workspace.
+
+Notes:
+- Use this when proceeding would require inventing product intent, changing shared contracts, adding unplanned dependencies, or expanding beyond the card's intended scope.
+- After recording a plan gap, stop and wait for Kanban/user re-planning rather than silently broadening the task.
+
 ## task unlink
 
 Purpose: remove an existing task link (dependency) by dependency ID.

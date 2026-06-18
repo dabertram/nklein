@@ -17,6 +17,7 @@ export type SelfObservationSignal =
 	| "task_abandoned"
 	| "task_escalated"
 	| "decomposition_rejected"
+	| "plan_gap"
 	| "eval_score"
 	| "custom";
 

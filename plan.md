@@ -408,10 +408,14 @@ committing to a spec/plan/DAG. The result reflects the user's actual intent, not
 **Outcome:** Plans aren't frozen. When working a card reveals something the plan missed — a contradiction,
 a missing dependency, a wrong assumption, a task bigger than estimated — Kanban adapts the plan instead of
 plowing ahead or silently failing.
-- [ ] **Plan-gap signal from execution.** A running card that hits a blocking gap (missing decision,
+- [~] **Plan-gap signal from execution.** A running card that hits a blocking gap (missing decision,
       contradictory requirement, nonexistent dependency, scope beyond its fit budget) raises a structured
       **plan-gap** event rather than guessing. Wire it through the self-observation sink + the
-      acceptance/escalation path.
+      acceptance/escalation path. **Progress:** `kanban task plan-gap` now records typed `plan_gap`
+      self-observation events for missing decisions, contradictions, missing dependencies, oversized scope,
+      and integration gaps, and the agent system prompt tells execution agents to use it instead of
+      silently broadening a task. Still open: automatic plan-gap classification from acceptance/escalation
+      failures.
 - [ ] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
