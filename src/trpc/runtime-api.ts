@@ -1808,6 +1808,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			});
 			return {
 				bundlePath: bundle.bundlePath,
+				summaryPath: bundle.summaryPath,
+				files: {
+					...bundle.files,
+					transcripts: [...bundle.files.transcripts],
+				},
 				promptBlock: buildTaskEvidencePromptBlock({
 					task,
 					workspacePath: workspaceScope.workspacePath,

@@ -224,6 +224,15 @@ describe("KanbanBoard", () => {
 		runtimeConfigQueryMocks.collectTaskEvidence.mockReset();
 		runtimeConfigQueryMocks.collectTaskEvidence.mockResolvedValue({
 			bundlePath: "/tmp/evidence/task-1",
+			summaryPath: "/tmp/evidence/task-1/summary.md",
+			files: {
+				summary: "/tmp/evidence/task-1/summary.md",
+				telemetry: "/tmp/evidence/task-1/telemetry.jsonl",
+				configSnapshot: "/tmp/evidence/task-1/config-snapshot.json",
+				evalResult: "/tmp/evidence/task-1/eval.json",
+				diffPatch: "/tmp/evidence/task-1/diff.patch",
+				transcripts: ["/tmp/evidence/task-1/transcript/01-task-1.json"],
+			},
 			promptBlock: "Here is evidence from a !Klein task.",
 		});
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();

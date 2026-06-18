@@ -51,6 +51,7 @@ import type {
 	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticEvent,
+	RuntimeTaskEvidenceResponse,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
 	RuntimeTaskWorktreeMergeResponse,
@@ -941,6 +942,7 @@ function TaskRecoveryActionsPanel({
 	const [mergeResult, setMergeResult] = useState<string | null>(null);
 	const [interruptResult, setInterruptResult] = useState<string | null>(null);
 	const [evidenceResult, setEvidenceResult] = useState<string | null>(null);
+	const [evidenceDetails, setEvidenceDetails] = useState<RuntimeTaskEvidenceResponse | null>(null);
 	const [isVerifying, setIsVerifying] = useState(false);
 	const [isMerging, setIsMerging] = useState(false);
 	const [isMarkingInterrupted, setIsMarkingInterrupted] = useState(false);
@@ -951,6 +953,7 @@ function TaskRecoveryActionsPanel({
 		setMergeResult(null);
 		setInterruptResult(null);
 		setEvidenceResult(null);
+		setEvidenceDetails(null);
 	}, [selection.card.id]);
 
 	const handleVerify = useCallback(async () => {
@@ -1036,10 +1039,12 @@ function TaskRecoveryActionsPanel({
 			await navigator.clipboard.writeText(response.promptBlock);
 			const message = `Evidence copied. ${response.bundlePath}`;
 			setEvidenceResult(message);
+			setEvidenceDetails(response);
 			showAppToast({ intent: "success", icon: "clipboard", message: "Evidence copied.", timeout: 5000 });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Could not collect task evidence.";
 			setEvidenceResult(message);
+			setEvidenceDetails(null);
 			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
 		} finally {
 			setIsCollectingEvidence(false);
@@ -1117,6 +1122,35 @@ function TaskRecoveryActionsPanel({
 			{evidenceResult ? (
 				<div className="mt-2 break-all text-[12px] text-text-secondary">{evidenceResult}</div>
 			) : null}
+			{evidenceDetails ? <TaskEvidenceDrawer evidence={evidenceDetails} /> : null}
+		</div>
+	);
+}
+
+function TaskEvidenceDrawer({ evidence }: { evidence: RuntimeTaskEvidenceResponse }): React.ReactElement {
+	const evidenceFiles = [
+		{ label: "Summary", path: evidence.files.summary },
+		{ label: "Diff", path: evidence.files.diffPatch },
+		{ label: "Telemetry", path: evidence.files.telemetry },
+		{ label: "Config", path: evidence.files.configSnapshot },
+		{ label: "Eval", path: evidence.files.evalResult },
+		...evidence.files.transcripts.map((path, index) => ({ label: `Transcript ${index + 1}`, path })),
+	].filter((entry): entry is { label: string; path: string } => Boolean(entry.path));
+	return (
+		<div className="mt-2 rounded-md border border-border bg-surface-2 p-2 text-[12px]">
+			<div className="mb-1 font-medium text-text-primary">Evidence bundle</div>
+			<div className="break-all font-mono text-[11px] text-text-secondary">{evidence.bundlePath}</div>
+			<div className="mt-2 grid gap-1">
+				{evidenceFiles.map((entry) => (
+					<div key={`${entry.label}:${entry.path}`} className="grid grid-cols-[80px_minmax(0,1fr)] gap-2">
+						<span className="text-text-tertiary">{entry.label}</span>
+						<span className="break-all font-mono text-[11px] text-text-secondary">{entry.path}</span>
+					</div>
+				))}
+			</div>
+			<pre className="mt-2 max-h-28 overflow-auto rounded-sm bg-surface-0 p-2 text-[11px] text-text-secondary whitespace-pre-wrap">
+				{evidence.promptBlock}
+			</pre>
 		</div>
 	);
 }

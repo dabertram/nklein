@@ -273,7 +273,7 @@ Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/cline-sdk/cline-local-only
 Constraints honored: the kanban board stays the core idea; **no surfaced feature is dropped**; current responsiveness/perf are acceptable so these are opt-in, not urgent.
 
 - [x] A clearly-labeled, gated **"Lab" / Developer Tools** surface housing dev-test, evidence, and self-improvement actions (replaces the current CLI/tRPC-only access).
-- [ ] An **evidence drawer** on a card: transcript + diff + telemetry + the one-click copy/seed actions in one place.
+- [x] An **evidence drawer** on a card: transcript + diff + telemetry + the one-click copy/seed actions in one place.
 - [x] Embedding **"Test endpoint"** button + model dropdown (from §C3).
 - [x] A **command palette** (⌘K) + keyboard-first navigation — additive, discoverable, doesn't change the board.
 - [x] Richer empty/onboarding states that point at the local-model setup (already partially present via the first-run onboarding).

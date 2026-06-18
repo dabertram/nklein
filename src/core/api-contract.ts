@@ -1149,6 +1149,15 @@ export type RuntimeTaskEvidenceRequest = z.infer<typeof runtimeTaskEvidenceReque
 
 export const runtimeTaskEvidenceResponseSchema = z.object({
 	bundlePath: z.string(),
+	summaryPath: z.string(),
+	files: z.object({
+		summary: z.string(),
+		telemetry: z.string(),
+		configSnapshot: z.string(),
+		evalResult: z.string(),
+		diffPatch: z.string().nullable(),
+		transcripts: z.array(z.string()),
+	}),
 	promptBlock: z.string(),
 });
 export type RuntimeTaskEvidenceResponse = z.infer<typeof runtimeTaskEvidenceResponseSchema>;

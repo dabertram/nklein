@@ -233,6 +233,15 @@ describe("CardDetailView", () => {
 		mockCollectTaskEvidence.mockReset();
 		mockCollectTaskEvidence.mockResolvedValue({
 			bundlePath: "/tmp/evidence/task-1",
+			summaryPath: "/tmp/evidence/task-1/summary.md",
+			files: {
+				summary: "/tmp/evidence/task-1/summary.md",
+				telemetry: "/tmp/evidence/task-1/telemetry.jsonl",
+				configSnapshot: "/tmp/evidence/task-1/config-snapshot.json",
+				evalResult: "/tmp/evidence/task-1/eval.json",
+				diffPatch: "/tmp/evidence/task-1/diff.patch",
+				transcripts: ["/tmp/evidence/task-1/transcript/01-task-1.json"],
+			},
 			promptBlock: "Here is evidence from a !Klein task.",
 		});
 		Object.defineProperty(navigator, "clipboard", {
@@ -909,6 +918,9 @@ describe("CardDetailView", () => {
 		expect(mockCollectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
 		expect(container.textContent).toContain("Evidence copied. /tmp/evidence/task-1");
+		expect(container.textContent).toContain("Evidence bundle");
+		expect(container.textContent).toContain("/tmp/evidence/task-1/diff.patch");
+		expect(container.textContent).toContain("/tmp/evidence/task-1/transcript/01-task-1.json");
 	});
 
 	it("exposes a mark interrupted action for lost Cline sessions", async () => {
