@@ -232,6 +232,19 @@ interface TaskActivityStep {
 	tone: "active" | "done" | "waiting" | "issue" | "muted";
 }
 
+function getDiagnosticEventTone(event: RuntimeTaskDiagnosticEvent | null): TaskActivityStep["tone"] {
+	if (!event) {
+		return "muted";
+	}
+	if (event.severity === "error") {
+		return "issue";
+	}
+	if (event.severity === "warning") {
+		return "waiting";
+	}
+	return "done";
+}
+
 function formatActivityTokenCount(tokens: number): string {
 	if (tokens >= 1_000) {
 		return `${Math.round(tokens / 100) / 10}k`;
@@ -285,9 +298,25 @@ function isRetrievalOrIndexingTool(toolName: string | null | undefined): boolean
 	);
 }
 
+function isAcceptanceActivityEvent(event: RuntimeTaskDiagnosticEvent): boolean {
+	return event.signal === "verification_failed" || event.signal === "plan_gap";
+}
+
+function isMergeActivityEvent(event: RuntimeTaskDiagnosticEvent): boolean {
+	return event.signal === "custom" && event.metadata?.category === "task_worktree_merge";
+}
+
+function formatActivityEventDetail(event: RuntimeTaskDiagnosticEvent | null, fallback: string): string {
+	if (!event) {
+		return fallback;
+	}
+	return `${formatDiagnosticTime(event.createdAt)} ${event.message}`;
+}
+
 function buildTaskActivitySteps(
 	selection: CardSelection,
 	summary: RuntimeTaskSessionSummary | null,
+	diagnosticEvents: readonly RuntimeTaskDiagnosticEvent[] = [],
 ): TaskActivityStep[] {
 	const modelParts = [summary?.providerId, summary?.modelId].filter(
 		(part): part is string => typeof part === "string" && part.trim().length > 0,
@@ -298,6 +327,8 @@ function buildTaskActivitySteps(
 		: null;
 	const hookActivity = summary?.latestHookActivity;
 	const isRetrievalActive = isRetrievalOrIndexingTool(hookActivity?.toolName);
+	const latestAcceptanceEvent = diagnosticEvents.find(isAcceptanceActivityEvent) ?? null;
+	const latestMergeEvent = diagnosticEvents.find(isMergeActivityEvent) ?? null;
 	const acceptanceDetail =
 		selection.column.id === "completed"
 			? "Completed"
@@ -356,9 +387,46 @@ function buildTaskActivitySteps(
 		},
 		{
 			label: "Acceptance",
-			status: selection.column.title,
-			detail: acceptanceDetail,
-			tone: selection.column.id === "completed" ? "done" : selection.column.id === "review" ? "waiting" : "muted",
+			status: latestAcceptanceEvent
+				? latestAcceptanceEvent.signal === "verification_failed"
+					? "Failed"
+					: "Plan gap"
+				: selection.column.title,
+			detail: formatActivityEventDetail(latestAcceptanceEvent, acceptanceDetail),
+			tone: latestAcceptanceEvent
+				? getDiagnosticEventTone(latestAcceptanceEvent)
+				: selection.column.id === "completed"
+					? "done"
+					: selection.column.id === "review"
+						? "waiting"
+						: "muted",
+		},
+		{
+			label: "Merge",
+			status: latestMergeEvent
+				? latestMergeEvent.severity === "warning" || latestMergeEvent.severity === "error"
+					? "Needs review"
+					: "Recorded"
+				: selection.column.id === "completed"
+					? "Merged or done"
+					: selection.column.id === "review"
+						? "Pending"
+						: "Not ready",
+			detail: formatActivityEventDetail(
+				latestMergeEvent,
+				selection.column.id === "review"
+					? "Merge runs after review completion"
+					: selection.column.id === "completed"
+						? "No merge diagnostic event yet"
+						: "Waiting for review",
+			),
+			tone: latestMergeEvent
+				? getDiagnosticEventTone(latestMergeEvent)
+				: selection.column.id === "review"
+					? "waiting"
+					: selection.column.id === "completed"
+						? "done"
+						: "muted",
 		},
 	];
 }
@@ -366,11 +434,38 @@ function buildTaskActivitySteps(
 function TaskActivitySurface({
 	selection,
 	sessionSummary,
+	workspaceId,
 }: {
 	selection: CardSelection;
 	sessionSummary: RuntimeTaskSessionSummary | null;
+	workspaceId: string | null;
 }): React.ReactElement {
-	const steps = useMemo(() => buildTaskActivitySteps(selection, sessionSummary), [selection, sessionSummary]);
+	const [diagnosticEvents, setDiagnosticEvents] = useState<RuntimeTaskDiagnosticEvent[]>([]);
+	useEffect(() => {
+		let cancelled = false;
+		setDiagnosticEvents([]);
+		if (!workspaceId) {
+			return;
+		}
+		void fetchTaskDiagnostics(workspaceId, selection.card.id, 20)
+			.then((response) => {
+				if (!cancelled && response.ok) {
+					setDiagnosticEvents(response.events);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setDiagnosticEvents([]);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [selection.card.id, workspaceId]);
+	const steps = useMemo(
+		() => buildTaskActivitySteps(selection, sessionSummary, diagnosticEvents),
+		[diagnosticEvents, selection, sessionSummary],
+	);
 	return (
 		<div className="border-b border-border bg-surface-1 px-3 py-2">
 			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
@@ -378,7 +473,7 @@ function TaskActivitySurface({
 				<span>Activity</span>
 				<span className="truncate text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
 			</div>
-			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
+			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
 				{steps.map((step) => (
 					<div key={step.label} className="min-w-0 rounded-md border border-border bg-surface-0 px-2 py-1.5">
 						<div className="flex min-w-0 items-center gap-1.5">
@@ -1174,7 +1269,11 @@ export function CardDetailView({
 									hideExpand
 								/>
 							) : null}
-							<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
+							<TaskActivitySurface
+								selection={selection}
+								sessionSummary={sessionSummary}
+								workspaceId={currentProjectId}
+							/>
 							<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
@@ -1316,7 +1415,11 @@ export function CardDetailView({
 										onToggleExpand={handleToggleDiffExpand}
 									/>
 								) : null}
-								<TaskActivitySurface selection={selection} sessionSummary={sessionSummary} />
+								<TaskActivitySurface
+									selection={selection}
+									sessionSummary={sessionSummary}
+									workspaceId={currentProjectId}
+								/>
 								<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">

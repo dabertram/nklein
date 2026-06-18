@@ -554,6 +554,37 @@ describe("CardDetailView", () => {
 	});
 
 	it("renders the live task activity surface from the session summary", async () => {
+		mockFetchTaskDiagnostics.mockResolvedValue({
+			ok: true,
+			events: [
+				{
+					schemaVersion: 1,
+					signal: "custom",
+					severity: "info",
+					message: "Task worktree merged: task-1",
+					taskId: "task-1",
+					runId: null,
+					providerId: null,
+					modelId: null,
+					workspacePath: null,
+					metadata: { category: "task_worktree_merge", type: "merged" },
+					createdAt: Date.UTC(2026, 0, 2, 3, 5, 0),
+				},
+				{
+					schemaVersion: 1,
+					signal: "verification_failed",
+					severity: "error",
+					message: "Acceptance gate failed: npm test",
+					taskId: "task-1",
+					runId: null,
+					providerId: null,
+					modelId: null,
+					workspacePath: null,
+					metadata: { command: "npm test" },
+					createdAt: Date.UTC(2026, 0, 2, 3, 4, 0),
+				},
+			],
+		});
 		await act(async () => {
 			root.render(
 				<CardDetailView
@@ -613,6 +644,7 @@ describe("CardDetailView", () => {
 				/>,
 			);
 		});
+		await act(async () => {});
 
 		expect(container.textContent).toContain("Activity");
 		expect(container.textContent).toContain("Routing");
@@ -622,6 +654,10 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Retrieval");
 		expect(container.textContent).toContain("src/example.ts");
 		expect(container.textContent).toContain("read_file");
+		expect(container.textContent).toContain("Acceptance");
+		expect(container.textContent).toContain("Acceptance gate failed: npm test");
+		expect(container.textContent).toContain("Merge");
+		expect(container.textContent).toContain("Task worktree merged: task-1");
 	});
 
 	it("shows a planning DAG review panel for linked Planning cards", async () => {

@@ -540,7 +540,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Active `searchClineCodeIndex` runs now publish in-memory scan/embed/persist progress with file/chunk
       counters and cache hit/miss counts; the settings panel shows that progress and polls until the run
       completes, errors, or returns idle.
-- [~] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
+- [x] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw
       detail for technical users; collapsed to a plain status for everyone else. **Progress:** card detail now
@@ -548,7 +548,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       summary: planning/execution state, provider/model routing, context-budget usage, current tool activity,
       and acceptance/review state. It now separates retrieval/indexing from generic tool calls and labels
       routing detail as card-selected or runtime-selected, including the selected local endpoint when available.
-      Still open: acceptance-gate result history and merge-step status as first-class expandable events.
+      Acceptance and merge are now first-class Activity steps backed by local diagnostics: acceptance failures
+      and plan-gap history surface in the pipeline, task worktree merge/skipped/conflict events are recorded as
+      task-scoped telemetry, and the raw expandable Diagnostics panel remains one click away for full history.
 - [~] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
       and explained in plain language with an "advanced" reveal for raw values: model roles & roster,
       per-model context-window override, routing/guard thresholds, concurrency cap,

@@ -52,6 +52,7 @@ import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeColumn,
 	type TaskWorktreeAutoMergeConflict,
+	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
@@ -1326,6 +1327,11 @@ async function autoMergeFinishedTaskWorktree(input: {
 					baseRef: state.git.currentBranch,
 				})
 			: null;
+	recordTaskWorktreeMergeObservations({
+		workspacePath: input.workspaceRepoPath,
+		steps: result.steps,
+		ok: result.ok,
+	});
 	return {
 		ok: result.ok,
 		mergedTaskIds: result.mergedTaskIds,
@@ -1335,6 +1341,42 @@ async function autoMergeFinishedTaskWorktree(input: {
 		conflict: result.conflict ?? null,
 		blocked: result.blocked ?? null,
 	};
+}
+
+function recordTaskWorktreeMergeObservations(input: {
+	workspacePath: string;
+	steps: readonly TaskWorktreeAutoMergeStep[];
+	ok: boolean;
+}): void {
+	for (const step of input.steps) {
+		if (!step.taskId) {
+			continue;
+		}
+		const severity = step.type === "conflict" || step.type === "blocked" ? "warning" : "info";
+		const message =
+			step.type === "merged"
+				? `Task worktree merged: ${step.taskId}`
+				: step.type === "skipped"
+					? `Task worktree merge skipped: ${step.taskId}`
+					: step.type === "conflict"
+						? `Task worktree merge conflict: ${step.taskId}`
+						: `Task worktree merge blocked: ${step.reason}`;
+		recordSelfObservation({
+			signal: "custom",
+			severity,
+			message,
+			taskId: step.taskId,
+			workspacePath: input.workspacePath,
+			metadata: {
+				category: "task_worktree_merge",
+				ok: input.ok,
+				type: step.type,
+				reason: "reason" in step ? step.reason : null,
+				headCommit: "headCommit" in step ? step.headCommit : null,
+				conflictedPaths: "conflictedPaths" in step ? step.conflictedPaths : null,
+			},
+		});
+	}
 }
 
 async function finishTaskById(input: {
@@ -1905,6 +1947,11 @@ async function mergeTaskWorktreesCommand(input: {
 					baseRef: state.git.currentBranch,
 				})
 			: null;
+	recordTaskWorktreeMergeObservations({
+		workspacePath: workspaceRepoPath,
+		steps: result.steps,
+		ok: result.ok,
+	});
 	return {
 		ok: result.ok,
 		workspacePath: workspaceRepoPath,
