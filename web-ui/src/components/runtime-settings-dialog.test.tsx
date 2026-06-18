@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeSettingsDialog } from "@/components/runtime-settings-dialog";
 import type { RuntimeConfigResponse } from "@/runtime/types";
+import { LocalStorageKey } from "@/storage/local-storage-store";
 
 /*
  * Radix Select depends on pointer-capture APIs that jsdom lacks.
@@ -574,6 +575,30 @@ describe("RuntimeSettingsDialog", () => {
 		expect(findButtonByText(document.body, "Report issue")).toBeNull();
 	});
 
+	it("hides cloud account affordances in local-only mode", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		expect(document.body.textContent).not.toContain("Sign in to Cline");
+		expect(document.body.textContent).not.toContain("Account ID:");
+		expect(document.body.textContent).not.toContain("Sign in again with");
+		expect(Array.from(document.body.querySelectorAll("option")).map((option) => option.value)).not.toContain("cloud");
+		const architectProviderSelect = document.getElementById(
+			"runtime-settings-model-role-architect-provider",
+		) as HTMLSelectElement | null;
+		expect(architectProviderSelect).not.toBeNull();
+		const roleProviderValues = Array.from(architectProviderSelect?.options ?? []).map((option) => option.value);
+		expect(roleProviderValues).toEqual(["", "lmstudio"]);
+	});
+
 	it("surfaces local swarm guardrail limits in settings", async () => {
 		await act(async () => {
 			root.render(
@@ -774,9 +799,9 @@ describe("RuntimeSettingsDialog", () => {
 			saveButton?.click();
 		});
 
-		expect(window.localStorage.getItem("kanban.task-start-in-plan-mode")).toBe("true");
-		expect(window.localStorage.getItem("kanban.task-auto-review-enabled")).toBe("true");
-		expect(window.localStorage.getItem("kanban.task-auto-review-mode")).toBe("pr");
+		expect(window.localStorage.getItem(LocalStorageKey.TaskStartInPlanMode)).toBe("true");
+		expect(window.localStorage.getItem(LocalStorageKey.TaskAutoReviewEnabled)).toBe("true");
+		expect(window.localStorage.getItem(LocalStorageKey.TaskAutoReviewMode)).toBe("pr");
 	});
 
 	it("enables save on theme change and reverts preview on cancel", async () => {
@@ -816,14 +841,14 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.documentElement.getAttribute("data-theme")).toBe("graphite");
 		saveButton = findButtonByText(document.body, "Save");
 		expect(saveButton?.disabled).toBe(false);
-		expect(window.localStorage.getItem("kanban.theme")).toBeNull();
+		expect(window.localStorage.getItem(LocalStorageKey.Theme)).toBeNull();
 
 		await act(async () => {
 			cancelButton?.click();
 		});
 
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
-		expect(window.localStorage.getItem("kanban.theme")).toBeNull();
+		expect(window.localStorage.getItem(LocalStorageKey.Theme)).toBeNull();
 		expect(document.documentElement.getAttribute("data-theme")).toBeNull();
 	});
 
@@ -853,7 +878,7 @@ describe("RuntimeSettingsDialog", () => {
 			graphiteOption?.click();
 		});
 
-		expect(window.localStorage.getItem("kanban.theme")).toBeNull();
+		expect(window.localStorage.getItem(LocalStorageKey.Theme)).toBeNull();
 		saveButton = findButtonByText(document.body, "Save");
 
 		await act(async () => {
@@ -861,11 +886,24 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
-		expect(window.localStorage.getItem("kanban.theme")).toBe("graphite");
+		expect(window.localStorage.getItem(LocalStorageKey.Theme)).toBe("graphite");
 		expect(document.documentElement.getAttribute("data-theme")).toBe("graphite");
 	});
 
 	it("saves configured Cline model roles", async () => {
+		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+			if (providerId === "lmstudio") {
+				return [
+					{
+						id: "loaded-qwen",
+						name: "Loaded Qwen",
+						contextWindow: 128_000,
+						supportsReasoningEffort: true,
+					},
+				];
+			}
+			return [];
+		});
 		const handleOpenChange = vi.fn();
 		await act(async () => {
 			root.render(
@@ -898,17 +936,17 @@ describe("RuntimeSettingsDialog", () => {
 		}
 
 		await act(async () => {
-			setSelectValue(architectProviderSelect, "openrouter");
+			setSelectValue(architectProviderSelect, "lmstudio");
 		});
 		await waitForCondition(() =>
-			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "openrouter"),
+			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
 		);
 		await flushAsyncWork();
-		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith("workspace-1", "openrouter");
-		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toContain("google/gemini-2.5-pro");
+		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith("workspace-1", "lmstudio");
+		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toContain("loaded-qwen");
 
 		await act(async () => {
-			setSelectValue(architectModelSelect, "google/gemini-2.5-pro");
+			setSelectValue(architectModelSelect, "loaded-qwen");
 			setSelectValue(architectReasoningSelect, "high");
 		});
 
@@ -923,8 +961,8 @@ describe("RuntimeSettingsDialog", () => {
 			expect.objectContaining({
 				modelRoles: {
 					architect: {
-						providerId: "openrouter",
-						modelId: "google/gemini-2.5-pro",
+						providerId: "lmstudio",
+						modelId: "loaded-qwen",
 						reasoningEffort: "high",
 					},
 				},
@@ -935,11 +973,11 @@ describe("RuntimeSettingsDialog", () => {
 
 	it("warns and blocks saving model roles below the minimum context window", async () => {
 		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
-			if (providerId === "openrouter") {
+			if (providerId === "lmstudio") {
 				return [
 					{
-						id: "openai/gpt-5.4",
-						name: "GPT-5.4",
+						id: "loaded-qwen",
+						name: "Loaded Qwen",
 						contextWindow: 16_000,
 						supportsReasoningEffort: true,
 					},
@@ -964,19 +1002,27 @@ describe("RuntimeSettingsDialog", () => {
 			(element) => element.textContent?.trim() === "Model roles",
 		);
 		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
-		const architectProviderSelect = modelRolesSection?.querySelector<HTMLSelectElement>("select");
-		if (!(architectProviderSelect instanceof HTMLSelectElement)) {
-			throw new Error("Expected architect provider select.");
+		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const architectProviderSelect = selects[0];
+		const architectModelSelect = selects[1];
+		if (
+			!(architectProviderSelect instanceof HTMLSelectElement) ||
+			!(architectModelSelect instanceof HTMLSelectElement)
+		) {
+			throw new Error("Expected architect role selects.");
 		}
 
 		await act(async () => {
-			setSelectValue(architectProviderSelect, "openrouter");
+			setSelectValue(architectProviderSelect, "lmstudio");
 		});
 		await waitForCondition(() =>
-			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "openrouter"),
+			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
 		);
 		await flushAsyncWork();
 
+		await act(async () => {
+			setSelectValue(architectModelSelect, "loaded-qwen");
+		});
 		expect(document.body.textContent).toContain("Architect model reports 16,000 context tokens");
 		await act(async () => {
 			saveButton?.click();

@@ -1,6 +1,7 @@
 import { isRuntimeAgentLaunchSupported } from "@runtime-agent-catalog";
 import type {
 	RuntimeAgentId,
+	RuntimeClineProviderCatalogItem,
 	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
 	RuntimeStateStreamTaskChatMessage,
@@ -9,6 +10,38 @@ import type {
 
 export function isNativeClineAgentSelected(agentId: RuntimeAgentId | null | undefined): boolean {
 	return agentId === "cline";
+}
+
+const KNOWN_CLOUD_PROVIDER_IDS = new Set([
+	"anthropic",
+	"bedrock",
+	"cline",
+	"oca",
+	"openai",
+	"openai-codex",
+	"openrouter",
+	"vertex",
+]);
+
+export function isCloudProviderSupportEnabled(
+	config: Pick<RuntimeConfigResponse, "cloudProviderSupportEnabled"> | null | undefined,
+): boolean {
+	return config?.cloudProviderSupportEnabled ?? false;
+}
+
+export function isKnownCloudProviderId(providerId: string | null | undefined): boolean {
+	const normalized = providerId?.trim().toLowerCase();
+	return normalized ? KNOWN_CLOUD_PROVIDER_IDS.has(normalized) : false;
+}
+
+export function filterVisibleClineProviderCatalog(
+	providers: RuntimeClineProviderCatalogItem[],
+	cloudProviderSupportEnabled: boolean,
+): RuntimeClineProviderCatalogItem[] {
+	if (cloudProviderSupportEnabled) {
+		return providers;
+	}
+	return providers.filter((provider) => !isKnownCloudProviderId(provider.id));
 }
 
 export function getRuntimeClineProviderSettings(

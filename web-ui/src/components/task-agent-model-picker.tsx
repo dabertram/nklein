@@ -14,6 +14,7 @@ import { SearchSelectDropdown } from "@/components/search-select-dropdown";
 import { cn } from "@/components/ui/cn";
 import { NativeSelect } from "@/components/ui/native-select";
 import { isLmStudioProviderId } from "@/runtime/cline-context-window-policy";
+import { filterVisibleClineProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
 import { fetchClineProviderCatalog, fetchClineProviderModels } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
@@ -38,6 +39,7 @@ export interface UseTaskAgentModelPickerInput {
 	defaultProviderId?: string | null;
 	/** The default Cline model ID from runtimeConfig.clineProviderSettings.modelId */
 	defaultModelId?: string | null;
+	cloudProviderSupportEnabled?: boolean;
 }
 
 export interface UseTaskAgentModelPickerResult {
@@ -60,6 +62,7 @@ export function useTaskAgentModelPicker({
 	defaultAgentId,
 	defaultProviderId,
 	defaultModelId,
+	cloudProviderSupportEnabled = false,
 }: UseTaskAgentModelPickerInput): UseTaskAgentModelPickerResult {
 	const [providerCatalog, setProviderCatalog] = useState<RuntimeClineProviderCatalogItem[]>([]);
 	const [providerModels, setProviderModels] = useState<RuntimeClineProviderModel[]>([]);
@@ -78,7 +81,7 @@ export function useTaskAgentModelPicker({
 		void fetchClineProviderCatalog(workspaceId)
 			.then((catalog) => {
 				if (!cancelled) {
-					setProviderCatalog(catalog);
+					setProviderCatalog(filterVisibleClineProviderCatalog(catalog, cloudProviderSupportEnabled));
 				}
 			})
 			.catch(() => {
@@ -94,7 +97,7 @@ export function useTaskAgentModelPicker({
 		return () => {
 			cancelled = true;
 		};
-	}, [active, effectiveAgentId, workspaceId]);
+	}, [active, cloudProviderSupportEnabled, effectiveAgentId, workspaceId]);
 
 	// Derive the effective provider: explicit override takes precedence, then the global default
 	const clineProviderId = clineSettings?.providerId;
@@ -150,7 +153,11 @@ export function useTaskAgentModelPicker({
 		let firstLabel = "Default";
 		if (defaultProviderId) {
 			const defaultProvider = providerCatalog.find((p) => p.id === defaultProviderId);
-			firstLabel = defaultProvider ? defaultProvider.name : defaultProviderId;
+			firstLabel = defaultProvider
+				? defaultProvider.name
+				: isKnownCloudProviderId(defaultProviderId)
+					? "Default"
+					: defaultProviderId;
 		}
 		return [
 			{ value: "", label: firstLabel },

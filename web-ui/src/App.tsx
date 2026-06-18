@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { UpdateNotificationController } from "@/components/update-notification-controller";
+import { WorkspaceConflictNotice } from "@/components/workspace-conflict-notice";
 import { createInitialBoardData } from "@/data/board-data";
 import { createIdleTaskSession } from "@/hooks/app-utils";
 import { KanbanAccessBlockedFallback } from "@/hooks/kanban-access-blocked-fallback";
@@ -60,11 +61,17 @@ import { ResizableBottomPane } from "@/resize/resizable-bottom-pane";
 import { useProjectNavigationLayout } from "@/resize/use-project-navigation-layout";
 import {
 	getTaskAgentNavbarHint,
+	isCloudProviderSupportEnabled,
 	isTaskAgentSetupSatisfied,
 	selectLatestTaskChatMessageForTask,
 	selectTaskChatMessagesForTask,
 } from "@/runtime/native-agent";
-import type { RuntimeClineReasoningEffort, RuntimeTaskSessionSummary } from "@/runtime/types";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
+import type {
+	RuntimeClineReasoningEffort,
+	RuntimeTaskSessionSummary,
+	RuntimeWorkspaceStateResponse,
+} from "@/runtime/types";
 import { useRuntimeProjectConfig } from "@/runtime/use-runtime-project-config";
 import { useTerminalConnectionReady } from "@/runtime/use-terminal-connection-ready";
 import { useWorkspacePersistence } from "@/runtime/use-workspace-persistence";
@@ -127,6 +134,7 @@ export default function App(): ReactElement {
 		isAddProjectDialogOpen,
 		setIsAddProjectDialogOpen,
 		pendingNativeGitInitPath,
+		pendingNativeSelfProjectPath,
 		resetProjectNavigationState,
 	} = useProjectNavigation({
 		onProjectSwitchStart: handleProjectSwitchStart,
@@ -148,9 +156,11 @@ export default function App(): ReactElement {
 	const settingsWorkspaceId = navigationCurrentProjectId ?? currentProjectId;
 	const { config: settingsRuntimeProjectConfig, refresh: refreshSettingsRuntimeProjectConfig } =
 		useRuntimeProjectConfig(settingsWorkspaceId);
+	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(settingsRuntimeProjectConfig);
 	const featurebaseFeedbackState = useFeaturebaseFeedbackWidget({
 		workspaceId: settingsWorkspaceId,
 		clineProviderSettings: settingsRuntimeProjectConfig?.clineProviderSettings ?? null,
+		cloudProviderSupportEnabled,
 	});
 	const {
 		isStartupOnboardingDialogOpen,
@@ -219,6 +229,28 @@ export default function App(): ReactElement {
 		currentProjectId,
 		setSessions,
 	});
+	const markTaskInterrupted = useCallback(
+		async (taskId: string): Promise<{ ok: boolean; message?: string }> => {
+			if (!currentProjectId) {
+				return { ok: false, message: "No project is selected." };
+			}
+			try {
+				const payload = await getRuntimeTrpcClient(currentProjectId).runtime.stopTaskSession.mutate({ taskId });
+				if (!payload.ok || !payload.summary) {
+					return {
+						ok: false,
+						message: payload.error ?? "Could not mark the task interrupted.",
+					};
+				}
+				upsertSession(payload.summary);
+				return { ok: true };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { ok: false, message };
+			}
+		},
+		[currentProjectId, upsertSession],
+	);
 
 	const {
 		workspacePath,
@@ -251,6 +283,15 @@ export default function App(): ReactElement {
 			setIsGitHistoryOpen(false);
 		},
 	});
+	const handleWorkspaceStateApplied = useCallback(
+		(state: RuntimeWorkspaceStateResponse) => {
+			setBoard(state.board);
+			setSessions(state.sessions);
+			setWorkspaceRevision(state.revision);
+			setCanPersistWorkspaceState(true);
+		},
+		[setWorkspaceRevision],
+	);
 
 	useEffect(() => {
 		replaceWorkspaceMetadata(workspaceMetadata);
@@ -470,21 +511,23 @@ export default function App(): ReactElement {
 			await saveWorkspaceState(input.workspaceId, input.payload),
 		[],
 	);
-	const handleWorkspaceStateConflict = useCallback(() => {
-		showAppToast(
-			{
-				intent: "warning",
-				icon: "warning-sign",
-				message: "Workspace changed elsewhere. Synced latest state. Retry your last edit if needed.",
-				timeout: 5000,
-			},
-			"workspace-state-conflict",
-		);
-	}, []);
+	const [workspaceConflictNoticeVisible, setWorkspaceConflictNoticeVisible] = useState(false);
+	const [pendingWorkspaceConflictBoard, setPendingWorkspaceConflictBoard] = useState<BoardData | null>(null);
+	const handleWorkspaceStateConflict = useCallback(
+		(input: {
+			workspaceId: string;
+			currentRevision: number;
+			localBoard: BoardData;
+			recoveredBoard: BoardData | null;
+		}) => {
+			setPendingWorkspaceConflictBoard(input.localBoard);
+			setWorkspaceConflictNoticeVisible(true);
+		},
+		[],
+	);
 
 	useWorkspacePersistence({
 		board,
-		sessions,
 		currentProjectId,
 		workspaceRevision,
 		hydrationNonce: workspaceHydrationNonce,
@@ -494,8 +537,14 @@ export default function App(): ReactElement {
 		persistWorkspaceState: persistWorkspaceStateAsync,
 		refetchWorkspaceState: refreshWorkspaceState,
 		onWorkspaceRevisionChange: setWorkspaceRevision,
+		onBoardRebased: setBoard,
 		onWorkspaceStateConflict: handleWorkspaceStateConflict,
 	});
+
+	useEffect(() => {
+		setWorkspaceConflictNoticeVisible(false);
+		setPendingWorkspaceConflictBoard(null);
+	}, [currentProjectId]);
 
 	useEffect(() => {
 		if (!streamError) {
@@ -821,6 +870,7 @@ export default function App(): ReactElement {
 			defaultProviderId={defaultTaskClineProviderId}
 			defaultModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
 			defaultReasoningEffort={runtimeProjectConfig?.clineProviderSettings?.reasoningEffort ?? null}
+			cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 			mode="edit"
 			idPrefix={`inline-edit-task-${editingTaskId}`}
 		/>
@@ -848,6 +898,8 @@ export default function App(): ReactElement {
 						agentSectionContent={homeSidebarAgentPanel}
 						selectedAgentId={settingsRuntimeProjectConfig?.selectedAgentId ?? null}
 						clineProviderSettings={settingsRuntimeProjectConfig?.clineProviderSettings ?? null}
+						cloudProviderSupportEnabled={cloudProviderSupportEnabled}
+						debugModeEnabled={debugModeEnabled}
 						featurebaseFeedbackState={featurebaseFeedbackState}
 						onSelectProject={(projectId) => {
 							void handleSelectProject(projectId);
@@ -935,7 +987,7 @@ export default function App(): ReactElement {
 										<FolderOpen size={48} strokeWidth={1} />
 										<h3 className="text-sm font-semibold text-text-primary">No projects yet</h3>
 										<p className="text-[13px] text-text-secondary">
-											Add a git repository to start using Kanban.
+											Add a git repository to start using !Klein.
 										</p>
 										<Button
 											variant="primary"
@@ -949,6 +1001,28 @@ export default function App(): ReactElement {
 								</div>
 							) : (
 								<div className="flex flex-1 flex-col min-h-0 min-w-0">
+									{workspaceConflictNoticeVisible ? (
+										<WorkspaceConflictNotice
+											onDismiss={() => {
+												setWorkspaceConflictNoticeVisible(false);
+												setPendingWorkspaceConflictBoard(null);
+											}}
+											onRefresh={() => {
+												setWorkspaceConflictNoticeVisible(false);
+												setPendingWorkspaceConflictBoard(null);
+												void refreshWorkspaceState();
+											}}
+											onRestoreLocalEdit={
+												pendingWorkspaceConflictBoard
+													? () => {
+															setBoard(pendingWorkspaceConflictBoard);
+															setWorkspaceConflictNoticeVisible(false);
+															setPendingWorkspaceConflictBoard(null);
+														}
+													: undefined
+											}
+										/>
+									) : null}
 									<div className="flex flex-1 min-h-0 min-w-0">
 										{isGitHistoryOpen ? (
 											<GitHistoryView
@@ -1089,6 +1163,7 @@ export default function App(): ReactElement {
 									}}
 									onSendClineChatMessage={sendTaskChatMessage}
 									onCancelClineChatTurn={cancelTaskChatTurn}
+									onMarkTaskInterrupted={markTaskInterrupted}
 									onLoadClineChatMessages={fetchTaskChatMessages}
 									latestClineChatMessage={latestSelectedTaskChatMessage}
 									streamedClineChatMessages={selectedTaskChatMessages}
@@ -1118,6 +1193,7 @@ export default function App(): ReactElement {
 									onClineSettingsSaved={refreshRuntimeProjectConfig}
 									onTaskClineSettingsChanged={handleClineTaskSettingsChangedForTask}
 									onApprovePlanningCard={handleApprovePlanningCard}
+									onWorkspaceStateApplied={handleWorkspaceStateApplied}
 								/>
 							</div>
 						) : null}
@@ -1179,6 +1255,7 @@ export default function App(): ReactElement {
 					defaultProviderId={defaultTaskClineProviderId}
 					defaultModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
 					defaultReasoningEffort={runtimeProjectConfig?.clineProviderSettings?.reasoningEffort ?? null}
+					cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 				/>
 				<ClearTrashDialog
 					open={isClearTrashDialogOpen}
@@ -1204,6 +1281,7 @@ export default function App(): ReactElement {
 					onProjectAdded={handleAddProjectSuccess}
 					currentProjectId={currentProjectId}
 					initialGitInitPath={pendingNativeGitInitPath}
+					initialSelfProjectPath={pendingNativeSelfProjectPath}
 				/>
 
 				<UpdateNotificationController />

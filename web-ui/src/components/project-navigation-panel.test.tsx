@@ -308,6 +308,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 
 	it("shows send feedback instead of report issue when Cline OAuth is available", () => {
 		renderPanel({
+			cloudProviderSupportEnabled: true,
 			selectedAgentId: "cline",
 			clineProviderSettings: CLINE_OAUTH_SETTINGS,
 			featurebaseFeedbackState: {

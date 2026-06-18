@@ -75,6 +75,7 @@ export function TaskInlineCreateCard({
 	defaultProviderId,
 	defaultModelId,
 	defaultReasoningEffort,
+	cloudProviderSupportEnabled = false,
 }: {
 	title?: string;
 	onTitleChange?: (value: string) => void;
@@ -111,6 +112,7 @@ export function TaskInlineCreateCard({
 	defaultModelId?: string | null;
 	/** Default Cline reasoning effort from runtimeConfig.clineProviderSettings.reasoningEffort */
 	defaultReasoningEffort?: RuntimeClineReasoningEffort | null;
+	cloudProviderSupportEnabled?: boolean;
 }): ReactElement {
 	const promptId = `${idPrefix}-prompt-input`;
 	const planModeId = `${idPrefix}-plan-mode-toggle`;
@@ -154,6 +156,7 @@ export function TaskInlineCreateCard({
 		defaultAgentId,
 		defaultProviderId,
 		defaultModelId,
+		cloudProviderSupportEnabled,
 	});
 
 	useHotkeys(

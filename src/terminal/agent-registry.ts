@@ -1,3 +1,4 @@
+import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { getRuntimeLaunchSupportedAgentCatalog, RUNTIME_AGENT_CATALOG } from "../core/agent-catalog";
 import type {
@@ -110,6 +111,7 @@ export function buildRuntimeConfigResponse(
 	return {
 		selectedAgentId: runtimeConfig.selectedAgentId,
 		selectedShortcutLabel: runtimeConfig.selectedShortcutLabel,
+		cloudProviderSupportEnabled: CLOUD_ENABLED,
 		agentAutonomousModeEnabled: runtimeConfig.agentAutonomousModeEnabled,
 		agentTimeoutMode: runtimeConfig.agentTimeoutMode,
 		agentTimeoutProfile: runtimeConfig.agentTimeoutProfile,
@@ -120,6 +122,11 @@ export function buildRuntimeConfigResponse(
 		conversationTimeoutMs: runtimeConfig.conversationTimeoutMs,
 		maxAgentWritableFileLines: runtimeConfig.maxAgentWritableFileLines,
 		maxConcurrentTasks: runtimeConfig.maxConcurrentTasks,
+		lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
+		decompositionAutoApplyEnabled: runtimeConfig.decompositionAutoApplyEnabled,
+		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
+		codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
+		effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
 		debugModeEnabled: isRuntimeDebugModeEnabled(),
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,

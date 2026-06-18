@@ -260,11 +260,11 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 
 ### G5. Hide all cloud options (cloud is disabled) — user-prioritized
 Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/cline-sdk/cline-local-only-policy.ts`), so cloud UI is dead weight and confusing. **Decision: hide all cloud options for now** — *hide, don't delete*; keep them behind the policy flag so a future re-enable is a one-switch change.
-- [ ] Hide cloud **sign-in / account** surfaces: `web-ui/src/components/shared/cline-setup-section.tsx` ("Sign in to Cline" ≈ L560) and any Cline-account menu/avatar/status.
-- [ ] Hide cloud **providers** and cloud **model recommendations** from every picker (provider catalog, model picker, role pickers). Verify the L0 filtering already covers *all* of these surfaces, not just the main model picker.
-- [ ] Hide cloud-only **settings** (managed OAuth, cloud endpoints) in `web-ui/src/components/runtime-settings-dialog.tsx`.
-- [ ] Drive visibility off the single local-only policy flag — nothing hard-coded — and add a test asserting **no cloud affordance renders** while cloud is disabled.
-- [ ] Keep the existing hard-stop messaging for any pre-existing cloud-pinned cards, so hidden ≠ silently broken.
+- [x] Hide cloud **sign-in / account** surfaces: `web-ui/src/components/shared/cline-setup-section.tsx` ("Sign in to Cline" ≈ L560) and any Cline-account menu/avatar/status.
+- [x] Hide cloud **providers** and cloud **model recommendations** from every picker (provider catalog, model picker, role pickers). Verify the L0 filtering already covers *all* of these surfaces, not just the main model picker.
+- [x] Hide cloud-only **settings** (managed OAuth, cloud endpoints) in `web-ui/src/components/runtime-settings-dialog.tsx`.
+- [x] Drive visibility off the single local-only policy flag — nothing hard-coded — and add a test asserting **no cloud affordance renders** while cloud is disabled.
+- [x] Keep the existing hard-stop messaging for any pre-existing cloud-pinned cards, so hidden ≠ silently broken.
 
 ---
 

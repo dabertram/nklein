@@ -19,7 +19,6 @@ import {
 	Circle,
 	CircleDot,
 	Clipboard,
-	Database,
 	ExternalLink,
 	FolderOpen,
 	GitCommit,
@@ -49,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Spinner } from "@/components/ui/spinner";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import {
@@ -64,20 +64,25 @@ import {
 	isLmStudioProviderId,
 } from "@/runtime/cline-context-window-policy";
 import {
+	filterVisibleClineProviderCatalog,
+	isCloudProviderSupportEnabled,
+	isKnownCloudProviderId,
+} from "@/runtime/native-agent";
+import {
 	buildClineAdvisorRequest,
-	fetchClineCodeIntelligenceStatus,
 	fetchClineModelRegistry,
 	fetchClineProviderModels,
 	openFileOnHost,
 	runClineSmokeEval,
 	saveClineModelContextWindowOverride,
+	sendClineAdvisorRequest,
 	writeClineDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
 	RuntimeClineAdvisorKind,
 	RuntimeClineAdvisorRequest,
-	RuntimeClineCodeIntelligenceStatusResponse,
+	RuntimeClineAdvisorSendResponse,
 	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
@@ -86,7 +91,9 @@ import type {
 	RuntimeClineProviderModel,
 	RuntimeClineReasoningEffort,
 	RuntimeClineSmokeEvalResponse,
+	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
+	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 	RuntimeTaskAutoReviewMode,
@@ -226,7 +233,7 @@ const ADVANCED_POLICY_ROWS = [
 	},
 	{
 		label: "Context budget policy",
-		value: "Effective window",
+		value: "Effective context window",
 		detail: "Budgets include prompt, history, retained files, tool schemas, overhead, and reserved output.",
 		raw: "contextBudgetBreakdown",
 	},
@@ -240,7 +247,7 @@ const ADVANCED_POLICY_ROWS = [
 		label: "Telemetry",
 		value: "Local JSONL",
 		detail: "Task diagnostics read recent local telemetry events; no LLM is used for the diagnostics drawer.",
-		raw: ".cline/kanban/telemetry, limit 20",
+		raw: ".cline/nklein/telemetry, limit 20",
 	},
 ] as const;
 type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
@@ -255,6 +262,24 @@ const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> =
 	"medium",
 	"high",
 	"xhigh",
+];
+
+function normalizeAgentTimeoutProfile(
+	value: "cloud" | "local" | "custom" | null | undefined,
+	cloudProviderSupportEnabled: boolean,
+): "cloud" | "local" | "custom" {
+	if (value === "custom") {
+		return "custom";
+	}
+	if (value === "cloud") {
+		return cloudProviderSupportEnabled ? "cloud" : "local";
+	}
+	return "local";
+}
+const LOCAL_CODE_EMBEDDING_MODEL = "kanban-local-lexical-vector-v1";
+const CODE_EMBEDDING_PROVIDER_OPTIONS: Array<{ value: RuntimeCodeEmbeddingSettings["provider"]; label: string }> = [
+	{ value: "local_lexical", label: "Local lexical fallback" },
+	{ value: "openai_compatible", label: "OpenAI-compatible endpoint" },
 ];
 
 type SettingsNavId = "general" | "tasks" | "cline" | "git-prompts" | "notifications" | "appearance" | "project";
@@ -297,6 +322,39 @@ function readTaskAutoReviewModeDefault(): RuntimeTaskAutoReviewMode {
 
 function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOption {
 	return getRuntimeShortcutPickerOption(icon);
+}
+
+function buildCodeEmbeddingSettings(
+	provider: RuntimeCodeEmbeddingSettings["provider"],
+	model: string,
+	baseUrl: string,
+): RuntimeCodeEmbeddingSettings {
+	if (provider === "local_lexical") {
+		return {
+			provider,
+			model: LOCAL_CODE_EMBEDDING_MODEL,
+			baseUrl: null,
+		};
+	}
+	return {
+		provider,
+		model: model.trim() || null,
+		baseUrl: baseUrl.trim() || null,
+	};
+}
+
+function areCodeEmbeddingSettingsEqual(
+	left: RuntimeCodeEmbeddingSettings | null,
+	right: RuntimeCodeEmbeddingSettings | null,
+): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function formatCodeEmbeddingSettings(settings: RuntimeCodeEmbeddingSettings): string {
+	if (settings.provider === "local_lexical") {
+		return "Local lexical fallback";
+	}
+	return `${settings.model ?? "No model"} at ${settings.baseUrl ?? "no endpoint"}`;
 }
 
 function ShortcutIconComponent({ icon, size = 14 }: { icon: string | undefined; size?: number }): React.ReactElement {
@@ -619,27 +677,74 @@ function ClineAdvisorActions({
 	disabled,
 	mcpController,
 	runtimeConfigSummary,
+	advisorProviderId,
+	advisorModelId,
 	onError,
 }: {
 	workspaceId: string | null;
 	disabled: boolean;
 	mcpController: UseRuntimeSettingsClineMcpControllerResult;
 	runtimeConfigSummary: string;
+	advisorProviderId: string;
+	advisorModelId: string;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [activeKind, setActiveKind] = useState<RuntimeClineAdvisorKind | null>(null);
 	const [advisorRequest, setAdvisorRequest] = useState<RuntimeClineAdvisorRequest | null>(null);
+	const [advisorModels, setAdvisorModels] = useState<RuntimeClineProviderModel[]>([]);
+	const [selectedAdvisorModelId, setSelectedAdvisorModelId] = useState("");
+	const [isLoadingAdvisorModels, setIsLoadingAdvisorModels] = useState(false);
+	const [isSendingAdvisor, setIsSendingAdvisor] = useState(false);
+	const [advisorResponse, setAdvisorResponse] = useState<RuntimeClineAdvisorSendResponse | null>(null);
+	const [advisorSendError, setAdvisorSendError] = useState<string | null>(null);
 	const [mcpSuggestionText, setMcpSuggestionText] = useState("");
 	const [parsedMcpSuggestions, setParsedMcpSuggestions] = useState<ParsedMcpSuggestion[]>([]);
 	const [addingMcpServerName, setAddingMcpServerName] = useState<string | null>(null);
 	const [copyButtonText, setCopyButtonText] = useState("Copy prompt");
 	const copyResetTimerRef = useRef<number | null>(null);
+	const configuredAdvisorProviderId = advisorProviderId.trim();
+	const configuredAdvisorModelId = advisorModelId.trim();
 
 	useUnmount(() => {
 		if (copyResetTimerRef.current !== null) {
 			window.clearTimeout(copyResetTimerRef.current);
 		}
 	});
+
+	useEffect(() => {
+		let cancelled = false;
+		setAdvisorModels([]);
+		setSelectedAdvisorModelId(configuredAdvisorModelId);
+		if (!workspaceId || !configuredAdvisorProviderId) {
+			return;
+		}
+		setIsLoadingAdvisorModels(true);
+		void fetchClineProviderModels(workspaceId, configuredAdvisorProviderId)
+			.then((models) => {
+				if (cancelled) {
+					return;
+				}
+				setAdvisorModels(models);
+				const configuredModelExists = models.some((model) => model.id === configuredAdvisorModelId);
+				setSelectedAdvisorModelId(
+					configuredModelExists ? configuredAdvisorModelId : (models[0]?.id ?? configuredAdvisorModelId),
+				);
+			})
+			.catch((error: unknown) => {
+				if (!cancelled) {
+					const message = error instanceof Error ? error.message : String(error);
+					onError(`Could not load advisor models: ${message}`);
+				}
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setIsLoadingAdvisorModels(false);
+				}
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [configuredAdvisorProviderId, configuredAdvisorModelId, onError, workspaceId]);
 
 	const handleBuildAdvisor = useCallback(
 		(kind: RuntimeClineAdvisorKind) => {
@@ -651,6 +756,8 @@ function ClineAdvisorActions({
 			})
 				.then((request) => {
 					setAdvisorRequest(request);
+					setAdvisorResponse(null);
+					setAdvisorSendError(null);
 					if (kind !== "mcp_discovery") {
 						setMcpSuggestionText("");
 						setParsedMcpSuggestions([]);
@@ -726,6 +833,35 @@ function ClineAdvisorActions({
 			});
 	}, [advisorRequest, onError]);
 
+	const handleSendAdvisor = useCallback(() => {
+		if (!advisorRequest) {
+			return;
+		}
+		const modelId = selectedAdvisorModelId.trim();
+		if (!configuredAdvisorProviderId || !modelId) {
+			setAdvisorSendError("Choose a local Cline model before sending the advisor prompt.");
+			return;
+		}
+		setIsSendingAdvisor(true);
+		setAdvisorSendError(null);
+		setAdvisorResponse(null);
+		void sendClineAdvisorRequest(workspaceId, {
+			prompt: advisorRequest.prompt,
+			providerId: configuredAdvisorProviderId,
+			modelId,
+		})
+			.then((response) => {
+				setAdvisorResponse(response);
+			})
+			.catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : String(error);
+				setAdvisorSendError(message);
+			})
+			.finally(() => {
+				setIsSendingAdvisor(false);
+			});
+	}, [configuredAdvisorProviderId, advisorRequest, selectedAdvisorModelId, workspaceId]);
+
 	return (
 		<div className="mt-4 border-t border-border pt-4">
 			<div className="flex items-center justify-between gap-3 mb-2">
@@ -754,15 +890,49 @@ function ClineAdvisorActions({
 								{advisorRequest.requiresWebResearch ? "Uses web research sources" : "Uses local context only"}
 							</p>
 						</div>
-						<Button
-							size="sm"
-							variant="ghost"
-							icon={<Clipboard size={14} />}
-							disabled={disabled}
-							onClick={handleCopyPrompt}
-						>
-							{copyButtonText}
-						</Button>
+						<div className="flex flex-wrap items-center justify-end gap-2">
+							<NativeSelect
+								value={selectedAdvisorModelId}
+								onChange={(event) => setSelectedAdvisorModelId(event.target.value)}
+								disabled={
+									disabled || isLoadingAdvisorModels || isSendingAdvisor || !configuredAdvisorProviderId
+								}
+							>
+								{selectedAdvisorModelId &&
+								!advisorModels.some((model) => model.id === selectedAdvisorModelId) ? (
+									<option value={selectedAdvisorModelId}>{selectedAdvisorModelId}</option>
+								) : null}
+								{advisorModels.map((model) => (
+									<option key={model.id} value={model.id}>
+										{formatModelOptionLabel(model)}
+									</option>
+								))}
+							</NativeSelect>
+							<Button
+								size="sm"
+								variant="primary"
+								icon={isSendingAdvisor ? <Spinner size={14} /> : <Sparkles size={14} />}
+								disabled={
+									disabled ||
+									isSendingAdvisor ||
+									isLoadingAdvisorModels ||
+									!configuredAdvisorProviderId ||
+									!selectedAdvisorModelId
+								}
+								onClick={handleSendAdvisor}
+							>
+								{isSendingAdvisor ? "Sending" : "Send prompt"}
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								icon={<Clipboard size={14} />}
+								disabled={disabled}
+								onClick={handleCopyPrompt}
+							>
+								{copyButtonText}
+							</Button>
+						</div>
 					</div>
 					<textarea
 						readOnly
@@ -770,6 +940,32 @@ function ClineAdvisorActions({
 						rows={8}
 						className="mt-3 w-full resize-none rounded-md border border-border bg-surface-1 p-3 font-mono text-[12px] text-text-primary focus:outline-none"
 					/>
+					{advisorResponse || advisorSendError ? (
+						<div className="mt-3 rounded-md border border-border bg-surface-1 p-3">
+							<div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
+								<span>
+									{advisorResponse
+										? `${advisorResponse.providerId} / ${advisorResponse.modelId}`
+										: "Advisor send failed"}
+								</span>
+								{advisorResponse ? (
+									<span>
+										Sent {new Date(advisorResponse.sentAt).toLocaleTimeString()} · Received{" "}
+										{new Date(advisorResponse.receivedAt).toLocaleTimeString()}
+									</span>
+								) : null}
+							</div>
+							<textarea
+								readOnly
+								value={advisorResponse?.output ?? advisorSendError ?? ""}
+								rows={8}
+								className={cn(
+									"w-full resize-none rounded-md border bg-surface-2 p-3 text-[12px] text-text-primary focus:outline-none",
+									advisorSendError ? "border-status-red/50" : "border-border",
+								)}
+							/>
+						</div>
+					) : null}
 					{advisorRequest.recommendedSources.length > 0 ? (
 						<div className="mt-3 flex flex-wrap gap-2">
 							{advisorRequest.recommendedSources.map((source) => (
@@ -910,7 +1106,7 @@ function ClineDogfoodSuggestion({
 				onChange={(event) => setSuggestion(event.target.value)}
 				rows={3}
 				disabled={disabled || isWriting}
-				placeholder="Describe a Kanban improvement to turn into guarded dogfood tasks."
+				placeholder="Describe a !Klein improvement to turn into guarded dogfood tasks."
 				className="w-full resize-none rounded-md border border-border bg-surface-2 p-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none disabled:opacity-40"
 			/>
 			{result ? (
@@ -938,199 +1134,6 @@ function ClineDogfoodSuggestion({
 					<code className="block rounded-md border border-border bg-surface-1 px-2 py-1.5 text-[12px] text-text-primary break-all">
 						{result.nextCommand}
 					</code>
-				</div>
-			) : null}
-		</div>
-	);
-}
-
-function formatCodeIntelligenceUpdatedAt(updatedAt: number | null): string {
-	if (updatedAt === null) {
-		return "never";
-	}
-	const elapsedMs = Math.max(0, Date.now() - updatedAt);
-	const minutes = Math.floor(elapsedMs / 60_000);
-	if (minutes < 1) {
-		return "<1m ago";
-	}
-	if (minutes < 60) {
-		return `${minutes}m ago`;
-	}
-	const hours = Math.floor(minutes / 60);
-	if (hours < 48) {
-		return `${hours}h ago`;
-	}
-	return `${Math.floor(hours / 24)}d ago`;
-}
-
-function formatCodeIndexCoverage(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string {
-	if (status.totalChunks === 0) {
-		return "No source chunks found";
-	}
-	const percent = Math.round((status.indexedChunks / status.totalChunks) * 100);
-	return `${status.indexedChunks}/${status.totalChunks} chunks (${percent}%)`;
-}
-
-function formatCodeIndexProgress(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string | null {
-	const progress = status.progress;
-	if (progress.phase === "idle" || progress.phase === "complete") {
-		return null;
-	}
-	if (progress.phase === "scanning") {
-		return `Scanning ${progress.filesProcessed}/${progress.filesTotal} files`;
-	}
-	if (progress.phase === "embedding") {
-		return `Indexing ${progress.chunksProcessed}/${progress.chunksTotal} chunks`;
-	}
-	if (progress.phase === "persisting") {
-		return "Writing code-index cache";
-	}
-	return progress.message ? `Indexing error: ${progress.message}` : "Indexing error";
-}
-
-function isCodeIndexProgressActive(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"] | null): boolean {
-	return (
-		status?.progress.phase === "scanning" ||
-		status?.progress.phase === "embedding" ||
-		status?.progress.phase === "persisting"
-	);
-}
-
-function ClineCodeIntelligenceStatusPanel({
-	workspaceId,
-	open,
-	disabled,
-	onError,
-}: {
-	workspaceId: string | null;
-	open: boolean;
-	disabled: boolean;
-	onError: (message: string | null) => void;
-}): React.ReactElement {
-	const [isLoading, setIsLoading] = useState(false);
-	const [status, setStatus] = useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
-	const [detailsOpen, setDetailsOpen] = useState(false);
-
-	const refreshStatus = useCallback(() => {
-		if (!open || !workspaceId) {
-			return;
-		}
-		onError(null);
-		setIsLoading(true);
-		void fetchClineCodeIntelligenceStatus(workspaceId)
-			.then((response) => {
-				setStatus(response);
-			})
-			.catch((error) => {
-				const message = error instanceof Error ? error.message : String(error);
-				onError(`Could not load code intelligence status: ${message}`);
-			})
-			.finally(() => {
-				setIsLoading(false);
-			});
-	}, [onError, open, workspaceId]);
-
-	useEffect(() => {
-		refreshStatus();
-	}, [refreshStatus]);
-
-	const codeIndex = status?.codeIndex ?? null;
-	const repoMap = status?.repoMap ?? null;
-	useEffect(() => {
-		if (!open || !isCodeIndexProgressActive(codeIndex)) {
-			return;
-		}
-		const timeoutId = window.setTimeout(refreshStatus, 1500);
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [codeIndex, open, refreshStatus]);
-
-	const progressText = codeIndex ? formatCodeIndexProgress(codeIndex) : null;
-	const statusText = codeIndex
-		? `${progressText ?? `${formatCodeIndexCoverage(codeIndex)} indexed`} · repo map ${
-				repoMap?.available ? "ready" : "unavailable"
-			}`
-		: "Status not loaded";
-
-	return (
-		<div className="mt-4 border-t border-border pt-4">
-			<div className="flex items-center justify-between gap-3">
-				<div className="min-w-0">
-					<h6 className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
-						<Database size={14} />
-						Code intelligence
-					</h6>
-					<p className="text-[12px] text-text-secondary mt-1 mb-0">{statusText}</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={disabled || !status}
-						onClick={() => {
-							setDetailsOpen((currentValue) => !currentValue);
-						}}
-					>
-						Details
-					</Button>
-					<Button
-						size="sm"
-						variant="default"
-						icon={<RefreshCw size={14} />}
-						disabled={disabled || isLoading || !workspaceId}
-						onClick={refreshStatus}
-					>
-						{isLoading ? "Refreshing..." : "Refresh"}
-					</Button>
-				</div>
-			</div>
-			{status ? (
-				<div className="mt-2 grid gap-2 text-[12px] text-text-secondary sm:grid-cols-2">
-					<div className="rounded-md border border-border bg-surface-2 px-2 py-2">
-						<div className="font-medium text-text-primary">Repo map</div>
-						<div>{repoMap?.filesScanned ?? 0} files scanned</div>
-						<div>{repoMap?.symbols ?? 0} symbols</div>
-						<div>{repoMap?.truncated ? "Truncated" : "Within token budget"}</div>
-					</div>
-					<div className="rounded-md border border-border bg-surface-2 px-2 py-2">
-						<div className="font-medium text-text-primary">Code index</div>
-						<div>{codeIndex ? formatCodeIndexCoverage(codeIndex) : "Not loaded"}</div>
-						<div>
-							{codeIndex?.indexedFiles ?? 0}/{codeIndex?.totalFiles ?? 0} files indexed
-						</div>
-						<div>Updated {formatCodeIntelligenceUpdatedAt(codeIndex?.updatedAt ?? null)}</div>
-					</div>
-				</div>
-			) : null}
-			{detailsOpen && status ? (
-				<div className="mt-2 rounded-md border border-border bg-surface-2 px-2 py-2 text-[12px] text-text-secondary">
-					<div>Search: {status.codeIndex.searchAvailable ? "available" : "not ready"}</div>
-					<div>
-						Progress: {status.codeIndex.progress.phase}
-						{status.codeIndex.progress.message ? ` (${status.codeIndex.progress.message})` : ""}
-					</div>
-					<div>
-						Indexed this run: {status.codeIndex.progress.chunksProcessed}/{status.codeIndex.progress.chunksTotal}{" "}
-						chunks, {status.codeIndex.progress.filesProcessed}/{status.codeIndex.progress.filesTotal} files
-					</div>
-					<div>
-						Cache this run: {status.codeIndex.progress.cacheHitCount} hits /{" "}
-						{status.codeIndex.progress.cacheMissCount} misses
-					</div>
-					<div>Stale files: {status.codeIndex.staleFiles}</div>
-					<div>Missing files: {status.codeIndex.missingFiles}</div>
-					<div>
-						Embedding: {status.codeIndex.embeddingProvider ?? "none"} /{" "}
-						{status.codeIndex.embeddingModel ?? "none"}
-					</div>
-					<div className="break-all">Cache: {status.codeIndex.cachePath ?? "none"}</div>
-					{status.repoMap.error ? (
-						<div className="text-status-red">Repo map error: {status.repoMap.error}</div>
-					) : null}
-					{status.codeIndex.error ? (
-						<div className="text-status-red">Code index error: {status.codeIndex.error}</div>
-					) : null}
 				</div>
 			) : null}
 		</div>
@@ -1271,7 +1274,7 @@ function ClineSmokeEvalTrial({
 	}, [onError, result, workspaceId]);
 
 	return (
-		<div className="mt-4 border-t border-border pt-4">
+		<div className="mt-3">
 			<div className="flex items-center justify-between gap-3">
 				<div className="min-w-0">
 					<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
@@ -1346,7 +1349,18 @@ export function RuntimeSettingsDialog({
 	const [conversationTimeoutMs, setConversationTimeoutMs] = useState("");
 	const [maxAgentWritableFileLines, setMaxAgentWritableFileLines] = useState("1000");
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
+	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
+	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
+	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
+		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
+	const [codeEmbeddingDefaultsModel, setCodeEmbeddingDefaultsModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
+	const [codeEmbeddingDefaultsBaseUrl, setCodeEmbeddingDefaultsBaseUrl] = useState("");
+	const [codeEmbeddingOverrideEnabled, setCodeEmbeddingOverrideEnabled] = useState(false);
+	const [codeEmbeddingOverrideProvider, setCodeEmbeddingOverrideProvider] =
+		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
+	const [codeEmbeddingOverrideModel, setCodeEmbeddingOverrideModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
+	const [codeEmbeddingOverrideBaseUrl, setCodeEmbeddingOverrideBaseUrl] = useState("");
 	const [taskDefaultStartInPlanMode, setTaskDefaultStartInPlanMode] = useState(() =>
 		readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false),
 	);
@@ -1403,6 +1417,7 @@ export function RuntimeSettingsDialog({
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
 	const taskDefaultStartInPlanModeId = "runtime-settings-task-default-start-in-plan-mode";
 	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
+	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -1447,12 +1462,16 @@ export function RuntimeSettingsDialog({
 	}, [loadingModelRoleProviderIds]);
 
 	const configuredAgentId = config?.selectedAgentId ?? null;
+	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(config);
 	const firstInstalledAgentId = displayedAgents.find((agent) => agent.installed)?.id;
 	const fallbackAgentId = firstInstalledAgentId ?? displayedAgents[0]?.id ?? "claude";
 	const initialSelectedAgentId = configuredAgentId ?? fallbackAgentId;
 	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
 	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
-	const initialAgentTimeoutProfile = config?.agentTimeoutProfile ?? "local";
+	const initialAgentTimeoutProfile = normalizeAgentTimeoutProfile(
+		config?.agentTimeoutProfile,
+		cloudProviderSupportEnabled,
+	);
 	const initialRequestTimeoutMs = config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs);
 	const initialStreamTimeoutMs = config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs);
 	const initialToolTimeoutMs = config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs);
@@ -1461,7 +1480,15 @@ export function RuntimeSettingsDialog({
 		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
 	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
 	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
+	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
+	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
+	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
+		provider: "local_lexical" as const,
+		model: LOCAL_CODE_EMBEDDING_MODEL,
+		baseUrl: null,
+	};
+	const initialCodeEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
@@ -1478,6 +1505,10 @@ export function RuntimeSettingsDialog({
 		selectedAgentId,
 		liveAuthStatuses: liveMcpAuthStatuses,
 	});
+	const visibleClineProviderCatalog = useMemo(
+		() => filterVisibleClineProviderCatalog(clineSettings.providerCatalog, cloudProviderSupportEnabled),
+		[clineSettings.providerCatalog, cloudProviderSupportEnabled],
+	);
 	const clineProviderId = clineSettings.providerId.trim();
 	const selectedModelRoleProviderIds = useMemo(() => {
 		const providerIds = new Set<string>();
@@ -1497,6 +1528,8 @@ export function RuntimeSettingsDialog({
 				`timeoutMode=${agentTimeoutMode}`,
 				`timeoutProfile=${agentTimeoutProfile}`,
 				`maxConcurrentTasks=${maxConcurrentTasks}`,
+				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
+				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
 				`clineProvider=${clineSettings.providerId || "default"}`,
 				`clineModel=${clineSettings.modelId || "default"}`,
@@ -1509,11 +1542,39 @@ export function RuntimeSettingsDialog({
 			clineSettings.baseUrl,
 			clineSettings.modelId,
 			clineSettings.providerId,
+			decompositionAutoApplyEnabled,
+			lostHeartbeatPolicy,
 			maxConcurrentTasks,
 			readyForReviewNotificationsEnabled,
 			selectedAgentId,
 		],
 	);
+	const draftCodeEmbeddingDefaults = useMemo(
+		() =>
+			buildCodeEmbeddingSettings(
+				codeEmbeddingDefaultsProvider,
+				codeEmbeddingDefaultsModel,
+				codeEmbeddingDefaultsBaseUrl,
+			),
+		[codeEmbeddingDefaultsBaseUrl, codeEmbeddingDefaultsModel, codeEmbeddingDefaultsProvider],
+	);
+	const draftCodeEmbeddingOverride = useMemo(
+		() =>
+			codeEmbeddingOverrideEnabled
+				? buildCodeEmbeddingSettings(
+						codeEmbeddingOverrideProvider,
+						codeEmbeddingOverrideModel,
+						codeEmbeddingOverrideBaseUrl,
+					)
+				: null,
+		[
+			codeEmbeddingOverrideBaseUrl,
+			codeEmbeddingOverrideEnabled,
+			codeEmbeddingOverrideModel,
+			codeEmbeddingOverrideProvider,
+		],
+	);
+	const draftEffectiveCodeEmbeddingSettings = draftCodeEmbeddingOverride ?? draftCodeEmbeddingDefaults;
 	const hasUnsavedChanges = useMemo(() => {
 		if (!config) {
 			return false;
@@ -1551,7 +1612,19 @@ export function RuntimeSettingsDialog({
 		if (maxConcurrentTasks.trim() !== initialMaxConcurrentTasks.trim()) {
 			return true;
 		}
+		if (lostHeartbeatPolicy !== initialLostHeartbeatPolicy) {
+			return true;
+		}
+		if (decompositionAutoApplyEnabled !== initialDecompositionAutoApplyEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
+			return true;
+		}
+		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingDefaults, initialCodeEmbeddingDefaults)) {
+			return true;
+		}
+		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingOverride, initialCodeEmbeddingOverride)) {
 			return true;
 		}
 		if (
@@ -1596,15 +1669,22 @@ export function RuntimeSettingsDialog({
 		commitPromptTemplate,
 		conversationTimeoutMs,
 		config,
+		decompositionAutoApplyEnabled,
+		draftCodeEmbeddingDefaults,
+		draftCodeEmbeddingOverride,
 		draftThemeId,
+		initialCodeEmbeddingDefaults,
+		initialCodeEmbeddingOverride,
 		initialAgentAutonomousModeEnabled,
 		initialAgentTimeoutMs,
 		initialAgentTimeoutMode,
 		initialAgentTimeoutProfile,
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
+		initialDecompositionAutoApplyEnabled,
 		initialMaxAgentWritableFileLines,
 		initialMaxConcurrentTasks,
+		initialLostHeartbeatPolicy,
 		initialModelRoles,
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
@@ -1619,6 +1699,7 @@ export function RuntimeSettingsDialog({
 		initialToolTimeoutMs,
 		maxAgentWritableFileLines,
 		maxConcurrentTasks,
+		lostHeartbeatPolicy,
 		modelRoles,
 		openPrPromptTemplate,
 		requestTimeoutMs,
@@ -1639,7 +1720,7 @@ export function RuntimeSettingsDialog({
 		setSelectedAgentId(configuredAgentId ?? fallbackAgentId);
 		setAgentAutonomousModeEnabled(config?.agentAutonomousModeEnabled ?? true);
 		setAgentTimeoutMode(config?.agentTimeoutMode ?? "normal");
-		setAgentTimeoutProfile(config?.agentTimeoutProfile ?? "local");
+		setAgentTimeoutProfile(normalizeAgentTimeoutProfile(config?.agentTimeoutProfile, cloudProviderSupportEnabled));
 		setRequestTimeoutMs(config?.requestTimeoutMs == null ? "" : String(config.requestTimeoutMs));
 		setStreamTimeoutMs(config?.streamTimeoutMs == null ? "" : String(config.streamTimeoutMs));
 		setToolTimeoutMs(config?.toolTimeoutMs == null ? "" : String(config.toolTimeoutMs));
@@ -1647,7 +1728,22 @@ export function RuntimeSettingsDialog({
 		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
 		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
 		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
+		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
+		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
+		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
+			provider: "local_lexical" as const,
+			model: LOCAL_CODE_EMBEDDING_MODEL,
+			baseUrl: null,
+		};
+		setCodeEmbeddingDefaultsProvider(nextEmbeddingDefaults.provider);
+		setCodeEmbeddingDefaultsModel(nextEmbeddingDefaults.model ?? "");
+		setCodeEmbeddingDefaultsBaseUrl(nextEmbeddingDefaults.baseUrl ?? "");
+		const nextEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
+		setCodeEmbeddingOverrideEnabled(nextEmbeddingOverride !== null);
+		setCodeEmbeddingOverrideProvider(nextEmbeddingOverride?.provider ?? nextEmbeddingDefaults.provider);
+		setCodeEmbeddingOverrideModel(nextEmbeddingOverride?.model ?? nextEmbeddingDefaults.model ?? "");
+		setCodeEmbeddingOverrideBaseUrl(nextEmbeddingOverride?.baseUrl ?? nextEmbeddingDefaults.baseUrl ?? "");
 		const storedTaskDefaultStartInPlanMode = readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false);
 		const storedTaskDefaultAutoReviewEnabled = readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false);
 		const storedTaskDefaultAutoReviewMode = readTaskAutoReviewModeDefault();
@@ -1666,11 +1762,16 @@ export function RuntimeSettingsDialog({
 		config?.agentAutonomousModeEnabled,
 		config?.agentTimeoutMode,
 		config?.agentTimeoutMs,
+		cloudProviderSupportEnabled,
 		config?.agentTimeoutProfile,
 		config?.commitPromptTemplate,
 		config?.conversationTimeoutMs,
+		config?.codeEmbeddingDefaults,
+		config?.codeEmbeddingOverride,
+		config?.decompositionAutoApplyEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
+		config?.lostHeartbeatPolicy,
 		config?.openPrPromptTemplate,
 		config?.requestTimeoutMs,
 		config?.readyForReviewNotificationsEnabled,
@@ -2062,6 +2163,20 @@ export function RuntimeSettingsDialog({
 			setSaveError("Runtime settings are still loading. Try again in a moment.");
 			return;
 		}
+		if (
+			draftCodeEmbeddingDefaults.provider === "openai_compatible" &&
+			(!draftCodeEmbeddingDefaults.baseUrl || !draftCodeEmbeddingDefaults.model)
+		) {
+			setSaveError("Default OpenAI-compatible embeddings need both an endpoint URL and a model id.");
+			return;
+		}
+		if (
+			draftCodeEmbeddingOverride?.provider === "openai_compatible" &&
+			(!draftCodeEmbeddingOverride.baseUrl || !draftCodeEmbeddingOverride.model)
+		) {
+			setSaveError("Project OpenAI-compatible embeddings need both an endpoint URL and a model id.");
+			return;
+		}
 		const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
 		if (selectedAgent?.installed !== true) {
 			setSaveError("Selected agent is not installed. Install it first or choose an installed agent.");
@@ -2117,6 +2232,10 @@ export function RuntimeSettingsDialog({
 			conversationTimeoutMs: parsedConversationTimeout,
 			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
 			maxConcurrentTasks: parsedMaxConcurrentTasks,
+			lostHeartbeatPolicy,
+			decompositionAutoApplyEnabled,
+			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
+			...(workspaceId ? { codeEmbeddingOverride: draftCodeEmbeddingOverride } : {}),
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			shortcuts,
@@ -2264,7 +2383,7 @@ export function RuntimeSettingsDialog({
 								onChange={(event) => setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")}
 								disabled={controlsDisabled}
 							>
-								<option value="cloud">Cloud</option>
+								{cloudProviderSupportEnabled ? <option value="cloud">Cloud</option> : null}
 								<option value="local">Local</option>
 								<option value="custom">Custom</option>
 							</NativeSelect>
@@ -2274,7 +2393,7 @@ export function RuntimeSettingsDialog({
 						</div>
 						<div className="mt-2 ml-6 grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
 							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">requestTimeoutMs</p>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Request timeout (ms)</p>
 								<input
 									value={requestTimeoutMs}
 									onChange={(event) => setRequestTimeoutMs(event.target.value)}
@@ -2284,7 +2403,7 @@ export function RuntimeSettingsDialog({
 								/>
 							</div>
 							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">streamTimeoutMs</p>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Stream timeout (ms)</p>
 								<input
 									value={streamTimeoutMs}
 									onChange={(event) => setStreamTimeoutMs(event.target.value)}
@@ -2294,7 +2413,7 @@ export function RuntimeSettingsDialog({
 								/>
 							</div>
 							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">toolTimeoutMs</p>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Tool timeout (ms)</p>
 								<input
 									value={toolTimeoutMs}
 									onChange={(event) => setToolTimeoutMs(event.target.value)}
@@ -2346,7 +2465,41 @@ export function RuntimeSettingsDialog({
 									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
 								/>
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Maximum dependency-unblocked tasks Kanban may start at once.
+									Maximum dependency-unblocked tasks !Klein may start at once.
+								</p>
+							</div>
+							<div style={{ gridColumn: "1 / span 2" }}>
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Lost heartbeat policy</p>
+								<NativeSelect
+									fill
+									value={lostHeartbeatPolicy}
+									onChange={(event) =>
+										setLostHeartbeatPolicy(event.target.value as RuntimeLostHeartbeatPolicy)
+									}
+									disabled={controlsDisabled}
+								>
+									<option value="park">Park + actions</option>
+									<option value="keep_running">Keep running</option>
+								</NativeSelect>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									Park lost Cline sessions for review, or keep them running with the lost status visible.
+								</p>
+							</div>
+							<div style={{ gridColumn: "1 / span 2" }}>
+								<div className="flex items-center gap-2 text-[13px] text-text-primary">
+									<RadixSwitch.Root
+										checked={decompositionAutoApplyEnabled}
+										disabled={controlsDisabled}
+										onCheckedChange={setDecompositionAutoApplyEnabled}
+										aria-labelledby={decompositionAutoApplyLabelId}
+										className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span id={decompositionAutoApplyLabelId}>Auto-apply valid decomposition artifacts</span>
+								</div>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									When disabled, valid task graphs stay pending on the source card for manual review.
 								</p>
 							</div>
 							<div
@@ -2364,6 +2517,28 @@ export function RuntimeSettingsDialog({
 											{maxConcurrentTasks.trim() || "3"} running max
 										</div>
 										<div className="mt-1 text-[11px] text-text-secondary">Saved by maxConcurrentTasks.</div>
+									</div>
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Lost heartbeat</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{lostHeartbeatPolicy === "park" ? "Park + actions" : "Keep running"}
+										</div>
+										<div className="mt-1 text-[11px] text-text-secondary">
+											{lostHeartbeatPolicy === "park"
+												? "Moves Cline sessions to review."
+												: "Leaves Cline running."}
+										</div>
+									</div>
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Plan artifacts</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{decompositionAutoApplyEnabled ? "Auto-apply" : "Manual review"}
+										</div>
+										<div className="mt-1 text-[11px] text-text-secondary">
+											{decompositionAutoApplyEnabled
+												? "Creates Planning cards immediately."
+												: "Shows Apply/Reject."}
+										</div>
 									</div>
 									{LOCAL_SWARM_GUARDRAIL_ROWS.map((row) => (
 										<div key={row.label} className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
@@ -2475,8 +2650,9 @@ export function RuntimeSettingsDialog({
 									mcpController={clineMcpSettings}
 									controlsDisabled={controlsDisabled}
 									workspaceId={workspaceId}
+									cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 									accountSection={
-										clineSettings.providerId.trim() === "cline" ? (
+										cloudProviderSupportEnabled && clineSettings.providerId.trim() === "cline" ? (
 											<AccountOrganizationSection
 												workspaceId={workspaceId}
 												open={open}
@@ -2495,29 +2671,169 @@ export function RuntimeSettingsDialog({
 									selectedModelId={clineSettings.modelId}
 									onError={setSaveError}
 								/>
-								<ClineCodeIntelligenceStatusPanel
-									workspaceId={workspaceId}
-									open={open}
-									disabled={controlsDisabled}
-									onError={setSaveError}
-								/>
 								<ClineAdvisorActions
 									workspaceId={workspaceId}
 									disabled={controlsDisabled}
 									mcpController={clineMcpSettings}
 									runtimeConfigSummary={advisorRuntimeConfigSummary}
+									advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
+									advisorModelId={config?.clineProviderSettings.modelId ?? ""}
 									onError={setSaveError}
 								/>
-								<ClineSmokeEvalTrial
-									workspaceId={workspaceId}
-									disabled={controlsDisabled}
-									onError={setSaveError}
-								/>
-								<ClineDogfoodSuggestion
-									workspaceId={workspaceId}
-									disabled={controlsDisabled}
-									onError={setSaveError}
-								/>
+								{config?.debugModeEnabled ? (
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Developer Tools
+										</h6>
+										<ClineSmokeEvalTrial
+											workspaceId={workspaceId}
+											disabled={controlsDisabled}
+											onError={setSaveError}
+										/>
+										<ClineDogfoodSuggestion
+											workspaceId={workspaceId}
+											disabled={controlsDisabled}
+											onError={setSaveError}
+										/>
+									</div>
+								) : null}
+								<div className="mt-4 border-t border-border pt-4">
+									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+										Code intelligence embeddings
+									</h6>
+									<div className="grid gap-3">
+										<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
+											<div className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">
+													Global default provider
+												</span>
+												<NativeSelect
+													value={codeEmbeddingDefaultsProvider}
+													onChange={(event) =>
+														setCodeEmbeddingDefaultsProvider(
+															event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+														)
+													}
+													disabled={controlsDisabled}
+													fill
+												>
+													{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+														<option key={option.value} value={option.value}>
+															{option.label}
+														</option>
+													))}
+												</NativeSelect>
+											</div>
+											<label className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">
+													Default endpoint URL
+												</span>
+												<input
+													type="text"
+													value={codeEmbeddingDefaultsBaseUrl}
+													onChange={(event) => setCodeEmbeddingDefaultsBaseUrl(event.target.value)}
+													disabled={controlsDisabled || codeEmbeddingDefaultsProvider === "local_lexical"}
+													placeholder="http://127.0.0.1:11434/v1/embeddings"
+													className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+												/>
+											</label>
+											<label className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">
+													Default embedding model
+												</span>
+												<input
+													type="text"
+													value={codeEmbeddingDefaultsModel}
+													onChange={(event) => setCodeEmbeddingDefaultsModel(event.target.value)}
+													disabled={controlsDisabled || codeEmbeddingDefaultsProvider === "local_lexical"}
+													placeholder="nomic-embed-text"
+													className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+												/>
+											</label>
+										</div>
+										{workspaceId ? (
+											<div className="rounded-md border border-border bg-surface-1 p-3">
+												<div className="mb-3 flex items-center justify-between gap-3">
+													<div className="flex items-center gap-2 text-[13px] text-text-primary">
+														<RadixSwitch.Root
+															checked={codeEmbeddingOverrideEnabled}
+															disabled={controlsDisabled}
+															onCheckedChange={setCodeEmbeddingOverrideEnabled}
+															className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+														>
+															<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+														</RadixSwitch.Root>
+														<span>Override for this project</span>
+													</div>
+													<div className="text-right text-[11px] text-text-secondary">
+														Effective: {formatCodeEmbeddingSettings(draftEffectiveCodeEmbeddingSettings)}
+													</div>
+												</div>
+												<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
+													<div className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">
+															Project provider
+														</span>
+														<NativeSelect
+															value={codeEmbeddingOverrideProvider}
+															onChange={(event) =>
+																setCodeEmbeddingOverrideProvider(
+																	event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+																)
+															}
+															disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
+															fill
+														>
+															{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+																<option key={option.value} value={option.value}>
+																	{option.label}
+																</option>
+															))}
+														</NativeSelect>
+													</div>
+													<label className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">
+															Project endpoint URL
+														</span>
+														<input
+															type="text"
+															value={codeEmbeddingOverrideBaseUrl}
+															onChange={(event) => setCodeEmbeddingOverrideBaseUrl(event.target.value)}
+															disabled={
+																controlsDisabled ||
+																!codeEmbeddingOverrideEnabled ||
+																codeEmbeddingOverrideProvider === "local_lexical"
+															}
+															placeholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
+															className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+														/>
+													</label>
+													<label className="min-w-0">
+														<span className="mb-1 block text-[12px] text-text-secondary">
+															Project embedding model
+														</span>
+														<input
+															type="text"
+															value={codeEmbeddingOverrideModel}
+															onChange={(event) => setCodeEmbeddingOverrideModel(event.target.value)}
+															disabled={
+																controlsDisabled ||
+																!codeEmbeddingOverrideEnabled ||
+																codeEmbeddingOverrideProvider === "local_lexical"
+															}
+															placeholder={codeEmbeddingDefaultsModel || "Inherited model"}
+															className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+														/>
+													</label>
+												</div>
+											</div>
+										) : (
+											<p className="m-0 text-[12px] text-text-secondary">
+												Open project settings to set a project-specific override.
+											</p>
+										)}
+									</div>
+								</div>
 								<div className="mt-4 border-t border-border pt-4">
 									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
 										Model roles
@@ -2546,6 +2862,13 @@ export function RuntimeSettingsDialog({
 												!roleModels.some((model) => model.id === selectedRoleModelId);
 											const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
 											const hasRoleOverride = Object.keys(roleSettings).length > 0;
+											const shouldHideLegacyCloudRoleProvider =
+												!cloudProviderSupportEnabled &&
+												!roleProvider &&
+												isKnownCloudProviderId(roleProviderId);
+											const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider
+												? ""
+												: roleProviderId;
 											const roleAvailabilityWarning = getModelRoleAvailabilityWarning(roleId);
 											const roleContextWarning = getModelRoleContextWarning(roleId);
 											return (
@@ -2561,7 +2884,7 @@ export function RuntimeSettingsDialog({
 															<NativeSelect
 																id={providerSelectId}
 																fill
-																value={roleProviderId}
+																value={displayedRoleProviderId}
 																onChange={(event) =>
 																	handleModelRoleProviderChange(roleId, event.target.value)
 																}
@@ -2569,19 +2892,21 @@ export function RuntimeSettingsDialog({
 															>
 																<option value="">Default</option>
 																{roleProvider &&
-																!clineSettings.providerCatalog.some(
+																!shouldHideLegacyCloudRoleProvider &&
+																!visibleClineProviderCatalog.some(
 																	(provider) => provider.id === roleProviderId,
 																) ? (
 																	<option value={roleProviderId}>{roleProviderId}</option>
 																) : null}
-																{clineSettings.providerCatalog.map((provider) => (
+																{visibleClineProviderCatalog.map((provider) => (
 																	<option key={provider.id} value={provider.id}>
 																		{formatProviderOptionLabel(provider)}
 																	</option>
 																))}
 																{roleProviderId &&
+																!shouldHideLegacyCloudRoleProvider &&
 																!roleProvider &&
-																!clineSettings.providerCatalog.some(
+																!visibleClineProviderCatalog.some(
 																	(provider) => provider.id === roleProviderId,
 																) ? (
 																	<option value={roleProviderId}>{roleProviderId}</option>
@@ -2886,7 +3211,7 @@ export function RuntimeSettingsDialog({
 					>
 						{config?.projectConfigPath
 							? formatPathForDisplay(config.projectConfigPath)
-							: "<project>/.cline/kanban/config.json"}
+							: "<project>/.cline/nklein/config.json"}
 						{config?.projectConfigPath ? <ExternalLink size={12} className="inline ml-1.5 align-middle" /> : null}
 					</p>
 					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">

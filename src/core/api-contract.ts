@@ -108,6 +108,16 @@ export const runtimeAgentTimeoutModeSchema = z.preprocess(
 export type RuntimeAgentTimeoutMode = z.infer<typeof runtimeAgentTimeoutModeSchema>;
 export const runtimeAgentTimeoutProfileSchema = z.enum(["cloud", "local", "custom"]);
 export type RuntimeAgentTimeoutProfile = z.infer<typeof runtimeAgentTimeoutProfileSchema>;
+export const runtimeLostHeartbeatPolicySchema = z.enum(["park", "keep_running"]);
+export type RuntimeLostHeartbeatPolicy = z.infer<typeof runtimeLostHeartbeatPolicySchema>;
+export const runtimeCodeEmbeddingProviderSchema = z.enum(["local_lexical", "openai_compatible"]);
+export type RuntimeCodeEmbeddingProvider = z.infer<typeof runtimeCodeEmbeddingProviderSchema>;
+export const runtimeCodeEmbeddingSettingsSchema = z.object({
+	provider: runtimeCodeEmbeddingProviderSchema,
+	model: z.string().nullable(),
+	baseUrl: z.string().nullable(),
+});
+export type RuntimeCodeEmbeddingSettings = z.infer<typeof runtimeCodeEmbeddingSettingsSchema>;
 export const runtimeTaskClineContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskClineContextScope = z.infer<typeof runtimeTaskClineContextScopeSchema>;
 export const runtimeTaskClineTimeoutModeSchema = z.preprocess(
@@ -138,6 +148,14 @@ export const runtimeTaskImageSchema = z.object({
 	name: z.string().optional(),
 });
 export type RuntimeTaskImage = z.infer<typeof runtimeTaskImageSchema>;
+
+export const runtimeGeneratedFromPlanSchema = z.object({
+	artifactKind: z.enum(["decomposition", "buildout", "spec"]).default("decomposition"),
+	planSlug: z.string().min(1),
+	planTaskId: z.string().min(1),
+	sourceTaskId: z.string().min(1).nullable().optional(),
+});
+export type RuntimeGeneratedFromPlan = z.infer<typeof runtimeGeneratedFromPlanSchema>;
 
 const runtimeLegacyTaskClineReasoningEffortSchema = z.enum(["default", "low", "medium", "high", "xhigh"]);
 
@@ -172,10 +190,13 @@ export const runtimeBoardCardSchema = z
 		startInPlanMode: z.boolean(),
 		autoReviewEnabled: z.boolean().optional(),
 		autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
+		autoReviewStatus: z.enum(["running", "failed"]).optional(),
+		autoReviewMessage: z.string().optional(),
 		images: z.array(runtimeTaskImageSchema).optional(),
 		agentId: runtimeAgentIdSchema.optional(),
 		clineSettings: runtimeTaskClineSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
+		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required"]).optional(),
 		blockedReason: z.string().optional(),
 		clineProviderId: z.string().optional(),
@@ -382,7 +403,6 @@ export type RuntimeWorkspaceStateResponse = z.infer<typeof runtimeWorkspaceState
 
 export const runtimeWorkspaceStateSaveRequestSchema = z.object({
 	board: runtimeBoardDataSchema,
-	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema),
 	expectedRevision: z.number().int().nonnegative().optional(),
 });
 export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceStateSaveRequestSchema>;
@@ -408,12 +428,32 @@ export const runtimeProjectTaskCountsSchema = z.object({
 });
 export type RuntimeProjectTaskCounts = z.infer<typeof runtimeProjectTaskCountsSchema>;
 
+export const runtimeProjectHealthIssueSchema = z.object({
+	kind: z.enum([
+		"task_worktree_project",
+		"missing_parent_workspace",
+		"pending_plan_artifacts",
+		"lost_session_pending_artifacts",
+	]),
+	severity: z.enum(["warning", "error"]),
+	title: z.string(),
+	message: z.string(),
+	taskId: z.string().nullable(),
+	parentWorkspaceId: z.string().nullable(),
+	parentWorkspacePath: z.string().nullable(),
+	artifactCount: z.number().int().nonnegative(),
+	canRemove: z.boolean(),
+	canMigrateArtifacts: z.boolean(),
+});
+export type RuntimeProjectHealthIssue = z.infer<typeof runtimeProjectHealthIssueSchema>;
+
 export const runtimeProjectSummarySchema = z.object({
 	id: z.string(),
 	path: z.string(),
 	name: z.string(),
 	taskCounts: runtimeProjectTaskCountsSchema,
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
+	healthIssues: z.array(runtimeProjectHealthIssueSchema).optional(),
 });
 export type RuntimeProjectSummary = z.infer<typeof runtimeProjectSummarySchema>;
 
@@ -583,6 +623,8 @@ export const runtimeProjectAddRequestSchema = z
 		path: z.string().optional(),
 		gitUrl: z.string().optional(),
 		initializeGit: z.boolean().optional(),
+		confirmSelfProject: z.boolean().optional(),
+		allowTaskWorktreeProject: z.boolean().optional(),
 	})
 	.refine((data) => data.path || data.gitUrl, { message: "Either path or gitUrl is required" });
 export type RuntimeProjectAddRequest = z.infer<typeof runtimeProjectAddRequestSchema>;
@@ -591,6 +633,8 @@ export const runtimeProjectAddResponseSchema = z.object({
 	ok: z.boolean(),
 	project: runtimeProjectSummarySchema.nullable(),
 	requiresGitInitialization: z.boolean().optional(),
+	requiresSelfProjectConfirmation: z.boolean().optional(),
+	requiresTaskWorktreeProjectConfirmation: z.boolean().optional(),
 	error: z.string().optional(),
 });
 export type RuntimeProjectAddResponse = z.infer<typeof runtimeProjectAddResponseSchema>;
@@ -676,6 +720,22 @@ export const runtimeProjectRemoveResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeProjectRemoveResponse = z.infer<typeof runtimeProjectRemoveResponseSchema>;
+
+export const runtimeProjectArtifactMigrationRequestSchema = z.object({
+	projectId: z.string().min(1),
+});
+export type RuntimeProjectArtifactMigrationRequest = z.infer<typeof runtimeProjectArtifactMigrationRequestSchema>;
+
+export const runtimeProjectArtifactMigrationResponseSchema = z.object({
+	ok: z.boolean(),
+	migratedArtifacts: z.number().int().nonnegative(),
+	skippedArtifacts: z.number().int().nonnegative(),
+	parentWorkspaceId: z.string().nullable(),
+	parentWorkspacePath: z.string().nullable(),
+	errors: z.array(z.string()).default([]),
+	error: z.string().optional(),
+});
+export type RuntimeProjectArtifactMigrationResponse = z.infer<typeof runtimeProjectArtifactMigrationResponseSchema>;
 
 export const runtimeWorktreeEnsureRequestSchema = z.object({
 	taskId: z.string(),
@@ -920,6 +980,12 @@ export type RuntimeClineModelContextWindowOverrideResponse = z.infer<
 >;
 
 export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
+	codeEmbeddingSettings: z.object({
+		globalDefaults: runtimeCodeEmbeddingSettingsSchema,
+		projectOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
+		effective: runtimeCodeEmbeddingSettingsSchema,
+		source: z.enum(["global", "project"]),
+	}),
 	repoMap: z.object({
 		filesScanned: z.number().int().nonnegative(),
 		symbols: z.number().int().nonnegative(),
@@ -988,6 +1054,22 @@ export const runtimeClineAdvisorBuildRequestSchema = z.object({
 	userQuestion: z.string().optional(),
 });
 export type RuntimeClineAdvisorBuildRequest = z.infer<typeof runtimeClineAdvisorBuildRequestSchema>;
+
+export const runtimeClineAdvisorSendRequestSchema = z.object({
+	prompt: z.string().min(1),
+	providerId: z.string().min(1),
+	modelId: z.string().min(1),
+});
+export type RuntimeClineAdvisorSendRequest = z.infer<typeof runtimeClineAdvisorSendRequestSchema>;
+
+export const runtimeClineAdvisorSendResponseSchema = z.object({
+	providerId: z.string(),
+	modelId: z.string(),
+	output: z.string(),
+	sentAt: z.number().int().nonnegative(),
+	receivedAt: z.number().int().nonnegative(),
+});
+export type RuntimeClineAdvisorSendResponse = z.infer<typeof runtimeClineAdvisorSendResponseSchema>;
 
 export const runtimeClineDogfoodBacklogRequestSchema = z.object({
 	suggestion: z.string().optional(),
@@ -1255,6 +1337,7 @@ export type RuntimeAgentDefinition = z.infer<typeof runtimeAgentDefinitionSchema
 export const runtimeConfigResponseSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema,
 	selectedShortcutLabel: z.string().nullable(),
+	cloudProviderSupportEnabled: z.boolean().optional(),
 	agentAutonomousModeEnabled: z.boolean(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema,
 	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema,
@@ -1265,6 +1348,11 @@ export const runtimeConfigResponseSchema = z.object({
 	conversationTimeoutMs: runtimeTimeoutMsSchema,
 	maxAgentWritableFileLines: z.number().int().positive(),
 	maxConcurrentTasks: z.number().int().positive(),
+	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema,
+	decompositionAutoApplyEnabled: z.boolean(),
+	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
+	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
+	effectiveCodeEmbeddingSettings: runtimeCodeEmbeddingSettingsSchema,
 	debugModeEnabled: z.boolean().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
@@ -1295,6 +1383,10 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	maxAgentWritableFileLines: z.number().int().positive().optional(),
 	maxConcurrentTasks: z.number().int().positive().optional(),
+	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema.optional(),
+	decompositionAutoApplyEnabled: z.boolean().optional(),
+	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),
+	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
@@ -1302,6 +1394,126 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	openPrPromptTemplate: z.string().optional(),
 });
 export type RuntimeConfigSaveRequest = z.infer<typeof runtimeConfigSaveRequestSchema>;
+
+export const runtimeClinePlanArtifactSummarySchema = z.object({
+	artifactId: z.string(),
+	artifactKind: z.enum(["decomposition", "buildout", "spec"]),
+	planSlug: z.string(),
+	title: z.string(),
+	sourceTaskId: z.string().nullable(),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+	validationStatus: z.enum(["valid", "invalid", "pending"]),
+	applicationStatus: z.enum(["pending", "applied", "rejected"]),
+	taskCount: z.number().int().nonnegative(),
+	dependencyCount: z.number().int().nonnegative(),
+	specPath: z.string(),
+	planPath: z.string(),
+	summaryPath: z.string(),
+	taskGraphPath: z.string(),
+});
+export type RuntimeClinePlanArtifactSummary = z.infer<typeof runtimeClinePlanArtifactSummarySchema>;
+
+export const runtimeClinePlanArtifactsRequestSchema = z.object({
+	taskId: z.string().min(1),
+});
+export type RuntimeClinePlanArtifactsRequest = z.infer<typeof runtimeClinePlanArtifactsRequestSchema>;
+
+export const runtimeClinePlanArtifactsResponseSchema = z.object({
+	artifacts: z.array(runtimeClinePlanArtifactSummarySchema),
+});
+export type RuntimeClinePlanArtifactsResponse = z.infer<typeof runtimeClinePlanArtifactsResponseSchema>;
+
+export const runtimeClinePlanArtifactActionRequestSchema = z.object({
+	artifactId: z.string().min(1),
+});
+export type RuntimeClinePlanArtifactActionRequest = z.infer<typeof runtimeClinePlanArtifactActionRequestSchema>;
+
+export const runtimeClinePlanArtifactApplyResponseSchema = z.object({
+	ok: z.boolean(),
+	artifact: runtimeClinePlanArtifactSummarySchema,
+	createdTaskCount: z.number().int().nonnegative(),
+	createdDependencyCount: z.number().int().nonnegative(),
+	message: z.string(),
+	workspaceState: runtimeWorkspaceStateResponseSchema,
+});
+export type RuntimeClinePlanArtifactApplyResponse = z.infer<typeof runtimeClinePlanArtifactApplyResponseSchema>;
+
+export const runtimeClinePlanArtifactRejectResponseSchema = z.object({
+	ok: z.boolean(),
+	artifact: runtimeClinePlanArtifactSummarySchema,
+	message: z.string(),
+});
+export type RuntimeClinePlanArtifactRejectResponse = z.infer<typeof runtimeClinePlanArtifactRejectResponseSchema>;
+
+export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
+	taskId: z.string().min(1),
+	ensureWorktree: z.boolean().optional(),
+	timeoutMs: z.number().int().positive().optional(),
+});
+export type RuntimeTaskAcceptanceVerifyRequest = z.infer<typeof runtimeTaskAcceptanceVerifyRequestSchema>;
+
+export const runtimeTaskAcceptanceResultSchema = z.object({
+	present: z.boolean(),
+	command: z.string().nullable(),
+	passed: z.boolean().nullable(),
+	exitCode: z.number().nullable(),
+	output: z.string(),
+	durationMs: z.number().int().nonnegative(),
+});
+export type RuntimeTaskAcceptanceResult = z.infer<typeof runtimeTaskAcceptanceResultSchema>;
+
+export const runtimeTaskAcceptanceVerifyResponseSchema = z.object({
+	ok: z.boolean(),
+	taskId: z.string(),
+	taskWorkspacePath: z.string().nullable(),
+	acceptance: runtimeTaskAcceptanceResultSchema,
+	message: z.string(),
+});
+export type RuntimeTaskAcceptanceVerifyResponse = z.infer<typeof runtimeTaskAcceptanceVerifyResponseSchema>;
+
+export const runtimeTaskWorktreeMergeRequestSchema = z.object({
+	taskId: z.string().min(1).optional(),
+	column: z.enum(["review", "completed"]).default("review"),
+});
+export type RuntimeTaskWorktreeMergeRequest = z.infer<typeof runtimeTaskWorktreeMergeRequestSchema>;
+
+const runtimeTaskWorktreeMergeSuccessStepSchema = z.object({
+	type: z.enum(["merged", "skipped"]),
+	taskId: z.string(),
+	headCommit: z.string(),
+	reason: z.string(),
+});
+const runtimeTaskWorktreeMergeConflictStepSchema = z.object({
+	type: z.literal("conflict"),
+	taskId: z.string(),
+	headCommit: z.string(),
+	conflictedPaths: z.array(z.string()),
+	message: z.string(),
+});
+const runtimeTaskWorktreeMergeBlockedStepSchema = z.object({
+	type: z.literal("blocked"),
+	taskId: z.string().nullable(),
+	reason: z.string(),
+});
+export const runtimeTaskWorktreeMergeStepSchema = z.discriminatedUnion("type", [
+	runtimeTaskWorktreeMergeSuccessStepSchema,
+	runtimeTaskWorktreeMergeConflictStepSchema,
+	runtimeTaskWorktreeMergeBlockedStepSchema,
+]);
+export type RuntimeTaskWorktreeMergeStep = z.infer<typeof runtimeTaskWorktreeMergeStepSchema>;
+
+export const runtimeTaskWorktreeMergeResponseSchema = z.object({
+	ok: z.boolean(),
+	column: z.enum(["review", "completed"]),
+	mergedTaskIds: z.array(z.string()),
+	skippedTaskIds: z.array(z.string()),
+	steps: z.array(runtimeTaskWorktreeMergeStepSchema),
+	conflict: runtimeTaskWorktreeMergeConflictStepSchema.nullable(),
+	blocked: runtimeTaskWorktreeMergeBlockedStepSchema.nullable(),
+	message: z.string(),
+});
+export type RuntimeTaskWorktreeMergeResponse = z.infer<typeof runtimeTaskWorktreeMergeResponseSchema>;
 
 export const runtimeTaskSessionStartRequestSchema = z.object({
 	taskId: z.string(),

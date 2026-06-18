@@ -99,12 +99,16 @@ describe("useFeaturebaseFeedbackWidget", () => {
 		input: {
 			workspaceId: string | null;
 			clineProviderSettings: RuntimeClineProviderSettings;
+			cloudProviderSupportEnabled?: boolean;
 		},
 	): Promise<{ getState: () => FeaturebaseFeedbackState }> {
 		let hookResult: FeaturebaseFeedbackState | null = null;
 
 		function HookHarness(): null {
-			hookResult = module.useFeaturebaseFeedbackWidget(input);
+			hookResult = module.useFeaturebaseFeedbackWidget({
+				cloudProviderSupportEnabled: true,
+				...input,
+			});
 			return null;
 		}
 

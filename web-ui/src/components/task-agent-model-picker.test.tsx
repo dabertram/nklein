@@ -75,6 +75,7 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 				defaultAgentId: "cline",
 				defaultProviderId: "cline",
 				defaultModelId: null,
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -116,6 +117,7 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 				defaultAgentId: "cline",
 				defaultProviderId: "anthropic",
 				defaultModelId: null,
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -152,6 +154,7 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 				defaultAgentId: "cline",
 				defaultProviderId: "cline",
 				defaultModelId: null,
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -165,7 +168,87 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		expect(snapshot!.clineProviderOptions).toEqual([{ value: "", label: "cline" }]);
+		expect(snapshot!.clineProviderOptions).toEqual([{ value: "", label: "Default" }]);
+	});
+
+	it("does not surface a legacy cloud provider label as the default option when only local providers are available", async () => {
+		const catalog: RuntimeClineProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true),
+			createProvider("lmstudio", "LM Studio", true),
+		];
+		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
+		fetchClineProviderModelsMock.mockResolvedValue([]);
+
+		let snapshot: UseTaskAgentModelPickerResult | null = null;
+		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
+
+		function Harness() {
+			const result = useTaskAgentModelPicker({
+				active: true,
+				workspaceId: null,
+				agentId: "cline",
+				clineSettings: undefined,
+				defaultAgentId: "cline",
+				defaultProviderId: "openrouter",
+				defaultModelId: null,
+				cloudProviderSupportEnabled: false,
+			});
+			useEffect(() => {
+				snapshot = result;
+			});
+			return null;
+		}
+
+		await act(async () => root.render(<Harness />));
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		expect(snapshot).not.toBeNull();
+		expect(snapshot!.clineProviderOptions[0]).toEqual({ value: "", label: "Default" });
+	});
+
+	it("filters cloud providers out of the explicit provider list in local-only mode", async () => {
+		const catalog: RuntimeClineProviderCatalogItem[] = [
+			createProvider("openrouter", "OpenRouter", true),
+			createProvider("anthropic", "Anthropic", true),
+			createProvider("ollama", "Ollama", true),
+			createProvider("lmstudio", "LM Studio", true),
+		];
+		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
+		fetchClineProviderModelsMock.mockResolvedValue([]);
+
+		let snapshot: UseTaskAgentModelPickerResult | null = null;
+		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
+
+		function Harness() {
+			const result = useTaskAgentModelPicker({
+				active: true,
+				workspaceId: null,
+				agentId: "cline",
+				clineSettings: undefined,
+				defaultAgentId: "cline",
+				defaultProviderId: "openrouter",
+				defaultModelId: null,
+				cloudProviderSupportEnabled: false,
+			});
+			useEffect(() => {
+				snapshot = result;
+			});
+			return null;
+		}
+
+		await act(async () => root.render(<Harness />));
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+
+		expect(snapshot).not.toBeNull();
+		expect(snapshot!.clineProviderOptions).toEqual([
+			{ value: "", label: "Default" },
+			{ value: "ollama", label: "Ollama" },
+			{ value: "lmstudio", label: "LM Studio" },
+		]);
 	});
 });
 
@@ -191,6 +274,7 @@ describe("useTaskAgentModelPicker – providerDefaultModels", () => {
 				defaultAgentId: "cline",
 				defaultProviderId: "anthropic",
 				defaultModelId: "claude-opus-4-20250514",
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -236,6 +320,7 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 				defaultAgentId: "cline",
 				defaultProviderId: "cline",
 				defaultModelId: null,
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -275,6 +360,7 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 				defaultAgentId: "cline",
 				defaultProviderId: "anthropic",
 				defaultModelId: "claude-opus-4-20250514",
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -316,6 +402,7 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 				defaultAgentId: "cline",
 				defaultProviderId: "anthropic",
 				defaultModelId: "claude-opus-4-20250514", // global default is Anthropic's model
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;
@@ -359,6 +446,7 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 				defaultAgentId: "cline",
 				defaultProviderId: "anthropic",
 				defaultModelId: "claude-opus-4-20250514",
+				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
 				snapshot = result;

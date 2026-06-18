@@ -7,7 +7,11 @@ import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } 
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import { cn } from "@/components/ui/cn";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
-import { isClineProviderAuthenticated } from "@/runtime/native-agent";
+import {
+	filterVisibleClineProviderCatalog,
+	isClineProviderAuthenticated,
+	isCloudProviderSupportEnabled,
+} from "@/runtime/native-agent";
 import { buildFirstRunLocalModelRoles } from "@/runtime/onboarding";
 import { saveClineModelContextWindowOverride, saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import type {
@@ -53,11 +57,11 @@ interface OnboardingDoneResult {
 export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	{
 		kind: "media",
-		title: "Create tasks with Kanban",
+		title: "Create tasks with !Klein",
 		description:
-			"Press c to create a task yourself, or talk to the sidebar Kanban agent to plan work for you. It can pull projects and issues from Linear and GitHub, then turn them into tasks your coding agent can pick up.",
+			"Press c to create a task yourself, or talk to the sidebar !Klein agent to plan work for you. It can pull projects and issues from Linear and GitHub, then turn them into tasks your coding agent can pick up.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/4408930c-33cd-4af9-a343-e82b099eab8c",
-		assetAlt: "Talking to the sidebar Kanban agent to create tasks from Linear and GitHub",
+		assetAlt: "Talking to the sidebar !Klein agent to create tasks from Linear and GitHub",
 		assetWidthPx: 1908,
 		assetHeightPx: 720,
 	},
@@ -67,7 +71,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		description:
 			"Create dependency chains of linked tasks that start one another automatically. Agents can auto commit their work as they finish, so you can orchestrate tasks in order and watch the board burn them down automatically.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/9a979242-bd22-4ac1-94c5-3ed5351a99d1",
-		assetAlt: "Linking task cards in Cline Kanban",
+		assetAlt: "Linking task cards in !Klein",
 		assetWidthPx: 1156,
 		assetHeightPx: 720,
 	},
@@ -77,7 +81,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		description:
 			"Your workflow will feel like writing tickets, reviewing code, and shipping. Watch the agent work next to real-time diffs, then click lines to leave comments like you're reviewing a PR.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/17992035-c1ca-449a-a48b-bb094007f0a1",
-		assetAlt: "Leaving comments on code diffs in Cline Kanban",
+		assetAlt: "Leaving comments on code diffs in !Klein",
 		assetWidthPx: 1616,
 		assetHeightPx: 1080,
 	},
@@ -533,6 +537,11 @@ export function TaskStartAgentOnboardingCarousel({
 		selectedAgentId: activeAgentId ?? selectedAgentId ?? "cline",
 		config: runtimeConfig,
 	});
+	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(runtimeConfig);
+	const visibleClineProviderCatalog = useMemo(
+		() => filterVisibleClineProviderCatalog(clineSettings.providerCatalog, cloudProviderSupportEnabled),
+		[clineSettings.providerCatalog, cloudProviderSupportEnabled],
+	);
 	const onboardingAgents = useMemo(
 		() =>
 			ONBOARDING_AGENT_IDS.map((agentId) => {
@@ -767,19 +776,20 @@ export function TaskStartAgentOnboardingCarousel({
 							{agent.id === "cline" ? (
 								<div className="mt-2">
 									<LocalModelSetupStatus
-										providers={clineSettings.providerCatalog}
+										providers={visibleClineProviderCatalog}
 										models={clineSettings.providerModels}
 										selectedProviderId={clineSettings.providerId}
 										isLoadingModels={clineSettings.isLoadingProviderModels}
 									/>
 									<LocalEndpointStartGuide
-										providers={clineSettings.providerCatalog}
+										providers={visibleClineProviderCatalog}
 										models={clineSettings.providerModels}
 										selectedProviderId={clineSettings.providerId}
 									/>
 									<ClineSetupSection
 										controller={clineSettings}
 										controlsDisabled={false}
+										cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 										showMcpSettings={false}
 										onError={setClineSetupError}
 										onSaved={onClineSetupSaved}

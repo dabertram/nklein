@@ -26,6 +26,7 @@ import {
 	getClineModelContextWindowWarning,
 	isLmStudioProviderId,
 } from "@/runtime/cline-context-window-policy";
+import { filterVisibleClineProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
 import { openFileOnHost } from "@/runtime/runtime-config-query";
 import type { RuntimeClineMcpServer, RuntimeClineReasoningEffort } from "@/runtime/types";
 import { formatPathForDisplay } from "@/utils/path-display";
@@ -64,6 +65,7 @@ export function ClineSetupSection({
 	mcpController,
 	controlsDisabled,
 	workspaceId = null,
+	cloudProviderSupportEnabled = false,
 	showMcpSettings = true,
 	accountSection = null,
 	onError,
@@ -73,12 +75,18 @@ export function ClineSetupSection({
 	mcpController?: UseRuntimeSettingsClineMcpControllerResult;
 	controlsDisabled: boolean;
 	workspaceId?: string | null;
+	cloudProviderSupportEnabled?: boolean;
 	showMcpSettings?: boolean;
 	accountSection?: ReactNode;
 	onError?: (message: string | null) => void;
 	onSaved?: () => void;
 }): ReactElement {
 	const mcpControlsDisabled = controlsDisabled || (mcpController?.isSavingMcpSettings ?? false);
+	const shouldShowManagedOauthUi = cloudProviderSupportEnabled && controller.isOauthProviderSelected;
+	const visibleProviderCatalog = useMemo(
+		() => filterVisibleClineProviderCatalog(controller.providerCatalog, cloudProviderSupportEnabled),
+		[cloudProviderSupportEnabled, controller.providerCatalog],
+	);
 	const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
 	const [providerDialogMode, setProviderDialogMode] = useState<ClineProviderDialogMode>("add");
 	const [isDeviceCodeCopied, setIsDeviceCodeCopied] = useState(false);
@@ -119,21 +127,22 @@ export function ClineSetupSection({
 	}, [copiedDeviceCodeState, controller.deviceAuthInfo?.userCode, onError]);
 
 	const clineProviderOptions = useMemo((): SearchSelectOption[] => {
-		const items: SearchSelectOption[] = controller.providerCatalog.map((provider) => ({
+		const items: SearchSelectOption[] = visibleProviderCatalog.map((provider) => ({
 			value: provider.id,
 			label: provider.name,
 		}));
 		const trimmedId = controller.providerId.trim();
 		if (
 			trimmedId.length > 0 &&
-			!controller.providerCatalog.some(
+			(cloudProviderSupportEnabled || !isKnownCloudProviderId(trimmedId)) &&
+			!visibleProviderCatalog.some(
 				(provider) => provider.id.trim().toLowerCase() === controller.normalizedProviderId,
 			)
 		) {
 			items.push({ value: trimmedId, label: `${trimmedId} (custom)` });
 		}
 		return items;
-	}, [controller.providerCatalog, controller.providerId, controller.normalizedProviderId]);
+	}, [cloudProviderSupportEnabled, controller.normalizedProviderId, controller.providerId, visibleProviderCatalog]);
 
 	const modelPickerOptions = useMemo(
 		() => buildClineAgentModelPickerOptions(controller.providerId, controller.providerModels),
@@ -186,10 +195,10 @@ export function ClineSetupSection({
 	]);
 	const selectedProvider = useMemo(
 		() =>
-			controller.providerCatalog.find(
+			visibleProviderCatalog.find(
 				(provider) => provider.id.trim().toLowerCase() === controller.normalizedProviderId,
 			) ?? null,
-		[controller.normalizedProviderId, controller.providerCatalog],
+		[controller.normalizedProviderId, visibleProviderCatalog],
 	);
 	const apiKeyPlaceholder = controller.apiKeyConfigured ? "Saved" : "Enter API key";
 	const providerEnvHint = (selectedProvider?.env ?? [])
@@ -347,7 +356,7 @@ export function ClineSetupSection({
 									}
 									controller.setProviderId(value);
 									const selectedProvider =
-										controller.providerCatalog.find(
+										visibleProviderCatalog.find(
 											(provider) => provider.id.trim().toLowerCase() === normalizedProviderId,
 										) ?? null;
 									const defaultModelId = selectedProvider?.defaultModelId?.trim() ?? "";
@@ -361,7 +370,10 @@ export function ClineSetupSection({
 								buttonText={
 									controller.isLoadingProviderCatalog
 										? "Loading providers..."
-										: clineProviderOptions.find((option) => option.value === controller.providerId)?.label
+										: (clineProviderOptions.find((option) => option.value === controller.providerId)?.label ??
+											(cloudProviderSupportEnabled || !controller.isOauthProviderSelected
+												? controller.providerId.trim() || undefined
+												: "Choose local provider"))
 								}
 								emptyText="Select provider"
 								noResultsText="No matching providers"
@@ -400,11 +412,17 @@ export function ClineSetupSection({
 				{controller.isLoadingProviderCatalog ? (
 					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching Cline providers...</p>
 				) : null}
+				{!cloudProviderSupportEnabled && controller.isOauthProviderSelected ? (
+					<p className="text-status-orange text-[12px] mt-1 mb-0">
+						Cloud sign-in is hidden in this local-only build. Choose Ollama, LM Studio, or a local
+						OpenAI-compatible endpoint instead.
+					</p>
+				) : null}
 				<div
 					className="grid gap-2 mt-3"
-					style={{ gridTemplateColumns: controller.isOauthProviderSelected ? "1fr" : "1fr 1fr" }}
+					style={{ gridTemplateColumns: shouldShowManagedOauthUi ? "1fr" : "1fr 1fr" }}
 				>
-					{controller.isOauthProviderSelected ? null : (
+					{shouldShowManagedOauthUi ? null : (
 						<div className="min-w-0">
 							<p className="text-text-secondary text-[12px] mt-0 mb-1">API key</p>
 							<input
@@ -426,7 +444,7 @@ export function ClineSetupSection({
 							<input
 								value={controller.baseUrl}
 								onChange={(event) => controller.setBaseUrl(event.target.value)}
-								placeholder="https://api.cline.bot"
+								placeholder="http://localhost:1234/v1"
 								disabled={controlsDisabled}
 								className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
 							/>
@@ -540,7 +558,7 @@ export function ClineSetupSection({
 						</div>
 					</div>
 				) : null}
-				{controller.isOauthProviderSelected ? (
+				{shouldShowManagedOauthUi ? (
 					<>
 						<p className="text-text-secondary text-[12px] mt-1 mb-0">
 							Status: {controller.oauthConfigured ? "Signed in" : "Not signed in"}
@@ -615,7 +633,7 @@ export function ClineSetupSection({
 					</>
 				) : null}
 			</div>
-			{accountSection ? <div className="mt-4">{accountSection}</div> : null}
+			{cloudProviderSupportEnabled && accountSection ? <div className="mt-4">{accountSection}</div> : null}
 
 			<div className="mt-4">
 				<p className="text-text-primary font-semibold text-[12px] mt-0 mb-2">Model</p>
@@ -984,7 +1002,7 @@ export function ClineSetupSection({
 			<ClineAddProviderDialog
 				open={isAddProviderDialogOpen}
 				onOpenChange={setIsAddProviderDialogOpen}
-				existingProviderIds={controller.providerCatalog.map((provider) => provider.id)}
+				existingProviderIds={visibleProviderCatalog.map((provider) => provider.id)}
 				mode={providerDialogMode}
 				initialValues={providerDialogMode === "edit" ? selectedProviderEditInitialValues : null}
 				onSubmit={async (input) => {

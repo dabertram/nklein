@@ -1,6 +1,7 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
+	AlertTriangle,
 	ChevronDown,
 	ChevronUp,
 	Clipboard,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { showAppToast } from "@/components/app-toaster";
+import { CodeIntelligencePanel } from "@/components/code-intelligence-panel";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
 import { Button } from "@/components/ui/button";
 import { ClineIcon } from "@/components/ui/cline-icon";
@@ -34,12 +36,17 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { cleanupDevTestProjects, createDevTestProject } from "@/runtime/runtime-config-query";
+import {
+	cleanupDevTestProjects,
+	createDevTestProject,
+	migrateAccidentalProjectArtifacts,
+} from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeAgentId,
 	RuntimeClineProviderSettings,
 	RuntimeDevTestProjectPreset,
+	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 } from "@/runtime/types";
 import { fetchWorkspaceState, saveWorkspaceState } from "@/runtime/workspace-state-query";
@@ -79,6 +86,8 @@ export function ProjectNavigationPanel({
 	agentSectionContent,
 	selectedAgentId,
 	clineProviderSettings,
+	cloudProviderSupportEnabled = false,
+	debugModeEnabled = false,
 	featurebaseFeedbackState,
 	onSelectProject,
 	onRemoveProject,
@@ -98,6 +107,8 @@ export function ProjectNavigationPanel({
 	agentSectionContent?: ReactNode;
 	selectedAgentId?: RuntimeAgentId | null;
 	clineProviderSettings?: RuntimeClineProviderSettings | null;
+	cloudProviderSupportEnabled?: boolean;
+	debugModeEnabled?: boolean;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 	onSelectProject: (projectId: string) => void;
 	onRemoveProject: (projectId: string, options?: { deleteGitRepository?: boolean }) => Promise<boolean>;
@@ -109,6 +120,7 @@ export function ProjectNavigationPanel({
 }): React.ReactElement {
 	const sortedProjects = [...projects].sort((a, b) => a.path.localeCompare(b.path));
 	const shouldShowFeaturebaseFeedback = canShowFeaturebaseFeedbackButton({
+		cloudProviderSupportEnabled,
 		selectedAgentId,
 		clineProviderSettings,
 		featurebaseFeedbackState,
@@ -121,6 +133,8 @@ export function ProjectNavigationPanel({
 		isCleaningUp: boolean;
 		evidencePath: string | null;
 	}>({ runningPreset: null, isCleaningUp: false, evidencePath: null });
+	const [migratingProjectId, setMigratingProjectId] = useState<string | null>(null);
+	const projectsWithHealthIssues = sortedProjects.filter((project) => (project.healthIssues?.length ?? 0) > 0);
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
 	const pendingProjectTaskCount = pendingProjectRemoval
 		? pendingProjectRemoval.taskCounts.backlog +
@@ -331,7 +345,7 @@ export function ProjectNavigationPanel({
 				<div className="flex items-center justify-between">
 					<div className="font-semibold text-base flex items-baseline gap-1.5">
 						<ClineIcon size={18} className="text-text-primary shrink-0 self-center" />
-						Cline <span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
+						!Klein <span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
 					</div>
 					{isMobile ? (
 						<Button
@@ -370,7 +384,7 @@ export function ProjectNavigationPanel({
 								!canShowAgentSection ? "cursor-not-allowed opacity-50" : null,
 							)}
 						>
-							Kanban Agent
+							!Klein Agent
 						</button>
 					</div>
 				</div>
@@ -425,7 +439,63 @@ export function ProjectNavigationPanel({
 								<span className="text-sm">Add Project</span>
 							</button>
 						) : null}
-						{import.meta.env.DEV ? (
+						<CodeIntelligencePanel
+							workspaceId={currentProjectId}
+							active={activeSection === "projects" && currentProjectId !== null}
+							disabled={removingProjectId !== null}
+							compact
+							onError={(message) => {
+								if (message) {
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+								}
+							}}
+						/>
+						{projectsWithHealthIssues.length > 0 ? (
+							<ProjectHealthCard
+								projects={projectsWithHealthIssues}
+								currentProjectId={currentProjectId}
+								migratingProjectId={migratingProjectId}
+								disabled={removingProjectId !== null}
+								onInspect={(projectId) => {
+									onSelectProject(projectId);
+									if (isMobile) {
+										setCollapsed(true);
+									}
+								}}
+								onRemove={(project) => {
+									setDeleteGitRepository(false);
+									setPendingProjectRemoval(project);
+								}}
+								onMigrateArtifacts={async (project) => {
+									if (
+										!window.confirm(
+											"Copy this accidental task-worktree project's plan artifacts into the detected parent project?",
+										)
+									) {
+										return;
+									}
+									setMigratingProjectId(project.id);
+									try {
+										const migrated = await migrateAccidentalProjectArtifacts(currentProjectId, project.id);
+										if (!migrated.ok) {
+											throw new Error(migrated.error ?? "Could not migrate plan artifacts.");
+										}
+										showAppToast({
+											intent: "success",
+											icon: "clipboard",
+											message: `Migrated ${migrated.migratedArtifacts} plan artifact${migrated.migratedArtifacts === 1 ? "" : "s"}.`,
+											timeout: 6000,
+										});
+									} catch (error) {
+										const message = error instanceof Error ? error.message : String(error);
+										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+									} finally {
+										setMigratingProjectId(null);
+									}
+								}}
+							/>
+						) : null}
+						{import.meta.env.DEV && debugModeEnabled ? (
 							<DevTestProjectCard
 								disabled={
 									removingProjectId !== null ||
@@ -473,7 +543,6 @@ export function ProjectNavigationPanel({
 											if (moved.moved) {
 												await saveWorkspaceState(created.project.id, {
 													board: moved.board,
-													sessions: workspaceState.sessions,
 													expectedRevision: workspaceState.revision,
 												});
 												await trpcClient.workspace.notifyStateUpdated.mutate();
@@ -585,7 +654,7 @@ export function ProjectNavigationPanel({
 									/>
 									<span>
 										<span className="block text-text-primary">
-											Also remove Git metadata created by Kanban
+											Also remove Git metadata created by !Klein
 										</span>
 										<span className="mt-1 block text-[12px] text-text-secondary">
 											Deletes the project folder&apos;s .git directory and history. Project files remain in
@@ -651,6 +720,101 @@ const TERMINAL_AGENT_HINTS: readonly { label: string; hint: string }[] = [
 	{ label: "Import issues", hint: "Pull issues into task cards via GitHub CLI or Linear MCP" },
 ];
 
+function ProjectHealthCard({
+	projects,
+	currentProjectId,
+	migratingProjectId,
+	disabled,
+	onInspect,
+	onRemove,
+	onMigrateArtifacts,
+}: {
+	projects: RuntimeProjectSummary[];
+	currentProjectId: string | null;
+	migratingProjectId: string | null;
+	disabled: boolean;
+	onInspect: (projectId: string) => void;
+	onRemove: (project: RuntimeProjectSummary) => void;
+	onMigrateArtifacts: (project: RuntimeProjectSummary, issue: RuntimeProjectHealthIssue) => Promise<void>;
+}): React.ReactElement {
+	return (
+		<div className="mt-2 rounded-md border border-status-orange/60 bg-status-orange/10 px-3 py-2.5">
+			<div className="mb-2 flex items-start gap-2">
+				<AlertTriangle size={14} className="mt-0.5 shrink-0 text-status-orange" />
+				<div className="min-w-0">
+					<p className="m-0 text-xs font-semibold text-text-primary">Project Health</p>
+					<p className="mt-1 mb-0 text-[11px] leading-4 text-text-secondary">
+						Task worktree projects need a decision before cleanup.
+					</p>
+				</div>
+			</div>
+			<div className="grid gap-2">
+				{projects.map((project) => {
+					const issue = project.healthIssues?.[0];
+					if (!issue) {
+						return null;
+					}
+					const isMigrating = migratingProjectId === project.id;
+					const parentPath = issue.parentWorkspacePath
+						? formatPathForDisplay(issue.parentWorkspacePath)
+						: "No parent detected";
+					return (
+						<div key={project.id} className="rounded-md border border-border bg-surface-2 px-2.5 py-2">
+							<div className="flex items-start justify-between gap-2">
+								<div className="min-w-0">
+									<p className="m-0 truncate text-xs font-semibold text-text-primary">{project.name}</p>
+									<p className="mt-1 mb-0 truncate font-mono text-[10px] text-text-tertiary">{parentPath}</p>
+								</div>
+								<span
+									className={cn(
+										"shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold",
+										issue.severity === "error"
+											? "bg-status-red/20 text-status-red"
+											: "bg-status-orange/20 text-status-orange",
+									)}
+								>
+									{issue.artifactCount} artifacts
+								</span>
+							</div>
+							<p className="mt-1.5 mb-2 text-[11px] leading-4 text-text-secondary">{issue.message}</p>
+							<div className="grid grid-cols-3 gap-1.5">
+								<Button
+									size="sm"
+									variant={currentProjectId === project.id ? "primary" : "default"}
+									onClick={() => onInspect(project.id)}
+									disabled={disabled || isMigrating}
+								>
+									Inspect
+								</Button>
+								<Button
+									size="sm"
+									variant="default"
+									icon={isMigrating ? <Spinner size={14} /> : <Clipboard size={14} />}
+									onClick={() => {
+										void onMigrateArtifacts(project, issue);
+									}}
+									disabled={disabled || isMigrating || !issue.canMigrateArtifacts}
+								>
+									Migrate
+								</Button>
+								<Button
+									size="sm"
+									variant="ghost"
+									icon={<Trash2 size={14} />}
+									onClick={() => onRemove(project)}
+									disabled={disabled || isMigrating || !issue.canRemove}
+								>
+									Remove
+								</Button>
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
 function DevTestProjectCard({
 	disabled,
 	runningPreset,
@@ -689,6 +853,9 @@ function DevTestProjectCard({
 					icon={isRunningMidTask ? <Spinner size={14} /> : <Play size={14} />}
 					disabled={disabled}
 					onClick={() => {
+						if (!window.confirm("Create a marked !Klein dev-test project and make it the active project?")) {
+							return;
+						}
 						void onRun("mid_task");
 					}}
 					fill
@@ -701,6 +868,11 @@ function DevTestProjectCard({
 					icon={isRunningComplexProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
 					disabled={disabled}
 					onClick={() => {
+						if (
+							!window.confirm("Create a marked !Klein complex dev-test project and make it the active project?")
+						) {
+							return;
+						}
 						void onRun("complex_dag");
 					}}
 					fill
@@ -728,6 +900,13 @@ function DevTestProjectCard({
 					icon={isCleaningUp ? <Spinner size={14} /> : <Trash2 size={14} />}
 					disabled={disabled}
 					onClick={() => {
+						if (
+							!window.confirm(
+								"Delete marked !Klein dev-test projects, their task worktrees, and saved dev-test task patches?",
+							)
+						) {
+							return;
+						}
 						void onCleanup();
 					}}
 					fill
@@ -828,7 +1007,7 @@ function ProjectSupportFooter({
 				<Info size={14} className="mt-px shrink-0 text-text-tertiary" />
 				<div className="flex flex-col gap-1.5">
 					<p className="m-0 text-xs text-text-secondary">
-						Kanban is in beta. Help us improve by sharing your experience.
+						!Klein is in beta. Help us improve by sharing your experience.
 					</p>
 					<button
 						type="button"

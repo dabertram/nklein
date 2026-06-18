@@ -4,16 +4,21 @@ import { isClineOauthAuthenticated, isNativeClineAgentSelected } from "@/runtime
 import type { RuntimeAgentId, RuntimeClineProviderSettings } from "@/runtime/types";
 
 interface FeaturebaseFeedbackVisibilityInput {
+	cloudProviderSupportEnabled?: boolean;
 	selectedAgentId?: RuntimeAgentId | null;
 	clineProviderSettings?: RuntimeClineProviderSettings | null;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 }
 
 export function canShowFeaturebaseFeedbackButton({
+	cloudProviderSupportEnabled = false,
 	selectedAgentId,
 	clineProviderSettings,
 	featurebaseFeedbackState,
 }: FeaturebaseFeedbackVisibilityInput): boolean {
+	if (!cloudProviderSupportEnabled) {
+		return false;
+	}
 	const isClineAgent = isNativeClineAgentSelected(selectedAgentId);
 	const isAuthenticated = isClineOauthAuthenticated(clineProviderSettings);
 	return isClineAgent && isAuthenticated && featurebaseFeedbackState !== undefined;
@@ -27,6 +32,7 @@ interface FeaturebaseFeedbackButtonProps extends FeaturebaseFeedbackVisibilityIn
 }
 
 export function FeaturebaseFeedbackButton({
+	cloudProviderSupportEnabled,
 	selectedAgentId,
 	clineProviderSettings,
 	featurebaseFeedbackState,
@@ -37,6 +43,7 @@ export function FeaturebaseFeedbackButton({
 }: FeaturebaseFeedbackButtonProps): React.ReactElement | null {
 	if (
 		!canShowFeaturebaseFeedbackButton({
+			cloudProviderSupportEnabled,
 			selectedAgentId,
 			clineProviderSettings,
 			featurebaseFeedbackState,

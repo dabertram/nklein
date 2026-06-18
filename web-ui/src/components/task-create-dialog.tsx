@@ -126,6 +126,7 @@ export function TaskCreateDialog({
 	defaultProviderId,
 	defaultModelId,
 	defaultReasoningEffort,
+	cloudProviderSupportEnabled = false,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -161,6 +162,7 @@ export function TaskCreateDialog({
 	defaultModelId?: string | null;
 	/** Default Cline reasoning effort from runtimeConfig.clineProviderSettings.reasoningEffort */
 	defaultReasoningEffort?: RuntimeClineReasoningEffort | null;
+	cloudProviderSupportEnabled?: boolean;
 }): ReactElement {
 	const [mode, setMode] = useState<"single" | "multi">("single");
 	const [createMore, setCreateMore] = useState(false);
@@ -194,6 +196,7 @@ export function TaskCreateDialog({
 		defaultAgentId,
 		defaultProviderId,
 		defaultModelId,
+		cloudProviderSupportEnabled,
 	});
 
 	const detectedItems = useMemo(() => parseListItems(prompt), [prompt]);

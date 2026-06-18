@@ -133,8 +133,9 @@ function postFeaturebaseWidgetAction(win: Window, action: string): void {
 export function useFeaturebaseFeedbackWidget(input: {
 	workspaceId: string | null;
 	clineProviderSettings: RuntimeClineProviderSettings | null;
+	cloudProviderSupportEnabled?: boolean;
 }): FeaturebaseFeedbackState {
-	const { workspaceId, clineProviderSettings } = input;
+	const { workspaceId, clineProviderSettings, cloudProviderSupportEnabled = false } = input;
 	const isAuthenticated = isClineOauthAuthenticated(clineProviderSettings);
 
 	const [authState, setAuthState] = useState<FeaturebaseAuthState>("idle");
@@ -153,6 +154,9 @@ export function useFeaturebaseFeedbackWidget(input: {
 	}
 
 	const ensureFeedbackWidgetInitialized = useCallback(async (): Promise<void> => {
+		if (!cloudProviderSupportEnabled) {
+			return;
+		}
 		if (widgetInitializedRef.current) {
 			return;
 		}
@@ -180,7 +184,7 @@ export function useFeaturebaseFeedbackWidget(input: {
 			widgetInitializedRef.current = true;
 			resolve();
 		});
-	}, []);
+	}, [cloudProviderSupportEnabled]);
 
 	useEffect(() => {
 		return () => {
@@ -218,7 +222,7 @@ export function useFeaturebaseFeedbackWidget(input: {
 
 	const identifyWithRetries = useCallback(
 		async (attempt: number, retryIndex: number): Promise<void> => {
-			if (!workspaceId || !isAuthenticated) {
+			if (!cloudProviderSupportEnabled || !workspaceId || !isAuthenticated) {
 				return;
 			}
 
@@ -282,11 +286,11 @@ export function useFeaturebaseFeedbackWidget(input: {
 				await identifyWithRetries(attempt, retryIndex + 1);
 			}
 		},
-		[ensureFeedbackWidgetInitialized, isAuthenticated, workspaceId],
+		[cloudProviderSupportEnabled, ensureFeedbackWidgetInitialized, isAuthenticated, workspaceId],
 	);
 
 	const openFeedbackWidget = useCallback(async (): Promise<void> => {
-		if (!workspaceId || !isAuthenticated) {
+		if (!cloudProviderSupportEnabled || !workspaceId || !isAuthenticated) {
 			return;
 		}
 
@@ -300,7 +304,7 @@ export function useFeaturebaseFeedbackWidget(input: {
 		}
 
 		openFeaturebaseFeedbackWidget(window);
-	}, [identifyWithRetries, isAuthenticated, workspaceId]);
+	}, [cloudProviderSupportEnabled, identifyWithRetries, isAuthenticated, workspaceId]);
 
 	return { authState, widgetOpenCount, openFeedbackWidget };
 }

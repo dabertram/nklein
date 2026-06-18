@@ -79,6 +79,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"claude"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
@@ -93,6 +94,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={defaultClineProviderSettings}
 					featurebaseFeedbackState={fbState}
@@ -107,6 +109,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={tokensOnlySettings}
 					featurebaseFeedbackState={fbState}
@@ -121,6 +124,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
@@ -137,6 +141,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
@@ -154,6 +159,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
@@ -170,6 +176,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
@@ -188,6 +195,7 @@ describe("FeaturebaseFeedbackButton", () => {
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
+					cloudProviderSupportEnabled={true}
 					selectedAgentId={"cline"}
 					clineProviderSettings={authenticatedClineSettings}
 					featurebaseFeedbackState={fbState}
