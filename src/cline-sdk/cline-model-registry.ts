@@ -9,6 +9,7 @@ const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
 const DEFAULT_CAPABILITY_PRIOR = 35;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 25;
+const CAPABILITY_OBSERVATION_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
 export interface ClineModelRegistryKeyInput {
 	providerId: string;
 	modelId: string;
@@ -233,12 +234,16 @@ function createEntry(input: ClineModelRegistryKeyInput, now: number): ClineModel
 	};
 }
 
-function cloneEntry(entry: ClineModelRegistryEntry): ClineModelRegistryEntry {
+function cloneEntry(entry: ClineModelRegistryEntry, now?: number): ClineModelRegistryEntry {
+	const capability = { ...entry.capability };
+	if (typeof now === "number") {
+		capability.effectiveScore = calculateEffectiveCapability(capability, now);
+	}
 	return {
 		...entry,
 		contextWindow: { ...entry.contextWindow },
 		speed: { ...entry.speed },
-		capability: { ...entry.capability },
+		capability,
 		constraints: { ...entry.constraints },
 	};
 }
@@ -247,12 +252,27 @@ function calculateEffectiveContextWindow(windowStats: ClineModelRegistryWindowSt
 	return windowStats.userOverride ?? windowStats.observed ?? windowStats.advertised;
 }
 
-function calculateEffectiveCapability(capability: ClineModelRegistryCapabilityStats): number {
+function decayObservedCapabilityScore(
+	score: number,
+	capability: ClineModelRegistryCapabilityStats,
+	now?: number,
+): number {
+	if (typeof now !== "number" || capability.lastObservedAt === null) {
+		return score;
+	}
+	const ageMs = Math.max(0, now - capability.lastObservedAt);
+	const observationWeight = 0.5 ** (ageMs / CAPABILITY_OBSERVATION_HALF_LIFE_MS);
+	return capability.staticPrior + (score - capability.staticPrior) * observationWeight;
+}
+
+function calculateEffectiveCapability(capability: ClineModelRegistryCapabilityStats, now?: number): number {
 	const observedScores = [
 		capability.evalScore,
 		capability.externalScore,
 		capability.observedPassRate === null ? null : capability.observedPassRate * 100,
-	].filter((score): score is number => score !== null);
+	]
+		.filter((score): score is number => score !== null)
+		.map((score) => decayObservedCapabilityScore(score, capability, now));
 	const priorWeight = 1 / (1 + Math.max(0, capability.samples));
 	const weightedTotal =
 		observedScores.reduce((total, score) => total + score, 0) + capability.staticPrior * priorWeight;
@@ -296,7 +316,7 @@ function normalizeSpeedStats(value: unknown): ClineModelRegistrySpeedStats {
 	};
 }
 
-function normalizeCapabilityStats(value: unknown): ClineModelRegistryCapabilityStats {
+function normalizeCapabilityStats(value: unknown, now: number): ClineModelRegistryCapabilityStats {
 	const record = asRecord(value);
 	const capability = {
 		samples: normalizePositiveInteger(record?.samples) ?? 0,
@@ -309,7 +329,7 @@ function normalizeCapabilityStats(value: unknown): ClineModelRegistryCapabilityS
 	};
 	return {
 		...capability,
-		effectiveScore: calculateEffectiveCapability(capability),
+		effectiveScore: calculateEffectiveCapability(capability, now),
 	};
 }
 
@@ -356,7 +376,7 @@ function normalizeEntry(value: unknown, fallbackNow: number): ClineModelRegistry
 	const endpoint = normalizeEndpoint(typeof record?.endpoint === "string" ? record.endpoint : null);
 	const base = createEntry({ providerId, modelId, endpoint }, fallbackNow);
 	const contextWindow = normalizeWindowStats(record.contextWindow);
-	const capability = normalizeCapabilityStats(record.capability);
+	const capability = normalizeCapabilityStats(record.capability, fallbackNow);
 	return {
 		...base,
 		contextWindow,
@@ -510,12 +530,12 @@ export class ClineModelRegistry {
 		if (score !== null) {
 			capability.evalScore = ewma(capability.evalScore, score, this.ewmaAlpha);
 		}
-		capability.effectiveScore = calculateEffectiveCapability(capability);
 		capability.lastObservedAt = observedAt;
+		capability.effectiveScore = calculateEffectiveCapability(capability, observedAt);
 		entry.updatedAt = observedAt;
 		snapshot.updatedAt = observedAt;
 		this.schedulePersist(snapshot);
-		return cloneEntry(entry);
+		return cloneEntry(entry, observedAt);
 	}
 
 	async recordContextWindow(
@@ -564,7 +584,7 @@ export class ClineModelRegistry {
 			schemaVersion: this.snapshot.schemaVersion,
 			updatedAt: this.snapshot.updatedAt,
 			models: Object.fromEntries(
-				Object.entries(this.snapshot.models).map(([key, entry]) => [key, cloneEntry(entry)]),
+				Object.entries(this.snapshot.models).map(([key, entry]) => [key, cloneEntry(entry, this.now())]),
 			),
 		};
 	}

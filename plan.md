@@ -530,8 +530,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 - [x] ~~**Plan2.md M1:** capability prior never decays — `calculateEffectiveCapability` is a permanent
       equal-weight average ([cline-model-registry.ts:236-247](src/cline-sdk/cline-model-registry.ts#L236)).
       Weight the cold-start prior by `1/(1+samples)` so observed data dominates over time.~~
-      `calculateEffectiveCapability` now decays the static prior with `1 / (1 + samples)`, and registry
-      tests cover the resulting conservative blend.
+      `calculateEffectiveCapability` weights the static prior by `1 / (1 + samples)` and now decays aging
+      observed eval/pass-rate evidence back toward that prior on a 30-day half-life. Registry tests cover both
+      the conservative fresh blend and the age-based decay returned by snapshots.
 - [x] ~~**Plan2.md L3:** debounce/batch registry persistence (currently a locked disk write per request,
       [:412-468](src/cline-sdk/cline-model-registry.ts#L412)); store EWMA fields as floats (currently
       truncated to int on reload).~~
@@ -650,7 +651,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | H1 budget floors zero-out small windows | ✅ resolved (ratio-based) + obsolete (target now 30k) | L2.3 verify, MCSR |
 | H2 router downgrades feasible user pick, wrong reason | ⬜ open | L2.3 |
 | H3 cloud over-serialization | ◧ re-scoped (cloud moot; fix local keys) | L2.2 |
-| M1 capability prior never decays | ⬜ open | MCSR |
+| M1 capability prior never decays | ✅ resolved (observed evidence decays toward prior on 30-day half-life) | MCSR |
 | M2 "local embeddings" are bag-of-words | ⬜ open / re-scope | Codebase intel |
 | M3 lexical-first, semantic only as fallback | ⬜ open / re-scope | Codebase intel |
 | M4 repo map regex (not tree-sitter+PageRank), stale, O(n²) | ⬜ open | Codebase intel |
@@ -659,7 +660,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | M7 auto-merge passes null delta; bad protected list | ⬜ open | Dogfood |
 | M8 decompose tool reports valid without fit guard | ⬜ open | L3.2 |
 | L1 dead inverted compression branch | ⬜ open | Context eng |
-| L2 code-index cache grows unbounded | ⬜ open | Codebase intel |
+| L2 code-index cache grows unbounded | ✅ resolved (persisted cache keeps only current chunk hashes; GC regression test covers deleted chunks) | Codebase intel |
 | L3 registry write amplification + EWMA int-truncation | ⬜ open | MCSR |
 | L4 acceptance gate spawns login shell | ⬜ open | L1.5 |
 | L5 telemetry no path redaction/retention | ⬜ open | Dogfood |

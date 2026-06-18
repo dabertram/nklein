@@ -204,6 +204,33 @@ describe("cline model registry", () => {
 		expect(entry.capability.effectiveScore).toBe(52);
 	});
 
+	it("decays old capability observations toward the static prior", async () => {
+		let now = 1_000;
+		const registry = new ClineModelRegistry({
+			registryPath: await createRegistryPath(),
+			now: () => now,
+		});
+
+		const freshEntry = await registry.recordCapability({
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:11434",
+			passed: true,
+			score: 95,
+		});
+		expect(freshEntry.capability.effectiveScore).toBe(85);
+
+		now += 30 * 24 * 60 * 60 * 1000;
+		const halfLifeSnapshot = await registry.getSnapshot();
+		const halfLifeEntry = halfLifeSnapshot.models["ollama:qwen:http://127.0.0.1:11434"];
+		expect(halfLifeEntry?.capability.effectiveScore).toBe(60);
+
+		now += 30 * 24 * 60 * 60 * 1000;
+		const twoHalfLivesSnapshot = await registry.getSnapshot();
+		const twoHalfLivesEntry = twoHalfLivesSnapshot.models["ollama:qwen:http://127.0.0.1:11434"];
+		expect(twoHalfLivesEntry?.capability.effectiveScore).toBe(48);
+	});
+
 	it("records context-window metadata with effective precedence", async () => {
 		const registryPath = await createRegistryPath();
 		const registry = new ClineModelRegistry({
