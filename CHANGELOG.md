@@ -53,6 +53,7 @@
 - Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
 - Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.
 - Added an expandable Cline model telemetry panel backed by the MCSR, showing local-only model endpoint, context-window, throughput, latency, capability, samples, and missing-window prompts.
+- Included configured local Cline provider/model selections and model-role roster entries in MCSR responses even before they have telemetry samples.
 - Improved fallback Cline model labels on task cards so raw provider-qualified GPT/Claude IDs render as readable model names when the provider catalog is not loaded.
 - Replaced cloud Cline examples in task CLI help with local-model examples and added a production-source boundary scan for cloud-provider literals.
 - Added a Cline code-intelligence status panel in settings, exposing repo-map availability and code-index cache coverage, staleness, embedding metadata, cache path, and search readiness.

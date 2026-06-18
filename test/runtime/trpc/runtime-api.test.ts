@@ -140,6 +140,55 @@ vi.mock("../../../src/server/browser.js", () => ({
 vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
 	buildClineModelRegistryKey: (input: { providerId: string; modelId: string; endpoint?: string | null }) =>
 		`${input.providerId.trim().toLowerCase()}:${input.modelId.trim()}:${input.endpoint?.trim() || "default"}`,
+	createClineModelRegistryEntry: (input: { providerId: string; modelId: string; endpoint?: string | null }) => {
+		const providerId = input.providerId.trim().toLowerCase();
+		const modelId = input.modelId.trim();
+		const endpoint = input.endpoint?.trim() || null;
+		const key = `${providerId}:${modelId}:${endpoint || "default"}`;
+		return {
+			key,
+			providerId,
+			modelId,
+			endpoint,
+			contextWindow: {
+				advertised: null,
+				observed: null,
+				userOverride: null,
+				effective: null,
+			},
+			speed: {
+				samples: 0,
+				promptTokensEwma: null,
+				outputTokensEwma: null,
+				totalTokensEwma: null,
+				prefillTokensPerSecondEwma: null,
+				decodeTokensPerSecondEwma: null,
+				ttftMsEwma: null,
+				wallTimeMsEwma: null,
+				wallTimeMsPer1kPromptTokensEwma: null,
+				lastPromptTokens: null,
+				lastOutputTokens: null,
+				lastWallTimeMs: null,
+				lastObservedAt: null,
+			},
+			capability: {
+				samples: 0,
+				staticPrior: 35,
+				evalScore: null,
+				externalScore: null,
+				observedPassRate: null,
+				effectiveScore: 35,
+				lastObservedAt: null,
+			},
+			constraints: {
+				sharedEndpointId: endpoint ?? `${providerId}:default`,
+				inputCostPerMillionTokens: null,
+				outputCostPerMillionTokens: null,
+			},
+			createdAt: 1,
+			updatedAt: 1,
+		};
+	},
 	getDefaultClineModelRegistry: () => ({
 		getSnapshot: modelRegistryMocks.getSnapshot,
 	}),
@@ -3055,6 +3104,54 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.models.map((model) => model.key)).toEqual(["ollama:qwen:local", "openai-compatible:local:lan"]);
 		expect(response.models[0]?.speed.prefillTokensPerSecondEwma).toBe(800);
 		expect(response.models[1]?.contextWindow.effective).toBe(32_000);
+	});
+
+	it("includes configured local Cline models before they have registry samples", async () => {
+		setSelectedProviderSettings({
+			provider: "lmstudio",
+			model: "selected-local",
+			apiKey: "local-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 40,
+			models: {},
+		});
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "ollama",
+						modelId: "role-worker",
+					},
+					reviewer: {
+						providerId: "openai-compatible",
+						modelId: "remote-role",
+					},
+				};
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.getClineModelRegistry({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/repo",
+		});
+
+		expect(response.models.map((model) => model.key).sort()).toEqual([
+			"lmstudio:selected-local:default",
+			"ollama:role-worker:default",
+		]);
+		expect(response.models.every((model) => model.speed.samples === 0)).toBe(true);
+		expect(response.models.find((model) => model.modelId === "remote-role")).toBeUndefined();
 	});
 
 	it("returns Cline code intelligence status for the workspace", async () => {

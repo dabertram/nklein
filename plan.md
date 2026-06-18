@@ -485,8 +485,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       shows effective window, endpoint/shared-endpoint id, prefill/decode tok/s, latency, sample count, last
       observation, and capability, and still renders unmeasured zero-sample entries with a "Set context window"
       prompt. The runtime registry endpoint filters out cloud/remote providers with the same local-only policy
-      used for dispatch. Still open: include configured local roster entries that have not yet produced a
-      registry entry, and consider promoting the panel into a global/settings observability surface.
+      used for dispatch, and now synthesizes read-only zero-sample rows for configured local provider/model
+      selections and model-role roster entries before telemetry exists. Still open: consider promoting the
+      panel into a global/settings observability surface.
 - [ ] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
       graph with complexity, assigned role/model, and a per-leaf **fit badge** (green = a connected local
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
@@ -532,7 +533,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       | Capability | Primary Surface | Remaining Visibility Gap |
       | --- | --- | --- |
       | Local-only routing / cloud blocks | model picker, blocked card reason, start errors | none known |
-      | MCSR model stats | Cline chat Model Telemetry panel | include configured roster entries with zero registry samples |
+      | MCSR model stats | Cline chat Model Telemetry panel | consider global/settings promotion |
       | Effective context budget | Cline chat segmented bar, running-card mini bar | none known |
       | Decomposition plans | Planning lane cards, plan artifact paths | DAG review graph |
       | Swarm guardrails | board Local swarm strip, task Diagnostics panel | per-run budget settings/progress |

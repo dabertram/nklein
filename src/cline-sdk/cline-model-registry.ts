@@ -207,7 +207,7 @@ function createEmptyCapabilityStats(): ClineModelRegistryCapabilityStats {
 	};
 }
 
-function createEntry(input: ClineModelRegistryKeyInput, now: number): ClineModelRegistryEntry {
+export function createClineModelRegistryEntry(input: ClineModelRegistryKeyInput, now: number): ClineModelRegistryEntry {
 	const providerId = normalizeProviderId(input.providerId);
 	const modelId = normalizeModelId(input.modelId);
 	const endpoint = normalizeEndpoint(input.endpoint);
@@ -374,7 +374,7 @@ function normalizeEntry(value: unknown, fallbackNow: number): ClineModelRegistry
 		return null;
 	}
 	const endpoint = normalizeEndpoint(typeof record?.endpoint === "string" ? record.endpoint : null);
-	const base = createEntry({ providerId, modelId, endpoint }, fallbackNow);
+	const base = createClineModelRegistryEntry({ providerId, modelId, endpoint }, fallbackNow);
 	const contextWindow = normalizeWindowStats(record.contextWindow);
 	const capability = normalizeCapabilityStats(record.capability, fallbackNow);
 	return {
@@ -609,7 +609,7 @@ export class ClineModelRegistry {
 		if (existing) {
 			return existing;
 		}
-		const entry = createEntry(input, now);
+		const entry = createClineModelRegistryEntry(input, now);
 		snapshot.models[entry.key] = entry;
 		return entry;
 	}

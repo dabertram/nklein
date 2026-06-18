@@ -20,7 +20,13 @@ import {
 } from "../cline-sdk/cline-local-only-policy";
 import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
 import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
-import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
+import {
+	buildClineModelRegistryKey,
+	type ClineModelRegistryEntry,
+	type ClineModelRegistryKeyInput,
+	createClineModelRegistryEntry,
+	getDefaultClineModelRegistry,
+} from "../cline-sdk/cline-model-registry";
 import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import { buildClineRepoMap } from "../cline-sdk/cline-repo-map";
@@ -39,6 +45,7 @@ import { applyMcsrAwareLocalTimeoutScaling } from "../cline-sdk/cline-timeout-sc
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
+	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeTaskSessionSummary,
@@ -249,6 +256,50 @@ function countActiveProjectTaskSessions(summaries: RuntimeTaskSessionSummary[], 
 
 function createConcurrencyLimitStartError(maxConcurrentTasks: number): string {
 	return `Maximum concurrent task limit reached (${maxConcurrentTasks}). Wait for a running task to finish, or stop an active task before starting another.`;
+}
+
+function addConfiguredLocalModelRegistryEntries(input: {
+	models: Record<string, ClineModelRegistryEntry>;
+	runtimeConfig: RuntimeConfigState | null;
+	launchConfig: ResolvedClineLaunchConfig | null;
+	providerSettings: RuntimeClineProviderSettings | null;
+	now: number;
+}): Record<string, ClineModelRegistryEntry> {
+	const nextModels = { ...input.models };
+	const candidates: ClineModelRegistryKeyInput[] = [];
+	if (input.launchConfig?.providerId && input.launchConfig.modelId) {
+		candidates.push({
+			providerId: input.launchConfig.providerId,
+			modelId: input.launchConfig.modelId,
+			endpoint: input.launchConfig.baseUrl ?? null,
+		});
+	}
+	if (input.providerSettings?.providerId && input.providerSettings.modelId) {
+		candidates.push({
+			providerId: input.providerSettings.providerId,
+			modelId: input.providerSettings.modelId,
+			endpoint: input.providerSettings.baseUrl ?? null,
+		});
+	}
+	for (const settings of Object.values(input.runtimeConfig?.modelRoles ?? {})) {
+		const providerId = settings.providerId?.trim();
+		const modelId = settings.modelId?.trim();
+		if (!providerId || !modelId) {
+			continue;
+		}
+		candidates.push({ providerId, modelId, endpoint: null });
+	}
+	for (const candidate of candidates) {
+		if (!isLocalProvider(candidate.providerId, candidate.endpoint)) {
+			continue;
+		}
+		const key = buildClineModelRegistryKey(candidate);
+		if (nextModels[key]) {
+			continue;
+		}
+		nextModels[key] = createClineModelRegistryEntry(candidate, input.now);
+	}
+	return nextModels;
 }
 
 function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedClineLaunchConfig>(
@@ -902,12 +953,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const body = parseClineProviderModelsRequest(input);
 			return await clineProviderService.getProviderModels(body.providerId);
 		},
-		getClineModelRegistry: async (_workspaceScope) => {
+		getClineModelRegistry: async (workspaceScope) => {
 			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
+			const launchConfig =
+				runtimeConfig?.selectedAgentId === "cline"
+					? await clineProviderService.resolveLaunchConfig().catch(() => null)
+					: null;
+			const providerSettings =
+				runtimeConfig?.selectedAgentId === "cline" ? clineProviderService.getProviderSettingsSummary() : null;
+			const models = addConfiguredLocalModelRegistryEntries({
+				models: snapshot.models,
+				runtimeConfig,
+				launchConfig,
+				providerSettings,
+				now: Date.now(),
+			});
 			return {
 				schemaVersion: snapshot.schemaVersion,
 				updatedAt: snapshot.updatedAt,
-				models: Object.values(snapshot.models)
+				models: Object.values(models)
 					.filter((entry) => isLocalProvider(entry.providerId, entry.endpoint))
 					.sort((left, right) => {
 						const updatedDelta = right.updatedAt - left.updatedAt;
