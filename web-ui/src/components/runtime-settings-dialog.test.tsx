@@ -425,6 +425,28 @@ describe("RuntimeSettingsDialog", () => {
 		expect(findButtonByText(document.body, "Report issue")).toBeNull();
 	});
 
+	it("surfaces local swarm guardrail limits in settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={{ ...savedClineOauthConfig, maxConcurrentTasks: 5 } as RuntimeConfigResponse}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		expect(document.body.textContent).toContain("Local swarm guardrails");
+		expect(document.body.textContent).toContain("5 running max");
+		expect(document.body.textContent).toContain("Autonomous turns");
+		expect(document.body.textContent).toContain("12 turns");
+		expect(document.body.textContent).toContain("Wall time");
+		expect(document.body.textContent).toContain("2 hours");
+		expect(document.body.textContent).toContain("No-diff checkpoints");
+		expect(document.body.textContent).toContain("4 repeats");
+	});
+
 	it("shows Cline code intelligence status in settings", async () => {
 		await act(async () => {
 			root.render(

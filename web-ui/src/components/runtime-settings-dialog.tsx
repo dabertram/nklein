@@ -25,6 +25,7 @@ import {
 	RefreshCw,
 	Search,
 	Settings,
+	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
 	X,
@@ -184,6 +185,20 @@ export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
+const LOCAL_SWARM_GUARDRAIL_ROWS = [
+	{ label: "Autonomous turns", value: "12 turns", detail: "Parks Cline tasks at the turn checkpoint limit." },
+	{ label: "Wall time", value: "2 hours", detail: "Parks Cline tasks after the autonomous wall-time limit." },
+	{
+		label: "No-diff checkpoints",
+		value: "4 repeats",
+		detail: "Parks tasks that checkpoint the same commit repeatedly.",
+	},
+	{
+		label: "Repeated tool/API mistakes",
+		value: "SDK limit",
+		detail: "Stops tasks that hit Cline's mistake guardrail.",
+	},
+] as const;
 type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
 const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
 	architect: "Architect",
@@ -2144,6 +2159,31 @@ export function RuntimeSettingsDialog({
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
 									Maximum dependency-unblocked tasks Kanban may start at once.
 								</p>
+							</div>
+							<div
+								style={{ gridColumn: "1 / span 2" }}
+								className="rounded-md border border-border bg-surface-1 p-3"
+							>
+								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+									<ShieldCheck size={14} />
+									<span>Local swarm guardrails</span>
+								</div>
+								<div className="grid gap-2 sm:grid-cols-2">
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Concurrent cards</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{maxConcurrentTasks.trim() || "3"} running max
+										</div>
+										<div className="mt-1 text-[11px] text-text-secondary">Saved by maxConcurrentTasks.</div>
+									</div>
+									{LOCAL_SWARM_GUARDRAIL_ROWS.map((row) => (
+										<div key={row.label} className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">{row.label}</div>
+											<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
+											<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
+										</div>
+									))}
+								</div>
 							</div>
 						</div>
 					</div>

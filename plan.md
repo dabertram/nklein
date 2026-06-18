@@ -537,11 +537,17 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       summary: planning/execution state, provider/model routing, context-budget usage, current tool activity,
       and acceptance/review state. Still open: explicit routing rationale, retrieval/indexing progress,
       acceptance-gate result history, and merge-step status as first-class expandable events.
-- [ ] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
+- [~] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
       and explained in plain language with an "advanced" reveal for raw values: model roles & roster,
       per-model context-window override, routing/guard thresholds, concurrency cap,
       context-budget/compression policy, repo-map/index toggles, acceptance-gate commands, autonomy/guardrail
-      limits, telemetry retention/redaction.
+      limits, telemetry retention/redaction. **Progress:** settings already cover agent selection, timeouts,
+      max writable file lines, max concurrent tasks, task defaults, Cline provider setup, model roles, MCP,
+      code-intelligence status, smoke eval, dogfood suggestions, git prompts, notifications, appearance, and
+      project paths. The General section now also surfaces Local swarm guardrails, including the configurable
+      concurrency cap and enforced Cline turn, wall-time, no-diff, and mistake guardrails. Still open:
+      per-model context-window override, routing/context-budget policy controls, acceptance-gate command
+      settings, telemetry retention/redaction, and fuller advanced raw-value grouping.
 - [x] ~~**Feature-visibility coverage matrix (acceptance gate for this section).** Maintain an explicit map of
       every since-branch capability → its UI surface(s): MCSR/model stats → model panel; context budget →
       L1.6 bar; routing/guard decisions → activity surface + card detail; decomposition + DAG + clarifying

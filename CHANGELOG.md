@@ -67,6 +67,7 @@
 - Added a Cline autonomous wall-time guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
 - Added a repeated no-diff checkpoint watchdog for Cline tasks, parking sessions that keep checkpointing the same commit without producing new diff progress.
 - Added a Planning card DAG review panel in task detail, showing linked prerequisite/dependent cards with status, complexity, likely files, and model/agent hints.
+- Added a Local swarm guardrails section to settings, surfacing the current concurrency cap plus enforced Cline turn, wall-time, no-diff, and mistake guardrails.
 
 ## [0.1.68]
 
