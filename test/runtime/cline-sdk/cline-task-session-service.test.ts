@@ -1179,7 +1179,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expect.stringContaining("Kanban sidebar agent"),
+				systemPrompt: expect.stringContaining("!Klein sidebar agent"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
@@ -1241,6 +1241,7 @@ describe("InMemoryClineTaskSessionService", () => {
 
 	it("rebinds a persisted session after restart and resumes chat on the next message", async () => {
 		const { service, runtime } = createTrackedService();
+		selfObservationMocks.recordSelfObservation.mockReset();
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
 			record: {
 				sessionId: "task-1-persisted",
@@ -1275,6 +1276,18 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(reboundSummary?.state).toBe("awaiting_review");
 		expect(reboundSummary?.reviewReason).toBe("attention");
 		expect(reboundSummary?.workspacePath).toBe("task-1-persisted-cwd");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				taskId: "task-1",
+				message: "Lost session rebound for review.",
+				metadata: expect.objectContaining({
+					operation: "lost_session_recovery",
+					transition: "rebound_for_review",
+				}),
+			}),
+		);
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual([
 			"Recovered prompt",
 			"Recovered answer",
@@ -1332,11 +1345,35 @@ describe("InMemoryClineTaskSessionService", () => {
 			providerId: "cline",
 			modelId: "anthropic/claude-sonnet-4.6",
 		});
+		const existingEntry = (
+			service as unknown as {
+				messageRepository: {
+					getTaskEntry: (taskId: string) => { summary: { heartbeatStatus: string | null } } | null;
+				};
+			}
+		).messageRepository.getTaskEntry("task-1");
+		if (!existingEntry) {
+			throw new Error("Expected in-memory task entry.");
+		}
+		existingEntry.summary.heartbeatStatus = "lost";
+		selfObservationMocks.recordSelfObservation.mockReset();
 
 		const stopped = await service.stopTaskSession("task-1");
 
 		expect(stopped?.state).toBe("interrupted");
 		expect(stopped?.reviewReason).toBe("interrupted");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "custom",
+				severity: "info",
+				taskId: "task-1",
+				message: "Lost session marked interrupted.",
+				metadata: expect.objectContaining({
+					operation: "lost_session_recovery",
+					transition: "marked_interrupted",
+				}),
+			}),
+		);
 	});
 
 	it("rebinds persisted sessions before stopping when no in-memory entry exists", async () => {
@@ -1513,6 +1550,82 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(toolMessages[0]?.content).toContain("Tool: Read");
 		expect(toolMessages[0]?.content).toContain("Input:");
 		expect(toolMessages[0]?.content).toContain("Output:");
+	});
+
+	it("bounds oversized tool outputs in the task transcript", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "",
+		});
+
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		const largeOutput = `${"x".repeat(13_000)}TAIL_SHOULD_NOT_APPEAR`;
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "tool-1",
+			toolName: "Read",
+			input: { file: "large.log" },
+		});
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_end",
+			contentType: "tool",
+			toolCallId: "tool-1",
+			toolName: "Read",
+			output: largeOutput,
+			durationMs: 25,
+		});
+
+		const toolMessage = service.listMessages("task-1").find((message) => message.role === "tool");
+
+		expect(toolMessage?.content).toContain("Tool: Read");
+		expect(toolMessage?.content).toContain("[tool output truncated after 12,000 characters;");
+		expect(toolMessage?.content).not.toContain("TAIL_SHOULD_NOT_APPEAR");
+		expect(toolMessage?.content.length).toBeLessThan(12_500);
+	});
+
+	it("summarizes tool errors without raw stack-frame noise", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "",
+		});
+
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_start",
+			contentType: "tool",
+			toolCallId: "tool-1",
+			toolName: "Bash",
+			input: { command: "npm test" },
+		});
+		runtime.emitAgentEvent(sessionId, {
+			type: "content_end",
+			contentType: "tool",
+			toolCallId: "tool-1",
+			toolName: "Bash",
+			error: [
+				"AssertionError: expected 1 to equal 2",
+				"    at Object.<anonymous> (/repo/test/example.test.ts:12:5)",
+				"    at async runSuite (node:internal/test_runner:310:7)",
+				"See /repo/test/example.test.ts:12",
+			].join("\n"),
+			durationMs: 25,
+		});
+
+		const toolMessage = service.listMessages("task-1").find((message) => message.role === "tool");
+
+		expect(toolMessage?.content).toContain("Error:");
+		expect(toolMessage?.content).toContain("AssertionError: expected 1 to equal 2");
+		expect(toolMessage?.content).toContain("See /repo/test/example.test.ts:12");
+		expect(toolMessage?.content).toContain("Next step:");
+		expect(toolMessage?.content).not.toContain("Object.<anonymous>");
+		expect(toolMessage?.content).not.toContain("node:internal/test_runner");
 	});
 
 	it("transitions between running and awaiting_review for user-attention tools", async () => {
@@ -2057,6 +2170,38 @@ describe("InMemoryClineTaskSessionService", () => {
 		await service.reloadTaskSession("task-1");
 
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledTimes(observationCountAfterParking);
+	});
+
+	it("records session recovery telemetry when reload restart fails", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Initial prompt",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		selfObservationMocks.recordSelfObservation.mockReset();
+		runtime.startTaskSessionMock.mockRejectedValueOnce(new Error("No previous Cline session config is available."));
+
+		const summary = await service.reloadTaskSession("task-1");
+
+		expect(summary?.state).toBe("awaiting_review");
+		expect(summary?.warningMessage).toContain("No previous Cline session config is available");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				severity: "warning",
+				taskId: "task-1",
+				message: expect.stringContaining("Cline session recovery failed during reload_task_session"),
+				metadata: expect.objectContaining({
+					operation: "reload_task_session",
+					recoveryAction: true,
+				}),
+			}),
+		);
 	});
 
 	it("compacts persisted history and retries send when context window is exceeded", async () => {

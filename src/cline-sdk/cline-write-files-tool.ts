@@ -1,6 +1,10 @@
 import { isAbsolute, resolve } from "node:path";
 import type { AgentTool } from "@clinebot/shared";
-import { countTextLines, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
+import {
+	countTextLines,
+	findPotentialSecretInText,
+	normalizeMaxAgentWritableFileLines,
+} from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 
 export interface WriteFilesRequest {
@@ -97,7 +101,7 @@ function createWriteTool(options: {
 			if (!isBatchTool && requests.length !== 1) {
 				throw new Error("write_file writes exactly one file. Use write_files for batches.");
 			}
-			const written: Array<{ path: string; lines: number }> = [];
+			const validatedRequests: Array<{ path: string; content: string; lines: number }> = [];
 			for (const request of requests) {
 				const lineCount = countTextLines(request.content);
 				if (lineCount > maxFileLines) {
@@ -105,11 +109,21 @@ function createWriteTool(options: {
 						`Blocked ${options.name}: writing ${lineCount} lines to ${request.path} exceeds the ${maxFileLines}-line file limit. Split content across multiple files or raise the global setting intentionally.`,
 					);
 				}
+				const secretFinding = findPotentialSecretInText(request.content);
+				if (secretFinding) {
+					throw new Error(
+						`Blocked ${options.name}: potential ${secretFinding.label} detected in ${request.path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`,
+					);
+				}
+				validatedRequests.push({ ...request, lines: lineCount });
+			}
+			const written: Array<{ path: string; lines: number }> = [];
+			for (const request of validatedRequests) {
 				await lockedFileSystem.writeTextFileAtomic(
 					resolveWritablePath(options.workspacePath, request.path),
 					request.content,
 				);
-				written.push({ path: request.path, lines: lineCount });
+				written.push({ path: request.path, lines: request.lines });
 			}
 			return {
 				written,

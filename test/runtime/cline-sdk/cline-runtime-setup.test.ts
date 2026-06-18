@@ -67,6 +67,70 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("1000-line file limit");
 	});
 
+	it("blocks editor writes that introduce obvious secrets", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "editor",
+				input: {
+					path: ".env",
+					new_text: "OPENAI_API_KEY=sk-proj-1234567890abcdefghijklmnopqrstuvwxyz",
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("potential OpenAI-style API key");
+		expect(result.reason).toContain("replace it with a placeholder");
+	});
+
+	it("blocks write_files calls that introduce obvious secrets", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_files",
+				input: {
+					files: [
+						{
+							path: "config/credentials.txt",
+							content: "github_token=ghp_1234567890abcdefghijklmnopQRST",
+						},
+					],
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("potential GitHub token");
+	});
+
+	it("blocks apply_patch calls that introduce obvious secrets", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath);
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "apply_patch",
+				input: [
+					"*** Begin Patch",
+					"*** Add File: secrets.env",
+					"+AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF",
+					"*** End Patch",
+				].join("\n"),
+			}),
+		);
+
+		expect(result.approved).toBe(false);
+		expect(result.reason).toContain("potential AWS access key id");
+	});
+
 	it("seeds the Kanban decomposition workflow without overwriting user edits", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
@@ -74,7 +138,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		const workflowPath = await ensureKanbanDefaultWorkflows(workspacePath);
 		const seeded = await readFile(workflowPath, "utf8");
 		expect(seeded).toContain("name: kanban-decompose");
-		expect(seeded).toContain("kanban task decompose --slug <slug>");
+		expect(seeded).toContain("nklein task decompose --slug <slug>");
 
 		await writeFile(workflowPath, "user custom workflow", "utf8");
 		await expect(ensureKanbanDefaultWorkflows(workspacePath)).resolves.toBe(workflowPath);
@@ -103,7 +167,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		try {
 			const resolved = runtimeSetup.resolvePrompt("/kanban-decompose\n\nTitle: Built-in workflow");
 
-			expect(resolved).toContain("You are decomposing a project-scale idea for Kanban.");
+			expect(resolved).toContain("You are decomposing a project-scale idea for !Klein.");
 			expect(resolved).toContain("Title: Built-in workflow");
 			await expect(access(join(workspacePath, ".clinerules", "workflows", "kanban-decompose.md"))).resolves.toBe(
 				undefined,
@@ -137,7 +201,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 			expect(resolved).toContain("Custom Kanban decomposition workflow.");
 			expect(resolved).toContain("Title: Custom workflow");
-			expect(resolved).not.toContain("You are decomposing a project-scale idea for Kanban.");
+			expect(resolved).not.toContain("You are decomposing a project-scale idea for !Klein.");
 		} finally {
 			await runtimeSetup.dispose();
 		}

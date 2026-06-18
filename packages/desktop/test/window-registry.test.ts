@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("electron", () => {
 	class MockBrowserWindow {
 		static instances: MockBrowserWindow[] = [];
+		static constructorOptions: unknown[] = [];
 		static nextId = 1;
 
 		static getFocusedWindow(): MockBrowserWindow | null {
@@ -11,7 +12,12 @@ vi.mock("electron", () => {
 
 		static resetMock(): void {
 			MockBrowserWindow.instances = [];
+			MockBrowserWindow.constructorOptions = [];
 			MockBrowserWindow.nextId = 1;
+		}
+
+		static getLastConstructorOptions(): unknown {
+			return MockBrowserWindow.constructorOptions.at(-1);
 		}
 
 		id: number;
@@ -31,18 +37,27 @@ vi.mock("electron", () => {
 			Array<(...args: unknown[]) => void>
 		>();
 
+		private _windowOpenHandler:
+			| ((details: { url: string }) => { action: "allow" | "deny" })
+			| null = null;
+
 		webContents = {
 			on: (event: string, handler: (...args: unknown[]) => void): void => {
 				const handlers = this._webContentsListeners.get(event) ?? [];
 				handlers.push(handler);
 				this._webContentsListeners.set(event, handlers);
 			},
-			setWindowOpenHandler: vi.fn(),
+			setWindowOpenHandler: vi.fn(
+				(handler: (details: { url: string }) => { action: "allow" | "deny" }) => {
+					this._windowOpenHandler = handler;
+				},
+			),
 			getURL: (): string => this._currentUrl,
 		};
 
-		constructor() {
+		constructor(options?: unknown) {
 			this.id = MockBrowserWindow.nextId++;
+			MockBrowserWindow.constructorOptions.push(options);
 			MockBrowserWindow.instances.push(this);
 		}
 
@@ -67,6 +82,10 @@ vi.mock("electron", () => {
 				handler(event, url);
 			}
 			return event.defaultPrevented;
+		}
+
+		simulateWindowOpen(url: string): { action: "allow" | "deny" } | null {
+			return this._windowOpenHandler?.({ url }) ?? null;
 		}
 
 		on(event: string, handler: (...args: unknown[]) => void): void {
@@ -120,7 +139,7 @@ vi.mock("electron", () => {
 			return false;
 		}
 		getTitle(): string {
-			return "Kanban";
+			return "nKlein";
 		}
 		getBounds(): { x: number; y: number; width: number; height: number } {
 			return { x: 0, y: 0, width: 1400, height: 900 };
@@ -152,13 +171,13 @@ vi.mock("electron", () => {
 
 	return {
 		BrowserWindow: MockBrowserWindow,
-		shell: { openExternal: vi.fn() },
+		shell: { openExternal: vi.fn(() => Promise.resolve()) },
 		screen: screenMock,
 	};
 });
 
 
-import { BrowserWindow } from "electron";
+import { BrowserWindow, shell } from "electron";
 import { WindowRegistry } from "../src/window-registry.js";
 
 interface MockWindow {
@@ -169,6 +188,7 @@ interface MockWindow {
 	isDestroyed(): boolean;
 	_setCurrentUrl(url: string): void;
 	simulateWillNavigate(url: string): boolean;
+	simulateWindowOpen(url: string): { action: "allow" | "deny" } | null;
 }
 
 const DEFAULT_OPTIONS = {
@@ -177,8 +197,59 @@ const DEFAULT_OPTIONS = {
 };
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	const Mock = BrowserWindow as unknown as { resetMock(): void };
 	Mock.resetMock();
+});
+
+function asRecord(value: unknown): Record<string, unknown> {
+	expect(value).toBeTruthy();
+	expect(typeof value).toBe("object");
+	return value as Record<string, unknown>;
+}
+
+describe("WindowRegistry BrowserWindow security defaults", () => {
+	it("creates renderer windows with isolated, sandboxed, non-Node web preferences", () => {
+		const registry = new WindowRegistry();
+		registry.createWindow({ ...DEFAULT_OPTIONS, projectId: null });
+
+		const Mock = BrowserWindow as unknown as { getLastConstructorOptions(): unknown };
+		const options = asRecord(Mock.getLastConstructorOptions());
+		const webPreferences = asRecord(options.webPreferences);
+
+		expect(options.title).toBe("nKlein");
+		expect(webPreferences.preload).toBe(DEFAULT_OPTIONS.preloadPath);
+		expect(webPreferences.contextIsolation).toBe(true);
+		expect(webPreferences.nodeIntegration).toBe(false);
+		expect(webPreferences.sandbox).toBe(true);
+		expect(webPreferences.webSecurity).toBe(true);
+	});
+
+	it("disables renderer devtools in packaged builds", () => {
+		const registry = new WindowRegistry();
+		registry.createWindow({ ...DEFAULT_OPTIONS, projectId: null, isPackaged: true });
+
+		const Mock = BrowserWindow as unknown as { getLastConstructorOptions(): unknown };
+		const options = asRecord(Mock.getLastConstructorOptions());
+		const webPreferences = asRecord(options.webPreferences);
+
+		expect(webPreferences.devTools).toBe(false);
+	});
+
+	it("denies renderer window.open attempts and only delegates http(s) URLs externally", () => {
+		const registry = new WindowRegistry();
+		const window = registry.createWindow({ ...DEFAULT_OPTIONS, projectId: null }) as unknown as MockWindow;
+		const openExternal = vi.mocked(shell.openExternal);
+
+		expect(window.simulateWindowOpen("https://example.com/docs")).toEqual({ action: "deny" });
+		expect(openExternal).toHaveBeenCalledWith("https://example.com/docs");
+		openExternal.mockClear();
+
+		for (const url of ["file:///etc/passwd", "javascript:alert(1)", "nklein://callback"]) {
+			expect(window.simulateWindowOpen(url)).toEqual({ action: "deny" });
+		}
+		expect(openExternal).not.toHaveBeenCalled();
+	});
 });
 
 function withDarwin<T>(fn: () => T): T {

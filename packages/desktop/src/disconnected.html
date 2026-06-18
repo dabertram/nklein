@@ -3,8 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta
+  http-equiv="Content-Security-Policy"
+  content="default-src 'none'; base-uri 'none'; form-action 'none'; img-src 'none'; connect-src 'none'; style-src 'nonce-nklein-disconnected'; script-src 'nonce-nklein-disconnected'"
+/>
 <title>nKlein - Runtime Disconnected</title>
-<style>
+<style nonce="nklein-disconnected">
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: #1F2428;
@@ -141,7 +145,7 @@
       </div>
     </div>
   </div>
-  <script>
+  <script nonce="nklein-disconnected">
     document.getElementById("restart-btn").addEventListener("click", function () {
       if (window.desktop && window.desktop.restartRuntime) {
         window.desktop.restartRuntime();

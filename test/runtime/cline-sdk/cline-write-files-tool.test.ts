@@ -57,6 +57,29 @@ describe("createWriteFilesTool", () => {
 		).rejects.toThrow("2-line file limit");
 	});
 
+	it("blocks obvious secrets before writing any batch entries", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 10 });
+
+		await expect(
+			tool.execute(
+				{
+					files: [
+						{ path: "safe.txt", content: "safe\n" },
+						{
+							path: ".env",
+							content: "ANTHROPIC_API_KEY=sk-ant-1234567890abcdefghijklmnopqrstuvwxyz",
+						},
+					],
+				},
+				TOOL_CONTEXT,
+			),
+		).rejects.toThrow("potential Anthropic API key");
+		await expect(readFile(join(workspacePath, "safe.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+		await expect(readFile(join(workspacePath, ".env"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+	});
+
 	it("rejects batches with missing content instead of silently dropping entries", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

@@ -33,6 +33,7 @@ const DEFAULT_HEIGHT = 900;
 const MIN_WIDTH = 800;
 const MIN_HEIGHT = 600;
 const DEFAULT_BACKGROUND_COLOR = "#1F2428";
+const APP_WINDOW_TITLE = "nKlein";
 
 export class WindowRegistry {
 	private readonly windows = new Map<number, WindowEntry>();
@@ -61,7 +62,7 @@ export class WindowRegistry {
 
 			minWidth: MIN_WIDTH,
 			minHeight: MIN_HEIGHT,
-			title: "Kanban",
+			title: APP_WINDOW_TITLE,
 			backgroundColor,
 			show: false,
 			webPreferences: {

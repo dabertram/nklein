@@ -6,6 +6,7 @@
 - Replaced the remaining app-brand "Cline" labels in the UI with `!Klein` (sidebar wordmark, UI error screen, runtime-disconnected screen, and offline fallback now say `!Klein` / `nklein`), while keeping genuine Cline engine/provider/account references intact.
 - Continued the rename migration across desktop metadata, protocol handling, runtime env vars, workspace headers, session cookies, runtime-home paths, and terminal/status surfaces, with one-release compatibility fallbacks for legacy `KANBAN_*` env vars plus legacy workspace header/cookie acceptance.
 - Taught the desktop runtime health probe to recognize both the current `!Klein` browser title and the legacy `Kanban` title during the rename transition, so packaged shells can still attach to already-running older runtimes.
+- Tightened the Electron shell with regression coverage for isolated/sandboxed renderer preferences, packaged devtools disabling, deny-by-default popup handling, and a CSP on the disconnected recovery page; desktop window/menu fallback titles now use `nKlein`.
 - Added a small brand-regression guard that scans UI/CLI user-visible strings and fails if a new accidental app-brand `Cline`/`Kanban` string slips back in outside the explicit engine/legacy allowlist.
 - Hid cloud-only Cline account/sign-in affordances in the local-only UI, filtered cloud providers out of task/setup/settings pickers, gated Featurebase/cloud feedback behind the shared runtime cloud-support flag, and removed the `Cloud` timeout-profile option when cloud providers are disabled.
 - Added an `Open data dir` shortcut to Developer Tools, verified the gated dev-test sidebar tools are present in the web UI, and cleaned up stale follow-up checklist statuses so the docs match the shipped debug/developer surfaces.
@@ -21,6 +22,7 @@
 - Preserved full per-task Cline context/timeout overrides when changing detail-panel model settings, and clarified context/timeout labels in settings surfaces.
 - Added an Advisor send flow in settings that sends generated prompts to a selected local Cline model and shows response output with sent/received timestamps.
 - Added runtime-configured code intelligence embeddings with global defaults, project overrides, OpenAI-compatible local endpoint support, and project sidebar status that shows the effective provider/model.
+- Added `/models` discovery and endpoint tests for custom OpenAI-compatible providers and code-intelligence embedding endpoints, including one-click model loading in the setup/settings UI plus LM Studio and Ollama helper examples to reduce local endpoint guesswork.
 - Added project health detection for accidental task-worktree projects, with sidebar inspect/remove/migrate choices and explicit plan-artifact migration back to the detected parent project.
 - Added project health diagnostics for pending generated plan artifacts that have not yet been applied or rejected.
 - Added project health diagnostics for lost Cline sessions that still have pending generated artifacts needing review.
@@ -53,6 +55,9 @@
 - Added an effectively unlimited timeout mode as the fix for the HTTP "body timeout error" (undici `UND_ERR_BODY_TIMEOUT`) that otherwise aborts long-running local model streams: selecting it disables !Klein's request, stream, tool, agent, and conversation timeouts so a slow local model can finish a long turn without its response body being timed out mid-stream.
 - Parked Cline tasks after repeated identical start/send failures, suppressing duplicate failure telemetry and system messages once a task is clearly stuck.
 - Hardened Cline acceptance checks to use a non-login shell with an explicit PATH fallback and a larger output buffer, avoiding shell-init hangs and false failures from large passing output.
+- Tightened acceptance auto-repair prompts so failing assertions and TypeScript/compiler errors are extracted as explicit next-turn constraints before the bounded raw output.
+- Centralized passcode session cookie construction and added coverage for strict `HttpOnly`/`SameSite=Strict` flags plus TLS-only `Secure` cookies while keeping the runtime bound to `127.0.0.1` by default.
+- Added obvious-secret scanning to Cline agent write approvals and direct write-file tools, blocking private keys, provider tokens, GitHub tokens, AWS access keys, and long credential assignments before files are written.
 - Added a backend-fed Cline context budget breakdown and segmented chat-panel bar using the effective context window, with fallback to the existing estimate when breakdown data is unavailable.
 - Added routing regression coverage for preferred feasible local models and candidate-specific 32k/80k context-window assignment.
 - Split retained `read_files` / `read_large_file` results into the context budget bar's included-file segment instead of hiding that content inside other history.
@@ -71,6 +76,7 @@
 - Added workspace-scoped Cline file discovery, file-size, retrieval, large-file, and batched write tools, with context-budget-aware read guidance and per-file write limits.
 - Added a local-gated Cline web research tool for current HTTPS sources on an allow-list, intended for docs, model, MCP, and changelog research without enabling arbitrary browsing.
 - Added Cline team delegation and team-progress projection so multi-agent SDK activity can be tracked and summarized inside !Klein.
+- Personalized repo-map ranking around current task/chat text, explicit repo-map queries, and seed paths, so small local models see symbols relevant to the active card instead of only globally central code.
 - Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Added queued local-endpoint admission for dependency auto-starts, so same-endpoint Cline tasks are deduplicated, paced by MCSR wait estimates, and retried when the busy local endpoint frees.
@@ -82,6 +88,7 @@
 - Recorded typed self-observation telemetry when native Cline reaches the consecutive mistake guardrail and stopped the task through the SDK callback, making repeated tool/API failure stalls diagnosable.
 - Added a Cline autonomous turn-budget guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
 - Added a !Klein repeated-tool stall watchdog for Cline tasks, parking sessions after 5 repeated non-attention tool starts with the same input and surfacing the limit in settings.
+- Bounded Cline tool transcript inputs, outputs, and errors, including stack-noise filtering plus next-step hints for failed tools so small local models keep more usable context.
 - Added a board-level Local swarm strip with running/waiting/blocked counts and a Pause/Resume control wired to typed runtime swarm-stop endpoints.
 - Added Local swarm nudges for single-endpoint serialization and model-load-aware start-all ordering that prefers cards targeting an already-running local model.
 - Added an inline Local swarm concurrency slider that saves `maxConcurrentTasks` from the board header.

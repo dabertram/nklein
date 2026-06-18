@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import {
 	countTextLines,
 	DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
+	findPotentialSecretInText,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
@@ -71,9 +72,17 @@ function asNumber(value: unknown): number | null {
 }
 
 type ApplyPatchTarget =
-	| { type: "add"; path: string; addedLines: number }
-	| { type: "update"; path: string; delta: number }
+	| { type: "add"; path: string; addedLines: number; addedText: string }
+	| { type: "update"; path: string; delta: number; addedText: string }
 	| { type: "delete"; path: string };
+
+function appendPatchAddedLine(existing: string, line: string): string {
+	return existing ? `${existing}\n${line}` : line;
+}
+
+function buildSecretWriteBlockReason(toolName: string, path: string, label: string): string {
+	return `Blocked ${toolName}: potential ${label} detected in ${path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`;
+}
 
 function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 	const rawPatch =
@@ -107,9 +116,9 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 				continue;
 			}
 			if (action === "Add") {
-				current = { type: "add", path, addedLines: 0 };
+				current = { type: "add", path, addedLines: 0, addedText: "" };
 			} else if (action === "Update") {
-				current = { type: "update", path, delta: 0 };
+				current = { type: "update", path, delta: 0, addedText: "" };
 			} else {
 				current = { type: "delete", path };
 			}
@@ -124,6 +133,7 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 		if (current.type === "add") {
 			if (line.startsWith("+")) {
 				current.addedLines += 1;
+				current.addedText = appendPatchAddedLine(current.addedText, line.slice(1));
 			}
 			continue;
 		}
@@ -133,6 +143,7 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 			}
 			if (line.startsWith("+")) {
 				current.delta += 1;
+				current.addedText = appendPatchAddedLine(current.addedText, line.slice(1));
 			} else if (line.startsWith("-")) {
 				current.delta -= 1;
 			}
@@ -216,7 +227,7 @@ async function approveReadFilesTool(
 
 	return {
 		approved: true,
-		reason: `Approved by Kanban runtime for ${request.toolName}.`,
+		reason: `Approved by !Klein runtime for ${request.toolName}.`,
 	};
 }
 
@@ -228,7 +239,7 @@ async function approveEditorTool(
 	if (!request.input || typeof request.input !== "object") {
 		return {
 			approved: true,
-			reason: `Approved by Kanban runtime for ${request.toolName}.`,
+			reason: `Approved by !Klein runtime for ${request.toolName}.`,
 		};
 	}
 	const input = request.input as Record<string, unknown>;
@@ -236,7 +247,7 @@ async function approveEditorTool(
 	if (!rawPath) {
 		return {
 			approved: true,
-			reason: `Approved by Kanban runtime for ${request.toolName}.`,
+			reason: `Approved by !Klein runtime for ${request.toolName}.`,
 		};
 	}
 	const path = resolveToolPath(workspacePath, rawPath);
@@ -267,10 +278,17 @@ async function approveEditorTool(
 			reason: `Blocked ${request.toolName}: writing ${nextLines} lines to ${rawPath} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
 		};
 	}
+	const secretFinding = findPotentialSecretInText(newText);
+	if (secretFinding) {
+		return {
+			approved: false,
+			reason: buildSecretWriteBlockReason(request.toolName, rawPath, secretFinding.label),
+		};
+	}
 
 	return {
 		approved: true,
-		reason: `Approved by Kanban runtime for ${request.toolName} (${currentLines} -> ${nextLines} lines).`,
+		reason: `Approved by !Klein runtime for ${request.toolName} (${currentLines} -> ${nextLines} lines).`,
 	};
 }
 
@@ -293,10 +311,17 @@ async function approveWriteFilesTool(
 				reason: `Blocked ${request.toolName}: writing ${lineCount} lines to ${writeRequest.path} exceeds the ${maxAgentWritableFileLines}-line file limit. Split content across multiple files.`,
 			};
 		}
+		const secretFinding = findPotentialSecretInText(writeRequest.content);
+		if (secretFinding) {
+			return {
+				approved: false,
+				reason: buildSecretWriteBlockReason(request.toolName, writeRequest.path, secretFinding.label),
+			};
+		}
 	}
 	return {
 		approved: true,
-		reason: `Approved by Kanban runtime for ${request.toolName}.`,
+		reason: `Approved by !Klein runtime for ${request.toolName}.`,
 	};
 }
 
@@ -315,6 +340,13 @@ async function approveApplyPatchTool(
 	for (const target of targets) {
 		if (target.type === "delete") {
 			continue;
+		}
+		const secretFinding = findPotentialSecretInText(target.addedText);
+		if (secretFinding) {
+			return {
+				approved: false,
+				reason: buildSecretWriteBlockReason(request.toolName, target.path, secretFinding.label),
+			};
 		}
 		const path = resolveToolPath(workspacePath, target.path);
 		if (target.type === "add") {
@@ -339,7 +371,7 @@ async function approveApplyPatchTool(
 
 	return {
 		approved: true,
-		reason: `Approved by Kanban runtime for ${request.toolName}.`,
+		reason: `Approved by !Klein runtime for ${request.toolName}.`,
 	};
 }
 
@@ -367,7 +399,7 @@ export function createKanbanToolApprovalPolicy(
 				default:
 					return {
 						approved: true,
-						reason: `Approved by Kanban runtime for ${request.toolName}.`,
+						reason: `Approved by !Klein runtime for ${request.toolName}.`,
 					};
 			}
 		},

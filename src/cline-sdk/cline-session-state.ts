@@ -1,9 +1,20 @@
 // Pure state helpers for native Cline sessions.
 // This module owns the in-memory summary and message shape plus the low-level
 // mutations shared by the event adapter and the message repository.
-import type { RuntimeTaskImage, RuntimeTaskSessionSummary } from "../core/api-contract";
+import type { RuntimeLostHeartbeatPolicy, RuntimeTaskImage, RuntimeTaskSessionSummary } from "../core/api-contract";
 
 const CLINE_USER_ATTENTION_TOOL_NAMES = new Set(["ask_followup_question", "plan_mode_respond"]);
+const LOST_HEARTBEAT_RECOVERY_MESSAGE =
+	"Cline session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.";
+let lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy = "park";
+
+export function setClineLostHeartbeatPolicy(policy: RuntimeLostHeartbeatPolicy): void {
+	lostHeartbeatPolicy = policy;
+}
+
+export function getClineLostHeartbeatPolicy(): RuntimeLostHeartbeatPolicy {
+	return lostHeartbeatPolicy;
+}
 
 /**
  * Detect credit-limit / insufficient-balance errors from an error message string.
@@ -119,11 +130,26 @@ export function updateSummary(
 	entry: ClineTaskSessionEntry,
 	patch: Partial<RuntimeTaskSessionSummary>,
 ): RuntimeTaskSessionSummary {
-	entry.summary = {
+	const nextSummary: RuntimeTaskSessionSummary = {
 		...entry.summary,
 		...patch,
 		updatedAt: now(),
 	};
+	if (
+		lostHeartbeatPolicy === "park" &&
+		patch.state === undefined &&
+		nextSummary.state === "running" &&
+		nextSummary.heartbeatStatus === "lost"
+	) {
+		entry.summary = {
+			...nextSummary,
+			state: "awaiting_review",
+			reviewReason: "error",
+			warningMessage: nextSummary.warningMessage ?? LOST_HEARTBEAT_RECOVERY_MESSAGE,
+		};
+		return cloneSummary(entry.summary);
+	}
+	entry.summary = nextSummary;
 	return cloneSummary(entry.summary);
 }
 
@@ -375,17 +401,48 @@ export function finishToolCallMessage(
 	return message;
 }
 
-function stringifyPayload(payload: unknown): string {
+const MAX_TOOL_INPUT_CHARS = 4_000;
+const MAX_TOOL_OUTPUT_CHARS = 12_000;
+const MAX_TOOL_ERROR_CHARS = 4_000;
+
+function truncateToolText(value: string, maxChars: number, label: string): string {
+	const normalized = value.trimEnd();
+	if (normalized.length <= maxChars) {
+		return normalized;
+	}
+	return `${normalized.slice(0, maxChars).trimEnd()}\n[${label} truncated after ${maxChars.toLocaleString()} characters; rerun the tool with a narrower query/range if more detail is needed.]`;
+}
+
+function summarizeToolError(error: string): string {
+	const lines = error
+		.replaceAll("\r\n", "\n")
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.filter((line) => line.trim().length > 0);
+	const actionableLines = lines.filter(
+		(line) =>
+			!/^\s*at\s+/u.test(line) &&
+			!/^\s*at\s+[A-Za-z0-9_$.[\]<>]+\s+\(/u.test(line) &&
+			!/^\s*\(?node:(internal|events|stream|timers|fs|child_process)\b/u.test(line),
+	);
+	const selectedLines = (actionableLines.length > 0 ? actionableLines : lines).slice(0, 12);
+	const summary = truncateToolText(selectedLines.join("\n"), MAX_TOOL_ERROR_CHARS, "tool error");
+	return summary
+		? `${summary}\nNext step: adjust the tool input or inspect the referenced file/command, then retry with a smaller focused request.`
+		: "Tool failed without a message. Next step: retry with a smaller focused request.";
+}
+
+function stringifyPayload(payload: unknown, maxChars: number, label: string): string {
 	if (payload === undefined || payload === null) {
 		return "";
 	}
 	if (typeof payload === "string") {
-		return payload;
+		return truncateToolText(payload, maxChars, label);
 	}
 	try {
-		return JSON.stringify(payload, null, 2);
+		return truncateToolText(JSON.stringify(payload, null, 2), maxChars, label);
 	} catch {
-		return String(payload);
+		return truncateToolText(String(payload), maxChars, label);
 	}
 }
 
@@ -398,16 +455,16 @@ function buildToolCallContent(input: {
 }): string {
 	const lines: string[] = [];
 	lines.push(`Tool: ${input.toolName ?? "unknown"}`);
-	const inputText = stringifyPayload(input.input);
+	const inputText = stringifyPayload(input.input, MAX_TOOL_INPUT_CHARS, "tool input");
 	if (inputText) {
 		lines.push("Input:");
 		lines.push(inputText);
 	}
 	if (input.error) {
 		lines.push("Error:");
-		lines.push(input.error);
+		lines.push(summarizeToolError(input.error));
 	} else if (input.output !== undefined) {
-		const outputText = stringifyPayload(input.output);
+		const outputText = stringifyPayload(input.output, MAX_TOOL_OUTPUT_CHARS, "tool output");
 		if (outputText) {
 			lines.push("Output:");
 			lines.push(outputText);

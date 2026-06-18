@@ -1,6 +1,24 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { pickRecoveryUrl } from "../src/window-factory.js";
+
+describe("disconnected recovery page", () => {
+	const disconnectedHtml = readFileSync(
+		new URL("../src/disconnected.html", import.meta.url),
+		"utf-8",
+	);
+
+	it("ships with a restrictive CSP for the local fallback renderer", () => {
+		expect(disconnectedHtml).toContain('http-equiv="Content-Security-Policy"');
+		expect(disconnectedHtml).toContain("default-src 'none'");
+		expect(disconnectedHtml).toContain("base-uri 'none'");
+		expect(disconnectedHtml).toContain("form-action 'none'");
+		expect(disconnectedHtml).toContain("connect-src 'none'");
+		expect(disconnectedHtml).toContain('style nonce="nklein-disconnected"');
+		expect(disconnectedHtml).toContain('script nonce="nklein-disconnected"');
+	});
+});
 
 describe("pickRecoveryUrl", () => {
 	const runtimeUrl = "http://127.0.0.1:55555/";

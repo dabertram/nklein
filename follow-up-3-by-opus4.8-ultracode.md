@@ -125,7 +125,7 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 - [x] **L4 operator UI** — board cockpit metrics, swarm header, MCSR panel, Planning DAG review + **approval action** + **revised-card flags**, diagnostics drawer, first-run local-model onboarding.
 
 ### B2. Confirmed-open / verify
-- [~] **Persistence-ownership split (follow-up-2 F3).** The F3 section is checked `[x]`, but the "Suggested implementation order" line 296 still shows it `[ ]`, and a sub-agent flagged it partial. **Action:** verify whether board saves can still overwrite runtime-owned session state. If not fully split: board persistence owns cards/lanes/deps/meta; runtime services own session/heartbeat/checkpoints/progress; stop UI board saves from carrying session snapshots. Files: `src/state/workspace-state.ts`, `src/trpc/runtime-api.ts`, the board-save path.
+- [x] **Persistence-ownership split (follow-up-2 F3).** Verified: browser saves send board-only payloads, public `workspaceApi.saveState` forwards only `board`/`expectedRevision`, and `saveWorkspaceState` preserves existing runtime-owned sessions unless an internal caller explicitly supplies `sessions`. Covered by `workspace-state.integration.test.ts` and `workspace-api.test.ts`.
 - [ ] **Real semantic embeddings (plan.md M2/M3).** Still lexical bag-of-words (`kanban-local-lexical-vector-v1`), honestly labeled but not semantic. See §F1.
 - [x] **Dev-test web UI (follow-up-2 F6).** Verified: `web-ui/src/components/project-navigation-panel.tsx` already exposes gated dev-test creation/cleanup and evidence-path actions in debug mode, with coverage in `project-navigation-panel.test.tsx`.
 - [x] **Doc hygiene:** fixed `follow-up-2-by-gpt5.5-medium.md` so the "Suggested implementation order" checkboxes (items 4 & 7) match the completed sections.
@@ -156,10 +156,10 @@ Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cli
 
 ### C3. Embedding model example next to the selector (quick win)
 The embedding settings live in `web-ui/src/components/runtime-settings-dialog.tsx` (global ≈ L2699–2724, project override ≈ L2766–2798). Placeholders currently imply Ollama only.
-- [ ] Add inline helper text under the provider/model fields with **two concrete, copy-pasteable examples** (LM Studio is the target runtime):
+- [x] Add inline helper text under the provider/model fields with **two concrete, copy-pasteable examples** (LM Studio is the target runtime):
   - **LM Studio** — endpoint `http://localhost:1234/v1/embeddings`, model `text-embedding-nomic-embed-text-v1.5` (download the GGUF `nomic-embed-text-v1.5` in LM Studio, start the local server).
   - **Ollama** — endpoint `http://127.0.0.1:11434/v1/embeddings`, model `nomic-embed-text` (`ollama pull nomic-embed-text`).
-- [ ] Optional polish (→ §H): a **"Test endpoint"** button (call `/models` or a 1-token embed and show ✓/✗) and a model dropdown populated from the endpoint's `/models`, so there's zero guesswork.
+- [x] Optional polish (→ §H): a **"Test endpoint"** button (call `/models` or a 1-token embed and show ✓/✗) and a model dropdown populated from the endpoint's `/models`, so there's zero guesswork.
 
 ### C4. Discoverability
 - [ ] Ensure the dev-test + evidence + self-improvement actions are reachable from a **clearly-labeled, gated** UI surface (not CLI/tRPC-only). Verify against §B "dev-test web UI" finding.
@@ -213,17 +213,17 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 
 ### F1. Retrieval (biggest lever)
 - [x] **AST + PageRank repo map** — `src/cline-sdk/cline-repo-map.ts` extracts TS symbols and ranks with PageRank. This is exactly Aider's approach and the right "middle ground between grep and LSP."
-- [ ] **Personalized PageRank boosts** — Aider boosts identifiers mentioned in the conversation (~10×) and chat/seed files (~50×). Verify `cline-repo-map.ts` applies a conversation-aware personalization vector; if not, add it so the map re-ranks around what the current card is actually about.
+- [x] **Personalized PageRank boosts** — Aider boosts identifiers mentioned in the conversation (~10×) and chat/seed files (~50×). `cline-repo-map.ts` now applies a conversation-aware personalization vector and final symbol-score boost from current session text, explicit repo-map tool queries, and seed paths.
 - [ ] **Real local semantic embeddings** — close M2/M3. Either bundle an ONNX embedder or use the already-wired `openai_compatible` path (LM Studio `text-embedding-nomic-embed-text-v1.5`). Then do **hybrid retrieval**: lexical + semantic + repo-map, merged and de-duplicated. This is the single highest-value upgrade for small models on a big codebase.
 
 ### F2. Context engineering (Anthropic's framing: "smallest high-signal set of tokens")
 - [x] Compaction + structured note-taking (`decisions.md` blackboard) are present.
-- [ ] **Bounded tool outputs + actionable errors** — audit tool results so test/command failures return concise, *actionable* messages (not raw stack traces), preserving context budget. Small models waste turns on noisy output.
+- [x] **Bounded tool outputs + actionable errors** — Cline tool transcript messages now cap oversized inputs/outputs/errors, strip stack-frame noise from tool errors, and append a concise next-step hint so small models do not burn context on raw failure dumps.
 - [x] Prompt budgeting + `read_large_file` chunking + 1000-line write cap are present.
 
 ### F3. Decomposition + verification loops
 - [x] Decomposition chains, clarifying questions, plan-gap adaptation present.
-- [ ] **Failing-test-as-constraint** — tighten the loop so the acceptance gate (`src/cline-sdk/cline-acceptance-gate.ts`) feeds the exact failing assertion back as the next-turn constraint. Test-driven guidance is one of the most reliable small-model boosters.
+- [x] **Failing-test-as-constraint** — tightened the loop so acceptance repair extracts the failing assertion/compiler error and feeds it back as a first-class next-turn constraint before the bounded raw output.
 
 ### F4. Routing (hybrid is the 2026 default)
 - [x] Model roles + router (`src/cline-sdk/cline-task-router.ts`) route simple→small, complex→larger-local. Keep; surface the decision in the UI so the operator understands why a model was picked.
@@ -239,19 +239,19 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 ## G. Additional feature & hardening ideas
 
 ### G1. Security hardening
-- [ ] **Electron checklist pass** (`packages/desktop`): confirm `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, a restrictive CSP, and `setWindowOpenHandler` deny-by-default. This is the highest-leverage hardening for a desktop app that runs untrusted-ish agent output.
-- [ ] **Bind the local runtime to `127.0.0.1` only** by default; audit `src/security/passcode-manager.ts` token handling and the Set-Cookie flags (HttpOnly/SameSite).
-- [ ] **Secret scanning in the agent-write path** for the self-improvement flow — block commits/writes that introduce obvious secrets.
+- [x] **Electron checklist pass** (`packages/desktop`): confirmed and locked `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `webSecurity: true`, packaged devtools-off behavior, deny-by-default `setWindowOpenHandler`, same-origin navigation blocking, and a CSP-protected disconnected fallback page. Also fixed the remaining OS window-title/menu fallback to `nKlein`.
+- [x] **Bind the local runtime to `127.0.0.1` only** by default; audited `src/security/passcode-manager.ts` token handling and locked Set-Cookie flags (`HttpOnly`, `SameSite=Strict`, `Path=/`, `Max-Age`, and `Secure` under TLS) behind `buildSessionCookieHeader()` regression coverage.
+- [x] **Secret scanning in the agent-write path** for the self-improvement flow — write approvals and direct write-file tools now block obvious private keys, provider tokens, GitHub tokens, AWS access keys, and long credential assignments before writing to disk.
 - [ ] Optional: egress restriction for agent worktrees (the local-only policy already blocks cloud providers; this extends it to arbitrary network calls during a task).
 
 ### G2. Reliability
-- [ ] Finish/verify the persistence-ownership split (§B2).
+- [x] Finish/verify the persistence-ownership split (§B2).
 - [x] Lost-session recovery + observable auto-review are present; keep them surfaced.
 
 ### G3. Features (user-workflow leverage)
 - [ ] Prompt-template / quick-start library (the create-task flow has none today).
 - [ ] "Import context into a task" from a file, a GitHub issue (`gh issue view`), or a PR diff.
-- [ ] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
+- [x] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
 - [x] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
 - [ ] Consolidated evidence/diff viewer panel (ties to §C1).
 
@@ -274,7 +274,7 @@ Constraints honored: the kanban board stays the core idea; **no surfaced feature
 
 - [ ] A clearly-labeled, gated **"Lab" / Developer Tools** surface housing dev-test, evidence, and self-improvement actions (replaces the current CLI/tRPC-only access).
 - [ ] An **evidence drawer** on a card: transcript + diff + telemetry + the one-click copy/seed actions in one place.
-- [ ] Embedding **"Test endpoint"** button + model dropdown (from §C3).
+- [x] Embedding **"Test endpoint"** button + model dropdown (from §C3).
 - [ ] A **command palette** (⌘K) + keyboard-first navigation — additive, discoverable, doesn't change the board.
 - [ ] Richer empty/onboarding states that point at the local-model setup (already partially present via the first-run onboarding).
 

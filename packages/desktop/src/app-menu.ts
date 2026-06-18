@@ -109,7 +109,7 @@ export class AppMenu {
 			label: "Help",
 			submenu: [
 				{
-					label: "Kanban Documentation",
+					label: "!Klein Documentation",
 					click: () => openExternalSafe("https://github.com/cline/kanban"),
 				},
 				{
@@ -133,8 +133,8 @@ export class AppMenu {
 		const windowListItems: Electron.MenuItemConstructorOptions[] =
 			windowEntries.map((entry) => {
 				const title = entry.window.isDestroyed()
-					? "Kanban"
-					: entry.window.getTitle() || "Kanban";
+					? "nKlein"
+					: entry.window.getTitle() || "nKlein";
 				return {
 					label: title,
 					type: "checkbox" as const,

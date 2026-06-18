@@ -185,7 +185,7 @@ ipcMain.on("restart-runtime", () => {
 			const msg = error instanceof Error ? error.message : String(error);
 			console.error(`[desktop] Failed to restart runtime: ${msg}`);
 			dialog.showErrorBox(
-				"Kanban Startup Error",
+				"nKlein Startup Error",
 				`Failed to restart runtime:\n\n${msg}`,
 			);
 		})
@@ -259,7 +259,7 @@ function wireAppLifecycle(): void {
 			const msg = error instanceof Error ? error.message : String(error);
 			console.error(`[desktop] Failed to start runtime: ${msg}`);
 			dialog.showErrorBox(
-				"Kanban Startup Error",
+				"nKlein Startup Error",
 				`Failed to start runtime:\n\n${msg}`,
 			);
 			// The startup-error windows have been created (above) but never
