@@ -717,6 +717,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				planPath: artifacts.planPath,
 				questionsPath: artifacts.questionsPath,
 				decisionsPath: artifacts.decisionsPath,
+				revisionsPath: artifacts.revisionsPath,
 				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied

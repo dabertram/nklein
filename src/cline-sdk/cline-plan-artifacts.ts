@@ -49,6 +49,7 @@ export interface ClinePlanArtifacts {
 	planPath: string;
 	questionsPath: string;
 	decisionsPath: string;
+	revisionsPath: string;
 	summaryPath: string;
 	taskGraphPath: string;
 	spec: string;
@@ -56,6 +57,7 @@ export interface ClinePlanArtifacts {
 	questions: ClinePlanQuestion[];
 	questionsMarkdown: string;
 	decisionsMarkdown: string;
+	revisionsMarkdown: string;
 	summary: string;
 	taskGraph: ClinePlanTaskGraph;
 }
@@ -67,6 +69,7 @@ export interface WriteClinePlanArtifactsInput {
 	plan: string;
 	questions?: ClinePlanQuestion[];
 	decisions?: string | null;
+	revisions?: string | null;
 	summary?: string | null;
 	taskGraph: ClinePlanTaskGraph;
 }
@@ -116,6 +119,10 @@ function formatInitialDecisionsMarkdown(questions: readonly ClinePlanQuestion[])
 	return `${sections.join("\n\n")}\n`;
 }
 
+function formatInitialRevisionsMarkdown(): string {
+	return "# Revisions\n\nNo plan revisions have been recorded yet.\n";
+}
+
 function slugify(input: string): string {
 	const slug = input
 		.trim()
@@ -137,6 +144,7 @@ export function resolveClinePlanArtifactPaths(
 	planPath: string;
 	questionsPath: string;
 	decisionsPath: string;
+	revisionsPath: string;
 	summaryPath: string;
 	taskGraphPath: string;
 	slug: string;
@@ -149,6 +157,7 @@ export function resolveClinePlanArtifactPaths(
 		planPath: join(rootPath, "plan.md"),
 		questionsPath: join(rootPath, "questions.md"),
 		decisionsPath: join(rootPath, "decisions.md"),
+		revisionsPath: join(rootPath, "revisions.md"),
 		summaryPath: join(rootPath, "summary.md"),
 		taskGraphPath: join(rootPath, "tasks.json"),
 		slug,
@@ -167,11 +176,15 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 	const decisionsMarkdown = input.decisions?.trim()
 		? `${input.decisions.trimEnd()}\n`
 		: formatInitialDecisionsMarkdown(questions);
+	const revisionsMarkdown = input.revisions?.trim()
+		? `${input.revisions.trimEnd()}\n`
+		: formatInitialRevisionsMarkdown();
 	await mkdir(paths.rootPath, { recursive: true });
 	await lockedFileSystem.writeTextFileAtomic(paths.specPath, `${input.spec.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.planPath, `${input.plan.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.questionsPath, questionsMarkdown, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.decisionsPath, decisionsMarkdown, { lock: null });
+	await lockedFileSystem.writeTextFileAtomic(paths.revisionsPath, revisionsMarkdown, { lock: null });
 	await lockedFileSystem.writeTextFileAtomic(paths.summaryPath, `${summary.trimEnd()}\n`, { lock: null });
 	await lockedFileSystem.writeJsonFileAtomic(paths.taskGraphPath, taskGraph, { lock: null });
 	return {
@@ -180,6 +193,7 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
 		decisionsPath: paths.decisionsPath,
+		revisionsPath: paths.revisionsPath,
 		summaryPath: paths.summaryPath,
 		taskGraphPath: paths.taskGraphPath,
 		spec: input.spec,
@@ -187,6 +201,7 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 		questions,
 		questionsMarkdown,
 		decisionsMarkdown,
+		revisionsMarkdown,
 		summary,
 		taskGraph,
 	};
@@ -194,20 +209,25 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 
 export async function readClinePlanArtifacts(workspacePath: string, slug: string): Promise<ClinePlanArtifacts> {
 	const paths = resolveClinePlanArtifactPaths(workspacePath, slug);
-	const [spec, plan, questionsMarkdown, decisionsMarkdown, summary, taskGraphRaw] = await Promise.all([
-		readFile(paths.specPath, "utf8"),
-		readFile(paths.planPath, "utf8"),
-		readFile(paths.questionsPath, "utf8").catch(() => ""),
-		readFile(paths.decisionsPath, "utf8").catch(() => "# Decisions\n\nNo shared decisions have been recorded yet.\n"),
-		readFile(paths.summaryPath, "utf8").catch(() => ""),
-		readFile(paths.taskGraphPath, "utf8"),
-	]);
+	const [spec, plan, questionsMarkdown, decisionsMarkdown, revisionsMarkdown, summary, taskGraphRaw] =
+		await Promise.all([
+			readFile(paths.specPath, "utf8"),
+			readFile(paths.planPath, "utf8"),
+			readFile(paths.questionsPath, "utf8").catch(() => ""),
+			readFile(paths.decisionsPath, "utf8").catch(
+				() => "# Decisions\n\nNo shared decisions have been recorded yet.\n",
+			),
+			readFile(paths.revisionsPath, "utf8").catch(() => formatInitialRevisionsMarkdown()),
+			readFile(paths.summaryPath, "utf8").catch(() => ""),
+			readFile(paths.taskGraphPath, "utf8"),
+		]);
 	return {
 		rootPath: paths.rootPath,
 		specPath: paths.specPath,
 		planPath: paths.planPath,
 		questionsPath: paths.questionsPath,
 		decisionsPath: paths.decisionsPath,
+		revisionsPath: paths.revisionsPath,
 		summaryPath: paths.summaryPath,
 		taskGraphPath: paths.taskGraphPath,
 		spec,
@@ -215,6 +235,7 @@ export async function readClinePlanArtifacts(workspacePath: string, slug: string
 		questions: [],
 		questionsMarkdown,
 		decisionsMarkdown,
+		revisionsMarkdown,
 		summary,
 		taskGraph: clinePlanTaskGraphSchema.parse(JSON.parse(taskGraphRaw)),
 	};

@@ -28,6 +28,7 @@
 - Added `decisions.md` plan artifacts and compact shared spec/decision injection for decomposition-created cards, so dependent Cline tasks inherit the same plan contracts.
 - Added `kanban task merge` to merge reviewed/completed task worktree heads into a clean base worktree in dependency order, abort conflicts, and create a Planning integration card with conflicted paths.
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
+- Added `revisions.md` plan artifacts and exposed `revisionsPath` through decomposition tool, CLI, and dogfood API outputs for future adaptive re-planning audit trails.
 
 ## [0.1.68]
 

@@ -2871,6 +2871,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.nextCommand).toContain("kanban task decompose --slug runtime-dogfood");
 		expect(existsSync(response.questionsPath)).toBe(true);
 		expect(existsSync(response.decisionsPath)).toBe(true);
+		expect(existsSync(response.revisionsPath)).toBe(true);
 		expect(existsSync(response.summaryPath)).toBe(true);
 		expect(existsSync(response.taskGraphPath)).toBe(true);
 	});

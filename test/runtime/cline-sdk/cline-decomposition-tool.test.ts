@@ -539,6 +539,7 @@ describe("cline decomposition tools", () => {
 			modelFitValidated: boolean;
 			questionsPath: string;
 			decisionsPath: string;
+			revisionsPath: string;
 			summaryPath: string;
 			taskGraphPath: string;
 			instruction: string;
@@ -556,6 +557,7 @@ describe("cline decomposition tools", () => {
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
 		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
 		await expect(readFile(result.decisionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
+		await expect(readFile(result.revisionsPath, "utf8")).resolves.toContain("No plan revisions");
 		await expect(readFile(result.summaryPath, "utf8")).resolves.toContain("two cards");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});

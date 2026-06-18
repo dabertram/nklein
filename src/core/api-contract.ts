@@ -929,6 +929,7 @@ export const runtimeClineDogfoodBacklogResponseSchema = z.object({
 	planPath: z.string(),
 	questionsPath: z.string(),
 	decisionsPath: z.string(),
+	revisionsPath: z.string(),
 	summaryPath: z.string(),
 	taskGraphPath: z.string(),
 	slug: z.string(),

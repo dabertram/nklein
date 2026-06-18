@@ -306,6 +306,7 @@ describe("RuntimeSettingsDialog", () => {
 			planPath: "/repo/.cline/kanban/plans/dogfood/plan.md",
 			questionsPath: "/repo/.cline/kanban/plans/dogfood/questions.md",
 			decisionsPath: "/repo/.cline/kanban/plans/dogfood/decisions.md",
+			revisionsPath: "/repo/.cline/kanban/plans/dogfood/revisions.md",
 			summaryPath: "/repo/.cline/kanban/plans/dogfood/summary.md",
 			taskGraphPath: "/repo/.cline/kanban/plans/dogfood/tasks.json",
 			slug: "dogfood",

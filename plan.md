@@ -416,9 +416,11 @@ plowing ahead or silently failing.
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
       guardrails (L2.4) so adaptation can't loop.
-- [ ] **Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
+- [~] **Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
       motivated it) in the plan artifacts, so the evolving plan stays auditable and the DAG view (L4) can
-      flag "revised" cards.
+      flag "revised" cards. **Progress:** new decomposition plans now include a first-class
+      `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback. Still open:
+      append concrete revision entries when plan-gap adaptation adds/splits/re-links cards.
 
 ---
 

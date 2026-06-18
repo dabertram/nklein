@@ -87,6 +87,7 @@ interface DecompositionRejectionInput {
 	planPath?: string;
 	questionsPath?: string;
 	decisionsPath?: string;
+	revisionsPath?: string;
 	summaryPath?: string;
 	taskGraphPath?: string;
 	error: unknown;
@@ -180,6 +181,7 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			planPath: input.planPath ?? null,
 			questionsPath: input.questionsPath ?? null,
 			decisionsPath: input.decisionsPath ?? null,
+			revisionsPath: input.revisionsPath ?? null,
 			summaryPath: input.summaryPath ?? null,
 			taskGraphPath: input.taskGraphPath ?? null,
 			error: message,
@@ -868,6 +870,7 @@ async function decomposeTaskGraph(input: {
 			planPath: artifacts.planPath,
 			questionsPath: artifacts.questionsPath,
 			decisionsPath: artifacts.decisionsPath,
+			revisionsPath: artifacts.revisionsPath,
 			summaryPath: artifacts.summaryPath,
 			taskGraphPath: artifacts.taskGraphPath,
 			error,
@@ -885,6 +888,7 @@ async function decomposeTaskGraph(input: {
 			planPath: artifacts.planPath,
 			questionsPath: artifacts.questionsPath,
 			decisionsPath: artifacts.decisionsPath,
+			revisionsPath: artifacts.revisionsPath,
 			summaryPath: artifacts.summaryPath,
 			taskGraphPath: artifacts.taskGraphPath,
 		},
