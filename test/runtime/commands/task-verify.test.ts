@@ -115,6 +115,7 @@ describe("task verify command helper", () => {
 	});
 
 	it("returns ok false when the acceptance gate fails", async () => {
+		const recordPlanGap = vi.fn();
 		const result = await runVerifyTaskAcceptanceCommand(
 			{
 				cwd: "/repo",
@@ -141,6 +142,7 @@ describe("task verify command helper", () => {
 					output: "failed",
 					durationMs: 5,
 				})),
+				recordPlanGap,
 			},
 		);
 
@@ -158,9 +160,11 @@ describe("task verify command helper", () => {
 				maxAttempts: 2,
 			},
 		});
+		expect(recordPlanGap).not.toHaveBeenCalled();
 	});
 
 	it("returns escalation guidance after repair attempts are exhausted", async () => {
+		const recordPlanGap = vi.fn();
 		const result = await runVerifyTaskAcceptanceCommand(
 			{
 				cwd: "/repo",
@@ -188,6 +192,7 @@ describe("task verify command helper", () => {
 					output: "failed",
 					durationMs: 5,
 				})),
+				recordPlanGap,
 			},
 		);
 
@@ -204,9 +209,18 @@ describe("task verify command helper", () => {
 				},
 			},
 		});
+		expect(recordPlanGap).toHaveBeenCalledWith({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			kind: "other",
+			description:
+				"Acceptance repair attempts are exhausted; the task needs plan-level review before more implementation work.",
+			evidence: "Command: npm test\nOutput: failed",
+		});
 	});
 
 	it("returns ok false when the task has no acceptance check", async () => {
+		const recordPlanGap = vi.fn();
 		const result = await runVerifyTaskAcceptanceCommand(
 			{
 				cwd: "/repo",
@@ -226,6 +240,7 @@ describe("task verify command helper", () => {
 					output: "",
 					durationMs: 0,
 				})),
+				recordPlanGap,
 			},
 		);
 
@@ -236,6 +251,14 @@ describe("task verify command helper", () => {
 			acceptance: {
 				present: false,
 			},
+		});
+		expect(recordPlanGap).toHaveBeenCalledWith({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			kind: "other",
+			description:
+				"Task is missing the required Acceptance check line, so the plan lacks a machine-checkable completion contract.",
+			evidence: "Implement the task.",
 		});
 	});
 });

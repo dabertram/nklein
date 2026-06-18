@@ -38,6 +38,7 @@
 - Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.
 - Hardened `kanban dev smoke-eval` to score only local Cline providers and include the selected local model plus guard, overflow, and timeout telemetry counts in the evidence bundle.
 - Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
+- Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.
 
 ## [0.1.68]
 

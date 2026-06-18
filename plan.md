@@ -414,8 +414,9 @@ plowing ahead or silently failing.
       acceptance/escalation path. **Progress:** `kanban task plan-gap` now records typed `plan_gap`
       self-observation events for missing decisions, contradictions, missing dependencies, oversized scope,
       and integration gaps, and the agent system prompt tells execution agents to use it instead of
-      silently broadening a task. Still open: automatic plan-gap classification from acceptance/escalation
-      failures.
+      silently broadening a task. Acceptance verification now also records plan gaps for missing acceptance
+      contracts and exhausted repair/escalation attempts. Still open: classifying richer acceptance failures
+      that prove a specific missing dependency, contradiction, or scope miss.
 - [ ] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm

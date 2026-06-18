@@ -2,7 +2,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
-import { buildClineAcceptanceRepairPlan } from "../cline-sdk/cline-acceptance-repair";
+import { buildClineAcceptanceRepairPlan, type ClineAcceptanceRepairAction } from "../cline-sdk/cline-acceptance-repair";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
 import { appendClinePlanRevision, readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
@@ -105,6 +105,7 @@ interface VerifyTaskAcceptanceDependencies {
 	resolveTaskCwd?: typeof resolveTaskCwd;
 	runAcceptanceGate?: typeof runClineAcceptanceGate;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
+	recordPlanGap?: typeof recordPlanGap;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -112,6 +113,15 @@ function toErrorMessage(error: unknown): string {
 		return error.message;
 	}
 	return String(error);
+}
+
+function shouldRecordAcceptancePlanGap(input: {
+	acceptancePresent: boolean;
+	repairAction: ClineAcceptanceRepairAction | null;
+}): boolean {
+	return (
+		input.acceptancePresent === false || input.repairAction === "escalate" || input.repairAction === "human_review"
+	);
 }
 
 function printJson(payload: unknown): void {
@@ -958,6 +968,33 @@ export async function runVerifyTaskAcceptanceCommand(
 				maxAttempts: input.maxRepairAttempts,
 				modelRoles: (await (deps.loadRuntimeConfig ?? loadRuntimeConfig)(workspaceRepoPath)).modelRoles,
 			});
+	if (
+		!ok &&
+		shouldRecordAcceptancePlanGap({
+			acceptancePresent: result.present,
+			repairAction: repair?.action ?? null,
+		})
+	) {
+		(deps.recordPlanGap ?? recordPlanGap)({
+			workspacePath: workspaceRepoPath,
+			taskId: input.taskId,
+			kind: "other",
+			description:
+				result.present === false
+					? "Task is missing the required Acceptance check line, so the plan lacks a machine-checkable completion contract."
+					: "Acceptance repair attempts are exhausted; the task needs plan-level review before more implementation work.",
+			evidence:
+				result.present === false
+					? taskRecord.task.prompt.slice(0, 2_000)
+					: [
+							result.command ? `Command: ${result.command}` : null,
+							result.output ? `Output: ${result.output}` : null,
+						]
+							.filter((part): part is string => part !== null)
+							.join("\n")
+							.slice(0, 2_000),
+		});
+	}
 	return {
 		ok,
 		workspacePath: workspaceRepoPath,
