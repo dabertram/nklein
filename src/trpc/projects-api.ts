@@ -160,6 +160,21 @@ function buildSelfImprovementTaskPrompt(input: {
 	return lines.join("\n");
 }
 
+async function readEvidenceBundleBaseCommit(evidenceBundlePath: string | null | undefined): Promise<string | null> {
+	const bundlePath = evidenceBundlePath?.trim();
+	if (!bundlePath) {
+		return null;
+	}
+	try {
+		const raw = await readFile(join(bundlePath, "config-snapshot.json"), "utf8");
+		const parsed = JSON.parse(raw) as { baseCommit?: unknown };
+		const baseCommit = typeof parsed.baseCommit === "string" ? parsed.baseCommit.trim() : "";
+		return /^[0-9a-f]{7,40}$/iu.test(baseCommit) ? baseCommit : null;
+	} catch {
+		return null;
+	}
+}
+
 export interface CreateProjectsApiDependencies {
 	getActiveWorkspacePath: () => string | null;
 	getActiveWorkspaceId: () => string | null;
@@ -556,7 +571,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				await deps.setActiveWorkspace(context.workspaceId, context.repoPath);
 
 				const state = await loadWorkspaceState(context.repoPath);
-				const baseRef = state.git.currentBranch ?? state.git.defaultBranch ?? state.git.branches[0] ?? "HEAD";
+				const evidenceBaseCommit = await readEvidenceBundleBaseCommit(body?.evidenceBundlePath);
+				const baseRef =
+					evidenceBaseCommit ??
+					state.git.currentBranch ??
+					state.git.defaultBranch ??
+					state.git.branches[0] ??
+					"HEAD";
 				const now = Date.now();
 				const created = addTaskToColumn(
 					state.board,

@@ -73,6 +73,18 @@ function commitAll(path: string, message: string): void {
 	}
 }
 
+function getGitHead(path: string): string {
+	const revParse = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+		cwd: path,
+		encoding: "utf8",
+		env: createGitTestEnv(),
+	});
+	if (revParse.status !== 0) {
+		throw new Error(`Failed to read git HEAD at ${path}`);
+	}
+	return revParse.stdout.trim();
+}
+
 function getPatchRepoKey(repoPath: string): string {
 	let canonicalRepoPath: string;
 	try {
@@ -210,6 +222,14 @@ describe("self-improvement project creation", () => {
 				writeFileSync(join(cleanupCwd, "README.md"), "# self\n", "utf8");
 				initGitRepository(cleanupCwd);
 				commitAll(cleanupCwd, "Initial self project");
+				const evidenceBaseCommit = getGitHead(cleanupCwd);
+				const evidenceBundlePath = join(cleanupCwd, "evidence", "self-task");
+				mkdirSync(evidenceBundlePath, { recursive: true });
+				writeFileSync(
+					join(evidenceBundlePath, "config-snapshot.json"),
+					JSON.stringify({ baseCommit: evidenceBaseCommit }),
+					"utf8",
+				);
 				const deps = createDefaultDeps(cleanupCwd);
 				deps.hasGitRepository = vi.fn(() => true);
 				const api = createProjectsApi(deps);
@@ -217,7 +237,7 @@ describe("self-improvement project creation", () => {
 				const result = await api.createSelfImprovementProject(null, {
 					confirmSelfProject: true,
 					notes: "Focus on local model reliability.",
-					evidenceBundlePath: "/tmp/evidence/self-task",
+					evidenceBundlePath,
 				});
 
 				expect(result.ok).toBe(true);
@@ -234,14 +254,16 @@ describe("self-improvement project creation", () => {
 				});
 				expect(result.task?.prompt).toContain("Current dev checkout");
 				expect(result.task?.prompt).toContain("Focus on local model reliability.");
-				expect(result.task?.prompt).toContain("/tmp/evidence/self-task");
+				expect(result.task?.prompt).toContain(evidenceBundlePath);
+				expect(result.task?.baseRef).toBe(evidenceBaseCommit);
 				expect(result.task?.filesLikelyTouched).toEqual([
-					"/tmp/evidence/self-task",
+					evidenceBundlePath,
 					"follow-up-3-by-opus4.8-ultracode.md",
 				]);
 				const state = await loadWorkspaceState(cleanupCwd);
 				const backlog = state.board.columns.find((column) => column.id === "backlog")?.cards ?? [];
 				expect(backlog[0]?.id).toBe(result.task?.id);
+				expect(backlog[0]?.baseRef).toBe(evidenceBaseCommit);
 				expect(deps.setActiveWorkspace).toHaveBeenCalled();
 			});
 		} finally {
