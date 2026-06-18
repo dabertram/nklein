@@ -20,6 +20,9 @@ describe("cline plan artifacts", () => {
 
 		expect(paths.slug).toBe("habit-tracker-pwa");
 		expect(paths.rootPath).toBe(join(workspacePath, ".cline", "kanban", "plans", "habit-tracker-pwa"));
+		expect(paths.decisionsPath).toBe(
+			join(workspacePath, ".cline", "kanban", "plans", "habit-tracker-pwa", "decisions.md"),
+		);
 	});
 
 	it("applies task graph defaults", () => {
@@ -100,7 +103,10 @@ describe("cline plan artifacts", () => {
 		expect(artifacts.summary).toBe("# Summary\n\nBuild habit storage in one step.\n");
 		expect(artifacts.questionsMarkdown).toContain("Should reminders be included?");
 		expect(artifacts.questionsMarkdown).toContain("Assumption: No reminders in the first slice.");
+		expect(artifacts.decisionsMarkdown).toContain("# Decisions");
+		expect(artifacts.decisionsMarkdown).toContain("Assumption: No reminders in the first slice.");
 		await expect(readFile(artifacts.questionsPath, "utf8")).resolves.toContain("# Questions");
+		await expect(readFile(artifacts.decisionsPath, "utf8")).resolves.toContain("No reminders in the first slice");
 		await expect(readFile(artifacts.summaryPath, "utf8")).resolves.toContain("Build habit storage");
 		expect(artifacts.taskGraph.slug).toBe("habit-tracker");
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);

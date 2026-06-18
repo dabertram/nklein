@@ -30,6 +30,13 @@ import {
 const MAX_DECOMPOSED_TASK_COMPLEXITY = 75;
 const MAX_DECOMPOSED_TASK_LIKELY_FILES = 3;
 const MAX_DECOMPOSED_TASK_EXPANSION_DEPTH = 4;
+const MAX_SHARED_PLAN_SPEC_PROMPT_CHARS = 2_400;
+const MAX_SHARED_PLAN_DECISIONS_PROMPT_CHARS = 1_600;
+
+export interface ClinePlanTaskSharedContext {
+	spec?: string | null;
+	decisionsMarkdown?: string | null;
+}
 
 export interface ApplyClinePlanTaskGraphInput {
 	board: RuntimeBoardData;
@@ -38,6 +45,7 @@ export interface ApplyClinePlanTaskGraphInput {
 	randomUuid: () => string;
 	modelRoleSettings?: Record<string, RuntimeTaskClineSettings>;
 	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+	sharedContext?: ClinePlanTaskSharedContext;
 	now?: number;
 }
 
@@ -103,8 +111,39 @@ function slugifyTaskId(input: string): string {
 	return slug || "task";
 }
 
-function buildTaskPrompt(task: ClinePlanTask): string {
+function truncateSharedContext(value: string, maxChars: number): string {
+	const trimmed = value.trim();
+	if (trimmed.length <= maxChars) {
+		return trimmed;
+	}
+	return `${trimmed.slice(0, maxChars).trimEnd()}\n[truncated]`;
+}
+
+function formatSharedPlanContext(context: ClinePlanTaskSharedContext | undefined): string | null {
+	const sections: string[] = [];
+	if (context?.spec?.trim()) {
+		sections.push(`Shared spec:\n${truncateSharedContext(context.spec, MAX_SHARED_PLAN_SPEC_PROMPT_CHARS)}`);
+	}
+	if (context?.decisionsMarkdown?.trim()) {
+		sections.push(
+			`Shared decisions:\n${truncateSharedContext(
+				context.decisionsMarkdown,
+				MAX_SHARED_PLAN_DECISIONS_PROMPT_CHARS,
+			)}`,
+		);
+	}
+	if (sections.length === 0) {
+		return null;
+	}
+	return sections.join("\n\n");
+}
+
+function buildTaskPrompt(task: ClinePlanTask, sharedContext?: ClinePlanTaskSharedContext): string {
 	const sections = [task.prompt.trim()];
+	const sharedPlanContext = formatSharedPlanContext(sharedContext);
+	if (sharedPlanContext) {
+		sections.push(sharedPlanContext);
+	}
 	if (task.filesLikelyTouched.length > 0) {
 		sections.push(["Likely files:", ...task.filesLikelyTouched.map((path) => `- ${path}`)].join("\n"));
 	}
@@ -424,7 +463,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const now = input.now ?? Date.now();
 
 	for (const task of taskGraph.tasks) {
-		const taskPrompt = buildTaskPrompt(task);
+		const taskPrompt = buildTaskPrompt(task, input.sharedContext);
 		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPrompt, input.routingCandidates);
 		const selectedRole =
 			selectedRoutingCandidate === undefined ? undefined : (selectedRoutingCandidate?.role ?? null);
@@ -487,6 +526,7 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	workspacePath: string;
 	taskGraph: ClinePlanTaskGraph;
+	sharedContext?: ClinePlanTaskSharedContext;
 }): Promise<ApplyDecomposeProjectArtifactsResult> {
 	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
 	try {
@@ -512,6 +552,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				baseRef,
 				randomUuid: randomUUID,
 				modelRoleSettings: runtimeConfig?.modelRoles,
+				sharedContext: input.sharedContext,
 			});
 			return {
 				board: applied.board,
@@ -657,6 +698,10 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 			const applied = await applyDecomposeProjectArtifactsToWorkspace({
 				workspacePath,
 				taskGraph: validation.taskGraph,
+				sharedContext: {
+					spec: artifacts.spec,
+					decisionsMarkdown: artifacts.decisionsMarkdown,
+				},
 			});
 			return {
 				ok: true,
@@ -671,6 +716,7 @@ function createDecomposeProjectTool(workspacePath: string): AgentTool {
 				specPath: artifacts.specPath,
 				planPath: artifacts.planPath,
 				questionsPath: artifacts.questionsPath,
+				decisionsPath: artifacts.decisionsPath,
 				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied

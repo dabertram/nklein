@@ -140,6 +140,24 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	it("includes shared plan spec and decisions in created card prompts", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sharedContext: {
+				spec: "# Spec\n\nKeep reminders out of the first release.",
+				decisionsMarkdown: "# Decisions\n\n## q1\n\nAssumption: Sync is out of scope.",
+			},
+		});
+
+		expect(result.createdTasks[0]?.prompt).toContain("Shared spec:");
+		expect(result.createdTasks[0]?.prompt).toContain("Keep reminders out of the first release.");
+		expect(result.createdTasks[0]?.prompt).toContain("Shared decisions:");
+		expect(result.createdTasks[0]?.prompt).toContain("Assumption: Sync is out of scope.");
+	});
+
 	it("keeps board task ids unique when plan ids slugify to the same value", () => {
 		const graph = createTaskGraph();
 		const storageTask = graph.tasks[0];
@@ -520,6 +538,7 @@ describe("cline decomposition tools", () => {
 			createdTaskCount: number;
 			modelFitValidated: boolean;
 			questionsPath: string;
+			decisionsPath: string;
 			summaryPath: string;
 			taskGraphPath: string;
 			instruction: string;
@@ -536,6 +555,7 @@ describe("cline decomposition tools", () => {
 		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
 		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
+		await expect(readFile(result.decisionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
 		await expect(readFile(result.summaryPath, "utf8")).resolves.toContain("two cards");
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});

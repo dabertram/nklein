@@ -70,6 +70,7 @@ interface DecompositionRejectionInput {
 	specPath?: string;
 	planPath?: string;
 	questionsPath?: string;
+	decisionsPath?: string;
 	summaryPath?: string;
 	taskGraphPath?: string;
 	error: unknown;
@@ -162,6 +163,7 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			specPath: input.specPath ?? null,
 			planPath: input.planPath ?? null,
 			questionsPath: input.questionsPath ?? null,
+			decisionsPath: input.decisionsPath ?? null,
 			summaryPath: input.summaryPath ?? null,
 			taskGraphPath: input.taskGraphPath ?? null,
 			error: message,
@@ -821,6 +823,10 @@ async function decomposeTaskGraph(input: {
 				randomUuid: () => globalThis.crypto.randomUUID(),
 				modelRoleSettings: runtimeConfig.modelRoles,
 				routingCandidates,
+				sharedContext: {
+					spec: artifacts.spec,
+					decisionsMarkdown: artifacts.decisionsMarkdown,
+				},
 			});
 			const nextState: RuntimeWorkspaceStateResponse = {
 				...runtimeState,
@@ -845,6 +851,7 @@ async function decomposeTaskGraph(input: {
 			specPath: artifacts.specPath,
 			planPath: artifacts.planPath,
 			questionsPath: artifacts.questionsPath,
+			decisionsPath: artifacts.decisionsPath,
 			summaryPath: artifacts.summaryPath,
 			taskGraphPath: artifacts.taskGraphPath,
 			error,
@@ -861,6 +868,7 @@ async function decomposeTaskGraph(input: {
 			specPath: artifacts.specPath,
 			planPath: artifacts.planPath,
 			questionsPath: artifacts.questionsPath,
+			decisionsPath: artifacts.decisionsPath,
 			summaryPath: artifacts.summaryPath,
 			taskGraphPath: artifacts.taskGraphPath,
 		},

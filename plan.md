@@ -310,10 +310,13 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       base in DAG order; on a merge conflict, auto-create an **integration card** (conflicting paths in its
       prompt) rather than failing silently. Respect the AGENTS.md worktree rule: overlapping agent edits
       stay isolated and produce a warning, never a silent overwrite.
-- [ ] **Shared decision blackboard.** Persist the plan's spec + a running `decisions.md` per plan
+- [x] ~~**Shared decision blackboard.** Persist the plan's spec + a running `decisions.md` per plan
       (`.cline/kanban/plans/<slug>/`) and inject the relevant slice into each dependent card's
       self-contained prompt (L3) so swarm agents stay consistent on shared contracts (the API shape decided
-      in card A reaches card B). Keep it compact via P3 compression so it doesn't eat the window.
+      in card A reaches card B). Keep it compact via P3 compression so it doesn't eat the window.~~
+      `decisions.md` is now a first-class plan artifact generated from answered/assumed clarifying
+      questions, exposed through CLI/API/tool outputs, and compactly injected with the shared spec into
+      decomposition-created card prompts.
 - [ ] **Swarm guardrails (backend).** A per-autonomous-run budget (max total turns / wall-time / cards), a
       **stall watchdog** that auto-parks a card with no diff or repeated identical tool calls after N turns
       (extends the existing "5 consecutive identical calls" stopper), and a swarm-level **stop signal** the
@@ -606,7 +609,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 | Local model unresolved in MCSR (effective window null, 0 speed samples) | ⬜ open (NEW) | L1.6 / MCSR |
 | Context budget visualization bar (segmented, green→red) | ⬜ open (NEW UI) | L1.6 |
 | Swarm coordination: file-overlap parallelism + ordered merge | ⬜ open (NEW) | L2.4 |
-| Shared decision blackboard for dependent cards | ⬜ open (NEW) | L2.4 |
+| Shared decision blackboard for dependent cards | ✅ resolved | L2.4 |
 | Swarm guardrails: run budget + stall watchdog + stop | ⬜ open (NEW) | L2.4 / L4 |
 | Operator UI: cockpit, swarm header+Stop, model panel, DAG review | ⬜ open (NEW UI) | L4 |
 | Per-card diagnostics drawer + first-run setup wizard | ⬜ open (NEW UI) | L4 |

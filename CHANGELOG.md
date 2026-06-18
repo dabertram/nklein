@@ -25,6 +25,7 @@
 - Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Persisted `filesLikelyTouched` on decomposition-created cards and used it to skip overlapping task starts across UI single starts, start-all, dependency auto-starts, and CLI `task start`.
+- Added `decisions.md` plan artifacts and compact shared spec/decision injection for decomposition-created cards, so dependent Cline tasks inherit the same plan contracts.
 
 ## [0.1.68]
 
