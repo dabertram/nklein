@@ -995,17 +995,22 @@ export default function App(): ReactElement {
 									<div className="flex flex-col items-center justify-center gap-3 text-text-tertiary">
 										<FolderOpen size={48} strokeWidth={1} />
 										<h3 className="text-sm font-semibold text-text-primary">No projects yet</h3>
-										<p className="text-[13px] text-text-secondary">
-											Add a git repository to start using !Klein.
+										<p className="max-w-sm text-center text-[13px] text-text-secondary">
+											Add a git repository, or check local model setup before starting your first task.
 										</p>
-										<Button
-											variant="primary"
-											onClick={() => {
-												void handleAddProject();
-											}}
-										>
-											Add Project
-										</Button>
+										<div className="flex flex-wrap items-center justify-center gap-2">
+											<Button
+												variant="primary"
+												onClick={() => {
+													void handleAddProject();
+												}}
+											>
+												Add Project
+											</Button>
+											<Button variant="ghost" onClick={handleShowStartupOnboardingDialog}>
+												Local model setup
+											</Button>
+										</div>
 									</div>
 								</div>
 							) : (

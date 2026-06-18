@@ -276,7 +276,7 @@ Constraints honored: the kanban board stays the core idea; **no surfaced feature
 - [ ] An **evidence drawer** on a card: transcript + diff + telemetry + the one-click copy/seed actions in one place.
 - [x] Embedding **"Test endpoint"** button + model dropdown (from §C3).
 - [x] A **command palette** (⌘K) + keyboard-first navigation — additive, discoverable, doesn't change the board.
-- [ ] Richer empty/onboarding states that point at the local-model setup (already partially present via the first-run onboarding).
+- [x] Richer empty/onboarding states that point at the local-model setup (already partially present via the first-run onboarding).
 
 Each is additive. If none are "exceptionally convincing," shipping only the Lab surface (which the workflow asks for anyway) is the safe minimum.
 
