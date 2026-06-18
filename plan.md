@@ -513,13 +513,25 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       per-model context-window override, routing/guard thresholds, concurrency cap,
       context-budget/compression policy, repo-map/index toggles, acceptance-gate commands, autonomy/guardrail
       limits, telemetry retention/redaction.
-- [ ] **Feature-visibility coverage matrix (acceptance gate for this section).** Maintain an explicit map of
+- [x] ~~**Feature-visibility coverage matrix (acceptance gate for this section).** Maintain an explicit map of
       every since-branch capability → its UI surface(s): MCSR/model stats → model panel; context budget →
       L1.6 bar; routing/guard decisions → activity surface + card detail; decomposition + DAG + clarifying
       questions → L3/L4 DAG view; repo-map/code-index → status chip above; acceptance gate + repair/escalation
       → card status + diagnostics drawer; telemetry → diagnostics drawer + settings; worktree/merge/integration
       → board + L2.4; dogfood/self-improvement backlog → its own view; team/subagent progress → card status.
-      **Anything unmapped is a gap to close.** (Advisor/model-freshness stay hidden while parked, L0.)
+      **Anything unmapped is a gap to close.** (Advisor/model-freshness stay hidden while parked, L0.)~~
+
+      | Capability | Primary Surface | Remaining Visibility Gap |
+      | --- | --- | --- |
+      | Local-only routing / cloud blocks | model picker, blocked card reason, start errors | none known |
+      | MCSR model stats | Cline chat Model Telemetry panel | include configured roster entries with zero registry samples |
+      | Effective context budget | Cline chat segmented bar, running-card mini bar | none known |
+      | Decomposition plans | Planning lane cards, plan artifact paths | DAG review graph |
+      | Swarm guardrails | board Local swarm strip, task Diagnostics panel | per-run budget settings/progress |
+      | Code intelligence | settings Code intelligence panel, board code-intelligence chip | live indexing/build progress |
+      | Acceptance gates / plan gaps | task Diagnostics panel, plan `revisions.md` | richer failure classification |
+      | Worktree auto-merge | task done / merge CLI output, integration cards on conflict | board-level merge status history |
+      | Queued endpoint admission | `endpoint_busy` start response, queued auto-start retry | explicit queue list in UI |
 
 ---
 
@@ -595,7 +607,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 ### Context engineering & compression
 - [x] ~~Budget floors no longer zero-out small windows (plan2.md H1)~~ — now ratio-based (0.1 / 0.15,
       floors 512/1024), [cline-context-budgets.ts:61-98](src/cline-sdk/cline-context-budgets.ts#L61).
-- [ ] **Proactive guard correctness** — covered in **L1.1** (effective window + absolute ceiling).
+- [x] ~~**Proactive guard correctness** — covered in **L1.1** (effective window + absolute ceiling).~~
 - [x] ~~**Plan2.md L1:** dead/inverted branch in `compressKanbanContextText` — when
       `allowModelAssisted` is true it returns a naive char-slice labeled `model_assisted_disabled`,
       skipping the better caveman/minify path ([cline-context-compression.ts:188-215](src/cline-sdk/cline-context-compression.ts#L188)).
