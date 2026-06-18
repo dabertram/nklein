@@ -531,6 +531,16 @@ function parseModelFitFromPrompt(prompt: string): { label: string; detail: strin
 	};
 }
 
+function isRevisedPlanningCard(card: BoardCard): boolean {
+	return (
+		card.blockedKind === "needs_decomposition" ||
+		card.title.startsWith("Integrate plan gap from ") ||
+		card.title.startsWith("Resolve plan decision gap from ") ||
+		card.title.startsWith("Resolve plan contradiction from ") ||
+		card.title.startsWith("Split oversized plan gap from ")
+	);
+}
+
 function formatDagModelLabel(card: BoardCard): string {
 	const providerId = card.clineSettings?.providerId?.trim();
 	const modelId = card.clineSettings?.modelId?.trim();
@@ -663,6 +673,9 @@ function PlanningDagReviewPanel({
 											: "Linked plan card"}
 							</div>
 							<div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] text-text-tertiary">
+								{isRevisedPlanningCard(node.card) ? (
+									<span className="text-status-purple">Revised plan</span>
+								) : null}
 								<span>{complexity === null ? "Complexity unknown" : `Complexity ${complexity}/100`}</span>
 								<span
 									className={

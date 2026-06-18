@@ -515,7 +515,8 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       backend `Model fit:` marker from the routing guard when connected candidates were checked, and the DAG
       panel renders a distinct backend fit badge from that marker. The panel now walks the full connected
       dependency component for the selected card instead of stopping at immediate prerequisites/dependents.
-      Still open: editable approval before execution and revised-card flags.
+      Adaptation-created integration/decision/contradiction/split cards and decomposition-blocked source cards
+      now render a revised-plan flag in the DAG. Still open: editable approval before execution.
 - [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"
