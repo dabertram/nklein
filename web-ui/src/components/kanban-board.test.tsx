@@ -233,6 +233,8 @@ describe("KanbanBoard", () => {
 				diffPatch: "/tmp/evidence/task-1/diff.patch",
 				transcripts: ["/tmp/evidence/task-1/transcript/01-task-1.json"],
 			},
+			summaryText: "Task: Source task (task-source)",
+			diffPatchText: "File: src/example.ts\nStatus: modified",
 			promptBlock: "Here is evidence from a !Klein task.",
 		});
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();

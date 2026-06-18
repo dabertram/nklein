@@ -242,6 +242,8 @@ describe("CardDetailView", () => {
 				diffPatch: "/tmp/evidence/task-1/diff.patch",
 				transcripts: ["/tmp/evidence/task-1/transcript/01-task-1.json"],
 			},
+			summaryText: "Task: Fix the issue (task-1)\n\nPrompt:\nFix the issue",
+			diffPatchText: "File: src/example.ts\nStatus: modified\n--- new\n+++ old",
 			promptBlock: "Here is evidence from a !Klein task.",
 		});
 		Object.defineProperty(navigator, "clipboard", {
@@ -918,9 +920,20 @@ describe("CardDetailView", () => {
 		expect(mockCollectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
 		expect(container.textContent).toContain("Evidence copied. /tmp/evidence/task-1");
-		expect(container.textContent).toContain("Evidence bundle");
+		expect(container.textContent).toContain("Evidence and diff");
 		expect(container.textContent).toContain("/tmp/evidence/task-1/diff.patch");
 		expect(container.textContent).toContain("/tmp/evidence/task-1/transcript/01-task-1.json");
+		expect(container.textContent).toContain("Task: Fix the issue (task-1)");
+
+		const diffTab = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Diff",
+		);
+		expect(diffTab).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			diffTab?.click();
+		});
+
+		expect(container.textContent).toContain("File: src/example.ts");
 	});
 
 	it("exposes a mark interrupted action for lost Cline sessions", async () => {

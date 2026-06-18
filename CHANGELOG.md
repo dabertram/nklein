@@ -19,6 +19,7 @@
 - Added a create-task prompt template menu with quick starts for bug fixes, small features, tests, security review, and decomposition.
 - Added create-task context imports from local files, GitHub issues, and GitHub PR diffs, appending bounded context blocks directly into the task prompt via the local `gh` CLI for GitHub sources.
 - Added a task-detail evidence drawer after evidence collection, showing the bundle path, generated evidence files, transcript paths, and copied external-agent prompt block.
+- Expanded the task-detail evidence drawer into a consolidated evidence/diff viewer with tabs for summary, bounded diff evidence, and the external-agent prompt.
 - Added a gated Developer Tools self-improvement flow that loads the currently running dev checkout, accepts optional notes/evidence, and seeds a protected-guarded Cline Backlog task.
 - Expanded the sidebar Project Health card into a compact diagnostics dashboard that lists every health issue for affected projects, including pending artifacts and lost-session artifact warnings.
 - Added Git clone ref selection for project add, letting cloned projects check out a branch, tag, or commit in detached mode after clone.

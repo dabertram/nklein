@@ -253,7 +253,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] "Import context into a task" from a file, a GitHub issue (`gh issue view`), or a PR diff.
 - [x] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
 - [x] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
-- [ ] Consolidated evidence/diff viewer panel (ties to §C1).
+- [x] Consolidated evidence/diff viewer panel (ties to §C1).
 
 ### G4. Observability
 - [x] A project-health dashboard surfacing the diagnostics already logged (accidental worktree projects, missing parents, lost sessions w/ pending artifacts, stale artifacts) — the data exists; give it a home.

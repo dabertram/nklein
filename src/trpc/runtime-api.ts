@@ -1823,20 +1823,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const messages = clineTaskSessionService.listMessages(task.id);
 			const diffPatch = renderWorkspaceChangesEvidence(changesResult);
 			const title = task.title?.trim() || task.id;
+			const summaryText = [
+				`Task: ${title} (${task.id})`,
+				`Workspace: ${workspaceScope.workspacePath}`,
+				`Task worktree: ${taskCwd}`,
+				`Base ref: ${task.baseRef}`,
+				`Base commit: ${baseCommit ?? "unknown"}`,
+				"",
+				"Prompt:",
+				task.prompt,
+			].join("\n");
 			const bundle = await createEvidenceBundle({
 				rootDir: deps.getEvidenceBundleRoot?.(),
 				scenario: `task-${task.id}-${title}`,
 				outcome: task.autoReviewStatus === "failed" ? "failed" : "unknown",
-				summary: [
-					`Task: ${title} (${task.id})`,
-					`Workspace: ${workspaceScope.workspacePath}`,
-					`Task worktree: ${taskCwd}`,
-					`Base ref: ${task.baseRef}`,
-					`Base commit: ${baseCommit ?? "unknown"}`,
-					"",
-					"Prompt:",
-					task.prompt,
-				].join("\n"),
+				summary: summaryText,
 				models: [
 					task.clineSettings?.providerId && task.clineSettings?.modelId
 						? `${task.clineSettings.providerId}/${task.clineSettings.modelId}`
@@ -1877,6 +1878,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					...bundle.files,
 					transcripts: [...bundle.files.transcripts],
 				},
+				summaryText,
+				diffPatchText: diffPatch,
 				promptBlock: buildTaskEvidencePromptBlock({
 					task,
 					workspacePath: workspaceScope.workspacePath,

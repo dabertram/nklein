@@ -1158,6 +1158,8 @@ export const runtimeTaskEvidenceResponseSchema = z.object({
 		diffPatch: z.string().nullable(),
 		transcripts: z.array(z.string()),
 	}),
+	summaryText: z.string(),
+	diffPatchText: z.string().nullable(),
 	promptBlock: z.string(),
 });
 export type RuntimeTaskEvidenceResponse = z.infer<typeof runtimeTaskEvidenceResponseSchema>;
