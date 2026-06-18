@@ -69,7 +69,11 @@ import { useRuntimeProjectConfig } from "@/runtime/use-runtime-project-config";
 import { useTerminalConnectionReady } from "@/runtime/use-terminal-connection-ready";
 import { useWorkspacePersistence } from "@/runtime/use-workspace-persistence";
 import { saveWorkspaceState } from "@/runtime/workspace-state-query";
-import { applyTaskDetailClineSettingsChange, findCardSelection } from "@/state/board-state";
+import {
+	applyTaskDetailClineSettingsChange,
+	approvePlanningTaskForExecution,
+	findCardSelection,
+} from "@/state/board-state";
 import {
 	getTaskWorkspaceInfo,
 	getTaskWorkspaceSnapshot,
@@ -773,6 +777,13 @@ export default function App(): ReactElement {
 		[defaultTaskClineProviderId, runtimeProjectConfig, selectedCard, setBoard],
 	);
 
+	const handleApprovePlanningCard = useCallback((taskId: string) => {
+		setBoard((currentBoard) => {
+			const result = approvePlanningTaskForExecution(currentBoard, taskId);
+			return result.updated ? result.board : currentBoard;
+		});
+	}, []);
+
 	const handleCreateDialogOpenChange = useCallback(
 		(open: boolean) => {
 			if (!open) {
@@ -1106,6 +1117,7 @@ export default function App(): ReactElement {
 									isDocumentVisible={isDocumentVisible}
 									onClineSettingsSaved={refreshRuntimeProjectConfig}
 									onTaskClineSettingsChanged={handleClineTaskSettingsChangedForTask}
+									onApprovePlanningCard={handleApprovePlanningCard}
 								/>
 							</div>
 						) : null}

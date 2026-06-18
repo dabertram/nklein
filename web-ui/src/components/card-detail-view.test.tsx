@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CardDetailView } from "@/components/card-detail-view";
+import type { RuntimeTaskDiagnosticsResponse } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
 import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardCard, BoardColumn, CardSelection } from "@/types";
@@ -21,7 +22,7 @@ const {
 	mockDiffViewerPanel: vi.fn((..._args: unknown[]) => null),
 	mockClineAppendToDraft: vi.fn(),
 	mockClineSendText: vi.fn(async () => {}),
-	mockFetchTaskDiagnostics: vi.fn(async () => ({ ok: true, events: [] })),
+	mockFetchTaskDiagnostics: vi.fn(async (): Promise<RuntimeTaskDiagnosticsResponse> => ({ ok: true, events: [] })),
 }));
 
 vi.mock("react-hotkeys-hook", () => ({
@@ -82,7 +83,7 @@ vi.mock("@/resize/layout-customizations", () => ({
 	useLayoutResetEffect: () => {},
 }));
 
-function createCard(id: string): BoardCard {
+function createCard(id: string, overrides: Partial<BoardCard> = {}): BoardCard {
 	return {
 		id,
 		title: `Task ${id}`,
@@ -93,6 +94,7 @@ function createCard(id: string): BoardCard {
 		baseRef: "main",
 		createdAt: 1,
 		updatedAt: 1,
+		...overrides,
 	};
 }
 
@@ -665,6 +667,7 @@ describe("CardDetailView", () => {
 			title: "Build UI",
 			prompt:
 				"Implement UI.\n\nComplexity: 45/100\n\nModel fit: validated by Kanban routing guard (lmstudio / qwen3, role worker, context 64,000, capability 70)",
+			startInPlanMode: true,
 			filesLikelyTouched: ["web-ui/src/App.tsx"],
 			agentId: "cline",
 			clineSettings: {
@@ -695,6 +698,7 @@ describe("CardDetailView", () => {
 			title: "Resolve plan decision gap from plan-ui",
 			prompt: "Resolve the decision.\n\nComplexity: 15/100",
 		});
+		const handleApprovePlanningCard = vi.fn();
 
 		await act(async () => {
 			root.render(
@@ -717,6 +721,7 @@ describe("CardDetailView", () => {
 					onCardSelect={() => {}}
 					onTaskDragEnd={() => {}}
 					onMoveToTrash={() => {}}
+					onApprovePlanningCard={handleApprovePlanningCard}
 					bottomTerminalOpen={false}
 					bottomTerminalTaskId={null}
 					bottomTerminalSummary={null}
@@ -741,6 +746,14 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Backend fit validated");
 		expect(container.textContent).toContain("Backend fit pending");
 		expect(container.textContent).toContain("web-ui/src/flow.tsx, web-ui/src/copy.ts, web-ui/src/styles.css +1");
+		const approveButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Approve for execution",
+		);
+		expect(approveButton).toBeDefined();
+		await act(async () => {
+			approveButton?.click();
+		});
+		expect(handleApprovePlanningCard).toHaveBeenCalledWith("plan-ui");
 	});
 
 	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {

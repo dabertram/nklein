@@ -7,6 +7,7 @@ import {
 	applyDragResult,
 	applyTaskDetailClineSettingsChange,
 	applyTaskDetailClineSettingsSelection,
+	approvePlanningTaskForExecution,
 	clearColumnTasks,
 	disableTaskAutoReview,
 	getTaskColumnId,
@@ -628,6 +629,35 @@ describe("board dependency state", () => {
 		const clearedTask = cleared.board.columns.find((column) => column.id === "backlog")?.cards[0];
 		expect(clearedTask?.blockedKind).toBeUndefined();
 		expect(clearedTask?.blockedReason).toBeUndefined();
+	});
+
+	it("approves a Planning task for execution without clearing revision metadata", () => {
+		let board = createInitialBoardData();
+		board = addTaskToColumn(board, "planning", {
+			title: "Resolve plan decision gap from task-1",
+			prompt: "Resolve the planning gap.",
+			startInPlanMode: true,
+			filesLikelyTouched: ["src/plan.ts"],
+			baseRef: "main",
+		});
+		const task = board.columns.find((column) => column.id === "planning")?.cards[0];
+		expect(task).toBeDefined();
+		if (!task) {
+			throw new Error("Expected planning task to exist");
+		}
+		const blocked = updateTaskBlockedState(board, task.id, {
+			kind: "needs_decomposition",
+			reason: "Task start blocked: this card needs decomposition.",
+		});
+		expect(blocked.updated).toBe(true);
+
+		const approved = approvePlanningTaskForExecution(blocked.board, task.id);
+		expect(approved.updated).toBe(true);
+		const approvedTask = approved.board.columns.find((column) => column.id === "planning")?.cards[0];
+		expect(approvedTask?.startInPlanMode).toBe(false);
+		expect(approvedTask?.blockedKind).toBe("needs_decomposition");
+		expect(approvedTask?.blockedReason).toBe("Task start blocked: this card needs decomposition.");
+		expect(approvedTask?.filesLikelyTouched).toEqual(["src/plan.ts"]);
 	});
 
 	it("disables auto-review settings for a task", () => {

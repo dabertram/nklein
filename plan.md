@@ -505,18 +505,20 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       used for dispatch, and now synthesizes read-only zero-sample rows for configured local provider/model
       selections and model-role roster entries before telemetry exists. The same telemetry surface is now promoted
       into Cline settings with local-only per-model context-window Save/Clear controls.
-- [~] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
+- [x] ~~**Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
       graph with complexity, assigned role/model, and a per-leaf **fit badge** (green = a connected local
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
       Planning lane before cards flow to execution. Keep it lightweight (existing board primitives or a
-      small graph lib). **Progress:** Planning card detail now includes a compact DAG review panel for linked
+      small graph lib).~~ Planning card detail now includes a compact DAG review panel for linked
       cards, showing prerequisite/dependent relationships, card status, prompt-derived complexity, likely
       files, and model/agent hints from existing board data. Decomposition-created cards now also carry a
       backend `Model fit:` marker from the routing guard when connected candidates were checked, and the DAG
       panel renders a distinct backend fit badge from that marker. The panel now walks the full connected
       dependency component for the selected card instead of stopping at immediate prerequisites/dependents.
       Adaptation-created integration/decision/contradiction/split cards and decomposition-blocked source cards
-      now render a revised-plan flag in the DAG. Still open: editable approval before execution.
+      now render a revised-plan flag in the DAG. Planning cards that are still gated by plan mode now show an
+      explicit Approve for execution action in the DAG panel, flipping only the execution gate while preserving
+      revision/block metadata and existing edit paths.
 - [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"

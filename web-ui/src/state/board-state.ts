@@ -673,6 +673,37 @@ export function updateTaskBlockedState(
 	return { board: withUpdatedColumns(board, columns), updated: true };
 }
 
+export function approvePlanningTaskForExecution(
+	board: BoardData,
+	taskId: string,
+): { board: BoardData; updated: boolean } {
+	let updated = false;
+	const columns = board.columns.map((column) => {
+		if (column.id !== "planning") {
+			return column;
+		}
+		let columnUpdated = false;
+		const cards = column.cards.map((card) => {
+			if (card.id !== taskId || card.startInPlanMode !== true) {
+				return card;
+			}
+			columnUpdated = true;
+			updated = true;
+			return {
+				...card,
+				startInPlanMode: false,
+				updatedAt: Date.now(),
+			};
+		});
+		return columnUpdated ? { ...column, cards } : column;
+	});
+
+	if (!updated) {
+		return { board, updated: false };
+	}
+	return { board: withUpdatedColumns(board, columns), updated: true };
+}
+
 export function updateTaskTitle(
 	board: BoardData,
 	taskId: string,

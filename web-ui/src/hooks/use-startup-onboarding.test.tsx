@@ -274,7 +274,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("stays dismissed after closing, even when current project changes", async () => {
+	it("reopens after closing when a project still needs local Cline setup", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 
 		await act(async () => {
@@ -331,7 +331,7 @@ describe("useStartupOnboarding", () => {
 		}
 
 		snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
 	});
 
 	it("can be manually opened from debug tools even when normal criteria would keep it closed", async () => {

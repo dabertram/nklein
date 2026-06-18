@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KanbanBoard, type RequestProgrammaticCardMove } from "@/components/kanban-board";
@@ -259,14 +260,26 @@ describe("KanbanBoard", () => {
 					id: "backlog",
 					title: "Backlog",
 					cards: [
-						{ id: "task-1", title: "Ready", prompt: "Build", agentId: "cline", baseRef: "main" },
+						{
+							id: "task-1",
+							title: "Ready",
+							prompt: "Build",
+							startInPlanMode: false,
+							agentId: "cline",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
 						{
 							id: "task-2",
 							title: "Blocked",
 							prompt: "Blocked",
+							startInPlanMode: false,
 							agentId: "cline",
 							baseRef: "main",
 							blockedKind: "needs_decomposition",
+							createdAt: 2,
+							updatedAt: 2,
 						},
 					],
 				},
@@ -343,8 +356,15 @@ describe("KanbanBoard", () => {
 				throw new Error("Expected concurrency slider.");
 			}
 			slider.value = "5";
-			slider.dispatchEvent(new Event("input", { bubbles: true }));
-			slider.dispatchEvent(new Event("pointerup", { bubbles: true }));
+			Simulate.change(slider);
+			await Promise.resolve();
+		});
+		await act(async () => {
+			if (!slider) {
+				throw new Error("Expected concurrency slider.");
+			}
+			Simulate.pointerUp(slider);
+			await Promise.resolve();
 		});
 
 		expect(runtimeConfigQueryMocks.saveRuntimeConfig).toHaveBeenCalledWith("project-1", { maxConcurrentTasks: 5 });

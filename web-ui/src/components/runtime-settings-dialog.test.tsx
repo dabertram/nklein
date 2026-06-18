@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { act, createContext, useContext } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { Simulate, type SyntheticEventData } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RuntimeSettingsDialog } from "@/components/runtime-settings-dialog";
@@ -72,6 +73,38 @@ vi.mock("@radix-ui/react-select", () => ({
 	},
 	ItemText: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 	ItemIndicator: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+}));
+
+vi.mock("@radix-ui/react-switch", () => ({
+	Root: ({
+		checked,
+		disabled,
+		onCheckedChange,
+		children,
+		...props
+	}: {
+		checked: boolean;
+		disabled?: boolean;
+		onCheckedChange: (checked: boolean) => void;
+		children: ReactNode;
+	}) => (
+		<button
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			data-state={checked ? "checked" : "unchecked"}
+			disabled={disabled}
+			onClick={() => {
+				if (!disabled) {
+					onCheckedChange(!checked);
+				}
+			}}
+			{...props}
+		>
+			{children}
+		</button>
+	),
+	Thumb: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
 }));
 
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
@@ -212,8 +245,9 @@ vi.mock("@/utils/notification-permission", () => ({
 }));
 
 function findButtonByText(container: ParentNode, text: string): HTMLButtonElement | null {
-	return (Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.trim() === text) ??
-		null) as HTMLButtonElement | null;
+	return (Array.from(container.querySelectorAll("button"))
+		.reverse()
+		.find((button) => button.textContent?.trim() === text) ?? null) as HTMLButtonElement | null;
 }
 
 function findButtonByAriaLabel(container: ParentNode, ariaLabel: string): HTMLButtonElement | null {
@@ -225,7 +259,19 @@ function findButtonByAriaLabel(container: ParentNode, ariaLabel: string): HTMLBu
 function setSelectValue(select: HTMLSelectElement, value: string): void {
 	const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
 	valueSetter?.call(select, value);
-	select.dispatchEvent(new Event("change", { bubbles: true }));
+	Simulate.change(select);
+}
+
+function setInputValue(input: HTMLInputElement, value: string): void {
+	input.value = value;
+	Simulate.change(input);
+}
+
+function setTextAreaValue(textarea: HTMLTextAreaElement, value: string): void {
+	textarea.value = value;
+	const eventData = { currentTarget: { value }, target: { value } } as unknown as SyntheticEventData;
+	Simulate.input(textarea, eventData);
+	Simulate.change(textarea, eventData);
 }
 
 async function flushAsyncWork(): Promise<void> {
@@ -627,19 +673,25 @@ describe("RuntimeSettingsDialog", () => {
 		expect(input).toBeInstanceOf(HTMLInputElement);
 		await act(async () => {
 			if (input instanceof HTMLInputElement) {
-				input.value = "96000";
-				input.dispatchEvent(new Event("input", { bubbles: true }));
+				setInputValue(input, "96000");
 			}
 			await Promise.resolve();
 		});
-		const saveButton = Array.from(document.body.querySelectorAll("button")).find(
+		await waitForCondition(() => {
+			const rowSaveButton = Array.from(input?.parentElement?.querySelectorAll("button") ?? []).find(
+				(button) => button.textContent?.trim() === "Save",
+			);
+			return rowSaveButton instanceof HTMLButtonElement && !rowSaveButton.disabled;
+		});
+		const saveButton = Array.from(input?.parentElement?.querySelectorAll("button") ?? []).find(
 			(button) => button.textContent?.trim() === "Save",
 		);
 		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
 		await act(async () => {
-			saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			saveButton?.click();
 			await Promise.resolve();
 		});
+		await flushAsyncWork();
 
 		expect(saveClineModelContextWindowOverrideMock).toHaveBeenCalledWith("workspace-1", {
 			providerId: "ollama",
@@ -698,8 +750,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		await act(async () => {
 			if (reviewActionSelect) {
-				reviewActionSelect.value = "pr";
-				reviewActionSelect.dispatchEvent(new Event("change", { bubbles: true }));
+				setSelectValue(reviewActionSelect, "pr");
 			}
 		});
 
@@ -727,7 +778,7 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
-		const saveButton = findButtonByText(document.body, "Save");
+		let saveButton = findButtonByText(document.body, "Save");
 		const cancelButton = findButtonByText(document.body, "Cancel");
 		const themeSelectTrigger = findButtonByAriaLabel(document.body, "Theme");
 
@@ -749,6 +800,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(document.documentElement.getAttribute("data-theme")).toBe("graphite");
+		saveButton = findButtonByText(document.body, "Save");
 		expect(saveButton?.disabled).toBe(false);
 		expect(window.localStorage.getItem("kanban.theme")).toBeNull();
 
@@ -774,7 +826,7 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
-		const saveButton = findButtonByText(document.body, "Save");
+		let saveButton = findButtonByText(document.body, "Save");
 
 		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
 
@@ -788,6 +840,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(window.localStorage.getItem("kanban.theme")).toBeNull();
+		saveButton = findButtonByText(document.body, "Save");
 
 		await act(async () => {
 			saveButton?.click();
@@ -811,7 +864,7 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
-		const saveButton = findButtonByText(document.body, "Save");
+		let saveButton = findButtonByText(document.body, "Save");
 		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
 			(element) => element.textContent?.trim() === "Model roles",
 		);
@@ -845,6 +898,7 @@ describe("RuntimeSettingsDialog", () => {
 			setSelectValue(architectReasoningSelect, "high");
 		});
 
+		saveButton = findButtonByText(document.body, "Save");
 		expect(saveButton?.disabled).toBe(false);
 
 		await act(async () => {
@@ -974,7 +1028,7 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
-		const saveButton = findButtonByText(document.body, "Save");
+		let saveButton = findButtonByText(document.body, "Save");
 		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
 			(element) => element.textContent?.trim() === "Model roles",
 		);
@@ -998,7 +1052,7 @@ describe("RuntimeSettingsDialog", () => {
 		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toEqual(["", "loaded-qwen"]);
 		expect(document.body.textContent).toContain("Architect role uses LM Studio");
 		await act(async () => {
-			saveButton.click();
+			saveButton?.click();
 		});
 		expect(saveRuntimeConfigMock).not.toHaveBeenCalled();
 		expect(handleOpenChange).not.toHaveBeenCalled();
@@ -1006,8 +1060,9 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setSelectValue(architectModelSelect, "loaded-qwen");
 		});
+		saveButton = findButtonByText(document.body, "Save");
 		await act(async () => {
-			saveButton.click();
+			saveButton?.click();
 		});
 
 		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
@@ -1104,9 +1159,8 @@ describe("RuntimeSettingsDialog", () => {
 		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
 			throw new Error("Expected MCP suggestion textarea.");
 		}
-		const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
 		await act(async () => {
-			valueSetter?.call(
+			setTextAreaValue(
 				suggestionInput,
 				JSON.stringify({
 					mcpServers: [
@@ -1118,22 +1172,28 @@ describe("RuntimeSettingsDialog", () => {
 					],
 				}),
 			);
-			suggestionInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 
 		const findAddableButton = findButtonByText(document.body, "Find addable servers");
 		expect(findAddableButton).toBeInstanceOf(HTMLButtonElement);
+		expect(findAddableButton?.disabled).toBe(false);
 
 		await act(async () => {
 			findAddableButton?.click();
 		});
+		await flushAsyncWork();
 
-		const addButton = findButtonByText(document.body, "Add");
+		expect(document.body.textContent).toContain("linear");
+		const linearSuggestion = Array.from(document.body.querySelectorAll("p")).find((element) =>
+			element.textContent?.includes("linear"),
+		)?.parentElement?.parentElement;
+		const addButton = linearSuggestion ? findButtonByText(linearSuggestion, "Add") : null;
 		expect(addButton).toBeInstanceOf(HTMLButtonElement);
 
 		await act(async () => {
 			addButton?.click();
 		});
+		await flushAsyncWork();
 
 		expect(addMcpServerMock).toHaveBeenCalledWith({
 			name: "linear",
@@ -1163,10 +1223,8 @@ describe("RuntimeSettingsDialog", () => {
 		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
 			throw new Error("Expected dogfood suggestion textarea.");
 		}
-		const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
 		await act(async () => {
-			valueSetter?.call(suggestionInput, " Improve stalled task diagnostics. ");
-			suggestionInput.dispatchEvent(new Event("input", { bubbles: true }));
+			setTextAreaValue(suggestionInput, " Improve stalled task diagnostics. ");
 		});
 
 		const suggestButton = findButtonByText(document.body, "Suggest improvement");

@@ -631,23 +631,42 @@ function buildPlanningDagNodes(selection: CardSelection, dependencies: readonly 
 function PlanningDagReviewPanel({
 	selection,
 	dependencies,
+	onApprovePlanningCard,
 }: {
 	selection: CardSelection;
 	dependencies: readonly BoardDependency[];
+	onApprovePlanningCard?: (taskId: string) => void;
 }): React.ReactElement | null {
 	const nodes = useMemo(() => buildPlanningDagNodes(selection, dependencies), [dependencies, selection]);
 	if (selection.column.id !== "planning" && nodes.length <= 1) {
 		return null;
 	}
 	const edgeCount = nodes.length - 1;
+	const isWaitingForApproval = selection.column.id === "planning" && selection.card.startInPlanMode === true;
 	return (
 		<div className="border-b border-border bg-surface-1 px-3 py-2">
-			<div className="mb-2 flex min-w-0 items-center gap-2 text-[12px] font-medium text-text-primary">
-				<GitBranch size={14} className="shrink-0 text-text-secondary" />
-				<span>Plan DAG</span>
-				<span className="truncate text-text-tertiary">
-					{edgeCount > 0 ? `${edgeCount} linked ${edgeCount === 1 ? "card" : "cards"}` : "No linked cards"}
-				</span>
+			<div className="mb-2 flex min-w-0 flex-wrap items-center gap-2 text-[12px] font-medium text-text-primary">
+				<div className="flex min-w-0 flex-1 items-center gap-2">
+					<GitBranch size={14} className="shrink-0 text-text-secondary" />
+					<span>Plan DAG</span>
+					<span className="truncate text-text-tertiary">
+						{edgeCount > 0 ? `${edgeCount} linked ${edgeCount === 1 ? "card" : "cards"}` : "No linked cards"}
+					</span>
+				</div>
+				{selection.column.id === "planning" ? (
+					isWaitingForApproval && onApprovePlanningCard ? (
+						<Button
+							type="button"
+							variant="primary"
+							size="sm"
+							onClick={() => onApprovePlanningCard(selection.card.id)}
+						>
+							Approve for execution
+						</Button>
+					) : (
+						<span className="shrink-0 text-[11px] text-status-green">Execution approved</span>
+					)
+				) : null}
 			</div>
 			<div className="grid grid-cols-1 gap-1.5 xl:grid-cols-3">
 				{nodes.map((node) => {
@@ -977,6 +996,7 @@ export function CardDetailView({
 	isDocumentVisible = true,
 	onClineSettingsSaved,
 	onTaskClineSettingsChanged,
+	onApprovePlanningCard,
 }: {
 	selection: CardSelection;
 	dependencies?: BoardDependency[];
@@ -1047,6 +1067,7 @@ export function CardDetailView({
 		contextScope: "full" | "smart" | "minimal" | "custom";
 		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
+	onApprovePlanningCard?: (taskId: string) => void;
 }): React.ReactElement {
 	const isMobile = useIsMobile();
 	const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
@@ -1359,7 +1380,11 @@ export function CardDetailView({
 								sessionSummary={sessionSummary}
 								workspaceId={currentProjectId}
 							/>
-							<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
+							<PlanningDagReviewPanel
+								selection={selection}
+								dependencies={dependencies}
+								onApprovePlanningCard={onApprovePlanningCard}
+							/>
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1505,7 +1530,11 @@ export function CardDetailView({
 									sessionSummary={sessionSummary}
 									workspaceId={currentProjectId}
 								/>
-								<PlanningDagReviewPanel selection={selection} dependencies={dependencies} />
+								<PlanningDagReviewPanel
+									selection={selection}
+									dependencies={dependencies}
+									onApprovePlanningCard={onApprovePlanningCard}
+								/>
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (

@@ -92,7 +92,7 @@ function HookHarness({
 		task: BoardCard,
 		taskId: string,
 		fromColumnId: BoardColumnId,
-		options?: { optimisticMove?: boolean },
+		options?: { optimisticMove?: boolean; queueOnEndpointBusy?: boolean },
 	) => Promise<boolean>;
 	startWaitingTaskWithAnimation?: (task: BoardCard, fromColumnId: BoardColumnId) => Promise<boolean>;
 	waitForBacklogStartAnimationAvailability?: () => Promise<void>;
@@ -274,7 +274,7 @@ describe("useLinkedBacklogTaskActions", () => {
 			expect.objectContaining({ id: "task-1" }),
 			"task-1",
 			"backlog",
-			{ optimisticMove: true },
+			{ optimisticMove: true, queueOnEndpointBusy: true },
 		);
 		expect(trackTasksAutoStartedFromDependencyMock).toHaveBeenCalledWith(1);
 	});
@@ -321,7 +321,7 @@ describe("useLinkedBacklogTaskActions", () => {
 			expect.objectContaining({ id: "task-1" }),
 			"task-1",
 			"backlog",
-			{ optimisticMove: true },
+			{ optimisticMove: true, queueOnEndpointBusy: true },
 		);
 		expect(inProgressTaskIds).toEqual(["task-1"]);
 		expect(backlogTaskIds).toEqual(["task-3"]);
@@ -388,7 +388,7 @@ describe("useLinkedBacklogTaskActions", () => {
 			expect.objectContaining({ id: "task-1" }),
 			"task-1",
 			"backlog",
-			{ optimisticMove: true },
+			{ optimisticMove: true, queueOnEndpointBusy: true },
 		);
 		expect(inProgressTaskIds).toEqual(["task-1"]);
 		expect(backlogTaskIds).toEqual(["task-3"]);
@@ -397,7 +397,9 @@ describe("useLinkedBacklogTaskActions", () => {
 	it("uses animated backlog starts for dependency-unblocked tasks when available", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const kickoffTaskInProgress = vi.fn(async () => true);
-		const startWaitingTaskWithAnimation = vi.fn(async (task: BoardCard) => task.id === "task-1");
+		const startWaitingTaskWithAnimation = vi.fn(
+			async (task: BoardCard, _fromColumnId: BoardColumnId) => task.id === "task-1",
+		);
 		const waitForBacklogStartAnimationAvailability = vi.fn(async () => {});
 		const boardFactory = () =>
 			createBoard([
@@ -444,7 +446,7 @@ describe("useLinkedBacklogTaskActions", () => {
 
 	it("uses animated Planning starts for dependency-unblocked Planning tasks", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
-		const startWaitingTaskWithAnimation = vi.fn(async () => true);
+		const startWaitingTaskWithAnimation = vi.fn(async (_task: BoardCard, _fromColumnId: BoardColumnId) => true);
 		const boardFactory = (): BoardData => ({
 			columns: [
 				{ id: "backlog", title: "Backlog", cards: [] },
@@ -559,7 +561,7 @@ describe("useLinkedBacklogTaskActions", () => {
 		const firstKickoff = createDeferred<boolean>();
 		const secondKickoff = createDeferred<boolean>();
 		const waitForSecondAnimation = createDeferred<void>();
-		const startWaitingTaskWithAnimation = vi.fn((task: BoardCard) => {
+		const startWaitingTaskWithAnimation = vi.fn((task: BoardCard, _fromColumnId: BoardColumnId) => {
 			if (task.id === "task-1") {
 				return firstKickoff.promise;
 			}

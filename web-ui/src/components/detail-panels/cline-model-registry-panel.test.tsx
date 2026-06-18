@@ -1,5 +1,6 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -194,7 +195,7 @@ describe("ClineModelRegistryPanel", () => {
 		await act(async () => {
 			if (input instanceof HTMLInputElement) {
 				input.value = "64000";
-				input.dispatchEvent(new Event("input", { bubbles: true }));
+				Simulate.change(input);
 			}
 			await Promise.resolve();
 		});
@@ -203,7 +204,7 @@ describe("ClineModelRegistryPanel", () => {
 		);
 		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
 		await act(async () => {
-			saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			saveButton?.click();
 			await Promise.resolve();
 		});
 

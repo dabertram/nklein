@@ -284,7 +284,7 @@ describe("useBoardInteractions", () => {
 
 		expect(started).toBe(true);
 		expect(ensureTaskWorkspace).toHaveBeenCalledWith(backlogTask);
-		expect(startTaskSession).toHaveBeenCalledWith(backlogTask);
+		expect(startTaskSession).toHaveBeenCalledWith(backlogTask, { queueOnEndpointBusy: true });
 	});
 
 	it("marks backlog tasks as needing decomposition when the start guard blocks them", async () => {
@@ -430,7 +430,9 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(startTaskSession).toHaveBeenCalledTimes(1);
-		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }), {
+			queueOnEndpointBusy: undefined,
+		});
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
 			"task-1",
 		]);
@@ -721,8 +723,12 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(startTaskSession).toHaveBeenCalledTimes(2);
-		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
-		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-3" }));
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }), {
+			queueOnEndpointBusy: undefined,
+		});
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-3" }), {
+			queueOnEndpointBusy: undefined,
+		});
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
 			"task-3",
 			"task-1",
@@ -803,7 +809,9 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(startTaskSession).toHaveBeenCalledTimes(1);
-		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-2" }));
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-2" }), {
+			queueOnEndpointBusy: undefined,
+		});
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
 			"task-2",
 		]);
@@ -1034,7 +1042,9 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(tryProgrammaticCardMove).toHaveBeenCalledWith("task-1", "planning", "in_progress");
-		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }), {
+			queueOnEndpointBusy: true,
+		});
 		expect(currentBoard.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
 			"task-1",
@@ -1117,7 +1127,7 @@ describe("useBoardInteractions", () => {
 		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
 		expect(measurementCount).toBe(0);
 		expect(setBoard).toHaveBeenCalled();
-		expect(startTaskSession).toHaveBeenCalledWith(board.columns[0]!.cards[0]!);
+		expect(startTaskSession).toHaveBeenCalledWith(board.columns[0]!.cards[0]!, { queueOnEndpointBusy: true });
 		boardElement.remove();
 	});
 
