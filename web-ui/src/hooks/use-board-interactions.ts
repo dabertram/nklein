@@ -1,4 +1,5 @@
 import type { DropResult } from "@hello-pangea/dnd";
+import { clampRuntimeSwarmCardStartBatchSize } from "@runtime-contract";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { notifyError, showAppToast } from "@/components/app-toaster";
@@ -735,7 +736,8 @@ export function useBoardInteractions({
 				return;
 			}
 			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
-			if (availableStartSlots === 0) {
+			const availableBatchStartSlots = clampRuntimeSwarmCardStartBatchSize(availableStartSlots);
+			if (availableBatchStartSlots === 0) {
 				return;
 			}
 
@@ -748,7 +750,7 @@ export function useBoardInteractions({
 				if (!taskId || startedTaskIds.has(taskId)) {
 					continue;
 				}
-				if (pendingStarts.length >= availableStartSlots) {
+				if (pendingStarts.length >= availableBatchStartSlots) {
 					break;
 				}
 				const selection = findCardSelection(nextBoard, taskId);

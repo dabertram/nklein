@@ -72,6 +72,7 @@
 - Added live code-index progress reporting for local code search, surfacing scan/embed/cache-write phases plus file/chunk and cache hit/miss counters in Cline settings.
 - Enriched the card Activity surface with explicit card-selected/runtime-selected routing details and a separate retrieval/indexing step for file and code-search tools.
 - Recorded initial `recursive_split` plan revisions when `decompose_project.expansions` rewrites oversized tasks before saving the plan graph.
+- Added a shared 12-card swarm batch budget for start-all and dependent auto-start launches, surfaced alongside the other Local swarm guardrails in settings.
 
 ## [0.1.68]
 

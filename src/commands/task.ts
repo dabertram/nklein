@@ -22,7 +22,11 @@ import type {
 	RuntimeTaskClineSettings,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
-import { runtimeAgentIdSchema, runtimeClineReasoningEffortSchema } from "../core/api-contract";
+import {
+	clampRuntimeSwarmCardStartBatchSize,
+	runtimeAgentIdSchema,
+	runtimeClineReasoningEffortSchema,
+} from "../core/api-contract";
 import { type PlanGapKind, planGapKindSchema, recordPlanGap } from "../core/plan-gap";
 import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
@@ -1384,7 +1388,10 @@ async function finishTaskById(input: {
 	const canContinueAfterMerge = autoMerge === null || autoMerge.ok === true;
 	const autoStartedTasks: JsonRecord[] = [];
 	if (canContinueAfterMerge) {
-		for (const readyTaskId of mutation.value.readyTaskIds) {
+		for (const readyTaskId of mutation.value.readyTaskIds.slice(
+			0,
+			clampRuntimeSwarmCardStartBatchSize(mutation.value.readyTaskIds.length),
+		)) {
 			const started = await startTask({
 				cwd: input.cwd,
 				taskId: readyTaskId,

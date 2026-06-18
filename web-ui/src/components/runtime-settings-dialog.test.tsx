@@ -511,6 +511,8 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(document.body.textContent).toContain("Local swarm guardrails");
 		expect(document.body.textContent).toContain("5 running max");
+		expect(document.body.textContent).toContain("Card batch budget");
+		expect(document.body.textContent).toContain("12 cards");
 		expect(document.body.textContent).toContain("Autonomous turns");
 		expect(document.body.textContent).toContain("12 turns");
 		expect(document.body.textContent).toContain("Wall time");

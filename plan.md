@@ -344,7 +344,9 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       aborting and parking over-budget tasks with `max_autonomous_wall_time` telemetry. The checkpoint path
       also watches for repeated no-diff checkpoints and parks sessions that keep producing the same commit
       without new diff progress. The board cockpit now exposes the stop signal as a Pause/Resume control.
-      Still open: card budgets and a richer repeated-tool stall watchdog beyond the SDK mistake-limit guard.
+      Start-all and dependent auto-start batches now share a 12-card swarm batch budget, enforced from the
+      shared runtime contract and surfaced in settings. Still open: a richer repeated-tool stall watchdog
+      beyond the SDK mistake-limit guard.
 
 ---
 

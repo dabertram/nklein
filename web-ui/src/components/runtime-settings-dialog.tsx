@@ -6,6 +6,7 @@ import * as RadixPopover from "@radix-ui/react-popover";
 import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
+import { RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import {
 	Bell,
@@ -190,6 +191,11 @@ export type RuntimeSettingsSection = "shortcuts";
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
 const LOCAL_SWARM_GUARDRAIL_ROWS = [
+	{
+		label: "Card batch budget",
+		value: `${RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH} cards`,
+		detail: "Caps one swarm start-all or auto-start batch before the next operator or dependency event.",
+	},
 	{ label: "Autonomous turns", value: "12 turns", detail: "Parks Cline tasks at the turn checkpoint limit." },
 	{ label: "Wall time", value: "2 hours", detail: "Parks Cline tasks after the autonomous wall-time limit." },
 	{
