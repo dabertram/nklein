@@ -65,7 +65,7 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 - [x] `web-ui/public/manifest.json` `name` / `short_name` (currently `Cline`) → `!Klein`.
 - [x] `packages/desktop/src/disconnected.html` page title + "Run kanban…" body → `!Klein` / `nklein`.
 - [x] `src/cli.ts` console prefixes `[kanban]` → `[nklein]` (≈ lines 481, 542).
-- [ ] **Brand-vs-engine disambiguation sweep:** grep `web-ui/src` for every rendered `Cline` string and classify each (app-brand → `!Klein`; engine/provider/account → keep). Known keeps: `aria-label="Cline mode"`; "Cline context window override". The wordmark was missed once already — do this sweep deliberately. Note: the cloud sign-in surface ("Sign in to Cline", `cline-setup-section.tsx:560`) is being **removed entirely** (§G5), so it goes away regardless of this sweep.
+- [x] **Brand-vs-engine disambiguation sweep:** grep `web-ui/src` for every rendered `Cline` string and classify each (app-brand → `!Klein`; engine/provider/account → keep). Known keeps: `aria-label="Cline mode"`; "Cline context window override". The wordmark was missed once already — do this sweep deliberately. Note: the cloud sign-in surface ("Sign in to Cline", `cline-setup-section.tsx:560`) is being **removed entirely** (§G5), so it goes away regardless of this sweep.
 
 ### A2. Electron app metadata
 - [x] `packages/desktop/electron-builder.yml`: `appId: com.cline.kanban` → `com.cline.nklein`.
@@ -90,7 +90,7 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 - [x] `src/workspace/task-worktree-path.ts`: `KANBAN_RUNTIME_HOME_DIR_NAME = ".cline/kanban"` → `".cline/nklein"` (leave the generic `worktrees` names alone).
 - [x] `src/config/runtime-config.ts`: `RUNTIME_HOME_DIR` and `PROJECT_CONFIG_DIR` (`"kanban"`) → `"nklein"` (≈ lines 104, 107).
 - [x] Temp prefixes: `src/workspace/turn-checkpoints.ts` `"kanban-checkpoint-"` → `"nklein-checkpoint-"`; `src/cline-sdk/cline-dev-test-project.ts` `kanban-${slug}` → `nklein-${slug}` (≈ line 152).
-- [ ] Hardcoded `.cline/kanban/*` paths: `src/trpc/runtime-api.ts`, `src/workspace/project-health.ts`, `src/cline-sdk/cline-code-index.ts`, `src/cline-sdk/cline-plan-artifacts.ts`, `web-ui/src/components/debug-dialog.tsx` (~lines 65/94), and test fixtures. Centralize through the constants above so this is one change, not dozens.
+- [x] Hardcoded `.cline/kanban/*` paths: `src/trpc/runtime-api.ts`, `src/workspace/project-health.ts`, `src/cline-sdk/cline-code-index.ts`, `src/cline-sdk/cline-plan-artifacts.ts`, `web-ui/src/components/debug-dialog.tsx` (~lines 65/94), and test fixtures. Centralize through the constants above so this is one change, not dozens.
 
 ### A6. Migration utility (new) — the "+ migration" half of the decision
 - [x] New `src/config/legacy-name-migration.ts`, invoked once at runtime startup:

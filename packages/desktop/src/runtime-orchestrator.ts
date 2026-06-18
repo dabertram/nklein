@@ -31,12 +31,15 @@ const DEFAULT_CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 const POWER_SAVE_BLOCKER_INACTIVE = -1;
 
 /**
- * Health probe requires `<title>Kanban</title>` in the response body so
- * the desktop shell does not attach to an unrelated local service that
+ * Health probe requires a known app title in the response body so the
+ * desktop shell does not attach to an unrelated local service that
  * happens to be listening on the runtime port (which would expose the
  * `window.desktop` IPC bridge to that service's origin).
+ *
+ * Accept the legacy Kanban title for one release so an older already-
+ * running runtime still counts as healthy during the rename transition.
  */
-export const KANBAN_RUNTIME_TITLE = "<title>Kanban</title>";
+export const RUNTIME_HEALTH_TITLES = ["<title>!Klein</title>", "<title>Kanban</title>"] as const;
 
 export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMap> {
 
@@ -111,9 +114,9 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 				signal: controller.signal,
 			});
 			if (!res.ok) return false;
-			// See `KANBAN_RUNTIME_TITLE` for why a body match is required.
+			// See `RUNTIME_HEALTH_TITLES` for why a body match is required.
 			const body = await res.text();
-			return body.includes(KANBAN_RUNTIME_TITLE);
+			return RUNTIME_HEALTH_TITLES.some((title) => body.includes(title));
 		} catch {
 
 			return false;

@@ -259,7 +259,9 @@ describe("createTerminalWebSocketBridge – passcode gate", () => {
 			isTerminalIoWebSocketPath: (pathname) => pathname === "/api/terminal/io",
 			isTerminalControlWebSocketPath: (pathname) => pathname === "/api/terminal/control",
 			// Validator: only the token "valid-token" is accepted.
-			validateUpgradeSession: (cookieHeader) => cookieHeader?.includes("kanban_session=valid-token") === true,
+			validateUpgradeSession: (cookieHeader) =>
+				cookieHeader?.includes("nklein_session=valid-token") === true ||
+				cookieHeader?.includes("kanban_session=valid-token") === true,
 		});
 		server.listen(0, "127.0.0.1");
 		await once(server, "listening");
@@ -295,13 +297,13 @@ describe("createTerminalWebSocketBridge – passcode gate", () => {
 
 	it("rejects /api/terminal/control upgrade with 401 when session token is invalid", async () => {
 		const url = `${runtimeUrl}/api/terminal/control?taskId=${TASK_ID}&workspaceId=${WORKSPACE_ID}`;
-		const { statusLine } = await attemptUpgradeAndReadResponse(url, "kanban_session=wrong-token");
+		const { statusLine } = await attemptUpgradeAndReadResponse(url, "nklein_session=wrong-token");
 		expect(statusLine).toContain("401");
 	});
 
 	it("allows /api/terminal/io upgrade when a valid session cookie is present", async () => {
 		const url = `${runtimeUrl}/api/terminal/io?taskId=${TASK_ID}&workspaceId=${WORKSPACE_ID}`;
-		const { statusLine } = await attemptUpgradeAndReadResponse(url, "kanban_session=valid-token");
+		const { statusLine } = await attemptUpgradeAndReadResponse(url, "nklein_session=valid-token");
 		expect(statusLine).toContain("101");
 	});
 

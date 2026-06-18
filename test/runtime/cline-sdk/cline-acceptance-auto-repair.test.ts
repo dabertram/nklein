@@ -29,7 +29,7 @@ function createSummary(): RuntimeTaskSessionSummary {
 function createWorkspaceState(prompt = "Acceptance check: npm test"): RuntimeWorkspaceStateResponse {
 	return {
 		repoPath: "/repo",
-		statePath: "/repo/.cline/kanban/state.json",
+		statePath: "/repo/.cline/nklein/state.json",
 		git: {
 			currentBranch: "main",
 			defaultBranch: "main",
@@ -77,7 +77,20 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
 		readyForReviewNotificationsEnabled: true,
+		codeEmbeddingDefaults: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
 		modelRoles: {
 			reviewer: {
 				providerId: "anthropic",

@@ -26,6 +26,18 @@ const SIDEBAR_MIN_EXPANDED_WIDTH = 200;
 const SIDEBAR_MAX_EXPANDED_WIDTH = 600;
 const BOARD_SURFACE_HORIZONTAL_CHROME_PX = 40;
 
+const cleanupDevTestProjectsMock = vi.hoisted(() => vi.fn());
+const createDevTestProjectMock = vi.hoisted(() => vi.fn());
+const migrateAccidentalProjectArtifactsMock = vi.hoisted(() => vi.fn());
+const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/runtime/runtime-config-query", () => ({
+	cleanupDevTestProjects: cleanupDevTestProjectsMock,
+	createDevTestProject: createDevTestProjectMock,
+	migrateAccidentalProjectArtifacts: migrateAccidentalProjectArtifactsMock,
+	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
+}));
+
 const PROJECTS: RuntimeProjectSummary[] = [
 	{
 		id: "project-1",
@@ -39,6 +51,39 @@ const PROJECTS: RuntimeProjectSummary[] = [
 			completed: 0,
 			trash: 0,
 		},
+		healthIssues: [],
+	},
+];
+
+const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
+	PROJECTS[0] as RuntimeProjectSummary,
+	{
+		id: "worktree-project",
+		name: "Kanban",
+		path: "/Users/david/.cline/worktrees/source-card/kanban",
+		taskCounts: {
+			backlog: 10,
+			planning: 0,
+			in_progress: 0,
+			review: 0,
+			completed: 0,
+			trash: 0,
+		},
+		gitRepositoryCreatedByKanban: true,
+		healthIssues: [
+			{
+				kind: "task_worktree_project",
+				severity: "warning",
+				title: "Task worktree added as project",
+				message: "This project points at a task worktree.",
+				taskId: "source-card",
+				parentWorkspaceId: "project-1",
+				parentWorkspacePath: "/tmp/kanban",
+				artifactCount: 1,
+				canRemove: true,
+				canMigrateArtifacts: true,
+			},
+		],
 	},
 ];
 
@@ -99,6 +144,69 @@ describe("ProjectNavigationPanel width persistence", () => {
 			writable: true,
 		});
 		localStorage.clear();
+		cleanupDevTestProjectsMock.mockReset();
+		createDevTestProjectMock.mockReset();
+		migrateAccidentalProjectArtifactsMock.mockReset();
+		migrateAccidentalProjectArtifactsMock.mockResolvedValue({
+			ok: true,
+			migratedArtifacts: 1,
+			skippedArtifacts: 0,
+			parentWorkspaceId: "project-1",
+			parentWorkspacePath: "/tmp/kanban",
+			errors: [],
+		});
+		fetchClineCodeIntelligenceStatusMock.mockReset();
+		fetchClineCodeIntelligenceStatusMock.mockResolvedValue({
+			codeEmbeddingSettings: {
+				globalDefaults: {
+					provider: "local_lexical",
+					model: "kanban-local-lexical-vector-v1",
+					baseUrl: null,
+				},
+				projectOverride: null,
+				effective: {
+					provider: "local_lexical",
+					model: "kanban-local-lexical-vector-v1",
+					baseUrl: null,
+				},
+				source: "global",
+			},
+			repoMap: {
+				filesScanned: 12,
+				symbols: 34,
+				tokenCount: 900,
+				truncated: false,
+				available: true,
+				error: null,
+			},
+			codeIndex: {
+				cachePath: "/repo/.cline/nklein/code-index-v1.json",
+				cacheExists: true,
+				embeddingProvider: "local_lexical",
+				embeddingModel: "kanban-local-lexical-vector-v1",
+				updatedAt: Date.now(),
+				totalFiles: 12,
+				totalChunks: 20,
+				indexedFiles: 10,
+				indexedChunks: 16,
+				staleFiles: 1,
+				missingFiles: 1,
+				searchAvailable: true,
+				progress: {
+					phase: "idle",
+					startedAt: null,
+					updatedAt: null,
+					filesTotal: 0,
+					filesProcessed: 0,
+					chunksTotal: 0,
+					chunksProcessed: 0,
+					cacheHitCount: 0,
+					cacheMissCount: 0,
+					message: null,
+				},
+				error: null,
+			},
+		});
 		container = document.createElement("div");
 		document.body.appendChild(container);
 		root = createRoot(container);
@@ -194,7 +302,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 
 	it("renders beta hint card with report issue in the projects view", () => {
 		renderPanel();
-		expect(container.textContent).toContain("Kanban is in beta. Help us improve by sharing your experience.");
+		expect(container.textContent).toContain("!Klein is in beta. Help us improve by sharing your experience.");
 		expect(container.textContent).toContain("Report issue");
 	});
 
@@ -208,9 +316,130 @@ describe("ProjectNavigationPanel width persistence", () => {
 				openFeedbackWidget: vi.fn(async () => {}),
 			},
 		});
-		expect(container.textContent).toContain("Kanban is in beta. Help us improve by sharing your experience.");
+		expect(container.textContent).toContain("!Klein is in beta. Help us improve by sharing your experience.");
 		expect(container.textContent).toContain("Send feedback");
 		expect(container.textContent).not.toContain("Report issue");
+	});
+
+	it("shows selected project code intelligence status in the projects view", async () => {
+		renderPanel();
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(fetchClineCodeIntelligenceStatusMock).toHaveBeenCalledWith("project-1");
+		expect(container.textContent).toContain("Code intelligence");
+		expect(container.textContent).toContain("16/20 chunks (80%) indexed");
+		expect(container.textContent).toContain("repo map ready");
+		expect(container.textContent).toContain("12 files scanned");
+		expect(container.textContent).toContain("34 symbols");
+		expect(container.textContent).toContain("Local lexical fallback");
+	});
+
+	it("does not load project code intelligence without a selected project", async () => {
+		renderPanel({ currentProjectId: null });
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(fetchClineCodeIntelligenceStatusMock).not.toHaveBeenCalled();
+		expect(container.textContent).not.toContain("Code intelligence");
+	});
+
+	it("hides dev-test project tools unless debug mode is enabled", () => {
+		renderPanel();
+
+		expect(container.textContent).not.toContain("Create fixture projects");
+		expect(container.textContent).not.toContain("Create mid task project");
+	});
+
+	it("shows dev-test project tools in debug mode", () => {
+		renderPanel({ debugModeEnabled: true });
+
+		expect(container.textContent).toContain("Create fixture projects");
+		expect(container.textContent).toContain("Create mid task project");
+		expect(container.textContent).toContain("Create complex product project");
+	});
+
+	it("requires confirmation before creating dev-test projects", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ debugModeEnabled: true });
+
+			act(() => {
+				getButtonByText(container, "Create mid task project").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Create a marked !Klein dev-test project and make it the active project?",
+			);
+			expect(createDevTestProjectMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("requires confirmation before deleting dev-test workspaces", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ debugModeEnabled: true });
+
+			act(() => {
+				getButtonByText(container, "Delete dev workspaces").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Delete marked !Klein dev-test projects, their task worktrees, and saved dev-test task patches?",
+			);
+			expect(cleanupDevTestProjectsMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("shows accidental task worktree projects with explicit recovery actions", () => {
+		renderPanel({ projects: ACCIDENTAL_PROJECTS });
+
+		expect(container.textContent).toContain("Project Health");
+		expect(container.textContent).toContain("Task worktree projects need a decision before cleanup.");
+		expect(container.textContent).toContain("1 artifacts");
+		expect(container.textContent).toContain("Inspect");
+		expect(container.textContent).toContain("Migrate");
+		expect(container.textContent).toContain("Remove");
+	});
+
+	it("requires confirmation before migrating accidental project artifacts", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ projects: ACCIDENTAL_PROJECTS });
+
+			act(() => {
+				getButtonByText(container, "Migrate").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Copy this accidental task-worktree project's plan artifacts into the detected parent project?",
+			);
+			expect(migrateAccidentalProjectArtifactsMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("migrates accidental project artifacts only after confirmation", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		try {
+			renderPanel({ projects: ACCIDENTAL_PROJECTS });
+
+			await act(async () => {
+				getButtonByText(container, "Migrate").click();
+				await Promise.resolve();
+			});
+
+			expect(migrateAccidentalProjectArtifactsMock).toHaveBeenCalledWith("project-1", "worktree-project");
+		} finally {
+			confirmSpy.mockRestore();
+		}
 	});
 
 	it("persists terminal tips dismissal", () => {

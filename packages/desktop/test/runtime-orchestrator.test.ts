@@ -29,15 +29,15 @@ vi.mock("../src/runtime-child.js", () => ({
 }));
 
 // Healthy mock-runtime response. RuntimeOrchestrator.checkHealth now reads
-// the response body and requires the Kanban-specific `<title>Kanban</title>`
-// element emitted by web-ui/index.html, so a bare `okResponse()` would fail
-// the title grep even though it would pass the legacy `res.ok` check.
+// the response body and requires a recognized app title from web-ui/index.html,
+// so a bare `okResponse()` would fail the title grep even though it would pass
+// the legacy `res.ok` check.
 // Mirrored from the real index.html so attach-mode tests still resolve as
 // healthy.
 function okResponse(): Response {
 	return {
 		ok: true,
-		text: async () => `<title>Kanban</title>`,
+		text: async () => `<title>!Klein</title>`,
 	} as unknown as Response;
 }
 
@@ -1708,14 +1708,12 @@ describe("RuntimeOrchestrator dispose() vs late crash events", () => {
 // `checkHealth` must do more than `res.ok`: any local service on the
 // runtime port that returns 2xx (a stale dev server, a misconfigured
 // reverse proxy, an unrelated developer tool) would otherwise count as
-// "kanban runtime found", and the Electron shell would attach to it and
+// "runtime found", and the Electron shell would attach to it and
 // expose `window.desktop` IPC to the foreign origin. The fix requires
-// the response body to contain `<title>Kanban</title>` — which every
-// Kanban runtime in history serves as part of the browser-tab UX, so
-// the contract is implicit-but-stable rather than requiring a bespoke
-// marker that producer (web-ui) and consumer (desktop) have to keep in
-// sync. See the docstring on `KANBAN_RUNTIME_TITLE` in
-// `runtime-orchestrator.ts` for the rationale.
+// the response body to contain a recognized app title. We accept both the
+// current `!Klein` title and the legacy `Kanban` title so a pre-rename
+// runtime can still be discovered during the transition. See the docstring
+// on `RUNTIME_HEALTH_TITLES` in `runtime-orchestrator.ts` for the rationale.
 //
 // These tests deliberately use raw fetch mocks (not `okResponse()`) so
 // the title requirement is exercised directly rather than through the
@@ -1730,7 +1728,7 @@ describe("RuntimeOrchestrator health-probe runtime identification", () => {
 		vi.useRealTimers();
 	});
 
-	it("rejects a 200 response that does not contain <title>Kanban</title>", async () => {
+	it("rejects a 200 response that does not contain a recognized app title", async () => {
 		// Simulate a foreign service: returns 200 with an arbitrary body.
 		// `connect()` should *not* attach — it should fall through to
 		// startOwnRuntime() and spawn its own child.
@@ -1756,11 +1754,32 @@ describe("RuntimeOrchestrator health-probe runtime identification", () => {
 		await orchestrator.shutdown();
 	});
 
-	it("attaches to a 200 response that contains <title>Kanban</title>", async () => {
-		// Covers the common case AND the back-compat case (older globally-
-		// linked CLIs that predate any of this branch's changes still serve
-		// `<title>Kanban</title>` because it's a product requirement —
-		// browser tab labels — not something this branch added).
+	it("attaches to a 200 response that contains the current !Klein title", async () => {
+		const fetchImpl = vi.fn(async () => ({
+			ok: true,
+			text: async () => `<!doctype html><html><head>
+				<title>!Klein</title>
+			</head><body></body></html>`,
+		})) as unknown as typeof fetch;
+
+		const orchestrator = new RuntimeOrchestrator({
+			host: "127.0.0.1",
+			port: 3484,
+			healthTimeoutMs: 500,
+			resolveCliShimPath: () => process.execPath,
+			fetchImpl,
+			attachedProbeIntervalMs: 0,
+			recoveryProbeIntervalMs: 0,
+		});
+
+		await orchestrator.connect();
+		// Attached, not owned — and no child manager was constructed.
+		expect(orchestrator.isOwned()).toBe(false);
+		expect(orchestrator.getUrl()).toBe("http://127.0.0.1:3484");
+		expect(childManagers.length).toBe(0);
+	});
+
+	it("attaches to a 200 response that contains the legacy Kanban title", async () => {
 		const fetchImpl = vi.fn(async () => ({
 			ok: true,
 			text: async () => `<!doctype html><html><head>
@@ -1779,7 +1798,6 @@ describe("RuntimeOrchestrator health-probe runtime identification", () => {
 		});
 
 		await orchestrator.connect();
-		// Attached, not owned — and no child manager was constructed.
 		expect(orchestrator.isOwned()).toBe(false);
 		expect(orchestrator.getUrl()).toBe("http://127.0.0.1:3484");
 		expect(childManagers.length).toBe(0);
@@ -1811,6 +1829,5 @@ describe("RuntimeOrchestrator health-probe runtime identification", () => {
 		await orchestrator.dispose();
 	});
 });
-
 
 

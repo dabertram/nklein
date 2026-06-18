@@ -123,7 +123,7 @@ describe("dev command", () => {
 
 	it("writes dogfood backlog artifacts", async () => {
 		evalHarnessMocks.writeClineDogfoodBacklog.mockResolvedValue({
-			rootPath: "/repo/.cline/kanban/plans/dogfood",
+			rootPath: "/repo/.cline/nklein/plans/dogfood",
 			taskGraph: {
 				slug: "dogfood",
 				tasks: [{ id: "task-1" }],

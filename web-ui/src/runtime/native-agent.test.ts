@@ -27,9 +27,22 @@ function createRuntimeConfigResponse(
 		conversationTimeoutMs: 7_200_000,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
+		codeEmbeddingDefaults: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
 		effectiveCommand: selectedAgentId === "cline" ? null : selectedAgentId,
 		globalConfigPath: "/tmp/global-config.json",
-		projectConfigPath: "/tmp/project/.cline/kanban/config.json",
+		projectConfigPath: "/tmp/project/.cline/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
 		detectedCommands: ["claude", "codex"],
 		agents: [

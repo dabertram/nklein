@@ -43,7 +43,7 @@ function createBoard(taskId: string): BoardData {
 function createWorkspaceState(taskId: string, revision: number): RuntimeWorkspaceStateResponse {
 	return {
 		repoPath: "/tmp/project-a",
-		statePath: "/tmp/project-a/.cline/kanban",
+		statePath: "/tmp/project-a/.cline/nklein",
 		git: {
 			currentBranch: "main",
 			defaultBranch: "main",
@@ -310,6 +310,54 @@ describe("useWorkspaceSync", () => {
 		const rerenderedSnapshot: HookSnapshot = latestSnapshot;
 		expect(rerenderedSnapshot.sessions["task-1"]?.updatedAt).toBe(2000);
 		expect(rerenderedSnapshot.sessions["task-1"]?.state).toBe("running");
+	});
+
+	it("applies streamed workspace state updates to the active board without a browser save", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					streamedWorkspaceState={createWorkspaceStateWithSessions("persisted-task", 1, {
+						"task-1": createSessionSummary("task-1", 1000, null),
+					})}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected an initial hook snapshot.");
+		}
+		const initialSnapshot: HookSnapshot = latestSnapshot;
+		expect(initialSnapshot.board.columns[0]?.cards[0]?.id).toBe("persisted-task");
+		expect(initialSnapshot.sessions["task-1"]?.state).toBe("running");
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					streamedWorkspaceState={createWorkspaceStateWithSessions("streamed-task", 2, {
+						"task-1": createSessionSummary("task-1", 2000, "Finished from runtime stream"),
+					})}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot after streamed update.");
+		}
+		const streamedSnapshot: HookSnapshot = latestSnapshot;
+		expect(streamedSnapshot.board.columns[0]?.cards[0]?.id).toBe("streamed-task");
+		expect(streamedSnapshot.sessions["task-1"]?.updatedAt).toBe(2000);
+		expect(streamedSnapshot.sessions["task-1"]?.state).toBe("awaiting_review");
+		expect(streamedSnapshot.sessions["task-1"]?.latestHookActivity?.finalMessage).toBe(
+			"Finished from runtime stream",
+		);
 	});
 
 	it("does not refresh workspace state before the initial runtime snapshot resolves", async () => {

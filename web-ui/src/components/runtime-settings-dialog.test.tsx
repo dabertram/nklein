@@ -110,6 +110,7 @@ vi.mock("@radix-ui/react-switch", () => ({
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
 const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
 const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
+const sendClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
@@ -236,6 +237,7 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 	openFileOnHost: openFileOnHostMock,
 	runClineSmokeEval: runClineSmokeEvalMock,
 	saveClineModelContextWindowOverride: saveClineModelContextWindowOverrideMock,
+	sendClineAdvisorRequest: sendClineAdvisorRequestMock,
 	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
 }));
 
@@ -295,6 +297,8 @@ const savedClineOauthConfig = {
 	selectedAgentId: "cline",
 	selectedShortcutLabel: null,
 	agentAutonomousModeEnabled: true,
+	lostHeartbeatPolicy: "park",
+	decompositionAutoApplyEnabled: true,
 	readyForReviewNotificationsEnabled: false,
 	effectiveCommand: "cline",
 	detectedCommands: [],
@@ -336,6 +340,11 @@ const savedClineOauthConfig = {
 	},
 } as unknown as RuntimeConfigResponse;
 
+const debugClineOauthConfig = {
+	...savedClineOauthConfig,
+	debugModeEnabled: true,
+} as RuntimeConfigResponse;
+
 describe("RuntimeSettingsDialog", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -351,19 +360,27 @@ describe("RuntimeSettingsDialog", () => {
 			requiresWebResearch: true,
 			recommendedSources: ["https://openrouter.ai/models"],
 		});
+		sendClineAdvisorRequestMock.mockReset();
+		sendClineAdvisorRequestMock.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "loaded-qwen",
+			output: "Use the loaded Qwen model for local checks.",
+			sentAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+			receivedAt: Date.UTC(2026, 0, 2, 3, 4, 8),
+		});
 		writeClineDogfoodBacklogMock.mockReset();
 		writeClineDogfoodBacklogMock.mockResolvedValue({
-			rootPath: "/repo/.cline/kanban/plans/dogfood",
-			specPath: "/repo/.cline/kanban/plans/dogfood/spec.md",
-			planPath: "/repo/.cline/kanban/plans/dogfood/plan.md",
-			questionsPath: "/repo/.cline/kanban/plans/dogfood/questions.md",
-			decisionsPath: "/repo/.cline/kanban/plans/dogfood/decisions.md",
-			revisionsPath: "/repo/.cline/kanban/plans/dogfood/revisions.md",
-			summaryPath: "/repo/.cline/kanban/plans/dogfood/summary.md",
-			taskGraphPath: "/repo/.cline/kanban/plans/dogfood/tasks.json",
+			rootPath: "/repo/.cline/nklein/plans/dogfood",
+			specPath: "/repo/.cline/nklein/plans/dogfood/spec.md",
+			planPath: "/repo/.cline/nklein/plans/dogfood/plan.md",
+			questionsPath: "/repo/.cline/nklein/plans/dogfood/questions.md",
+			decisionsPath: "/repo/.cline/nklein/plans/dogfood/decisions.md",
+			revisionsPath: "/repo/.cline/nklein/plans/dogfood/revisions.md",
+			summaryPath: "/repo/.cline/nklein/plans/dogfood/summary.md",
+			taskGraphPath: "/repo/.cline/nklein/plans/dogfood/tasks.json",
 			slug: "dogfood",
 			taskCount: 1,
-			nextCommand: "kanban task decompose --slug dogfood --project-path /repo",
+			nextCommand: "nklein task decompose --slug dogfood --project-path /repo",
 		});
 		runClineSmokeEvalMock.mockReset();
 		runClineSmokeEvalMock.mockResolvedValue({
@@ -379,6 +396,20 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		fetchClineCodeIntelligenceStatusMock.mockReset();
 		fetchClineCodeIntelligenceStatusMock.mockResolvedValue({
+			codeEmbeddingSettings: {
+				globalDefaults: {
+					provider: "local_lexical",
+					model: "kanban-local-lexical-vector-v1",
+					baseUrl: null,
+				},
+				projectOverride: null,
+				effective: {
+					provider: "local_lexical",
+					model: "kanban-local-lexical-vector-v1",
+					baseUrl: null,
+				},
+				source: "global",
+			},
 			repoMap: {
 				filesScanned: 12,
 				symbols: 34,
@@ -388,7 +419,7 @@ describe("RuntimeSettingsDialog", () => {
 				error: null,
 			},
 			codeIndex: {
-				cachePath: "/repo/.cline/kanban/code-index-v1.json",
+				cachePath: "/repo/.cline/nklein/code-index-v1.json",
 				cacheExists: true,
 				embeddingProvider: "local_lexical",
 				embeddingModel: "kanban-local-lexical-vector-v1",
@@ -572,10 +603,51 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("Context budget policy");
 		expect(document.body.textContent).toContain("Acceptance gate");
 		expect(document.body.textContent).toContain("Telemetry");
-		expect(document.body.textContent).toContain(".cline/kanban/telemetry, limit 20");
+		expect(document.body.textContent).toContain(".cline/nklein/telemetry, limit 20");
 	});
 
-	it("shows Cline code intelligence status in settings", async () => {
+	it("saves the lost heartbeat policy from advanced settings", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedClineOauthConfig,
+							selectedAgentId: "claude",
+							effectiveCommand: "claude",
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const lostHeartbeatSelect = Array.from(document.body.querySelectorAll("select")).find((select) =>
+			Array.from(select.options).some((option) => option.value === "keep_running"),
+		);
+		if (!(lostHeartbeatSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected lost heartbeat policy select to render.");
+		}
+
+		await act(async () => {
+			setSelectValue(lostHeartbeatSelect, "keep_running");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				lostHeartbeatPolicy: "keep_running",
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("does not show project code intelligence status in global settings", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
@@ -587,68 +659,10 @@ describe("RuntimeSettingsDialog", () => {
 			);
 			await Promise.resolve();
 		});
-		await waitForCondition(() => document.body.textContent?.includes("16/20 chunks") === true);
 
-		expect(fetchClineCodeIntelligenceStatusMock).toHaveBeenCalledWith("workspace-1");
-		expect(document.body.textContent).toContain("Code intelligence");
-		expect(document.body.textContent).toContain("16/20 chunks (80%) indexed");
-		expect(document.body.textContent).toContain("repo map ready");
-		expect(document.body.textContent).toContain("12 files scanned");
-		expect(document.body.textContent).toContain("34 symbols");
-	});
-
-	it("shows active code-index progress in settings", async () => {
-		fetchClineCodeIntelligenceStatusMock.mockResolvedValueOnce({
-			repoMap: {
-				filesScanned: 12,
-				symbols: 34,
-				tokenCount: 900,
-				truncated: false,
-				available: true,
-				error: null,
-			},
-			codeIndex: {
-				cachePath: "/repo/.cline/kanban/code-index-v1.json",
-				cacheExists: true,
-				embeddingProvider: "local_lexical",
-				embeddingModel: "kanban-local-lexical-vector-v1",
-				updatedAt: Date.now(),
-				totalFiles: 12,
-				totalChunks: 20,
-				indexedFiles: 6,
-				indexedChunks: 8,
-				staleFiles: 1,
-				missingFiles: 1,
-				searchAvailable: true,
-				progress: {
-					phase: "embedding",
-					startedAt: Date.now(),
-					updatedAt: Date.now(),
-					filesTotal: 12,
-					filesProcessed: 12,
-					chunksTotal: 20,
-					chunksProcessed: 8,
-					cacheHitCount: 3,
-					cacheMissCount: 5,
-					message: "Embedding 20 code chunks",
-				},
-				error: null,
-			},
-		});
-		await act(async () => {
-			root.render(
-				<RuntimeSettingsDialog
-					open={true}
-					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
-					onOpenChange={() => {}}
-				/>,
-			);
-			await Promise.resolve();
-		});
-		await waitForCondition(() => document.body.textContent?.includes("Indexing 8/20 chunks") === true);
-
-		expect(document.body.textContent).toContain("Indexing 8/20 chunks");
+		expect(fetchClineCodeIntelligenceStatusMock).not.toHaveBeenCalled();
+		expect(document.body.textContent).not.toContain("16/20 chunks");
+		expect(document.body.textContent).not.toContain("Repo map");
 	});
 
 	it("shows and saves local model context-window overrides in settings", async () => {
@@ -668,7 +682,7 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(fetchClineModelRegistryMock).toHaveBeenCalledWith("workspace-1");
 		expect(document.body.textContent).toContain("1 local model tracked");
-		expect(document.body.textContent).toContain("Effective: 64,000");
+		expect(document.body.textContent).toContain("Effective context: 64,000");
 		const input = document.body.querySelector("input[aria-label='Context window override for ollama/qwen']");
 		expect(input).toBeInstanceOf(HTMLInputElement);
 		await act(async () => {
@@ -970,7 +984,7 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(saveRuntimeConfigMock).not.toHaveBeenCalled();
 		expect(handleOpenChange).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain("Kanban requires at least 32,000");
+		expect(document.body.textContent).toContain("!Klein requires at least 32,000");
 	});
 
 	it("does not offer stale LM Studio model role selections", async () => {
@@ -1078,13 +1092,23 @@ describe("RuntimeSettingsDialog", () => {
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("builds and copies Cline advisor prompts from settings", async () => {
+	it("builds, sends, and copies Cline advisor prompts from settings", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={
+						{
+							...savedClineOauthConfig,
+							clineProviderSettings: {
+								...savedClineOauthConfig.clineProviderSettings,
+								providerId: "lmstudio",
+								modelId: "loaded-qwen",
+								baseUrl: "http://localhost:1234/v1",
+							},
+						} as RuntimeConfigResponse
+					}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1102,6 +1126,22 @@ describe("RuntimeSettingsDialog", () => {
 		expect(buildClineAdvisorRequestMock).toHaveBeenCalledWith("workspace-1", { kind: "model_freshness" });
 		expect(document.body.textContent).toContain("Check For Better Models");
 		expect(document.body.textContent).toContain("openrouter.ai");
+		const sendButton = findButtonByText(document.body, "Send prompt");
+		expect(sendButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			sendButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(sendClineAdvisorRequestMock).toHaveBeenCalledWith("workspace-1", {
+			prompt: "Compare connected models.",
+			providerId: "lmstudio",
+			modelId: "loaded-qwen",
+		});
+		expect(document.body.textContent).toContain("Use the loaded Qwen model for local checks.");
+		expect(document.body.textContent).toContain("lmstudio / loaded-qwen");
+		expect(document.body.textContent).toContain("Sent");
+		expect(document.body.textContent).toContain("Received");
 
 		const copyButton = findButtonByText(document.body, "Copy prompt");
 		expect(copyButton).toBeInstanceOf(HTMLButtonElement);
@@ -1203,7 +1243,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 	});
 
-	it("writes self-improvement backlog artifacts from a user suggestion", async () => {
+	it("hides developer tools in normal settings mode", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
@@ -1215,10 +1255,28 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
+		expect(document.body.textContent).not.toContain("Developer Tools");
+		expect(document.body.textContent).not.toContain("Run smoke eval");
+		expect(document.body.textContent).not.toContain("Suggest improvement");
+	});
+
+	it("writes self-improvement backlog artifacts from a user suggestion in debug mode", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={debugClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		expect(document.body.textContent).toContain("Developer Tools");
 		const suggestionInput = Array.from(document.body.querySelectorAll("textarea")).find(
 			(textarea) =>
 				textarea.getAttribute("placeholder") ===
-				"Describe a Kanban improvement to turn into guarded dogfood tasks.",
+				"Describe a !Klein improvement to turn into guarded dogfood tasks.",
 		);
 		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
 			throw new Error("Expected dogfood suggestion textarea.");
@@ -1238,16 +1296,16 @@ describe("RuntimeSettingsDialog", () => {
 			suggestion: "Improve stalled task diagnostics.",
 		});
 		expect(document.body.textContent).toContain("1 task drafted");
-		expect(document.body.textContent).toContain("kanban task decompose --slug dogfood");
+		expect(document.body.textContent).toContain("nklein task decompose --slug dogfood");
 	});
 
-	it("runs the Cline smoke eval from settings", async () => {
+	it("runs the Cline smoke eval from settings in debug mode", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={debugClineOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
