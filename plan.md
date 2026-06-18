@@ -438,19 +438,20 @@ plowing ahead or silently failing.
       missing dependency/file, contradictory requirement, and oversized-scope signatures. Acceptance failure
       classification now uses named domain pattern groups for unresolved decisions, contradictions, missing
       packages/files/commands/config/schema, and scope/resource exhaustion.
-- [~] **Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
+- [x] ~~**Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
-      guardrails (L2.4) so adaptation can't loop. **Progress:** `kanban task plan-gap --kind
+      guardrails (L2.4) so adaptation can't loop.~~ `kanban task plan-gap --kind
       integration_needed` now inserts a Planning integration card with plan mode, auto-review, evidence, and
       the current branch/default branch as its base ref. Scope-too-large gaps now mark the source card as
       needing decomposition and create a deduplicated Planning split card; missing-decision and contradiction
       gaps create deduplicated Planning decision-pause cards that ask for the smallest user decision before
-      work continues. Still open: applying bounded recursive replacement splits back into the saved DAG and
-      re-linking dependencies automatically after the replacement graph is approved.
-- [~] **Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
+      work continues. Approved replacement graphs can now be applied with `kanban task expand-plan-task`,
+      which replaces the oversized saved-plan task, inherits upstream dependencies into replacement entry
+      tasks, re-links downstream dependents to terminal replacement tasks, and rewrites `tasks.json`.
+- [x] ~~**Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
       motivated it) in the plan artifacts, so the evolving plan stays auditable and the DAG view (L4) can
-      flag "revised" cards. **Progress:** new decomposition plans now include a first-class
+      flag "revised" cards.~~ New decomposition plans now include a first-class
       `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
       `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
       integration-card adaptation returns the created Planning card alongside the gap response and appends a
@@ -461,7 +462,8 @@ plowing ahead or silently failing.
       initial `recursive_split` revision listing each expanded task and pointing to the rewritten dependency
       graph in `tasks.json`. Decision/contradiction and scope-too-large adaptation cards now append concrete
       `decision_card_added` or `scope_split_card_added` revision entries when the owning plan is known.
-      Still open: append concrete revision entries when future direct DAG replacement/re-linking lands.
+      Direct saved DAG replacement/re-linking now appends `recursive_task_replaced` entries that record the
+      replacement description and entry/terminal dependency bridge evidence.
 
 ---
 

@@ -6,9 +6,17 @@ import type { Command } from "commander";
 
 import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan, type ClineAcceptanceRepairAction } from "../cline-sdk/cline-acceptance-repair";
-import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
+import {
+	applyClinePlanTaskGraphToBoard,
+	applyClinePlanTaskReplacementArtifacts,
+} from "../cline-sdk/cline-decomposition-tool";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
-import { appendClinePlanRevision, readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
+import {
+	appendClinePlanRevision,
+	type ClinePlanTask,
+	clinePlanTaskSchema,
+	readClinePlanArtifacts,
+} from "../cline-sdk/cline-plan-artifacts";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
 import { buildClineStartGuardCandidate } from "../cline-sdk/cline-task-start-guard";
@@ -1031,6 +1039,46 @@ async function decomposeTaskGraph(input: {
 		dependencies: applied.createdDependencies,
 		taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 		count: applied.createdTasks.length,
+	};
+}
+
+function parseReplacementTasksJson(value: string): ClinePlanTask[] {
+	const parsed: unknown = JSON.parse(value);
+	return clinePlanTaskSchema.array().parse(parsed);
+}
+
+export async function expandSavedPlanTaskCommand(input: {
+	cwd: string;
+	projectPath?: string;
+	planSlug: string;
+	taskId: string;
+	replacementsJson: string;
+	description?: string;
+	evidence?: string;
+}): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd, {
+		autoCreateIfMissing: false,
+	});
+	const replacements = parseReplacementTasksJson(input.replacementsJson);
+	const result = await applyClinePlanTaskReplacementArtifacts({
+		workspacePath: workspaceRepoPath,
+		slug: input.planSlug,
+		taskId: input.taskId,
+		replacements,
+		description: input.description,
+		evidence: input.evidence,
+	});
+	return {
+		ok: true,
+		workspacePath: workspaceRepoPath,
+		planSlug: input.planSlug,
+		taskId: input.taskId,
+		taskGraphPath: result.taskGraphPath,
+		revisionsPath: result.revisionsPath,
+		replacementTaskIds: result.replacementTaskIds,
+		entryTaskIds: result.entryTaskIds,
+		terminalTaskIds: result.terminalTaskIds,
+		taskCount: result.taskGraph.tasks.length,
 	};
 }
 
@@ -2550,6 +2598,42 @@ export function registerTaskCommand(program: Command): void {
 							description: options.description,
 							evidence: options.evidence,
 							planSlug: options.planSlug,
+						}),
+				);
+			},
+		);
+
+	task
+		.command("expand-plan-task")
+		.description("Apply approved replacement tasks to a saved plan DAG and re-link dependencies.")
+		.requiredOption("--plan-slug <slug>", "Saved plan slug under .cline/kanban/plans/<slug>.")
+		.requiredOption("--task-id <id>", "Plan task ID to replace.")
+		.requiredOption(
+			"--replacements-json <json>",
+			"JSON array of replacement plan tasks, usually copied from a validated expand_task result.",
+		)
+		.option("--description <text>", "Revision description. Defaults to a generated replacement summary.")
+		.option("--evidence <text>", "Revision evidence. Defaults to entry/terminal replacement IDs.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(
+			async (options: {
+				planSlug: string;
+				taskId: string;
+				replacementsJson: string;
+				description?: string;
+				evidence?: string;
+				projectPath?: string;
+			}) => {
+				await runTaskCommand(
+					async () =>
+						await expandSavedPlanTaskCommand({
+							cwd: process.cwd(),
+							projectPath: options.projectPath,
+							planSlug: options.planSlug,
+							taskId: options.taskId,
+							replacementsJson: options.replacementsJson,
+							description: options.description,
+							evidence: options.evidence,
 						}),
 				);
 			},

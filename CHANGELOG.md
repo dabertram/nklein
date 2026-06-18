@@ -59,6 +59,7 @@
 - Recorded a concrete `integration_card_added` plan revision when automatic integration-card adaptation runs with `--plan-slug`.
 - Added bounded plan-gap adaptation cards for scope and decision gaps: oversized cards are blocked for decomposition, decision/contradiction gaps pause into Planning, and repeated adaptations reuse the existing Planning card.
 - Recorded concrete `decision_card_added` and `scope_split_card_added` revisions when adaptive plan-gap cards are created for a known decomposition plan.
+- Added `kanban task expand-plan-task` to apply approved recursive replacement tasks to saved plan DAGs, re-link dependencies through entry/terminal replacements, and append `recursive_task_replaced` revisions.
 - Fixed Cline team-progress summaries so `task_end` events with string-shaped errors are reported as failures instead of completions.
 - Named and documented Cline context-budget policy constants for reserve caps, unknown-window fallbacks, pressure curves, and file chunk sizing without changing budget behavior.
 - Documented the Cline repo-map heuristic and refreshed cached repo maps after successful workspace-mutating tools, so code-orientation context no longer stays stale after edits.

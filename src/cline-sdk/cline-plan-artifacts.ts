@@ -84,6 +84,12 @@ export interface AppendClinePlanRevisionInput {
 	createdAt?: number;
 }
 
+export interface WriteClinePlanTaskGraphInput {
+	workspacePath: string;
+	slug: string;
+	taskGraph: ClinePlanTaskGraph;
+}
+
 function formatQuestionsMarkdown(questions: readonly ClinePlanQuestion[]): string {
 	if (questions.length === 0) {
 		return "# Questions\n\nNo clarifying questions were recorded.\n";
@@ -246,6 +252,17 @@ export async function appendClinePlanRevision(input: AppendClinePlanRevisionInpu
 	const nextMarkdown = `${trimmedExisting}\n\n${formatRevisionEntry(input)}`;
 	await lockedFileSystem.writeTextFileAtomic(paths.revisionsPath, nextMarkdown, { lock: null });
 	return paths.revisionsPath;
+}
+
+export async function writeClinePlanTaskGraph(input: WriteClinePlanTaskGraphInput): Promise<string> {
+	const paths = resolveClinePlanArtifactPaths(input.workspacePath, input.slug);
+	const taskGraph = clinePlanTaskGraphSchema.parse({
+		...input.taskGraph,
+		slug: paths.slug,
+	});
+	await mkdir(paths.rootPath, { recursive: true });
+	await lockedFileSystem.writeJsonFileAtomic(paths.taskGraphPath, taskGraph, { lock: null });
+	return paths.taskGraphPath;
 }
 
 export async function readClinePlanArtifacts(workspacePath: string, slug: string): Promise<ClinePlanArtifacts> {

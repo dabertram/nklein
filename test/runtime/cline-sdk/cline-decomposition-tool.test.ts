@@ -6,9 +6,15 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
 	applyClinePlanTaskGraphToBoard,
+	applyClinePlanTaskReplacementArtifacts,
 	createClineDecompositionTools,
+	replaceClinePlanTaskInGraph,
 } from "../../../src/cline-sdk/cline-decomposition-tool";
-import type { ClinePlanTaskGraph } from "../../../src/cline-sdk/cline-plan-artifacts";
+import {
+	type ClinePlanTaskGraph,
+	readClinePlanArtifacts,
+	writeClinePlanArtifacts,
+} from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
 import { loadWorkspaceState } from "../../../src/state/workspace-state";
@@ -788,6 +794,164 @@ describe("cline decomposition tools", () => {
 		expect(revisionsMarkdown).toContain("- feature -> storage, ui");
 		expect(revisionsMarkdown).toContain("- ui -> ui-state, ui-view");
 		expect(revisionsMarkdown).toContain("Dependency rewrites are reflected in tasks.json.");
+	});
+
+	it("replaces a saved plan task and re-links upstream and downstream dependencies", () => {
+		const taskGraph: ClinePlanTaskGraph = {
+			schemaVersion: 1,
+			slug: "checkout",
+			title: "Checkout",
+			tasks: [
+				{
+					id: "design",
+					title: "Design flow",
+					prompt: "Design the checkout flow.",
+					dependsOn: [],
+					complexity: 20,
+					filesLikelyTouched: ["docs/checkout.md"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+				{
+					id: "feature",
+					title: "Build feature",
+					prompt: "Build the checkout feature.",
+					dependsOn: ["design"],
+					complexity: 70,
+					filesLikelyTouched: ["src/checkout.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+				{
+					id: "release",
+					title: "Release feature",
+					prompt: "Release the checkout feature.",
+					dependsOn: ["feature"],
+					complexity: 20,
+					filesLikelyTouched: ["src/release.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+			],
+		};
+
+		const result = replaceClinePlanTaskInGraph({
+			taskGraph,
+			taskId: "feature",
+			replacements: [
+				{
+					id: "feature-api",
+					title: "Build checkout API",
+					prompt: "Build the checkout API.",
+					dependsOn: [],
+					complexity: 35,
+					filesLikelyTouched: ["src/checkout-api.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+				{
+					id: "feature-ui",
+					title: "Build checkout UI",
+					prompt: "Build the checkout UI.",
+					dependsOn: ["feature-api"],
+					complexity: 35,
+					filesLikelyTouched: ["src/checkout-ui.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+			],
+		});
+
+		expect(result.replacementTaskIds).toEqual(["feature-api", "feature-ui"]);
+		expect(result.entryTaskIds).toEqual(["feature-api"]);
+		expect(result.terminalTaskIds).toEqual(["feature-ui"]);
+		expect(result.taskGraph.tasks.map((task) => task.id)).toEqual(["design", "feature-api", "feature-ui", "release"]);
+		expect(result.taskGraph.tasks.find((task) => task.id === "feature-api")?.dependsOn).toEqual(["design"]);
+		expect(result.taskGraph.tasks.find((task) => task.id === "feature-ui")?.dependsOn).toEqual(["feature-api"]);
+		expect(result.taskGraph.tasks.find((task) => task.id === "release")?.dependsOn).toEqual(["feature-ui"]);
+	});
+
+	it("applies replacement task graphs to saved plan artifacts with revision history", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-replace-"));
+		await writeClinePlanArtifacts({
+			workspacePath,
+			slug: "Checkout",
+			spec: "Build checkout.",
+			plan: "Implement checkout.",
+			taskGraph: {
+				schemaVersion: 1,
+				slug: "Checkout",
+				title: "Checkout",
+				tasks: [
+					{
+						id: "feature",
+						title: "Build feature",
+						prompt: "Build the checkout feature.",
+						dependsOn: [],
+						complexity: 70,
+						filesLikelyTouched: ["src/checkout.ts"],
+						acceptanceCommand: "npm test",
+						testFirst: false,
+						acceptanceTestPrompt: null,
+						suggestedRole: null,
+					},
+					{
+						id: "release",
+						title: "Release feature",
+						prompt: "Release the checkout feature.",
+						dependsOn: ["feature"],
+						complexity: 20,
+						filesLikelyTouched: ["src/release.ts"],
+						acceptanceCommand: "npm test",
+						testFirst: false,
+						acceptanceTestPrompt: null,
+						suggestedRole: null,
+					},
+				],
+			},
+		});
+
+		const result = await applyClinePlanTaskReplacementArtifacts({
+			workspacePath,
+			slug: "Checkout",
+			taskId: "feature",
+			replacements: [
+				{
+					id: "feature-api",
+					title: "Build checkout API",
+					prompt: "Build the checkout API.",
+					dependsOn: [],
+					complexity: 35,
+					filesLikelyTouched: ["src/checkout-api.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+					suggestedRole: null,
+				},
+			],
+			description: "Split checkout feature after scope gap.",
+			evidence: "Context budget exceeded.",
+			createdAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+		});
+
+		expect(result.taskGraphPath).toContain("tasks.json");
+		expect(result.revisionsPath).toContain("revisions.md");
+		const artifacts = await readClinePlanArtifacts(workspacePath, "checkout");
+		expect(artifacts.taskGraph.tasks.map((task) => task.id)).toEqual(["feature-api", "release"]);
+		expect(artifacts.taskGraph.tasks.find((task) => task.id === "release")?.dependsOn).toEqual(["feature-api"]);
+		expect(artifacts.revisionsMarkdown).toContain("2026-01-02T03:04:05.000Z - recursive_task_replaced");
+		expect(artifacts.revisionsMarkdown).toContain("Split checkout feature after scope gap.");
+		expect(artifacts.revisionsMarkdown).toContain("Context budget exceeded.");
 	});
 
 	it("rejects recursive expansions that exceed the depth limit", async () => {

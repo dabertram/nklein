@@ -11,13 +11,16 @@ import type {
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import {
+	appendClinePlanRevision,
 	type ClinePlanQuestion,
 	type ClinePlanTask,
 	type ClinePlanTaskGraph,
 	clinePlanQuestionSchema,
 	clinePlanTaskGraphSchema,
 	clinePlanTaskSchema,
+	readClinePlanArtifacts,
 	writeClinePlanArtifacts,
+	writeClinePlanTaskGraph,
 } from "./cline-plan-artifacts";
 import { type ClineTaskRoutingCandidate, routeClineTask } from "./cline-task-router";
 import {
@@ -60,6 +63,18 @@ export interface ValidateClinePlanTaskGraphResult {
 	taskGraph: ClinePlanTaskGraph;
 	taskCount: number;
 	dependencyCount: number;
+}
+
+export interface ReplaceClinePlanTaskInGraphResult {
+	taskGraph: ClinePlanTaskGraph;
+	replacementTaskIds: string[];
+	entryTaskIds: string[];
+	terminalTaskIds: string[];
+}
+
+export interface ApplyClinePlanTaskReplacementArtifactsResult extends ReplaceClinePlanTaskInGraphResult {
+	taskGraphPath: string;
+	revisionsPath: string;
 }
 
 export interface ApplyDecomposeProjectArtifactsResult {
@@ -359,6 +374,119 @@ function validateTaskGraphReferences(taskGraph: ClinePlanTaskGraph): number {
 		}
 	}
 	return dependencyCount;
+}
+
+function getReplacementBoundaryTaskIds(replacements: readonly ClinePlanTask[]): {
+	replacementTaskIds: string[];
+	entryTaskIds: string[];
+	terminalTaskIds: string[];
+} {
+	const replacementTaskIds = replacements.map((task) => task.id);
+	const replacementTaskIdSet = new Set(replacementTaskIds);
+	const dependedOnByReplacementTaskIds = new Set<string>();
+	for (const task of replacements) {
+		for (const dependencyTaskId of task.dependsOn) {
+			if (replacementTaskIdSet.has(dependencyTaskId)) {
+				dependedOnByReplacementTaskIds.add(dependencyTaskId);
+			}
+		}
+	}
+	const entryTaskIds = replacements
+		.filter((task) => !task.dependsOn.some((dependencyTaskId) => replacementTaskIdSet.has(dependencyTaskId)))
+		.map((task) => task.id);
+	const terminalTaskIds = replacements
+		.filter((task) => !dependedOnByReplacementTaskIds.has(task.id))
+		.map((task) => task.id);
+	if (entryTaskIds.length === 0 || terminalTaskIds.length === 0) {
+		throw new Error("Replacement graph must be acyclic and include at least one entry and terminal task.");
+	}
+	return {
+		replacementTaskIds,
+		entryTaskIds,
+		terminalTaskIds,
+	};
+}
+
+export function replaceClinePlanTaskInGraph(input: {
+	taskGraph: ClinePlanTaskGraph;
+	taskId: string;
+	replacements: readonly ClinePlanTask[];
+	defaultAcceptanceCommand?: string | null;
+	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+}): ReplaceClinePlanTaskInGraphResult {
+	const taskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
+	const taskId = input.taskId.trim();
+	if (!taskId) {
+		throw new Error("Replacement target task id is required.");
+	}
+	if (!taskGraph.tasks.some((task) => task.id === taskId)) {
+		throw new Error(`Task graph does not contain task ${taskId}.`);
+	}
+	const replacements = z.array(clinePlanTaskSchema).parse(input.replacements);
+	if (replacements.length === 0) {
+		throw new Error(`Replacement for task ${taskId} must include at least one task.`);
+	}
+	const replacementBoundary = getReplacementBoundaryTaskIds(replacements);
+	const nextTaskGraph: ClinePlanTaskGraph = {
+		...taskGraph,
+		tasks: expandDecomposeProjectTasks({
+			tasks: taskGraph.tasks,
+			expansions: {
+				[taskId]: replacements,
+			},
+			defaultAcceptanceCommand: input.defaultAcceptanceCommand?.trim() || null,
+		}),
+	};
+	validateClinePlanTaskGraph({
+		taskGraph: nextTaskGraph,
+		routingCandidates: input.routingCandidates,
+	});
+	return {
+		taskGraph: nextTaskGraph,
+		...replacementBoundary,
+	};
+}
+
+export async function applyClinePlanTaskReplacementArtifacts(input: {
+	workspacePath: string;
+	slug: string;
+	taskId: string;
+	replacements: readonly ClinePlanTask[];
+	description?: string | null;
+	evidence?: string | null;
+	createdAt?: number;
+	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+}): Promise<ApplyClinePlanTaskReplacementArtifactsResult> {
+	const artifacts = await readClinePlanArtifacts(input.workspacePath, input.slug);
+	const replacement = replaceClinePlanTaskInGraph({
+		taskGraph: artifacts.taskGraph,
+		taskId: input.taskId,
+		replacements: input.replacements,
+		routingCandidates: input.routingCandidates,
+	});
+	const taskGraphPath = await writeClinePlanTaskGraph({
+		workspacePath: input.workspacePath,
+		slug: artifacts.taskGraph.slug,
+		taskGraph: replacement.taskGraph,
+	});
+	const revisionsPath = await appendClinePlanRevision({
+		workspacePath: input.workspacePath,
+		slug: artifacts.taskGraph.slug,
+		taskId: input.taskId,
+		kind: "recursive_task_replaced",
+		description:
+			input.description?.trim() ||
+			`Replaced ${input.taskId} with ${replacement.replacementTaskIds.join(", ")} and re-linked dependencies through entry/terminal replacement tasks.`,
+		evidence:
+			input.evidence?.trim() ||
+			`Entry replacements: ${replacement.entryTaskIds.join(", ")}. Terminal replacements: ${replacement.terminalTaskIds.join(", ")}.`,
+		createdAt: input.createdAt,
+	});
+	return {
+		...replacement,
+		taskGraphPath,
+		revisionsPath,
+	};
 }
 
 function selectTaskRoutingCandidate(
