@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineModelRegistryEntry } from "../../../src/cline-sdk/cline-model-registry";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 
 const agentRegistryMocks = vi.hoisted(() => ({
 	resolveAgentCommand: vi.fn(),
@@ -2038,6 +2039,53 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(stopResponse.ok).toBe(true);
 		expect(clineTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
 		expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("blocks project task starts while the swarm stop signal is active", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-swarm-stop-runtime-"));
+		try {
+			await requestSwarmStop({
+				workspacePath,
+				reason: "Operator paused the run.",
+				now: 123,
+			});
+			const terminalManager = {
+				listSummaries: vi.fn(() => []),
+			};
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+
+			const response = await api.startTaskSession(
+				{
+					workspaceId: "workspace-1",
+					workspacePath,
+				},
+				{
+					taskId: "task-1",
+					baseRef: "main",
+					prompt: "Continue task",
+				},
+			);
+
+			expect(response).toMatchObject({
+				ok: false,
+				summary: null,
+				errorCode: "swarm_stopped",
+			});
+			expect(response.error).toContain("Operator paused the run.");
+			expect(terminalManager.listSummaries).not.toHaveBeenCalled();
+			expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
 	});
 
 	it("returns cline chat messages and sends chat message through cline service", async () => {

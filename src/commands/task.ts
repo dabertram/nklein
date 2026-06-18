@@ -21,6 +21,7 @@ import type {
 } from "../core/api-contract";
 import { runtimeAgentIdSchema, runtimeClineReasoningEffortSchema } from "../core/api-contract";
 import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
+import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
 import {
 	addTaskDependency,
 	addTaskToColumn,
@@ -1402,6 +1403,32 @@ async function mergeTaskWorktreesCommand(input: {
 	};
 }
 
+async function requestTaskSwarmStopCommand(input: {
+	cwd: string;
+	projectPath?: string;
+	reason?: string;
+}): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	const signal = await requestSwarmStop({
+		workspacePath: workspaceRepoPath,
+		reason: input.reason,
+	});
+	return {
+		ok: true,
+		workspacePath: workspaceRepoPath,
+		signal,
+	};
+}
+
+async function clearTaskSwarmStopCommand(input: { cwd: string; projectPath?: string }): Promise<JsonRecord> {
+	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
+	await clearSwarmStop(workspaceRepoPath);
+	return {
+		ok: true,
+		workspacePath: workspaceRepoPath,
+	};
+}
+
 async function deleteTaskCommand(input: {
 	cwd: string;
 	taskId?: string;
@@ -1694,6 +1721,36 @@ export function registerTaskCommand(program: Command): void {
 						cwd: process.cwd(),
 						taskId: options.taskId,
 						column: options.column ?? "review",
+						projectPath: options.projectPath,
+					}),
+			);
+		});
+
+	task
+		.command("swarm-stop")
+		.description("Set the workspace swarm stop signal so project task starts are blocked until resumed.")
+		.option("--reason <text>", "Reason shown to blocked task starts.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(async (options: { reason?: string; projectPath?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await requestTaskSwarmStopCommand({
+						cwd: process.cwd(),
+						projectPath: options.projectPath,
+						reason: options.reason,
+					}),
+			);
+		});
+
+	task
+		.command("swarm-resume")
+		.description("Clear the workspace swarm stop signal so project task starts can run again.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(async (options: { projectPath?: string }) => {
+			await runTaskCommand(
+				async () =>
+					await clearTaskSwarmStopCommand({
+						cwd: process.cwd(),
 						projectPath: options.projectPath,
 					}),
 			);

@@ -1252,7 +1252,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 	summary: runtimeTaskSessionSummarySchema.nullable(),
 	error: z.string().optional(),
 	errorCode: z
-		.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled", "endpoint_busy"])
+		.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled", "endpoint_busy", "swarm_stopped"])
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
 });

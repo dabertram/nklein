@@ -62,6 +62,7 @@ import {
 	parseTaskSessionStopRequest,
 } from "../core/api-validation";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
@@ -319,6 +320,17 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const body = parseTaskSessionStartRequest(input);
 				if (body.resumeFromTrash) {
 					deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
+				}
+				if (!isHomeAgentSessionId(body.taskId)) {
+					const swarmStop = await readSwarmStopSignal(workspaceScope.workspacePath);
+					if (swarmStop) {
+						return {
+							ok: false,
+							summary: null,
+							error: `Swarm stop signal is active: ${swarmStop.reason}`,
+							errorCode: "swarm_stopped" as const,
+						};
+					}
 				}
 				const requestedClineTaskMode = body.mode ?? "act";
 				const scopedRuntimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);

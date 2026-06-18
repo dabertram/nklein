@@ -321,10 +321,14 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       `decisions.md` is now a first-class plan artifact generated from answered/assumed clarifying
       questions, exposed through CLI/API/tool outputs, and compactly injected with the shared spec into
       decomposition-created card prompts.
-- [ ] **Swarm guardrails (backend).** A per-autonomous-run budget (max total turns / wall-time / cards), a
+- [~] **Swarm guardrails (backend).** A per-autonomous-run budget (max total turns / wall-time / cards), a
       **stall watchdog** that auto-parks a card with no diff or repeated identical tool calls after N turns
       (extends the existing "5 consecutive identical calls" stopper), and a swarm-level **stop signal** the
-      UI Stop button triggers (L4). Bounded autonomy so an overnight run can't run away.
+      UI Stop button triggers (L4). Bounded autonomy so an overnight run can't run away. **Progress:**
+      workspaces now have an explicit `.cline/kanban/swarm-stop.json` stop signal; `kanban task swarm-stop`
+      and `kanban task swarm-resume` toggle it, and runtime project task starts return typed
+      `swarm_stopped` errors while it is active. Still open: UI Stop wiring, per-run turn/wall-time/card
+      budgets, and the no-diff/repeated-tool stall watchdog.
 
 ---
 
