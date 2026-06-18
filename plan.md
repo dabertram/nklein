@@ -311,14 +311,17 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       `filesLikelyTouched` structurally; UI single starts, manual start-all, dependency auto-starts, and CLI
       `task start` skip/block overlapping active work. The generic runtime start API remains session-oriented and
       does not receive board context.
-- [~] **Dependency-ordered auto-merge with conflict handling.** Merge completed task worktrees back to the
+- [x] ~~**Dependency-ordered auto-merge with conflict handling.** Merge completed task worktrees back to the
       base in DAG order; on a merge conflict, auto-create an **integration card** (conflicting paths in its
       prompt) rather than failing silently. Respect the AGENTS.md worktree rule: overlapping agent edits
       stay isolated and produce a warning, never a silent overwrite. **Progress:** `kanban task merge`
       now merges review/completed task worktree HEADs into a clean checked-out base worktree in dependency
       order, aborts conflicted Git merges, and creates a Planning integration card with conflicted paths.
       Still open: wire this into the normal completion/cleanup flow so successful reviewed tasks merge
-      automatically before their worktrees are removed.
+      automatically before their worktrees are removed.~~ `kanban task done` now auto-merges reviewed task
+      worktrees after moving them to Completed and before worktree cleanup or dependent auto-start. Blocked
+      or conflicted merges preserve the task worktree; conflicts create the existing Planning integration
+      card and prevent dependents from auto-starting from an unmerged base.
 - [x] ~~**Shared decision blackboard.** Persist the plan's spec + a running `decisions.md` per plan
       (`.cline/kanban/plans/<slug>/`) and inject the relevant slice into each dependent card's
       self-contained prompt (L3) so swarm agents stay consistent on shared contracts (the API shape decided

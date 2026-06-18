@@ -31,6 +31,7 @@
 - Persisted `filesLikelyTouched` on decomposition-created cards and used it to skip overlapping task starts across UI single starts, start-all, dependency auto-starts, and CLI `task start`.
 - Added `decisions.md` plan artifacts and compact shared spec/decision injection for decomposition-created cards, so dependent Cline tasks inherit the same plan contracts.
 - Added `kanban task merge` to merge reviewed/completed task worktree heads into a clean base worktree in dependency order, abort conflicts, and create a Planning integration card with conflicted paths.
+- Wired `kanban task done` to auto-merge reviewed task worktrees before cleanup/dependent auto-start, preserving worktrees and creating integration cards when merges block or conflict.
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
 - Added `revisions.md` plan artifacts and exposed `revisionsPath` through decomposition tool, CLI, and dogfood API outputs for future adaptive re-planning audit trails.
 - Added `kanban task plan-gap` and a typed `plan_gap` self-observation signal so execution agents can report missing decisions, contradictions, dependencies, oversized scope, or unplanned integration work.

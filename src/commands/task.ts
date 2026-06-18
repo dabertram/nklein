@@ -1178,6 +1178,7 @@ interface FinishTaskExecutionResult {
 	previousColumnId: ListTaskColumn;
 	readyTaskIds: string[];
 	autoStartedTasks: JsonRecord[];
+	autoMerge: JsonRecord | null;
 	worktreeDeleted: boolean;
 	worktreeDeleteError?: string;
 	alreadyInTargetColumn: boolean;
@@ -1192,6 +1193,38 @@ interface FinishTaskMutationValue {
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
 	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
+}
+
+async function autoMergeFinishedTaskWorktree(input: {
+	taskId: string;
+	workspaceRepoPath: string;
+	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>;
+}): Promise<JsonRecord> {
+	const state = await input.runtimeClient.workspace.getState.query();
+	const result = await mergeTaskWorktreesInDependencyOrder({
+		repoPath: input.workspaceRepoPath,
+		board: state.board,
+		columns: ["completed"],
+		taskIds: [input.taskId],
+	});
+	const integrationTask =
+		result.conflict && state.git.currentBranch
+			? await createIntegrationCardForMergeConflict({
+					workspaceRepoPath: input.workspaceRepoPath,
+					runtimeClient: input.runtimeClient,
+					conflict: result.conflict,
+					baseRef: state.git.currentBranch,
+				})
+			: null;
+	return {
+		ok: result.ok,
+		mergedTaskIds: result.mergedTaskIds,
+		skippedTaskIds: result.skippedTaskIds,
+		steps: result.steps,
+		integrationTask,
+		conflict: result.conflict ?? null,
+		blocked: result.blocked ?? null,
+	};
 }
 
 async function finishTaskById(input: {
@@ -1254,6 +1287,7 @@ async function finishTaskById(input: {
 			previousColumnId: mutation.value.previousColumnId,
 			readyTaskIds: [],
 			autoStartedTasks: [],
+			autoMerge: null,
 			worktreeDeleted: false,
 			alreadyInTargetColumn: true,
 		};
@@ -1263,19 +1297,32 @@ async function finishTaskById(input: {
 		await stopTaskRuntimeSession(input.runtimeClient, input.taskId);
 	}
 
+	const autoMerge =
+		input.targetColumn === "completed" && mutation.value.previousColumnId === "review"
+			? await autoMergeFinishedTaskWorktree({
+					taskId: input.taskId,
+					workspaceRepoPath: input.workspaceRepoPath,
+					runtimeClient: input.runtimeClient,
+				})
+			: null;
+	const canContinueAfterMerge = autoMerge === null || autoMerge.ok === true;
 	const autoStartedTasks: JsonRecord[] = [];
-	for (const readyTaskId of mutation.value.readyTaskIds) {
-		const started = await startTask({
-			cwd: input.cwd,
-			taskId: readyTaskId,
-			projectPath: input.projectPath,
-			queueOnEndpointBusy: true,
-			allowQueuedStart: true,
-		});
-		autoStartedTasks.push(started);
+	if (canContinueAfterMerge) {
+		for (const readyTaskId of mutation.value.readyTaskIds) {
+			const started = await startTask({
+				cwd: input.cwd,
+				taskId: readyTaskId,
+				projectPath: input.projectPath,
+				queueOnEndpointBusy: true,
+				allowQueuedStart: true,
+			});
+			autoStartedTasks.push(started);
+		}
 	}
 
-	const deletedWorkspace = await deleteTaskWorkspace(input.runtimeClient, input.taskId);
+	const deletedWorkspace = canContinueAfterMerge
+		? await deleteTaskWorkspace(input.runtimeClient, input.taskId)
+		: { removed: false, error: "Task worktree kept because auto-merge did not complete." };
 
 	return {
 		task: mutation.value.task,
@@ -1283,6 +1330,7 @@ async function finishTaskById(input: {
 		previousColumnId: mutation.value.previousColumnId,
 		readyTaskIds: mutation.value.readyTaskIds,
 		autoStartedTasks,
+		autoMerge,
 		worktreeDeleted: deletedWorkspace.removed,
 		worktreeDeleteError: deletedWorkspace.error,
 		alreadyInTargetColumn: false,
@@ -1319,6 +1367,7 @@ async function finishTask(input: {
 				workspacePath: workspaceRepoPath,
 				readyTaskIds: [],
 				autoStartedTasks: [],
+				autoMerge: null,
 			};
 		}
 		return {
@@ -1327,6 +1376,7 @@ async function finishTask(input: {
 			workspacePath: workspaceRepoPath,
 			readyTaskIds: finished.readyTaskIds,
 			autoStartedTasks: finished.autoStartedTasks,
+			autoMerge: finished.autoMerge,
 			worktreeDeleted: finished.worktreeDeleted,
 			worktreeDeleteError: finished.worktreeDeleteError,
 		};
@@ -1373,6 +1423,10 @@ async function finishTask(input: {
 		alreadyFinishedTasks: alreadyFinishedTasks.map((result) => result.task),
 		readyTaskIds: [...new Set(finishedTasks.flatMap((result) => result.readyTaskIds))],
 		autoStartedTasks: finishedTasks.flatMap((result) => result.autoStartedTasks),
+		autoMerge: finishedTasks.map((result) => ({
+			taskId: result.taskId,
+			result: result.autoMerge,
+		})),
 		worktreeCleanup: finishedTasks.map((result) => ({
 			taskId: result.taskId,
 			removed: result.worktreeDeleted,
