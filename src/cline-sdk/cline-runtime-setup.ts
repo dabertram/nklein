@@ -9,6 +9,7 @@ import {
 } from "../core/agent-write-guard";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
+import { CLINE_GUIDANCE_SKILL_DEFAULTS } from "./cline-guidance-skills";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import { parseWriteFilesRequests } from "./cline-write-files-tool";
 import {
@@ -18,6 +19,7 @@ import {
 	type ClineSdkUserInstructionService,
 	createClineSdkUserInstructionService,
 	loadClineSdkRulesForSystemPrompt,
+	resolveClineSdkSkillSearchPaths,
 	resolveClineSdkWorkflowSearchPaths,
 	resolveClineSdkWorkflowSlashCommand,
 } from "./sdk-runtime-boundary";
@@ -463,30 +465,49 @@ function isNodeErrorWithCode(error: unknown, code: string): boolean {
 }
 
 function resolveWorkspaceWorkflowDirectory(workspacePath: string): string {
-	const resolvedWorkspacePath = resolve(workspacePath);
+	return resolveWorkspaceInstructionDirectory({
+		workspacePath,
+		searchPaths: resolveClineSdkWorkflowSearchPaths(workspacePath),
+		fallbackDirectory: join(workspacePath, ".cline", "workflows"),
+	});
+}
+
+function resolveWorkspaceSkillDirectory(workspacePath: string): string {
+	return resolveWorkspaceInstructionDirectory({
+		workspacePath,
+		searchPaths: resolveClineSdkSkillSearchPaths(workspacePath),
+		fallbackDirectory: join(workspacePath, ".cline", "skills"),
+	});
+}
+
+function resolveWorkspaceInstructionDirectory(input: {
+	workspacePath: string;
+	searchPaths: readonly string[];
+	fallbackDirectory: string;
+}): string {
+	const resolvedWorkspacePath = resolve(input.workspacePath);
 	const workspacePathWithSeparator = `${resolvedWorkspacePath}/`;
-	const searchPaths = resolveClineSdkWorkflowSearchPaths(workspacePath);
 	return (
-		searchPaths.find((searchPath) => {
+		input.searchPaths.find((searchPath) => {
 			const resolvedSearchPath = resolve(searchPath);
 			return (
 				resolvedSearchPath === resolvedWorkspacePath || resolvedSearchPath.startsWith(workspacePathWithSeparator)
 			);
-		}) ?? join(workspacePath, ".cline", "workflows")
+		}) ?? input.fallbackDirectory
 	);
 }
 
-async function excludeGeneratedWorkflowFromGit(workspacePath: string, workflowPath: string): Promise<void> {
+async function excludeGeneratedInstructionFromGit(workspacePath: string, instructionPath: string): Promise<void> {
 	const resolvedWorkspacePath = resolve(workspacePath);
-	const resolvedWorkflowPath = resolve(workflowPath);
-	const relativeWorkflowPath = relative(resolvedWorkspacePath, resolvedWorkflowPath);
-	if (!relativeWorkflowPath || relativeWorkflowPath.startsWith("..") || isAbsolute(relativeWorkflowPath)) {
+	const resolvedInstructionPath = resolve(instructionPath);
+	const relativeInstructionPath = relative(resolvedWorkspacePath, resolvedInstructionPath);
+	if (!relativeInstructionPath || relativeInstructionPath.startsWith("..") || isAbsolute(relativeInstructionPath)) {
 		return;
 	}
 	const excludePath = join(resolvedWorkspacePath, ".git", "info", "exclude");
 	try {
 		const existing = await readFile(excludePath, "utf8").catch(() => "");
-		const normalizedRelativePath = relativeWorkflowPath.replaceAll("\\", "/");
+		const normalizedRelativePath = relativeInstructionPath.replaceAll("\\", "/");
 		const excludeLine = `/${normalizedRelativePath}`;
 		if (existing.split(/\r?\n/).includes(excludeLine)) {
 			return;
@@ -496,7 +517,7 @@ async function excludeGeneratedWorkflowFromGit(workspacePath: string, workflowPa
 			encoding: "utf8",
 		});
 	} catch {
-		// Best effort only: the workflow is still useful even if the workspace is not a Git repository yet.
+		// Best effort only: the instruction is still useful even if the workspace is not a Git repository yet.
 	}
 }
 
@@ -511,12 +532,33 @@ export async function ensureKanbanDefaultWorkflows(workspacePath: string): Promi
 			throw error;
 		}
 	}
-	await excludeGeneratedWorkflowFromGit(workspacePath, workflowPath);
+	await excludeGeneratedInstructionFromGit(workspacePath, workflowPath);
 	return workflowPath;
+}
+
+export async function ensureKanbanDefaultSkills(workspacePath: string): Promise<string[]> {
+	const skillDirectory = resolveWorkspaceSkillDirectory(workspacePath);
+	await mkdir(skillDirectory, { recursive: true });
+	const seededPaths: string[] = [];
+	for (const skill of CLINE_GUIDANCE_SKILL_DEFAULTS) {
+		const skillPath = join(skillDirectory, skill.directoryName, "SKILL.md");
+		await mkdir(join(skillDirectory, skill.directoryName), { recursive: true });
+		try {
+			await writeFile(skillPath, skill.markdown, { encoding: "utf8", flag: "wx" });
+		} catch (error) {
+			if (!isNodeErrorWithCode(error, "EEXIST")) {
+				throw error;
+			}
+		}
+		await excludeGeneratedInstructionFromGit(workspacePath, skillPath);
+		seededPaths.push(skillPath);
+	}
+	return seededPaths;
 }
 
 export async function createClineRuntimeSetup(workspacePath: string): Promise<ClineRuntimeSetup> {
 	await ensureKanbanDefaultWorkflows(workspacePath);
+	await ensureKanbanDefaultSkills(workspacePath);
 	const userInstructionService = createClineSdkUserInstructionService(workspacePath);
 	const toolApprovalPolicy = createKanbanToolApprovalPolicy(workspacePath);
 	try {

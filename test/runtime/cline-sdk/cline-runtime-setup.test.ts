@@ -11,6 +11,7 @@ import {
 	createClineRuntimeSetup,
 	createKanbanToolApprovalPolicy,
 	createKanbanToolPolicies,
+	ensureKanbanDefaultSkills,
 	ensureKanbanDefaultWorkflows,
 } from "../../../src/cline-sdk/cline-runtime-setup";
 
@@ -202,6 +203,44 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(status.stdout).not.toContain("kanban-decompose.md");
 	});
 
+	it("seeds !Klein guidance skills without overwriting user edits", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+
+		const skillPaths = await ensureKanbanDefaultSkills(workspacePath);
+		const uiSkillPath = skillPaths.find((path) => path.endsWith(join("nklein-ui", "SKILL.md")));
+		expect(uiSkillPath).toBeDefined();
+		if (!uiSkillPath) {
+			throw new Error("Expected seeded nklein-ui guidance skill.");
+		}
+		const seeded = await readFile(uiSkillPath, "utf8");
+		expect(seeded).toContain("name: nklein-ui");
+		expect(seeded).toContain("!Klein specifics:");
+		expect(seeded).toContain("src/components/ui/");
+
+		await writeFile(uiSkillPath, "custom ui skill", "utf8");
+		await expect(ensureKanbanDefaultSkills(workspacePath)).resolves.toEqual(skillPaths);
+		await expect(readFile(uiSkillPath, "utf8")).resolves.toBe("custom ui skill");
+	});
+
+	it("excludes generated !Klein guidance skills from task Git diffs", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await execFileAsync("git", ["init"], { cwd: workspacePath });
+
+		const skillPaths = await ensureKanbanDefaultSkills(workspacePath);
+		const excludedSkillPaths = skillPaths.map((path) => `/${relative(workspacePath, path).replaceAll("\\", "/")}`);
+
+		const exclude = await readFile(join(workspacePath, ".git", "info", "exclude"), "utf8");
+		for (const skillPath of excludedSkillPaths) {
+			expect(exclude).toContain(skillPath);
+		}
+		const status = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: workspacePath });
+		expect(status.stdout).not.toContain("nklein-ui");
+		expect(status.stdout).not.toContain("nklein-security");
+		expect(status.stdout).not.toContain("nklein-ts");
+	});
+
 	it("seeds and resolves the Kanban decomposition workflow during runtime setup", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
@@ -216,6 +255,33 @@ describe("createKanbanToolApprovalPolicy", () => {
 				undefined,
 			);
 			await expect(access(join(workspacePath, ".cline", "workflows", "kanban-decompose.md"))).rejects.toThrow();
+		} finally {
+			await runtimeSetup.dispose();
+		}
+	});
+
+	it("seeds !Klein guidance skills for the SDK skills tool during runtime setup", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+
+		const runtimeSetup = await createClineRuntimeSetup(workspacePath);
+		try {
+			const skillRecords = runtimeSetup.userInstructionService.listRecords("skill");
+			const skillNames = skillRecords.map((record) => record.item.name);
+			const uiSkill = skillRecords.find((record) => record.item.name === "nklein-ui")?.item;
+			const commands = runtimeSetup.userInstructionService.listRuntimeCommands().map((command) => command.name);
+			const resolved = runtimeSetup.resolvePrompt("/nklein-ui\n\nTask: Tighten the model picker layout.");
+
+			expect(skillNames).toEqual(expect.arrayContaining(["nklein-security", "nklein-ui", "nklein-ts"]));
+			expect(uiSkill?.instructions).toContain("Use this skill when a task touches React components");
+			expect(uiSkill?.instructions).toContain("!Klein specifics:");
+			expect(commands).toEqual(expect.arrayContaining(["nklein-security", "nklein-ui", "nklein-ts"]));
+			expect(resolved).toContain("Use this skill when a task touches React components");
+			expect(resolved).toContain("Task: Tighten the model picker layout.");
+			await expect(access(join(workspacePath, ".clinerules", "skills", "nklein-ui", "SKILL.md"))).resolves.toBe(
+				undefined,
+			);
+			await expect(access(join(workspacePath, ".cline", "skills", "nklein-ui", "SKILL.md"))).rejects.toThrow();
 		} finally {
 			await runtimeSetup.dispose();
 		}

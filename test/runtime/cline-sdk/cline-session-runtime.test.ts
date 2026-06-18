@@ -14,7 +14,11 @@ import {
 	doesClineToolInvalidateRepoMap,
 	readKanbanLaunchConfigFromSessionRecord,
 } from "../../../src/cline-sdk/cline-session-runtime";
-import type { ClineSdkSessionRecord, ClineSdkStartSessionInput } from "../../../src/cline-sdk/sdk-runtime-boundary";
+import type {
+	ClineSdkSessionRecord,
+	ClineSdkStartSessionInput,
+	ClineSdkUserInstructionService,
+} from "../../../src/cline-sdk/sdk-runtime-boundary";
 
 const selfObservationMocks = vi.hoisted(() => ({
 	recordSelfObservation: vi.fn(),
@@ -574,6 +578,48 @@ describe("InMemoryClineSessionRuntime", () => {
 		const refreshedText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
 		expect(refreshedText).toContain("newFeature");
 		expect(refreshedText).not.toContain("oldFeature");
+	});
+
+	it("enables SDK skills config when a user instruction service is provided", async () => {
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const userInstructionService = {} as ClineSdkUserInstructionService;
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Use guidance",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+			userInstructionService,
+		});
+
+		expect(fakeHost.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				localRuntime: expect.objectContaining({
+					userInstructionService,
+					configExtensions: ["skills"],
+				}),
+			}),
+		);
 	});
 
 	it("invalidates repo maps for successful workspace-mutating Cline tools only", () => {

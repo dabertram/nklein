@@ -80,6 +80,7 @@
 - Added Cline team delegation and team-progress projection so multi-agent SDK activity can be tracked and summarized inside !Klein.
 - Personalized repo-map ranking around current task/chat text, explicit repo-map queries, and seed paths, so small local models see symbols relevant to the active card instead of only globally central code.
 - Merged repo-map symbol matches into `search_code` alongside lexical line hits and semantic code-index chunks, giving small local models hybrid retrieval that orients around relevant symbols even when the query only matches file paths or declarations.
+- Seeded overridable `!Klein` guidance skills for security, UI, and TypeScript into each workspace's Cline skills config and enabled the SDK skills extension so small local models can load terse topic guidance on demand.
 - Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Added queued local-endpoint admission for dependency auto-starts, so same-endpoint Cline tasks are deduplicated, paced by MCSR wait estimates, and retried when the busy local endpoint frees.

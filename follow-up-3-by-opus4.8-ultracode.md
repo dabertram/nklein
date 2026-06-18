@@ -189,9 +189,9 @@ Goal: a small model can work on !Klein's own code without silently breaking feat
 You asked whether feeding in curated guidance (UI/UX, layout, performance, security, backend, frontend, architecture, software design, maintainability) would raise output quality. **Yes — but only if delivered as small, on-demand, codebase-specific skills**, not a giant always-on dump. Research backs both halves: well-crafted context files lifted task success from ~30% → ~90%, while *verbose, LLM-generated* guidance files *reduced* success by ~2% and raised cost ~23% (they duplicate what's already in the repo). For small-context local models the budget discipline matters even more.
 
 ### E1. Integration mechanism
-- [ ] Reuse the existing workflow-seeding path (the one that seeds `kanban-decompose.md` and is referenced as `/kanban-decompose`). Seed a set of `skills/<topic>.md` docs into the project config.
+- [x] Reuse the existing workflow-seeding path (the one that seeds `kanban-decompose.md` and is referenced as `/kanban-decompose`). Seed a set of `skills/<topic>/SKILL.md` docs into the project config.
 - [ ] **On-demand loading:** the decomposition/router tags each card with a topic (`ui`, `security`, `perf`, `arch`, `ts`, `testing`, …); the matching skill loads only when that card runs. Keep an always-on digest ≤ a few hundred tokens; pull depth on demand.
-- [ ] Each skill is **terse, copy-pasteable, and !Klein-specific** — cite the real design tokens (`globals.css @theme`), the UI primitives (`src/components/ui/`), the SDK boundary (`src/cline-sdk/`), and the repo rules (no `any`, react-use hooks, Tailwind-over-inline). Generic advice the model already knows is omitted.
+- [x] Each seeded v1 skill is **terse, copy-pasteable, and !Klein-specific** — cites the real design tokens (`globals.css @theme`), the UI primitives (`src/components/ui/`), the SDK boundary (`src/cline-sdk/`), and the repo rules (no `any`, react-use hooks, Tailwind-over-inline). Generic advice the model already knows is omitted.
 
 ### E2. Source list to distill (do **not** paste wholesale)
 - **UI/UX & layout:** *Refactoring UI* (Wathan/Schoger); Nielsen Norman Group's 10 usability heuristics; W3C **WAI-ARIA Authoring Practices (APG)**; **WCAG 2.2** quick-ref.
@@ -202,7 +202,7 @@ You asked whether feeding in curated guidance (UI/UX, layout, performance, secur
 - **TypeScript:** the **TS Handbook**; *Effective TypeScript* patterns (reinforces the repo's no-`any` rule).
 
 ### E3. Output of this workstream
-- [ ] A `skills/` directory (seeded) with one distilled doc per topic above, each ≤ ~300–500 tokens, each ending with a "!Klein specifics" block.
+- [x] A `skills/` directory (seeded) with one distilled doc per initial topic (`security`, `ui`, `ts`), each ≤ ~300–500 tokens, each ending with a "!Klein specifics" block.
 - [ ] A mapping table: card-topic → skill file, plus the router hook that injects it.
 
 ---
@@ -292,7 +292,7 @@ Each is additive. If none are "exceptionally convincing," shipping only the Lab 
 ### Still open (non-blocking)
 - [ ] **App icon/logo** — keep `ClineIcon` next to the `!Klein` wordmark, or design a Klein mark? (Pure design call.) (§A1)
 - [x] **Embedding model id bump** — keep `kanban-local-lexical-vector-v1` until a deliberate lexical-cache invalidation is needed; OpenAI-compatible embeddings already separate cache entries by provider/model key. (§A7 / §F1)
-- [ ] **Guidance-skill priority** — which topics first? Recommended start: `security`, `ui`, `ts`. (§E)
+- [x] **Guidance-skill priority** — start with `security`, `ui`, `ts`. (§E)
 - [ ] **Self-improvement v1 scope** — confirm v1 = "currently running code (dev mode)" only, branch/tag/commit later. (§C2)
 
 ---

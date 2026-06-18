@@ -15,6 +15,7 @@ import {
 } from "../core/api-contract";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
+import { type ClineCodeEmbeddingProvider, createClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { createClineDecompositionTools } from "./cline-decomposition-tool";
@@ -81,6 +82,7 @@ const KANBAN_SESSION_METADATA_KEY = "kanban";
 export interface ClinePersistedLaunchConfig {
 	providerId: string;
 	modelId: string;
+	workspaceRoot?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
@@ -147,6 +149,9 @@ export function readKanbanLaunchConfigFromSessionRecord(
 	return {
 		providerId,
 		modelId,
+		...(readOptionalString(launchConfig, "workspaceRoot") !== undefined
+			? { workspaceRoot: readOptionalString(launchConfig, "workspaceRoot") }
+			: {}),
 		...(readOptionalString(launchConfig, "baseUrl") !== undefined
 			? { baseUrl: readOptionalString(launchConfig, "baseUrl") }
 			: {}),
@@ -180,6 +185,35 @@ function createRepoMapRailMessage(text: string): AgentMessage {
 	};
 }
 
+function readAgentMessageText(message: AgentMessage): string {
+	const content = message.content;
+	if (typeof content === "string") {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return "";
+	}
+	return content
+		.map((part) => {
+			if (!part || typeof part !== "object" || !("text" in part)) {
+				return "";
+			}
+			const text = part.text;
+			return typeof text === "string" ? text : "";
+		})
+		.filter(Boolean)
+		.join("\n");
+}
+
+function collectRepoMapPersonalizationText(messages: readonly AgentMessage[]): string {
+	const text = messages
+		.filter((message) => message.metadata?.kind !== "kanban_repo_map_rail")
+		.map(readAgentMessageText)
+		.filter(Boolean)
+		.join("\n\n");
+	return text.length > 12_000 ? text.slice(-12_000) : text;
+}
+
 export function doesClineToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
 	if (context.result.isError === true) {
 		return false;
@@ -192,16 +226,16 @@ async function appendRepoMapBeforeModel(
 	workspacePath: string,
 	contextWindow: number | null | undefined,
 	baseResult: AgentBeforeModelResult | null | undefined,
-	getCachedRepoMap: () => Promise<string | null>,
+	getCachedRepoMap: (personalizationText: string) => Promise<string | null>,
 ): Promise<AgentBeforeModelResult | undefined> {
 	if (baseResult?.stop) {
 		return baseResult;
 	}
-	const repoMap = await getCachedRepoMap();
+	const messages = baseResult?.messages ?? context.request.messages;
+	const repoMap = await getCachedRepoMap(collectRepoMapPersonalizationText(messages));
 	if (!repoMap) {
 		return baseResult ?? undefined;
 	}
-	const messages = baseResult?.messages ?? context.request.messages;
 	const alreadyInjected = messages.some((message) => message.metadata?.kind === "kanban_repo_map_rail");
 	if (alreadyInjected) {
 		return baseResult ?? undefined;
@@ -229,16 +263,23 @@ function createKanbanContextFocusExtension(
 	contextWindow?: number | null,
 ): ClineSdkRuntimeExtension {
 	const largeFileWorkflow = getClineLargeFileWorkflow(sessionId, workspacePath);
-	let cachedRepoMap: Promise<string | null> | null = null;
+	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
 	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
-	const getCachedRepoMap = async () => {
-		cachedRepoMap ??= buildClineRepoMap({
-			workspacePath,
-			tokenBudget: contextPressure.repoMapTokenBudget,
-		})
-			.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
-			.catch(() => null);
-		return await cachedRepoMap;
+	const getCachedRepoMap = async (personalizationText: string) => {
+		const cacheKey = personalizationText;
+		if (cachedRepoMap?.key !== cacheKey) {
+			cachedRepoMap = {
+				key: cacheKey,
+				value: buildClineRepoMap({
+					workspacePath,
+					tokenBudget: contextPressure.repoMapTokenBudget,
+					personalizationText,
+				})
+					.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
+					.catch(() => null),
+			};
+		}
+		return await cachedRepoMap.value;
 	};
 	const hasChangedFiles = async (): Promise<boolean | null> => {
 		try {
@@ -384,6 +425,7 @@ export function buildClineContextCompactionConfig(
 export interface StartClineSessionRuntimeRequest {
 	taskId: string;
 	cwd: string;
+	workspaceRoot?: string | null;
 	prompt: string;
 	/** Normalized Kanban task title; persisted to SDK session metadata when supported. */
 	taskTitle?: string;
@@ -397,6 +439,7 @@ export interface StartClineSessionRuntimeRequest {
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
 	contextWindow?: number | null;
 	maxAgentWritableFileLines?: number | null;
+	codeEmbeddingProvider?: ClineCodeEmbeddingProvider;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
 	systemPrompt: string;
@@ -470,7 +513,7 @@ async function persistKanbanTitleToClineSessionMetadata(
 	try {
 		await sessionHost.update?.(sessionId, { title });
 	} catch {
-		// Best-effort only — Kanban board title remains canonical regardless.
+		// Best-effort only — !Klein board title remains canonical regardless.
 	}
 }
 
@@ -478,6 +521,7 @@ function toPersistedLaunchConfig(request: StartClineSessionRuntimeRequest): Clin
 	return {
 		providerId: request.providerId.trim().toLowerCase(),
 		modelId: request.modelId.trim(),
+		...(request.workspaceRoot !== undefined ? { workspaceRoot: request.workspaceRoot?.trim() || null } : {}),
 		...(request.baseUrl !== undefined ? { baseUrl: request.baseUrl?.trim() || null } : {}),
 		...(request.reasoningEffort !== undefined ? { reasoningEffort: request.reasoningEffort } : {}),
 		...(request.contextWindow !== undefined ? { contextWindow: request.contextWindow } : {}),
@@ -534,6 +578,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		this.lastStartRequestByTaskId.set(request.taskId, {
 			taskId: request.taskId,
 			cwd: request.cwd,
+			workspaceRoot: request.workspaceRoot,
 			providerId: request.providerId,
 			modelId: request.modelId,
 			mode: resolvedMode,
@@ -566,6 +611,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		}
 		this.replaceTaskMcpToolBundle(request.taskId, mcpToolBundle);
 		const largeFileWorkflow = getClineLargeFileWorkflow(requestedSessionId, request.cwd);
+		const artifactWorkspacePath = request.workspaceRoot?.trim() || request.cwd;
 		const baseRequestToolApproval = request.requestToolApproval;
 		const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
 		const approvalTurnKey = (approvalRequest: ClineSdkToolApprovalRequest): string =>
@@ -626,9 +672,12 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const extraTools = [
 			...createClineDecompositionTools({
 				workspacePath: request.cwd,
+				artifactWorkspacePath,
+				sourceTaskId: request.taskId,
 			}),
 			...createClineRetrievalTools({
 				workspacePath: request.cwd,
+				embeddingProvider: request.codeEmbeddingProvider ?? createClineCodeEmbeddingProvider(),
 			}),
 			...createFileDiscoveryTools({
 				workspacePath: request.cwd,
@@ -740,6 +789,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 					modelCatalogDefaults: CLINE_MODEL_CATALOG_DEFAULTS,
 					extensions: [createKanbanContextFocusExtension(requestedSessionId, request.cwd, request.contextWindow)],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
+					...(request.userInstructionService ? { configExtensions: ["skills"] } : {}),
 					...(compaction ? { compaction: { ...compaction, compact: compactKanbanFocusedMessages } } : {}),
 					logger: createKanbanClineLogger({
 						runtime: "kanban",
