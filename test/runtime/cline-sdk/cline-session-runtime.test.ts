@@ -1,7 +1,17 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type {
+	AgentAfterToolContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentTool,
+} from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	createInMemoryClineSessionRuntime,
+	doesClineToolInvalidateRepoMap,
 	readKanbanLaunchConfigFromSessionRecord,
 } from "../../../src/cline-sdk/cline-session-runtime";
 import type { ClineSdkSessionRecord, ClineSdkStartSessionInput } from "../../../src/cline-sdk/sdk-runtime-boundary";
@@ -54,6 +64,76 @@ function createPersistedRecord(input: {
 		enableTeams: false,
 		isSubagent: false,
 	};
+}
+
+function createModelContext(workspacePath: string): AgentBeforeModelContext {
+	return {
+		snapshot: {
+			agentId: "agent-1",
+			status: "running",
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
+		request: {
+			messages: [],
+			tools: [],
+			options: {
+				workspacePath,
+			},
+		},
+	};
+}
+
+function createToolContext(toolName: string, isError = false): AgentAfterToolContext {
+	const tool: AgentTool = {
+		name: toolName,
+		description: "test tool",
+		inputSchema: { type: "object", properties: {} },
+		execute: async () => ({}),
+	};
+	return {
+		snapshot: {
+			agentId: "agent-1",
+			status: "running",
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
+		tool,
+		toolCall: {
+			type: "tool-call",
+			toolCallId: "tool-call-1",
+			toolName,
+			input: {},
+		},
+		input: {},
+		result: {
+			output: {},
+			isError,
+		},
+		startedAt: new Date("2026-06-18T00:00:00.000Z"),
+		endedAt: new Date("2026-06-18T00:00:01.000Z"),
+		durationMs: 1_000,
+	};
+}
+
+function readInjectedRepoMapText(result: AgentBeforeModelResult | undefined): string {
+	const message = result?.messages?.at(-1);
+	const textPart = message?.content.find((part) => part.type === "text");
+	return textPart?.type === "text" ? textPart.text : "";
 }
 
 describe("InMemoryClineSessionRuntime", () => {
@@ -352,6 +432,77 @@ describe("InMemoryClineSessionRuntime", () => {
 				}),
 			}),
 		);
+	});
+
+	it("refreshes the cached repo map after successful mutating tools", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-runtime-repo-map-"));
+		await mkdir(join(workspacePath, "src"), { recursive: true });
+		const sourcePath = join(workspacePath, "src", "feature.ts");
+		await writeFile(sourcePath, "export function oldFeature() { return true; }\n", "utf8");
+
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: workspacePath,
+			prompt: "Inspect the project",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			contextWindow: 80_000,
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+
+		const startInput = fakeHost.start.mock.calls[0]?.[0];
+		const extension = startInput?.localRuntime?.extensions?.find(
+			(candidate) => candidate.name === "kanban-context-focus",
+		);
+		const beforeModel = extension?.hooks?.beforeModel;
+		const afterTool = extension?.hooks?.afterTool;
+		expect(beforeModel).toBeTruthy();
+		expect(afterTool).toBeTruthy();
+		if (!beforeModel || !afterTool) {
+			throw new Error("Expected context-focus hooks to be wired");
+		}
+
+		const initialText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
+		expect(initialText).toContain("oldFeature");
+
+		await writeFile(sourcePath, "export function newFeature() { return true; }\n", "utf8");
+		await afterTool(createToolContext("read_files"));
+		const stillCachedText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
+		expect(stillCachedText).toContain("oldFeature");
+		expect(stillCachedText).not.toContain("newFeature");
+
+		await afterTool(createToolContext("write_file"));
+		const refreshedText = readInjectedRepoMapText(await beforeModel(createModelContext(workspacePath)));
+		expect(refreshedText).toContain("newFeature");
+		expect(refreshedText).not.toContain("oldFeature");
+	});
+
+	it("invalidates repo maps for successful workspace-mutating Cline tools only", () => {
+		expect(doesClineToolInvalidateRepoMap(createToolContext("write_file"))).toBe(true);
+		expect(doesClineToolInvalidateRepoMap(createToolContext("execute_command"))).toBe(true);
+		expect(doesClineToolInvalidateRepoMap(createToolContext("write_file", true))).toBe(false);
+		expect(doesClineToolInvalidateRepoMap(createToolContext("read_files"))).toBe(false);
 	});
 
 	it("disables SDK MCP settings auto-load when Kanban injects MCP tools", async () => {

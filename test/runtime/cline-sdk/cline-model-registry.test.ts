@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -67,10 +67,114 @@ describe("cline model registry", () => {
 		expect(entry.speed.decodeTokensPerSecondEwma).toBe(50);
 		expect(entry.speed.wallTimeMsPer1kPromptTokensEwma).toBe(2_250);
 
+		await registry.flush();
 		const persisted = JSON.parse(await readFile(registryPath, "utf8")) as {
 			models: Record<string, { speed: { samples: number } }>;
 		};
 		expect(persisted.models["ollama:qwen3.5-9b:http://localhost:11434"]?.speed.samples).toBe(2);
+	});
+
+	it("defers registry persistence until flush while keeping the in-memory snapshot current", async () => {
+		const registryPath = await createRegistryPath();
+		const registry = new ClineModelRegistry({
+			registryPath,
+			persistDebounceMs: 60_000,
+		});
+
+		await registry.recordRequest({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			endpoint: "http://localhost:11434",
+			contextWindow: 16_000,
+			promptTokens: 1_000,
+			outputTokens: 50,
+			wallTimeMs: 2_000,
+		});
+		await registry.recordCapability({
+			providerId: "ollama",
+			modelId: "qwen3.5-9b",
+			endpoint: "http://localhost:11434",
+			passed: true,
+			score: 90,
+		});
+
+		const snapshot = await registry.getSnapshot();
+		const entry = snapshot.models["ollama:qwen3.5-9b:http://localhost:11434"];
+		expect(entry?.speed.samples).toBe(1);
+		expect(entry?.capability.samples).toBe(1);
+		await expect(readFile(registryPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+		await registry.flush();
+		const persisted = JSON.parse(await readFile(registryPath, "utf8")) as {
+			models: Record<string, { speed: { samples: number }; capability: { samples: number } }>;
+		};
+		expect(persisted.models["ollama:qwen3.5-9b:http://localhost:11434"]?.speed.samples).toBe(1);
+		expect(persisted.models["ollama:qwen3.5-9b:http://localhost:11434"]?.capability.samples).toBe(1);
+	});
+
+	it("preserves fractional EWMA speed fields when loading persisted registries", async () => {
+		const registryPath = await createRegistryPath();
+		await writeFile(
+			registryPath,
+			JSON.stringify({
+				schemaVersion: 1,
+				updatedAt: 2_000,
+				models: {
+					"ollama:qwen:http://localhost:11434": {
+						key: "ollama:qwen:http://localhost:11434",
+						providerId: "ollama",
+						modelId: "qwen",
+						endpoint: "http://localhost:11434",
+						contextWindow: {
+							advertised: null,
+							observed: 80_000,
+							userOverride: null,
+							effective: 80_000,
+						},
+						speed: {
+							samples: 2,
+							promptTokensEwma: 1234.5,
+							outputTokensEwma: 67.25,
+							totalTokensEwma: 1301.75,
+							prefillTokensPerSecondEwma: 987.65,
+							decodeTokensPerSecondEwma: 43.21,
+							ttftMsEwma: 456.78,
+							wallTimeMsEwma: 3456.7,
+							wallTimeMsPer1kPromptTokensEwma: 2222.22,
+							lastPromptTokens: 1_200,
+							lastOutputTokens: 80,
+							lastWallTimeMs: 3_000,
+							lastObservedAt: 2_000,
+						},
+						capability: {
+							samples: 0,
+							staticPrior: 35,
+							evalScore: null,
+							externalScore: null,
+							observedPassRate: null,
+							effectiveScore: 35,
+							lastObservedAt: null,
+						},
+						constraints: {
+							sharedEndpointId: "http://localhost:11434",
+							inputCostPerMillionTokens: null,
+							outputCostPerMillionTokens: null,
+						},
+						createdAt: 1_000,
+						updatedAt: 2_000,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const snapshot = await new ClineModelRegistry({ registryPath }).load();
+		const speed = snapshot.models["ollama:qwen:http://localhost:11434"]?.speed;
+
+		expect(speed?.promptTokensEwma).toBe(1234.5);
+		expect(speed?.outputTokensEwma).toBe(67.25);
+		expect(speed?.prefillTokensPerSecondEwma).toBe(987.65);
+		expect(speed?.wallTimeMsPer1kPromptTokensEwma).toBe(2222.22);
 	});
 
 	it("blends capability observations conservatively", async () => {

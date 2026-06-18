@@ -514,19 +514,26 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Weight the cold-start prior by `1/(1+samples)` so observed data dominates over time.~~
       `calculateEffectiveCapability` now decays the static prior with `1 / (1 + samples)`, and registry
       tests cover the resulting conservative blend.
-- [ ] **Plan2.md L3:** debounce/batch registry persistence (currently a locked disk write per request,
+- [x] ~~**Plan2.md L3:** debounce/batch registry persistence (currently a locked disk write per request,
       [:412-468](src/cline-sdk/cline-model-registry.ts#L412)); store EWMA fields as floats (currently
-      truncated to int on reload).
+      truncated to int on reload).~~
+      Registry observations now update the in-memory MCSR immediately, coalesce locked disk writes behind a
+      debounce, and expose `flush()` for callers/tests that require durable persistence. Regression coverage
+      also proves fractional EWMA speed fields survive loading persisted registry files.
 - [ ] **Plan2.md L7:** registry event extraction guesses SDK event shapes via `asRecord`/string keys
       ([:579-630](src/cline-sdk/cline-model-registry.ts#L579)) — prefer SDK-provided event types.
 
 ### Codebase intelligence (repo map + search)
-- [ ] **Plan2.md M4:** repo map uses line-anchored regex + raw reference counts, is `O(symbols×files)`,
+- [x] ~~**Plan2.md M4:** repo map uses line-anchored regex + raw reference counts, is `O(symbols×files)`,
       and is memoized once per session so it goes **stale after edits**
       ([cline-repo-map.ts:106-216](src/cline-sdk/cline-repo-map.ts#L106),
       [cline-session-runtime.ts:111-137](src/cline-sdk/cline-session-runtime.ts#L111)). Either deliver
       the planned tree-sitter + PageRank version, or **explicitly document the heuristic** and at minimum:
-      bound the cost (cap symbols before counting) and add an invalidation hook so edits refresh the map.
+      bound the cost (cap symbols before counting) and add an invalidation hook so edits refresh the map.~~
+      The repo map is documented as a bounded local lexical heuristic, caps reference-ranked symbols before
+      counting, and the Cline runtime now invalidates the cached map after successful workspace-mutating tools
+      (`write_file`, `apply_patch`, shell commands, etc.) while keeping read-only tool calls cached; runtime tests
+      prove stale symbols refresh after writes.
 - [x] ~~**Plan2.md M2:** "local embeddings" are bag-of-words token counts, not embeddings
       ([cline-code-embeddings.ts:18-77](src/cline-sdk/cline-code-embeddings.ts#L18)). Either integrate a
       real local ONNX embedding model (fastembed/BGE-small or transformers.js/MiniLM — must be offline,

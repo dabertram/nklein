@@ -2,7 +2,7 @@
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
 import type {
-	AgentAfterModelContext,
+	AgentAfterToolContext,
 	AgentBeforeModelContext,
 	AgentBeforeModelResult,
 	AgentMessage,
@@ -60,6 +60,17 @@ const CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
+const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
+	"apply_patch",
+	"bash",
+	"editor",
+	"execute_command",
+	"replace_in_file",
+	"terminal",
+	"write_file",
+	"write_files",
+	"write_to_file",
+]);
 
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
@@ -168,8 +179,11 @@ function createRepoMapRailMessage(text: string): AgentMessage {
 	};
 }
 
-function assistantMessageHasToolCall(context: AgentAfterModelContext): boolean {
-	return context.assistantMessage.content.some((part) => part.type === "tool-call");
+export function doesClineToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
+	if (context.result.isError === true) {
+		return false;
+	}
+	return REPO_MAP_INVALIDATING_TOOL_NAMES.has(context.toolCall.toolName.trim().toLowerCase());
 }
 
 async function appendRepoMapBeforeModel(
@@ -249,14 +263,17 @@ function createKanbanContextFocusExtension(
 				);
 			},
 			async afterModel(context) {
-				if (assistantMessageHasToolCall(context)) {
-					cachedRepoMap = null;
-				}
 				const largeFileControl = await largeFileWorkflow.afterModel(context);
 				return (
 					largeFileControl ??
 					reviewClineAfterModelCompletion(context, { hasChangedFiles: await hasChangedFiles() })
 				);
+			},
+			afterTool(context) {
+				if (doesClineToolInvalidateRepoMap(context)) {
+					cachedRepoMap = null;
+				}
+				return undefined;
 			},
 		},
 		setup(api) {

@@ -7,6 +7,7 @@ import { isLocalProvider } from "./cline-local-only-policy";
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
 const DEFAULT_CAPABILITY_PRIOR = 35;
+const DEFAULT_PERSIST_DEBOUNCE_MS = 25;
 export interface ClineModelRegistryKeyInput {
 	providerId: string;
 	modelId: string;
@@ -94,6 +95,7 @@ export interface ClineModelRegistryOptions {
 	registryPath?: string;
 	now?: () => number;
 	ewmaAlpha?: number;
+	persistDebounceMs?: number;
 }
 
 interface ClineModelRegistryFileShape {
@@ -393,6 +395,13 @@ export class ClineModelRegistry {
 	private readonly registryPath: string;
 	private readonly now: () => number;
 	private readonly ewmaAlpha: number;
+	private readonly persistDebounceMs: number;
+	private persistTimer: ReturnType<typeof setTimeout> | null = null;
+	private snapshotToPersist: ClineModelRegistrySnapshot | null = null;
+	private pendingPersist: Promise<void> | null = null;
+	private resolvePendingPersist: (() => void) | null = null;
+	private rejectPendingPersist: ((error: unknown) => void) | null = null;
+	private persistInFlight: Promise<void> | null = null;
 
 	constructor(options: ClineModelRegistryOptions = {}) {
 		this.registryPath = options.registryPath ?? getDefaultModelRegistryPath();
@@ -401,6 +410,12 @@ export class ClineModelRegistry {
 			typeof options.ewmaAlpha === "number" && Number.isFinite(options.ewmaAlpha) && options.ewmaAlpha > 0
 				? Math.min(1, options.ewmaAlpha)
 				: DEFAULT_EWMA_ALPHA;
+		this.persistDebounceMs =
+			typeof options.persistDebounceMs === "number" &&
+			Number.isFinite(options.persistDebounceMs) &&
+			options.persistDebounceMs >= 0
+				? Math.trunc(options.persistDebounceMs)
+				: DEFAULT_PERSIST_DEBOUNCE_MS;
 	}
 
 	get path(): string {
@@ -470,7 +485,7 @@ export class ClineModelRegistry {
 		speed.lastObservedAt = observedAt;
 		entry.updatedAt = observedAt;
 		snapshot.updatedAt = observedAt;
-		await this.persist(snapshot);
+		this.schedulePersist(snapshot);
 		return cloneEntry(entry);
 	}
 
@@ -491,8 +506,19 @@ export class ClineModelRegistry {
 		capability.lastObservedAt = observedAt;
 		entry.updatedAt = observedAt;
 		snapshot.updatedAt = observedAt;
-		await this.persist(snapshot);
+		this.schedulePersist(snapshot);
 		return cloneEntry(entry);
+	}
+
+	async flush(): Promise<void> {
+		if (this.persistTimer) {
+			clearTimeout(this.persistTimer);
+			this.persistTimer = null;
+		}
+		await this.drainPersistQueue();
+		if (this.persistInFlight) {
+			await this.persistInFlight;
+		}
 	}
 
 	async getSnapshot(): Promise<ClineModelRegistrySnapshot>;
@@ -533,6 +559,56 @@ export class ClineModelRegistry {
 		const entry = createEntry(input, now);
 		snapshot.models[entry.key] = entry;
 		return entry;
+	}
+
+	private schedulePersist(snapshot: ClineModelRegistrySnapshot): void {
+		this.snapshotToPersist = snapshot;
+		if (!this.pendingPersist) {
+			this.pendingPersist = new Promise((resolve, reject) => {
+				this.resolvePendingPersist = resolve;
+				this.rejectPendingPersist = reject;
+			});
+			this.pendingPersist.catch(() => undefined);
+		}
+		if (this.persistTimer) {
+			clearTimeout(this.persistTimer);
+		}
+		this.persistTimer = setTimeout(() => {
+			this.persistTimer = null;
+			void this.drainPersistQueue();
+		}, this.persistDebounceMs);
+	}
+
+	private async drainPersistQueue(): Promise<void> {
+		if (this.persistInFlight) {
+			await this.persistInFlight;
+		}
+		const snapshot = this.snapshotToPersist;
+		if (!snapshot) {
+			return;
+		}
+		const resolve = this.resolvePendingPersist;
+		const reject = this.rejectPendingPersist;
+		this.snapshotToPersist = null;
+		this.pendingPersist = null;
+		this.resolvePendingPersist = null;
+		this.rejectPendingPersist = null;
+		const persist = this.persist(snapshot);
+		this.persistInFlight = persist;
+		try {
+			await persist;
+			resolve?.();
+		} catch (error) {
+			reject?.(error);
+			throw error;
+		} finally {
+			if (this.persistInFlight === persist) {
+				this.persistInFlight = null;
+			}
+		}
+		if (this.snapshotToPersist && !this.persistTimer) {
+			await this.drainPersistQueue();
+		}
 	}
 
 	private async persist(snapshot: ClineModelRegistrySnapshot): Promise<void> {

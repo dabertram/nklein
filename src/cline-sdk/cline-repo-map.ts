@@ -4,6 +4,10 @@ import { countKanbanTextTokens } from "./cline-context-budgets";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_TOKEN_BUDGET = 1_200;
+// Repo maps intentionally use a cheap lexical heuristic: scan bounded source
+// files, extract line-anchored declarations, then rank a capped symbol set by
+// raw whole-word references. Keep this path predictable and local-only until a
+// real tree-sitter/PageRank index replaces it.
 const MAX_REFERENCE_RANK_SYMBOLS = 500;
 const SOURCE_EXTENSIONS = new Set([
 	".ts",

@@ -32,6 +32,8 @@
 - Added `kanban task plan-gap` and a typed `plan_gap` self-observation signal so execution agents can report missing decisions, contradictions, dependencies, oversized scope, or unplanned integration work.
 - Fixed Cline team-progress summaries so `task_end` events with string-shaped errors are reported as failures instead of completions.
 - Named and documented Cline context-budget policy constants for reserve caps, unknown-window fallbacks, pressure curves, and file chunk sizing without changing budget behavior.
+- Documented the Cline repo-map heuristic and refreshed cached repo maps after successful workspace-mutating tools, so code-orientation context no longer stays stale after edits.
+- Debounced Cline model-registry persistence so observations update the in-memory MCSR immediately while locked disk writes are coalesced, with fractional EWMA speed stats preserved across reloads.
 
 ## [0.1.68]
 
