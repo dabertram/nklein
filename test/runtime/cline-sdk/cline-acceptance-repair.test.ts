@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildClineAcceptanceRepairPlan } from "../../../src/cline-sdk/cline-acceptance-repair";
+import {
+	buildClineAcceptanceRepairPlan,
+	extractAcceptanceFailureConstraint,
+} from "../../../src/cline-sdk/cline-acceptance-repair";
 
 const failedAcceptance = {
 	present: true,
@@ -29,8 +32,37 @@ describe("cline acceptance repair", () => {
 			escalatedRole: null,
 		});
 		expect(plan?.prompt).toContain("Acceptance command: npm test");
+		expect(plan?.prompt).toContain("Failing test constraint:");
 		expect(plan?.prompt).toContain("Expected 100, received 101");
 		expect(plan?.prompt).toContain("rerun the exact Acceptance check");
+	});
+
+	it("extracts the failing assertion as a concise next-turn constraint", () => {
+		const output = [
+			"stderr | noisy setup",
+			" FAIL  test/habits.test.ts > caps perfect habit scores",
+			"AssertionError: expected 101 to be 100",
+			"",
+			"- Expected",
+			"+ Received",
+			"",
+			"- 100",
+			"+ 101",
+			"    at test/habits.test.ts:12:18",
+		].join("\n");
+
+		expect(extractAcceptanceFailureConstraint(output)).toContain("AssertionError: expected 101 to be 100");
+		expect(extractAcceptanceFailureConstraint(output)).toContain("- Expected");
+	});
+
+	it("extracts compiler errors as acceptance constraints", () => {
+		const output = [
+			"src/score.ts(12,7): error TS2322: Type 'string' is not assignable to type 'number'.",
+			"  const score: number = label;",
+			"        ~~~~~",
+		].join("\n");
+
+		expect(extractAcceptanceFailureConstraint(output)).toContain("error TS2322");
 	});
 
 	it("escalates to the reviewer role after repair attempts are exhausted", () => {

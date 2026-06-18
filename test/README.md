@@ -1,5 +1,7 @@
 # Test Layout
 
+Tests still use some historical `kanban` fixture names and paths where that matches persisted compatibility behavior, but user-facing assertions should prefer `!Klein` and `nklein`.
+
 - `test/core`: unit tests for core logic
 - `test/cli`: unit tests for CLI parsing and output
 - `test/integration`: integration tests that touch filesystem or process boundaries

@@ -200,4 +200,105 @@ describe("ClineAddProviderDialog", () => {
 			}),
 		);
 	});
+
+	it("discovers models from the endpoint and uses the returned list", async () => {
+		const onDiscoverModels = vi.fn(async () => ({
+			modelSourceUrl: "http://localhost:11434/v1/models",
+			models: [
+				{ id: "nomic-embed-text", name: "nomic-embed-text" },
+				{ id: "bge-m3", name: "bge-m3" },
+			],
+		}));
+		const onSubmit = vi.fn(async () => ({ ok: true }));
+
+		await act(async () => {
+			root.render(
+				<ClineAddProviderDialog
+					open={true}
+					onOpenChange={() => {}}
+					existingProviderIds={[]}
+					onSubmit={onSubmit}
+					onDiscoverModels={onDiscoverModels}
+				/>,
+			);
+		});
+
+		const baseUrlInput = Array.from(document.body.querySelectorAll("input")).find(
+			(input) => input.placeholder === "https://api.example.com/v1",
+		) as HTMLInputElement | undefined;
+		const discoverButton = findButtonByText(document.body, "Discover models");
+		expect(baseUrlInput).toBeDefined();
+		expect(discoverButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			if (!baseUrlInput) {
+				return;
+			}
+			setInputValue(baseUrlInput, "http://localhost:11434/v1");
+		});
+
+		await act(async () => {
+			discoverButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			discoverButton?.click();
+		});
+
+		expect(onDiscoverModels).toHaveBeenCalledWith({
+			baseUrl: "http://localhost:11434/v1",
+			apiKey: null,
+			modelsSourceUrl: null,
+			timeoutMs: null,
+		});
+
+		const defaultModelSelect = document.body.querySelector("select") as HTMLSelectElement | null;
+		expect(defaultModelSelect).toBeInstanceOf(HTMLSelectElement);
+		expect(defaultModelSelect?.value).toBe("nomic-embed-text");
+		expect(document.body.textContent).toContain("Loaded 2 models from http://localhost:11434/v1/models.");
+	});
+
+	it("tests the endpoint without replacing the provider model list", async () => {
+		const onDiscoverModels = vi.fn(async () => ({
+			modelSourceUrl: "http://localhost:11434/v1/models",
+			models: [
+				{ id: "nomic-embed-text", name: "nomic-embed-text" },
+				{ id: "bge-m3", name: "bge-m3" },
+			],
+		}));
+
+		await act(async () => {
+			root.render(
+				<ClineAddProviderDialog
+					open={true}
+					onOpenChange={() => {}}
+					existingProviderIds={[]}
+					initialValues={{
+						providerId: "local-provider",
+						name: "Local Provider",
+						baseUrl: "http://localhost:11434/v1",
+						models: ["existing-model"],
+						defaultModelId: "existing-model",
+					}}
+					onSubmit={async () => ({ ok: true })}
+					onDiscoverModels={onDiscoverModels}
+				/>,
+			);
+		});
+
+		const testButton = findButtonByText(document.body, "Test endpoint");
+		expect(testButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			testButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			testButton?.click();
+		});
+
+		expect(onDiscoverModels).toHaveBeenCalledWith({
+			baseUrl: "http://localhost:11434/v1",
+			apiKey: null,
+			modelsSourceUrl: null,
+			timeoutMs: null,
+		});
+		expect(document.body.textContent).toContain("Endpoint reachable: 2 models at http://localhost:11434/v1/models.");
+		expect(document.body.textContent).toContain("existing-model");
+		expect(document.body.textContent).not.toContain("nomic-embed-text");
+	});
 });

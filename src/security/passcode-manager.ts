@@ -37,6 +37,7 @@ const INTERNAL_TOKEN_ENV = "NKLEIN_INTERNAL_AUTH_TOKEN";
 const LEGACY_INTERNAL_TOKEN_ENV = "KANBAN_INTERNAL_AUTH_TOKEN";
 export const SESSION_COOKIE_NAME = "nklein_session";
 export const LEGACY_SESSION_COOKIE_NAME = "kanban_session";
+export const SESSION_COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
 
 let passcodeState: PasscodeState | null = null;
 let passcodeEnabled = true;
@@ -128,6 +129,17 @@ export function validateSession(token: string): boolean {
 		return false;
 	}
 	return true;
+}
+
+export function buildSessionCookieHeader(token: string, options?: { secure?: boolean }): string {
+	return [
+		`${SESSION_COOKIE_NAME}=${token}`,
+		"HttpOnly",
+		"SameSite=Strict",
+		"Path=/",
+		`Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`,
+		...(options?.secure ? ["Secure"] : []),
+	].join("; ");
 }
 
 /** Extract the session token from a Cookie header string. */

@@ -7,6 +7,7 @@ import type { BoardCard, BoardColumnId, BoardData, TaskAutoReviewMode } from "@/
 import { resolveTaskAutoReviewMode } from "@/types";
 
 const AUTO_REVIEW_ACTION_DELAY_MS = 500;
+const AUTO_REVIEW_STUCK_AFTER_MS = 30_000;
 
 function isTaskAutoReviewEnabled(task: BoardCard): boolean {
 	return task.autoReviewEnabled === true;
@@ -21,6 +22,11 @@ interface RequestMoveTaskToTrashOptions {
 	skipWorkingChangeWarning?: boolean;
 }
 
+interface AutoReviewNotice {
+	status: "running" | "failed";
+	message: string;
+}
+
 interface UseReviewAutoActionsOptions {
 	board: BoardData;
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
@@ -30,7 +36,28 @@ interface UseReviewAutoActionsOptions {
 		fromColumnId: BoardColumnId,
 		options?: RequestMoveTaskToTrashOptions,
 	) => Promise<void>;
+	onAutoReviewNoticeChange?: (taskId: string, notice: AutoReviewNotice | null) => void;
 	resetKey?: string | null;
+}
+
+function getAutoReviewActionName(action: TaskGitAction): string {
+	return action === "pr" ? "Auto-PR" : "Auto-commit";
+}
+
+function getAutoReviewRunningMessage(action: TaskGitAction): string {
+	return `${getAutoReviewActionName(action)} is running. !Klein will move this task to Done once the task worktree is clean.`;
+}
+
+function getAutoReviewNoEffectMessage(action: TaskGitAction): string {
+	return `${getAutoReviewActionName(action)} did not start. Review the task worktree, then run the action manually or cancel automation.`;
+}
+
+function getAutoReviewStuckMessage(action: TaskGitAction): string {
+	return `${getAutoReviewActionName(action)} started, but the task worktree is still dirty. Review the remaining changes, then run the action manually or cancel automation.`;
+}
+
+function formatUnknownError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 export function useReviewAutoActions({
@@ -38,12 +65,15 @@ export function useReviewAutoActions({
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
 	requestMoveTaskToCompleted,
+	onAutoReviewNoticeChange,
 	resetKey,
 }: UseReviewAutoActionsOptions): void {
 	const boardRef = useRef<BoardData>(board);
 	const runAutoReviewGitActionRef = useRef(runAutoReviewGitAction);
 	const requestMoveTaskToCompletedRef = useRef(requestMoveTaskToCompleted);
+	const onAutoReviewNoticeChangeRef = useRef(onAutoReviewNoticeChange);
 	const awaitingCleanActionByTaskIdRef = useRef<Record<string, TaskGitAction>>({});
+	const awaitingCleanStartedAtByTaskIdRef = useRef<Record<string, number>>({});
 	const timerByTaskIdRef = useRef<Record<string, number>>({});
 	type ScheduledAutoReviewAction = TaskAutoReviewMode | "move_to_done_after_git_action";
 	const scheduledActionByTaskIdRef = useRef<Record<string, ScheduledAutoReviewAction>>({});
@@ -61,6 +91,14 @@ export function useReviewAutoActions({
 		requestMoveTaskToCompletedRef.current = requestMoveTaskToCompleted;
 	}, [requestMoveTaskToCompleted]);
 
+	useEffect(() => {
+		onAutoReviewNoticeChangeRef.current = onAutoReviewNoticeChange;
+	}, [onAutoReviewNoticeChange]);
+
+	const setAutoReviewNotice = useCallback((taskId: string, notice: AutoReviewNotice | null) => {
+		onAutoReviewNoticeChangeRef.current?.(taskId, notice);
+	}, []);
+
 	const clearAutoReviewTimer = useCallback((taskId: string) => {
 		const timer = timerByTaskIdRef.current[taskId];
 		if (typeof timer === "number") {
@@ -75,6 +113,7 @@ export function useReviewAutoActions({
 			window.clearTimeout(timer);
 		}
 		awaitingCleanActionByTaskIdRef.current = {};
+		awaitingCleanStartedAtByTaskIdRef.current = {};
 		timerByTaskIdRef.current = {};
 		scheduledActionByTaskIdRef.current = {};
 		moveToCompletedInFlightTaskIdsRef.current.clear();
@@ -127,6 +166,7 @@ export function useReviewAutoActions({
 				const columnId = columnByTaskId.get(taskId);
 				if (!columnId || columnId === "completed" || columnId === "trash") {
 					delete awaitingCleanActionByTaskIdRef.current[taskId];
+					delete awaitingCleanStartedAtByTaskIdRef.current[taskId];
 					clearAutoReviewTimer(taskId);
 					moveToCompletedInFlightTaskIdsRef.current.delete(taskId);
 				}
@@ -149,7 +189,9 @@ export function useReviewAutoActions({
 				const autoReviewEnabled = isTaskAutoReviewEnabled(reviewTask);
 				if (!autoReviewEnabled) {
 					delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
+					delete awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id];
 					clearAutoReviewTimer(reviewTask.id);
+					setAutoReviewNotice(reviewTask.id, null);
 					continue;
 				}
 
@@ -187,17 +229,36 @@ export function useReviewAutoActions({
 								return;
 							}
 							moveToCompletedInFlightTaskIdsRef.current.add(reviewTask.id);
+							setAutoReviewNotice(reviewTask.id, {
+								status: "running",
+								message: "Auto-review finished. Moving this task to Done.",
+							});
 							void requestMoveTaskToCompletedRef
 								.current(reviewTask.id, "review", {
 									skipWorkingChangeWarning: true,
 								})
+								.catch((error: unknown) => {
+									setAutoReviewNotice(reviewTask.id, {
+										status: "failed",
+										message: `Auto-review finished, but !Klein could not move the task to Done. ${formatUnknownError(error)}`,
+									});
+								})
 								.finally(() => {
 									delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
+									delete awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id];
 									moveToCompletedInFlightTaskIdsRef.current.delete(reviewTask.id);
 								});
 						});
 					} else {
 						clearAutoReviewTimer(reviewTask.id);
+						const startedAt = awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id] ?? Date.now();
+						awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id] = startedAt;
+						if (!isGitActionInFlight && Date.now() - startedAt >= AUTO_REVIEW_STUCK_AFTER_MS) {
+							setAutoReviewNotice(reviewTask.id, {
+								status: "failed",
+								message: getAutoReviewStuckMessage(awaitingAction),
+							});
+						}
 					}
 					continue;
 				}
@@ -219,16 +280,42 @@ export function useReviewAutoActions({
 					if (latestMode !== autoReviewMode) {
 						return;
 					}
+					setAutoReviewNotice(reviewTask.id, null);
 					awaitingCleanActionByTaskIdRef.current[reviewTask.id] = latestMode;
-					void runAutoReviewGitActionRef.current(reviewTask.id, latestMode).then((triggered) => {
-						if (!triggered && awaitingCleanActionByTaskIdRef.current[reviewTask.id] === latestMode) {
-							delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
-						}
+					awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id] = Date.now();
+					setAutoReviewNotice(reviewTask.id, {
+						status: "running",
+						message: getAutoReviewRunningMessage(latestMode),
 					});
+					void runAutoReviewGitActionRef
+						.current(reviewTask.id, latestMode)
+						.then((triggered) => {
+							if (triggered) {
+								return;
+							}
+							if (awaitingCleanActionByTaskIdRef.current[reviewTask.id] === latestMode) {
+								delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
+								delete awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id];
+								setAutoReviewNotice(reviewTask.id, {
+									status: "failed",
+									message: getAutoReviewNoEffectMessage(latestMode),
+								});
+							}
+						})
+						.catch((error: unknown) => {
+							if (awaitingCleanActionByTaskIdRef.current[reviewTask.id] === latestMode) {
+								delete awaitingCleanActionByTaskIdRef.current[reviewTask.id];
+								delete awaitingCleanStartedAtByTaskIdRef.current[reviewTask.id];
+								setAutoReviewNotice(reviewTask.id, {
+									status: "failed",
+									message: `${getAutoReviewActionName(latestMode)} failed. ${formatUnknownError(error)}`,
+								});
+							}
+						});
 				});
 			}
 		},
-		[clearAutoReviewTimer, scheduleAutoReviewAction, taskGitActionLoadingByTaskId],
+		[clearAutoReviewTimer, scheduleAutoReviewAction, setAutoReviewNotice, taskGitActionLoadingByTaskId],
 	);
 
 	useEffect(() => {

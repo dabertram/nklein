@@ -73,4 +73,38 @@ describe("cline repo map", () => {
 		expect(repoMap.truncated).toBe(true);
 		expect(repoMap.tokenCount).toBeLessThanOrEqual(12);
 	});
+
+	it("boosts symbols mentioned in personalization text", async () => {
+		const workspacePath = await createRepo();
+
+		const repoMap = await buildClineRepoMap({
+			workspacePath,
+			tokenBudget: 500,
+			personalizationText: "The bug is probably in scoreLabel. Inspect scoreLabel first.",
+		});
+
+		const scoreLabelIndex = repoMap.symbols.findIndex((symbol) => symbol.name === "scoreLabel");
+		const calculateScoreIndex = repoMap.symbols.findIndex((symbol) => symbol.name === "calculateScore");
+
+		expect(scoreLabelIndex).toBeGreaterThanOrEqual(0);
+		expect(calculateScoreIndex).toBeGreaterThanOrEqual(0);
+		expect(scoreLabelIndex).toBeLessThan(calculateScoreIndex);
+	});
+
+	it("boosts symbols from seed paths", async () => {
+		const workspacePath = await createRepo();
+
+		const repoMap = await buildClineRepoMap({
+			workspacePath,
+			tokenBudget: 500,
+			seedPaths: ["src/consumer.ts"],
+		});
+
+		const renderScoreIndex = repoMap.symbols.findIndex((symbol) => symbol.name === "renderScore");
+		const normalizeScoreIndex = repoMap.symbols.findIndex((symbol) => symbol.name === "normalizeScore");
+
+		expect(renderScoreIndex).toBeGreaterThanOrEqual(0);
+		expect(normalizeScoreIndex).toBeGreaterThanOrEqual(0);
+		expect(renderScoreIndex).toBeLessThan(normalizeScoreIndex);
+	});
 });

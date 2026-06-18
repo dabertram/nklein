@@ -1,12 +1,21 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+}));
+
+vi.mock("../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+}));
 
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
 import type { WorkspaceStateConflictError } from "../../src/state/workspace-state";
 import {
+	getTaskWorktreesHomePath,
 	getWorkspacesRootPath,
 	listWorkspaceIndexEntries,
 	loadWorkspaceContext,
@@ -96,6 +105,10 @@ function initGitRepository(path: string): void {
 }
 
 describe.sequential("workspace-state integration", () => {
+	beforeEach(() => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+	});
+
 	it("persists revision numbers and rejects stale writes", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-");
@@ -137,6 +150,36 @@ describe.sequential("workspace-state integration", () => {
 				const loadedAfterConflict = await loadWorkspaceState(workspacePath);
 				expect(loadedAfterConflict.revision).toBe(2);
 				expect(loadedAfterConflict.board.columns[0]?.cards[0]?.prompt).toBe("Task Two");
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("preserves existing sessions when saving board-only state", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-board-only-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-a");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const originalSession = createSessionSummary("task-1");
+				const firstSave = await saveWorkspaceState(workspacePath, {
+					board: createBoard("Task One"),
+					sessions: {
+						"task-1": originalSession,
+					},
+				});
+				const boardOnlySave = await saveWorkspaceState(workspacePath, {
+					board: createBoard("Task Two"),
+					expectedRevision: firstSave.revision,
+				});
+
+				expect(boardOnlySave.board.columns[0]?.cards[0]?.prompt).toBe("Task Two");
+				expect(boardOnlySave.sessions["task-1"]).toEqual(originalSession);
+				const loaded = await loadWorkspaceState(workspacePath);
+				expect(loaded.sessions["task-1"]).toEqual(originalSession);
 			} finally {
 				cleanup();
 			}
@@ -259,11 +302,124 @@ describe.sequential("workspace-state integration", () => {
 
 				const created = await loadWorkspaceContext(workspacePath);
 				expect(created.repoPath).toBeTruthy();
+				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+					expect.objectContaining({
+						signal: "custom",
+						metadata: expect.objectContaining({
+							operation: "workspace_resolution",
+							source: "auto_registered",
+						}),
+					}),
+				);
+				selfObservationMocks.recordSelfObservation.mockReset();
 
 				const existing = await loadWorkspaceContext(workspacePath, {
 					autoCreateIfMissing: false,
 				});
 				expect(existing.workspaceId).toBe(created.workspaceId);
+				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+					expect.objectContaining({
+						signal: "custom",
+						metadata: expect.objectContaining({
+							operation: "workspace_resolution",
+							source: "existing_index",
+						}),
+					}),
+				);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("does not auto-create workspace entries for task worktree paths", async () => {
+		await withTemporaryHome(async () => {
+			const { cleanup } = createTempDir("kanban-task-worktree-autocreate-");
+			try {
+				const worktreePath = join(getTaskWorktreesHomePath(), "task-123", "project");
+				mkdirSync(worktreePath, { recursive: true });
+				initGitRepository(worktreePath);
+
+				await expect(loadWorkspaceContext(worktreePath)).rejects.toThrow("not a standalone Kanban project");
+				expect(await listWorkspaceIndexEntries()).toHaveLength(0);
+				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+					expect.objectContaining({
+						signal: "custom",
+						severity: "warning",
+						metadata: expect.objectContaining({
+							operation: "workspace_resolution",
+							source: "rejected_task_worktree",
+						}),
+					}),
+				);
+
+				const explicit = await loadWorkspaceContext(worktreePath, {
+					allowTaskWorktreeProject: true,
+				});
+				expect(explicit.repoPath).toBe(realpathSync(worktreePath));
+				expect(await listWorkspaceIndexEntries()).toHaveLength(1);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("records explicit path resolver telemetry when loading a workspace by project path", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-explicit-path-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-a");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const context = await loadWorkspaceContext(workspacePath, {
+					resolutionSource: "explicit_path",
+					resolutionMetadata: {
+						providedProjectPath: "./project-a",
+					},
+				});
+
+				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+					expect.objectContaining({
+						metadata: expect.objectContaining({
+							operation: "workspace_resolution",
+							source: "explicit_path",
+							workspaceId: context.workspaceId,
+							providedProjectPath: "./project-a",
+						}),
+					}),
+				);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("records explicit id resolver telemetry when loading a workspace by workspace id", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-explicit-id-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-a");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const context = await loadWorkspaceContext(workspacePath);
+				selfObservationMocks.recordSelfObservation.mockReset();
+
+				const resolved = await loadWorkspaceContextById(context.workspaceId, {
+					resolutionSource: "explicit_id",
+				});
+				expect(resolved?.workspaceId).toBe(context.workspaceId);
+				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+					expect.objectContaining({
+						metadata: expect.objectContaining({
+							operation: "workspace_resolution",
+							source: "explicit_id",
+							workspaceId: context.workspaceId,
+							requestedWorkspaceId: context.workspaceId,
+						}),
+					}),
+				);
 			} finally {
 				cleanup();
 			}

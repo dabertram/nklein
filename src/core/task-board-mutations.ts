@@ -4,6 +4,7 @@ import type {
 	RuntimeBoardColumnId,
 	RuntimeBoardData,
 	RuntimeBoardDependency,
+	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskClineSettings,
 	RuntimeTaskImage,
@@ -22,6 +23,7 @@ export interface RuntimeCreateTaskInput {
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
 	filesLikelyTouched?: string[];
+	generatedFromPlan?: RuntimeGeneratedFromPlan;
 	baseRef: string;
 }
 
@@ -335,6 +337,7 @@ export function addTaskToColumn(
 		...(input.agentId ? { agentId: input.agentId } : {}),
 		...(input.clineSettings !== undefined ? { clineSettings: cloneTaskClineSettings(input.clineSettings) } : {}),
 		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
+		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
 		baseRef,
 		createdAt: now,
 		updatedAt: now,

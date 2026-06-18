@@ -27,7 +27,7 @@ import {
 	isLmStudioProviderId,
 } from "@/runtime/cline-context-window-policy";
 import { filterVisibleClineProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
-import { openFileOnHost } from "@/runtime/runtime-config-query";
+import { discoverClineEndpointModels, openFileOnHost } from "@/runtime/runtime-config-query";
 import type { RuntimeClineMcpServer, RuntimeClineReasoningEffort } from "@/runtime/types";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useCopyToClipboard } from "@/utils/react-use";
@@ -1020,6 +1020,9 @@ export function ClineSetupSection({
 					}
 					onSaved?.();
 					return result;
+				}}
+				onDiscoverModels={async (input) => {
+					return await discoverClineEndpointModels(workspaceId, input);
 				}}
 			/>
 		</>

@@ -2,6 +2,7 @@ import { type RuntimeConfigState, toGlobalRuntimeConfigState } from "../config/r
 import type {
 	RuntimeBoardColumnId,
 	RuntimeBoardData,
+	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 	RuntimeProjectTaskCounts,
 	RuntimeWorkspaceStateResponse,
@@ -16,6 +17,7 @@ import {
 	removeWorkspaceStateFiles,
 } from "../state/workspace-state";
 import { TerminalSessionManager } from "../terminal/session-manager";
+import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
 
 export interface WorkspaceRegistryScope {
 	workspaceId: string;
@@ -73,6 +75,7 @@ export interface WorkspaceRegistry {
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
 		gitRepositoryCreatedByKanban: boolean;
+		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
 	buildProjectsPayload: (preferredCurrentProjectId: string | null) => Promise<{
@@ -177,6 +180,7 @@ function toProjectSummary(project: {
 	repoPath: string;
 	taskCounts: RuntimeProjectTaskCounts;
 	gitRepositoryCreatedByKanban: boolean;
+	healthIssues?: RuntimeProjectHealthIssue[];
 }): RuntimeProjectSummary {
 	const normalized = project.repoPath.replaceAll("\\", "/").replace(/\/+$/g, "");
 	const segments = normalized.split("/").filter((segment) => segment.length > 0);
@@ -187,12 +191,15 @@ function toProjectSummary(project: {
 		name,
 		taskCounts: project.taskCounts,
 		gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+		healthIssues: project.healthIssues ?? [],
 	};
 }
 
 export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDependencies): Promise<WorkspaceRegistry> {
 	const launchedFromGitRepo = deps.hasGitRepository(deps.cwd);
-	const initialWorkspace = launchedFromGitRepo ? await loadWorkspaceContext(deps.cwd) : null;
+	const initialWorkspace = launchedFromGitRepo
+		? await loadWorkspaceContext(deps.cwd, { autoCreateIfMissing: false }).catch(() => null)
+		: null;
 	let indexedWorkspace: RuntimeWorkspaceIndexEntry | null = null;
 	if (!initialWorkspace) {
 		const indexedWorkspaces = await listWorkspaceIndexEntries();
@@ -333,6 +340,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
 		const projects = await listWorkspaceIndexEntries();
+		const healthIssuesByWorkspaceId = await detectProjectHealthIssuesByWorkspaceId({ projects });
 		const fallbackProjectId =
 			projects.find((project) => project.workspaceId === activeWorkspaceId)?.workspaceId ??
 			projects[0]?.workspaceId ??
@@ -350,6 +358,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					repoPath: project.repoPath,
 					taskCounts,
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					healthIssues: healthIssuesByWorkspaceId.get(project.workspaceId) ?? [],
 				});
 			}),
 		);

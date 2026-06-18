@@ -14,6 +14,7 @@ import type {
 	RuntimeClineAccountSwitchResponse,
 	RuntimeClineDeviceAuthCompleteResponse,
 	RuntimeClineDeviceAuthStartResponse,
+	RuntimeClineEndpointModelDiscoveryResponse,
 	RuntimeClineKanbanAccessResponse,
 	RuntimeClineOauthLoginResponse,
 	RuntimeClineProviderCatalogItem,
@@ -79,6 +80,7 @@ const LITELLM_MODEL_LIST_PATHNAMES = ["/models", "/model/info"] as const;
 const LMSTUDIO_MODEL_LIST_PATHNAMES = ["/api/v0/models", "/api/v1/models"] as const;
 const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
+const DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const LOGGER = createKanbanClineLogger({ component: "cline-provider-service" });
 const KANBAN_PROVIDER_SELECTION_SCHEMA = z.object({
 	providerId: z.string().min(1),
@@ -488,6 +490,185 @@ function toLmStudioModels(item: unknown, pathname: LmStudioModelListPathname): R
 	});
 
 	return loadedInstanceModels;
+}
+
+function toGenericProviderModel(item: unknown): RuntimeClineProviderModel | null {
+	if (typeof item === "string") {
+		const id = item.trim();
+		return id ? { id, name: id } : null;
+	}
+	const record = readObjectValue(item);
+	if (!record) {
+		return null;
+	}
+	const id = readStringField(record, ["id", "model", "model_name", "key", "name"]);
+	if (!id) {
+		return null;
+	}
+	const contextWindow = readNumberField(record, [
+		"context_length",
+		"contextWindow",
+		"context_window",
+		"max_context_length",
+		"max_input_tokens",
+		"loaded_context_length",
+		"loadedContextLength",
+		"loaded_context_window",
+	]);
+	return {
+		id,
+		name: readStringField(record, ["name", "display_name", "model_name"]) ?? id,
+		...(contextWindow ? { contextWindow } : {}),
+	};
+}
+
+function dedupeProviderModels(models: RuntimeClineProviderModel[]): RuntimeClineProviderModel[] {
+	const modelsById = new Map<string, RuntimeClineProviderModel>();
+	for (const model of models) {
+		const existing = modelsById.get(model.id);
+		if (!existing) {
+			modelsById.set(model.id, model);
+			continue;
+		}
+		modelsById.set(model.id, {
+			...existing,
+			...model,
+			contextWindow: existing.contextWindow ?? model.contextWindow,
+		});
+	}
+	return [...modelsById.values()];
+}
+
+function extractDiscoveredModelsFromPayload(value: unknown, sourceUrl: string): RuntimeClineProviderModel[] {
+	const pathname = (() => {
+		try {
+			return new URL(sourceUrl).pathname.replace(/\/+$/u, "");
+		} catch {
+			return "";
+		}
+	})();
+	const record = readObjectValue(value);
+	const candidateItems = record
+		? [...readArrayValue(record.data), ...readArrayValue(record.models)]
+		: Array.isArray(value)
+			? value
+			: [];
+	if (candidateItems.length === 0) {
+		return [];
+	}
+	if (pathname === "/api/v0/models" || pathname === "/api/v1/models") {
+		return dedupeProviderModels(
+			candidateItems.flatMap((item) => toLmStudioModels(item, pathname as LmStudioModelListPathname)),
+		);
+	}
+	return dedupeProviderModels(
+		candidateItems
+			.map((item) => toGenericProviderModel(item))
+			.filter((model): model is RuntimeClineProviderModel => model !== null),
+	);
+}
+
+function normalizeDiscoveryBaseUrl(baseUrl: string): string {
+	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/u, "");
+	try {
+		const parsedUrl = new URL(trimmedBaseUrl);
+		if (parsedUrl.pathname.endsWith("/embeddings")) {
+			parsedUrl.pathname = parsedUrl.pathname.slice(0, -"/embeddings".length) || "/";
+		}
+		parsedUrl.search = "";
+		parsedUrl.hash = "";
+		return parsedUrl.toString().replace(/\/+$/u, "");
+	} catch {
+		return trimmedBaseUrl.replace(/\/embeddings$/iu, "");
+	}
+}
+
+function buildDiscoveredModelSourceUrls(input: { baseUrl: string; modelsSourceUrl?: string | null }): string[] {
+	const candidates = new Set<string>();
+	const addCandidate = (value: string | null | undefined) => {
+		const trimmed = value?.trim();
+		if (trimmed) {
+			candidates.add(trimmed.replace(/\/+$/u, ""));
+		}
+	};
+	addCandidate(input.modelsSourceUrl);
+	const normalizedBaseUrl = normalizeDiscoveryBaseUrl(input.baseUrl);
+	addCandidate(normalizedBaseUrl);
+	try {
+		const parsedUrl = new URL(normalizedBaseUrl);
+		const pathname = parsedUrl.pathname.replace(/\/+$/u, "");
+		if (pathname.endsWith("/models") || pathname.endsWith("/api/v0/models") || pathname.endsWith("/api/v1/models")) {
+			addCandidate(parsedUrl.toString());
+		} else {
+			const joinPath = (nextPathname: string) => {
+				const nextUrl = new URL(parsedUrl.toString());
+				nextUrl.pathname = nextPathname;
+				nextUrl.search = "";
+				nextUrl.hash = "";
+				addCandidate(nextUrl.toString());
+			};
+			joinPath(`${pathname || ""}/models`);
+			const trimmedV1Path = pathname.endsWith("/v1") ? pathname.slice(0, -"/v1".length) : pathname;
+			joinPath(`${trimmedV1Path || ""}/api/v1/models`);
+			joinPath(`${trimmedV1Path || ""}/api/v0/models`);
+		}
+	} catch {
+		addCandidate(`${normalizedBaseUrl}/models`);
+		const trimmedV1BaseUrl = normalizedBaseUrl.replace(/\/v1$/iu, "");
+		addCandidate(`${trimmedV1BaseUrl}/api/v1/models`);
+		addCandidate(`${trimmedV1BaseUrl}/api/v0/models`);
+	}
+	return [...candidates];
+}
+
+async function discoverModelsFromEndpoint(input: {
+	baseUrl: string;
+	apiKey?: string | null;
+	modelsSourceUrl?: string | null;
+	timeoutMs?: number | null;
+}): Promise<RuntimeClineEndpointModelDiscoveryResponse> {
+	const sourceUrls = buildDiscoveredModelSourceUrls({
+		baseUrl: input.baseUrl,
+		modelsSourceUrl: input.modelsSourceUrl,
+	});
+	if (sourceUrls.length === 0) {
+		throw new Error("Could not derive a model-discovery URL from the provided endpoint.");
+	}
+	const timeoutMs =
+		typeof input.timeoutMs === "number" && input.timeoutMs > 0
+			? Math.trunc(input.timeoutMs)
+			: DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS;
+	const headers: Record<string, string> = {};
+	if (input.apiKey?.trim()) {
+		headers.Authorization = `Bearer ${input.apiKey.trim()}`;
+	}
+	for (const sourceUrl of sourceUrls) {
+		try {
+			const response = await globalThis.fetch(sourceUrl, {
+				method: "GET",
+				headers,
+				signal: AbortSignal.timeout(timeoutMs),
+			});
+			if (!response.ok) {
+				continue;
+			}
+			const payload = (await response.json()) as unknown;
+			const models = extractDiscoveredModelsFromPayload(payload, sourceUrl)
+				.map((model) => toRuntimeProviderModel(model))
+				.sort((left, right) => left.name.localeCompare(right.name));
+			if (models.length > 0) {
+				return {
+					modelSourceUrl: sourceUrl,
+					models,
+				};
+			}
+		} catch {
+			// Try the next candidate URL.
+		}
+	}
+	throw new Error(
+		`Could not discover models from ${input.modelsSourceUrl?.trim() || input.baseUrl.trim()}. Ensure the local endpoint is reachable and exposes a compatible /models route.`,
+	);
 }
 
 function appendMissingModels(
@@ -1337,6 +1518,19 @@ export function createClineProviderService() {
 				providerId: normalizedProviderId || providerId,
 				models: [],
 			};
+		},
+
+		async discoverEndpointModels(input: {
+			baseUrl: string;
+			apiKey?: string | null;
+			modelsSourceUrl?: string | null;
+			timeoutMs?: number | null;
+		}): Promise<RuntimeClineEndpointModelDiscoveryResponse> {
+			assertLocalProviderAllowed({
+				providerId: "openai-compatible",
+				baseUrl: input.baseUrl,
+			});
+			return await discoverModelsFromEndpoint(input);
 		},
 
 		async addCustomProvider(input: AddCustomClineProviderInput): Promise<RuntimeClineProviderSettings> {

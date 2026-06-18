@@ -210,8 +210,8 @@ export function ClineModelRegistryPanel({
 								</div>
 								<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-secondary">
 									<span>Endpoint: {formatEndpoint(entry)}</span>
-									<span>Effective: {formatExactTokenWindow(entry.contextWindow.effective)}</span>
-									<span>Override: {formatExactTokenWindow(entry.contextWindow.userOverride)}</span>
+									<span>Effective context: {formatExactTokenWindow(entry.contextWindow.effective)}</span>
+									<span>Context override: {formatExactTokenWindow(entry.contextWindow.userOverride)}</span>
 									<span>Observed: {formatExactTokenWindow(entry.contextWindow.observed)}</span>
 									<span>Advertised: {formatExactTokenWindow(entry.contextWindow.advertised)}</span>
 									<span>Samples: {entry.speed.samples}</span>

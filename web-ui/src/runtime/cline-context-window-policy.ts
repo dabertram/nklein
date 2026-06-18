@@ -54,14 +54,14 @@ export function getClineModelContextWindowWarning(input: {
 	const label = input.label?.trim() || "Selected model";
 	const required = formatClineContextWindowTokens(CLINE_MIN_CONTEXT_WINDOW_TOKENS);
 	if (!input.model) {
-		return `${label} has no loaded context-window metadata. Kanban requires at least ${required} context tokens before activation.`;
+		return `${label} has no loaded context-window metadata. !Klein requires at least ${required} context tokens before activation.`;
 	}
 	const contextWindow = input.model.contextWindow;
 	if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) {
-		return `${label} does not report a context window. Kanban requires at least ${required} context tokens before activation.`;
+		return `${label} does not report a context window. !Klein requires at least ${required} context tokens before activation.`;
 	}
 	if (contextWindow < CLINE_MIN_CONTEXT_WINDOW_TOKENS) {
-		return `${label} reports ${formatClineContextWindowTokens(contextWindow)} context tokens. Kanban requires at least ${required} before activation.`;
+		return `${label} reports ${formatClineContextWindowTokens(contextWindow)} context tokens. !Klein requires at least ${required} before activation.`;
 	}
 	return null;
 }

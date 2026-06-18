@@ -129,8 +129,8 @@ describe("ClineModelRegistryPanel", () => {
 		expect(text).toContain("ollama/qwen");
 		expect(text).toContain("cline/sonnet");
 		expect(text).toContain("Endpoint: ollama-local");
-		expect(text).toContain("Effective: 16,000");
-		expect(text).toContain("Override: unknown");
+		expect(text).toContain("Effective context: 16,000");
+		expect(text).toContain("Context override: unknown");
 		expect(text).toContain("Observed: 16,000");
 		expect(text).toContain("In 800 tok/s");
 		expect(text.indexOf("ollama/qwen")).toBeLessThan(text.indexOf("cline/sonnet"));
@@ -170,7 +170,7 @@ describe("ClineModelRegistryPanel", () => {
 		const text = container.textContent ?? "";
 		expect(text).toContain("ollama/qwen");
 		expect(text).toContain("Set context window");
-		expect(text).toContain("Effective: unknown");
+		expect(text).toContain("Effective context: unknown");
 		expect(text).toContain("Samples: 0");
 	});
 

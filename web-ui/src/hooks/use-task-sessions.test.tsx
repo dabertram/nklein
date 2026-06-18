@@ -6,13 +6,24 @@ import { useTaskSessions } from "@/hooks/use-task-sessions";
 import type { BoardCard } from "@/types";
 
 const startTaskSessionMutateMock = vi.hoisted(() => vi.fn());
+const deleteWorktreeMutateMock = vi.hoisted(() => vi.fn());
 const trackTaskResumedFromTrashMock = vi.hoisted(() => vi.fn());
+const notifyErrorMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/components/app-toaster", () => ({
+	notifyError: notifyErrorMock,
+}));
 
 vi.mock("@/runtime/trpc-client", () => ({
 	getRuntimeTrpcClient: () => ({
 		runtime: {
 			startTaskSession: {
 				mutate: startTaskSessionMutateMock,
+			},
+		},
+		workspace: {
+			deleteWorktree: {
+				mutate: deleteWorktreeMutateMock,
 			},
 		},
 	}),
@@ -28,6 +39,7 @@ vi.mock("@/telemetry/events", () => ({
 
 interface HookSnapshot {
 	startTaskSession: ReturnType<typeof useTaskSessions>["startTaskSession"];
+	cleanupTaskWorkspace: ReturnType<typeof useTaskSessions>["cleanupTaskWorkspace"];
 }
 
 function createTask(): BoardCard {
@@ -53,8 +65,9 @@ function HookHarness({ onSnapshot }: { onSnapshot: (snapshot: HookSnapshot) => v
 	useEffect(() => {
 		onSnapshot({
 			startTaskSession: sessions.startTaskSession,
+			cleanupTaskWorkspace: sessions.cleanupTaskWorkspace,
 		});
-	}, [onSnapshot, sessions.startTaskSession]);
+	}, [onSnapshot, sessions.cleanupTaskWorkspace, sessions.startTaskSession]);
 
 	return null;
 }
@@ -66,7 +79,9 @@ describe("useTaskSessions", () => {
 
 	beforeEach(() => {
 		startTaskSessionMutateMock.mockReset();
+		deleteWorktreeMutateMock.mockReset();
 		trackTaskResumedFromTrashMock.mockReset();
+		notifyErrorMock.mockReset();
 		startTaskSessionMutateMock.mockResolvedValue({
 			ok: true,
 			summary: {
@@ -83,6 +98,10 @@ describe("useTaskSessions", () => {
 				lastHookAt: null,
 				latestHookActivity: null,
 			},
+		});
+		deleteWorktreeMutateMock.mockResolvedValue({
+			ok: true,
+			removed: true,
 		});
 		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
 			.IS_REACT_ACT_ENVIRONMENT;
@@ -308,5 +327,35 @@ describe("useTaskSessions", () => {
 				},
 			}),
 		);
+	});
+
+	it("keeps cleanup failures out of user-facing error toasts", async () => {
+		deleteWorktreeMutateMock.mockResolvedValueOnce({
+			ok: false,
+			removed: false,
+			error: "cleanup failed",
+		});
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			await latestSnapshot?.cleanupTaskWorkspace("task-1");
+		});
+
+		expect(deleteWorktreeMutateMock).toHaveBeenCalledWith({ taskId: "task-1" });
+		expect(notifyErrorMock).not.toHaveBeenCalled();
 	});
 });

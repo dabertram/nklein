@@ -1,6 +1,8 @@
 # Architecture Overview
 
-Kanban is a local Node runtime plus a React app for running many coding-agent tasks in parallel.
+!Klein is a local Node runtime plus a React app for running many coding-agent tasks in parallel.
+
+This codebase is a fork of Cline Kanban. The repository name and some internal compatibility names still use `kanban`, but user-facing docs and UI copy should refer to `!Klein`, while command examples should use `nklein`. The main product direction is local-first orchestration for small local LLMs on limited hardware, with upstream Cline Kanban changes considered opportunistically rather than as a strict parity target.
 
 There are three big ideas to hold in your head:
 
@@ -103,7 +105,7 @@ board, detail view, sidebar, and terminal panels
 
 ## The Mental Model
 
-Kanban is easiest to understand if you separate it into three layers of responsibility.
+!Klein is easiest to understand if you separate it into three layers of responsibility.
 
 The browser layer is the presentation and orchestration layer. It renders the board, detail view, settings, and terminal or chat surfaces. It also owns short-lived UI state such as panel visibility, form drafts, and optimistic message rendering.
 
@@ -115,11 +117,11 @@ That split explains a lot of the architecture:
 
 - the browser should not be the source of truth for session lifecycle
 - the runtime should coordinate work, not render UI
-- the Cline integration should adapt the SDK instead of copying SDK responsibilities into Kanban
+- the Cline integration should adapt the SDK instead of copying SDK responsibilities into !Klein
 
 ## Runtime Modes
 
-Kanban currently supports three runtime modes.
+!Klein currently supports three runtime modes.
 
 | Runtime mode | Used for | Scope | Backing implementation | Why it exists |
 | --- | --- | --- | --- | --- |
@@ -156,7 +158,7 @@ These terms come up everywhere in the codebase.
 
 | Concept | Meaning | Why it matters |
 | --- | --- | --- |
-| Workspace | an indexed git repository that Kanban has opened | most browser and runtime state is scoped to a workspace |
+| Workspace | an indexed git repository that !Klein has opened | most browser and runtime state is scoped to a workspace |
 | Task card | a board item with a prompt, base ref, and review settings | a task is the unit of work the board cares about |
 | Worktree | a per-task git worktree | most task agents run inside one |
 | Task session | the live runtime attached to a task card | this may be a PTY process or a native Cline session |
@@ -169,13 +171,13 @@ One of the biggest cleanup themes was making ownership clearer. The system is mu
 
 | Concern | Primary owner | Notes |
 | --- | --- | --- |
-| board state, workspace state, review state | Kanban | this is product state, not SDK state |
-| worktree lifecycle | Kanban | task worktrees are a Kanban concept |
-| non-Cline process lifecycle | Kanban | the terminal runtime owns process start, resize, output, and stop |
-| Cline provider settings and secrets | Cline SDK | Kanban should not mirror these back into its own runtime config |
-| Cline OAuth state and refresh | Cline SDK | Kanban delegates through a provider service |
-| Cline session persistence and history | Cline SDK | Kanban hydrates from SDK artifacts instead of reinventing persistence |
-| mapping SDK sessions into Kanban task semantics | Kanban integration layer | this is what `src/cline-sdk/` exists to do |
+| board state, workspace state, review state | !Klein | this is product state, not SDK state |
+| worktree lifecycle | !Klein | task worktrees are an !Klein concept |
+| non-Cline process lifecycle | !Klein | the terminal runtime owns process start, resize, output, and stop |
+| Cline provider settings and secrets | Cline SDK | !Klein should not mirror these back into its own runtime config |
+| Cline OAuth state and refresh | Cline SDK | !Klein delegates through a provider service |
+| Cline session persistence and history | Cline SDK | !Klein hydrates from SDK artifacts instead of reinventing persistence |
+| mapping SDK sessions into !Klein task semantics | !Klein integration layer | this is what `src/cline-sdk/` exists to do |
 | UI rendering state for detail view and sidebar | browser hooks and components | local UI state belongs in the frontend |
 | live state fanout to the browser | `runtime-state-hub.ts` | the browser should react to streamed state, not poll |
 
@@ -198,7 +200,7 @@ The `src/terminal/` area owns everything process-oriented:
 - choosing what binary to run
 - launching PTY sessions
 - resizing and streaming terminal output
-- translating process lifecycle into Kanban runtime summaries
+- translating process lifecycle into !Klein runtime summaries
 - handling the workspace shell terminal
 
 This is the path for Claude Code, Codex, Gemini, OpenCode, Droid, and any other command-driven agent.
@@ -207,24 +209,24 @@ This is the path for Claude Code, Codex, Gemini, OpenCode, Droid, and any other 
 
 The `src/cline-sdk/` area is an integration layer, not just a dump of SDK calls.
 
-Its job is to translate between Kanban concepts and SDK concepts:
+Its job is to translate between !Klein concepts and SDK concepts:
 
-- Kanban thinks in task ids, runtime summaries, and browser-facing chat messages
+- !Klein thinks in task ids, runtime summaries, and browser-facing chat messages
 - the SDK thinks in provider settings, session ids, raw session events, and persisted artifacts
 
-The integration layer exists so the rest of Kanban does not need to understand the SDK package layout or the details of provider auth and session hosting.
+The integration layer exists so the rest of !Klein does not need to understand the SDK package layout or the details of provider auth and session hosting.
 
 ### Workspace and config
 
 `src/workspace/` owns worktree creation, lookup, cleanup, and turn checkpoints.
 
-`src/config/runtime-config.ts` owns Kanban preferences such as selected agents, shortcuts, and prompt templates. It should not become a second source of truth for Cline secrets, OAuth tokens, or SDK provider state.
+`src/config/runtime-config.ts` owns !Klein preferences such as selected agents, shortcuts, and prompt templates. It should not become a second source of truth for Cline secrets, OAuth tokens, or SDK provider state.
 
 ### State streaming
 
 `runtime-state-hub.ts` is the central fanout point for live updates. It listens to terminal summaries, Cline summaries, Cline messages, workspace metadata, and workspace state changes, then broadcasts websocket messages that keep the browser in sync.
 
-This is important because Kanban is not designed around browser polling. The runtime is long-lived and streams state outward.
+This is important because !Klein is not designed around browser polling. The runtime is long-lived and streams state outward.
 
 ## Frontend Architecture
 
@@ -279,18 +281,18 @@ The useful way to think about each module is:
 
 | Module | Role | Why it exists |
 | --- | --- | --- |
-| `sdk-provider-boundary.ts` | the only place that should import SDK provider and OAuth APIs directly | protects the rest of Kanban from SDK package layout details |
+| `sdk-provider-boundary.ts` | the only place that should import SDK provider and OAuth APIs directly | protects the rest of !Klein from SDK package layout details |
 | `sdk-runtime-boundary.ts` | the only place that should import SDK session-host and persisted-session APIs directly | same reason, but for runtime behavior |
-| `cline-provider-service.ts` | Kanban-facing service for provider settings, model catalog loading, OAuth login, and launch config resolution | keeps auth and provider policy out of `runtime-api.ts` and the UI |
-| `cline-session-runtime.ts` | owns the live SDK session host plus task id to session id bindings | maps Kanban tasks onto SDK sessions |
-| `cline-message-repository.ts` | stores the Kanban-side view of Cline chat state and hydrates history from SDK persistence | gives the rest of the backend one consistent chat repository shape |
-| `cline-event-adapter.ts` | translates raw SDK events into Kanban mutations | isolates protocol-specific event handling |
+| `cline-provider-service.ts` | !Klein-facing service for provider settings, model catalog loading, OAuth login, and launch config resolution | keeps auth and provider policy out of `runtime-api.ts` and the UI |
+| `cline-session-runtime.ts` | owns the live SDK session host plus task id to session id bindings | maps !Klein tasks onto SDK sessions |
+| `cline-message-repository.ts` | stores the !Klein-side view of Cline chat state and hydrates history from SDK persistence | gives the rest of the backend one consistent chat repository shape |
+| `cline-event-adapter.ts` | translates raw SDK events into !Klein mutations | isolates protocol-specific event handling |
 | `cline-session-state.ts` | pure state helpers for messages and summaries | keeps low-level mutation logic reusable and testable |
 | `cline-task-session-service.ts` | the task-oriented facade used by the rest of the backend | gives runtime-api.ts one place to talk to for Cline session work |
 
 This split matters because the biggest failure mode in this area is accidental duplication:
 
-- duplicating SDK-owned settings in Kanban config
+- duplicating SDK-owned settings in !Klein config
 - duplicating SDK event logic in multiple places
 - duplicating chat behavior between detail view and sidebar
 - duplicating direct SDK imports throughout the codebase
@@ -301,11 +303,11 @@ Different state lives in different places on purpose.
 
 | State | Where it lives | Why |
 | --- | --- | --- |
-| selected agent, shortcuts, Kanban prompt templates | Kanban runtime config | these are Kanban preferences |
+| selected agent, shortcuts, !Klein prompt templates | !Klein runtime config | these are !Klein preferences |
 | per-project UI or workflow state | workspace state or project config | this is workspace-scoped product state |
 | Cline provider settings, API keys, OAuth tokens | SDK-backed provider store | the SDK already owns auth and provider persistence |
 | Cline session history | SDK persisted session artifacts | this allows recovery without rebuilding another persistence layer |
-| task runtime summaries | Kanban runtime memory and state stream | the board needs a lightweight product-shaped summary of current work |
+| task runtime summaries | !Klein runtime memory and state stream | the board needs a lightweight product-shaped summary of current work |
 
 One very important rule falls out of that table:
 
@@ -337,7 +339,7 @@ This is one of the places where the architecture still has a little intentional 
 
 When the user starts a normal non-Cline task, the browser asks the runtime to start a task session. The runtime resolves the task cwd, chooses the right command, and starts a PTY-backed process inside the task worktree. As the process runs, the terminal runtime emits summary updates and terminal output. The runtime state hub then streams those updates back to the browser so the board and detail view stay live.
 
-This is the "classic Kanban" path.
+This is the "classic kanban" path.
 
 ### Sending a Cline chat message
 
@@ -347,7 +349,7 @@ The important architectural point is that detail view and sidebar are two surfac
 
 ### Opening settings and changing Cline provider state
 
-The settings dialog is split between generic Kanban settings and the Cline-specific provider flow. The browser loads provider catalog data, available models, saved provider settings, and OAuth state through a dedicated Cline controller path. The backend answers those requests through the Cline provider service, which is the layer that talks to the SDK-backed provider store.
+The settings dialog is split between generic !Klein settings and the Cline-specific provider flow. The browser loads provider catalog data, available models, saved provider settings, and OAuth state through a dedicated Cline controller path. The backend answers those requests through the Cline provider service, which is the layer that talks to the SDK-backed provider store.
 
 This means the UI can stay focused on rendering and local form state while the provider service owns auth and launch configuration policy.
 
@@ -358,7 +360,7 @@ These are the architectural rules that are most important to preserve.
 - one concern should have one clear source of truth
 - keep the SDK behind the Cline boundary modules
 - keep `runtime-api.ts` as a coordinator, not a god file
-- do not store Cline auth or provider secrets in Kanban runtime config
+- do not store Cline auth or provider secrets in !Klein runtime config
 - prefer sharing runtime-aware hooks between detail view and sidebar instead of letting the two diverge
 - treat the browser as a client of streamed runtime state, not the source of truth for long-running sessions
 - when adding new agent behavior, prefer capability-oriented reasoning over sprinkling more `selectedAgentId === "cline"` checks
@@ -392,7 +394,7 @@ When you are making a change, this table is often more useful than a file list.
 | If you are changing... | Think about this first | Common mistake to avoid |
 | --- | --- | --- |
 | task startup for Claude Code, Codex, Gemini, OpenCode, or Droid | the PTY runtime and agent launch path | accidentally adding special logic to the Cline path |
-| Cline provider settings, models, or OAuth | the Cline provider service and SDK provider boundary | storing secrets in Kanban config or duplicating OAuth policy |
+| Cline provider settings, models, or OAuth | the Cline provider service and SDK provider boundary | storing secrets in !Klein config or duplicating OAuth policy |
 | Cline message rendering or send/cancel behavior | the shared Cline hooks and task-session service | making detail view and sidebar behave differently |
 | live board updates | the runtime state hub and browser stream consumers | falling back to polling or duplicating summary logic |
 | home sidebar agent behavior | the synthetic home session lifecycle | treating the sidebar like a normal task with a real worktree |

@@ -31,7 +31,20 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
 		readyForReviewNotificationsEnabled: true,
+		codeEmbeddingDefaults: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: {
+			provider: "local_lexical",
+			model: "kanban-local-lexical-vector-v1",
+			baseUrl: null,
+		},
 		modelRoles: {},
 		shortcuts: [],
 		commitPromptTemplate: "commit",
@@ -94,6 +107,8 @@ describe("buildRuntimeConfigResponse", () => {
 		});
 
 		expect(response.agentAutonomousModeEnabled).toBe(true);
+		expect(response.lostHeartbeatPolicy).toBe("park");
+		expect(response.decompositionAutoApplyEnabled).toBe(true);
 		expect(response.modelRoles).toEqual({
 			worker: {
 				providerId: "ollama",

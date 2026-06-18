@@ -1,14 +1,20 @@
-# Kanban Web UI
+# !Klein Web UI
 
-This package contains the Kanban frontend served by the runtime.
+This package contains the !Klein frontend served by the runtime.
+
+The product name is `!Klein`. Use `nklein` when referring to the CLI. Some internal compatibility paths and env names still use `kanban`.
 
 ## Stack
 
 - React + TypeScript + Vite
-- Palantir Blueprint v6 (`@blueprintjs/core`, `@blueprintjs/icons`, `@blueprintjs/select`)
+- Tailwind CSS v4
+- Radix UI primitives
+- Lucide React icons
 - Atlassian pragmatic drag-and-drop
 - Vitest
 - Playwright
+
+The UI is dark-theme-first and uses the local design tokens defined in `src/globals.css`.
 
 ## Telemetry
 

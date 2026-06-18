@@ -1,6 +1,6 @@
 {
-  "name": "@kanban/web",
-  "version": "0.1.0",
+  "name": "@nklein/web",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {

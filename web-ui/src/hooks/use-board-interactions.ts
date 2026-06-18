@@ -17,6 +17,7 @@ import {
 	getTaskColumnId,
 	moveTaskToColumn,
 	updateTask,
+	updateTaskAutoReviewNotice,
 	updateTaskBlockedState,
 } from "@/state/board-state";
 import { clearTaskWorkspaceInfo, setTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
@@ -622,6 +623,12 @@ export function useBoardInteractions({
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
 		requestMoveTaskToCompleted,
+		onAutoReviewNoticeChange: (taskId, notice) => {
+			setBoard((currentBoard) => {
+				const updated = updateTaskAutoReviewNotice(currentBoard, taskId, notice);
+				return updated.updated ? updated.board : currentBoard;
+			});
+		},
 		resetKey: currentProjectId,
 	});
 

@@ -396,7 +396,7 @@ async function ingestHookEvent(args: HooksIngestArgs): Promise<void> {
 			metadata: args.metadata,
 		}),
 		3000,
-		"kanban hooks ingest",
+		"nklein hooks ingest",
 	);
 	if (ingestResponse.ok === false) {
 		throw new Error(ingestResponse.error ?? "Hook ingest failed");
@@ -723,7 +723,7 @@ async function runHooksIngest(
 		const codexEnrichedArgs = await enrichCodexReviewMetadata(parsedArgs, process.cwd());
 		args = await enrichDroidReviewMetadata(codexEnrichedArgs);
 	} catch (error) {
-		process.stderr.write(`kanban hooks ingest: ${formatError(error)}\n`);
+		process.stderr.write(`nklein hooks ingest: ${formatError(error)}\n`);
 		process.exitCode = 1;
 		return;
 	}
@@ -731,7 +731,7 @@ async function runHooksIngest(
 	try {
 		await ingestHookEvent(args);
 	} catch (error) {
-		process.stderr.write(`kanban hooks ingest: ${formatError(error)}\n`);
+		process.stderr.write(`nklein hooks ingest: ${formatError(error)}\n`);
 		process.exitCode = 1;
 	}
 }
@@ -741,7 +741,7 @@ export function registerHooksCommand(program: Command): void {
 
 	hooks
 		.command("ingest [payload]")
-		.description("Ingest hook event into Kanban runtime.")
+		.description("Ingest hook event into !Klein runtime.")
 		.requiredOption("--event <event>", "Event: to_review | to_in_progress | activity.", parseHookEvent)
 		.option("--source <source>", "Hook source.")
 		.option("--activity-text <text>", "Activity summary text.")
@@ -808,7 +808,7 @@ export function registerHooksCommand(program: Command): void {
 
 	hooks
 		.command("codex-wrapper [agentArgs...]")
-		.description("Codex wrapper that emits Kanban hook notifications.")
+		.description("Codex wrapper that emits !Klein hook notifications.")
 		.requiredOption("--real-binary <path>", "Path to the actual codex binary.")
 		.allowUnknownOption(true)
 		.action(async (agentArgs: string[] | undefined, options: { realBinary: string }) => {

@@ -137,14 +137,17 @@ function getTaskWorktreePath(repoPath: string, taskId: string): string {
 }
 
 function getTaskPatchFilePrefix(repoPath: string, taskId: string): string {
+	return `${normalizeTaskIdForWorktreePath(taskId)}.${getTaskPatchRepoKey(repoPath)}.`;
+}
+
+function getTaskPatchRepoKey(repoPath: string): string {
 	let canonicalRepoPath: string;
 	try {
 		canonicalRepoPath = realpathSync(repoPath);
 	} catch {
 		canonicalRepoPath = resolve(repoPath);
 	}
-	const repoKey = createHash("sha256").update(canonicalRepoPath).digest("hex").slice(0, 12);
-	return `${normalizeTaskIdForWorktreePath(taskId)}.${repoKey}.`;
+	return createHash("sha256").update(canonicalRepoPath).digest("hex").slice(0, 12);
 }
 
 function parseTaskPatchCommit(repoPath: string, taskId: string, filename: string): string | null {
@@ -181,6 +184,21 @@ async function deleteTaskPatchFiles(repoPath: string, taskId: string): Promise<v
 	const patchesRootPath = getTrashedTaskPatchesRootPath();
 	const filenames = await listTaskPatchFiles(repoPath, taskId);
 	await Promise.all(filenames.map((filename) => rm(join(patchesRootPath, filename), { force: true })));
+}
+
+export async function deleteTaskPatchFilesForRepo(repoPath: string): Promise<number> {
+	const patchesRootPath = getTrashedTaskPatchesRootPath();
+	const repoKey = getTaskPatchRepoKey(repoPath);
+	try {
+		const entries = await readdir(patchesRootPath);
+		const scopedFilenames = entries.filter(
+			(entry) => entry.endsWith(TASK_PATCH_FILE_SUFFIX) && entry.includes(`.${repoKey}.`),
+		);
+		await Promise.all(scopedFilenames.map((filename) => rm(join(patchesRootPath, filename), { force: true })));
+		return scopedFilenames.length;
+	} catch {
+		return 0;
+	}
 }
 
 async function findTaskPatch(repoPath: string, taskId: string): Promise<{ path: string; commit: string } | null> {

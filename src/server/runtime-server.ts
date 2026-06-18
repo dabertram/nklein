@@ -26,6 +26,7 @@ import {
 } from "../core/runtime-endpoint";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
+	buildSessionCookieHeader,
 	checkRateLimit,
 	clearRateLimit,
 	extractBearerToken,
@@ -33,7 +34,6 @@ import {
 	isPasscodeEnabled,
 	issueSession,
 	recordFailedAttempt,
-	SESSION_COOKIE_NAME,
 	validateInternalToken,
 	validatePasscode,
 	validateSession,
@@ -442,18 +442,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 				clearRateLimit(ip);
 				const token = issueSession();
-				const cookieFlags = [
-					`${SESSION_COOKIE_NAME}=${token}`,
-					"HttpOnly",
-					"SameSite=Strict",
-					"Path=/",
-					`Max-Age=${24 * 60 * 60}`,
-					...(tlsConfig !== null ? ["Secure"] : []),
-				].join("; ");
 				res.writeHead(200, {
 					"Content-Type": "application/json; charset=utf-8",
 					"Cache-Control": "no-store",
-					"Set-Cookie": cookieFlags,
+					"Set-Cookie": buildSessionCookieHeader(token, { secure: tlsConfig !== null }),
 				});
 				res.end(JSON.stringify({ ok: true }));
 				return;

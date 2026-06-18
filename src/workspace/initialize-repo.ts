@@ -6,7 +6,8 @@ interface InitializeRepoResult {
 }
 
 const KANBAN_REPOSITORY_OWNER_CONFIG_KEY = "kanban.repositoryCreatedByKanban";
-const KANBAN_INITIAL_COMMIT_MESSAGE = "Initial commit through Cline Kanban";
+const KANBAN_INITIAL_COMMIT_MESSAGE = "Initial commit through !Klein";
+const LEGACY_KANBAN_INITIAL_COMMIT_MESSAGE = "Initial commit through Cline Kanban";
 
 export async function markGitRepositoryCreatedByKanban(projectPath: string): Promise<InitializeRepoResult> {
 	const result = await runGit(projectPath, ["config", "--local", KANBAN_REPOSITORY_OWNER_CONFIG_KEY, "true"]);
@@ -36,7 +37,11 @@ export async function isGitRepositoryCreatedByKanban(projectPath: string): Promi
 	const rootCommitMessages = await runGit(projectPath, ["log", "--max-parents=0", "--format=%s"]);
 	const wasInitializedByKanban =
 		rootCommitMessages.ok &&
-		rootCommitMessages.stdout.split("\n").some((message) => message === KANBAN_INITIAL_COMMIT_MESSAGE);
+		rootCommitMessages.stdout
+			.split("\n")
+			.some(
+				(message) => message === KANBAN_INITIAL_COMMIT_MESSAGE || message === LEGACY_KANBAN_INITIAL_COMMIT_MESSAGE,
+			);
 	if (!wasInitializedByKanban) {
 		return false;
 	}

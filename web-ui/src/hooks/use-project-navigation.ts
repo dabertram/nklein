@@ -45,6 +45,7 @@ export interface UseProjectNavigationResult {
 	isAddProjectDialogOpen: boolean;
 	setIsAddProjectDialogOpen: (open: boolean) => void;
 	pendingNativeGitInitPath: string | null;
+	pendingNativeSelfProjectPath: string | null;
 	currentProjectId: string | null;
 	projects: ReturnType<typeof useRuntimeStateStream>["projects"];
 	workspaceState: ReturnType<typeof useRuntimeStateStream>["workspaceState"];
@@ -78,6 +79,7 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 	const [removingProjectId, setRemovingProjectId] = useState<string | null>(null);
 	const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
 	const [pendingGitInitPath, setPendingGitInitPath] = useState<string | null>(null);
+	const [pendingSelfProjectPath, setPendingSelfProjectPath] = useState<string | null>(null);
 
 	const {
 		currentProjectId,
@@ -112,6 +114,8 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 
 	const handleAddProjectSuccess = useCallback(
 		(projectId: string) => {
+			setPendingGitInitPath(null);
+			setPendingSelfProjectPath(null);
 			setPendingAddedProjectId(projectId);
 			handleSelectProject(projectId);
 		},
@@ -138,6 +142,11 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 						// Needs git init — open the dialog with the path
 						// pre-filled so the user can confirm initialization.
 						setPendingGitInitPath(picked.path);
+						setIsAddProjectDialogOpen(true);
+						return;
+					}
+					if (added.requiresSelfProjectConfirmation) {
+						setPendingSelfProjectPath(picked.path);
 						setIsAddProjectDialogOpen(true);
 						return;
 					}
@@ -264,6 +273,7 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		setRemovingProjectId(null);
 		setIsAddProjectDialogOpen(false);
 		setPendingGitInitPath(null);
+		setPendingSelfProjectPath(null);
 	}, []);
 
 	return {
@@ -273,6 +283,7 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		isAddProjectDialogOpen,
 		setIsAddProjectDialogOpen,
 		pendingNativeGitInitPath: pendingGitInitPath,
+		pendingNativeSelfProjectPath: pendingSelfProjectPath,
 		currentProjectId,
 		projects,
 		workspaceState,

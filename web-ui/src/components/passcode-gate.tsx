@@ -210,13 +210,13 @@ export function PasscodeGate({ onAuthenticated }: PasscodeGateProps): ReactEleme
 									)
 								}
 							>
-								{state === "submitting" ? "Verifying…" : "Access Kanban"}
+								{state === "submitting" ? "Verifying…" : "Access !Klein"}
 							</Button>
 						</div>
 					</form>
 				</div>
 				<p className="mt-3 text-center text-xs text-text-tertiary">
-					The passcode was printed to the console when Kanban started.
+					The passcode was printed to the console when !Klein started.
 				</p>
 			</div>
 		</div>

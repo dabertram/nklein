@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createInMemoryClineMessageRepository } from "../../../src/cline-sdk/cline-message-repository";
 import type { ClinePersistedTaskSessionSnapshot } from "../../../src/cline-sdk/cline-session-runtime";
@@ -6,6 +6,8 @@ import {
 	type ClineTaskSessionEntry,
 	createDefaultSummary,
 	createMessage,
+	setClineLostHeartbeatPolicy,
+	updateSummary,
 } from "../../../src/cline-sdk/cline-session-state";
 
 function createPersistedSnapshot(
@@ -44,6 +46,67 @@ function createEntry(taskId: string): ClineTaskSessionEntry {
 }
 
 describe("InMemoryClineMessageRepository", () => {
+	beforeEach(() => {
+		setClineLostHeartbeatPolicy("park");
+	});
+
+	it("parks running sessions for review when their heartbeat is lost", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		entry.summary.latestHookActivity = {
+			activityText: "Agent active",
+			toolName: null,
+			toolInputSummary: null,
+			finalMessage: "Generated a draft plan.",
+			hookEventName: "assistant_delta",
+			notificationType: null,
+			source: "cline-sdk",
+		};
+
+		const summary = updateSummary(entry, {
+			heartbeatStatus: "lost",
+			lastHeartbeatAt: 123,
+		});
+
+		expect(summary.state).toBe("awaiting_review");
+		expect(summary.reviewReason).toBe("error");
+		expect(summary.warningMessage).toContain("heartbeat was lost");
+		expect(summary.latestHookActivity?.finalMessage).toBe("Generated a draft plan.");
+		expect(entry.summary.state).toBe("awaiting_review");
+	});
+
+	it("allows explicit running transitions to keep a lost heartbeat visible", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "awaiting_review";
+		entry.summary.reviewReason = "hook";
+
+		const summary = updateSummary(entry, {
+			state: "running",
+			reviewReason: null,
+			heartbeatStatus: "lost",
+		});
+
+		expect(summary.state).toBe("running");
+		expect(summary.heartbeatStatus).toBe("lost");
+		expect(summary.reviewReason).toBeNull();
+	});
+
+	it("keeps running sessions active when the lost heartbeat policy allows it", () => {
+		setClineLostHeartbeatPolicy("keep_running");
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const summary = updateSummary(entry, {
+			heartbeatStatus: "lost",
+			lastHeartbeatAt: 123,
+		});
+
+		expect(summary.state).toBe("running");
+		expect(summary.heartbeatStatus).toBe("lost");
+		expect(summary.reviewReason).toBeNull();
+		expect(summary.warningMessage).toBeNull();
+	});
+
 	it("hydrates persisted SDK history into Kanban chat messages and caches the result", async () => {
 		const repository = createInMemoryClineMessageRepository();
 		const loadPersistedSession = vi.fn(async () =>

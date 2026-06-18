@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+	CLINE_DEV_TEST_PROJECT_MARKER_PATH,
 	DEFAULT_CLINE_DEV_TEST_SCENARIO,
 	resolveClineDevTestTemplatePath,
 	scaffoldClineDevTestProject,
@@ -39,6 +40,18 @@ describe("cline dev test project", () => {
 		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
 		expect(specification).toContain(DEFAULT_CLINE_DEV_TEST_SCENARIO.title);
 		expect(specification).not.toContain("Acceptance command");
+		const marker = JSON.parse(
+			await readFile(join(project.workspacePath, CLINE_DEV_TEST_PROJECT_MARKER_PATH), "utf8"),
+		) as {
+			createdBy?: string;
+			scenarioId?: string;
+		};
+		expect(marker).toEqual(
+			expect.objectContaining({
+				createdBy: "nklein-dev-test",
+				scenarioId: DEFAULT_CLINE_DEV_TEST_SCENARIO.id,
+			}),
+		);
 		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
 	});
 

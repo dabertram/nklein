@@ -52,10 +52,15 @@ function HookHarness({
 	board,
 	runAutoReviewGitAction,
 	requestMoveTaskToCompleted,
+	onAutoReviewNoticeChange,
 }: {
 	board: BoardData;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
 	requestMoveTaskToCompleted: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
+	onAutoReviewNoticeChange?: (
+		taskId: string,
+		notice: { status: "running" | "failed"; message: string } | null,
+	) => void;
 }): null {
 	setTaskWorkspaceSnapshot(workspaceSnapshots["task-1"] ?? null);
 	useReviewAutoActions({
@@ -63,6 +68,7 @@ function HookHarness({
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction,
 		requestMoveTaskToCompleted,
+		onAutoReviewNoticeChange,
 	});
 	return null;
 }
@@ -126,6 +132,39 @@ describe("useReviewAutoActions", () => {
 		});
 
 		expect(runAutoReviewGitAction).not.toHaveBeenCalled();
+		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
+	});
+
+	it("records a durable failure notice when an auto review action is a no-op", async () => {
+		const runAutoReviewGitAction = vi.fn(async () => false);
+		const requestMoveTaskToCompleted = vi.fn(async () => {});
+		const onAutoReviewNoticeChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={createBoard(true)}
+					runAutoReviewGitAction={runAutoReviewGitAction}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
+					onAutoReviewNoticeChange={onAutoReviewNoticeChange}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1000);
+		});
+
+		expect(runAutoReviewGitAction).toHaveBeenCalledWith("task-1", "commit");
+		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
+			status: "running",
+			message: "Auto-commit is running. !Klein will move this task to Done once the task worktree is clean.",
+		});
+		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
+			status: "failed",
+			message:
+				"Auto-commit did not start. Review the task worktree, then run the action manually or cancel automation.",
+		});
 		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
 	});
 });

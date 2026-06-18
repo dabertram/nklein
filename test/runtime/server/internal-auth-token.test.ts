@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	buildSessionCookieHeader,
 	disablePasscode,
 	extractBearerToken,
 	extractSessionTokenFromCookie,
@@ -14,6 +15,7 @@ import {
 	isPasscodeEnabled,
 	issueSession,
 	LEGACY_SESSION_COOKIE_NAME,
+	SESSION_COOKIE_MAX_AGE_SECONDS,
 	SESSION_COOKIE_NAME,
 	validateInternalToken,
 	validatePasscode,
@@ -138,6 +140,23 @@ describe("extractBearerToken", () => {
 	it("returns null when token part is missing", () => {
 		expect(extractBearerToken("Bearer ")).toBeNull();
 		expect(extractBearerToken("Bearer")).toBeNull();
+	});
+});
+
+describe("Passcode session cookie header", () => {
+	it("uses strict browser cookie flags by default", () => {
+		const header = buildSessionCookieHeader("session-token");
+
+		expect(header).toContain(`${SESSION_COOKIE_NAME}=session-token`);
+		expect(header).toContain("HttpOnly");
+		expect(header).toContain("SameSite=Strict");
+		expect(header).toContain("Path=/");
+		expect(header).toContain(`Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`);
+		expect(header).not.toContain("Secure");
+	});
+
+	it("adds Secure when the runtime is served over TLS", () => {
+		expect(buildSessionCookieHeader("session-token", { secure: true })).toContain("Secure");
 	});
 });
 

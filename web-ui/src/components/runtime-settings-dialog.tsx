@@ -33,7 +33,7 @@ import {
 	Sparkles,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClineModelRegistryPanel } from "@/components/detail-panels/cline-model-registry-panel";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
@@ -70,6 +70,7 @@ import {
 } from "@/runtime/native-agent";
 import {
 	buildClineAdvisorRequest,
+	discoverClineEndpointModels,
 	fetchClineModelRegistry,
 	fetchClineProviderModels,
 	openFileOnHost,
@@ -84,6 +85,7 @@ import type {
 	RuntimeClineAdvisorRequest,
 	RuntimeClineAdvisorSendResponse,
 	RuntimeClineDogfoodBacklogResponse,
+	RuntimeClineEndpointModelDiscoveryResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeClineModelRegistryEntry,
@@ -256,6 +258,186 @@ const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
 	worker: "Worker",
 	reviewer: "Reviewer",
 };
+
+function EmbeddingEndpointFields({
+	workspaceId,
+	labelPrefix,
+	disabled,
+	provider,
+	baseUrl,
+	model,
+	endpointPlaceholder,
+	modelPlaceholder,
+	onBaseUrlChange,
+	onModelChange,
+	onError,
+}: {
+	workspaceId: string | null;
+	labelPrefix: string;
+	disabled: boolean;
+	provider: RuntimeCodeEmbeddingSettings["provider"];
+	baseUrl: string;
+	model: string;
+	endpointPlaceholder: string;
+	modelPlaceholder: string;
+	onBaseUrlChange: (value: string) => void;
+	onModelChange: (value: string) => void;
+	onError: (message: string | null) => void;
+}): ReactElement {
+	const [isDiscovering, setIsDiscovering] = useState(false);
+	const [isTestingEndpoint, setIsTestingEndpoint] = useState(false);
+	const [discoveredModels, setDiscoveredModels] = useState<RuntimeClineProviderModel[]>([]);
+	const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (provider !== "openai_compatible") {
+			setDiscoveredModels([]);
+			setDiscoveryMessage(null);
+		}
+	}, [provider]);
+
+	const selectedDiscoveredModel = useMemo(
+		() => discoveredModels.find((entry) => entry.id === model) ?? null,
+		[discoveredModels, model],
+	);
+
+	const handleDiscoverModels = useCallback(async () => {
+		const normalizedBaseUrl = baseUrl.trim();
+		if (!normalizedBaseUrl) {
+			onError(`Enter a ${labelPrefix.toLowerCase()} endpoint URL before discovering models.`);
+			return;
+		}
+		setIsDiscovering(true);
+		setDiscoveryMessage(null);
+		onError(null);
+		try {
+			const response: RuntimeClineEndpointModelDiscoveryResponse = await discoverClineEndpointModels(workspaceId, {
+				baseUrl: normalizedBaseUrl,
+			});
+			setDiscoveredModels(response.models);
+			if (response.models.length > 0) {
+				const nextModelId =
+					response.models.some((entry) => entry.id === model) && model.trim().length > 0
+						? model
+						: (response.models[0]?.id ?? "");
+				onModelChange(nextModelId);
+			}
+			setDiscoveryMessage(
+				response.models.length > 0
+					? `Loaded ${response.models.length} model${response.models.length === 1 ? "" : "s"} from ${response.modelSourceUrl}.`
+					: `No models returned from ${response.modelSourceUrl}.`,
+			);
+		} catch (error) {
+			onError(error instanceof Error ? error.message : "Could not discover embedding models.");
+		} finally {
+			setIsDiscovering(false);
+		}
+	}, [baseUrl, labelPrefix, model, onError, onModelChange, workspaceId]);
+
+	const handleTestEndpoint = useCallback(async () => {
+		const normalizedBaseUrl = baseUrl.trim();
+		if (!normalizedBaseUrl) {
+			onError(`Enter a ${labelPrefix.toLowerCase()} endpoint URL before testing the endpoint.`);
+			return;
+		}
+		setIsTestingEndpoint(true);
+		setDiscoveryMessage(null);
+		onError(null);
+		try {
+			const response = await discoverClineEndpointModels(workspaceId, {
+				baseUrl: normalizedBaseUrl,
+			});
+			setDiscoveryMessage(
+				`Endpoint reachable: ${response.models.length} model${response.models.length === 1 ? "" : "s"} at ${response.modelSourceUrl}.`,
+			);
+		} catch (error) {
+			onError(error instanceof Error ? error.message : "Could not reach the embedding endpoint.");
+		} finally {
+			setIsTestingEndpoint(false);
+		}
+	}, [baseUrl, labelPrefix, onError, workspaceId]);
+
+	return (
+		<div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)]">
+			<label className="min-w-0">
+				<span className="mb-1 block text-[12px] text-text-secondary">{labelPrefix} endpoint URL</span>
+				<input
+					type="text"
+					value={baseUrl}
+					onChange={(event) => onBaseUrlChange(event.target.value)}
+					disabled={disabled || provider === "local_lexical"}
+					placeholder={endpointPlaceholder}
+					className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+				/>
+			</label>
+			<div className="flex flex-wrap items-end gap-2">
+				<Button
+					variant="ghost"
+					size="sm"
+					icon={<RefreshCw size={14} className={isDiscovering ? "animate-spin" : undefined} />}
+					disabled={
+						disabled ||
+						provider === "local_lexical" ||
+						baseUrl.trim().length === 0 ||
+						isDiscovering ||
+						isTestingEndpoint
+					}
+					onClick={() => void handleDiscoverModels()}
+				>
+					{isDiscovering ? "Discovering..." : "Discover models"}
+				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					icon={<Check size={14} />}
+					disabled={
+						disabled ||
+						provider === "local_lexical" ||
+						baseUrl.trim().length === 0 ||
+						isDiscovering ||
+						isTestingEndpoint
+					}
+					onClick={() => void handleTestEndpoint()}
+				>
+					{isTestingEndpoint ? "Testing..." : "Test endpoint"}
+				</Button>
+			</div>
+			<div className="min-w-0">
+				<span className="mb-1 block text-[12px] text-text-secondary">{labelPrefix} embedding model</span>
+				{discoveredModels.length > 0 ? (
+					<NativeSelect
+						fill
+						value={selectedDiscoveredModel?.id ?? model}
+						onChange={(event) => onModelChange(event.target.value)}
+						disabled={disabled || provider === "local_lexical"}
+					>
+						{discoveredModels.map((entry) => (
+							<option key={entry.id} value={entry.id}>
+								{formatModelOptionLabel(entry)}
+							</option>
+						))}
+					</NativeSelect>
+				) : (
+					<input
+						type="text"
+						value={model}
+						onChange={(event) => onModelChange(event.target.value)}
+						disabled={disabled || provider === "local_lexical"}
+						placeholder={modelPlaceholder}
+						className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
+					/>
+				)}
+			</div>
+			<div className="lg:col-span-3">
+				<p className="m-0 text-[12px] text-text-tertiary">
+					LM Studio usually works with `http://127.0.0.1:1234/v1/embeddings`; Ollama usually works with
+					`http://127.0.0.1:11434/v1/embeddings`.
+				</p>
+				{discoveryMessage ? <p className="mt-1 mb-0 text-[12px] text-text-secondary">{discoveryMessage}</p> : null}
+			</div>
+		</div>
+	);
+}
 const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> = [
 	"inherit",
 	"low",
@@ -2702,7 +2884,7 @@ export function RuntimeSettingsDialog({
 										Code intelligence embeddings
 									</h6>
 									<div className="grid gap-3">
-										<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
+										<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
 											<div className="min-w-0">
 												<span className="mb-1 block text-[12px] text-text-secondary">
 													Global default provider
@@ -2724,32 +2906,19 @@ export function RuntimeSettingsDialog({
 													))}
 												</NativeSelect>
 											</div>
-											<label className="min-w-0">
-												<span className="mb-1 block text-[12px] text-text-secondary">
-													Default endpoint URL
-												</span>
-												<input
-													type="text"
-													value={codeEmbeddingDefaultsBaseUrl}
-													onChange={(event) => setCodeEmbeddingDefaultsBaseUrl(event.target.value)}
-													disabled={controlsDisabled || codeEmbeddingDefaultsProvider === "local_lexical"}
-													placeholder="http://127.0.0.1:11434/v1/embeddings"
-													className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
-												/>
-											</label>
-											<label className="min-w-0">
-												<span className="mb-1 block text-[12px] text-text-secondary">
-													Default embedding model
-												</span>
-												<input
-													type="text"
-													value={codeEmbeddingDefaultsModel}
-													onChange={(event) => setCodeEmbeddingDefaultsModel(event.target.value)}
-													disabled={controlsDisabled || codeEmbeddingDefaultsProvider === "local_lexical"}
-													placeholder="nomic-embed-text"
-													className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
-												/>
-											</label>
+											<EmbeddingEndpointFields
+												workspaceId={workspaceId}
+												labelPrefix="Default"
+												disabled={controlsDisabled}
+												provider={codeEmbeddingDefaultsProvider}
+												baseUrl={codeEmbeddingDefaultsBaseUrl}
+												model={codeEmbeddingDefaultsModel}
+												endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
+												modelPlaceholder="nomic-embed-text"
+												onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
+												onModelChange={setCodeEmbeddingDefaultsModel}
+												onError={setSaveError}
+											/>
 										</div>
 										{workspaceId ? (
 											<div className="rounded-md border border-border bg-surface-1 p-3">
@@ -2769,7 +2938,7 @@ export function RuntimeSettingsDialog({
 														Effective: {formatCodeEmbeddingSettings(draftEffectiveCodeEmbeddingSettings)}
 													</div>
 												</div>
-												<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_minmax(220px,1fr)]">
+												<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
 													<div className="min-w-0">
 														<span className="mb-1 block text-[12px] text-text-secondary">
 															Project provider
@@ -2791,40 +2960,19 @@ export function RuntimeSettingsDialog({
 															))}
 														</NativeSelect>
 													</div>
-													<label className="min-w-0">
-														<span className="mb-1 block text-[12px] text-text-secondary">
-															Project endpoint URL
-														</span>
-														<input
-															type="text"
-															value={codeEmbeddingOverrideBaseUrl}
-															onChange={(event) => setCodeEmbeddingOverrideBaseUrl(event.target.value)}
-															disabled={
-																controlsDisabled ||
-																!codeEmbeddingOverrideEnabled ||
-																codeEmbeddingOverrideProvider === "local_lexical"
-															}
-															placeholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
-															className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
-														/>
-													</label>
-													<label className="min-w-0">
-														<span className="mb-1 block text-[12px] text-text-secondary">
-															Project embedding model
-														</span>
-														<input
-															type="text"
-															value={codeEmbeddingOverrideModel}
-															onChange={(event) => setCodeEmbeddingOverrideModel(event.target.value)}
-															disabled={
-																controlsDisabled ||
-																!codeEmbeddingOverrideEnabled ||
-																codeEmbeddingOverrideProvider === "local_lexical"
-															}
-															placeholder={codeEmbeddingDefaultsModel || "Inherited model"}
-															className="h-9 w-full rounded-md border border-border bg-surface-2 px-2 text-[13px] text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-focus disabled:opacity-50"
-														/>
-													</label>
+													<EmbeddingEndpointFields
+														workspaceId={workspaceId}
+														labelPrefix="Project"
+														disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
+														provider={codeEmbeddingOverrideProvider}
+														baseUrl={codeEmbeddingOverrideBaseUrl}
+														model={codeEmbeddingOverrideModel}
+														endpointPlaceholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
+														modelPlaceholder={codeEmbeddingDefaultsModel || "Inherited model"}
+														onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}
+														onModelChange={setCodeEmbeddingOverrideModel}
+														onError={setSaveError}
+													/>
 												</div>
 											</div>
 										) : (

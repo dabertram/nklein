@@ -62,6 +62,8 @@ export interface BuildClineRepoMapOptions {
 	workspacePath: string;
 	tokenBudget?: number;
 	maxFiles?: number;
+	personalizationText?: string;
+	seedPaths?: string[];
 }
 
 interface SourceFile {
@@ -75,6 +77,11 @@ interface SourceFile {
 interface SourceImport {
 	modulePath: string;
 	importedNames: string[];
+}
+
+interface RepoMapPersonalization {
+	identifierCounts: Map<string, number>;
+	seedPaths: Set<string>;
 }
 
 function getExtension(path: string): string {
@@ -306,6 +313,63 @@ function resolveImportTargetPath(
 	return candidates.find((candidate) => filePathSet.has(candidate)) ?? null;
 }
 
+function normalizeRepoMapPath(path: string): string {
+	return path.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function buildRepoMapPersonalization(
+	options: Pick<BuildClineRepoMapOptions, "personalizationText" | "seedPaths">,
+	filePaths: readonly string[],
+): RepoMapPersonalization {
+	const identifierCounts = new Map<string, number>();
+	const text = options.personalizationText?.trim() ?? "";
+	for (const match of text.matchAll(/\b[A-Za-z_$][\w$]*\b/g)) {
+		const identifier = match[0];
+		identifierCounts.set(identifier, (identifierCounts.get(identifier) ?? 0) + 1);
+	}
+
+	const seedPaths = new Set<string>();
+	for (const seedPath of options.seedPaths ?? []) {
+		const normalized = normalizeRepoMapPath(seedPath);
+		if (normalized) {
+			seedPaths.add(normalized);
+		}
+	}
+	for (const filePath of filePaths) {
+		const normalizedPath = normalizeRepoMapPath(filePath);
+		if (text.includes(filePath) || text.includes(normalizedPath)) {
+			seedPaths.add(filePath);
+		}
+	}
+
+	return {
+		identifierCounts,
+		seedPaths,
+	};
+}
+
+function buildPersonalizationWeights(
+	symbols: readonly ClineRepoMapSymbol[],
+	personalization: RepoMapPersonalization,
+): number[] {
+	return symbols.map((symbol) => {
+		const identifierBoost = (personalization.identifierCounts.get(symbol.name) ?? 0) * 10;
+		const normalizedPath = normalizeRepoMapPath(symbol.path);
+		const fileBoost =
+			personalization.seedPaths.has(symbol.path) || personalization.seedPaths.has(normalizedPath) ? 50 : 0;
+		return 1 + identifierBoost + fileBoost;
+	});
+}
+
+function buildPersonalizationVector(weights: readonly number[]): number[] | null {
+	const hasBoost = weights.some((weight) => weight > 1);
+	if (!hasBoost) {
+		return null;
+	}
+	const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+	return weights.map((weight) => weight / totalWeight);
+}
+
 function addWeightedEdge(
 	edges: Map<number, Map<number, number>>,
 	fromIndex: number,
@@ -320,13 +384,21 @@ function addWeightedEdge(
 	edges.set(fromIndex, outgoing);
 }
 
-function calculatePageRank(symbolCount: number, edges: ReadonlyMap<number, ReadonlyMap<number, number>>): number[] {
+function calculatePageRank(
+	symbolCount: number,
+	edges: ReadonlyMap<number, ReadonlyMap<number, number>>,
+	personalizationVector?: readonly number[] | null,
+): number[] {
 	if (symbolCount === 0) {
 		return [];
 	}
-	let ranks = Array.from({ length: symbolCount }, () => 1 / symbolCount);
+	const teleportVector =
+		personalizationVector?.length === symbolCount
+			? [...personalizationVector]
+			: Array.from({ length: symbolCount }, () => 1 / symbolCount);
+	let ranks = [...teleportVector];
 	for (let iteration = 0; iteration < PAGERANK_ITERATIONS; iteration += 1) {
-		const nextRanks = Array.from({ length: symbolCount }, () => (1 - PAGERANK_DAMPING) / symbolCount);
+		const nextRanks = teleportVector.map((weight) => (1 - PAGERANK_DAMPING) * weight);
 		let danglingRank = 0;
 		for (let fromIndex = 0; fromIndex < symbolCount; fromIndex += 1) {
 			const outgoing = edges.get(fromIndex);
@@ -340,13 +412,12 @@ function calculatePageRank(symbolCount: number, edges: ReadonlyMap<number, Reado
 					(nextRanks[toIndex] ?? 0) + PAGERANK_DAMPING * (ranks[fromIndex] ?? 0) * (weight / totalWeight);
 			}
 		}
-		const danglingShare = (PAGERANK_DAMPING * danglingRank) / symbolCount;
-		ranks = nextRanks.map((rank) => rank + danglingShare);
+		ranks = nextRanks.map((rank, index) => rank + PAGERANK_DAMPING * danglingRank * (teleportVector[index] ?? 0));
 	}
 	return ranks;
 }
 
-function rankSymbols(files: readonly SourceFile[]): ClineRepoMapSymbol[] {
+function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPersonalization): ClineRepoMapSymbol[] {
 	const symbols = files
 		.flatMap((file) => file.symbols)
 		.sort((left, right) =>
@@ -403,11 +474,12 @@ function rankSymbols(files: readonly SourceFile[]): ClineRepoMapSymbol[] {
 			}
 		}
 	}
-	const ranks = calculatePageRank(symbols.length, edges);
+	const personalizationWeights = buildPersonalizationWeights(symbols, personalization);
+	const ranks = calculatePageRank(symbols.length, edges, buildPersonalizationVector(personalizationWeights));
 	return symbols
 		.map((symbol, index) => ({
 			...symbol,
-			rankScore: ranks[index] ?? 0,
+			rankScore: (ranks[index] ?? 0) * (personalizationWeights[index] ?? 1),
 		}))
 		.sort((left, right) => {
 			const rankDelta = right.rankScore - left.rankScore;
@@ -480,7 +552,16 @@ export async function buildClineRepoMap(options: BuildClineRepoMapOptions): Prom
 			...facts,
 		});
 	}
-	const rankedSymbols = rankSymbols(files);
+	const rankedSymbols = rankSymbols(
+		files,
+		buildRepoMapPersonalization(
+			{
+				personalizationText: options.personalizationText,
+				seedPaths: options.seedPaths,
+			},
+			files.map((file) => file.path),
+		),
+	);
 	const rendered = renderSymbols(rankedSymbols, tokenBudget);
 	return {
 		workspacePath: options.workspacePath,

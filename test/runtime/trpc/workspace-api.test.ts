@@ -1,6 +1,16 @@
+import { spawnSync } from "node:child_process";
+import { mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RuntimeTaskSessionSummary, RuntimeWorkspaceChangesResponse } from "../../../src/core/api-contract";
+import type {
+	RuntimeBoardData,
+	RuntimeTaskSessionSummary,
+	RuntimeWorkspaceChangesResponse,
+} from "../../../src/core/api-contract";
+import { loadWorkspaceContext, loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
+import { createGitTestEnv } from "../../utilities/git-env";
 
 const workspaceTaskWorktreeMocks = vi.hoisted(() => ({
 	resolveTaskCwd: vi.fn(),
@@ -28,6 +38,69 @@ vi.mock("../../../src/workspace/get-workspace-changes.js", () => ({
 }));
 
 import { createWorkspaceApi } from "../../../src/trpc/workspace-api";
+
+function initGitRepository(path: string): void {
+	const init = spawnSync("git", ["init"], {
+		cwd: path,
+		stdio: "ignore",
+		env: createGitTestEnv(),
+	});
+	if (init.status !== 0) {
+		throw new Error(`Failed to initialize git repository at ${path}`);
+	}
+}
+
+async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
+	const tempHome = join(tmpdir(), `kanban-workspace-api-home-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+	mkdirSync(tempHome, { recursive: true });
+	const previousHome = process.env.HOME;
+	const previousUserProfile = process.env.USERPROFILE;
+	process.env.HOME = tempHome;
+	process.env.USERPROFILE = tempHome;
+	try {
+		return await run();
+	} finally {
+		if (previousHome === undefined) {
+			delete process.env.HOME;
+		} else {
+			process.env.HOME = previousHome;
+		}
+		if (previousUserProfile === undefined) {
+			delete process.env.USERPROFILE;
+		} else {
+			process.env.USERPROFILE = previousUserProfile;
+		}
+		rmSync(tempHome, { recursive: true, force: true });
+	}
+}
+
+function createBoard(title: string): RuntimeBoardData {
+	return {
+		columns: [
+			{
+				id: "backlog",
+				title: "Backlog",
+				cards: [
+					{
+						id: "task-1",
+						title,
+						prompt: "Do the work.",
+						startInPlanMode: true,
+						baseRef: "main",
+						createdAt: 1,
+						updatedAt: 1,
+					},
+				],
+			},
+			{ id: "planning", title: "Planning", cards: [] },
+			{ id: "in_progress", title: "In Progress", cards: [] },
+			{ id: "review", title: "Review", cards: [] },
+			{ id: "completed", title: "Completed", cards: [] },
+			{ id: "trash", title: "Trash", cards: [] },
+		],
+		dependencies: [],
+	};
+}
 
 function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTaskSessionSummary {
 	return {
@@ -323,5 +396,68 @@ describe("createWorkspaceApi loadChanges", () => {
 		expect(response).toBe(emptyResponse);
 		expect(workspaceChangesMocks.createEmptyWorkspaceChangesResponse).toHaveBeenCalledWith("/tmp/repo");
 		expect(workspaceChangesMocks.getWorkspaceChanges).not.toHaveBeenCalled();
+	});
+});
+
+describe("createWorkspaceApi saveState", () => {
+	it("preserves runtime-owned sessions when saving a board from stale UI state", async () => {
+		await withTemporaryHome(async () => {
+			const repoPath = join(
+				tmpdir(),
+				`kanban-workspace-api-repo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			);
+			mkdirSync(repoPath, { recursive: true });
+			try {
+				initGitRepository(repoPath);
+				const context = await loadWorkspaceContext(repoPath);
+				const runtimeSummary = createSummary({
+					state: "awaiting_review",
+					agentId: "cline",
+					updatedAt: 200,
+					workspacePath: repoPath,
+				});
+				await saveWorkspaceState(repoPath, {
+					board: createBoard("Original title"),
+					sessions: {
+						"task-1": runtimeSummary,
+					},
+				});
+				const latest = await loadWorkspaceState(repoPath);
+				const staleUiSummary = createSummary({
+					state: "running",
+					agentId: "cline",
+					updatedAt: 10,
+					workspacePath: repoPath,
+				});
+				const input = {
+					board: createBoard("Edited title"),
+					expectedRevision: latest.revision,
+				};
+				const buildWorkspaceStateSnapshot = vi.fn(async () => await loadWorkspaceState(repoPath));
+				const api = createWorkspaceApi({
+					ensureTerminalManagerForWorkspace: vi.fn(),
+					getScopedClineTaskSessionService: vi.fn(),
+					broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
+					broadcastRuntimeProjectsUpdated: vi.fn(),
+					buildWorkspaceStateSnapshot,
+				});
+
+				const saved = await api.saveState(
+					{
+						workspaceId: context.workspaceId,
+						workspacePath: context.repoPath,
+					},
+					input,
+				);
+
+				expect(saved.board.columns[0]?.cards[0]?.title).toBe("Edited title");
+				expect(saved.sessions["task-1"]?.state).toBe("awaiting_review");
+				expect(saved.sessions["task-1"]?.updatedAt).toBe(200);
+				expect(staleUiSummary.state).toBe("running");
+				expect(buildWorkspaceStateSnapshot).not.toHaveBeenCalled();
+			} finally {
+				rmSync(repoPath, { recursive: true, force: true });
+			}
+		});
 	});
 });

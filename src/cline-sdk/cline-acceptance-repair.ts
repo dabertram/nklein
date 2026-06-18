@@ -3,6 +3,7 @@ import type { ClineAcceptanceGateResult } from "./cline-acceptance-gate";
 
 const DEFAULT_MAX_REPAIR_ATTEMPTS = 2;
 const MAX_OUTPUT_PREVIEW_CHARS = 6_000;
+const MAX_FAILURE_CONSTRAINT_CHARS = 1_200;
 
 export type ClineAcceptanceRepairAction = "repair" | "escalate" | "human_review";
 
@@ -48,6 +49,47 @@ function trimOutputPreview(output: string): string {
 	return `${normalized.slice(0, MAX_OUTPUT_PREVIEW_CHARS)}\n[output truncated]`;
 }
 
+function trimFailureConstraint(value: string): string {
+	const normalized = value
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.join("\n")
+		.trim();
+	if (normalized.length <= MAX_FAILURE_CONSTRAINT_CHARS) {
+		return normalized;
+	}
+	return `${normalized.slice(0, MAX_FAILURE_CONSTRAINT_CHARS)}\n[constraint truncated]`;
+}
+
+export function extractAcceptanceFailureConstraint(output: string): string | null {
+	const lines = output.replaceAll("\r\n", "\n").split("\n");
+	const normalizedLines = lines.map((line) => line.trimEnd());
+	const assertionIndex = normalizedLines.findIndex((line) =>
+		/^(AssertionError|Error:\s+expect\(|Expected\s|Received\s|FAIL\s|\u2715\s|\u00d7\s|- Expected|- Received)/.test(
+			line.trimStart(),
+		),
+	);
+	if (assertionIndex >= 0) {
+		const selectedLines = normalizedLines
+			.slice(assertionIndex, assertionIndex + 8)
+			.filter((line) => line.trim().length > 0);
+		const constraint = trimFailureConstraint(selectedLines.join("\n"));
+		return constraint.length > 0 ? constraint : null;
+	}
+
+	const compilerIndex = normalizedLines.findIndex((line) => /\b(error TS\d+|SyntaxError|TypeError):/.test(line));
+	if (compilerIndex >= 0) {
+		const selectedLines = normalizedLines
+			.slice(compilerIndex, compilerIndex + 4)
+			.filter((line) => line.trim().length > 0);
+		const constraint = trimFailureConstraint(selectedLines.join("\n"));
+		return constraint.length > 0 ? constraint : null;
+	}
+
+	const nonEmptyLine = normalizedLines.find((line) => line.trim().length > 0)?.trim() ?? "";
+	return nonEmptyLine.length > 0 ? trimFailureConstraint(nonEmptyLine) : null;
+}
+
 function selectEscalationRole(
 	modelRoles: RuntimeModelRoles | undefined,
 ): { role: "reviewer" | "architect"; settings: RuntimeTaskClineSettings } | null {
@@ -73,6 +115,7 @@ function buildRepairPrompt(input: {
 }): string[] {
 	const commandText = input.acceptance.command ?? "(missing Acceptance check)";
 	const outputPreview = trimOutputPreview(input.acceptance.output);
+	const failureConstraint = extractAcceptanceFailureConstraint(input.acceptance.output);
 	const header =
 		input.action === "repair"
 			? `Acceptance check failed on repair attempt ${input.attempt} of ${input.maxAttempts}.`
@@ -84,6 +127,7 @@ function buildRepairPrompt(input: {
 		input.taskTitle ? `Task title: ${input.taskTitle}` : null,
 		`Acceptance command: ${commandText}`,
 		`Exit code: ${input.acceptance.exitCode ?? "unknown"}`,
+		failureConstraint ? `Failing test constraint:\n${failureConstraint}` : null,
 		outputPreview.length > 0 ? `Acceptance output:\n${outputPreview}` : "Acceptance output: (empty)",
 		"",
 		"Original task prompt:",

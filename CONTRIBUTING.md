@@ -1,10 +1,12 @@
-# Contributing to Kanban
+# Contributing to !Klein
 
-Thanks for your interest in contributing to Kanban! This project is in research preview, and we're focused on making the existing feature set rock-solid across platforms and agents before expanding scope. Community help is invaluable here.
+Thanks for your interest in contributing to !Klein. This fork is focused on making local-first coding-agent orchestration work well on limited hardware, especially with smaller local Cline-compatible models.
+
+For naming: use `!Klein` in user-facing copy and `nklein` for CLI references. The repository path and some compatibility internals still use `kanban`.
 
 ## What We're Looking For
 
-Kanban currently supports Claude, Codex, Gemini, OpenCode, Droid, and Cline as runtime agents, and runs on macOS, Linux, and Windows. The surface area for cross-compatibility issues is large, and that's where contributions have the most impact.
+!Klein currently supports Claude, Codex, Gemini, OpenCode, Droid, Kiro, and Cline as runtime agents, and runs on macOS, Linux, and Windows. The surface area for cross-compatibility issues is large, and that's where contributions have the most impact.
 
 We are actively looking for help with:
 
@@ -13,11 +15,11 @@ We are actively looking for help with:
 - Bug fixes: anything that makes the current feature set more stable and reliable
 - Test coverage: adding tests for untested paths, especially platform-specific and agent-specific behavior
 
-We are not currently accepting feature PRs. If you have a feature idea, please open a [Feature Request discussion](https://github.com/cline/kanban/discussions/categories/feature-requests) instead. We may incorporate it into the roadmap, but the priority right now is stability and compatibility.
+Large feature changes should start with an issue or discussion. The current priority is reliability for local models, small-hardware workflows, and safe task orchestration.
 
 ## Reporting Bugs
 
-Before opening a new issue, search [existing issues](https://github.com/cline/kanban/issues) to avoid duplicates. When filing a bug, include:
+Before opening a new issue, search existing issues to avoid duplicates. When filing a bug, include:
 
 - Your OS and version
 - Which CLI agent you're using (and its version)
@@ -86,13 +88,14 @@ Look at the existing agent implementations in `src/` for reference. The agent li
 
 ## Philosophy
 
-Kanban is in foundation mode. Favor clear primitives and good tooling over early complexity. Build extensibility into the core, then layer product features iteratively.
+!Klein is in fork-foundation mode. Favor clear primitives, local-model reliability, and good tooling over early complexity. Upstream Cline Kanban changes may be checked and integrated when useful, but this fork does not optimize for strict upstream parity.
+
+The main driver is making smaller local LLMs usable on limited hardware. Early fork work addressed practical blockers like the long-turn HTTP body-timeout failure path, then kept going to improve reliability, guardrails, and day-to-day usability for small-model workflows.
 
 ## Community
 
-- [Discord](https://discord.gg/cline) (join the #kanban channel)
-- [Feature Requests](https://github.com/cline/kanban/discussions/categories/feature-requests)
-- [Issues](https://github.com/cline/kanban/issues)
+- Use this repository's issues/discussions for fork-specific work.
+- Upstream Cline Kanban remains useful context, but !Klein may intentionally diverge.
 
 ## License
 

@@ -1,4 +1,10 @@
-# Kanban release workflow
+# !Klein release workflow
+
+Version naming follows the fork split:
+
+- new fork releases use `!Klein` version headings in `CHANGELOG.md`
+- earlier inherited release history stays labeled as `Cline Kanban`
+- the repository/package plumbing may still reference `kanban` where compatibility requires it
 
 ## Overview
 

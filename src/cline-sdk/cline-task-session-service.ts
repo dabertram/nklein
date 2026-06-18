@@ -18,6 +18,7 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
 	compactKanbanMessagesForContextTarget,
@@ -128,6 +129,7 @@ const CLINE_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
 export interface StartClineTaskSessionRequest {
 	taskId: string;
 	cwd: string;
+	workspaceRoot?: string | null;
 	prompt: string;
 	startInPlanMode?: boolean;
 	/** Normalized Kanban task title; written to SDK session metadata (best-effort). */
@@ -151,12 +153,14 @@ export interface StartClineTaskSessionRequest {
 	toolTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number | null;
+	codeEmbeddingProvider?: ClineCodeEmbeddingProvider;
 	systemPrompt?: string | null;
 }
 
 export interface ClineTaskLaunchConfigOverrides {
 	providerId: string;
 	modelId: string;
+	workspaceRoot?: string | null;
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
@@ -449,7 +453,7 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
 		"Kanban decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable Kanban workflow rules are applied.",
-		"Do not modify implementation files, do not use write tools outside Kanban planning artifacts, and do not implement product code yet.",
+		"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
 		"Continue autonomously through the planning workflow when the task can be completed with Kanban-managed tools.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");
@@ -545,6 +549,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const normalized: ClineTaskRestartLaunchConfig = {
 			providerId: launchConfig.providerId.trim().toLowerCase(),
 			modelId: launchConfig.modelId.trim(),
+			...(Object.hasOwn(launchConfig, "workspaceRoot")
+				? { workspaceRoot: launchConfig.workspaceRoot?.trim() || null }
+				: {}),
 			...(Object.hasOwn(launchConfig, "apiKey") ? { apiKey: launchConfig.apiKey } : {}),
 			...(Object.hasOwn(launchConfig, "baseUrl") ? { baseUrl: launchConfig.baseUrl?.trim() || null } : {}),
 			...(Object.hasOwn(launchConfig, "reasoningEffort") ? { reasoningEffort: launchConfig.reasoningEffort } : {}),
@@ -585,6 +592,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private async startRuntimeTaskSessionFromLaunchConfig(input: {
 		taskId: string;
 		cwd: string;
+		workspaceRoot?: string | null;
 		prompt: string;
 		initialMessages?: ClineSdkPersistedMessage[];
 		images?: RuntimeTaskImage[];
@@ -593,6 +601,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		systemPrompt?: string | null;
 		contextScope?: "full" | "smart" | "minimal" | "custom";
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
+		codeEmbeddingProvider?: ClineCodeEmbeddingProvider;
 	}): Promise<{ result: unknown; warnings?: string[] }> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
 		assertLocalProviderAllowed({
@@ -623,6 +632,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const startResult = await this.sessionRuntime.startTaskSession({
 			taskId: input.taskId,
 			cwd: input.cwd,
+			workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
 			prompt: input.prompt,
 			initialMessages: input.initialMessages,
 			images: input.images,
@@ -634,11 +644,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			reasoningEffort: launchConfig.reasoningEffort,
 			contextWindow: requestContextWindow,
 			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines,
+			codeEmbeddingProvider: input.codeEmbeddingProvider,
 			apiTimeoutMs: launchConfig.apiTimeoutMs,
 			turnTimeoutMs: launchConfig.turnTimeoutMs,
 			systemPrompt,
 			userInstructionService: runtimeSetup.userInstructionService,
 			requestToolApproval: runtimeSetup.createToolApproval({
+				taskId: input.taskId,
 				contextWindow: requestContextWindow,
 				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 			}),
@@ -729,6 +741,49 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			},
 		});
 		this.emitSummary(errorSummary);
+	}
+
+	private recordSessionRecoveryFailure(input: {
+		taskId: string;
+		operation: "reload_task_session" | "rebind_persisted_task_session";
+		error: unknown;
+	}): void {
+		const errorMessage = toErrorMessage(input.error);
+		recordSelfObservation({
+			signal: "runtime_error",
+			severity: "warning",
+			message: `Cline session recovery failed during ${input.operation}: ${errorMessage}`,
+			taskId: input.taskId,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				operation: input.operation,
+				recoveryAction: true,
+			},
+		});
+	}
+
+	private recordLostSessionRecoveryTransition(input: {
+		taskId: string;
+		transition: "rebound_for_review" | "marked_interrupted";
+		workspacePath?: string | null;
+	}): void {
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message:
+				input.transition === "rebound_for_review"
+					? "Lost session rebound for review."
+					: "Lost session marked interrupted.",
+			taskId: input.taskId,
+			workspacePath: input.workspacePath ?? null,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				operation: "lost_session_recovery",
+				transition: input.transition,
+			},
+		});
 	}
 
 	private clearTaskTimeout(taskId: string, kind: ClineTaskTimeoutKind): void {
@@ -1284,6 +1339,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.cacheLaunchConfig(request.taskId, {
 			providerId,
 			modelId,
+			workspaceRoot: request.workspaceRoot,
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
@@ -1358,6 +1414,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				lastOutputAt: now(),
 				lastHookAt: now(),
 				lastTokenAt: null,
+				lastHeartbeatAt: now(),
+				heartbeatStatus: "healthy",
 				latestHookActivity: {
 					activityText: "Agent active",
 					toolName: null,
@@ -1427,6 +1485,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
 					cwd: request.cwd,
+					workspaceRoot: request.workspaceRoot,
 					prompt: runtimePrompt,
 					taskTitle: request.taskTitle,
 					initialMessages,
@@ -1438,11 +1497,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					baseUrl: request.baseUrl,
 					reasoningEffort: request.reasoningEffort,
 					contextWindow: requestContextWindow,
+					codeEmbeddingProvider: request.codeEmbeddingProvider,
 					apiTimeoutMs: request.requestTimeoutMs,
 					turnTimeoutMs: request.turnTimeoutMs,
 					systemPrompt,
 					userInstructionService: runtimeSetup.userInstructionService,
 					requestToolApproval: runtimeSetup.createToolApproval({
+						taskId: request.taskId,
 						contextWindow: requestContextWindow,
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 					}),
@@ -1516,6 +1577,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			exitCode: null,
 			lastOutputAt: now(),
 		});
+		if (entry.summary.heartbeatStatus === "lost") {
+			this.recordLostSessionRecoveryTransition({
+				taskId,
+				transition: "marked_interrupted",
+				workspacePath: summary.workspacePath,
+			});
+		}
 		this.emitSummary(summary);
 		return summary;
 	}
@@ -1635,6 +1703,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				lastOutputAt: now(),
 				lastHookAt: now(),
 				lastTokenAt: null,
+				lastHeartbeatAt: now(),
+				heartbeatStatus: "healthy",
 				latestHookActivity: {
 					activityText: "Agent active",
 					toolName: null,
@@ -1749,7 +1819,17 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	async reloadTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
 		let entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
-			const reboundSummary = await this.rebindPersistedTaskSession(taskId);
+			let reboundSummary: RuntimeTaskSessionSummary | null;
+			try {
+				reboundSummary = await this.rebindPersistedTaskSession(taskId);
+			} catch (error) {
+				this.recordSessionRecoveryFailure({
+					taskId,
+					operation: "rebind_persisted_task_session",
+					error,
+				});
+				throw error;
+			}
 			if (!reboundSummary) {
 				return null;
 			}
@@ -1786,6 +1866,15 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			this.emitSummary(summary);
 			return cloneSummary(summary);
 		} catch (error) {
+			const failureFingerprint = `start:${toErrorMessage(error)}`;
+			const previousFailure = this.failureBackoffByTaskId.get(taskId);
+			if (!(previousFailure?.fingerprint === failureFingerprint && previousFailure.parked)) {
+				this.recordSessionRecoveryFailure({
+					taskId,
+					operation: "reload_task_session",
+					error,
+				});
+			}
 			this.emitTaskFailure(taskId, entry, "start", error);
 			return cloneSummary(entry.summary);
 		}
@@ -1862,6 +1951,11 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			previousTurnCheckpoint: existingEntry?.summary.previousTurnCheckpoint ?? null,
 		});
 		this.messageRepository.setTaskEntry(taskId, entry);
+		this.recordLostSessionRecoveryTransition({
+			taskId,
+			transition: "rebound_for_review",
+			workspacePath: entry.summary.workspacePath,
+		});
 		return cloneSummary(entry.summary);
 	}
 

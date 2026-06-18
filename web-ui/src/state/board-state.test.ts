@@ -960,4 +960,57 @@ describe("board dependency state", () => {
 			reasoningEffort: "medium",
 		});
 	});
+
+	it("preserves existing task Cline context and timeout overrides when changing detail model settings", () => {
+		let board = createInitialBoardData();
+		board = addTaskToColumn(board, "backlog", {
+			prompt: "Task with full cline overrides",
+			agentId: "cline",
+			clineSettings: {
+				providerId: "lmstudio",
+				modelId: "qwen3",
+				reasoningEffort: "high",
+				contextScope: "custom",
+				timeoutMode: "unlimited",
+				requestTimeoutMs: 300_000,
+				streamTimeoutMs: 180_000,
+				toolTimeoutMs: 600_000,
+				agentTimeoutMs: 900_000,
+				conversationTimeoutMs: 1_200_000,
+			},
+			baseRef: "main",
+		});
+		const task = board.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(task).toBeDefined();
+		if (!task) {
+			throw new Error("Expected backlog task to exist");
+		}
+
+		const result = applyTaskDetailClineSettingsChange(
+			board,
+			task.id,
+			{
+				providerId: "lmstudio",
+				modelId: "qwen3-coder",
+				reasoningEffort: "",
+			},
+			{
+				providerId: "lmstudio",
+				modelId: "qwen3",
+			},
+		);
+		expect(result.updated).toBe(true);
+		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(updatedTask?.clineSettings).toEqual({
+			providerId: "lmstudio",
+			modelId: "qwen3-coder",
+			contextScope: "custom",
+			timeoutMode: "unlimited",
+			requestTimeoutMs: 300_000,
+			streamTimeoutMs: 180_000,
+			toolTimeoutMs: 600_000,
+			agentTimeoutMs: 900_000,
+			conversationTimeoutMs: 1_200_000,
+		});
+	});
 });

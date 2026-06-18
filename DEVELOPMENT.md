@@ -1,5 +1,7 @@
 # Development
 
+This repo is still named `kanban`, but the product name is `!Klein` and the CLI command is `nklein`.
+
 ## Requirements
 
 - Node.js 20+
@@ -46,9 +48,9 @@ Use `http://127.0.0.1:4173` while developing UI so changes hot reload.
 
 ## Choose the right workflow
 
-Use `npm run dev:full` when you are actively developing Kanban and want fast iteration. It runs the source checkout with `tsx watch` plus the Vite web UI dev server, so runtime changes reload and web UI changes get HMR.
+Use `npm run dev:full` when you are actively developing !Klein and want fast iteration. It runs the source checkout with `tsx watch` plus the Vite web UI dev server, so runtime changes reload and web UI changes get HMR.
 
-By default, `dev:full` now starts Kanban with `--skip-shutdown-cleanup` so stopping a debug/dev instance does not move cards to Trash or delete task worktrees from your active boards.
+By default, `dev:full` now starts !Klein with `--skip-shutdown-cleanup` so stopping a debug/dev instance does not move cards to Trash or delete task worktrees from your active boards.
 
 To opt back into shutdown cleanup while using `dev:full`, run:
 
@@ -90,9 +92,9 @@ node dist/cli.js --port 3484
 node dist/cli.js --port auto
 ```
 
-You can still use `KANBAN_RUNTIME_PORT` if needed, but `--port` is preferred for local multi-instance runs.
+You can still use `KANBAN_RUNTIME_PORT` for compatibility if needed, but `--port` is preferred for local multi-instance runs. Compatibility names like `KANBAN_*` remain in some internal/runtime interfaces while the public CLI name is `nklein`.
 
-## Dogfooding with two Kanban instances
+## Dogfooding with two !Klein instances
 
 Run your stable orchestrator first (main checkout):
 
@@ -109,7 +111,7 @@ cd /path/to/kanban-feature-worktree
 npm run dogfood -- --project /path/to/target/repo --port auto
 ```
 
-If `--project` is omitted, the launcher starts Kanban from a non-git cwd so runtime behaves like launching outside a git repo and opens the first indexed project (if any):
+If `--project` is omitted, the launcher starts !Klein from a non-git cwd so runtime behaves like launching outside a git repo and opens the first indexed project (if any):
 
 ```bash
 npm run dogfood -- --port auto
@@ -124,7 +126,7 @@ Dogfood launcher behavior:
 - supports `--skip-build` when you already built and want faster restarts
 - is the right choice when you want to test the latest built CLI rather than the source-mode dev server
 
-## Run `kanban` from any directory
+## Run `nklein` from any directory
 
 After cloning and installing dependencies, create/update the global CLI link from this repo:
 
@@ -135,20 +137,20 @@ npm run link
 Verify:
 
 ```bash
-which kanban
-kanban --version
+which nklein
+nklein --version
 ```
 
 Then run from any project directory:
 
 ```bash
 cd /path/to/your/project
-kanban
+nklein
 ```
 
 After local code changes, run `npm run build` again before using the linked command.
 
-When switching between worktrees, re-run `npm run link` from the worktree you want to test so the global `kanban` binary points at the right `dist/cli.js`. For sidebar agent automation guidance, inspect `src/prompts/append-system-prompt.ts`.
+When switching between worktrees, re-run `npm run link` from the worktree you want to test so the global `nklein` binary points at the right `dist/cli.js`. For sidebar agent automation guidance, inspect `src/prompts/append-system-prompt.ts`.
 
 Remove the global link:
 
@@ -178,7 +180,7 @@ npm run unlink
 
 ## Agent tracking and runtime hooks
 
-Kanban tracks agent session state with runtime hook events. The core transition model is:
+!Klein tracks agent session state with runtime hook events. The core transition model is:
 
 - `in_progress -> review`
 - `review -> in_progress`
@@ -191,8 +193,8 @@ Internal runtime session states are named `running` and `awaiting_review`, and h
 How it works end to end:
 
 1. `prepareAgentLaunch` wires each agent with hook commands or hook-aware wrappers.
-2. Hook handlers call `kanban hooks ...` subcommands.
-3. `kanban hooks ingest --event <to_review|to_in_progress>` reads hook context from env:
+2. Hook handlers call `nklein hooks ...` subcommands.
+3. `nklein hooks ingest --event <to_review|to_in_progress>` reads hook context from env:
    - `KANBAN_HOOK_TASK_ID`
    - `KANBAN_HOOK_WORKSPACE_ID`
    - `KANBAN_HOOK_PORT`
@@ -231,7 +233,7 @@ Important behavior details:
 - Hooks are best-effort and should not crash or block the underlying agent process.
 - Hook notify paths are asynchronous to keep agent UX responsive.
 - Runtime transition guards are authoritative and prevent state flapping from duplicate events.
-- Hook transport is implemented in Node and invoked through `kanban hooks ...`, so the behavior is consistent across Windows and non-Windows environments.
+- Hook transport is implemented in Node and invoked through `nklein hooks ...`, so the behavior is consistent across Windows and non-Windows environments.
 
 For a full technical breakdown, see:
 

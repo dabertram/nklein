@@ -40,8 +40,11 @@ describe("self observation sink", () => {
 				apiKey: "sk-abc123456789999",
 				aws: "AKIA1234567890ABCDEF",
 				filePath: "/Users/david/GIT/kanban/src/index.ts",
+				prompt: "Implement the entire feature with local secrets and long user instructions intact.",
+				spec: "# Spec\n\nKeep the full planning document out of telemetry.",
 				nested: {
 					message: "bearer ghp_abcdefghijklmnop in /private/tmp/workspace/file.ts",
+					plan: "# Plan\n\n1. Read all files.\n2. Emit the entire prompt transcript.",
 				},
 			},
 		});
@@ -57,7 +60,14 @@ describe("self observation sink", () => {
 			message: string;
 			taskId: string;
 			workspacePath: string;
-			metadata: { apiKey: string; aws: string; filePath: string; nested: { message: string } };
+			metadata: {
+				apiKey: string;
+				aws: string;
+				filePath: string;
+				prompt: string;
+				spec: string;
+				nested: { message: string; plan: string };
+			};
 		};
 		expect(first.taskId).toBe("task-1");
 		expect(first.workspacePath).toBe("[REDACTED_PATH]");
@@ -65,8 +75,11 @@ describe("self observation sink", () => {
 		expect(first.metadata.apiKey).toBe("[REDACTED]");
 		expect(first.metadata.aws).toBe("[REDACTED]");
 		expect(first.metadata.filePath).toBe("[REDACTED_PATH]");
+		expect(first.metadata.prompt).toBe("[REDACTED_TEXT]");
+		expect(first.metadata.spec).toBe("[REDACTED_TEXT]");
 		expect(first.metadata.nested.message).toContain("[REDACTED]");
 		expect(first.metadata.nested.message).toContain("[REDACTED_PATH]");
+		expect(first.metadata.nested.plan).toBe("[REDACTED_TEXT]");
 	});
 
 	it("uses the event timestamp for log routing", async () => {

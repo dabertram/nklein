@@ -115,6 +115,7 @@ const sendClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
 const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
+const discoverClineEndpointModelsMock = vi.hoisted(() => vi.fn());
 const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 const fetchClineModelRegistryMock = vi.hoisted(() => vi.fn());
 const saveClineModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
@@ -232,6 +233,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
+	discoverClineEndpointModels: discoverClineEndpointModelsMock,
 	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
 	fetchClineModelRegistry: fetchClineModelRegistryMock,
 	fetchClineProviderModels: fetchClineProviderModelsMock,
@@ -520,6 +522,11 @@ describe("RuntimeSettingsDialog", () => {
 				return [{ id: "loaded-qwen", name: "Loaded Qwen", contextWindow: 128_000 }];
 			}
 			return [];
+		});
+		discoverClineEndpointModelsMock.mockReset();
+		discoverClineEndpointModelsMock.mockResolvedValue({
+			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
+			models: [{ id: "nomic-embed-text", name: "nomic-embed-text" }],
 		});
 		addMcpServerMock.mockReset();
 		addMcpServerMock.mockResolvedValue({ ok: true });
@@ -969,6 +976,163 @@ describe("RuntimeSettingsDialog", () => {
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("discovers embedding models for OpenAI-compatible endpoints", async () => {
+		discoverClineEndpointModelsMock.mockResolvedValue({
+			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
+			models: [
+				{ id: "nomic-embed-text", name: "nomic-embed-text" },
+				{ id: "bge-m3", name: "bge-m3" },
+			],
+		});
+		const handleOpenChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const embeddingsHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Code intelligence embeddings",
+		);
+		const embeddingsSection = embeddingsHeading?.parentElement ?? null;
+		const selects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const defaultProviderSelect = selects[0];
+		if (!(defaultProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected default embedding provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(defaultProviderSelect, "openai_compatible");
+		});
+
+		const endpointInput = Array.from(embeddingsSection?.querySelectorAll<HTMLInputElement>("input") ?? []).find(
+			(input) => input.placeholder === "http://127.0.0.1:11434/v1/embeddings",
+		);
+		const discoverButton = Array.from(embeddingsSection?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
+			(button) => button.textContent?.trim() === "Discover models",
+		);
+		if (!(endpointInput instanceof HTMLInputElement) || !(discoverButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected embedding endpoint controls.");
+		}
+
+		await act(async () => {
+			setInputValue(endpointInput, "http://127.0.0.1:11434/v1/embeddings");
+		});
+		await act(async () => {
+			discoverButton.click();
+		});
+
+		await waitForCondition(() => discoverClineEndpointModelsMock.mock.calls.length > 0);
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+		});
+		await waitForCondition(
+			() => document.body.textContent?.includes("Loaded 2 models from http://127.0.0.1:11434/v1/models.") === true,
+		);
+		await flushAsyncWork();
+
+		const refreshedSelects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const discoveredModelSelect = refreshedSelects.find((select) =>
+			Array.from(select.options).some((option) => option.value === "bge-m3"),
+		);
+		expect(discoveredModelSelect).toBeInstanceOf(HTMLSelectElement);
+		expect((discoveredModelSelect as HTMLSelectElement | undefined)?.value).toBe("nomic-embed-text");
+
+		await act(async () => {
+			setSelectValue(discoveredModelSelect as HTMLSelectElement, "bge-m3");
+		});
+
+		const saveButton = findButtonByText(document.body, "Save");
+		await act(async () => {
+			saveButton?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				codeEmbeddingDefaults: {
+					provider: "openai_compatible",
+					baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+					model: "bge-m3",
+				},
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("tests embedding endpoints without populating the model dropdown", async () => {
+		discoverClineEndpointModelsMock.mockResolvedValue({
+			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
+			models: [
+				{ id: "nomic-embed-text", name: "nomic-embed-text" },
+				{ id: "bge-m3", name: "bge-m3" },
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const embeddingsHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Code intelligence embeddings",
+		);
+		const embeddingsSection = embeddingsHeading?.parentElement ?? null;
+		const selects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const defaultProviderSelect = selects[0];
+		if (!(defaultProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected default embedding provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(defaultProviderSelect, "openai_compatible");
+		});
+
+		const endpointInput = Array.from(embeddingsSection?.querySelectorAll<HTMLInputElement>("input") ?? []).find(
+			(input) => input.placeholder === "http://127.0.0.1:11434/v1/embeddings",
+		);
+		const testButton = Array.from(embeddingsSection?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
+			(button) => button.textContent?.trim() === "Test endpoint",
+		);
+		if (!(endpointInput instanceof HTMLInputElement) || !(testButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected embedding test controls.");
+		}
+
+		await act(async () => {
+			setInputValue(endpointInput, "http://127.0.0.1:11434/v1/embeddings");
+		});
+		await act(async () => {
+			testButton.click();
+		});
+
+		await waitForCondition(() => discoverClineEndpointModelsMock.mock.calls.length > 0);
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+		});
+		await waitForCondition(
+			() =>
+				document.body.textContent?.includes("Endpoint reachable: 2 models at http://127.0.0.1:11434/v1/models.") ===
+				true,
+		);
+
+		const refreshedSelects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const discoveredModelSelect = refreshedSelects.find((select) =>
+			Array.from(select.options).some((option) => option.value === "bge-m3"),
+		);
+		expect(discoveredModelSelect).toBeUndefined();
 	});
 
 	it("warns and blocks saving model roles below the minimum context window", async () => {

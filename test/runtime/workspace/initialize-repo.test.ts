@@ -42,7 +42,7 @@ describe("Git repository ownership", () => {
 		]);
 	});
 
-	it("migrates repositories with Kanban's legacy initial commit", async () => {
+	it("migrates repositories with !Klein's legacy initial commit", async () => {
 		runGitMock
 			.mockResolvedValueOnce(gitResult(false))
 			.mockResolvedValueOnce(gitResult(true, "Initial commit through Cline Kanban"))

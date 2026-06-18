@@ -1,4 +1,5 @@
 import type { AgentTool } from "@clinebot/shared";
+import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { searchClineCode } from "./cline-code-search";
 import { buildClineRepoMap } from "./cline-repo-map";
 
@@ -32,6 +33,15 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 					type: "number",
 					description: "Maximum source files to scan. Defaults to 1000.",
 				},
+				query: {
+					type: "string",
+					description: "Optional prompt, symbol, error text, or topic used to personalize the ranked map.",
+				},
+				seedPaths: {
+					type: "array",
+					items: { type: "string" },
+					description: "Optional workspace-relative file paths to boost in the ranked map.",
+				},
 			},
 			additionalProperties: false,
 		},
@@ -46,6 +56,10 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 					MAX_REPO_MAP_TOKEN_BUDGET,
 				),
 				maxFiles: asBoundedInteger(record.maxFiles, DEFAULT_REPO_MAP_MAX_FILES, 1, MAX_REPO_MAP_MAX_FILES),
+				personalizationText: typeof record.query === "string" ? record.query : undefined,
+				seedPaths: Array.isArray(record.seedPaths)
+					? record.seedPaths.filter((path): path is string => typeof path === "string")
+					: undefined,
 			});
 			return {
 				map: repoMap.rendered,
@@ -60,7 +74,7 @@ function createRepoMapTool(workspacePath: string): AgentTool {
 	};
 }
 
-function createCodeSearchTool(workspacePath: string): AgentTool {
+function createCodeSearchTool(workspacePath: string, embeddingProvider?: ClineCodeEmbeddingProvider): AgentTool {
 	return {
 		name: "search_code",
 		description:
@@ -102,6 +116,7 @@ function createCodeSearchTool(workspacePath: string): AgentTool {
 					MAX_CODE_SEARCH_MAX_RESULTS,
 				),
 				contextLines: asBoundedInteger(record.contextLines, 3, 0, 12),
+				embeddingProvider,
 			});
 			return {
 				query: search.query,
@@ -115,6 +130,12 @@ function createCodeSearchTool(workspacePath: string): AgentTool {
 	};
 }
 
-export function createClineRetrievalTools(options: { workspacePath: string }): AgentTool[] {
-	return [createRepoMapTool(options.workspacePath), createCodeSearchTool(options.workspacePath)];
+export function createClineRetrievalTools(options: {
+	workspacePath: string;
+	embeddingProvider?: ClineCodeEmbeddingProvider;
+}): AgentTool[] {
+	return [
+		createRepoMapTool(options.workspacePath),
+		createCodeSearchTool(options.workspacePath, options.embeddingProvider),
+	];
 }

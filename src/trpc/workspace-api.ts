@@ -362,14 +362,10 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 		},
 		saveState: async (workspaceScope, input) => {
 			try {
-				const terminalManager = await deps.ensureTerminalManagerForWorkspace(
-					workspaceScope.workspaceId,
-					workspaceScope.workspacePath,
-				);
-				for (const summary of terminalManager.listSummaries()) {
-					input.sessions[summary.taskId] = summary;
-				}
-				const response = await saveWorkspaceState(workspaceScope.workspacePath, input);
+				const response = await saveWorkspaceState(workspaceScope.workspacePath, {
+					board: input.board,
+					expectedRevision: input.expectedRevision,
+				});
 				void deps.broadcastRuntimeWorkspaceStateUpdated(workspaceScope.workspaceId, workspaceScope.workspacePath);
 				void deps.broadcastRuntimeProjectsUpdated(workspaceScope.workspaceId);
 				return response;

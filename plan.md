@@ -1,4 +1,4 @@
-# Kanban — Local-Autonomous Swarm Plan (consolidated)
+# !Klein — Local-Autonomous Swarm Plan (consolidated)
 
 > **Note:** This document is the consolidated successor to the original `plan.md` and `plan2.md`
 > (the implementation review), merged into a single source of truth.
@@ -11,7 +11,7 @@ The original `plan.md` aimed at making **8–16k** small models usable and treat
 normal, always-available option. Two things changed:
 
 1. **Cloud caused real harm and is now banned.** One day of telemetry (`~/.cline/kanban/telemetry/2026-06-17.jsonl`,
-   2,284 events) shows Kanban defaulting to the `cline` provider → `anthropic/claude-sonnet-4.6` and:
+   2,284 events) shows !Klein defaulting to the `cline` provider → `anthropic/claude-sonnet-4.6` and:
    - **678×** `"Insufficient balance … $0.00"` — relentless cloud retries with no credits.
    - **227×** `"Maximum prompt length exceeded: 1,102,640 tokens exceeds the 1,000,000 token limit"` —
      a task ballooned to **1.1M tokens** and kept hammering a *paid* API.
@@ -126,15 +126,15 @@ instead of storming. These are the concrete failures behind the telemetry above.
       it compacts history and throws if projected tokens exceed the window.
 - [x] ~~**Fix the window it trusts.** The guard compacts to the model's *advertised* window; the cloud
       Sonnet advertised ~1M, so it compacted-to-1M and sent 1.1M. The effective window must be
-      `min(advertised, user-configured, Kanban hard ceiling)`. Replace the 1M-trusting path so the
+      `min(advertised, user-configured, !Klein hard ceiling)`. Replace the 1M-trusting path so the
       guard target is the **effective** window, sourced consistently with what the SDK actually uses
       (see `resolveKnownContextWindowForTask` / `DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS`,
       [cline-task-session-service.ts:662-664](src/cline-sdk/cline-task-session-service.ts#L662)).~~ Session
-      start/restart now normalizes launch windows through a Kanban-owned effective ceiling before building
+      start/restart now normalizes launch windows through a !Klein-owned effective ceiling before building
       prompts, approvals, initial messages, or dispatching to the SDK; runtime routing passes the selected
       MCSR/user effective window into the Cline session instead of the provider-advertised window; the router,
       decomposition feasibility guard, and chat-panel fallback budget display all prefer MCSR effective windows.
-- [x] ~~**Add an absolute Kanban-owned ceiling.** A hard cap (derived from the resolved local window, with
+- [x] ~~**Add an absolute !Klein-owned ceiling.** A hard cap (derived from the resolved local window, with
       a sane maximum) above which a request is **never** assembled or sent, regardless of what any
       provider advertises. If, after maximal compaction, projected tokens still exceed the effective
       window → **stop the task with a clear message**, never send. (Local-only makes this cheap to be
@@ -205,7 +205,7 @@ visible instead of buried in a text label.
       results split into `includedFileContentTokens` instead of being folded into other history.
 - [x] ~~Source system/tool token counts from the SDK where it exposes them; otherwise estimate with the
       existing `gpt-tokenizer`.~~ The SDK does not expose a public per-request system/tool breakdown here,
-      so Kanban now counts the exact system prompt it passes to the SDK and estimates enabled Kanban
+      so !Klein now counts the exact system prompt it passes to the SDK and estimates enabled !Klein
       tool-schema overhead from the active tool policy surface with `countKanbanTextTokens`.
 - [x] ~~Flow the breakdown through the runtime session summary / tRPC alongside `contextWindowByTaskId`.~~
       `RuntimeTaskSessionSummary.contextBudgetBreakdown` carries the backend breakdown to the chat panel.
@@ -233,7 +233,7 @@ visible instead of buried in a text label.
 
 ## Phase L2 — Parallel local swarm executor  *(the "multiple LLMs in parallel" focus)*
 
-**Outcome:** The user configures a roster of **local** models with roles, and Kanban auto-starts every
+**Outcome:** The user configures a roster of **local** models with roles, and !Klein auto-starts every
 currently-unblocked card up to a concurrency cap, serializing tasks that share one local GPU/endpoint
 while running distinct endpoints truly in parallel — without thrashing the machine.
 
@@ -275,13 +275,13 @@ while running distinct endpoints truly in parallel — without thrashing the mac
       parallel starts.
 - [x] ~~**Per-model tool routing for weak local models.** Wire the SDK's native `model-tool-routing`
       (`ToolRoutingRule`) so a small local model gets a trimmed, sequential toolset and a strong local
-      model gets the full set. Config we own at the boundary — no SDK fork.~~ Kanban now passes a typed
+      model gets the full set. Config we own at the boundary — no SDK fork.~~ !Klein now passes a typed
       SDK `ToolRoutingRule` that trims fragile/default tools (`fetch_web_content`, `skills`,
       `ask_question`, `editor`) for small local model families, including custom local
       OpenAI-compatible providers whose provider id cannot be matched from SDK rules. Strong models
       stay off the trim rule and keep the full default toolset. The installed Cline core already resolves
       omitted `maxParallelToolCalls` to sequential execution; the public `ClineCoreStartInput` config still
-      does not expose that field, so Kanban leaves sequential execution to the typed SDK default instead of
+      does not expose that field, so !Klein leaves sequential execution to the typed SDK default instead of
       smuggling an undeclared config property.
 
 ### L2.3 — Roster/roles wired to routing
@@ -315,11 +315,11 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
 - [x] ~~**Dependency-ordered auto-merge with conflict handling.** Merge completed task worktrees back to the
       base in DAG order; on a merge conflict, auto-create an **integration card** (conflicting paths in its
       prompt) rather than failing silently. Respect the AGENTS.md worktree rule: overlapping agent edits
-      stay isolated and produce a warning, never a silent overwrite. **Progress:** `kanban task merge`
+      stay isolated and produce a warning, never a silent overwrite. **Progress:** `nklein task merge`
       now merges review/completed task worktree HEADs into a clean checked-out base worktree in dependency
       order, aborts conflicted Git merges, and creates a Planning integration card with conflicted paths.
       Still open: wire this into the normal completion/cleanup flow so successful reviewed tasks merge
-      automatically before their worktrees are removed.~~ `kanban task done` now auto-merges reviewed task
+      automatically before their worktrees are removed.~~ `nklein task done` now auto-merges reviewed task
       worktrees after moving them to Completed and before worktree cleanup or dependent auto-start. Blocked
       or conflicted merges preserve the task worktree; conflicts create the existing Planning integration
       card and prevent dependents from auto-starting from an unmerged base.
@@ -334,10 +334,10 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       **stall watchdog** that auto-parks a card with no diff or repeated identical tool calls after N turns
       (extends the existing "5 consecutive identical calls" stopper), and a swarm-level **stop signal** the
       UI Stop button triggers (L4). Bounded autonomy so an overnight run can't run away. **Progress:**
-      workspaces now have an explicit `.cline/kanban/swarm-stop.json` stop signal; `kanban task swarm-stop`
-      and `kanban task swarm-resume` toggle it, and runtime project task starts return typed
+      workspaces now have an explicit `.cline/kanban/swarm-stop.json` stop signal; `nklein task swarm-stop`
+      and `nklein task swarm-resume` toggle it, and runtime project task starts return typed
       `swarm_stopped` errors while it is active. Native Cline starts now also wire the typed consecutive
-      mistake limit callback into Kanban self-observation telemetry and explicitly stop the task when the
+      mistake limit callback into !Klein self-observation telemetry and explicitly stop the task when the
       guardrail is reached. Cline task sessions now enforce a per-task autonomous turn budget, abort the
       session at the limit, park the card for review, and record `budget_wall` telemetry with checkpoint
       evidence. They now enforce a per-task autonomous wall-time budget through the same checkpoint path,
@@ -400,7 +400,7 @@ L2 executor — fully autonomously, recursively splitting anything too big.
       ([cline-decomposition-tool.test.ts](test/runtime/cline-sdk/cline-decomposition-tool.test.ts)).
 
 ### L3.3 — Naive idea intake → clarification → workable plan
-**Outcome:** A user (technical or not) types a loose, half-formed idea into the Planning lane, and Kanban
+**Outcome:** A user (technical or not) types a loose, half-formed idea into the Planning lane, and !Klein
 *interrogates* it — surfacing ambiguities, gaps, and contradictions as plain-language questions — **before**
 committing to a spec/plan/DAG. The result reflects the user's actual intent, not the model's first guess.
 - [x] ~~Clarification round in the planning workflow.~~ The overridable `kanban-decompose` workflow now
@@ -425,12 +425,12 @@ committing to a spec/plan/DAG. The result reflects the user's actual intent, not
 
 ### L3.4 — Adaptive re-planning (handle oversights found during execution)
 **Outcome:** Plans aren't frozen. When working a card reveals something the plan missed — a contradiction,
-a missing dependency, a wrong assumption, a task bigger than estimated — Kanban adapts the plan instead of
+a missing dependency, a wrong assumption, a task bigger than estimated — !Klein adapts the plan instead of
 plowing ahead or silently failing.
 - [x] **Plan-gap signal from execution.** A running card that hits a blocking gap (missing decision,
       contradictory requirement, nonexistent dependency, scope beyond its fit budget) raises a structured
       **plan-gap** event rather than guessing. Wire it through the self-observation sink + the
-      acceptance/escalation path. **Progress:** `kanban task plan-gap` now records typed `plan_gap`
+      acceptance/escalation path. **Progress:** `nklein task plan-gap` now records typed `plan_gap`
       self-observation events for missing decisions, contradictions, missing dependencies, oversized scope,
       and integration gaps, and the agent system prompt tells execution agents to use it instead of
       silently broadening a task. Acceptance verification now also records plan gaps for missing acceptance
@@ -441,21 +441,21 @@ plowing ahead or silently failing.
 - [x] ~~**Auto-adapt within bounds.** On a plan-gap: sizing/scope miss → `expand_task` recursive split (L3.2)
       and re-link the DAG; missing integration step → insert an integration card (L2.4); genuine
       ambiguity/contradiction → pause and **ask the user** (L3.3), then patch the plan. Bounded by the swarm
-      guardrails (L2.4) so adaptation can't loop.~~ `kanban task plan-gap --kind
+      guardrails (L2.4) so adaptation can't loop.~~ `nklein task plan-gap --kind
       integration_needed` now inserts a Planning integration card with plan mode, auto-review, evidence, and
       the current branch/default branch as its base ref. Scope-too-large gaps now mark the source card as
       needing decomposition and create a deduplicated Planning split card; missing-decision and contradiction
       gaps create deduplicated Planning decision-pause cards that ask for the smallest user decision before
-      work continues. Approved replacement graphs can now be applied with `kanban task expand-plan-task`,
+      work continues. Approved replacement graphs can now be applied with `nklein task expand-plan-task`,
       which replaces the oversized saved-plan task, inherits upstream dependencies into replacement entry
       tasks, re-links downstream dependents to terminal replacement tasks, and rewrites `tasks.json`.
 - [x] ~~**Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
       motivated it) in the plan artifacts, so the evolving plan stays auditable and the DAG view (L4) can
       flag "revised" cards.~~ New decomposition plans now include a first-class
       `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
-      `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
+      `nklein task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Automatic
       integration-card adaptation returns the created Planning card alongside the gap response and appends a
-      concrete `integration_card_added` revision entry when a plan slug is available. `kanban task plan-gap`
+      concrete `integration_card_added` revision entry when a plan slug is available. `nklein task plan-gap`
       now also infers the owning decomposition plan from decomposition-created task IDs, including
       collision-suffixed card IDs when unambiguous, so automatic integration-card adaptation can append to
       `revisions.md` without a manual `--plan-slug`. Recursive `decompose_project.expansions` now write an
@@ -473,7 +473,7 @@ plowing ahead or silently failing.
 model/endpoint state, and the decomposed plan, and stop or diagnose anything at a glance, with no cloud
 model anywhere in the surface.
 
-**Design principle — progressive disclosure for two audiences.** Every Kanban capability must be both
+**Design principle — progressive disclosure for two audiences.** Every !Klein capability must be both
 *usable by a non-technical person* (a simple status/summary, sane defaults, plain language) **and**
 *fully inspectable by a technical person* (the underlying numbers, decisions, and logs, one expand away).
 Default to a clean summary; reveal depth on demand (expanders, tooltips, an "advanced/details" toggle).
@@ -552,7 +552,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Active `searchClineCodeIndex` runs now publish in-memory scan/embed/persist progress with file/chunk
       counters and cache hit/miss counts; the settings panel shows that progress and polls until the run
       completes, errors, or returns idle.
-- [x] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
+- [x] **"What !Klein is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw
       detail for technical users; collapsed to a plain status for everyone else. **Progress:** card detail now
@@ -618,7 +618,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       from real requests, or honor a user override — the `…ctx80k` model is 80k) and wire the timing tap so
       speed EWMA actually accrues. This is the data the L1.1 guard and the L1.6 bar depend on.~~
       Local task starts now record explicit local launch context windows into the MCSR immediately, typed SDK
-      usage events record speed observations using Kanban-measured request duration, and registry context-window
+      usage events record speed observations using !Klein-measured request duration, and registry context-window
       metadata supports advertised/observed/user-override precedence with persistence coverage.
 - [x] ~~**Plan2.md M1:** capability prior never decays — `calculateEffectiveCapability` is a permanent
       equal-weight average ([cline-model-registry.ts:236-247](src/cline-sdk/cline-model-registry.ts#L236)).
@@ -635,7 +635,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 - [x] ~~**Plan2.md L7:** registry event extraction guesses SDK event shapes via `asRecord`/string keys
       ([:579-630](src/cline-sdk/cline-model-registry.ts#L579)) — prefer SDK-provided event types.~~
       Model-registry observation extraction now accepts typed `ClineSdkSessionEvent` values, narrows to the
-      SDK `usage` agent-event union, and relies on Kanban's measured request wall time instead of speculative
+      SDK `usage` agent-event union, and relies on !Klein's measured request wall time instead of speculative
       `run-finished` payload fields.
 
 ### Codebase intelligence (repo map + search)
@@ -731,7 +731,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       ([scripts/dev-fixtures/](scripts/dev-fixtures/)).
 - [x] ~~Ensure the one-click dev smoke run uses the **local roster only** and that its evidence bundle
       surfaces the new pre-send-guard / overflow / timeout signals so this stays the fast iteration loop.~~
-      `kanban dev smoke-eval` now rejects cloud provider scoring, passes an explicit local model roster into
+      `nklein dev smoke-eval` now rejects cloud provider scoring, passes an explicit local model roster into
       the evidence bundle, and copies relevant local self-observation guard/overflow/timeout telemetry into
       the bundle with summary counts.
 
@@ -866,7 +866,7 @@ needs to be audited against the current `main...HEAD` diff before release.
 **Context & reliability**
 - Real per-model context windows (advertised / observed / user override) with a **≥32k minimum** policy; LM Studio loaded-model context handling and linked-host handling
 - Hard Cline context-window budget enforcement, tokenized read budgets, file-chunk token/char caps, a context-pressure budget policy, and ratio-scaled output/overhead reserves
-- Context compaction focused on the latest file reads; Kanban-side context-overflow compaction fallback
+- Context compaction focused on the latest file reads; !Klein-side context-overflow compaction fallback
 - Configurable timeout modes/profiles and granular request / stream / tool / agent / conversation timeout controls
 - Heartbeat & token-liveness telemetry; clearer model-activity status (reasoning counted as streaming)
 - Resume persisted Cline chat after restart; hardened Cline startup guardrails

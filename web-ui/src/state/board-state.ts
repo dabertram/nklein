@@ -217,6 +217,8 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		startInPlanMode?: unknown;
 		autoReviewEnabled?: unknown;
 		autoReviewMode?: unknown;
+		autoReviewStatus?: unknown;
+		autoReviewMessage?: unknown;
 		images?: unknown;
 		baseRef?: unknown;
 		agentId?: unknown;
@@ -259,6 +261,12 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		autoReviewMode: resolveTaskAutoReviewMode(
 			typeof card.autoReviewMode === "string" ? (card.autoReviewMode as TaskAutoReviewMode) : undefined,
 		),
+		...(card.autoReviewStatus === "running" || card.autoReviewStatus === "failed"
+			? { autoReviewStatus: card.autoReviewStatus }
+			: {}),
+		...(typeof card.autoReviewMessage === "string" && card.autoReviewMessage.trim()
+			? { autoReviewMessage: card.autoReviewMessage.trim() }
+			: {}),
 		images: normalizeTaskImages(card.images),
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
@@ -614,6 +622,8 @@ export function updateTask(board: BoardData, taskId: string, draft: TaskDraft): 
 				startInPlanMode: Boolean(draft.startInPlanMode),
 				autoReviewEnabled: Boolean(draft.autoReviewEnabled),
 				autoReviewMode: resolveTaskAutoReviewMode(draft.autoReviewMode ?? DEFAULT_TASK_AUTO_REVIEW_MODE),
+				autoReviewStatus: undefined,
+				autoReviewMessage: undefined,
 				images:
 					draft.images === undefined
 						? card.images
@@ -625,6 +635,43 @@ export function updateTask(board: BoardData, taskId: string, draft: TaskDraft): 
 				blockedKind: undefined,
 				blockedReason: undefined,
 				baseRef,
+				updatedAt: Date.now(),
+			};
+		});
+		return columnUpdated ? { ...column, cards } : column;
+	});
+
+	if (!updated) {
+		return { board, updated: false };
+	}
+	return { board: withUpdatedColumns(board, columns), updated: true };
+}
+
+export function updateTaskAutoReviewNotice(
+	board: BoardData,
+	taskId: string,
+	notice: { status: "running" | "failed"; message: string } | null,
+): { board: BoardData; updated: boolean } {
+	const trimmedMessage = notice?.message.trim() ?? "";
+	let updated = false;
+	const columns = board.columns.map((column) => {
+		let columnUpdated = false;
+		const cards = column.cards.map((card) => {
+			if (card.id !== taskId) {
+				return card;
+			}
+			if (notice === null && card.autoReviewStatus === undefined && card.autoReviewMessage === undefined) {
+				return card;
+			}
+			if (notice !== null && card.autoReviewStatus === notice.status && card.autoReviewMessage === trimmedMessage) {
+				return card;
+			}
+			columnUpdated = true;
+			updated = true;
+			return {
+				...card,
+				autoReviewStatus: notice?.status,
+				autoReviewMessage: notice === null ? undefined : trimmedMessage,
 				updatedAt: Date.now(),
 			};
 		});
@@ -794,20 +841,41 @@ export function applyTaskDetailClineSettingsChange(
 		return { board, updated: false };
 	}
 
+	const nextClineSettings: RuntimeTaskClineSettings = {
+		...(selection.card.clineSettings ?? {}),
+		providerId: nextTaskProviderId,
+		modelId: nextTaskModelId,
+	};
+	if (change.reasoningEffort) {
+		nextClineSettings.reasoningEffort = change.reasoningEffort;
+	} else {
+		delete nextClineSettings.reasoningEffort;
+	}
+	if (change.contextScope !== undefined) {
+		nextClineSettings.contextScope = change.contextScope;
+	}
+	if (change.timeoutMode !== undefined) {
+		nextClineSettings.timeoutMode = change.timeoutMode;
+	}
+	if (change.requestTimeoutMs !== undefined) {
+		nextClineSettings.requestTimeoutMs = change.requestTimeoutMs;
+	}
+	if (change.streamTimeoutMs !== undefined) {
+		nextClineSettings.streamTimeoutMs = change.streamTimeoutMs;
+	}
+	if (change.toolTimeoutMs !== undefined) {
+		nextClineSettings.toolTimeoutMs = change.toolTimeoutMs;
+	}
+	if (change.agentTimeoutMs !== undefined) {
+		nextClineSettings.agentTimeoutMs = change.agentTimeoutMs;
+	}
+	if (change.conversationTimeoutMs !== undefined) {
+		nextClineSettings.conversationTimeoutMs = change.conversationTimeoutMs;
+	}
+
 	return applyTaskDetailClineSettingsSelection(board, taskId, {
 		agentId: "cline",
-		clineSettings: {
-			providerId: nextTaskProviderId,
-			modelId: nextTaskModelId,
-			...(change.reasoningEffort ? { reasoningEffort: change.reasoningEffort } : {}),
-			...(change.contextScope ? { contextScope: change.contextScope } : {}),
-			...(change.timeoutMode ? { timeoutMode: change.timeoutMode } : {}),
-			...(change.requestTimeoutMs !== undefined ? { requestTimeoutMs: change.requestTimeoutMs } : {}),
-			...(change.streamTimeoutMs !== undefined ? { streamTimeoutMs: change.streamTimeoutMs } : {}),
-			...(change.toolTimeoutMs !== undefined ? { toolTimeoutMs: change.toolTimeoutMs } : {}),
-			...(change.agentTimeoutMs !== undefined ? { agentTimeoutMs: change.agentTimeoutMs } : {}),
-			...(change.conversationTimeoutMs !== undefined ? { conversationTimeoutMs: change.conversationTimeoutMs } : {}),
-		},
+		clineSettings: nextClineSettings,
 	});
 }
 

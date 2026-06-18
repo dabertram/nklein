@@ -30,7 +30,7 @@ function looksLikeEntrypointPath(value: string): boolean {
 	if (/\.(?:mjs|cjs|js|ts|mts|cts)$/iu.test(value)) {
 		return true;
 	}
-	return /kanban(?:\.(?:cmd|ps1|exe))?$/iu.test(value);
+	return /(?:nklein|kanban)(?:\.(?:cmd|ps1|exe))?$/iu.test(value);
 }
 
 export function resolveKanbanCommandParts(

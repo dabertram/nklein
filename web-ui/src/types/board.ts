@@ -1,6 +1,7 @@
 import type {
 	RuntimeAgentId,
 	RuntimeBoardColumnId,
+	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskClineSettings,
 	RuntimeTaskImage,
@@ -43,10 +44,13 @@ export interface BoardCard {
 	startInPlanMode: boolean;
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: TaskAutoReviewMode;
+	autoReviewStatus?: "running" | "failed";
+	autoReviewMessage?: string;
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
 	filesLikelyTouched?: string[];
+	generatedFromPlan?: RuntimeGeneratedFromPlan;
 	blockedKind?: "needs_decomposition" | "local_model_required";
 	blockedReason?: string;
 	baseRef: string;

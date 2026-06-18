@@ -1,4 +1,4 @@
-import { Check, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
+import { Check, Eye, EyeOff, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { type KeyboardEvent, type ReactElement, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { cn } from "@/components/ui/cn";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { AddClineProviderInput, UpdateClineProviderInput } from "@/hooks/use-runtime-settings-cline-controller";
-import type { RuntimeClineProviderCapability } from "@/runtime/types";
+import type { RuntimeClineProviderCapability, RuntimeClineProviderModel } from "@/runtime/types";
 
 const CAPABILITY_OPTIONS: readonly RuntimeClineProviderCapability[] = [
 	"streaming",
@@ -38,6 +38,11 @@ interface FormState {
 interface SaveResult {
 	ok: boolean;
 	message?: string;
+}
+
+interface DiscoverModelsResult {
+	modelSourceUrl: string;
+	models: RuntimeClineProviderModel[];
 }
 
 export type ClineProviderDialogMode = "add" | "edit";
@@ -93,6 +98,7 @@ export function ClineAddProviderDialog({
 	mode = "add",
 	initialValues = null,
 	onSubmit,
+	onDiscoverModels,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -100,6 +106,12 @@ export function ClineAddProviderDialog({
 	mode?: ClineProviderDialogMode;
 	initialValues?: ClineProviderDialogInitialValues | null;
 	onSubmit: (input: AddClineProviderInput | UpdateClineProviderInput) => Promise<SaveResult>;
+	onDiscoverModels?: (input: {
+		baseUrl: string;
+		apiKey?: string | null;
+		modelsSourceUrl?: string | null;
+		timeoutMs?: number | null;
+	}) => Promise<DiscoverModelsResult>;
 }): ReactElement {
 	const initialForm = useMemo(() => createInitialFormState(initialValues), [initialValues]);
 	const [form, setForm] = useState<FormState>(() => initialForm);
@@ -107,6 +119,9 @@ export function ClineAddProviderDialog({
 	const [error, setError] = useState<string | null>(null);
 	const [isSaving, setIsSaving] = useState(false);
 	const [showApiKey, setShowApiKey] = useState(false);
+	const [isDiscoveringModels, setIsDiscoveringModels] = useState(false);
+	const [isTestingEndpoint, setIsTestingEndpoint] = useState(false);
+	const [discoverModelsMessage, setDiscoverModelsMessage] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (open) {
@@ -115,6 +130,9 @@ export function ClineAddProviderDialog({
 			setError(null);
 			setIsSaving(false);
 			setShowApiKey(false);
+			setIsDiscoveringModels(false);
+			setIsTestingEndpoint(false);
+			setDiscoverModelsMessage(null);
 			return;
 		}
 		setForm(initialForm);
@@ -122,6 +140,9 @@ export function ClineAddProviderDialog({
 		setError(null);
 		setIsSaving(false);
 		setShowApiKey(false);
+		setIsDiscoveringModels(false);
+		setIsTestingEndpoint(false);
+		setDiscoverModelsMessage(null);
 	}, [initialForm, open]);
 
 	const normalizedProviderId = useMemo(
@@ -237,6 +258,87 @@ export function ClineAddProviderDialog({
 				? current.capabilities.filter((entry) => entry !== capability)
 				: [...current.capabilities, capability],
 		}));
+	};
+
+	const handleDiscoverModels = async () => {
+		if (!onDiscoverModels || isDiscoveringModels || isTestingEndpoint) {
+			return;
+		}
+		const baseUrl = form.baseUrl.trim();
+		if (!baseUrl) {
+			setError("Enter a base URL before discovering models.");
+			return;
+		}
+		setIsDiscoveringModels(true);
+		setError(null);
+		setDiscoverModelsMessage(null);
+		try {
+			const result = await onDiscoverModels({
+				baseUrl,
+				apiKey: form.apiKey.trim() || null,
+				modelsSourceUrl: form.modelsSourceUrl.trim() || null,
+				timeoutMs: form.timeoutMs.trim().length > 0 ? Number(form.timeoutMs) : null,
+			});
+			const discoveredModels = [
+				...new Set(
+					result.models
+						.map((model: RuntimeClineProviderModel) => model.id.trim())
+						.filter((modelId): modelId is string => modelId.length > 0),
+				),
+			];
+			if (discoveredModels.length === 0) {
+				setError("No models were returned by the endpoint.");
+				return;
+			}
+			setForm((current) => ({
+				...current,
+				modelsSourceUrl: current.modelsSourceUrl.trim() || result.modelSourceUrl,
+				models: discoveredModels,
+				defaultModelId:
+					discoveredModels.includes(current.defaultModelId.trim()) && current.defaultModelId.trim().length > 0
+						? current.defaultModelId.trim()
+						: (discoveredModels[0] ?? ""),
+			}));
+			setModelInput("");
+			setDiscoverModelsMessage(
+				`Loaded ${discoveredModels.length} model${discoveredModels.length === 1 ? "" : "s"} from ${result.modelSourceUrl}.`,
+			);
+		} catch (discoveryError) {
+			setError(
+				discoveryError instanceof Error ? discoveryError.message : "Could not discover models from this endpoint.",
+			);
+		} finally {
+			setIsDiscoveringModels(false);
+		}
+	};
+
+	const handleTestEndpoint = async () => {
+		if (!onDiscoverModels || isDiscoveringModels || isTestingEndpoint) {
+			return;
+		}
+		const baseUrl = form.baseUrl.trim();
+		if (!baseUrl) {
+			setError("Enter a base URL before testing the endpoint.");
+			return;
+		}
+		setIsTestingEndpoint(true);
+		setError(null);
+		setDiscoverModelsMessage(null);
+		try {
+			const result = await onDiscoverModels({
+				baseUrl,
+				apiKey: form.apiKey.trim() || null,
+				modelsSourceUrl: form.modelsSourceUrl.trim() || null,
+				timeoutMs: form.timeoutMs.trim().length > 0 ? Number(form.timeoutMs) : null,
+			});
+			setDiscoverModelsMessage(
+				`Endpoint reachable: ${result.models.length} model${result.models.length === 1 ? "" : "s"} at ${result.modelSourceUrl}.`,
+			);
+		} catch (discoveryError) {
+			setError(discoveryError instanceof Error ? discoveryError.message : "Could not reach this endpoint.");
+		} finally {
+			setIsTestingEndpoint(false);
+		}
 	};
 
 	const handleSubmit = async () => {
@@ -383,6 +485,31 @@ export function ClineAddProviderDialog({
 					<p className="mt-1 text-[12px] text-text-tertiary">
 						Optional. If set, the SDK can fetch models from a compatible `/models` endpoint.
 					</p>
+					{onDiscoverModels ? (
+						<div className="mt-2 flex flex-wrap items-center gap-2">
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={<RefreshCw size={14} className={isDiscoveringModels ? "animate-spin" : undefined} />}
+								disabled={isDiscoveringModels || isTestingEndpoint || form.baseUrl.trim().length === 0}
+								onClick={() => void handleDiscoverModels()}
+							>
+								{isDiscoveringModels ? "Discovering..." : "Discover models"}
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={<Check size={14} />}
+								disabled={isDiscoveringModels || isTestingEndpoint || form.baseUrl.trim().length === 0}
+								onClick={() => void handleTestEndpoint()}
+							>
+								{isTestingEndpoint ? "Testing..." : "Test endpoint"}
+							</Button>
+							{discoverModelsMessage ? (
+								<p className="m-0 text-[12px] text-text-secondary">{discoverModelsMessage}</p>
+							) : null}
+						</div>
+					) : null}
 				</section>
 
 				<section className="rounded-lg border border-border bg-surface-1 p-3">
