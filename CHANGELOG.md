@@ -80,6 +80,7 @@
 - Improved startup onboarding for local Cline setup: it reopens when Cline lacks a configured local model, shows detected Ollama/LM Studio endpoints and loaded models, and seeds architect/worker/reviewer roles from the selected local model on first save.
 - Let `kanban task plan-gap` infer the owning decomposition plan from decomposition-created task IDs, so inferred integration-card adaptations append to `revisions.md` without requiring `--plan-slug`.
 - Classified exhausted acceptance failures that clearly indicate missing dependencies, contradictory requirements, or oversized scope as structured `plan_gap` events instead of always recording a generic review gap.
+- Added a guided first-run local endpoint start panel with Ollama and LM Studio download links plus install, server-start, model-load, and verification commands.
 - Added a Cline autonomous wall-time guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
 - Added a repeated no-diff checkpoint watchdog for Cline tasks, parking sessions that keep checkpointing the same commit without producing new diff progress.
 - Added ownership-aware task worktree sync and Kanban-created repository markers, preserving agent edits on overlapping paths and safely cleaning repository metadata only for repos Kanban owns.

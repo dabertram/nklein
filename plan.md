@@ -527,18 +527,19 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       advisor.~~ The telemetry sink now has a bounded JSONL reader, runtime exposes typed
       `getTaskDiagnostics`, and the card detail view includes a collapsible Diagnostics panel that loads
       recent local events for the selected task without invoking an LLM.
-- [~] **First-run local-model setup wizard.** On first launch (or when no local model is configured),
+- [x] ~~**First-run local-model setup wizard.** On first launch (or when no local model is configured),
       detect running Ollama / LM Studio endpoints, list loaded models, let the user set context windows and
       assign roles (architect/worker/reviewer → `modelRoles`). Directly fixes today's cloud-defaulted,
-      null-window, `openrouter`-selected starting state. **Progress:** startup onboarding now reopens after
+      null-window, `openrouter`-selected starting state.~~ Startup onboarding now reopens after
       first-run dismissal when Cline is selected without a configured local model; the Cline agent card shows
       detected local Ollama / LM Studio endpoints and loaded models from the existing provider/model APIs; and
       finishing Cline setup seeds empty architect/worker/reviewer roles from the selected local provider/model
       without overwriting configured role choices or accepting non-local providers. Cline settings now provides
       explicit per-model context-window Save/Clear controls backed by the MCSR override API. First-run
       onboarding now includes a context-window override input on the Cline setup card and seeds empty model
-      roles with the selected local model plus selected reasoning effort. Still open: a more guided endpoint
-      install/start flow.
+      roles with the selected local model plus selected reasoning effort. The same onboarding card now includes
+      a guided Ollama/LM Studio endpoint start panel with official download links plus install, start, model-load,
+      and verification commands for getting a local OpenAI-compatible endpoint online.
 - [x] ~~**Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers

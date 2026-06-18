@@ -1,7 +1,7 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
-import { Check } from "lucide-react";
+import { Check, ExternalLink, Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
@@ -171,6 +171,113 @@ function LocalModelSetupStatus({
 				{selectedProviderIsLocal && !isLoadingModels && models.length > visibleModels.length ? (
 					<span className="text-text-tertiary"> +{models.length - visibleModels.length}</span>
 				) : null}
+			</div>
+		</div>
+	);
+}
+
+interface LocalEndpointGuide {
+	id: "ollama" | "lmstudio";
+	label: string;
+	downloadUrl: string;
+	installCommand: string;
+	startCommand: string;
+	modelCommand: string;
+	verifyCommand: string;
+}
+
+const LOCAL_ENDPOINT_GUIDES: readonly LocalEndpointGuide[] = [
+	{
+		id: "ollama",
+		label: "Ollama",
+		downloadUrl: "https://ollama.com/download",
+		installCommand: "curl -fsSL https://ollama.com/install.sh | sh",
+		startCommand: "ollama serve",
+		modelCommand: "ollama run gemma4",
+		verifyCommand: "ollama ps",
+	},
+	{
+		id: "lmstudio",
+		label: "LM Studio",
+		downloadUrl: "https://lmstudio.ai/download",
+		installCommand: "curl -fsSL https://lmstudio.ai/install.sh | bash",
+		startCommand: "lms server start",
+		modelCommand: "lms load <model-id> --context-length=64000",
+		verifyCommand: "lms ps",
+	},
+];
+
+function SetupCommand({ label, command }: { label: string; command: string }): ReactElement {
+	return (
+		<div className="min-w-0">
+			<div className="mb-0.5 text-[10px] font-medium uppercase text-text-tertiary">{label}</div>
+			<code className="block truncate rounded-sm border border-border bg-surface-2 px-1.5 py-1 font-mono text-[11px] text-text-secondary">
+				{command}
+			</code>
+		</div>
+	);
+}
+
+function LocalEndpointStartGuide({
+	providers,
+	models,
+	selectedProviderId,
+}: {
+	providers: RuntimeClineProviderCatalogItem[];
+	models: RuntimeClineProviderModel[];
+	selectedProviderId: string;
+}): ReactElement {
+	const providersById = new Map(providers.map((provider) => [provider.id.trim().toLowerCase(), provider]));
+	const selectedProvider = selectedProviderId.trim().toLowerCase();
+	const hasLoadedModels = models.length > 0;
+	return (
+		<div className="mt-2 rounded-md border border-border bg-surface-1 p-2">
+			<div className="flex items-center gap-1.5 text-[12px] font-medium text-text-primary">
+				<Terminal size={14} className="text-text-secondary" />
+				<span>Endpoint start guide</span>
+			</div>
+			<div className="mt-2 grid gap-2">
+				{LOCAL_ENDPOINT_GUIDES.map((guide) => {
+					const provider = providersById.get(guide.id) ?? null;
+					const detected = provider?.enabled === true;
+					const selected =
+						selectedProvider === guide.id || (guide.id === "lmstudio" && selectedProvider === "lm-studio");
+					return (
+						<div
+							key={guide.id}
+							className={cn(
+								"rounded-md border p-2",
+								selected ? "border-accent/50 bg-accent/5" : "border-border bg-surface-2/60",
+							)}
+						>
+							<div className="flex min-w-0 items-center justify-between gap-2">
+								<div className="min-w-0 text-[12px] font-medium text-text-primary">
+									{guide.label}
+									<span className="ml-1 text-[11px] text-text-tertiary">
+										{detected ? "detected" : "not detected"}
+									</span>
+								</div>
+								<a
+									href={guide.downloadUrl}
+									target="_blank"
+									rel="noreferrer"
+									className="inline-flex shrink-0 items-center gap-1 text-[11px] text-accent hover:underline"
+								>
+									Download <ExternalLink size={11} />
+								</a>
+							</div>
+							<div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+								<SetupCommand label="Install" command={guide.installCommand} />
+								<SetupCommand label="Start" command={guide.startCommand} />
+								<SetupCommand label="Load model" command={guide.modelCommand} />
+								<SetupCommand
+									label={hasLoadedModels && selected ? "Loaded" : "Check"}
+									command={guide.verifyCommand}
+								/>
+							</div>
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);
@@ -664,6 +771,11 @@ export function TaskStartAgentOnboardingCarousel({
 										models={clineSettings.providerModels}
 										selectedProviderId={clineSettings.providerId}
 										isLoadingModels={clineSettings.isLoadingProviderModels}
+									/>
+									<LocalEndpointStartGuide
+										providers={clineSettings.providerCatalog}
+										models={clineSettings.providerModels}
+										selectedProviderId={clineSettings.providerId}
 									/>
 									<ClineSetupSection
 										controller={clineSettings}
