@@ -30,6 +30,7 @@
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
 - Added `revisions.md` plan artifacts and exposed `revisionsPath` through decomposition tool, CLI, and dogfood API outputs for future adaptive re-planning audit trails.
 - Added `kanban task plan-gap` and a typed `plan_gap` self-observation signal so execution agents can report missing decisions, contradictions, dependencies, oversized scope, or unplanned integration work.
+- Fixed Cline team-progress summaries so `task_end` events with string-shaped errors are reported as failures instead of completions.
 
 ## [0.1.68]
 

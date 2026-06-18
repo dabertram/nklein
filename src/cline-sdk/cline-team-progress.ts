@@ -36,6 +36,13 @@ function readTaskTitle(task: Record<string, unknown> | null): string | null {
 	return readString(task, "title") ?? readString(task, "description") ?? readString(task, "message");
 }
 
+function readErrorMessage(value: unknown): string | null {
+	if (typeof value === "string" && value.trim().length > 0) {
+		return value.trim();
+	}
+	return readString(asRecord(value), "message");
+}
+
 function summarizeTeamEvent(record: Record<string, unknown>, eventType: string, agentId: string | null): string {
 	const run = asRecord(record.run);
 	const task = asRecord(record.task);
@@ -46,8 +53,7 @@ function summarizeTeamEvent(record: Record<string, unknown>, eventType: string, 
 	const teammate = asRecord(record.teammate);
 	const reason = readString(record, "reason");
 	const directMessage = readString(record, "message");
-	const error = asRecord(record.error);
-	const errorMessage = readString(error, "message");
+	const errorMessage = readErrorMessage(record.error);
 	const runId = readRunId(run);
 	const runStatus = readRunStatus(run);
 

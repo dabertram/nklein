@@ -64,4 +64,21 @@ describe("projectClineTeamProgressEvent", () => {
 		expect(projected.role).toBe("reviewer");
 		expect(projected.message).toBe("Spawned reviewer.");
 	});
+
+	it("frames task_end events with string errors as failures", () => {
+		const event = {
+			type: TeamMessageType.TaskEnd,
+			agentId: "worker",
+			error: "Acceptance check failed.",
+		} as unknown as ClineSdkTeamEvent;
+
+		const projected = projectClineTeamProgressEvent({
+			taskId: "task-1",
+			teamName: "kanban-task-1",
+			event,
+			createdAt: 789,
+		});
+
+		expect(projected.message).toBe("Agent worker failed: Acceptance check failed.");
+	});
 });

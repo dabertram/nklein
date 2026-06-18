@@ -507,9 +507,11 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Resolve the effective window for local providers (advertise from the LM Studio/Ollama API, observe
       from real requests, or honor a user override — the `…ctx80k` model is 80k) and wire the timing tap so
       speed EWMA actually accrues. This is the data the L1.1 guard and the L1.6 bar depend on.
-- [ ] **Plan2.md M1:** capability prior never decays — `calculateEffectiveCapability` is a permanent
+- [x] ~~**Plan2.md M1:** capability prior never decays — `calculateEffectiveCapability` is a permanent
       equal-weight average ([cline-model-registry.ts:236-247](src/cline-sdk/cline-model-registry.ts#L236)).
-      Weight the cold-start prior by `1/(1+samples)` so observed data dominates over time.
+      Weight the cold-start prior by `1/(1+samples)` so observed data dominates over time.~~
+      `calculateEffectiveCapability` now decays the static prior with `1 / (1 + samples)`, and registry
+      tests cover the resulting conservative blend.
 - [ ] **Plan2.md L3:** debounce/batch registry persistence (currently a locked disk write per request,
       [:412-468](src/cline-sdk/cline-model-registry.ts#L412)); store EWMA fields as floats (currently
       truncated to int on reload).
@@ -523,27 +525,33 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       [cline-session-runtime.ts:111-137](src/cline-sdk/cline-session-runtime.ts#L111)). Either deliver
       the planned tree-sitter + PageRank version, or **explicitly document the heuristic** and at minimum:
       bound the cost (cap symbols before counting) and add an invalidation hook so edits refresh the map.
-- [ ] **Plan2.md M2:** "local embeddings" are bag-of-words token counts, not embeddings
+- [x] ~~**Plan2.md M2:** "local embeddings" are bag-of-words token counts, not embeddings
       ([cline-code-embeddings.ts:18-77](src/cline-sdk/cline-code-embeddings.ts#L18)). Either integrate a
       real local ONNX embedding model (fastembed/BGE-small or transformers.js/MiniLM — must be offline,
       no API key, consistent with local-only) **or** rename `local_hash` → `local_lexical` and stop
       overselling it. (Note: an external embedding endpoint is **cloud** and now banned — so real
-      semantic search *must* be local-ONNX or it doesn't exist.)
-- [ ] **Plan2.md M3:** search is lexical-first with semantic only as a zero-result fallback
+      semantic search *must* be local-ONNX or it doesn't exist.)~~
+      The local provider is now explicitly `local_lexical` with a lexical-vector model/cache key.
+- [x] ~~**Plan2.md M3:** search is lexical-first with semantic only as a zero-result fallback
       ([cline-code-search.ts:202-230](src/cline-sdk/cline-code-search.ts#L202)). Merge/normalize lexical
-      + vector into one ranked hybrid list (true hybrid), or document the lexical-first reality.
-- [ ] **Plan2.md L2:** code-index vector cache grows monotonically; stale chunks never pruned; mtime
+      + vector into one ranked hybrid list (true hybrid), or document the lexical-first reality.~~
+      `searchClineCodeIndex` now scores every chunk with vector similarity plus lexical score in one ranked list.
+- [x] ~~**Plan2.md L2:** code-index vector cache grows monotonically; stale chunks never pruned; mtime
       metadata written but never read for invalidation
-      ([cline-code-index.ts:266-306](src/cline-sdk/cline-code-index.ts#L266)).
+      ([cline-code-index.ts:266-306](src/cline-sdk/cline-code-index.ts#L266)).~~
+      Cache persistence now writes only embeddings referenced by the current file/chunk set, with regression
+      coverage for deleted chunks.
 
 ### Context engineering & compression
 - [x] ~~Budget floors no longer zero-out small windows (plan2.md H1)~~ — now ratio-based (0.1 / 0.15,
       floors 512/1024), [cline-context-budgets.ts:61-98](src/cline-sdk/cline-context-budgets.ts#L61).
 - [ ] **Proactive guard correctness** — covered in **L1.1** (effective window + absolute ceiling).
-- [ ] **Plan2.md L1:** dead/inverted branch in `compressKanbanContextText` — when
+- [x] ~~**Plan2.md L1:** dead/inverted branch in `compressKanbanContextText` — when
       `allowModelAssisted` is true it returns a naive char-slice labeled `model_assisted_disabled`,
       skipping the better caveman/minify path ([cline-context-compression.ts:188-215](src/cline-sdk/cline-context-compression.ts#L188)).
-      Delete the branch or fall back to caveman/minify.
+      Delete the branch or fall back to caveman/minify.~~
+      The deterministic path now always uses caveman/minify compression, and provider-assisted compression is
+      isolated in `compressKanbanContextTextWithProvider`.
 - [ ] **Plan2.md L6 / success-criterion #6:** hoist hardcoded policy constants
       (`24_000`/`16_000`/`750`/`2_500`, curve factors,
       [cline-context-budgets.ts:79-108](src/cline-sdk/cline-context-budgets.ts#L79)) into named,
@@ -552,32 +560,37 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 
 ### Autonomy & reliability gates
 - [x] ~~Acceptance repair/escalation ladder is well-structured~~ ([cline-acceptance-repair.ts](src/cline-sdk/cline-acceptance-repair.ts)).
-- [ ] **Plan2.md M5:** the `afterModel` self-review can't detect "claimed success without a diff" — it's
+- [x] ~~**Plan2.md M5:** the `afterModel` self-review can't detect "claimed success without a diff" — it's
       a text-only heuristic and can false-positive on negations
       ([cline-self-review-hook.ts:31-48](src/cline-sdk/cline-self-review-hook.ts#L31)). Feed an actual
       "files changed since session start" signal (the acceptance path already resolves the worktree) and
-      block completion when a completion claim coincides with an empty diff.
+      block completion when a completion claim coincides with an empty diff.~~
+      `cline-session-runtime` now reads workspace changes and passes `hasChangedFiles` into the self-review
+      hook; hook tests cover completion claims with no changed files.
 - [ ] Acceptance-gate shell fix — covered in **L1.5**.
 
 ### Self-improvement loop (Dogfood Engine) + telemetry
 - [x] ~~Self-observation sink is clean and async~~ ([self-observation-sink.ts](src/telemetry/self-observation-sink.ts)).
-- [ ] **Plan2.md M6:** the dogfood backlog emits task graphs its own validator rejects — sets
+- [x] ~~**Plan2.md M6:** the dogfood backlog emits task graphs its own validator rejects — sets
       `complexity: 80` and copies many `filesLikelyTouched` from telemetry, but
       `validateTaskSizingContract` rejects `complexity > 75` and `> 3` files
       ([cline-dogfood-engine.ts:330-347](src/cline-sdk/cline-dogfood-engine.ts#L330)). Clamp/split and
-      carry "requires human approval" as metadata, not an out-of-range complexity.
-- [ ] **Plan2.md M7:** trusted auto-merge passes on an *unknown* (`null`) regression delta and lists
+      carry "requires human approval" as metadata, not an out-of-range complexity.~~
+      Dogfood task graphs now cap complexity to the decomposition limit and cap likely files to 3, with
+      regression coverage.
+- [x] ~~**Plan2.md M7:** trusted auto-merge passes on an *unknown* (`null`) regression delta and lists
       protected paths (`src/permissions/`, `src/sandbox/`) that **don't exist** while omitting real
       guardrail code ([cline-trusted-auto-merge.ts:1-84](src/cline-sdk/cline-trusted-auto-merge.ts#L1)).
       Treat `null` delta as **block**; reconcile the protected list with files that actually exist
-      ([agent-write-guard.ts](src/core/agent-write-guard.ts), etc.). *(Lower priority while self-merge
-      stays off, but it's a safety bug.)*
+      ([agent-write-guard.ts](src/core/agent-write-guard.ts), etc.).~~
+      `evaluateTrustedAutoMerge` blocks `null` regression deltas and protects the real guardrail/runtime paths.
 - [ ] **Plan2.md L5:** sink stores `workspacePath` and file paths verbatim; secret regex misses AWS
       keys / generic JWTs; no retention/rotation
       ([self-observation-sink.ts:52-107](src/telemetry/self-observation-sink.ts#L52)). Add path
       redaction/relativization, broaden secret patterns, cap/rotate retention.
-- [ ] **Plan2.md L7:** team-progress frames a `task_end` error as completion
-      ([cline-team-progress.ts:57-58](src/cline-sdk/cline-team-progress.ts#L57)) — distinct failure summary.
+- [x] ~~**Plan2.md L7:** team-progress frames a `task_end` error as completion
+      ([cline-team-progress.ts:57-58](src/cline-sdk/cline-team-progress.ts#L57)) — distinct failure summary.~~
+      `task_end` summaries now treat object-shaped and string-shaped errors as failures.
 
 ### Advisor surface & model freshness — **PARKED (cloud-dependent)**
 - [ ] ~~P6 model-freshness / P8 advisor buttons (MCP discovery, config explainer, log analysis)~~ —
