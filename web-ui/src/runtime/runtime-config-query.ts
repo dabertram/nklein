@@ -20,6 +20,7 @@ import type {
 	RuntimeClineMcpOAuthResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpSettingsResponse,
+	RuntimeClineModelContextWindowOverrideResponse,
 	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginResponse,
 	RuntimeClineOauthProvider,
@@ -158,6 +159,19 @@ export async function fetchClineProviderModels(
 export async function fetchClineModelRegistry(workspaceId: string | null): Promise<RuntimeClineModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getClineModelRegistry.query();
+}
+
+export async function saveClineModelContextWindowOverride(
+	workspaceId: string | null,
+	input: {
+		providerId: string;
+		modelId: string;
+		endpoint?: string | null;
+		contextWindow: number | null;
+	},
+): Promise<RuntimeClineModelContextWindowOverrideResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.saveClineModelContextWindowOverride.mutate(input);
 }
 
 export async function fetchClineCodeIntelligenceStatus(

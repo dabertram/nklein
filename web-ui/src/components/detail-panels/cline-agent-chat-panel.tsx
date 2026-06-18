@@ -36,8 +36,9 @@ import { useClineChatPanelController } from "@/hooks/use-cline-chat-panel-contro
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
-import { fetchClineModelRegistry } from "@/runtime/runtime-config-query";
+import { fetchClineModelRegistry, saveClineModelContextWindowOverride } from "@/runtime/runtime-config-query";
 import type {
+	RuntimeClineModelRegistryEntry,
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
@@ -643,6 +644,18 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			queryFn: fetchSelectedWorkspaceModelRegistry,
 			retainDataOnError: true,
 		});
+		const handleSaveModelContextWindowOverride = useCallback(
+			async (entry: RuntimeClineModelRegistryEntry, contextWindow: number | null) => {
+				await saveClineModelContextWindowOverride(workspaceId, {
+					providerId: entry.providerId,
+					modelId: entry.modelId,
+					endpoint: entry.endpoint,
+					contextWindow,
+				});
+				await modelRegistryQuery.refetch();
+			},
+			[modelRegistryQuery.refetch, workspaceId],
+		);
 		const modelRegistryEntries = modelRegistryQuery.data?.models ?? [];
 		const selectedModelRegistryEntry = useMemo(
 			() => findClineModelRegistryEntry(modelRegistryEntries, clineSettings.providerId, clineSettings.modelId),
@@ -1091,6 +1104,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 							selectedModelId={clineSettings.modelId}
 							nowMs={nowMs}
 							isLoading={modelRegistryQuery.isLoading}
+							onContextWindowOverrideSave={handleSaveModelContextWindowOverride}
 						/>
 					) : null}
 				</div>

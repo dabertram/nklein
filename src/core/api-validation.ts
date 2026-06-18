@@ -8,6 +8,7 @@ import {
 	type RuntimeClineDogfoodBacklogRequest,
 	type RuntimeClineMcpOAuthRequest,
 	type RuntimeClineMcpSettingsSaveRequest,
+	type RuntimeClineModelContextWindowOverrideRequest,
 	type RuntimeClineOauthLoginRequest,
 	type RuntimeClineProviderModelsRequest,
 	type RuntimeClineProviderSettingsSaveRequest,
@@ -42,6 +43,7 @@ import {
 	runtimeClineDogfoodBacklogRequestSchema,
 	runtimeClineMcpOAuthRequestSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
+	runtimeClineModelContextWindowOverrideRequestSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineProviderModelsRequestSchema,
 	runtimeClineProviderSettingsSaveRequestSchema,
@@ -333,6 +335,27 @@ export function parseClineProviderModelsRequest(value: unknown): RuntimeClinePro
 	}
 	return {
 		providerId,
+	};
+}
+
+export function parseClineModelContextWindowOverrideRequest(
+	value: unknown,
+): RuntimeClineModelContextWindowOverrideRequest {
+	const parsed = parseWithSchema(runtimeClineModelContextWindowOverrideRequestSchema, value);
+	const providerId = parsed.providerId.trim();
+	const modelId = parsed.modelId.trim();
+	const endpoint = parsed.endpoint?.trim() || null;
+	if (!providerId) {
+		throw new Error("Provider ID cannot be empty.");
+	}
+	if (!modelId) {
+		throw new Error("Model ID cannot be empty.");
+	}
+	return {
+		providerId,
+		modelId,
+		endpoint,
+		contextWindow: parsed.contextWindow,
 	};
 }
 

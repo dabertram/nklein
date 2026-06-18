@@ -1,6 +1,6 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	ClineModelRegistryPanel,
@@ -128,7 +128,9 @@ describe("ClineModelRegistryPanel", () => {
 		expect(text).toContain("ollama/qwen");
 		expect(text).toContain("cline/sonnet");
 		expect(text).toContain("Endpoint: ollama-local");
-		expect(text).toContain("Window: 16k");
+		expect(text).toContain("Effective: 16,000");
+		expect(text).toContain("Override: unknown");
+		expect(text).toContain("Observed: 16,000");
 		expect(text).toContain("In 800 tok/s");
 		expect(text.indexOf("ollama/qwen")).toBeLessThan(text.indexOf("cline/sonnet"));
 	});
@@ -167,7 +169,44 @@ describe("ClineModelRegistryPanel", () => {
 		const text = container.textContent ?? "";
 		expect(text).toContain("ollama/qwen");
 		expect(text).toContain("Set context window");
-		expect(text).toContain("Window: unknown");
+		expect(text).toContain("Effective: unknown");
 		expect(text).toContain("Samples: 0");
+	});
+
+	it("saves a context-window override when controls are enabled", async () => {
+		const onSave = vi.fn().mockResolvedValue(undefined);
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineModelRegistryPanel
+					entries={[createModelRegistryEntry()]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+					onContextWindowOverrideSave={onSave}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const input = container.querySelector("input[aria-label='Context window override for ollama/qwen']");
+		expect(input).toBeInstanceOf(HTMLInputElement);
+		await act(async () => {
+			if (input instanceof HTMLInputElement) {
+				input.value = "64000";
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+			}
+			await Promise.resolve();
+		});
+		const saveButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Save"),
+		);
+		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			await Promise.resolve();
+		});
+
+		expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ providerId: "ollama", modelId: "qwen" }), 64_000);
 	});
 });

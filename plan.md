@@ -483,19 +483,19 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       inline concurrency-cap slider wired to `maxConcurrentTasks` through the existing runtime config save
       path, and running Cline session summaries expose local shared-endpoint ids so the header can group active
       work by endpoint.
-- [~] **Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
+- [x] ~~**Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
       effective context window, measured prefill/decode tok/s, capability score, and which model is loaded.
       Show it **before** `samples>0` too (today `formatClineModelRegistryDisplay`
       ([cline-agent-chat-panel.tsx:183-202](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L183))
       hides it) and prompt **"set context window"** when it's `null` (the current state). Cloud providers
-      never appear here (L0). **Progress:** the Cline chat panel now has an expandable Model Telemetry panel
+      never appear here (L0).~~ The Cline chat panel now has an expandable Model Telemetry panel
       backed by the typed MCSR snapshot. It lists local-only registry entries, pins the selected model first,
-      shows effective window, endpoint/shared-endpoint id, prefill/decode tok/s, latency, sample count, last
-      observation, and capability, and still renders unmeasured zero-sample entries with a "Set context window"
+      shows effective/override/observed/advertised windows, endpoint/shared-endpoint id, prefill/decode tok/s,
+      latency, sample count, last observation, and capability, and still renders unmeasured zero-sample entries with a "Set context window"
       prompt. The runtime registry endpoint filters out cloud/remote providers with the same local-only policy
       used for dispatch, and now synthesizes read-only zero-sample rows for configured local provider/model
-      selections and model-role roster entries before telemetry exists. Still open: consider promoting the
-      panel into a global/settings observability surface.
+      selections and model-role roster entries before telemetry exists. The same telemetry surface is now promoted
+      into Cline settings with local-only per-model context-window Save/Clear controls.
 - [~] **Decomposition DAG review view (Planning lane).** Render the proposed task graph as a dependency
       graph with complexity, assigned role/model, and a per-leaf **fit badge** (green = a connected local
       model can run it; red = must split) from the L3 routing-feasibility check. Editable/approvable in the
@@ -517,8 +517,10 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       first-run dismissal when Cline is selected without a configured local model; the Cline agent card shows
       detected local Ollama / LM Studio endpoints and loaded models from the existing provider/model APIs; and
       finishing Cline setup seeds empty architect/worker/reviewer roles from the selected local provider/model
-      without overwriting configured role choices or accepting non-local providers. Still open: explicit
-      context-window setup, richer role tuning, and a more guided endpoint install/start flow.
+      without overwriting configured role choices or accepting non-local providers. Cline settings now provides
+      explicit per-model context-window Save/Clear controls backed by the MCSR override API. Still open:
+      putting that override flow directly into first-run onboarding, richer role tuning, and a more guided
+      endpoint install/start flow.
 - [~] **Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers
@@ -543,11 +545,11 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       context-budget/compression policy, repo-map/index toggles, acceptance-gate commands, autonomy/guardrail
       limits, telemetry retention/redaction. **Progress:** settings already cover agent selection, timeouts,
       max writable file lines, max concurrent tasks, task defaults, Cline provider setup, model roles, MCP,
-      code-intelligence status, smoke eval, dogfood suggestions, git prompts, notifications, appearance, and
-      project paths. The General section now also surfaces Local swarm guardrails, including the configurable
-      concurrency cap and enforced Cline turn, wall-time, no-diff, and mistake guardrails. Still open:
-      per-model context-window override, routing/context-budget policy controls, acceptance-gate command
-      settings, telemetry retention/redaction, and fuller advanced raw-value grouping.
+      code-intelligence status, per-model context-window overrides, smoke eval, dogfood suggestions, git prompts,
+      notifications, appearance, and project paths. The General section now also surfaces Local swarm guardrails,
+      including the configurable concurrency cap and enforced Cline turn, wall-time, no-diff, and mistake
+      guardrails. Still open: routing/context-budget policy controls, acceptance-gate command settings,
+      telemetry retention/redaction, and fuller advanced raw-value grouping.
 - [x] ~~**Feature-visibility coverage matrix (acceptance gate for this section).** Maintain an explicit map of
       every since-branch capability → its UI surface(s): MCSR/model stats → model panel; context budget →
       L1.6 bar; routing/guard decisions → activity surface + card detail; decomposition + DAG + clarifying

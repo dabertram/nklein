@@ -28,6 +28,8 @@ import type {
 	RuntimeClineMcpSettingsResponse,
 	RuntimeClineMcpSettingsSaveRequest,
 	RuntimeClineMcpSettingsSaveResponse,
+	RuntimeClineModelContextWindowOverrideRequest,
+	RuntimeClineModelContextWindowOverrideResponse,
 	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginRequest,
 	RuntimeClineOauthLoginResponse,
@@ -133,6 +135,8 @@ import {
 	runtimeClineMcpSettingsResponseSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
 	runtimeClineMcpSettingsSaveResponseSchema,
+	runtimeClineModelContextWindowOverrideRequestSchema,
+	runtimeClineModelContextWindowOverrideResponseSchema,
 	runtimeClineModelRegistryResponseSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineOauthLoginResponseSchema,
@@ -304,6 +308,10 @@ export interface RuntimeTrpcContext {
 			input: RuntimeClineProviderModelsRequest,
 		) => Promise<RuntimeClineProviderModelsResponse>;
 		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
+		saveClineModelContextWindowOverride: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClineModelContextWindowOverrideRequest,
+		) => Promise<RuntimeClineModelContextWindowOverrideResponse>;
 		getClineCodeIntelligenceStatus: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeClineCodeIntelligenceStatusResponse>;
@@ -616,6 +624,12 @@ export const runtimeAppRouter = t.router({
 		getClineModelRegistry: t.procedure.output(runtimeClineModelRegistryResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineModelRegistry(ctx.workspaceScope);
 		}),
+		saveClineModelContextWindowOverride: t.procedure
+			.input(runtimeClineModelContextWindowOverrideRequestSchema)
+			.output(runtimeClineModelContextWindowOverrideResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.saveClineModelContextWindowOverride(ctx.workspaceScope, input);
+			}),
 		getClineCodeIntelligenceStatus: t.procedure
 			.output(runtimeClineCodeIntelligenceStatusResponseSchema)
 			.query(async ({ ctx }) => {

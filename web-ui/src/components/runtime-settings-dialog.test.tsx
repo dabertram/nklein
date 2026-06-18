@@ -81,6 +81,8 @@ const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
 const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
 const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
 const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
+const fetchClineModelRegistryMock = vi.hoisted(() => vi.fn());
+const saveClineModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const addMcpServerMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
@@ -196,9 +198,11 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
 	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
+	fetchClineModelRegistry: fetchClineModelRegistryMock,
 	fetchClineProviderModels: fetchClineProviderModelsMock,
 	openFileOnHost: openFileOnHostMock,
 	runClineSmokeEval: runClineSmokeEvalMock,
+	saveClineModelContextWindowOverride: saveClineModelContextWindowOverrideMock,
 	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
 }));
 
@@ -353,6 +357,62 @@ describe("RuntimeSettingsDialog", () => {
 				error: null,
 			},
 		});
+		fetchClineModelRegistryMock.mockReset();
+		fetchClineModelRegistryMock.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 120_000,
+			models: [
+				{
+					key: "ollama:qwen:http://127.0.0.1:11434",
+					providerId: "ollama",
+					modelId: "qwen",
+					endpoint: "http://127.0.0.1:11434",
+					contextWindow: {
+						advertised: 80_000,
+						observed: 64_000,
+						userOverride: null,
+						effective: 64_000,
+					},
+					speed: {
+						samples: 1,
+						promptTokensEwma: 1000,
+						outputTokensEwma: 100,
+						totalTokensEwma: 1100,
+						prefillTokensPerSecondEwma: 500,
+						decodeTokensPerSecondEwma: 40,
+						ttftMsEwma: 300,
+						wallTimeMsEwma: 2000,
+						wallTimeMsPer1kPromptTokensEwma: 2000,
+						lastPromptTokens: 1000,
+						lastOutputTokens: 100,
+						lastWallTimeMs: 2000,
+						lastObservedAt: 120_000,
+					},
+					capability: {
+						samples: 1,
+						staticPrior: 35,
+						evalScore: null,
+						externalScore: null,
+						observedPassRate: 1,
+						effectiveScore: 65,
+						lastObservedAt: 120_000,
+					},
+					constraints: {
+						sharedEndpointId: "http://127.0.0.1:11434",
+						inputCostPerMillionTokens: null,
+						outputCostPerMillionTokens: null,
+					},
+					createdAt: 100_000,
+					updatedAt: 120_000,
+				},
+			],
+		});
+		saveClineModelContextWindowOverrideMock.mockReset();
+		saveClineModelContextWindowOverrideMock.mockResolvedValue({
+			model: {
+				key: "ollama:qwen:http://127.0.0.1:11434",
+			},
+		});
 		fetchClineProviderModelsMock.mockReset();
 		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "openrouter") {
@@ -467,6 +527,50 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("repo map ready");
 		expect(document.body.textContent).toContain("12 files scanned");
 		expect(document.body.textContent).toContain("34 symbols");
+	});
+
+	it("shows and saves local model context-window overrides in settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		await waitForCondition(() => document.body.textContent?.includes("Model context windows") === true);
+		await waitForCondition(() => document.body.textContent?.includes("ollama/qwen") === true);
+
+		expect(fetchClineModelRegistryMock).toHaveBeenCalledWith("workspace-1");
+		expect(document.body.textContent).toContain("1 local model tracked");
+		expect(document.body.textContent).toContain("Effective: 64,000");
+		const input = document.body.querySelector("input[aria-label='Context window override for ollama/qwen']");
+		expect(input).toBeInstanceOf(HTMLInputElement);
+		await act(async () => {
+			if (input instanceof HTMLInputElement) {
+				input.value = "96000";
+				input.dispatchEvent(new Event("input", { bubbles: true }));
+			}
+			await Promise.resolve();
+		});
+		const saveButton = Array.from(document.body.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Save",
+		);
+		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+			await Promise.resolve();
+		});
+
+		expect(saveClineModelContextWindowOverrideMock).toHaveBeenCalledWith("workspace-1", {
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:11434",
+			contextWindow: 96_000,
+		});
 	});
 
 	it("calls the layout reset callback when reset layout is clicked", async () => {

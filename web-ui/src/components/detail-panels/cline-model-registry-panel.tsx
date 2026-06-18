@@ -1,6 +1,9 @@
-import { Activity, Gauge, Server } from "lucide-react";
+import { Activity, Gauge, RotateCcw, Save, Server } from "lucide-react";
+import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { CLINE_MIN_CONTEXT_WINDOW_TOKENS, formatClineContextWindowTokens } from "@/runtime/cline-context-window-policy";
 import type { RuntimeClineModelRegistryEntry } from "@/runtime/types";
 
 export function findClineModelRegistryEntry(
@@ -45,6 +48,10 @@ export function formatClineModelRegistryDisplay(entry: RuntimeClineModelRegistry
 
 function formatTokenWindow(value: number | null): string {
 	return value ? `${Math.round(value / 1000)}k` : "unknown";
+}
+
+function formatExactTokenWindow(value: number | null): string {
+	return value ? formatClineContextWindowTokens(value) : "unknown";
 }
 
 function formatRate(value: number | null): string {
@@ -102,6 +109,10 @@ interface ClineModelRegistryPanelProps {
 	selectedModelId: string;
 	nowMs: number;
 	isLoading?: boolean;
+	onContextWindowOverrideSave?: (
+		entry: RuntimeClineModelRegistryEntry,
+		contextWindow: number | null,
+	) => Promise<void> | void;
 }
 
 export function ClineModelRegistryPanel({
@@ -110,11 +121,41 @@ export function ClineModelRegistryPanel({
 	selectedModelId,
 	nowMs,
 	isLoading = false,
+	onContextWindowOverrideSave,
 }: ClineModelRegistryPanelProps) {
 	const selectedEntry = findClineModelRegistryEntry(entries, selectedProviderId, selectedModelId);
-	const visibleEntries = selectedEntry
-		? [selectedEntry, ...entries.filter((entry) => entry.key !== selectedEntry.key)]
-		: entries;
+	const visibleEntries = useMemo(
+		() => (selectedEntry ? [selectedEntry, ...entries.filter((entry) => entry.key !== selectedEntry.key)] : entries),
+		[entries, selectedEntry],
+	);
+	const [overrideInputs, setOverrideInputs] = useState<Record<string, string>>({});
+	const [savingKey, setSavingKey] = useState<string | null>(null);
+	const [saveErrorByKey, setSaveErrorByKey] = useState<Record<string, string>>({});
+
+	const saveOverride = async (entry: RuntimeClineModelRegistryEntry, contextWindow: number | null) => {
+		if (!onContextWindowOverrideSave) {
+			return;
+		}
+		setSavingKey(entry.key);
+		setSaveErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: "" }));
+		try {
+			await onContextWindowOverrideSave(entry, contextWindow);
+			setOverrideInputs((currentInputs) => {
+				const nextInputs = { ...currentInputs };
+				if (contextWindow === null) {
+					nextInputs[entry.key] = "";
+				} else {
+					nextInputs[entry.key] = String(contextWindow);
+				}
+				return nextInputs;
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setSaveErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: message }));
+		} finally {
+			setSavingKey(null);
+		}
+	};
 
 	return (
 		<section className="mt-2 rounded-lg border border-border bg-surface-1 px-3 py-2" aria-label="Model telemetry">
@@ -129,6 +170,20 @@ export function ClineModelRegistryPanel({
 				<div className="grid gap-2">
 					{visibleEntries.map((entry) => {
 						const isSelected = entry.key === selectedEntry?.key;
+						const overrideInput = overrideInputs[entry.key] ?? String(entry.contextWindow.userOverride ?? "");
+						const trimmedOverrideInput = overrideInput.trim();
+						const parsedOverride =
+							trimmedOverrideInput.length > 0 ? Number.parseInt(trimmedOverrideInput, 10) : null;
+						const hasValidOverride =
+							parsedOverride !== null &&
+							Number.isFinite(parsedOverride) &&
+							parsedOverride >= CLINE_MIN_CONTEXT_WINDOW_TOKENS;
+						const canSaveOverride =
+							Boolean(onContextWindowOverrideSave) &&
+							hasValidOverride &&
+							parsedOverride !== entry.contextWindow.userOverride;
+						const isSaving = savingKey === entry.key;
+						const saveError = saveErrorByKey[entry.key]?.trim();
 						return (
 							<div
 								key={entry.key}
@@ -155,7 +210,10 @@ export function ClineModelRegistryPanel({
 								</div>
 								<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-secondary">
 									<span>Endpoint: {formatEndpoint(entry)}</span>
-									<span>Window: {formatTokenWindow(entry.contextWindow.effective)}</span>
+									<span>Effective: {formatExactTokenWindow(entry.contextWindow.effective)}</span>
+									<span>Override: {formatExactTokenWindow(entry.contextWindow.userOverride)}</span>
+									<span>Observed: {formatExactTokenWindow(entry.contextWindow.observed)}</span>
+									<span>Advertised: {formatExactTokenWindow(entry.contextWindow.advertised)}</span>
 									<span>Samples: {entry.speed.samples}</span>
 									<span>
 										Last:{" "}
@@ -174,6 +232,62 @@ export function ClineModelRegistryPanel({
 									<span>Latency {formatLatency(entry.speed.wallTimeMsPer1kPromptTokensEwma)}</span>
 									<span>Capability {Math.round(entry.capability.effectiveScore)}</span>
 								</div>
+								{onContextWindowOverrideSave ? (
+									<div className="mt-2 grid gap-1">
+										<div className="flex flex-wrap items-center gap-2">
+											<input
+												type="number"
+												min={CLINE_MIN_CONTEXT_WINDOW_TOKENS}
+												step={1024}
+												value={overrideInput}
+												onChange={(event) => {
+													const nextValue = event.currentTarget.value;
+													setOverrideInputs((currentInputs) => ({
+														...currentInputs,
+														[entry.key]: nextValue,
+													}));
+												}}
+												className="h-8 w-36 rounded-md border border-border bg-surface-0 px-2 text-xs text-text-primary outline-none focus:border-border-focus"
+												placeholder="Context tokens"
+												aria-label={`Context window override for ${entry.providerId}/${entry.modelId}`}
+											/>
+											<Button
+												size="sm"
+												variant="default"
+												icon={<Save size={14} />}
+												disabled={!canSaveOverride || isSaving}
+												onClick={() => {
+													if (hasValidOverride && parsedOverride !== null) {
+														void saveOverride(entry, parsedOverride);
+													}
+												}}
+											>
+												{isSaving ? "Saving..." : "Save"}
+											</Button>
+											<Button
+												size="sm"
+												variant="ghost"
+												icon={<RotateCcw size={14} />}
+												disabled={!entry.contextWindow.userOverride || isSaving}
+												onClick={() => {
+													void saveOverride(entry, null);
+												}}
+											>
+												Clear
+											</Button>
+											<span className="text-[11px] text-text-tertiary">
+												Minimum {formatClineContextWindowTokens(CLINE_MIN_CONTEXT_WINDOW_TOKENS)}
+											</span>
+										</div>
+										{trimmedOverrideInput && !hasValidOverride ? (
+											<div className="text-[11px] text-status-orange">
+												Use at least {formatClineContextWindowTokens(CLINE_MIN_CONTEXT_WINDOW_TOKENS)}{" "}
+												tokens.
+											</div>
+										) : null}
+										{saveError ? <div className="text-[11px] text-status-red">{saveError}</div> : null}
+									</div>
+								) : null}
 							</div>
 						);
 					})}

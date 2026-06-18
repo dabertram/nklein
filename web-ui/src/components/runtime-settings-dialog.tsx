@@ -31,6 +31,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClineModelRegistryPanel } from "@/components/detail-panels/cline-model-registry-panel";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import {
@@ -61,9 +62,11 @@ import {
 import {
 	buildClineAdvisorRequest,
 	fetchClineCodeIntelligenceStatus,
+	fetchClineModelRegistry,
 	fetchClineProviderModels,
 	openFileOnHost,
 	runClineSmokeEval,
+	saveClineModelContextWindowOverride,
 	writeClineDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
@@ -74,6 +77,7 @@ import type {
 	RuntimeClineDogfoodBacklogResponse,
 	RuntimeClineMcpServer,
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeClineModelRegistryEntry,
 	RuntimeClineProviderCatalogItem,
 	RuntimeClineProviderModel,
 	RuntimeClineReasoningEffort,
@@ -1039,6 +1043,101 @@ function ClineCodeIntelligenceStatusPanel({
 					) : null}
 				</div>
 			) : null}
+		</div>
+	);
+}
+
+function ClineModelContextWindowSettingsPanel({
+	workspaceId,
+	open,
+	disabled,
+	selectedProviderId,
+	selectedModelId,
+	onError,
+}: {
+	workspaceId: string | null;
+	open: boolean;
+	disabled: boolean;
+	selectedProviderId: string;
+	selectedModelId: string;
+	onError: (message: string | null) => void;
+}): React.ReactElement {
+	const [isLoading, setIsLoading] = useState(false);
+	const [registryEntries, setRegistryEntries] = useState<RuntimeClineModelRegistryEntry[]>([]);
+	const [nowMs, setNowMs] = useState(() => Date.now());
+
+	const refreshRegistry = useCallback(async () => {
+		if (!open) {
+			return;
+		}
+		onError(null);
+		setIsLoading(true);
+		try {
+			const response = await fetchClineModelRegistry(workspaceId);
+			setRegistryEntries(response.models);
+			setNowMs(Date.now());
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			onError(`Could not load model telemetry: ${message}`);
+		} finally {
+			setIsLoading(false);
+		}
+	}, [onError, open, workspaceId]);
+
+	useEffect(() => {
+		void refreshRegistry();
+	}, [refreshRegistry]);
+
+	const saveOverride = useCallback(
+		async (entry: RuntimeClineModelRegistryEntry, contextWindow: number | null) => {
+			if (disabled) {
+				return;
+			}
+			await saveClineModelContextWindowOverride(workspaceId, {
+				providerId: entry.providerId,
+				modelId: entry.modelId,
+				endpoint: entry.endpoint,
+				contextWindow,
+			});
+			await refreshRegistry();
+		},
+		[disabled, refreshRegistry, workspaceId],
+	);
+
+	return (
+		<div className="mt-4 border-t border-border pt-4">
+			<div className="flex items-center justify-between gap-3">
+				<div className="min-w-0">
+					<h6 className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">
+						<SlidersHorizontal size={14} />
+						Model context windows
+					</h6>
+					<p className="text-[12px] text-text-secondary mt-1 mb-0">
+						{registryEntries.length > 0
+							? `${registryEntries.length} local model${registryEntries.length === 1 ? "" : "s"} tracked`
+							: "No local model telemetry loaded"}
+					</p>
+				</div>
+				<Button
+					size="sm"
+					variant="default"
+					icon={<RefreshCw size={14} />}
+					disabled={disabled || isLoading}
+					onClick={() => {
+						void refreshRegistry();
+					}}
+				>
+					{isLoading ? "Refreshing..." : "Refresh"}
+				</Button>
+			</div>
+			<ClineModelRegistryPanel
+				entries={registryEntries}
+				selectedProviderId={selectedProviderId}
+				selectedModelId={selectedModelId}
+				nowMs={nowMs}
+				isLoading={isLoading}
+				onContextWindowOverrideSave={disabled ? undefined : saveOverride}
+			/>
 		</div>
 	);
 }
@@ -2278,6 +2377,14 @@ export function RuntimeSettingsDialog({
 									}
 									onError={setSaveError}
 									onSaved={handleClineSetupSaved}
+								/>
+								<ClineModelContextWindowSettingsPanel
+									workspaceId={workspaceId}
+									open={open}
+									disabled={controlsDisabled}
+									selectedProviderId={clineSettings.providerId}
+									selectedModelId={clineSettings.modelId}
+									onError={setSaveError}
 								/>
 								<ClineCodeIntelligenceStatusPanel
 									workspaceId={workspaceId}

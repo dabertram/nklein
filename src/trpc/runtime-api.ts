@@ -9,7 +9,10 @@ import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
 import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
-import { isClineContextWindowPolicyError } from "../cline-sdk/cline-context-window-policy";
+import {
+	assertClineContextWindowPolicy,
+	isClineContextWindowPolicyError,
+} from "../cline-sdk/cline-context-window-policy";
 import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
 import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
 import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
@@ -59,6 +62,7 @@ import {
 	parseClineDogfoodBacklogRequest,
 	parseClineMcpOAuthRequest,
 	parseClineMcpSettingsSaveRequest,
+	parseClineModelContextWindowOverrideRequest,
 	parseClineOauthLoginRequest,
 	parseClineProviderModelsRequest,
 	parseClineProviderSettingsSaveRequest,
@@ -979,6 +983,30 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
 					}),
 			};
+		},
+		saveClineModelContextWindowOverride: async (_workspaceScope, input) => {
+			const body = parseClineModelContextWindowOverrideRequest(input);
+			if (!isLocalProvider(body.providerId, body.endpoint)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Context window overrides are only available for local Cline models.",
+				});
+			}
+			if (body.contextWindow !== null) {
+				assertClineContextWindowPolicy({
+					providerId: body.providerId,
+					modelId: body.modelId,
+					contextWindow: body.contextWindow,
+					label: "Context window override for",
+				});
+			}
+			const model = await getDefaultClineModelRegistry().setContextWindowOverride({
+				providerId: body.providerId,
+				modelId: body.modelId,
+				endpoint: body.endpoint,
+				contextWindow: body.contextWindow,
+			});
+			return { model };
 		},
 		getClineCodeIntelligenceStatus: async (workspaceScope) => {
 			if (!workspaceScope) {

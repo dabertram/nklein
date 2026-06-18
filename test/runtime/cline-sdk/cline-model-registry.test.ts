@@ -279,6 +279,48 @@ describe("cline model registry", () => {
 		});
 	});
 
+	it("sets and clears user context-window overrides", async () => {
+		const registry = new ClineModelRegistry({
+			registryPath: await createRegistryPath(),
+			now: () => 8_000,
+			persistDebounceMs: 60_000,
+		});
+
+		await registry.recordContextWindow({
+			providerId: "ollama",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:11434",
+			advertisedContextWindow: 80_000,
+			observedContextWindow: 64_000,
+		});
+
+		const overrideEntry = await registry.setContextWindowOverride({
+			providerId: "ollama",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:11434",
+			contextWindow: 96_000,
+		});
+		expect(overrideEntry.contextWindow).toMatchObject({
+			advertised: 80_000,
+			observed: 64_000,
+			userOverride: 96_000,
+			effective: 96_000,
+		});
+
+		const clearedEntry = await registry.setContextWindowOverride({
+			providerId: "ollama",
+			modelId: "qwen-ctx80k",
+			endpoint: "http://127.0.0.1:11434",
+			contextWindow: null,
+		});
+		expect(clearedEntry.contextWindow).toMatchObject({
+			advertised: 80_000,
+			observed: 64_000,
+			userOverride: null,
+			effective: 64_000,
+		});
+	});
+
 	it("does not default cloud models into a serialized shared endpoint", async () => {
 		const registry = new ClineModelRegistry({
 			registryPath: await createRegistryPath(),

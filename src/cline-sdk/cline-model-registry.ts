@@ -563,6 +563,20 @@ export class ClineModelRegistry {
 		return cloneEntry(entry);
 	}
 
+	async setContextWindowOverride(
+		input: ClineModelRegistryKeyInput & { contextWindow: number | null; createdAt?: number },
+	): Promise<ClineModelRegistryEntry> {
+		const snapshot = await this.mutableSnapshot();
+		const observedAt = input.createdAt ?? this.now();
+		const entry = this.getOrCreateEntry(snapshot, input, observedAt);
+		entry.contextWindow.userOverride = normalizePositiveInteger(input.contextWindow);
+		entry.contextWindow.effective = calculateEffectiveContextWindow(entry.contextWindow);
+		entry.updatedAt = observedAt;
+		snapshot.updatedAt = observedAt;
+		this.schedulePersist(snapshot);
+		return cloneEntry(entry);
+	}
+
 	async flush(): Promise<void> {
 		if (this.persistTimer) {
 			clearTimeout(this.persistTimer);

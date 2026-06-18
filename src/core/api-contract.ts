@@ -892,6 +892,23 @@ export const runtimeClineModelRegistryResponseSchema = z.object({
 });
 export type RuntimeClineModelRegistryResponse = z.infer<typeof runtimeClineModelRegistryResponseSchema>;
 
+export const runtimeClineModelContextWindowOverrideRequestSchema = z.object({
+	providerId: z.string().min(1),
+	modelId: z.string().min(1),
+	endpoint: z.string().nullable().optional(),
+	contextWindow: z.number().int().positive().nullable(),
+});
+export type RuntimeClineModelContextWindowOverrideRequest = z.infer<
+	typeof runtimeClineModelContextWindowOverrideRequestSchema
+>;
+
+export const runtimeClineModelContextWindowOverrideResponseSchema = z.object({
+	model: runtimeClineModelRegistryEntrySchema,
+});
+export type RuntimeClineModelContextWindowOverrideResponse = z.infer<
+	typeof runtimeClineModelContextWindowOverrideResponseSchema
+>;
+
 export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
 	repoMap: z.object({
 		filesScanned: z.number().int().nonnegative(),
