@@ -217,6 +217,32 @@ const LOCAL_SWARM_GUARDRAIL_ROWS = [
 		detail: "Stops tasks that hit Cline's mistake guardrail.",
 	},
 ] as const;
+const ADVANCED_POLICY_ROWS = [
+	{
+		label: "Routing policy",
+		value: "Local model fit",
+		detail: "Uses model roles, local-only provider checks, context-window feasibility, and endpoint admission.",
+		raw: "modelRoles, selectedAgentId, maxConcurrentTasks",
+	},
+	{
+		label: "Context budget policy",
+		value: "Effective window",
+		detail: "Budgets include prompt, history, retained files, tool schemas, overhead, and reserved output.",
+		raw: "contextBudgetBreakdown",
+	},
+	{
+		label: "Acceptance gate",
+		value: "Task prompt command",
+		detail: "Runs the card's Acceptance check line and records verification_failed or plan_gap diagnostics.",
+		raw: "Acceptance check: <command>",
+	},
+	{
+		label: "Telemetry",
+		value: "Local JSONL",
+		detail: "Task diagnostics read recent local telemetry events; no LLM is used for the diagnostics drawer.",
+		raw: ".cline/kanban/telemetry, limit 20",
+	},
+] as const;
 type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
 const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
 	architect: "Architect",
@@ -2344,6 +2370,25 @@ export function RuntimeSettingsDialog({
 											<div className="text-[11px] text-text-tertiary">{row.label}</div>
 											<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
 											<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
+										</div>
+									))}
+								</div>
+							</div>
+							<div
+								style={{ gridColumn: "1 / span 2" }}
+								className="rounded-md border border-border bg-surface-1 p-3"
+							>
+								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+									<SlidersHorizontal size={14} />
+									<span>Advanced policy visibility</span>
+								</div>
+								<div className="grid gap-2 sm:grid-cols-2">
+									{ADVANCED_POLICY_ROWS.map((row) => (
+										<div key={row.label} className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">{row.label}</div>
+											<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
+											<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
+											<div className="mt-1 font-mono text-[10px] text-text-tertiary">{row.raw}</div>
 										</div>
 									))}
 								</div>

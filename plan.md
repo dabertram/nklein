@@ -551,7 +551,7 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Acceptance and merge are now first-class Activity steps backed by local diagnostics: acceptance failures
       and plan-gap history surface in the pipeline, task worktree merge/skipped/conflict events are recorded as
       task-scoped telemetry, and the raw expandable Diagnostics panel remains one click away for full history.
-- [~] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
+- [x] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
       and explained in plain language with an "advanced" reveal for raw values: model roles & roster,
       per-model context-window override, routing/guard thresholds, concurrency cap,
       context-budget/compression policy, repo-map/index toggles, acceptance-gate commands, autonomy/guardrail
@@ -560,8 +560,9 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       code-intelligence status, per-model context-window overrides, smoke eval, dogfood suggestions, git prompts,
       notifications, appearance, and project paths. The General section now also surfaces Local swarm guardrails,
       including the configurable concurrency cap and enforced Cline turn, wall-time, no-diff, and mistake
-      guardrails. Still open: routing/context-budget policy controls, acceptance-gate command settings,
-      telemetry retention/redaction, and fuller advanced raw-value grouping.
+      guardrails. General settings now also include Advanced policy visibility rows for routing policy,
+      context-budget policy, acceptance-gate command source, and local telemetry/diagnostic retention, with
+      raw keys/paths shown for technical inspection.
 - [x] ~~**Feature-visibility coverage matrix (acceptance gate for this section).** Maintain an explicit map of
       every since-branch capability → its UI surface(s): MCSR/model stats → model panel; context budget →
       L1.6 bar; routing/guard decisions → activity surface + card detail; decomposition + DAG + clarifying

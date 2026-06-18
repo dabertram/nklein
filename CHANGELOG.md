@@ -40,6 +40,7 @@
 - Added an inline Local swarm concurrency slider that saves `maxConcurrentTasks` from the board header.
 - Added local shared-endpoint ids to Cline session summaries and surfaced per-endpoint running utilization in the board Local swarm strip.
 - Enriched running task cards with compact swarm telemetry: token counts, approximate output tok/s, elapsed time, turn count, current activity/tool, and a mini context-budget bar.
+- Added Advanced policy visibility in settings for routing policy, context-budget inputs, acceptance command source, and local telemetry diagnostics paths/limits.
 - Added a board-level code-intelligence chip to surface repo-map/index readiness from the existing typed runtime status endpoint.
 - Added a no-LLM task Diagnostics panel backed by local self-observation JSONL telemetry and a typed runtime `getTaskDiagnostics` endpoint.
 - Added a card-detail Activity surface that summarizes planning/routing, context budget, current tool activity, and acceptance state from existing session data.

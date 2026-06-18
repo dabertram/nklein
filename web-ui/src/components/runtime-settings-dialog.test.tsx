@@ -521,6 +521,12 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("4 repeats");
 		expect(document.body.textContent).toContain("Repeated tool calls");
 		expect(document.body.textContent).toContain("5 repeats");
+		expect(document.body.textContent).toContain("Advanced policy visibility");
+		expect(document.body.textContent).toContain("Routing policy");
+		expect(document.body.textContent).toContain("Context budget policy");
+		expect(document.body.textContent).toContain("Acceptance gate");
+		expect(document.body.textContent).toContain("Telemetry");
+		expect(document.body.textContent).toContain(".cline/kanban/telemetry, limit 20");
 	});
 
 	it("shows Cline code intelligence status in settings", async () => {
