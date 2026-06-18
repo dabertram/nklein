@@ -307,11 +307,17 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			modelId: "qwen3.5-9b",
 			reasoningEffort: "low",
 		});
+		expect(result.createdTasks[0]?.prompt).toContain(
+			"Model fit: validated by Kanban routing guard (ollama / qwen3.5-9b, role worker, context 64,000, capability 35)",
+		);
 		expect(result.createdTasks[1]?.clineSettings).toEqual({
 			providerId: "lmstudio",
 			modelId: "deepseek-coder-33b",
 			reasoningEffort: "high",
 		});
+		expect(result.createdTasks[1]?.prompt).toContain(
+			"Model fit: validated by Kanban routing guard (ollama / deepseek-coder-33b, role architect, context 64,000, capability 70)",
+		);
 	});
 
 	it("does not keep suggested role settings when routing selects the default model", () => {

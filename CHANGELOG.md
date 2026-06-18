@@ -45,6 +45,7 @@
 - Added a no-LLM task Diagnostics panel backed by local self-observation JSONL telemetry and a typed runtime `getTaskDiagnostics` endpoint.
 - Added a card-detail Activity surface that summarizes planning/routing, context budget, current tool activity, and acceptance state from existing session data.
 - Promoted acceptance and merge into Activity pipeline steps backed by local diagnostics, and recorded task-scoped worktree merge telemetry for merged, skipped, blocked, and conflicted merge outcomes.
+- Stamped decomposition-created cards with backend model-fit evidence from the Cline routing guard and surfaced that evidence as a Planning DAG fit badge.
 - Added `revisions.md` plan artifacts and exposed `revisionsPath` through decomposition tool, CLI, and dogfood API outputs for future adaptive re-planning audit trails.
 - Added `kanban task plan-gap` and a typed `plan_gap` self-observation signal so execution agents can report missing decisions, contradictions, dependencies, oversized scope, or unplanned integration work.
 - Let `kanban task plan-gap --kind integration_needed` create a Planning integration card with evidence while returning the created card in the command response.

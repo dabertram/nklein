@@ -509,8 +509,10 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       Planning lane before cards flow to execution. Keep it lightweight (existing board primitives or a
       small graph lib). **Progress:** Planning card detail now includes a compact DAG review panel for linked
       cards, showing prerequisite/dependent relationships, card status, prompt-derived complexity, likely
-      files, and model/agent hints from existing board data. Still open: whole-plan graph review before
-      execution, editable approval, revised-card flags, and backend-owned connected-local-model fit badges.
+      files, and model/agent hints from existing board data. Decomposition-created cards now also carry a
+      backend `Model fit:` marker from the routing guard when connected candidates were checked, and the DAG
+      panel renders a distinct backend fit badge from that marker. Still open: whole-plan graph review before
+      execution, editable approval, and revised-card flags.
 - [x] ~~**Per-card diagnostics drawer (no LLM).** A drawer surfacing that card's structured self-observation
       telemetry — errors, overflows, retries, timings, eval result — read directly from the sink
       (`~/.cline/kanban/telemetry/`). The cheap, cloud-free companion to the parked P8 "why did this fail"

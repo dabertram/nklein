@@ -138,7 +138,11 @@ function formatSharedPlanContext(context: ClinePlanTaskSharedContext | undefined
 	return sections.join("\n\n");
 }
 
-function buildTaskPrompt(task: ClinePlanTask, sharedContext?: ClinePlanTaskSharedContext): string {
+function buildTaskPrompt(
+	task: ClinePlanTask,
+	sharedContext?: ClinePlanTaskSharedContext,
+	modelFitEvidence?: string | null,
+): string {
 	const sections = [task.prompt.trim()];
 	const sharedPlanContext = formatSharedPlanContext(sharedContext);
 	if (sharedPlanContext) {
@@ -160,6 +164,9 @@ function buildTaskPrompt(task: ClinePlanTask, sharedContext?: ClinePlanTaskShare
 	sections.push(`Complexity: ${Math.round(task.complexity)}/100`);
 	if (task.suggestedRole) {
 		sections.push(`Suggested role: ${task.suggestedRole}`);
+	}
+	if (modelFitEvidence?.trim()) {
+		sections.push(`Model fit: ${modelFitEvidence.trim()}`);
 	}
 	return sections.join("\n\n");
 }
@@ -469,6 +476,25 @@ function resolveTaskRoleSettings(
 	};
 }
 
+function formatTaskModelFitEvidence(candidate: ClineTaskRoutingCandidate | null | undefined): string {
+	if (candidate === undefined) {
+		return "not validated before card creation; connected-local-model fit is checked when the card starts";
+	}
+	if (candidate === null) {
+		return "validated by Kanban routing guard with the default local model";
+	}
+	const contextWindow = candidate.entry.contextWindow.effective;
+	const contextWindowText =
+		typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0
+			? `, context ${contextWindow.toLocaleString()}`
+			: "";
+	const capability = candidate.entry.capability.effectiveScore;
+	const capabilityText =
+		typeof capability === "number" && Number.isFinite(capability) ? `, capability ${Math.round(capability)}` : "";
+	const roleText = candidate.role ? `, role ${candidate.role}` : "";
+	return `validated by Kanban routing guard (${candidate.entry.providerId} / ${candidate.entry.modelId}${roleText}${contextWindowText}${capabilityText})`;
+}
+
 function collectBoardTaskIds(board: RuntimeBoardData): Set<string> {
 	return new Set(board.columns.flatMap((column) => column.cards.map((card) => card.id)));
 }
@@ -486,8 +512,13 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	const now = input.now ?? Date.now();
 
 	for (const task of taskGraph.tasks) {
-		const taskPrompt = buildTaskPrompt(task, input.sharedContext);
-		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPrompt, input.routingCandidates);
+		const taskPromptForRouting = buildTaskPrompt(task, input.sharedContext);
+		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPromptForRouting, input.routingCandidates);
+		const taskPrompt = buildTaskPrompt(
+			task,
+			input.sharedContext,
+			formatTaskModelFitEvidence(selectedRoutingCandidate),
+		);
 		const selectedRole =
 			selectedRoutingCandidate === undefined ? undefined : (selectedRoutingCandidate?.role ?? null);
 		const baseTaskId = `${slugifyTaskId(taskGraph.slug)}-${slugifyTaskId(task.id)}`;

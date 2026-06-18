@@ -507,6 +507,30 @@ function parseComplexityFromPrompt(prompt: string): number | null {
 	return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
 
+function parseModelFitFromPrompt(prompt: string): { label: string; detail: string; tone: "done" | "waiting" } {
+	const match = prompt.match(/^Model fit:\s*(.+)$/im);
+	const detail = match?.[1]?.trim() ?? null;
+	if (!detail) {
+		return {
+			label: "Backend fit pending",
+			detail: "No backend fit marker on this card",
+			tone: "waiting",
+		};
+	}
+	if (detail.toLowerCase().startsWith("validated by kanban routing guard")) {
+		return {
+			label: "Backend fit validated",
+			detail,
+			tone: "done",
+		};
+	}
+	return {
+		label: "Backend fit starts later",
+		detail,
+		tone: "waiting",
+	};
+}
+
 function formatDagModelLabel(card: BoardCard): string {
 	const providerId = card.clineSettings?.providerId?.trim();
 	const modelId = card.clineSettings?.modelId?.trim();
@@ -579,6 +603,7 @@ function PlanningDagReviewPanel({
 			<div className="grid grid-cols-1 gap-1.5 xl:grid-cols-3">
 				{nodes.map((node) => {
 					const complexity = parseComplexityFromPrompt(node.card.prompt);
+					const modelFit = parseModelFitFromPrompt(node.card.prompt);
 					const likelyFiles = node.card.filesLikelyTouched ?? [];
 					return (
 						<div
@@ -604,6 +629,12 @@ function PlanningDagReviewPanel({
 									}
 								>
 									{complexity !== null && complexity <= 75 ? "Fit likely" : "Fit needs review"}
+								</span>
+								<span
+									className={modelFit.tone === "done" ? "text-status-green" : "text-status-orange"}
+									title={modelFit.detail}
+								>
+									{modelFit.label}
 								</span>
 								<span className="truncate">{formatDagModelLabel(node.card)}</span>
 							</div>

@@ -663,7 +663,8 @@ describe("CardDetailView", () => {
 	it("shows a planning DAG review panel for linked Planning cards", async () => {
 		const selected = createCard("plan-ui", {
 			title: "Build UI",
-			prompt: "Implement UI.\n\nComplexity: 45/100",
+			prompt:
+				"Implement UI.\n\nComplexity: 45/100\n\nModel fit: validated by Kanban routing guard (lmstudio / qwen3, role worker, context 64,000, capability 70)",
 			filesLikelyTouched: ["web-ui/src/App.tsx"],
 			agentId: "cline",
 			clineSettings: {
@@ -723,6 +724,8 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Polish flow");
 		expect(container.textContent).toContain("Complexity 80/100");
 		expect(container.textContent).toContain("Fit needs review");
+		expect(container.textContent).toContain("Backend fit validated");
+		expect(container.textContent).toContain("Backend fit pending");
 		expect(container.textContent).toContain("web-ui/src/flow.tsx, web-ui/src/copy.ts, web-ui/src/styles.css +1");
 	});
 
