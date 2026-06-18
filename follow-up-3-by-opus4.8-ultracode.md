@@ -126,7 +126,7 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 
 ### B2. Confirmed-open / verify
 - [x] **Persistence-ownership split (follow-up-2 F3).** Verified: browser saves send board-only payloads, public `workspaceApi.saveState` forwards only `board`/`expectedRevision`, and `saveWorkspaceState` preserves existing runtime-owned sessions unless an internal caller explicitly supplies `sessions`. Covered by `workspace-state.integration.test.ts` and `workspace-api.test.ts`.
-- [ ] **Real semantic embeddings (plan.md M2/M3).** Still lexical bag-of-words (`kanban-local-lexical-vector-v1`), honestly labeled but not semantic. See §F1.
+- [x] **Real semantic embeddings (plan.md M2/M3).** OpenAI-compatible embedding endpoints can now back the code index, and `search_code` merges lexical line matches, semantic/index chunks, and repo-map symbols with deduplication. The lexical model id remains only the fallback/cache key.
 - [x] **Dev-test web UI (follow-up-2 F6).** Verified: `web-ui/src/components/project-navigation-panel.tsx` already exposes gated dev-test creation/cleanup and evidence-path actions in debug mode, with coverage in `project-navigation-panel.test.tsx`.
 - [x] **Doc hygiene:** fixed `follow-up-2-by-gpt5.5-medium.md` so the "Suggested implementation order" checkboxes (items 4 & 7) match the completed sections.
 - [x] Confirm `CHANGELOG.md [Upcoming]` reflects this pass (rename + any items implemented).
@@ -214,7 +214,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 ### F1. Retrieval (biggest lever)
 - [x] **AST + PageRank repo map** — `src/cline-sdk/cline-repo-map.ts` extracts TS symbols and ranks with PageRank. This is exactly Aider's approach and the right "middle ground between grep and LSP."
 - [x] **Personalized PageRank boosts** — Aider boosts identifiers mentioned in the conversation (~10×) and chat/seed files (~50×). `cline-repo-map.ts` now applies a conversation-aware personalization vector and final symbol-score boost from current session text, explicit repo-map tool queries, and seed paths.
-- [ ] **Real local semantic embeddings** — close M2/M3. Either bundle an ONNX embedder or use the already-wired `openai_compatible` path (LM Studio `text-embedding-nomic-embed-text-v1.5`). Then do **hybrid retrieval**: lexical + semantic + repo-map, merged and de-duplicated. This is the single highest-value upgrade for small models on a big codebase.
+- [x] **Real local semantic embeddings** — `openai_compatible` embedding settings support LM Studio/Ollama-style local endpoints, the code index stores provider/model-separated dense vectors, and `search_code` now merges lexical + semantic/index + repo-map results with deduplication.
 
 ### F2. Context engineering (Anthropic's framing: "smallest high-signal set of tokens")
 - [x] Compaction + structured note-taking (`decisions.md` blackboard) are present.

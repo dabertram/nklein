@@ -1,6 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
+import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { searchClineCodeIndex } from "./cline-code-index";
+import { buildClineRepoMap, type ClineRepoMapSymbol } from "./cline-repo-map";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
@@ -58,6 +60,7 @@ export interface SearchClineCodeOptions {
 	maxFiles?: number;
 	maxResults?: number;
 	contextLines?: number;
+	embeddingProvider?: ClineCodeEmbeddingProvider;
 }
 
 interface SourceFile {
@@ -66,7 +69,7 @@ interface SourceFile {
 }
 
 interface RankedClineCodeSearchMatch extends ClineCodeSearchMatch {
-	source: "lexical" | "index";
+	source: "lexical" | "repo_map" | "index";
 }
 
 function asPositiveInteger(value: number | undefined, fallback: number): number {
@@ -186,6 +189,46 @@ function searchFile(
 	return matches;
 }
 
+function scoreRepoMapSymbol(symbol: ClineRepoMapSymbol, query: string, queryTokens: readonly string[]): number {
+	const searchable = `${symbol.name} ${symbol.kind} ${symbol.path}`.toLowerCase();
+	const lowerQuery = query.toLowerCase();
+	let score = 0;
+	if (searchable.includes(lowerQuery)) {
+		score += 80 + lowerQuery.length;
+	}
+	for (const token of queryTokens) {
+		if (searchable.includes(token.toLowerCase())) {
+			score += token === query ? 40 : 18;
+		}
+	}
+	if (score <= 0) {
+		return 0;
+	}
+	return score + Math.round(symbol.rankScore * 100) + Math.min(symbol.referenceCount, 20);
+}
+
+function searchRepoMapSymbols(
+	symbols: readonly ClineRepoMapSymbol[],
+	query: string,
+	queryTokens: readonly string[],
+): ClineCodeSearchMatch[] {
+	return symbols
+		.map((symbol) => {
+			const score = scoreRepoMapSymbol(symbol, query, queryTokens);
+			if (score <= 0) {
+				return null;
+			}
+			return {
+				path: symbol.path,
+				lineStart: symbol.line,
+				lineEnd: symbol.line,
+				score,
+				snippet: `${symbol.line}: ${symbol.kind} ${symbol.name} refs=${symbol.referenceCount}`,
+			} satisfies ClineCodeSearchMatch;
+		})
+		.filter((match): match is ClineCodeSearchMatch => match !== null);
+}
+
 function normalizeMatches(
 	matches: readonly ClineCodeSearchMatch[],
 	source: RankedClineCodeSearchMatch["source"],
@@ -201,11 +244,13 @@ function normalizeMatches(
 
 function rankHybridMatches(input: {
 	lexicalMatches: readonly ClineCodeSearchMatch[];
+	repoMapMatches: readonly ClineCodeSearchMatch[];
 	indexMatches: readonly ClineCodeSearchMatch[];
 	maxResults: number;
 }): { matches: ClineCodeSearchMatch[]; truncated: boolean } {
 	const combined = [
 		...normalizeMatches(input.lexicalMatches, "lexical", 100),
+		...normalizeMatches(input.repoMapMatches, "repo_map", 90),
 		...normalizeMatches(input.indexMatches, "index", 80),
 	].filter((match) => match.score > 0);
 	const bestByRange = new Map<string, RankedClineCodeSearchMatch>();
@@ -222,7 +267,12 @@ function rankHybridMatches(input: {
 			return scoreDelta;
 		}
 		if (left.source !== right.source) {
-			return left.source === "lexical" ? -1 : 1;
+			const priority = {
+				lexical: 0,
+				repo_map: 1,
+				index: 2,
+			} satisfies Record<RankedClineCodeSearchMatch["source"], number>;
+			return priority[left.source] - priority[right.source];
 		}
 		return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
 	});
@@ -263,9 +313,17 @@ export async function searchClineCode(options: SearchClineCodeOptions): Promise<
 		query,
 		maxFiles,
 		maxResults: Math.max(maxResults, DEFAULT_MAX_RESULTS),
+		embeddingProvider: options.embeddingProvider,
 	});
+	const repoMap = await buildClineRepoMap({
+		workspacePath: options.workspacePath,
+		maxFiles,
+		personalizationText: query,
+	});
+	const repoMapMatches = searchRepoMapSymbols(repoMap.symbols, query, queryTokens);
 	const hybrid = rankHybridMatches({
 		lexicalMatches,
+		repoMapMatches,
 		indexMatches: indexMatches.matches.map((match) => ({
 			path: match.path,
 			lineStart: match.lineStart,
@@ -277,8 +335,8 @@ export async function searchClineCode(options: SearchClineCodeOptions): Promise<
 	});
 	return {
 		query,
-		filesScanned: Math.max(files.length, indexMatches.filesScanned),
+		filesScanned: Math.max(files.length, indexMatches.filesScanned, repoMap.filesScanned),
 		matches: hybrid.matches,
-		truncated: hybrid.truncated || indexMatches.truncated,
+		truncated: hybrid.truncated || indexMatches.truncated || repoMap.truncated,
 	};
 }

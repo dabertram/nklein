@@ -75,7 +75,7 @@ describe("cline retrieval tools", () => {
 		expect(result.matches[0]?.lineEnd).toBeGreaterThanOrEqual(result.matches[0]?.lineStart ?? 0);
 	});
 
-	it("falls back to indexed chunk search when line search misses", async () => {
+	it("merges repo-map and indexed chunk search when line search misses", async () => {
 		const workspacePath = await createWorkspace();
 		const searchTool = getTool("search_code", workspacePath);
 
@@ -91,5 +91,6 @@ describe("cline retrieval tools", () => {
 		expect(result.filesScanned).toBe(2);
 		expect(result.matches[0]?.path).toBe("src/storage-adapter.ts");
 		expect(result.matches[0]?.snippet).toContain("createDriver");
+		expect(result.matches[0]?.snippet).toContain("refs=");
 	});
 });
