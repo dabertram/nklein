@@ -1059,6 +1059,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							staleFiles: 0,
 							missingFiles: 0,
 							searchAvailable: false,
+							progress: {
+								phase: "error" as const,
+								startedAt: null,
+								updatedAt: Date.now(),
+								filesTotal: 0,
+								filesProcessed: 0,
+								chunksTotal: 0,
+								chunksProcessed: 0,
+								cacheHitCount: 0,
+								cacheMissCount: 0,
+								message:
+									codeIndexResult.reason instanceof Error
+										? codeIndexResult.reason.message
+										: String(codeIndexResult.reason),
+							},
 							error:
 								codeIndexResult.reason instanceof Error
 									? codeIndexResult.reason.message

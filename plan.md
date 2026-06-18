@@ -521,24 +521,27 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
       explicit per-model context-window Save/Clear controls backed by the MCSR override API. Still open:
       putting that override flow directly into first-run onboarding, richer role tuning, and a more guided
       endpoint install/start flow.
-- [~] **Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
+- [x] ~~**Code intelligence status & progress** *(explicitly requested).* Surface repo-map build state and
       **code-index embedding progress** — chunks indexed / total, % done, last indexed, staleness, search
       availability — as a small board/settings status chip with an expandable detail panel. Covers
       `cline-repo-map.ts` / `cline-code-index.ts` / `cline-code-search.ts`, which have **no UI today**.
-      **Progress:** settings now has a refreshable Code intelligence panel backed by a typed runtime API.
+      ~~ Settings now has a refreshable Code intelligence panel backed by a typed runtime API.
       It reports repo-map availability/files/symbols/truncation and code-index cache coverage
       (indexed chunks/total chunks, indexed files/total files, stale/missing files, last indexed,
       embedding provider/model, cache path, and search availability). The board Local swarm strip now also
       shows a compact code-intelligence chip (`ready`, `issue`, repo-map ready, or code-index coverage).
-      Still open: live indexing/build progress while a task is actively using these tools.
+      Active `searchClineCodeIndex` runs now publish in-memory scan/embed/persist progress with file/chunk
+      counters and cache hit/miss counts; the settings panel shows that progress and polls until the run
+      completes, errors, or returns idle.
 - [~] **"What Kanban is doing right now" activity surface.** During active work, show the live per-card
       pipeline: planning → routing decision (which model/role and *why*) → context budget (L1.6 bar) →
       retrieval/indexing → tool calls → acceptance gate result → merge. Each step expandable to its raw
       detail for technical users; collapsed to a plain status for everyone else. **Progress:** card detail now
       includes a compact Activity surface above diagnostics, populated from the selected card and live session
       summary: planning/execution state, provider/model routing, context-budget usage, current tool activity,
-      and acceptance/review state. Still open: explicit routing rationale, retrieval/indexing progress,
-      acceptance-gate result history, and merge-step status as first-class expandable events.
+      and acceptance/review state. It now separates retrieval/indexing from generic tool calls and labels
+      routing detail as card-selected or runtime-selected, including the selected local endpoint when available.
+      Still open: acceptance-gate result history and merge-step status as first-class expandable events.
 - [~] **Settings coverage for every capability.** Reorganize settings so each new pillar is configurable
       and explained in plain language with an "advanced" reveal for raw values: model roles & roster,
       per-model context-window override, routing/guard thresholds, concurrency cap,

@@ -27,6 +27,24 @@ async function createWorkspace(): Promise<string> {
 	return workspacePath;
 }
 
+async function waitForCondition(condition: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error("Condition was not met before timeout.");
+}
+
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+	let resolveDeferred: () => void = () => {};
+	const promise = new Promise<void>((resolve) => {
+		resolveDeferred = resolve;
+	});
+	return { promise, resolve: resolveDeferred };
+}
+
 describe("cline code index", () => {
 	it("returns offline chunk matches using path and token-vector similarity", async () => {
 		const workspacePath = await createWorkspace();
@@ -75,6 +93,45 @@ describe("cline code index", () => {
 				embeddingModel: "kanban-local-lexical-vector-v1",
 			}),
 		);
+	});
+
+	it("reports active indexing progress while embeddings are being built", async () => {
+		const workspacePath = await createWorkspace();
+		let embedCalls = 0;
+		const blockedEmbedding = createDeferred();
+		const provider: ClineCodeEmbeddingProvider = {
+			kind: "local_lexical",
+			model: "test-progress-provider",
+			cacheKey: "local-progress:test",
+			async embed(text) {
+				embedCalls += 1;
+				if (embedCalls === 2) {
+					await blockedEmbedding.promise;
+				}
+				return new Map([["length", text.length]]);
+			},
+		};
+
+		const searchPromise = searchClineCodeIndex({
+			workspacePath,
+			query: "storage persistence",
+			chunkLines: 4,
+			embeddingProvider: provider,
+		});
+		await waitForCondition(() => embedCalls >= 2);
+
+		const active = await getClineCodeIndexStatus({ workspacePath, chunkLines: 4 });
+		expect(active.progress.phase).toBe("embedding");
+		expect(active.progress.filesTotal).toBe(1);
+		expect(active.progress.filesProcessed).toBe(1);
+		expect(active.progress.chunksTotal).toBeGreaterThan(1);
+		expect(active.progress.chunksProcessed).toBe(0);
+
+		blockedEmbedding.resolve();
+		await searchPromise;
+		const completed = await getClineCodeIndexStatus({ workspacePath, chunkLines: 4 });
+		expect(completed.progress.phase).toBe("complete");
+		expect(completed.progress.chunksProcessed).toBe(completed.progress.chunksTotal);
 	});
 
 	it("garbage-collects cached vectors for deleted chunks", async () => {

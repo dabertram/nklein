@@ -354,6 +354,18 @@ describe("RuntimeSettingsDialog", () => {
 				staleFiles: 1,
 				missingFiles: 1,
 				searchAvailable: true,
+				progress: {
+					phase: "idle",
+					startedAt: null,
+					updatedAt: null,
+					filesTotal: 0,
+					filesProcessed: 0,
+					chunksTotal: 0,
+					chunksProcessed: 0,
+					cacheHitCount: 0,
+					cacheMissCount: 0,
+					message: null,
+				},
 				error: null,
 			},
 		});
@@ -527,6 +539,60 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("repo map ready");
 		expect(document.body.textContent).toContain("12 files scanned");
 		expect(document.body.textContent).toContain("34 symbols");
+	});
+
+	it("shows active code-index progress in settings", async () => {
+		fetchClineCodeIntelligenceStatusMock.mockResolvedValueOnce({
+			repoMap: {
+				filesScanned: 12,
+				symbols: 34,
+				tokenCount: 900,
+				truncated: false,
+				available: true,
+				error: null,
+			},
+			codeIndex: {
+				cachePath: "/repo/.cline/kanban/code-index-v1.json",
+				cacheExists: true,
+				embeddingProvider: "local_lexical",
+				embeddingModel: "kanban-local-lexical-vector-v1",
+				updatedAt: Date.now(),
+				totalFiles: 12,
+				totalChunks: 20,
+				indexedFiles: 6,
+				indexedChunks: 8,
+				staleFiles: 1,
+				missingFiles: 1,
+				searchAvailable: true,
+				progress: {
+					phase: "embedding",
+					startedAt: Date.now(),
+					updatedAt: Date.now(),
+					filesTotal: 12,
+					filesProcessed: 12,
+					chunksTotal: 20,
+					chunksProcessed: 8,
+					cacheHitCount: 3,
+					cacheMissCount: 5,
+					message: "Embedding 20 code chunks",
+				},
+				error: null,
+			},
+		});
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		await waitForCondition(() => document.body.textContent?.includes("Indexing 8/20 chunks") === true);
+
+		expect(document.body.textContent).toContain("Indexing 8/20 chunks");
 	});
 
 	it("shows and saves local model context-window overrides in settings", async () => {

@@ -931,6 +931,31 @@ function formatCodeIndexCoverage(status: RuntimeClineCodeIntelligenceStatusRespo
 	return `${status.indexedChunks}/${status.totalChunks} chunks (${percent}%)`;
 }
 
+function formatCodeIndexProgress(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string | null {
+	const progress = status.progress;
+	if (progress.phase === "idle" || progress.phase === "complete") {
+		return null;
+	}
+	if (progress.phase === "scanning") {
+		return `Scanning ${progress.filesProcessed}/${progress.filesTotal} files`;
+	}
+	if (progress.phase === "embedding") {
+		return `Indexing ${progress.chunksProcessed}/${progress.chunksTotal} chunks`;
+	}
+	if (progress.phase === "persisting") {
+		return "Writing code-index cache";
+	}
+	return progress.message ? `Indexing error: ${progress.message}` : "Indexing error";
+}
+
+function isCodeIndexProgressActive(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"] | null): boolean {
+	return (
+		status?.progress.phase === "scanning" ||
+		status?.progress.phase === "embedding" ||
+		status?.progress.phase === "persisting"
+	);
+}
+
 function ClineCodeIntelligenceStatusPanel({
 	workspaceId,
 	open,
@@ -971,8 +996,21 @@ function ClineCodeIntelligenceStatusPanel({
 
 	const codeIndex = status?.codeIndex ?? null;
 	const repoMap = status?.repoMap ?? null;
+	useEffect(() => {
+		if (!open || !isCodeIndexProgressActive(codeIndex)) {
+			return;
+		}
+		const timeoutId = window.setTimeout(refreshStatus, 1500);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [codeIndex, open, refreshStatus]);
+
+	const progressText = codeIndex ? formatCodeIndexProgress(codeIndex) : null;
 	const statusText = codeIndex
-		? `${formatCodeIndexCoverage(codeIndex)} indexed · repo map ${repoMap?.available ? "ready" : "unavailable"}`
+		? `${progressText ?? `${formatCodeIndexCoverage(codeIndex)} indexed`} · repo map ${
+				repoMap?.available ? "ready" : "unavailable"
+			}`
 		: "Status not loaded";
 
 	return (
@@ -1028,6 +1066,18 @@ function ClineCodeIntelligenceStatusPanel({
 			{detailsOpen && status ? (
 				<div className="mt-2 rounded-md border border-border bg-surface-2 px-2 py-2 text-[12px] text-text-secondary">
 					<div>Search: {status.codeIndex.searchAvailable ? "available" : "not ready"}</div>
+					<div>
+						Progress: {status.codeIndex.progress.phase}
+						{status.codeIndex.progress.message ? ` (${status.codeIndex.progress.message})` : ""}
+					</div>
+					<div>
+						Indexed this run: {status.codeIndex.progress.chunksProcessed}/{status.codeIndex.progress.chunksTotal}{" "}
+						chunks, {status.codeIndex.progress.filesProcessed}/{status.codeIndex.progress.filesTotal} files
+					</div>
+					<div>
+						Cache this run: {status.codeIndex.progress.cacheHitCount} hits /{" "}
+						{status.codeIndex.progress.cacheMissCount} misses
+					</div>
 					<div>Stale files: {status.codeIndex.staleFiles}</div>
 					<div>Missing files: {status.codeIndex.missingFiles}</div>
 					<div>

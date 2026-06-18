@@ -69,6 +69,8 @@
 - Added a Planning card DAG review panel in task detail, showing linked prerequisite/dependent cards with status, complexity, likely files, and model/agent hints.
 - Added a Local swarm guardrails section to settings, surfacing the current concurrency cap plus enforced Cline turn, wall-time, no-diff, and mistake guardrails.
 - Added local-only per-model Cline context-window overrides, with a typed runtime save/clear API plus controls in both the Model Telemetry panel and Cline settings.
+- Added live code-index progress reporting for local code search, surfacing scan/embed/cache-write phases plus file/chunk and cache hit/miss counters in Cline settings.
+- Enriched the card Activity surface with explicit card-selected/runtime-selected routing details and a separate retrieval/indexing step for file and code-search tools.
 
 ## [0.1.68]
 

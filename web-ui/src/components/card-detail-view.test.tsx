@@ -616,9 +616,11 @@ describe("CardDetailView", () => {
 
 		expect(container.textContent).toContain("Activity");
 		expect(container.textContent).toContain("Routing");
-		expect(container.textContent).toContain("lmstudio / qwen3");
+		expect(container.textContent).toContain("runtime-selected: lmstudio / qwen3 on lmstudio:default");
 		expect(container.textContent).toContain("Context");
 		expect(container.textContent).toContain("12k / 40k tokens");
+		expect(container.textContent).toContain("Retrieval");
+		expect(container.textContent).toContain("src/example.ts");
 		expect(container.textContent).toContain("read_file");
 	});
 

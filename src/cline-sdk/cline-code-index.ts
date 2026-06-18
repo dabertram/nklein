@@ -81,6 +81,22 @@ export interface ClineCodeIndexStatus {
 	staleFiles: number;
 	missingFiles: number;
 	searchAvailable: boolean;
+	progress: ClineCodeIndexProgressSnapshot;
+}
+
+export type ClineCodeIndexProgressPhase = "idle" | "scanning" | "embedding" | "persisting" | "complete" | "error";
+
+export interface ClineCodeIndexProgressSnapshot {
+	phase: ClineCodeIndexProgressPhase;
+	startedAt: number | null;
+	updatedAt: number | null;
+	filesTotal: number;
+	filesProcessed: number;
+	chunksTotal: number;
+	chunksProcessed: number;
+	cacheHitCount: number;
+	cacheMissCount: number;
+	message: string | null;
 }
 
 export interface SearchClineCodeIndexOptions {
@@ -140,6 +156,67 @@ interface VectorCache {
 	entries: Map<string, SparseVector>;
 	hitCount: number;
 	missCount: number;
+}
+
+interface ClineCodeIndexProgressState extends ClineCodeIndexProgressSnapshot {
+	runId: number;
+}
+
+const codeIndexProgressByWorkspacePath = new Map<string, ClineCodeIndexProgressState>();
+let codeIndexProgressRunId = 0;
+
+function createIdleCodeIndexProgress(): ClineCodeIndexProgressSnapshot {
+	return {
+		phase: "idle",
+		startedAt: null,
+		updatedAt: null,
+		filesTotal: 0,
+		filesProcessed: 0,
+		chunksTotal: 0,
+		chunksProcessed: 0,
+		cacheHitCount: 0,
+		cacheMissCount: 0,
+		message: null,
+	};
+}
+
+function updateCodeIndexProgress(
+	workspacePath: string,
+	runId: number,
+	patch: Partial<ClineCodeIndexProgressSnapshot>,
+): void {
+	const current = codeIndexProgressByWorkspacePath.get(workspacePath);
+	if (!current || current.runId !== runId) {
+		return;
+	}
+	codeIndexProgressByWorkspacePath.set(workspacePath, {
+		...current,
+		...patch,
+		updatedAt: Date.now(),
+	});
+}
+
+function startCodeIndexProgress(workspacePath: string, message: string): number {
+	const now = Date.now();
+	codeIndexProgressRunId += 1;
+	const runId = codeIndexProgressRunId;
+	codeIndexProgressByWorkspacePath.set(workspacePath, {
+		...createIdleCodeIndexProgress(),
+		runId,
+		phase: "scanning",
+		startedAt: now,
+		updatedAt: now,
+		message,
+	});
+	return runId;
+}
+
+function getCodeIndexProgressSnapshot(workspacePath: string): ClineCodeIndexProgressSnapshot {
+	const { runId: _runId, ...snapshot } = codeIndexProgressByWorkspacePath.get(workspacePath) ?? {
+		...createIdleCodeIndexProgress(),
+		runId: 0,
+	};
+	return snapshot;
 }
 
 function asPositiveInteger(value: number | undefined, fallback: number): number {
@@ -400,76 +477,112 @@ export async function searchClineCodeIndex(options: SearchClineCodeIndexOptions)
 	if (!query) {
 		throw new Error("Code index query cannot be empty.");
 	}
+	const progressRunId = startCodeIndexProgress(options.workspacePath, "Scanning source files");
 	const maxFiles = asPositiveInteger(options.maxFiles, DEFAULT_MAX_FILES);
 	const maxResults = asPositiveInteger(options.maxResults, DEFAULT_MAX_RESULTS);
 	const chunkLines = Math.min(asPositiveInteger(options.chunkLines, DEFAULT_CHUNK_LINES), 200);
 	const embeddingProvider = options.embeddingProvider ?? createClineCodeEmbeddingProvider();
-	const vectorCache = await loadVectorCache({
-		workspacePath: options.workspacePath,
-		chunkLines,
-		cachePath: options.cachePath ?? undefined,
-		useCache: options.useCache !== false,
-		embeddingProvider,
-	});
-	const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
-	const files: SourceFile[] = [];
-	for (const filePath of filePaths) {
-		files.push({
-			path: relative(options.workspacePath, filePath),
-			content: await readFile(filePath, "utf8"),
+	try {
+		const vectorCache = await loadVectorCache({
+			workspacePath: options.workspacePath,
+			chunkLines,
+			cachePath: options.cachePath ?? undefined,
+			useCache: options.useCache !== false,
+			embeddingProvider,
 		});
-	}
+		const filePaths = await listSourceFiles(options.workspacePath, maxFiles);
+		updateCodeIndexProgress(options.workspacePath, progressRunId, {
+			filesTotal: filePaths.length,
+			message: `Scanning ${filePaths.length} source file${filePaths.length === 1 ? "" : "s"}`,
+		});
+		const files: SourceFile[] = [];
+		for (const filePath of filePaths) {
+			files.push({
+				path: relative(options.workspacePath, filePath),
+				content: await readFile(filePath, "utf8"),
+			});
+			updateCodeIndexProgress(options.workspacePath, progressRunId, {
+				filesProcessed: files.length,
+			});
+		}
 
-	const queryVector = await embeddingProvider.embed(query);
-	const chunksByFile = new Map<string, ClineCodeIndexChunk[]>();
-	const chunks = files.flatMap((file) => {
-		const fileChunks = chunkFile(file, chunkLines);
-		chunksByFile.set(file.path, fileChunks);
-		return fileChunks;
-	});
-	const scoredMatches: ClineCodeIndexSearchMatch[] = [];
-	for (const chunk of chunks) {
-		const vectorText = `${chunk.path}\n${chunk.text}`;
-		const similarity = cosineSimilarity(
-			queryVector,
-			await getCachedVector(vectorCache, embeddingProvider, hashText(vectorText), vectorText),
-		);
-		scoredMatches.push({
-			...chunk,
-			score: Math.round(similarity * 100) + lexicalScore(`${chunk.path}\n${chunk.text}`, query),
+		const queryVector = await embeddingProvider.embed(query);
+		const chunksByFile = new Map<string, ClineCodeIndexChunk[]>();
+		const chunks = files.flatMap((file) => {
+			const fileChunks = chunkFile(file, chunkLines);
+			chunksByFile.set(file.path, fileChunks);
+			return fileChunks;
 		});
-	}
-	const rankedMatches = scoredMatches
-		.filter((match) => match.score > 0)
-		.sort((left, right) => {
-			const scoreDelta = right.score - left.score;
-			if (scoreDelta !== 0) {
-				return scoreDelta;
-			}
-			return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
+		updateCodeIndexProgress(options.workspacePath, progressRunId, {
+			phase: "embedding",
+			chunksTotal: chunks.length,
+			message: `Embedding ${chunks.length} code chunk${chunks.length === 1 ? "" : "s"}`,
 		});
-	await persistVectorCache({
-		cache: vectorCache,
-		files,
-		chunksByFile,
-		chunkLines,
-		workspacePath: options.workspacePath,
-		embeddingProvider,
-	});
-
-	return {
-		query,
-		filesScanned: files.length,
-		matches: rankedMatches.slice(0, maxResults),
-		truncated: rankedMatches.length > maxResults,
-		index: {
-			embeddingModel: embeddingProvider.model,
-			embeddingProvider: embeddingProvider.kind,
-			cachePath: vectorCache.cachePath,
+		const scoredMatches: ClineCodeIndexSearchMatch[] = [];
+		for (const chunk of chunks) {
+			const vectorText = `${chunk.path}\n${chunk.text}`;
+			const similarity = cosineSimilarity(
+				queryVector,
+				await getCachedVector(vectorCache, embeddingProvider, hashText(vectorText), vectorText),
+			);
+			scoredMatches.push({
+				...chunk,
+				score: Math.round(similarity * 100) + lexicalScore(`${chunk.path}\n${chunk.text}`, query),
+			});
+			updateCodeIndexProgress(options.workspacePath, progressRunId, {
+				chunksProcessed: scoredMatches.length,
+				cacheHitCount: vectorCache.hitCount,
+				cacheMissCount: vectorCache.missCount,
+			});
+		}
+		const rankedMatches = scoredMatches
+			.filter((match) => match.score > 0)
+			.sort((left, right) => {
+				const scoreDelta = right.score - left.score;
+				if (scoreDelta !== 0) {
+					return scoreDelta;
+				}
+				return `${left.path}:${left.lineStart}`.localeCompare(`${right.path}:${right.lineStart}`);
+			});
+		updateCodeIndexProgress(options.workspacePath, progressRunId, {
+			phase: "persisting",
+			message: "Writing code-index cache",
+		});
+		await persistVectorCache({
+			cache: vectorCache,
+			files,
+			chunksByFile,
+			chunkLines,
+			workspacePath: options.workspacePath,
+			embeddingProvider,
+		});
+		updateCodeIndexProgress(options.workspacePath, progressRunId, {
+			phase: "complete",
 			cacheHitCount: vectorCache.hitCount,
 			cacheMissCount: vectorCache.missCount,
-		},
-	};
+			message: `Indexed ${chunks.length} code chunk${chunks.length === 1 ? "" : "s"}`,
+		});
+
+		return {
+			query,
+			filesScanned: files.length,
+			matches: rankedMatches.slice(0, maxResults),
+			truncated: rankedMatches.length > maxResults,
+			index: {
+				embeddingModel: embeddingProvider.model,
+				embeddingProvider: embeddingProvider.kind,
+				cachePath: vectorCache.cachePath,
+				cacheHitCount: vectorCache.hitCount,
+				cacheMissCount: vectorCache.missCount,
+			},
+		};
+	} catch (error) {
+		updateCodeIndexProgress(options.workspacePath, progressRunId, {
+			phase: "error",
+			message: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
 }
 
 export async function getClineCodeIndexStatus(options: GetClineCodeIndexStatusOptions): Promise<ClineCodeIndexStatus> {
@@ -517,5 +630,6 @@ export async function getClineCodeIndexStatus(options: GetClineCodeIndexStatusOp
 		staleFiles,
 		missingFiles,
 		searchAvailable: indexedChunks > 0,
+		progress: getCodeIndexProgressSnapshot(options.workspacePath),
 	};
 }

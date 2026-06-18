@@ -255,6 +255,36 @@ function getActivityToneClassName(tone: TaskActivityStep["tone"]): string {
 	return "border-border-bright text-text-tertiary";
 }
 
+function formatRoutingActivityDetail(selection: CardSelection, summary: RuntimeTaskSessionSummary | null): string {
+	const providerId = summary?.providerId?.trim() || selection.card.clineSettings?.providerId?.trim();
+	const modelId = summary?.modelId?.trim() || selection.card.clineSettings?.modelId?.trim();
+	const endpoint = summary?.sharedEndpointId?.trim();
+	if (providerId && modelId) {
+		const source =
+			selection.card.clineSettings?.providerId || selection.card.clineSettings?.modelId
+				? "card-selected"
+				: "runtime-selected";
+		return endpoint
+			? `${source}: ${providerId} / ${modelId} on ${endpoint}`
+			: `${source}: ${providerId} / ${modelId}`;
+	}
+	return summary?.agentId ?? selection.card.agentId ?? "Default agent selection";
+}
+
+function isRetrievalOrIndexingTool(toolName: string | null | undefined): boolean {
+	const normalized = toolName?.trim().toLowerCase();
+	return (
+		normalized === "read_files" ||
+		normalized === "read_file" ||
+		normalized === "read_large_file" ||
+		normalized === "search_files" ||
+		normalized === "search_code" ||
+		normalized === "list_files" ||
+		normalized === "get_file_size" ||
+		normalized === "get_repo_map"
+	);
+}
+
 function buildTaskActivitySteps(
 	selection: CardSelection,
 	summary: RuntimeTaskSessionSummary | null,
@@ -267,6 +297,7 @@ function buildTaskActivitySteps(
 		? Math.round((contextBreakdown.projectedTokens / contextBreakdown.effectiveContextWindow) * 100)
 		: null;
 	const hookActivity = summary?.latestHookActivity;
+	const isRetrievalActive = isRetrievalOrIndexingTool(hookActivity?.toolName);
 	const acceptanceDetail =
 		selection.column.id === "completed"
 			? "Completed"
@@ -285,10 +316,7 @@ function buildTaskActivitySteps(
 		{
 			label: "Routing",
 			status: summary?.state === "running" ? "Selected" : modelParts.length > 0 ? "Known" : "Pending",
-			detail:
-				modelParts.length > 0
-					? modelParts.join(" / ")
-					: (summary?.agentId ?? selection.card.agentId ?? "Default agent"),
+			detail: formatRoutingActivityDetail(selection, summary),
 			tone: summary?.state === "running" ? "active" : modelParts.length > 0 ? "done" : "waiting",
 		},
 		{
@@ -307,6 +335,18 @@ function buildTaskActivitySteps(
 						: contextPercent >= 85
 							? "waiting"
 							: "done",
+		},
+		{
+			label: "Retrieval",
+			status: isRetrievalActive
+				? (hookActivity?.toolName ?? "Active")
+				: summary?.state === "running"
+					? "Watching"
+					: "Idle",
+			detail: isRetrievalActive
+				? (hookActivity?.toolInputSummary ?? hookActivity?.activityText ?? "Retrieving workspace context")
+				: "No retrieval or indexing activity",
+			tone: isRetrievalActive ? "active" : summary?.state === "running" ? "waiting" : "muted",
 		},
 		{
 			label: "Tool calls",
@@ -338,7 +378,7 @@ function TaskActivitySurface({
 				<span>Activity</span>
 				<span className="truncate text-text-tertiary">{sessionSummary?.state ?? "No session"}</span>
 			</div>
-			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+			<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
 				{steps.map((step) => (
 					<div key={step.label} className="min-w-0 rounded-md border border-border bg-surface-0 px-2 py-1.5">
 						<div className="flex min-w-0 items-center gap-1.5">

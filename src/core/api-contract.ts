@@ -931,6 +931,18 @@ export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
 		staleFiles: z.number().int().nonnegative(),
 		missingFiles: z.number().int().nonnegative(),
 		searchAvailable: z.boolean(),
+		progress: z.object({
+			phase: z.enum(["idle", "scanning", "embedding", "persisting", "complete", "error"]),
+			startedAt: z.number().int().nonnegative().nullable(),
+			updatedAt: z.number().int().nonnegative().nullable(),
+			filesTotal: z.number().int().nonnegative(),
+			filesProcessed: z.number().int().nonnegative(),
+			chunksTotal: z.number().int().nonnegative(),
+			chunksProcessed: z.number().int().nonnegative(),
+			cacheHitCount: z.number().int().nonnegative(),
+			cacheMissCount: z.number().int().nonnegative(),
+			message: z.string().nullable(),
+		}),
 		error: z.string().nullable(),
 	}),
 });
