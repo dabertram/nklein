@@ -190,7 +190,7 @@ You asked whether feeding in curated guidance (UI/UX, layout, performance, secur
 
 ### E1. Integration mechanism
 - [x] Reuse the existing workflow-seeding path (the one that seeds `kanban-decompose.md` and is referenced as `/kanban-decompose`). Seed a set of `skills/<topic>/SKILL.md` docs into the project config.
-- [ ] **On-demand loading:** the decomposition/router tags each card with a topic (`ui`, `security`, `perf`, `arch`, `ts`, `testing`, …); the matching skill loads only when that card runs. Keep an always-on digest ≤ a few hundred tokens; pull depth on demand.
+- [x] **On-demand loading:** the decomposition/router tags each card with a topic (`ui`, `security`, `perf`, `arch`, `ts`, `testing`, …); the matching skill loads only when that card runs. Keep an always-on digest ≤ a few hundred tokens; pull depth on demand.
 - [x] Each seeded v1 skill is **terse, copy-pasteable, and !Klein-specific** — cites the real design tokens (`globals.css @theme`), the UI primitives (`src/components/ui/`), the SDK boundary (`src/cline-sdk/`), and the repo rules (no `any`, react-use hooks, Tailwind-over-inline). Generic advice the model already knows is omitted.
 
 ### E2. Source list to distill (do **not** paste wholesale)
@@ -203,7 +203,7 @@ You asked whether feeding in curated guidance (UI/UX, layout, performance, secur
 
 ### E3. Output of this workstream
 - [x] A `skills/` directory (seeded) with one distilled doc per initial topic (`security`, `ui`, `ts`), each ≤ ~300–500 tokens, each ending with a "!Klein specifics" block.
-- [ ] A mapping table: card-topic → skill file, plus the router hook that injects it.
+- [x] A mapping table: card-topic → skill file, plus the router hook that injects it.
 
 ---
 

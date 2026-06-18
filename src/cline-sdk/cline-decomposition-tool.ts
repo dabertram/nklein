@@ -11,6 +11,7 @@ import type {
 import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { resolveClineGuidanceSkillCommand, resolveClineGuidanceSkillTopic } from "./cline-guidance-skills";
 import {
 	appendClinePlanRevision,
 	type ClinePlanQuestion,
@@ -178,6 +179,14 @@ function buildTaskPrompt(
 	modelFitEvidence?: string | null,
 ): string {
 	const sections = [task.prompt.trim()];
+	const guidanceTopic = resolveClineGuidanceSkillTopic({
+		title: task.title,
+		prompt: task.prompt,
+		filesLikelyTouched: task.filesLikelyTouched,
+	});
+	if (guidanceTopic) {
+		sections.unshift(`/${resolveClineGuidanceSkillCommand(guidanceTopic)}\n\nGuidance topic: ${guidanceTopic}`);
+	}
 	const sharedPlanContext = formatSharedPlanContext(sharedContext);
 	if (sharedPlanContext) {
 		sections.push(sharedPlanContext);

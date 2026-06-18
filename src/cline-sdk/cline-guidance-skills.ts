@@ -1,9 +1,31 @@
 export interface ClineGuidanceSkillDefault {
-	topic: "security" | "ui" | "ts";
+	topic: ClineGuidanceSkillTopic;
 	directoryName: string;
 	commandName: string;
 	markdown: string;
 }
+
+export type ClineGuidanceSkillTopic = "security" | "ui" | "ts";
+
+export interface ClineGuidanceSkillRoute {
+	commandName: string;
+	skillFile: string;
+}
+
+export const CLINE_GUIDANCE_SKILL_TOPIC_MAP: Readonly<Record<ClineGuidanceSkillTopic, ClineGuidanceSkillRoute>> = {
+	security: {
+		commandName: "nklein-security",
+		skillFile: "skills/nklein-security/SKILL.md",
+	},
+	ui: {
+		commandName: "nklein-ui",
+		skillFile: "skills/nklein-ui/SKILL.md",
+	},
+	ts: {
+		commandName: "nklein-ts",
+		skillFile: "skills/nklein-ts/SKILL.md",
+	},
+};
 
 export const CLINE_GUIDANCE_SKILL_DEFAULTS: readonly ClineGuidanceSkillDefault[] = [
 	{
@@ -98,3 +120,73 @@ type EvidenceState = { status: "idle" } | { status: "copying"; taskId: string };
 - Every feature, fix, or behavior change updates the \`## [Upcoming]\` section in \`CHANGELOG.md\`.`,
 	},
 ];
+
+function includesAny(value: string, patterns: readonly RegExp[]): boolean {
+	return patterns.some((pattern) => pattern.test(value));
+}
+
+const SECURITY_PATTERNS = [
+	/\bauth(?:entication|orization)?\b/i,
+	/\btoken\b/i,
+	/\bsecret\b/i,
+	/\bcredential\b/i,
+	/\bcookie\b/i,
+	/\bcsrf\b/i,
+	/\bxss\b/i,
+	/\bpermission\b/i,
+	/\bapproval\b/i,
+	/\bprotected[- ]test\b/i,
+	/\bsecurity\b/i,
+] as const;
+
+const UI_PATTERNS = [
+	/\bui\b/i,
+	/\bux\b/i,
+	/\bcomponent\b/i,
+	/\bdialog\b/i,
+	/\bbutton\b/i,
+	/\bcard\b/i,
+	/\bpanel\b/i,
+	/\blayout\b/i,
+	/\btooltip\b/i,
+	/\baccessib(?:ility|le)\b/i,
+	/\btailwind\b/i,
+	/\bradix\b/i,
+] as const;
+
+const TS_PATTERNS = [
+	/\btypescript\b/i,
+	/\btype\b/i,
+	/\bschema\b/i,
+	/\bzod\b/i,
+	/\binterface\b/i,
+	/\bcontract\b/i,
+	/\btrpc\b/i,
+] as const;
+
+export function resolveClineGuidanceSkillTopic(input: {
+	title?: string | null;
+	prompt?: string | null;
+	filesLikelyTouched?: readonly string[] | null;
+}): ClineGuidanceSkillTopic | null {
+	const files = input.filesLikelyTouched ?? [];
+	const fileText = files.join("\n");
+	const text = `${input.title ?? ""}\n${input.prompt ?? ""}\n${fileText}`;
+	if (
+		includesAny(text, SECURITY_PATTERNS) ||
+		files.some((path) => /(^|\/)(security|auth|agent-write-guard)/i.test(path))
+	) {
+		return "security";
+	}
+	if (includesAny(text, UI_PATTERNS) || files.some((path) => /(^|\/)web-ui\/|\.tsx$|(^|\/)components\//i.test(path))) {
+		return "ui";
+	}
+	if (includesAny(text, TS_PATTERNS) || files.some((path) => /\.tsx?$|(^|\/)src\/.*\.ts$/i.test(path))) {
+		return "ts";
+	}
+	return null;
+}
+
+export function resolveClineGuidanceSkillCommand(topic: ClineGuidanceSkillTopic): string {
+	return CLINE_GUIDANCE_SKILL_TOPIC_MAP[topic].commandName;
+}

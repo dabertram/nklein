@@ -10,6 +10,7 @@ import {
 	createClineDecompositionTools,
 	replaceClinePlanTaskInGraph,
 } from "../../../src/cline-sdk/cline-decomposition-tool";
+import { CLINE_GUIDANCE_SKILL_TOPIC_MAP } from "../../../src/cline-sdk/cline-guidance-skills";
 import {
 	type ClinePlanTaskGraph,
 	readClinePlanArtifacts,
@@ -178,6 +179,65 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.createdTasks[0]?.prompt).toContain("Keep reminders out of the first release.");
 		expect(result.createdTasks[0]?.prompt).toContain("Shared decisions:");
 		expect(result.createdTasks[0]?.prompt).toContain("Assumption: Sync is out of scope.");
+	});
+
+	it("injects matching guidance skill commands into generated card prompts", () => {
+		const graph = createTaskGraph();
+		const storageTask = graph.tasks[0];
+		const uiTask = graph.tasks[1];
+		if (!storageTask || !uiTask) {
+			throw new Error("Expected tasks.");
+		}
+		graph.tasks = [
+			{
+				...storageTask,
+				id: "guard-token-write",
+				title: "Protect auth token writes",
+				prompt: "Review credential handling before changing the auth token persistence path.",
+				filesLikelyTouched: ["src/security/passcode-manager.ts"],
+			},
+			{
+				...uiTask,
+				id: "settings-panel",
+				title: "Build settings panel",
+				prompt: "Implement the settings UI panel.",
+				dependsOn: ["guard-token-write"],
+				filesLikelyTouched: ["web-ui/src/components/settings-panel.tsx"],
+			},
+			{
+				...storageTask,
+				id: "workspace-schema",
+				title: "Tighten workspace schema",
+				prompt: "Update the TypeScript contract for workspace state.",
+				filesLikelyTouched: ["src/trpc/workspace-api.ts"],
+			},
+			{
+				...storageTask,
+				id: "release-notes",
+				title: "Update release notes",
+				prompt: "Update the release notes.",
+				filesLikelyTouched: ["docs/release-notes.md"],
+			},
+		];
+
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: graph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		expect(CLINE_GUIDANCE_SKILL_TOPIC_MAP.ui.skillFile).toBe("skills/nklein-ui/SKILL.md");
+		expect(result.createdTasks[0]?.prompt).toMatch(
+			new RegExp(`^/${CLINE_GUIDANCE_SKILL_TOPIC_MAP.security.commandName}`),
+		);
+		expect(result.createdTasks[0]?.prompt).toContain("Guidance topic: security");
+		expect(result.createdTasks[1]?.prompt).toMatch(new RegExp(`^/${CLINE_GUIDANCE_SKILL_TOPIC_MAP.ui.commandName}`));
+		expect(result.createdTasks[1]?.prompt).toContain("Guidance topic: ui");
+		expect(result.createdTasks[2]?.prompt).toMatch(new RegExp(`^/${CLINE_GUIDANCE_SKILL_TOPIC_MAP.ts.commandName}`));
+		expect(result.createdTasks[2]?.prompt).toContain("Guidance topic: ts");
+		expect(result.createdTasks[3]?.prompt).not.toContain("/nklein-");
 	});
 
 	it("keeps board task ids unique when plan ids slugify to the same value", () => {

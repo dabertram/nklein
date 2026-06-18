@@ -13,6 +13,7 @@
 - Added automatic migration from legacy `~/.cline/kanban` runtime data into `~/.cline/nklein`, plus browser localStorage key migration from `kanban.*` to `nklein.*`, so existing installs keep their plans, telemetry, dev runs, config, code index, and UI preferences.
 - Added a task-detail `Copy evidence` action backed by a typed runtime evidence bundle endpoint, capturing card prompt, base ref/commit, worktree path, transcript, bounded diff evidence, and runtime config before copying a ready-to-paste external-agent prompt.
 - Added a separate protected-test runner (`npm run test:protected`) with a curated manifest and co-located rationale docs, plus write-guard blocks for protected-suite paths and config files.
+- Added topic-based guidance routing for decomposition-generated cards, injecting the matching `/nklein-security`, `/nklein-ui`, or `/nklein-ts` skill command from a maintained topic map.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.
