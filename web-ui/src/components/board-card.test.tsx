@@ -201,6 +201,44 @@ describe("BoardCard", () => {
 		expect(nextCancelButton).toBeUndefined();
 	});
 
+	it("shows a recovery message for lost Cline heartbeats", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="review"
+					sessionSummary={createSummary("awaiting_review", {
+						reviewReason: "error",
+						heartbeatStatus: "lost",
+						warningMessage:
+							"Cline session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
+					})}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Needs attention: the Cline session heartbeat was lost");
+	});
+
+	it("shows durable auto-review notices on review cards", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						autoReviewEnabled: true,
+						autoReviewStatus: "failed",
+						autoReviewMessage: "Auto-commit did not start. Review the task worktree.",
+					})}
+					index={0}
+					columnId="review"
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Auto-commit did not start. Review the task worktree.");
+	});
+
 	it("shows a loading state on the review completed button while moving to completed", async () => {
 		await act(async () => {
 			root.render(<BoardCard card={createCard()} index={0} columnId="review" isMoveToTrashLoading />);
@@ -593,6 +631,35 @@ describe("BoardCard", () => {
 		});
 
 		expect(container.textContent).toContain("Freshly created task description");
+	});
+
+	it("exposes a copy evidence action without opening the card", async () => {
+		const onCopyEvidence = vi.fn();
+		const onClick = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<TooltipProvider>
+					<BoardCard
+						card={createCard()}
+						index={0}
+						columnId="review"
+						onCopyEvidence={onCopyEvidence}
+						onClick={onClick}
+					/>
+				</TooltipProvider>,
+			);
+		});
+
+		const button = container.querySelector<HTMLButtonElement>('button[aria-label="Copy task evidence"]');
+		expect(button).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			button?.click();
+		});
+
+		expect(onCopyEvidence).toHaveBeenCalledWith("task-1");
+		expect(onClick).not.toHaveBeenCalled();
 	});
 
 	it("renders session activity as single-line truncated text on trash cards", async () => {

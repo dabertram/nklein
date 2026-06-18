@@ -2,7 +2,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
-import { AlertCircle, AlertTriangle, Bot, Check, GitBranch, Pencil, Play, RotateCcw } from "lucide-react";
+import { AlertCircle, AlertTriangle, Bot, Check, Clipboard, GitBranch, Pencil, Play, RotateCcw } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -286,6 +286,9 @@ function getPlainLanguageIssueText(summary: RuntimeTaskSessionSummary): string |
 	if (rawText.includes("same error") || rawText.includes("retry storms")) {
 		return "Parked: the same failure repeated. Fix the cause shown in the transcript, then send a new message.";
 	}
+	if (rawText.includes("heartbeat was lost")) {
+		return "Needs attention: the Cline session heartbeat was lost. Review the transcript, then resume or mark interrupted.";
+	}
 	if (summary.state === "failed") {
 		return "Parked: this card failed repeatedly. Open it for the error and next recovery step.";
 	}
@@ -385,9 +388,11 @@ export function BoardCard({
 	onSaveTitle,
 	onCommit,
 	onOpenPr,
+	onCopyEvidence,
 	onCancelAutomaticAction,
 	isCommitLoading = false,
 	isOpenPrLoading = false,
+	isCopyEvidenceLoading = false,
 	isMoveToTrashLoading = false,
 	onDependencyPointerDown,
 	onDependencyPointerEnter,
@@ -410,9 +415,11 @@ export function BoardCard({
 	onSaveTitle?: (taskId: string, title: string) => void;
 	onCommit?: (taskId: string) => void;
 	onOpenPr?: (taskId: string) => void;
+	onCopyEvidence?: (taskId: string) => void;
 	onCancelAutomaticAction?: (taskId: string) => void;
 	isCommitLoading?: boolean;
 	isOpenPrLoading?: boolean;
+	isCopyEvidenceLoading?: boolean;
 	isMoveToTrashLoading?: boolean;
 	onDependencyPointerDown?: (taskId: string, event: MouseEvent<HTMLElement>) => void;
 	onDependencyPointerEnter?: (taskId: string) => void;
@@ -594,6 +601,7 @@ export function BoardCard({
 		: null;
 	const showReviewGitActions = columnId === "review" && (reviewWorkspaceSnapshot?.changedFiles ?? 0) > 0;
 	const isAnyGitActionLoading = isCommitLoading || isOpenPrLoading;
+	const canCopyEvidence = !isTrashCard && Boolean(onCopyEvidence);
 	const cancelAutomaticActionLabel =
 		!isTrashCard && card.autoReviewEnabled ? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode) : null;
 	const agentOverrideLabel = useMemo(
@@ -638,6 +646,13 @@ export function BoardCard({
 			: card.blockedKind === "local_model_required"
 				? (card.blockedReason ?? "Configure a local Cline model before starting this task.")
 				: null;
+	const autoReviewNotice =
+		card.autoReviewEnabled === true && card.autoReviewMessage
+			? {
+					status: card.autoReviewStatus ?? "failed",
+					message: card.autoReviewMessage,
+				}
+			: null;
 
 	const activeDescriptionDisplay = isDescriptionExpanded ? descriptionDisplay.expanded : descriptionDisplay.collapsed;
 
@@ -774,6 +789,22 @@ export function BoardCard({
 										</p>
 									)}
 								</div>
+								{canCopyEvidence ? (
+									<Tooltip content="Copy evidence">
+										<Button
+											icon={isCopyEvidenceLoading ? <Spinner size={13} /> : <Clipboard size={13} />}
+											variant="ghost"
+											size="sm"
+											disabled={isCopyEvidenceLoading}
+											aria-label="Copy task evidence"
+											onMouseDown={stopEvent}
+											onClick={(event) => {
+												stopEvent(event);
+												onCopyEvidence?.(card.id);
+											}}
+										/>
+									</Tooltip>
+								) : null}
 								{columnId === "backlog" || columnId === "planning" ? (
 									<Button
 										icon={<Play size={14} />}
@@ -919,6 +950,23 @@ export function BoardCard({
 											</div>
 										) : null}
 									</div>
+								</div>
+							) : null}
+							{autoReviewNotice ? (
+								<div
+									className={cn(
+										"mt-2 flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-[11px] leading-snug",
+										autoReviewNotice.status === "failed"
+											? "border-status-orange/40 bg-status-orange/10 text-status-orange"
+											: "border-status-blue/30 bg-status-blue/10 text-status-blue",
+									)}
+								>
+									{autoReviewNotice.status === "failed" ? (
+										<AlertTriangle size={12} className="mt-0.5 shrink-0" />
+									) : (
+										<Spinner size={12} className="mt-0.5 shrink-0" />
+									)}
+									<p className="m-0 min-w-0">{autoReviewNotice.message}</p>
 								</div>
 							) : null}
 							{sessionActivity ? (

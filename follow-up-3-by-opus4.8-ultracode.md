@@ -138,7 +138,7 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cline/kanban/dev-runs/<scenario>-<ts>/` with `summary.md`, transcripts, `telemetry.jsonl`, `config-snapshot.json`, optional `diff.patch`), and dev-test scaffolding exists (`src/cline-sdk/cline-dev-test-project.ts`, `src/trpc/projects-api.ts` `createDevTestProject`/`cleanupDevTestProjects`). But getting evidence *out* means navigating the filesystem, and there's no "now go fix it" button. This is the "rather unintuitive" pain the user called out.
 
 ### C1. One-click evidence hand-off (for an *external* coding agent)
-- [ ] Add a **"Copy evidence for agent"** action on each task card / detail panel (and on dev-test runs). *(Detail panel done; task-card and dev-test-run placements still open.)*
+- [x] Add a **"Copy evidence for agent"** action on each task card / detail panel (and on dev-test runs).
 - [x] Reuse `createEvidenceBundle()`; extend the bundle to also capture: worktree path, base ref + **commit SHA**, resolved provider/model/role settings, the card prompt, and the latest agent transcript + diff.
 - [x] On click, write/refresh the bundle and **copy to clipboard** both: (a) the absolute bundle folder path, and (b) a ready-to-paste prompt block ("Here is evidence from a !Klein task… files at `<path>`… please …").
 - [x] tRPC: a `collectEvidence` action returning `{ bundlePath, promptBlock }`. Toast "Evidence copied" via `showAppToast`.

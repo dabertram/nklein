@@ -14,6 +14,7 @@ const dndMock = vi.hoisted(() => ({
 	} | null,
 }));
 const runtimeConfigQueryMocks = vi.hoisted(() => ({
+	collectTaskEvidence: vi.fn(),
 	fetchClineCodeIntelligenceStatus: vi.fn(),
 	saveRuntimeConfig: vi.fn(),
 }));
@@ -49,11 +50,23 @@ vi.mock("@hello-pangea/dnd", async () => {
 });
 
 vi.mock("@/components/board-column", () => ({
-	BoardColumn: ({ column }: { column: BoardData["columns"][number] }): React.ReactElement => (
+	BoardColumn: ({
+		column,
+		onCopyTaskEvidence,
+	}: {
+		column: BoardData["columns"][number];
+		onCopyTaskEvidence?: (taskId: string) => void;
+	}): React.ReactElement => (
 		<section data-column-id={column.id}>
 			<div className="kb-column-cards">
 				{column.cards.map((card) => (
-					<div key={card.id} data-task-id={card.id} />
+					<div key={card.id} data-task-id={card.id}>
+						{onCopyTaskEvidence ? (
+							<button type="button" onClick={() => onCopyTaskEvidence(card.id)}>
+								Copy evidence
+							</button>
+						) : null}
+					</div>
 				))}
 			</div>
 		</section>
@@ -73,6 +86,7 @@ vi.mock("@/components/dependencies/use-dependency-linking", () => ({
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
+	collectTaskEvidence: runtimeConfigQueryMocks.collectTaskEvidence,
 	fetchClineCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus,
 	saveRuntimeConfig: runtimeConfigQueryMocks.saveRuntimeConfig,
 }));
@@ -201,6 +215,17 @@ describe("KanbanBoard", () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers();
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: vi.fn(async () => undefined),
+			},
+		});
+		runtimeConfigQueryMocks.collectTaskEvidence.mockReset();
+		runtimeConfigQueryMocks.collectTaskEvidence.mockResolvedValue({
+			bundlePath: "/tmp/evidence/task-1",
+			promptBlock: "Here is evidence from a !Klein task.",
+		});
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockResolvedValue(null);
 		runtimeConfigQueryMocks.saveRuntimeConfig.mockReset();
@@ -329,6 +354,62 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("Code intel");
 		expect(container.querySelector("button")?.textContent).toContain("Pause");
 		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+	});
+
+	it("collects and copies task evidence from board cards", async () => {
+		const board: BoardData = {
+			columns: [
+				{
+					id: "review",
+					title: "Review",
+					cards: [
+						{
+							id: "task-1",
+							title: "Review task",
+							prompt: "Fix the issue",
+							startInPlanMode: false,
+							agentId: "cline",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
+					],
+				},
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					currentProjectId="workspace-1"
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+
+		const evidenceButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Copy evidence",
+		);
+		expect(evidenceButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			evidenceButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(runtimeConfigQueryMocks.collectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
 	});
 
 	it("saves the inline swarm concurrency cap", async () => {

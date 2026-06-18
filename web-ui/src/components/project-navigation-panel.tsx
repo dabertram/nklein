@@ -888,10 +888,10 @@ function DevTestProjectCard({
 						onClick={() => {
 							void onCopyEvidence();
 						}}
-						aria-label="Copy dev scenario evidence path"
+						aria-label="Copy dev scenario evidence"
 						fill
 					>
-						Copy evidence path
+						Copy evidence
 					</Button>
 				) : null}
 				<Button

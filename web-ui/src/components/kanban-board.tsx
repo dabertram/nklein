@@ -18,7 +18,11 @@ import { DependencyOverlay } from "@/components/dependencies/dependency-overlay"
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchClineCodeIntelligenceStatus, saveRuntimeConfig } from "@/runtime/runtime-config-query";
+import {
+	collectTaskEvidence,
+	fetchClineCodeIntelligenceStatus,
+	saveRuntimeConfig,
+} from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeClineCodeIntelligenceStatusResponse,
@@ -154,6 +158,7 @@ export function KanbanBoard({
 		useState<ProgrammaticCardMoveInFlight | null>(null);
 	const [swarmStopSignal, setSwarmStopSignal] = useState<RuntimeSwarmStopSignal | null>(null);
 	const [isSwarmStopLoading, setIsSwarmStopLoading] = useState(false);
+	const [copyEvidenceTaskId, setCopyEvidenceTaskId] = useState<string | null>(null);
 	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
@@ -286,7 +291,7 @@ export function KanbanBoard({
 			const trpcClient = getRuntimeTrpcClient(currentProjectId);
 			const response = swarmStopSignal
 				? await trpcClient.runtime.clearSwarmStop.mutate()
-				: await trpcClient.runtime.requestSwarmStop.mutate({ reason: "Paused from the Kanban board." });
+				: await trpcClient.runtime.requestSwarmStop.mutate({ reason: "Paused from the !Klein board." });
 			if (!response.ok) {
 				throw new Error(response.error ?? "Could not update swarm pause state.");
 			}
@@ -303,6 +308,30 @@ export function KanbanBoard({
 			setIsSwarmStopLoading(false);
 		}
 	}, [currentProjectId, isSwarmStopLoading, swarmStopSignal]);
+
+	const handleCopyTaskEvidence = useCallback(
+		async (taskId: string) => {
+			if (!currentProjectId || copyEvidenceTaskId) {
+				return;
+			}
+			setCopyEvidenceTaskId(taskId);
+			try {
+				const response = await collectTaskEvidence(currentProjectId, taskId);
+				await navigator.clipboard.writeText(response.promptBlock);
+				showAppToast({
+					intent: "success",
+					message: `Evidence copied. ${response.bundlePath}`,
+					timeout: 5000,
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "Could not collect task evidence.";
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			} finally {
+				setCopyEvidenceTaskId(null);
+			}
+		},
+		[currentProjectId, copyEvidenceTaskId],
+	);
 
 	useEffect(() => {
 		latestDataRef.current = data;
@@ -683,11 +712,13 @@ export function KanbanBoard({
 							onSaveTitle={column.id !== "trash" ? onSaveTaskTitle : undefined}
 							onCommitTask={column.id === "review" ? onCommitTask : undefined}
 							onOpenPrTask={column.id === "review" ? onOpenPrTask : undefined}
+							onCopyTaskEvidence={currentProjectId ? handleCopyTaskEvidence : undefined}
 							onCancelAutomaticTaskAction={onCancelAutomaticTaskAction}
 							onMoveToTrashTask={column.id === "review" ? onMoveToTrashTask : undefined}
 							onRestoreFromTrashTask={column.id === "trash" ? onRestoreFromTrashTask : undefined}
 							commitTaskLoadingById={column.id === "review" ? commitTaskLoadingById : undefined}
 							openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
+							copyEvidenceLoadingById={copyEvidenceTaskId ? { [copyEvidenceTaskId]: true } : undefined}
 							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
 							activeDragTaskId={activeDragTaskId}
 							activeDragSourceColumnId={activeDragSourceColumnId}
