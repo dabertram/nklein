@@ -74,6 +74,16 @@ export interface WriteClinePlanArtifactsInput {
 	taskGraph: ClinePlanTaskGraph;
 }
 
+export interface AppendClinePlanRevisionInput {
+	workspacePath: string;
+	slug: string;
+	taskId?: string | null;
+	kind: string;
+	description: string;
+	evidence?: string | null;
+	createdAt?: number;
+}
+
 function formatQuestionsMarkdown(questions: readonly ClinePlanQuestion[]): string {
 	if (questions.length === 0) {
 		return "# Questions\n\nNo clarifying questions were recorded.\n";
@@ -121,6 +131,25 @@ function formatInitialDecisionsMarkdown(questions: readonly ClinePlanQuestion[])
 
 function formatInitialRevisionsMarkdown(): string {
 	return "# Revisions\n\nNo plan revisions have been recorded yet.\n";
+}
+
+function formatRevisionTimestamp(timestamp: number): string {
+	return new Date(timestamp).toISOString();
+}
+
+function formatRevisionEntry(input: AppendClinePlanRevisionInput): string {
+	const lines = [
+		`## ${formatRevisionTimestamp(input.createdAt ?? Date.now())} - ${input.kind.trim() || "plan_gap"}`,
+		"",
+	];
+	if (input.taskId?.trim()) {
+		lines.push(`Task: ${input.taskId.trim()}`, "");
+	}
+	lines.push(input.description.trim() || "Plan revision recorded.");
+	if (input.evidence?.trim()) {
+		lines.push("", `Evidence: ${input.evidence.trim()}`);
+	}
+	return `${lines.join("\n")}\n`;
 }
 
 function slugify(input: string): string {
@@ -205,6 +234,18 @@ export async function writeClinePlanArtifacts(input: WriteClinePlanArtifactsInpu
 		summary,
 		taskGraph,
 	};
+}
+
+export async function appendClinePlanRevision(input: AppendClinePlanRevisionInput): Promise<string> {
+	const paths = resolveClinePlanArtifactPaths(input.workspacePath, input.slug);
+	await mkdir(paths.rootPath, { recursive: true });
+	const existing = await readFile(paths.revisionsPath, "utf8").catch(() => formatInitialRevisionsMarkdown());
+	const trimmedExisting = existing.includes("No plan revisions have been recorded yet.")
+		? "# Revisions\n"
+		: existing.trimEnd();
+	const nextMarkdown = `${trimmedExisting}\n\n${formatRevisionEntry(input)}`;
+	await lockedFileSystem.writeTextFileAtomic(paths.revisionsPath, nextMarkdown, { lock: null });
+	return paths.revisionsPath;
 }
 
 export async function readClinePlanArtifacts(workspacePath: string, slug: string): Promise<ClinePlanArtifacts> {

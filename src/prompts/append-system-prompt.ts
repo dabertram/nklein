@@ -332,13 +332,14 @@ Notes:
 Purpose: record a structured gap in the current plan instead of guessing when execution discovers missing decisions, contradictions, missing dependencies, oversized scope, or an integration step that was not planned.
 
 Command:
-\`${kanbanCommand} task plan-gap --task-id <task_id> --kind <kind> --description <text> [--evidence <text>] [--project-path <path>]\`
+\`${kanbanCommand} task plan-gap --task-id <task_id> --kind <kind> --description <text> [--evidence <text>] [--plan-slug <slug>] [--project-path <path>]\`
 
 Parameters:
 - \`--task-id <task_id>\` required task ID that discovered the gap.
 - \`--kind <kind>\` required one of: \`missing_decision\`, \`contradictory_requirement\`, \`missing_dependency\`, \`scope_too_large\`, \`integration_needed\`, \`other\`.
 - \`--description <text>\` required plain-language description of the blocking gap.
 - \`--evidence <text>\` optional concrete evidence such as error text, a missing file/path, or the conflicting requirements.
+- \`--plan-slug <slug>\` optional saved decomposition plan slug; when provided, Kanban appends the gap to that plan's \`revisions.md\`.
 - \`--project-path <path>\` optional workspace path. If omitted, Kanban uses the current directory workspace.
 
 Notes:

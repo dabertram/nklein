@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	appendClinePlanRevision,
 	clinePlanTaskGraphSchema,
 	readClinePlanArtifacts,
 	resolveClinePlanArtifactPaths,
@@ -117,5 +118,53 @@ describe("cline plan artifacts", () => {
 		expect(artifacts.taskGraph.tasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
 		expect(artifacts.taskGraph.tasks[0]?.testFirst).toBe(true);
 		expect(artifacts.taskGraph.tasks[0]?.acceptanceTestPrompt).toContain("storage persistence test");
+	});
+
+	it("appends concrete revision entries to the plan audit trail", async () => {
+		const workspacePath = await createWorkspace();
+		const artifacts = await writeClinePlanArtifacts({
+			workspacePath,
+			slug: "checkout-rework",
+			spec: "# Spec\n",
+			plan: "# Plan\n",
+			taskGraph: {
+				schemaVersion: 1,
+				slug: "checkout-rework",
+				title: "Checkout Rework",
+				tasks: [
+					{
+						id: "api-client",
+						title: "API client",
+						prompt: "Build the API client.",
+						dependsOn: [],
+						complexity: 50,
+						suggestedRole: null,
+						filesLikelyTouched: [],
+						acceptanceCommand: null,
+						testFirst: false,
+						acceptanceTestPrompt: null,
+					},
+				],
+			},
+		});
+
+		const revisionsPath = await appendClinePlanRevision({
+			workspacePath,
+			slug: "checkout-rework",
+			taskId: "api-client",
+			kind: "missing_dependency",
+			description: "API client needs auth types that were not planned.",
+			evidence: "src/auth/types.ts is missing.",
+			createdAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+		});
+
+		expect(revisionsPath).toBe(artifacts.revisionsPath);
+		const revisionsMarkdown = await readFile(revisionsPath, "utf8");
+		expect(revisionsMarkdown).toContain("# Revisions");
+		expect(revisionsMarkdown).not.toContain("No plan revisions");
+		expect(revisionsMarkdown).toContain("2026-01-02T03:04:05.000Z - missing_dependency");
+		expect(revisionsMarkdown).toContain("Task: api-client");
+		expect(revisionsMarkdown).toContain("API client needs auth types");
+		expect(revisionsMarkdown).toContain("Evidence: src/auth/types.ts is missing.");
 	});
 });

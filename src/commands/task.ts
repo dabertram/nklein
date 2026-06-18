@@ -5,7 +5,7 @@ import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan } from "../cline-sdk/cline-acceptance-repair";
 import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
 import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
-import { readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
+import { appendClinePlanRevision, readClinePlanArtifacts } from "../cline-sdk/cline-plan-artifacts";
 import { createClineProviderService } from "../cline-sdk/cline-provider-service";
 import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
 import { buildClineStartGuardCandidate } from "../cline-sdk/cline-task-start-guard";
@@ -1445,6 +1445,7 @@ async function recordTaskPlanGapCommand(input: {
 	kind: PlanGapKind;
 	description: string;
 	evidence?: string;
+	planSlug?: string;
 }): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	recordPlanGap({
@@ -1454,12 +1455,23 @@ async function recordTaskPlanGapCommand(input: {
 		description: input.description,
 		evidence: input.evidence,
 	});
+	const revisionsPath = input.planSlug?.trim()
+		? await appendClinePlanRevision({
+				workspacePath: workspaceRepoPath,
+				slug: input.planSlug,
+				taskId: input.taskId,
+				kind: input.kind,
+				description: input.description,
+				evidence: input.evidence,
+			})
+		: null;
 	return {
 		ok: true,
 		workspacePath: workspaceRepoPath,
 		taskId: input.taskId,
 		kind: input.kind,
 		description: input.description,
+		revisionsPath,
 	};
 }
 
@@ -1801,6 +1813,7 @@ export function registerTaskCommand(program: Command): void {
 		)
 		.requiredOption("--description <text>", "Plain-language description of the blocking gap.")
 		.option("--evidence <text>", "Optional evidence such as error text, missing path, or conflicting requirement.")
+		.option("--plan-slug <slug>", "Optional saved plan slug whose revisions.md should record this gap.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.action(
 			async (options: {
@@ -1808,6 +1821,7 @@ export function registerTaskCommand(program: Command): void {
 				kind: PlanGapKind;
 				description: string;
 				evidence?: string;
+				planSlug?: string;
 				projectPath?: string;
 			}) => {
 				await runTaskCommand(
@@ -1819,6 +1833,7 @@ export function registerTaskCommand(program: Command): void {
 							kind: options.kind,
 							description: options.description,
 							evidence: options.evidence,
+							planSlug: options.planSlug,
 						}),
 				);
 			},

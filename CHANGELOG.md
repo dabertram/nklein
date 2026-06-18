@@ -37,6 +37,7 @@
 - Switched Cline model-registry event extraction to the SDK session-event types, recording observations from typed usage events plus Kanban-measured request duration instead of guessed `run-finished` payloads.
 - Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.
 - Hardened `kanban dev smoke-eval` to score only local Cline providers and include the selected local model plus guard, overflow, and timeout telemetry counts in the evidence bundle.
+- Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
 
 ## [0.1.68]
 

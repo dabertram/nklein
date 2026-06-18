@@ -423,8 +423,9 @@ plowing ahead or silently failing.
 - [~] **Plan revision history.** Record every plan change (what was added/split/re-linked and the gap that
       motivated it) in the plan artifacts, so the evolving plan stays auditable and the DAG view (L4) can
       flag "revised" cards. **Progress:** new decomposition plans now include a first-class
-      `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback. Still open:
-      append concrete revision entries when plan-gap adaptation adds/splits/re-links cards.
+      `revisions.md` artifact, exposed through tool/CLI/API outputs with legacy-read fallback, and
+      `kanban task plan-gap --plan-slug <slug>` appends concrete gap entries to that audit trail. Still open:
+      append concrete revision entries when automatic adaptation adds/splits/re-links cards.
 
 ---
 
