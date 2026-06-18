@@ -5,7 +5,19 @@ import { showAppToast } from "@/components/app-toaster";
 import { DirectoryAutocomplete } from "@/components/directory-autocomplete";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogBody,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	Dialog,
+	DialogFooter,
+	DialogHeader,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import { toServerAbsolute } from "@/utils/server-path";
@@ -19,6 +31,7 @@ export interface AddProjectDialogProps {
 	currentProjectId: string | null;
 	/** When set, the dialog opens directly to the git-init confirmation for this absolute path. */
 	initialGitInitPath?: string | null;
+	initialSelfProjectPath?: string | null;
 }
 
 export function AddProjectDialog({
@@ -27,13 +40,16 @@ export function AddProjectDialog({
 	onProjectAdded,
 	currentProjectId,
 	initialGitInitPath,
+	initialSelfProjectPath,
 }: AddProjectDialogProps): ReactElement {
 	const [activeTab, setActiveTab] = useState<AddProjectTab>("path");
 	const [pathInput, setPathInput] = useState("");
 	const [isAddingByPath, setIsAddingByPath] = useState(false);
 	const [pendingGitInitPath, setPendingGitInitPath] = useState<string | null>(null);
+	const [pendingSelfProjectPath, setPendingSelfProjectPath] = useState<string | null>(null);
 	const [isInitializingGit, setIsInitializingGit] = useState(false);
 	const [gitUrlInput, setGitUrlInput] = useState("");
+	const [cloneRefInput, setCloneRefInput] = useState("");
 	const [cloneDestInput, setCloneDestInput] = useState("");
 	const [cloneFolderName, setCloneFolderName] = useState("");
 	const [isCloning, setIsCloning] = useState(false);
@@ -48,11 +64,13 @@ export function AddProjectDialog({
 		setActiveTab("path");
 		setPathInput("/");
 		setGitUrlInput("");
+		setCloneRefInput("");
 		setCloneDestInput("/");
 		setCloneFolderName("");
 		setIsAddingByPath(false);
 		setIsCloning(false);
 		setPendingGitInitPath(initialGitInitPath ?? null);
+		setPendingSelfProjectPath(initialSelfProjectPath ?? null);
 		setIsInitializingGit(false);
 
 		// Fetch the server root path to display at the top of the dialog
@@ -68,7 +86,7 @@ export function AddProjectDialog({
 			}
 		};
 		void fetchRoot();
-	}, [open, currentProjectId, initialGitInitPath]);
+	}, [open, currentProjectId, initialGitInitPath, initialSelfProjectPath]);
 
 	// Focus the git URL input when switching to the clone tab (since it
 	// doesn't have a dropdown that would pop open). We intentionally do NOT
@@ -99,8 +117,8 @@ export function AddProjectDialog({
 	);
 
 	const handleAddByPath = useCallback(
-		async (path: string, initializeGit = false) => {
-			const absolutePath = resolveToAbsolutePath(path);
+		async (path: string, initializeGit = false, confirmSelfProject = false, pathIsAlreadyAbsolute = false) => {
+			const absolutePath = pathIsAlreadyAbsolute ? path : resolveToAbsolutePath(path);
 			if (!absolutePath) {
 				return;
 			}
@@ -112,15 +130,24 @@ export function AddProjectDialog({
 			}
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const added = await trpcClient.projects.add.mutate({ path: trimmed, initializeGit });
+				const added = await trpcClient.projects.add.mutate({
+					path: trimmed,
+					initializeGit,
+					confirmSelfProject,
+				});
 				if (!added.ok || !added.project) {
 					if (added.requiresGitInitialization) {
 						setPendingGitInitPath(trimmed);
 						return;
 					}
+					if (added.requiresSelfProjectConfirmation) {
+						setPendingSelfProjectPath(trimmed);
+						return;
+					}
 					throw new Error(added.error ?? "Could not add project.");
 				}
 				setPendingGitInitPath(null);
+				setPendingSelfProjectPath(null);
 				onProjectAdded(added.project.id);
 				onOpenChange(false);
 			} catch (error) {
@@ -168,9 +195,10 @@ export function AddProjectDialog({
 		setIsCloning(true);
 		try {
 			const trpcClient = getRuntimeTrpcClient(currentProjectId);
-			const mutationInput: { gitUrl: string; path?: string } = { gitUrl: trimmedUrl };
+			const mutationInput: { gitUrl: string; path?: string; ref?: string } = { gitUrl: trimmedUrl };
 			const trimmedDest = cloneDestInput.trim();
 			const trimmedFolder = cloneFolderName.trim();
+			const trimmedRef = cloneRefInput.trim();
 
 			if (trimmedDest && trimmedDest !== "/") {
 				// Append custom folder name to the destination if provided
@@ -179,6 +207,9 @@ export function AddProjectDialog({
 			} else if (trimmedFolder) {
 				// Custom folder name with default destination (server root)
 				mutationInput.path = serverRootPath ? toServerAbsolute(serverRootPath, trimmedFolder) : trimmedFolder;
+			}
+			if (trimmedRef) {
+				mutationInput.ref = trimmedRef;
 			}
 			const added = await trpcClient.projects.add.mutate(mutationInput);
 			if (!added.ok || !added.project) {
@@ -196,6 +227,7 @@ export function AddProjectDialog({
 	}, [
 		cloneDestInput,
 		cloneFolderName,
+		cloneRefInput,
 		currentProjectId,
 		gitUrlInput,
 		onOpenChange,
@@ -287,6 +319,7 @@ export function AddProjectDialog({
 							setPathInput={(v) => {
 								setPathInput(v);
 								setPendingGitInitPath(null);
+								setPendingSelfProjectPath(null);
 							}}
 							pathInputRef={pathInputRef}
 							isAddingByPath={isAddingByPath}
@@ -302,6 +335,8 @@ export function AddProjectDialog({
 						<CloneTabContent
 							gitUrlInput={gitUrlInput}
 							setGitUrlInput={setGitUrlInput}
+							cloneRefInput={cloneRefInput}
+							setCloneRefInput={setCloneRefInput}
 							cloneDestInput={cloneDestInput}
 							setCloneDestInput={setCloneDestInput}
 							cloneFolderName={cloneFolderName}
@@ -369,6 +404,41 @@ export function AddProjectDialog({
 					)}
 				</DialogFooter>
 			</Dialog>
+			<AlertDialog
+				open={pendingSelfProjectPath !== null}
+				onOpenChange={(isOpen) => {
+					if (!isOpen) {
+						setPendingSelfProjectPath(null);
+					}
+				}}
+			>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Load !Klein source as project?</AlertDialogTitle>
+				</AlertDialogHeader>
+				<AlertDialogBody>
+					<AlertDialogDescription>
+						This folder is !Klein's own source repository. Add it only when you want a self-improvement board for
+						!Klein itself.
+					</AlertDialogDescription>
+				</AlertDialogBody>
+				<AlertDialogFooter>
+					<AlertDialogCancel asChild>
+						<Button variant="default">Cancel</Button>
+					</AlertDialogCancel>
+					<AlertDialogAction asChild>
+						<Button
+							variant="primary"
+							onClick={() => {
+								if (pendingSelfProjectPath) {
+									void handleAddByPath(pendingSelfProjectPath, false, true, true);
+								}
+							}}
+						>
+							Load !Klein Source
+						</Button>
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialog>
 		</>
 	);
 }
@@ -421,7 +491,7 @@ function PathTabContent({
 			{pendingGitInitPath !== null ? (
 				<div className="rounded-md border border-status-orange/30 bg-status-orange/5 px-3 py-2.5 flex flex-col gap-2">
 					<p className="text-[13px] text-text-primary">
-						This directory is not a git repository. Kanban requires git to manage worktrees for tasks.
+						This directory is not a git repository. !Klein requires git to manage worktrees for tasks.
 					</p>
 					<p className="font-mono text-[11px] text-text-secondary break-all">{pendingGitInitPath}</p>
 					<Button variant="primary" size="sm" type="submit" disabled={isInitializingGit} className="self-start">
@@ -459,6 +529,8 @@ function deriveRepoNameFromUrl(gitUrl: string): string {
 function CloneTabContent({
 	gitUrlInput,
 	setGitUrlInput,
+	cloneRefInput,
+	setCloneRefInput,
 	cloneDestInput,
 	setCloneDestInput,
 	cloneFolderName,
@@ -470,6 +542,8 @@ function CloneTabContent({
 }: {
 	gitUrlInput: string;
 	setGitUrlInput: (value: string) => void;
+	cloneRefInput: string;
+	setCloneRefInput: (value: string) => void;
 	cloneDestInput: string;
 	setCloneDestInput: (value: string) => void;
 	cloneFolderName: string;
@@ -502,6 +576,21 @@ function CloneTabContent({
 					className="w-full h-8 px-2.5 text-[13px] font-mono rounded-md border border-border bg-surface-2 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
 					disabled={isCloning}
 					aria-label="Git URL input"
+				/>
+			</div>
+			<div>
+				<label htmlFor="add-project-git-ref-input" className="block text-[12px] text-text-secondary mb-1.5">
+					Branch, tag, or commit
+				</label>
+				<input
+					type="text"
+					id="add-project-git-ref-input"
+					value={cloneRefInput}
+					onChange={(e) => setCloneRefInput(e.target.value)}
+					placeholder="default branch"
+					className="w-full h-8 px-2.5 text-[13px] font-mono rounded-md border border-border bg-surface-2 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
+					disabled={isCloning}
+					aria-label="Git ref input"
 				/>
 			</div>
 			<div className="grid grid-cols-2 gap-2">

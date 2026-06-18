@@ -17,6 +17,7 @@
 - Added structured protected-test edit denial payloads with `intent`, `diff`, `reason`, and `expectedEffects`, so blocked agents can ask for exact human review through the existing follow-up question channel.
 - Added a create-task prompt template menu with quick starts for bug fixes, small features, tests, security review, and decomposition.
 - Added a gated Developer Tools self-improvement flow that loads the currently running dev checkout, accepts optional notes/evidence, and seeds a protected-guarded Cline Backlog task.
+- Added Git clone ref selection for project add, letting cloned projects check out a branch, tag, or commit in detached mode after clone.
 - Added an additive command palette on `Cmd/Ctrl+K` for core board actions including new task, add project, settings, git history, backlog start, and Developer Tools.
 - Added a local-model setup action to the empty project state so first-run users can open onboarding before adding their first repository.
 

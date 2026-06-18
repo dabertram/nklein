@@ -271,7 +271,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					// active project — the clone target belongs under the kanban
 					// working directory, not inside another project.
 					const customDest = body.path ? deps.resolveProjectInputPath(body.path, deps.serverCwd) : undefined;
-					const cloneResult = await cloneGitRepository(body.gitUrl, deps.serverCwd, customDest, filesystemRoot);
+					const cloneResult = await cloneGitRepository(body.gitUrl, deps.serverCwd, customDest, filesystemRoot, {
+						ref: body.ref,
+					});
 					if (!cloneResult.ok) {
 						return {
 							ok: false,

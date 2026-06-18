@@ -302,4 +302,43 @@ describe("cloneGitRepository", () => {
 		expect(separatorIdx).not.toBe(-1);
 		expect(urlIdx).toBeGreaterThan(separatorIdx);
 	});
+
+	it("checks out the requested ref after cloning", async () => {
+		fsMocks.access.mockRejectedValueOnce(new Error("ENOENT"));
+		fsMocks.mkdir.mockResolvedValueOnce(undefined);
+		childProcessMocks.execFilePromise
+			.mockResolvedValueOnce({ stdout: "", stderr: "" })
+			.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+		const result = await cloneGitRepository("https://github.com/user/my-repo.git", testCwd, undefined, testCwd, {
+			ref: "abc123def456",
+		});
+
+		expect(result.ok).toBe(true);
+		expect(childProcessMocks.execFilePromise).toHaveBeenCalledTimes(2);
+		const checkoutCall = childProcessMocks.execFilePromise.mock.calls[1];
+		expect(checkoutCall[0]).toBe("git");
+		expect(checkoutCall[1]).toEqual(["-c", "core.quotepath=false", "checkout", "--detach", "abc123def456"]);
+		expect(checkoutCall[2]).toMatchObject({ cwd: resolve(testCwd, "my-repo") });
+	});
+
+	it("returns an error when requested ref checkout fails", async () => {
+		fsMocks.access.mockRejectedValueOnce(new Error("ENOENT"));
+		fsMocks.mkdir.mockResolvedValueOnce(undefined);
+		childProcessMocks.execFilePromise.mockResolvedValueOnce({ stdout: "", stderr: "" });
+		childProcessMocks.execFilePromise.mockRejectedValueOnce(
+			Object.assign(new Error("bad ref"), {
+				code: 1,
+				stdout: "",
+				stderr: "error: pathspec 'missing-ref' did not match",
+			}),
+		);
+
+		const result = await cloneGitRepository("https://github.com/user/my-repo.git", testCwd, undefined, testCwd, {
+			ref: "missing-ref",
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain("checkout");
+	});
 });

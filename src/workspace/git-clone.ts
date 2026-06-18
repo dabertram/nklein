@@ -10,6 +10,10 @@ export interface GitCloneResult {
 	error?: string;
 }
 
+export interface GitCloneOptions {
+	ref?: string | null;
+}
+
 /**
  * Derive a repository name from a Git URL.
  *
@@ -67,6 +71,7 @@ export async function cloneGitRepository(
 	serverCwd: string,
 	destinationPath?: string,
 	allowedRootPath: string = serverCwd,
+	options: GitCloneOptions = {},
 ): Promise<GitCloneResult> {
 	const repoName = deriveRepoNameFromUrl(gitUrl);
 	if (!repoName && !destinationPath) {
@@ -151,6 +156,18 @@ export async function cloneGitRepository(
 			clonedPath: clonePath,
 			error: result.error ?? `Git clone failed: ${result.stderr || result.output}`,
 		};
+	}
+
+	const ref = options.ref?.trim();
+	if (ref) {
+		const checkoutResult = await runGit(clonePath, ["checkout", "--detach", ref]);
+		if (!checkoutResult.ok) {
+			return {
+				ok: false,
+				clonedPath: clonePath,
+				error: checkoutResult.error ?? `Git checkout failed: ${checkoutResult.stderr || checkoutResult.output}`,
+			};
+		}
 	}
 
 	return {

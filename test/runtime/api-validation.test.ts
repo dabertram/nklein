@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	parseHookIngestRequest,
+	parseProjectAddRequest,
 	parseTaskSessionStartRequest,
 	parseWorkspaceFileSearchRequest,
 } from "../../src/core/api-validation";
@@ -86,6 +87,25 @@ describe("parseTaskSessionStartRequest", () => {
 			prompt: "",
 			baseRef: "main",
 			resumeFromTrash: true,
+		});
+	});
+});
+
+describe("parseProjectAddRequest", () => {
+	it("parses and trims a clone ref", () => {
+		expect(
+			parseProjectAddRequest({
+				gitUrl: " https://example.com/repo.git ",
+				path: " clone-dest ",
+				ref: "  abc123def456  ",
+			}),
+		).toEqual({
+			gitUrl: "https://example.com/repo.git",
+			path: "clone-dest",
+			ref: "abc123def456",
+			initializeGit: undefined,
+			confirmSelfProject: undefined,
+			allowTaskWorktreeProject: undefined,
 		});
 	});
 });

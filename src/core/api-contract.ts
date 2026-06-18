@@ -622,6 +622,7 @@ export const runtimeProjectAddRequestSchema = z
 	.object({
 		path: z.string().optional(),
 		gitUrl: z.string().optional(),
+		ref: z.string().optional(),
 		initializeGit: z.boolean().optional(),
 		confirmSelfProject: z.boolean().optional(),
 		allowTaskWorktreeProject: z.boolean().optional(),

@@ -148,7 +148,7 @@ Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cli
 - [x] Entry point: a gated button (Developer Tools / "Lab") near the evidence action and on dev-test runs.
 - [ ] **Source selector:**
   - [x] **v1 (now):** "Currently running code" — the dev checkout. Detect dev mode via `process.env.NODE_ENV === "development"` (`src/server/middleware.ts:21`) and the asset-dir resolution in `src/server/assets.ts`.
-  - [ ] **Later:** branch / tag / commit from the GitHub repo. Extend `src/workspace/git-clone.ts` to accept a ref, and add `ref?` to `ProjectAddRequest` in `src/core/api-contract.ts`.
+  - [x] **Later:** branch / tag / commit from the GitHub repo. Extend `src/workspace/git-clone.ts` to accept a ref, and add `ref?` to `ProjectAddRequest` in `src/core/api-contract.ts`.
   - [ ] **Version pinning (non-dev sources):** check out exactly the **commit SHA recorded in the evidence bundle** so the agent fixes the version the evidence came from, not `HEAD`.
 - [x] **User notes/guidance:** a free-text field merged into the seeded task prompt (`RuntimeCreateTaskInput.prompt` + `generatedFromPlan`); attach the evidence files as task context (`filesLikelyTouched` + an evidence note).
 - [x] Gate behind the existing self-project confirmation (`addProject({ confirmSelfProject: true })`, `src/trpc/projects-api.ts:298`).

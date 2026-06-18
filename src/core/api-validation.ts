@@ -198,12 +198,14 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 	const parsed = parseWithSchema(runtimeProjectAddRequestSchema, value);
 	const path = parsed.path?.trim() || undefined;
 	const gitUrl = parsed.gitUrl?.trim() || undefined;
+	const ref = parsed.ref?.trim() || undefined;
 	if (!path && !gitUrl) {
 		throw new Error("Either path or gitUrl is required.");
 	}
 	return {
 		path,
 		gitUrl,
+		ref,
 		initializeGit: parsed.initializeGit,
 		confirmSelfProject: parsed.confirmSelfProject,
 		allowTaskWorktreeProject: parsed.allowTaskWorktreeProject,
