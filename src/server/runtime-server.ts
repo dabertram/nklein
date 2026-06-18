@@ -43,6 +43,7 @@ import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRout
 import { createHooksApi } from "../trpc/hooks-api";
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
+import { createRuntimeTaskStartQueue, type RuntimeTaskStartQueue } from "../trpc/runtime-task-start-queue";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
@@ -142,7 +143,78 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const clineTaskSessionServiceByWorkspaceId = new Map<string, ClineTaskSessionService>();
+	const queuedStartDrainUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clineWatcherRegistry = createClineWatcherRegistry();
+	const taskStartQueue = createRuntimeTaskStartQueue();
+	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
+	const queuedStartDrainTimersByWorkspaceId = new Map<
+		string,
+		{
+			dueAt: number;
+			timer: ReturnType<typeof setTimeout>;
+		}
+	>();
+	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
+	const drainQueuedTaskStarts = (scope: RuntimeTrpcWorkspaceScope, options?: { force?: boolean }): void => {
+		const scheduledDrain = queuedStartDrainTimersByWorkspaceId.get(scope.workspaceId);
+		if (scheduledDrain) {
+			clearTimeout(scheduledDrain.timer);
+			queuedStartDrainTimersByWorkspaceId.delete(scope.workspaceId);
+		}
+		if (queuedStartDrainInFlightByWorkspaceId.has(scope.workspaceId)) {
+			return;
+		}
+		queuedStartDrainInFlightByWorkspaceId.add(scope.workspaceId);
+		queueMicrotask(() => {
+			void (async () => {
+				try {
+					const queuedStarts = taskStartQueue.takeReady(scope.workspaceId, { force: options?.force });
+					for (const queuedStart of queuedStarts) {
+						try {
+							await runtimeApi.startTaskSession(queuedStart.workspaceScope, queuedStart.input);
+						} catch (error) {
+							const message = error instanceof Error ? error.message : String(error);
+							deps.warn(
+								`Queued task start failed for ${queuedStart.workspaceScope.workspacePath} task ${queuedStart.input.taskId}: ${message}`,
+							);
+						}
+					}
+				} finally {
+					queuedStartDrainInFlightByWorkspaceId.delete(scope.workspaceId);
+				}
+			})();
+		});
+	};
+	const scheduleQueuedTaskStartDrain = (scope: RuntimeTrpcWorkspaceScope, delayMs: number): void => {
+		const delay = Math.max(0, Math.trunc(delayMs));
+		const dueAt = Date.now() + delay;
+		const existing = queuedStartDrainTimersByWorkspaceId.get(scope.workspaceId);
+		if (existing && existing.dueAt <= dueAt) {
+			return;
+		}
+		if (existing) {
+			clearTimeout(existing.timer);
+		}
+		const timer = setTimeout(() => {
+			queuedStartDrainTimersByWorkspaceId.delete(scope.workspaceId);
+			drainQueuedTaskStarts(scope);
+		}, delay);
+		queuedStartDrainTimersByWorkspaceId.set(scope.workspaceId, { dueAt, timer });
+	};
+	const scheduledTaskStartQueue: RuntimeTaskStartQueue = {
+		enqueue(input) {
+			const queued = taskStartQueue.enqueue(input);
+			scheduleQueuedTaskStartDrain(
+				queued.workspaceScope,
+				Math.max(0, queued.nextAttemptAt - (input.now ?? Date.now())),
+			);
+			return queued;
+		},
+		remove: (workspaceId, taskId) => taskStartQueue.remove(workspaceId, taskId),
+		takeReady: (workspaceId, options) => taskStartQueue.takeReady(workspaceId, options),
+		clearWorkspace: (workspaceId) => taskStartQueue.clearWorkspace(workspaceId),
+		size: (workspaceId) => taskStartQueue.size(workspaceId),
+	};
 	const getScopedClineTaskSessionService = async (
 		scope: RuntimeTrpcWorkspaceScope,
 	): Promise<ClineTaskSessionService> => {
@@ -153,6 +225,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			});
 			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
 			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
+			const unsubscribeQueueDrain = service.onSummary((summary) => {
+				if (summary.state !== "running") {
+					drainQueuedTaskStarts(scope, { force: true });
+				}
+			});
+			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 		}
 		return service;
 	};
@@ -162,6 +240,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			return;
 		}
 		clineTaskSessionServiceByWorkspaceId.delete(workspaceId);
+		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
+		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
+		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);
+		if (drainTimer) {
+			clearTimeout(drainTimer.timer);
+			queuedStartDrainTimersByWorkspaceId.delete(workspaceId);
+		}
+		taskStartQueue.clearWorkspace(workspaceId);
 		await service.dispose();
 	};
 	const disposeClineTaskSessionService = (workspaceId: string): void => {
@@ -188,30 +274,33 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		deps.workspaceRegistry.clearActiveWorkspace();
 	};
 
+	runtimeApi = createRuntimeApi({
+		getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
+		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
+		loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
+		setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,
+		getScopedTerminalManager,
+		getScopedClineTaskSessionService,
+		getLoadedScopedClineTaskSessionService: (workspaceScope) =>
+			clineTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
+		resolveInteractiveShellCommand: deps.resolveInteractiveShellCommand,
+		runCommand: deps.runCommand,
+		broadcastClineMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastClineMcpAuthStatusesUpdated,
+		broadcastTaskChatCleared: deps.runtimeStateHub.broadcastTaskChatCleared,
+		bumpClineSessionContextVersion: deps.runtimeStateHub.bumpClineSessionContextVersion,
+		prepareForStateReset,
+		taskStartQueue: scheduledTaskStartQueue,
+		getUpdateStatus: deps.getUpdateStatus,
+		runUpdateNow: deps.runUpdateNow,
+	});
+
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {
 		const requestUrl = new URL(req.url ?? "/", "http://localhost");
 		const scope = await resolveWorkspaceScopeFromRequest(req, requestUrl);
 		return {
 			requestedWorkspaceId: scope.requestedWorkspaceId,
 			workspaceScope: scope.workspaceScope,
-			runtimeApi: createRuntimeApi({
-				getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
-				getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
-				loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
-				setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,
-				getScopedTerminalManager,
-				getScopedClineTaskSessionService,
-				getLoadedScopedClineTaskSessionService: (workspaceScope) =>
-					clineTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
-				resolveInteractiveShellCommand: deps.resolveInteractiveShellCommand,
-				runCommand: deps.runCommand,
-				broadcastClineMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastClineMcpAuthStatusesUpdated,
-				broadcastTaskChatCleared: deps.runtimeStateHub.broadcastTaskChatCleared,
-				bumpClineSessionContextVersion: deps.runtimeStateHub.bumpClineSessionContextVersion,
-				prepareForStateReset,
-				getUpdateStatus: deps.getUpdateStatus,
-				runUpdateNow: deps.runUpdateNow,
-			}),
+			runtimeApi,
 			workspaceApi: createWorkspaceApi({
 				ensureTerminalManagerForWorkspace: deps.ensureTerminalManagerForWorkspace,
 				getScopedClineTaskSessionService,
@@ -498,6 +587,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	return {
 		url,
 		close: async () => {
+			for (const drainTimer of queuedStartDrainTimersByWorkspaceId.values()) {
+				clearTimeout(drainTimer.timer);
+			}
+			queuedStartDrainTimersByWorkspaceId.clear();
+			for (const unsubscribe of queuedStartDrainUnsubscribeByWorkspaceId.values()) {
+				unsubscribe();
+			}
+			queuedStartDrainUnsubscribeByWorkspaceId.clear();
 			await Promise.all(
 				Array.from(clineTaskSessionServiceByWorkspaceId.values()).map(async (service) => {
 					await service.dispose();

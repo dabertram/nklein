@@ -156,17 +156,19 @@ instead of storming. These are the concrete failures behind the telemetry above.
       the runtime's private last-start cache is empty; no host session-map casting.
 
 ### L1.3 — Local-appropriate timeouts (the 227× "1 seconds" error)
-- [~] **Find and fix the 1-second tool/stream timeouts.** `config.json` has `agentTimeoutMode:
+- [x] ~~**Find and fix the 1-second tool/stream timeouts.** `config.json` has `agentTimeoutMode:
       "unlimited"` and every timeout field `null`, yet telemetry shows `"timeout after 1 seconds"` ×227 —
       so this is a **code default/bug**, not user config (likely a `null → 1` or seconds/ms confusion).
       Trace `timeoutMode` / tool-execution + stream-inactivity timeouts from `clineSettings`
       ([api-contract.ts](src/core/api-contract.ts)) through the session runtime; a 1s timeout is fatal on
       a slow local model (low prefill tok/s). Defaults must be local-model-aware (scale to MCSR
       wall-time-per-1k-tokens, or at minimum a generous local floor) and honor `"unlimited"`. Verify no
-      path resolves a timeout to `1`. **Progress:** legacy `cloud` timeout profiles now resolve to the
-      generous local floors in runtime config and runtime dispatch; stale positive task/global timeouts now
-      clamp to at least 60 seconds before reaching Cline start/stream/tool scheduling; `unlimited` still
-      resolves to `null`. Still open: MCSR-aware scaling from measured local prefill/decode speed.
+      path resolves a timeout to `1`.~~ Legacy `cloud` timeout profiles now resolve to generous local
+      floors in runtime config and runtime dispatch; stale positive task/global timeouts clamp to at least
+      60 seconds before reaching Cline start/stream/tool scheduling; `unlimited` still resolves to `null`;
+      and runtime dispatch raises positive local Cline request/stream/tool/agent/conversation timeouts from
+      measured MCSR speed observations (`wallTimeMsPer1kPromptTokensEwma`, prefill/decode rates, TTFT, and
+      observed wall time) without lowering configured values.
 
 ### L1.4 — Error back-off (no retry storms)
 - [x] ~~**Don't loop on the same error.** Even with cloud gone, ensure repeated identical failures back
@@ -255,14 +257,14 @@ while running distinct endpoints truly in parallel — without thrashing the mac
       payoff of decomposition (L3): feed it a correct DAG and it runs hands-off.~~ Existing linked-task
       completion/trash and auto-review flows now auto-start only the newly unblocked backlog cards that fit
       under the concurrency cap. Per-endpoint serialization remains tracked separately below.
-- [ ] **Local-endpoint serialization, parallel across endpoints.** Serialize tasks that target the *same*
+- [x] ~~**Local-endpoint serialization, parallel across endpoints.** Serialize tasks that target the *same*
       local endpoint (one 9B server can't serve many at once); parallelize across *distinct* local
       endpoints. Drive ordering/pacing from the MCSR wall-time estimate (tokens ÷ measured decode rate +
-      prefill) so we don't fire everything at once and thrash one server.
-      Partial: endpoint-busy decisions now carry a dedicated `endpoint_busy` response code plus an optional
-      `retryAfterMs` estimate derived from the MCSR's observed wall-time and the running session's `startedAt`,
-      giving the UI/CLI a structured pacing signal instead of a generic start failure. Full queued admission is
-      still open.
+      prefill) so we don't fire everything at once and thrash one server.~~ Endpoint-busy decisions carry a
+      dedicated `endpoint_busy` response code plus an optional `retryAfterMs` estimate derived from the
+      MCSR's observed wall-time and the running session's `startedAt`; opt-in queued admission now
+      deduplicates starts per workspace/task, retries queued dependency auto-starts when Cline summary events
+      show an endpoint freed, and requeues with the observed wait estimate if the endpoint is still busy.
 - [x] ~~**Plan2.md H3 (re-scoped):** `getSharedEndpointId` defaults a `sharedEndpointId` for *every*
       registry entry ([cline-model-registry.ts:212-216](src/cline-sdk/cline-model-registry.ts#L212));
       under local-only the failure mode flips — ensure serialization keys are correct *per local GPU/endpoint*

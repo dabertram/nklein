@@ -1044,7 +1044,13 @@ async function unlinkTasks(input: { cwd: string; dependencyId: string; projectPa
 	};
 }
 
-async function startTask(input: { cwd: string; taskId: string; projectPath?: string }): Promise<JsonRecord> {
+async function startTask(input: {
+	cwd: string;
+	taskId: string;
+	projectPath?: string;
+	queueOnEndpointBusy?: boolean;
+	allowQueuedStart?: boolean;
+}): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
@@ -1096,8 +1102,23 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 			baseRef: task.baseRef,
 			agentId: task.agentId,
 			clineSettings: task.clineSettings,
+			queueOnEndpointBusy: input.queueOnEndpointBusy,
 		});
 		if (!started.ok || !started.summary) {
+			if (started.errorCode === "endpoint_busy" && started.queued && input.allowQueuedStart) {
+				return {
+					ok: false,
+					queued: true,
+					task: {
+						id: task.id,
+						prompt: task.prompt,
+						column: fromColumnId,
+						workspacePath: workspaceRepoPath,
+					},
+					error: started.error ?? "Task session is queued until its local model endpoint is available.",
+					retryAfterMs: started.retryAfterMs ?? null,
+				};
+			}
 			if (started.errorCode === "needs_decomposition") {
 				await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (latestState) => ({
 					board: markTaskNeedsDecompositionOnBoard(latestState.board, task.id, started.error),
@@ -1248,6 +1269,8 @@ async function finishTaskById(input: {
 			cwd: input.cwd,
 			taskId: readyTaskId,
 			projectPath: input.projectPath,
+			queueOnEndpointBusy: true,
+			allowQueuedStart: true,
 		});
 		autoStartedTasks.push(started);
 	}

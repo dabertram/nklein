@@ -51,6 +51,7 @@ interface StartTaskSessionOptions {
 	mode?: RuntimeTaskSessionMode;
 	promptOverride?: string;
 	startInPlanMode?: boolean;
+	queueOnEndpointBusy?: boolean;
 }
 
 export interface UseTaskSessionsResult {
@@ -174,6 +175,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					rows: geometry.rows,
 					agentId: task.agentId,
 					clineSettings: task.clineSettings,
+					queueOnEndpointBusy: options?.queueOnEndpointBusy,
 				});
 				if (!payload.ok || !payload.summary) {
 					return {

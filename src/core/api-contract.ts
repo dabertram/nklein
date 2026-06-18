@@ -1274,6 +1274,7 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	rows: z.number().int().positive().optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	clineSettings: runtimeTaskClineSettingsSchema.optional(),
+	queueOnEndpointBusy: z.boolean().optional(),
 });
 export type RuntimeTaskSessionStartRequest = z.infer<typeof runtimeTaskSessionStartRequestSchema>;
 
@@ -1285,6 +1286,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 		.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled", "endpoint_busy", "swarm_stopped"])
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
+	queued: z.boolean().optional(),
 });
 export type RuntimeTaskSessionStartResponse = z.infer<typeof runtimeTaskSessionStartResponseSchema>;
 

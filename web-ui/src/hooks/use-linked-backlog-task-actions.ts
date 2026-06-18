@@ -46,7 +46,7 @@ export function useLinkedBacklogTaskActions({
 		task: BoardCard,
 		taskId: string,
 		fromColumnId: BoardColumnId,
-		options?: { optimisticMove?: boolean },
+		options?: { optimisticMove?: boolean; queueOnEndpointBusy?: boolean },
 	) => Promise<boolean>;
 	activeTaskSessionCount: number;
 	maxConcurrentTasks: number;
@@ -197,6 +197,7 @@ export function useLinkedBacklogTaskActions({
 							readyTaskSelection.column.id,
 							{
 								optimisticMove: true,
+								queueOnEndpointBusy: true,
 							},
 						);
 						if (started) {

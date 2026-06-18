@@ -35,6 +35,7 @@ import {
 	estimateClineStartPromptTokens,
 	formatClineTaskRoutingBlockMessage,
 } from "../cline-sdk/cline-task-start-guard";
+import { applyMcsrAwareLocalTimeoutScaling } from "../cline-sdk/cline-timeout-scaling";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
@@ -76,6 +77,7 @@ import type { TerminalSessionManager } from "../terminal/session-manager";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 type ResolvedClineLaunchConfig = Awaited<
 	ReturnType<ReturnType<typeof createClineProviderService>["resolveLaunchConfig"]>
@@ -97,6 +99,7 @@ export interface CreateRuntimeApiDependencies {
 	broadcastTaskChatCleared?: (workspaceId: string, taskId: string) => void;
 	bumpClineSessionContextVersion?: () => void;
 	prepareForStateReset?: () => Promise<void>;
+	taskStartQueue?: RuntimeTaskStartQueue;
 	getDogfoodTelemetryRoot?: () => string;
 	getUpdateStatus: () => RuntimeUpdateStatusResponse;
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
@@ -493,6 +496,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						providerId: clineLaunchConfig.providerId,
 						baseUrl: clineLaunchConfig.baseUrl,
 					});
+					const mcsrAwareTimeouts = applyMcsrAwareLocalTimeoutScaling({
+						timeouts: effectiveTimeouts,
+						launchConfig: clineLaunchConfig,
+						modelRegistry: modelRegistrySnapshot,
+						promptTokens,
+					});
 					const endpointDecision = scheduleClineEndpointStart({
 						taskId: body.taskId,
 						providerId: clineLaunchConfig.providerId,
@@ -503,14 +512,24 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						now: Date.now(),
 					});
 					if (!endpointDecision.ok) {
+						if (body.queueOnEndpointBusy) {
+							deps.taskStartQueue?.enqueue({
+								workspaceScope,
+								request: body,
+								delayMs: endpointDecision.estimatedWaitMs,
+								error: endpointDecision.reason,
+							});
+						}
 						return {
 							ok: false,
 							summary: null,
 							error: `${endpointDecision.reason} Wait for task "${endpointDecision.blockedByTaskId}" to finish, or choose a different model endpoint.`,
 							errorCode: "endpoint_busy",
 							retryAfterMs: endpointDecision.estimatedWaitMs,
+							queued: body.queueOnEndpointBusy ? true : undefined,
 						};
 					}
+					deps.taskStartQueue?.remove(workspaceScope.workspaceId, body.taskId);
 					const resolvedClineTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
 					const summary = await clineTaskSessionService.startTaskSession({
 						taskId: body.taskId,
@@ -528,12 +547,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						reasoningEffort: clineLaunchConfig.reasoningEffort,
 						contextScope: body.clineSettings?.contextScope,
 						contextWindow: clineLaunchConfig.contextWindow ?? null,
-						timeoutMode: effectiveTimeouts.timeoutMode,
-						requestTimeoutMs: effectiveTimeouts.requestTimeoutMs,
-						turnTimeoutMs: effectiveTimeouts.agentTimeoutMs,
-						streamTimeoutMs: effectiveTimeouts.streamTimeoutMs,
-						toolTimeoutMs: effectiveTimeouts.toolTimeoutMs,
-						conversationTimeoutMs: effectiveTimeouts.conversationTimeoutMs,
+						timeoutMode: mcsrAwareTimeouts.timeoutMode,
+						requestTimeoutMs: mcsrAwareTimeouts.requestTimeoutMs,
+						turnTimeoutMs: mcsrAwareTimeouts.agentTimeoutMs,
+						streamTimeoutMs: mcsrAwareTimeouts.streamTimeoutMs,
+						toolTimeoutMs: mcsrAwareTimeouts.toolTimeoutMs,
+						conversationTimeoutMs: mcsrAwareTimeouts.conversationTimeoutMs,
 						maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
 					});
 

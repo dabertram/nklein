@@ -316,7 +316,7 @@ export function useBoardInteractions({
 			task: BoardCard,
 			taskId: string,
 			fromColumnId: BoardColumnId,
-			options?: { optimisticMove?: boolean },
+			options?: { optimisticMove?: boolean; queueOnEndpointBusy?: boolean },
 		): Promise<boolean> => {
 			const optimisticMove = options?.optimisticMove ?? true;
 			const activeColumnId = getTaskActiveColumnId(task);
@@ -360,7 +360,7 @@ export function useBoardInteractions({
 					setTaskWorkspaceInfo(infoAfterEnsure);
 				}
 			}
-			const started = await startTaskSession(task);
+			const started = await startTaskSession(task, { queueOnEndpointBusy: options?.queueOnEndpointBusy });
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
 				if (started.errorCode === "needs_decomposition" || started.errorCode === "cloud_provider_disabled") {
@@ -421,6 +421,7 @@ export function useBoardInteractions({
 
 			return kickoffTaskInProgress(task, task.id, fromColumnId, {
 				optimisticMove: true,
+				queueOnEndpointBusy: true,
 			});
 		},
 		[board, kickoffTaskInProgress, setBoard],
@@ -455,6 +456,7 @@ export function useBoardInteractions({
 			if (programmaticMoveAttempt === "unavailable") {
 				return kickoffTaskInProgress(task, task.id, fromColumnId, {
 					optimisticMove: false,
+					queueOnEndpointBusy: true,
 				});
 			}
 
@@ -683,7 +685,9 @@ export function useBoardInteractions({
 				maybeRequestNotificationPermissionForTaskStart();
 				const movedSelection = findCardSelection(applied.board, moveEvent.taskId);
 				if (movedSelection) {
-					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId)
+					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, {
+						queueOnEndpointBusy: true,
+					})
 						.then((started) => {
 							resolvePendingProgrammaticStartMove(moveEvent.taskId, started);
 						})

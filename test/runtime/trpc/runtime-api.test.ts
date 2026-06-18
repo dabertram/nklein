@@ -1175,6 +1175,13 @@ describe("createRuntimeApi startTaskSession", () => {
 				[qwenEntry.key]: qwenEntry,
 			},
 		});
+		const taskStartQueue = {
+			enqueue: vi.fn(),
+			remove: vi.fn(),
+			takeReady: vi.fn(() => []),
+			clearWorkspace: vi.fn(),
+			size: vi.fn(() => 0),
+		};
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -1188,6 +1195,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
+			taskStartQueue,
 		});
 
 		const response = await api.startTaskSession(
@@ -1199,15 +1207,30 @@ describe("createRuntimeApi startTaskSession", () => {
 				taskId: "task-2",
 				baseRef: "main",
 				prompt: "Continue task",
+				queueOnEndpointBusy: true,
 			},
 		);
 
 		expect(response.ok).toBe(false);
 		expect(response.errorCode).toBe("endpoint_busy");
+		expect(response.queued).toBe(true);
 		expect(response.retryAfterMs).toBeGreaterThan(0);
 		expect(response.error).toContain("http://127.0.0.1:11434");
 		expect(response.error).toContain("task-1");
 		expect(response.error).toContain("Estimated wait");
+		expect(taskStartQueue.enqueue).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workspaceScope: {
+					workspaceId: "workspace-1",
+					workspacePath: "/tmp/repo",
+				},
+				request: expect.objectContaining({
+					taskId: "task-2",
+					queueOnEndpointBusy: true,
+				}),
+				delayMs: expect.any(Number),
+			}),
+		);
 		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
@@ -1325,6 +1348,179 @@ describe("createRuntimeApi startTaskSession", () => {
 				toolTimeoutMs: 60_000,
 				turnTimeoutMs: 60_000,
 				conversationTimeoutMs: 60_000,
+			}),
+		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("raises positive local Cline timeouts from slow MCSR speed observations", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+		const registryEntry = createModelRegistryEntry({
+			key: "anthropic:claude-sonnet-4-6:http://127.0.0.1:1234/v1",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			endpoint: "http://127.0.0.1:1234/v1",
+			contextWindow: 80_000,
+			capability: 70,
+		});
+		registryEntry.speed = {
+			...registryEntry.speed,
+			samples: 3,
+			promptTokensEwma: 1_000,
+			outputTokensEwma: 250,
+			totalTokensEwma: 1_250,
+			prefillTokensPerSecondEwma: 0.5,
+			decodeTokensPerSecondEwma: 2,
+			ttftMsEwma: 120_000,
+			wallTimeMsEwma: 180_000,
+			wallTimeMsPer1kPromptTokensEwma: 120_000,
+			lastPromptTokens: 1_000,
+			lastOutputTokens: 250,
+			lastWallTimeMs: 180_000,
+			lastObservedAt: 1,
+		};
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[registryEntry.key]: registryEntry,
+			},
+		});
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Slow local model timeout task",
+				clineSettings: {
+					requestTimeoutMs: 1_000,
+					streamTimeoutMs: 1_000,
+					toolTimeoutMs: 1_000,
+					agentTimeoutMs: 1_000,
+					conversationTimeoutMs: 1_000,
+				},
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		const launchRequest = clineTaskSessionService.startTaskSession.mock.calls[0]?.[0] as
+			| {
+					requestTimeoutMs?: number | null;
+					streamTimeoutMs?: number | null;
+					toolTimeoutMs?: number | null;
+					turnTimeoutMs?: number | null;
+					conversationTimeoutMs?: number | null;
+			  }
+			| undefined;
+		expect(launchRequest?.requestTimeoutMs).toBeGreaterThan(60_000);
+		expect(launchRequest?.streamTimeoutMs).toBeGreaterThan(60_000);
+		expect(launchRequest?.toolTimeoutMs).toBeGreaterThan(60_000);
+		expect(launchRequest?.turnTimeoutMs).toBeGreaterThan(60_000);
+		expect(launchRequest?.conversationTimeoutMs).toBeGreaterThan(60_000);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("keeps unlimited Cline timeouts unlimited when MCSR speed data is slow", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+		const registryEntry = createModelRegistryEntry({
+			key: "anthropic:claude-sonnet-4-6:http://127.0.0.1:1234/v1",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			endpoint: "http://127.0.0.1:1234/v1",
+			contextWindow: 80_000,
+			capability: 70,
+		});
+		registryEntry.speed = {
+			...registryEntry.speed,
+			samples: 1,
+			wallTimeMsEwma: 600_000,
+			wallTimeMsPer1kPromptTokensEwma: 600_000,
+			lastWallTimeMs: 600_000,
+			lastObservedAt: 1,
+		};
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				[registryEntry.key]: registryEntry,
+			},
+		});
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.agentTimeoutMode = "unlimited";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Unlimited local model timeout task",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestTimeoutMs: null,
+				streamTimeoutMs: null,
+				toolTimeoutMs: null,
+				turnTimeoutMs: null,
+				conversationTimeoutMs: null,
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
