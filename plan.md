@@ -832,14 +832,15 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 `CHANGELOG.md` now has a running `## [Upcoming]` section, but the full diff-grounded reconciliation still
 needs to be audited against the current `main...HEAD` diff before release.
 
-- [ ] **Derive the entry from the actual diff, not commit messages.** Build `## [Upcoming]` from
-      `git diff --name-status main...HEAD` (89 added + 119 modified files; merge-base `cb1bf3d`; +30,256 /
-      −4,449) plus **reading the real content** of each meaningful change — commit subjects are a guide
-      only and undercount (e.g. they omit the file-discovery / `write_files` / `read_large_file` tools, the
-      eval harness, model-tool-routing, team delegation, the web-research tool, `agent-write-guard`,
-      ownership-aware worktree sync, the +1,426-line settings overhaul, and the projects-API refactor).
-      Each bullet must be **verifiable in the code**, phrased as user-facing behavior, and must not
-      overclaim (especially cloud/advisor, which L0 gates off).
+- [x] **Derive the entry from the actual diff, not commit messages.** Build `## [Upcoming]` from
+      `git diff --name-status main...HEAD` plus **reading the real content** of each meaningful change —
+      commit subjects are a guide only and undercount. Audited against merge-base `cb1bf3d` and the current
+      `main...HEAD` diff (238 files changed; +43,275 / -5,006), including the file-discovery /
+      `write_files` / `read_large_file` tools, eval harness/evidence bundle, model-tool-routing, team
+      delegation/progress, web-research tool, `agent-write-guard`, ownership-aware worktree sync,
+      settings surfaces, and projects/repository ownership cleanup. Added user-facing `## [Upcoming]`
+      bullets for the previously underrepresented areas without presenting cloud/advisor behavior as
+      generally available.
 - [x] ~~**Prepend `## [Upcoming]`** to `CHANGELOG.md`, grouped by theme (the repo uses flat bullets per
       release, but grouping is far more readable at this size). The draft below is diff-grounded but must be
       reconciled line-by-line against the code during execution.~~

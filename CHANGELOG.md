@@ -25,6 +25,9 @@
 - Enforced the project task concurrency cap across UI starts, dependency auto-starts, and backend runtime starts, while preserving the fast Codex restore path by counting only already-loaded Cline services.
 - Unified local endpoint serialization with the local-only provider policy, so custom local OpenAI-compatible endpoints are serialized by URL while distinct local endpoints can run in parallel.
 - Broadened Cline model tool-routing rules so weak local model families, including custom local OpenAI-compatible providers, receive a trimmed SDK default toolset while stronger models keep the full tool surface and Cline's typed sequential execution default.
+- Added workspace-scoped Cline file discovery, file-size, retrieval, large-file, and batched write tools, with context-budget-aware read guidance and per-file write limits.
+- Added a local-gated Cline web research tool for current HTTPS sources on an allow-list, intended for docs, model, MCP, and changelog research without enabling arbitrary browsing.
+- Added Cline team delegation and team-progress projection so multi-agent SDK activity can be tracked and summarized inside Kanban.
 - Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Added queued local-endpoint admission for dependency auto-starts, so same-endpoint Cline tasks are deduplicated, paced by MCSR wait estimates, and retried when the busy local endpoint frees.
@@ -60,6 +63,7 @@
 - Recorded explicit local Cline launch context windows into the model registry immediately and added advertised/observed/user-override context-window precedence for MCSR entries.
 - Added first-run Cline onboarding controls for setting a local model context-window override and seeding model roles with the selected reasoning effort.
 - Hardened `kanban dev smoke-eval` to score only local Cline providers and include the selected local model plus guard, overflow, and timeout telemetry counts in the evidence bundle.
+- Added a local dev smoke fixture, Cline eval harness, and evidence bundle writer so local-model runs can capture prompts, telemetry, diffs, and score artifacts for regression review.
 - Let `kanban task plan-gap --plan-slug <slug>` append concrete gap entries to a plan's `revisions.md` audit trail while still recording the structured self-observation signal.
 - Recorded automatic `plan_gap` telemetry when acceptance verification finds a missing acceptance contract or exhausts repair/escalation attempts.
 - Added an expandable Cline model telemetry panel backed by the MCSR, showing local-only model endpoint, context-window, throughput, latency, capability, samples, and missing-window prompts.
@@ -73,6 +77,8 @@
 - Classified exhausted acceptance failures that clearly indicate missing dependencies, contradictory requirements, or oversized scope as structured `plan_gap` events instead of always recording a generic review gap.
 - Added a Cline autonomous wall-time guardrail that aborts over-budget task sessions, parks the card for review, and records `budget_wall` telemetry with checkpoint evidence.
 - Added a repeated no-diff checkpoint watchdog for Cline tasks, parking sessions that keep checkpointing the same commit without producing new diff progress.
+- Added ownership-aware task worktree sync and Kanban-created repository markers, preserving agent edits on overlapping paths and safely cleaning repository metadata only for repos Kanban owns.
+- Hardened project removal/re-add flows so task worktrees and saved task patches are cleaned up consistently and stale task content cannot be restored accidentally.
 - Added a Planning card DAG review panel in task detail, showing linked prerequisite/dependent cards with status, complexity, likely files, and model/agent hints.
 - Added a Local swarm guardrails section to settings, surfacing the current concurrency cap plus enforced Cline turn, wall-time, no-diff, and mistake guardrails.
 - Added local-only per-model Cline context-window overrides, with a typed runtime save/clear API plus controls in both the Model Telemetry panel and Cline settings.
