@@ -135,6 +135,54 @@ describe("KanbanBoard", () => {
 		}
 	});
 
+	it("renders the swarm cockpit strip with board counts", async () => {
+		const board: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{ id: "task-1", title: "Ready", prompt: "Build", agentId: "cline", baseRef: "main" },
+						{
+							id: "task-2",
+							title: "Blocked",
+							prompt: "Blocked",
+							agentId: "cline",
+							baseRef: "main",
+							blockedKind: "needs_decomposition",
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Local swarm");
+		expect(container.textContent).toContain("Running 0");
+		expect(container.textContent).toContain("Waiting 1");
+		expect(container.textContent).toContain("Blocked 1");
+		expect(container.querySelector("button")?.textContent).toContain("Pause");
+		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+	});
+
 	it("marks the board while a programmatic move is active", async () => {
 		const dragActions = {
 			isActive: vi.fn(() => true),

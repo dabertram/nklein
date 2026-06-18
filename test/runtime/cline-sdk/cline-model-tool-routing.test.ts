@@ -16,4 +16,13 @@ describe("cline model tool routing", () => {
 		]);
 		expect(rules[0]).not.toHaveProperty("providerIdIncludes");
 	});
+
+	it("keeps strong local models on the default tool surface", () => {
+		const rules = buildKanbanModelToolRoutingRules();
+
+		for (const rule of rules) {
+			expect(rule.modelIdIncludes).not.toContain("gpt-oss-120b");
+			expect(rule.modelIdIncludes).not.toContain("deepseek-r1");
+		}
+	});
 });

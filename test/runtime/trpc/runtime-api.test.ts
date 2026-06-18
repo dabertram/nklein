@@ -2306,6 +2306,43 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
 	});
 
+	it("manages workspace swarm stop signal through runtime api", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-swarm-stop-api-"));
+		try {
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(),
+				getScopedClineTaskSessionService: vi.fn(),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+			const scope = { workspaceId: "workspace-1", workspacePath };
+
+			await expect(api.getSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
+
+			const stopped = await api.requestSwarmStop(scope, { reason: "Operator paused from UI." });
+			expect(stopped.ok).toBe(true);
+			expect(stopped.signal).toMatchObject({
+				stopped: true,
+				reason: "Operator paused from UI.",
+			});
+			await expect(api.getSwarmStop(scope)).resolves.toMatchObject({
+				ok: true,
+				signal: expect.objectContaining({
+					stopped: true,
+					reason: "Operator paused from UI.",
+				}),
+			});
+
+			await expect(api.clearSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
+			await expect(api.getSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
+	});
+
 	it("blocks project task starts while the swarm stop signal is active", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-swarm-stop-runtime-"));
 		try {

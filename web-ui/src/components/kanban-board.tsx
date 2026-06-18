@@ -8,13 +8,18 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
+import { PauseCircle, PlayCircle } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { showAppToast } from "@/components/app-toaster";
 import { BoardColumn } from "@/components/board-column";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
-import type { RuntimeTaskSessionSummary } from "@/runtime/types";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
+import type { RuntimeSwarmStopSignal, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { canCreateTaskDependency } from "@/state/board-state";
 import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
@@ -54,6 +59,7 @@ export function KanbanBoard({
 	onDragEnd,
 	onRequestProgrammaticCardMoveReady,
 	workspacePath,
+	currentProjectId,
 	defaultClineModelId,
 }: {
 	data: BoardData;
@@ -82,6 +88,7 @@ export function KanbanBoard({
 	onDragEnd: (result: DropResult) => void;
 	onRequestProgrammaticCardMoveReady?: (requestMove: RequestProgrammaticCardMove | null) => void;
 	workspacePath?: string | null;
+	currentProjectId?: string | null;
 	defaultClineModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
@@ -94,10 +101,72 @@ export function KanbanBoard({
 	const [activeDragSourceColumnId, setActiveDragSourceColumnId] = useState<BoardColumnId | null>(null);
 	const [programmaticCardMoveInFlight, setProgrammaticCardMoveInFlight] =
 		useState<ProgrammaticCardMoveInFlight | null>(null);
+	const [swarmStopSignal, setSwarmStopSignal] = useState<RuntimeSwarmStopSignal | null>(null);
+	const [isSwarmStopLoading, setIsSwarmStopLoading] = useState(false);
 	const dependencyLinking = useDependencyLinking({
 		canLinkTasks: (fromTaskId, toTaskId) => canCreateTaskDependency(data, fromTaskId, toTaskId),
 		onCreateDependency,
 	});
+	const swarmCounts = useMemo(() => {
+		const cards = data.columns.flatMap((column) => column.cards);
+		const running = Object.values(taskSessions).filter((summary) => summary.state === "running").length;
+		const blocked = cards.filter((card) => card.blockedKind).length;
+		const waiting = data.columns
+			.filter((column) => column.id === "backlog" || column.id === "planning")
+			.reduce((total, column) => total + column.cards.filter((card) => !card.blockedKind).length, 0);
+		return { running, waiting, blocked };
+	}, [data.columns, taskSessions]);
+
+	useEffect(() => {
+		if (!currentProjectId) {
+			setSwarmStopSignal(null);
+			return;
+		}
+		let cancelled = false;
+		const trpcClient = getRuntimeTrpcClient(currentProjectId);
+		void trpcClient.runtime.getSwarmStop.query().then(
+			(response) => {
+				if (!cancelled && response.ok) {
+					setSwarmStopSignal(response.signal);
+				}
+			},
+			() => {
+				if (!cancelled) {
+					setSwarmStopSignal(null);
+				}
+			},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [currentProjectId]);
+
+	const handleToggleSwarmStop = useCallback(async () => {
+		if (!currentProjectId || isSwarmStopLoading) {
+			return;
+		}
+		setIsSwarmStopLoading(true);
+		try {
+			const trpcClient = getRuntimeTrpcClient(currentProjectId);
+			const response = swarmStopSignal
+				? await trpcClient.runtime.clearSwarmStop.mutate()
+				: await trpcClient.runtime.requestSwarmStop.mutate({ reason: "Paused from the Kanban board." });
+			if (!response.ok) {
+				throw new Error(response.error ?? "Could not update swarm pause state.");
+			}
+			setSwarmStopSignal(response.signal);
+			showAppToast({
+				intent: "success",
+				message: response.signal ? "Swarm paused." : "Swarm resumed.",
+				timeout: 3000,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsSwarmStopLoading(false);
+		}
+	}, [currentProjectId, isSwarmStopLoading, swarmStopSignal]);
 
 	useEffect(() => {
 		latestDataRef.current = data;
@@ -371,66 +440,96 @@ export function KanbanBoard({
 		(activeDragTaskId !== null && activeDragSourceColumnId === "backlog" ? "in_progress" : null);
 
 	return (
-		<DragDropContext
-			onBeforeCapture={handleBeforeCapture}
-			onDragStart={handleDragStart}
-			onDragEnd={handleDragEnd}
-			sensors={[programmaticSensor]}
-		>
-			<section
-				ref={boardRef}
-				className="kb-board kb-dependency-surface"
-				data-programmatic-card-move={programmaticCardMoveInFlight ? "true" : undefined}
+		<div className="flex flex-1 min-h-0 min-w-0 flex-col">
+			<div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-1 px-3">
+				<div className="flex min-w-0 items-center gap-2 text-xs text-text-secondary">
+					<span className="font-medium text-text-primary">Local swarm</span>
+					<span>Running {swarmCounts.running}</span>
+					<span>Waiting {swarmCounts.waiting}</span>
+					<span>Blocked {swarmCounts.blocked}</span>
+					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
+				</div>
+				<Button
+					variant={swarmStopSignal ? "default" : "danger"}
+					size="sm"
+					icon={
+						isSwarmStopLoading ? (
+							<Spinner size={14} />
+						) : swarmStopSignal ? (
+							<PlayCircle size={14} />
+						) : (
+							<PauseCircle size={14} />
+						)
+					}
+					disabled={!currentProjectId || isSwarmStopLoading}
+					onClick={() => {
+						void handleToggleSwarmStop();
+					}}
+				>
+					{swarmStopSignal ? "Resume" : "Pause"}
+				</Button>
+			</div>
+			<DragDropContext
+				onBeforeCapture={handleBeforeCapture}
+				onDragStart={handleDragStart}
+				onDragEnd={handleDragEnd}
+				sensors={[programmaticSensor]}
 			>
-				{data.columns.map((column) => (
-					<BoardColumn
-						key={column.id}
-						column={column}
-						taskSessions={taskSessions}
-						onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
-						onStartTask={column.id === "backlog" ? onStartTask : undefined}
-						onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
-						onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
-						onClearTrash={column.id === "trash" ? onClearTrash : undefined}
-						editingTaskId={column.id === "backlog" ? editingTaskId : null}
-						inlineTaskEditor={column.id === "backlog" ? inlineTaskEditor : undefined}
-						onEditTask={column.id === "backlog" ? onEditTask : undefined}
-						onSaveTitle={column.id !== "trash" ? onSaveTaskTitle : undefined}
-						onCommitTask={column.id === "review" ? onCommitTask : undefined}
-						onOpenPrTask={column.id === "review" ? onOpenPrTask : undefined}
-						onCancelAutomaticTaskAction={onCancelAutomaticTaskAction}
-						onMoveToTrashTask={column.id === "review" ? onMoveToTrashTask : undefined}
-						onRestoreFromTrashTask={column.id === "trash" ? onRestoreFromTrashTask : undefined}
-						commitTaskLoadingById={column.id === "review" ? commitTaskLoadingById : undefined}
-						openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
-						moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
-						activeDragTaskId={activeDragTaskId}
-						activeDragSourceColumnId={activeDragSourceColumnId}
-						programmaticCardMoveInFlight={programmaticCardMoveInFlight}
-						onDependencyPointerDown={dependencyLinking.onDependencyPointerDown}
-						onDependencyPointerEnter={dependencyLinking.onDependencyPointerEnter}
-						dependencySourceTaskId={dependencyLinking.draft?.sourceTaskId ?? null}
-						dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
-						isDependencyLinking={dependencyLinking.draft !== null}
-						workspacePath={workspacePath}
-						defaultClineModelId={defaultClineModelId}
-						onCardClick={(card) => {
-							if (!dragOccurredRef.current) {
-								onCardSelect(card.id);
-							}
-						}}
+				<section
+					ref={boardRef}
+					className="kb-board kb-dependency-surface"
+					data-programmatic-card-move={programmaticCardMoveInFlight ? "true" : undefined}
+				>
+					{data.columns.map((column) => (
+						<BoardColumn
+							key={column.id}
+							column={column}
+							taskSessions={taskSessions}
+							onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
+							onStartTask={column.id === "backlog" ? onStartTask : undefined}
+							onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
+							onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
+							onClearTrash={column.id === "trash" ? onClearTrash : undefined}
+							editingTaskId={column.id === "backlog" ? editingTaskId : null}
+							inlineTaskEditor={column.id === "backlog" ? inlineTaskEditor : undefined}
+							onEditTask={column.id === "backlog" ? onEditTask : undefined}
+							onSaveTitle={column.id !== "trash" ? onSaveTaskTitle : undefined}
+							onCommitTask={column.id === "review" ? onCommitTask : undefined}
+							onOpenPrTask={column.id === "review" ? onOpenPrTask : undefined}
+							onCancelAutomaticTaskAction={onCancelAutomaticTaskAction}
+							onMoveToTrashTask={column.id === "review" ? onMoveToTrashTask : undefined}
+							onRestoreFromTrashTask={column.id === "trash" ? onRestoreFromTrashTask : undefined}
+							commitTaskLoadingById={column.id === "review" ? commitTaskLoadingById : undefined}
+							openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
+							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
+							activeDragTaskId={activeDragTaskId}
+							activeDragSourceColumnId={activeDragSourceColumnId}
+							programmaticCardMoveInFlight={programmaticCardMoveInFlight}
+							onDependencyPointerDown={dependencyLinking.onDependencyPointerDown}
+							onDependencyPointerEnter={dependencyLinking.onDependencyPointerEnter}
+							dependencySourceTaskId={dependencyLinking.draft?.sourceTaskId ?? null}
+							dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
+							isDependencyLinking={dependencyLinking.draft !== null}
+							workspacePath={workspacePath}
+							defaultClineModelId={defaultClineModelId}
+							onCardClick={(card) => {
+								if (!dragOccurredRef.current) {
+									onCardSelect(card.id);
+								}
+							}}
+						/>
+					))}
+					<DependencyOverlay
+						containerRef={boardRef}
+						dependencies={dependencies}
+						draft={dependencyLinking.draft}
+						activeTaskId={activeDragTaskId ?? programmaticCardMoveInFlight?.taskId ?? null}
+						activeTaskEffectiveColumnId={activeTaskEffectiveColumnId}
+						isMotionActive={activeDragTaskId !== null || programmaticCardMoveInFlight !== null}
+						onDeleteDependency={onDeleteDependency}
 					/>
-				))}
-				<DependencyOverlay
-					containerRef={boardRef}
-					dependencies={dependencies}
-					draft={dependencyLinking.draft}
-					activeTaskId={activeDragTaskId ?? programmaticCardMoveInFlight?.taskId ?? null}
-					activeTaskEffectiveColumnId={activeTaskEffectiveColumnId}
-					isMotionActive={activeDragTaskId !== null || programmaticCardMoveInFlight !== null}
-					onDeleteDependency={onDeleteDependency}
-				/>
-			</section>
-		</DragDropContext>
+				</section>
+			</DragDropContext>
+		</div>
 	);
 }

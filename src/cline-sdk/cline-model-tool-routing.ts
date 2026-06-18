@@ -21,6 +21,8 @@ const SMALL_LOCAL_MODEL_DISABLED_TOOLS: NonNullable<ToolRoutingRule["disableTool
 ];
 
 export function buildKanbanModelToolRoutingRules(): ToolRoutingRule[] {
+	// Cline core currently resolves omitted maxParallelToolCalls to sequential
+	// execution; keep this rule focused on typed SDK tool selection.
 	return [
 		{
 			name: "kanban-small-local-model-tool-trim",

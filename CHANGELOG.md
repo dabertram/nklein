@@ -24,7 +24,7 @@
 - Improved Cline context budget breakdowns by retaining the SDK system prompt per task and estimating enabled Kanban tool-schema overhead instead of leaving tool tokens at zero.
 - Enforced the project task concurrency cap across UI starts, dependency auto-starts, and backend runtime starts, while preserving the fast Codex restore path by counting only already-loaded Cline services.
 - Unified local endpoint serialization with the local-only provider policy, so custom local OpenAI-compatible endpoints are serialized by URL while distinct local endpoints can run in parallel.
-- Broadened Cline model tool-routing rules so weak local model families, including custom local OpenAI-compatible providers, receive a trimmed SDK default toolset while stronger models keep the full tool surface.
+- Broadened Cline model tool-routing rules so weak local model families, including custom local OpenAI-compatible providers, receive a trimmed SDK default toolset while stronger models keep the full tool surface and Cline's typed sequential execution default.
 - Made decomposition role assignment write the Cline router-selected role settings onto created Planning cards, including route-up cases and default-model selections.
 - Added structured `endpoint_busy` Cline start responses with MCSR-derived retry estimates for same-local-endpoint contention.
 - Added queued local-endpoint admission for dependency auto-starts, so same-endpoint Cline tasks are deduplicated, paced by MCSR wait estimates, and retried when the busy local endpoint frees.
@@ -33,6 +33,8 @@
 - Added `kanban task merge` to merge reviewed/completed task worktree heads into a clean base worktree in dependency order, abort conflicts, and create a Planning integration card with conflicted paths.
 - Wired `kanban task done` to auto-merge reviewed task worktrees before cleanup/dependent auto-start, preserving worktrees and creating integration cards when merges block or conflict.
 - Added a workspace swarm stop signal with `kanban task swarm-stop` / `swarm-resume`; project task starts now return a typed `swarm_stopped` response while paused.
+- Recorded typed self-observation telemetry when native Cline reaches the consecutive mistake guardrail and stopped the task through the SDK callback, making repeated tool/API failure stalls diagnosable.
+- Added a board-level Local swarm strip with running/waiting/blocked counts and a Pause/Resume control wired to typed runtime swarm-stop endpoints.
 - Added `revisions.md` plan artifacts and exposed `revisionsPath` through decomposition tool, CLI, and dogfood API outputs for future adaptive re-planning audit trails.
 - Added `kanban task plan-gap` and a typed `plan_gap` self-observation signal so execution agents can report missing decisions, contradictions, dependencies, oversized scope, or unplanned integration work.
 - Fixed Cline team-progress summaries so `task_end` events with string-shaped errors are reported as failures instead of completions.

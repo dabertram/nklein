@@ -273,15 +273,16 @@ while running distinct endpoints truly in parallel — without thrashing the mac
       The scheduler and registry now share the local-only policy for endpoint serialization, including custom
       local OpenAI-compatible providers, and regression tests cover same-endpoint blocking plus distinct-endpoint
       parallel starts.
-- [ ] **Per-model tool routing for weak local models.** Wire the SDK's native `model-tool-routing`
+- [x] ~~**Per-model tool routing for weak local models.** Wire the SDK's native `model-tool-routing`
       (`ToolRoutingRule`) so a small local model gets a trimmed, sequential toolset and a strong local
-      model gets the full set. Config we own at the boundary — no SDK fork.
-      Partial: Kanban now passes a typed SDK `ToolRoutingRule` that trims fragile/default tools
-      (`fetch_web_content`, `skills`, `ask_question`, `editor`) for small local model families, including
-      custom local OpenAI-compatible providers whose provider id cannot be matched from SDK rules. Strong
-      models keep the full default toolset. Remaining: the installed public Cline core config type does not
-      expose `maxParallelToolCalls`, so forcing all weak-model tools to sequential execution should wait for
-      a typed SDK boundary rather than smuggling an undeclared field.
+      model gets the full set. Config we own at the boundary — no SDK fork.~~ Kanban now passes a typed
+      SDK `ToolRoutingRule` that trims fragile/default tools (`fetch_web_content`, `skills`,
+      `ask_question`, `editor`) for small local model families, including custom local
+      OpenAI-compatible providers whose provider id cannot be matched from SDK rules. Strong models
+      stay off the trim rule and keep the full default toolset. The installed Cline core already resolves
+      omitted `maxParallelToolCalls` to sequential execution; the public `ClineCoreStartInput` config still
+      does not expose that field, so Kanban leaves sequential execution to the typed SDK default instead of
+      smuggling an undeclared config property.
 
 ### L2.3 — Roster/roles wired to routing
 - [x] ~~**Make `modelRoles` active, not read-only.** Roles resolve to whichever connected *local* model
@@ -335,8 +336,11 @@ below are correctness and safety of the autonomous DAG, not literal concurrency.
       UI Stop button triggers (L4). Bounded autonomy so an overnight run can't run away. **Progress:**
       workspaces now have an explicit `.cline/kanban/swarm-stop.json` stop signal; `kanban task swarm-stop`
       and `kanban task swarm-resume` toggle it, and runtime project task starts return typed
-      `swarm_stopped` errors while it is active. Still open: UI Stop wiring, per-run turn/wall-time/card
-      budgets, and the no-diff/repeated-tool stall watchdog.
+      `swarm_stopped` errors while it is active. Native Cline starts now also wire the typed consecutive
+      mistake limit callback into Kanban self-observation telemetry and explicitly stop the task when the
+      guardrail is reached. The board cockpit now exposes the stop signal as a Pause/Resume control. Still
+      open: per-run turn/wall-time/card budgets, and a richer no-diff/repeated-tool stall watchdog beyond
+      the SDK mistake-limit guard.
 
 ---
 
@@ -454,9 +458,12 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
 - [ ] **Board as swarm cockpit.** Each running card shows a live mini-status: role/model, a compact form
       of the L1.6 token bar, tok/s + elapsed (from MCSR / session timing), current tool, and turn count.
       Reuse the data already flowing through the session summary — no new poll loop.
-- [ ] **Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
+- [~] **Global swarm header + Stop.** A header strip: running / queued / blocked counts, per-local-endpoint
       utilization, a concurrency-cap slider (wired to `maxConcurrentTasks`, L2.2), and a prominent
-      **Pause/Stop swarm** control that fires the L2.4 stop signal.
+      **Pause/Stop swarm** control that fires the L2.4 stop signal. **Progress:** the board now renders a
+      compact Local swarm strip with running/waiting/blocked counts plus a Pause/Resume button backed by
+      typed runtime `getSwarmStop` / `requestSwarmStop` / `clearSwarmStop` endpoints. Still open:
+      per-local-endpoint utilization and an inline concurrency-cap slider.
 - [~] **Model & endpoint panel (surface the MCSR).** A panel showing each configured local model:
       effective context window, measured prefill/decode tok/s, capability score, and which model is loaded.
       Show it **before** `samples>0` too (today `formatClineModelRegistryDisplay`

@@ -16,6 +16,14 @@ import {
 } from "../../../src/cline-sdk/cline-session-runtime";
 import type { ClineSdkSessionRecord, ClineSdkStartSessionInput } from "../../../src/cline-sdk/sdk-runtime-boundary";
 
+const selfObservationMocks = vi.hoisted(() => ({
+	recordSelfObservation: vi.fn(),
+}));
+
+vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
+	recordSelfObservation: selfObservationMocks.recordSelfObservation,
+}));
+
 function createNoopMcpRuntimeService() {
 	return {
 		createToolBundle: vi.fn(async () => ({
@@ -335,6 +343,70 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(largeFileApproval.approved).toBe(false);
 		expect(largeFileApproval.reason).toContain("already started read_files");
 		expect(baseApproval).toHaveBeenCalledTimes(1);
+	});
+
+	it("records and stops when Cline reaches the consecutive mistake guardrail", async () => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-stalled",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate failing tool loop",
+			providerId: "ollama",
+			modelId: "qwen2.5-coder:7b",
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+		const callback = fakeHost.start.mock.calls[0]?.[0].config.onConsecutiveMistakeLimitReached;
+
+		const decision = await callback?.({
+			iteration: 6,
+			consecutiveMistakes: 5,
+			maxConsecutiveMistakes: 5,
+			reason: "tool_execution_failed",
+			details: "read_files failed repeatedly",
+		});
+
+		expect(decision).toEqual({
+			action: "stop",
+			reason: "Kanban swarm guardrail stopped this task after repeated Cline mistakes.",
+		});
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "task_abandoned",
+				severity: "warning",
+				taskId: "task-stalled",
+				providerId: "ollama",
+				modelId: "qwen2.5-coder:7b",
+				workspacePath: "/tmp/worktree",
+				metadata: expect.objectContaining({
+					guardrail: "consecutive_mistake_limit",
+					iteration: 6,
+					consecutiveMistakes: 5,
+					maxConsecutiveMistakes: 5,
+					reason: "tool_execution_failed",
+					details: "read_files failed repeatedly",
+				}),
+			}),
+		);
 	});
 
 	it("wires Kanban focused context compaction into SDK local runtime", async () => {

@@ -75,6 +75,8 @@ import type {
 	RuntimeShellSessionStartRequest,
 	RuntimeShellSessionStartResponse,
 	RuntimeSlashCommandsResponse,
+	RuntimeSwarmStopRequest,
+	RuntimeSwarmStopResponse,
 	RuntimeTaskChatAbortRequest,
 	RuntimeTaskChatAbortResponse,
 	RuntimeTaskChatCancelRequest,
@@ -176,6 +178,8 @@ import {
 	runtimeShellSessionStartRequestSchema,
 	runtimeShellSessionStartResponseSchema,
 	runtimeSlashCommandsResponseSchema,
+	runtimeSwarmStopRequestSchema,
+	runtimeSwarmStopResponseSchema,
 	runtimeTaskChatAbortRequestSchema,
 	runtimeTaskChatAbortResponseSchema,
 	runtimeTaskChatCancelRequestSchema,
@@ -242,6 +246,12 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionStopRequest,
 		) => Promise<RuntimeTaskSessionStopResponse>;
+		getSwarmStop: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeSwarmStopResponse>;
+		requestSwarmStop: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeSwarmStopRequest,
+		) => Promise<RuntimeSwarmStopResponse>;
+		clearSwarmStop: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeSwarmStopResponse>;
 		sendTaskSessionInput: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionInputRequest,
@@ -506,6 +516,18 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.stopTaskSession(ctx.workspaceScope, input);
 			}),
+		getSwarmStop: workspaceProcedure.output(runtimeSwarmStopResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getSwarmStop(ctx.workspaceScope);
+		}),
+		requestSwarmStop: workspaceProcedure
+			.input(runtimeSwarmStopRequestSchema)
+			.output(runtimeSwarmStopResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.requestSwarmStop(ctx.workspaceScope, input);
+			}),
+		clearSwarmStop: workspaceProcedure.output(runtimeSwarmStopResponseSchema).mutation(async ({ ctx }) => {
+			return await ctx.runtimeApi.clearSwarmStop(ctx.workspaceScope);
+		}),
 		sendTaskSessionInput: workspaceProcedure
 			.input(runtimeTaskSessionInputRequestSchema)
 			.output(runtimeTaskSessionInputResponseSchema)

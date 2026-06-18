@@ -69,7 +69,7 @@ import {
 	parseTaskSessionStopRequest,
 } from "../core/api-validation";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { readSwarmStopSignal } from "../core/swarm-guardrails";
+import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
@@ -324,6 +324,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				deps.setActiveRuntimeConfig(nextRuntimeConfig);
 			}
 			return buildConfigResponse(nextRuntimeConfig);
+		},
+		getSwarmStop: async (workspaceScope) => {
+			return {
+				ok: true,
+				signal: await readSwarmStopSignal(workspaceScope.workspacePath),
+			};
+		},
+		requestSwarmStop: async (workspaceScope, input) => {
+			const signal = await requestSwarmStop({
+				workspacePath: workspaceScope.workspacePath,
+				reason: input.reason,
+			});
+			return {
+				ok: true,
+				signal,
+			};
+		},
+		clearSwarmStop: async (workspaceScope) => {
+			await clearSwarmStop(workspaceScope.workspacePath);
+			return {
+				ok: true,
+				signal: null,
+			};
 		},
 		saveClineProviderSettings: async (_workspaceScope, input) => {
 			const body = parseClineProviderSettingsSaveRequest(input);

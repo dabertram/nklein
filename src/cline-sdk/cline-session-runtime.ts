@@ -13,6 +13,7 @@ import {
 	type RuntimeTaskSessionMode,
 	runtimeClineReasoningEffortSchema,
 } from "../core/api-contract";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
@@ -702,6 +703,29 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			toolRoutingRules: buildKanbanModelToolRoutingRules(),
 			execution: {
 				maxConsecutiveMistakes: DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES,
+			},
+			onConsecutiveMistakeLimitReached: async (context) => {
+				await recordSelfObservation({
+					signal: "task_abandoned",
+					severity: "warning",
+					message: `Kanban stopped Cline task ${request.taskId} after ${context.consecutiveMistakes}/${context.maxConsecutiveMistakes} consecutive ${context.reason} mistakes.`,
+					taskId: request.taskId,
+					providerId: request.providerId,
+					modelId: request.modelId,
+					workspacePath: request.cwd,
+					metadata: {
+						guardrail: "consecutive_mistake_limit",
+						iteration: context.iteration,
+						consecutiveMistakes: context.consecutiveMistakes,
+						maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+						reason: context.reason,
+						details: context.details ?? null,
+					},
+				});
+				return {
+					action: "stop",
+					reason: "Kanban swarm guardrail stopped this task after repeated Cline mistakes.",
+				};
 			},
 			systemPrompt: request.systemPrompt,
 		};

@@ -956,6 +956,7 @@ export default function App(): ReactElement {
 												data={board}
 												taskSessions={sessions}
 												workspacePath={workspacePath}
+												currentProjectId={currentProjectId}
 												onCardSelect={handleCardSelect}
 												onCreateTask={handleOpenCreateTask}
 												onStartTask={handleStartTaskFromBoard}

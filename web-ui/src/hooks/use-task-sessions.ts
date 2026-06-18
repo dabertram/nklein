@@ -42,7 +42,12 @@ interface SendTaskSessionInputResult {
 interface StartTaskSessionResult {
 	ok: boolean;
 	message?: string;
-	errorCode?: "needs_decomposition" | "routing_escalation" | "cloud_provider_disabled" | "endpoint_busy";
+	errorCode?:
+		| "needs_decomposition"
+		| "routing_escalation"
+		| "cloud_provider_disabled"
+		| "endpoint_busy"
+		| "swarm_stopped";
 	retryAfterMs?: number | null;
 }
 

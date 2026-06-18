@@ -1302,6 +1302,25 @@ export const runtimeTaskSessionStopResponseSchema = z.object({
 });
 export type RuntimeTaskSessionStopResponse = z.infer<typeof runtimeTaskSessionStopResponseSchema>;
 
+export const runtimeSwarmStopSignalSchema = z.object({
+	stopped: z.literal(true),
+	reason: z.string(),
+	createdAt: z.number(),
+});
+export type RuntimeSwarmStopSignal = z.infer<typeof runtimeSwarmStopSignalSchema>;
+
+export const runtimeSwarmStopRequestSchema = z.object({
+	reason: z.string().optional(),
+});
+export type RuntimeSwarmStopRequest = z.infer<typeof runtimeSwarmStopRequestSchema>;
+
+export const runtimeSwarmStopResponseSchema = z.object({
+	ok: z.boolean(),
+	signal: runtimeSwarmStopSignalSchema.nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeSwarmStopResponse = z.infer<typeof runtimeSwarmStopResponseSchema>;
+
 export const runtimeTaskSessionInputRequestSchema = z.object({
 	taskId: z.string(),
 	text: z.string(),
