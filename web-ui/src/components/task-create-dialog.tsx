@@ -1,6 +1,7 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as RadixSwitch from "@radix-ui/react-switch";
+import { appendTaskContextBlock, type TaskContextImportSource } from "@runtime-task-context-import";
 
 import {
 	ArrowBigUp,
@@ -9,6 +10,9 @@ import {
 	ChevronDown,
 	Command,
 	CornerDownLeft,
+	FileText,
+	Github,
+	GitPullRequest,
 	List,
 	Option,
 	PencilLine,
@@ -18,6 +22,7 @@ import {
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { toast } from "sonner";
 
 import type { BranchSelectOption } from "@/components/branch-select-dropdown";
 import { BranchSelectDropdown } from "@/components/branch-select-dropdown";
@@ -27,6 +32,7 @@ import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type { RuntimeAgentId, RuntimeClineReasoningEffort, RuntimeTaskClineSettings } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
 import type { TaskAutoReviewMode, TaskImage } from "@/types";
@@ -169,7 +175,9 @@ export function TaskCreateDialog({
 	const [createMore, setCreateMore] = useState(false);
 	const [composerResetKey, setComposerResetKey] = useState(0);
 	const [taskPrompts, setTaskPrompts] = useState<string[]>([]);
+	const [contextImportSource, setContextImportSource] = useState<TaskContextImportSource | "file" | null>(null);
 	const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const nextFocusIndexRef = useRef<number | null>(null);
 	const startInPlanModeId = useId();
 	const autoReviewEnabledId = useId();
@@ -213,10 +221,82 @@ export function TaskCreateDialog({
 			setCreateMore(false);
 			setComposerResetKey(0);
 			setTaskPrompts([]);
+			setContextImportSource(null);
 			inputRefs.current = [];
 			nextFocusIndexRef.current = null;
 		}
 	}, [open]);
+
+	const appendImportedContext = useCallback(
+		(sourceLabel: string, content: string) => {
+			onPromptChange(appendTaskContextBlock(prompt, sourceLabel, content));
+			setComposerResetKey((current) => current + 1);
+		},
+		[onPromptChange, prompt],
+	);
+
+	const handleImportFileClick = useCallback(() => {
+		fileInputRef.current?.click();
+	}, []);
+
+	const handleImportFileChange = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			const file = event.currentTarget.files?.[0];
+			event.currentTarget.value = "";
+			if (!file) {
+				return;
+			}
+			setContextImportSource("file");
+			void file
+				.text()
+				.then((content) => {
+					if (!content.trim()) {
+						toast.error("Selected file is empty.");
+						return;
+					}
+					appendImportedContext(`file ${file.name}`, content);
+					toast.success("Imported file context.");
+				})
+				.catch((error: unknown) => {
+					const message = error instanceof Error ? error.message : String(error);
+					toast.error(`Could not import file: ${message}`);
+				})
+				.finally(() => setContextImportSource(null));
+		},
+		[appendImportedContext],
+	);
+
+	const handleImportGitHubContext = useCallback(
+		(source: TaskContextImportSource) => {
+			if (!workspaceId) {
+				toast.error("Open a workspace before importing GitHub context.");
+				return;
+			}
+			const target = window.prompt(
+				source === "github_issue" ? "GitHub issue URL or owner/repo#number" : "GitHub PR URL or owner/repo#number",
+			);
+			if (!target?.trim()) {
+				return;
+			}
+			setContextImportSource(source);
+			void getRuntimeTrpcClient(workspaceId)
+				.runtime.importTaskContext.mutate({ source, target })
+				.then((response) => {
+					if (!response.ok || !response.content || !response.sourceLabel) {
+						toast.error(response.error ?? "Could not import GitHub context.");
+						return;
+					}
+					appendImportedContext(response.sourceLabel, response.content);
+					toast.success(`Imported ${response.sourceLabel}.`);
+				})
+				.catch((error: unknown) => {
+					const message = error instanceof Error ? error.message : String(error);
+					toast.error(`Could not import GitHub context: ${message}`);
+				})
+				.finally(() => setContextImportSource(null));
+		},
+		[appendImportedContext, workspaceId],
+	);
 
 	// Handle pending focus after render
 	useEffect(() => {
@@ -459,6 +539,40 @@ export function TaskCreateDialog({
 								to add images.
 							</p>
 							<div className="flex shrink-0 flex-wrap items-center gap-2">
+								<input
+									ref={fileInputRef}
+									type="file"
+									className="hidden"
+									onChange={handleImportFileChange}
+									aria-label="Import context from file"
+								/>
+								<Button
+									variant="ghost"
+									size="sm"
+									icon={<FileText size={14} />}
+									onClick={handleImportFileClick}
+									disabled={contextImportSource !== null}
+								>
+									File
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									icon={<Github size={14} />}
+									onClick={() => handleImportGitHubContext("github_issue")}
+									disabled={contextImportSource !== null || !workspaceId}
+								>
+									Issue
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									icon={<GitPullRequest size={14} />}
+									onClick={() => handleImportGitHubContext("github_pr_diff")}
+									disabled={contextImportSource !== null || !workspaceId}
+								>
+									PR diff
+								</Button>
 								<TaskPromptTemplateMenu onSelectTemplate={onPromptChange} />
 								{detectedItems.length >= 2 ? (
 									<button

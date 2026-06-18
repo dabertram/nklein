@@ -31,6 +31,7 @@ import {
 	type RuntimeTaskChatMessagesRequest,
 	type RuntimeTaskChatReloadRequest,
 	type RuntimeTaskChatSendRequest,
+	type RuntimeTaskContextImportRequest,
 	type RuntimeTaskEvidenceRequest,
 	type RuntimeTaskSessionInputRequest,
 	type RuntimeTaskSessionStartRequest,
@@ -72,6 +73,7 @@ import {
 	runtimeTaskChatMessagesRequestSchema,
 	runtimeTaskChatReloadRequestSchema,
 	runtimeTaskChatSendRequestSchema,
+	runtimeTaskContextImportRequestSchema,
 	runtimeTaskEvidenceRequestSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionStartRequestSchema,
@@ -260,6 +262,18 @@ export function parseCommandRunRequest(value: unknown): RuntimeCommandRunRequest
 	}
 	return {
 		command,
+	};
+}
+
+export function parseTaskContextImportRequest(value: unknown): RuntimeTaskContextImportRequest {
+	const parsed = parseWithSchema(runtimeTaskContextImportRequestSchema, value);
+	const target = parsed.target.trim();
+	if (!target) {
+		throw new Error("Context import target cannot be empty.");
+	}
+	return {
+		source: parsed.source,
+		target,
 	};
 }
 

@@ -67,6 +67,7 @@ import type {
 	RuntimeCommandRunResponse,
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskContextImportResponse,
 	RuntimeTaskEvidenceResponse,
 	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
@@ -97,6 +98,7 @@ import {
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
 	parseTaskChatSendRequest,
+	parseTaskContextImportRequest,
 	parseTaskEvidenceRequest,
 	parseTaskSessionInputRequest,
 	parseTaskSessionStartRequest,
@@ -105,6 +107,12 @@ import {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
+import {
+	formatGitHubContextLabel,
+	type GitHubIssueView,
+	parseGitHubContextTarget,
+	renderGitHubIssueContext,
+} from "../core/task-context-import";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
@@ -127,6 +135,8 @@ type ResolvedClineLaunchConfig = Awaited<
 >;
 
 const execFileAsync = promisify(execFile);
+const GITHUB_CONTEXT_IMPORT_TIMEOUT_MS = 20_000;
+const GITHUB_CONTEXT_IMPORT_MAX_BUFFER_BYTES = 512_000;
 
 interface AdvisorChatCompletionInput {
 	launchConfig: ResolvedClineLaunchConfig;
@@ -196,6 +206,60 @@ function readAdvisorTextResponse(value: unknown): string {
 		}
 	}
 	return "";
+}
+
+async function runGitHubCli(args: string[], cwd: string): Promise<string> {
+	const { stdout } = await execFileAsync("gh", args, {
+		cwd,
+		timeout: GITHUB_CONTEXT_IMPORT_TIMEOUT_MS,
+		maxBuffer: GITHUB_CONTEXT_IMPORT_MAX_BUFFER_BYTES,
+	});
+	return stdout.toString();
+}
+
+async function importGitHubIssueContext(targetText: string, cwd: string): Promise<RuntimeTaskContextImportResponse> {
+	const target = parseGitHubContextTarget(targetText);
+	const sourceLabel = formatGitHubContextLabel("github_issue", target);
+	const stdout = await runGitHubCli(
+		[
+			"issue",
+			"view",
+			target.number,
+			"--repo",
+			`${target.owner}/${target.repo}`,
+			"--json",
+			"title,body,comments,url,state,labels",
+		],
+		cwd,
+	);
+	const issue = JSON.parse(stdout) as GitHubIssueView;
+	const content = renderGitHubIssueContext(issue);
+	if (!content) {
+		throw new Error("GitHub issue returned no importable content.");
+	}
+	return {
+		ok: true,
+		sourceLabel,
+		title: issue.title?.trim() || null,
+		content,
+	};
+}
+
+async function importGitHubPrDiffContext(targetText: string, cwd: string): Promise<RuntimeTaskContextImportResponse> {
+	const target = parseGitHubContextTarget(targetText);
+	const sourceLabel = formatGitHubContextLabel("github_pr_diff", target);
+	const content = (
+		await runGitHubCli(["pr", "diff", target.number, "--repo", `${target.owner}/${target.repo}`], cwd)
+	).trim();
+	if (!content) {
+		throw new Error("GitHub PR diff returned no importable content.");
+	}
+	return {
+		ok: true,
+		sourceLabel,
+		title: null,
+		content,
+	};
 }
 
 async function fetchAdvisorJson(url: string, init: RequestInit): Promise<unknown> {
@@ -2015,6 +2079,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					ok: false,
+					error: message,
+				};
+			}
+		},
+		importTaskContext: async (workspaceScope, input): Promise<RuntimeTaskContextImportResponse> => {
+			try {
+				const body = parseTaskContextImportRequest(input);
+				if (body.source === "github_issue") {
+					return await importGitHubIssueContext(body.target, workspaceScope.workspacePath);
+				}
+				return await importGitHubPrDiffContext(body.target, workspaceScope.workspacePath);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					ok: false,
+					sourceLabel: null,
+					content: null,
 					error: message,
 				};
 			}

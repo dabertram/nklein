@@ -1340,6 +1340,24 @@ export const runtimeCommandRunResponseSchema = z.object({
 });
 export type RuntimeCommandRunResponse = z.infer<typeof runtimeCommandRunResponseSchema>;
 
+export const runtimeTaskContextImportSourceSchema = z.enum(["github_issue", "github_pr_diff"]);
+export type RuntimeTaskContextImportSource = z.infer<typeof runtimeTaskContextImportSourceSchema>;
+
+export const runtimeTaskContextImportRequestSchema = z.object({
+	source: runtimeTaskContextImportSourceSchema,
+	target: z.string(),
+});
+export type RuntimeTaskContextImportRequest = z.infer<typeof runtimeTaskContextImportRequestSchema>;
+
+export const runtimeTaskContextImportResponseSchema = z.object({
+	ok: z.boolean(),
+	sourceLabel: z.string().nullable(),
+	title: z.string().nullable().optional(),
+	content: z.string().nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeTaskContextImportResponse = z.infer<typeof runtimeTaskContextImportResponseSchema>;
+
 export const runtimeOpenFileRequestSchema = z.object({
 	filePath: z.string(),
 });
