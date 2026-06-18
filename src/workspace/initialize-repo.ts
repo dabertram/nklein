@@ -32,7 +32,7 @@ export async function isGitRepositoryCreatedByKanban(projectPath: string): Promi
 		return markerResult.stdout === "true";
 	}
 
-	// Migrate repositories initialized by older Kanban versions before the
+	// Migrate repositories initialized by older !Klein versions before the
 	// ownership marker existed.
 	const rootCommitMessages = await runGit(projectPath, ["log", "--max-parents=0", "--format=%s"]);
 	const wasInitializedByKanban =

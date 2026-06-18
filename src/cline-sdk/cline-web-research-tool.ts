@@ -122,13 +122,13 @@ export function createWebResearchTool(options: CreateWebResearchToolOptions = {}
 		{
 			name: "web_research",
 			description:
-				"Fetch a current HTTPS source from Kanban's allow-list for grounding docs, changelogs, model leaderboards, or MCP registry research. Use sparingly and cite the URL in your answer.",
+				"Fetch a current HTTPS source from !Klein's allow-list for grounding docs, changelogs, model leaderboards, or MCP registry research. Use sparingly and cite the URL in your answer.",
 			inputSchema: {
 				type: "object",
 				properties: {
 					url: {
 						type: "string",
-						description: "HTTPS URL to fetch. The host must be on Kanban's allow-list.",
+						description: "HTTPS URL to fetch. The host must be on !Klein's allow-list.",
 					},
 				},
 				required: ["url"],

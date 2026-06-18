@@ -48,7 +48,7 @@ export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "small-model-smoke",
 	title: "Small model smoke task",
 	prompt:
-		"Task: Read specification.md, decompose the requested change into Kanban task leaves, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the requested change into !Klein task leaves, and apply the generated task graph.",
 	specification:
 		"Update the habit score logic so perfect completion is capped at 100 even with a long streak, and add or update the acceptance test.",
 	acceptanceCommand: "npm test",
@@ -60,7 +60,7 @@ export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario
 	id: "habit-insights-mid",
 	title: "Add habit insight summaries",
 	prompt:
-		"Task: Read specification.md, decompose the habit insight summary work into Kanban task leaves, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the habit insight summary work into !Klein task leaves, and apply the generated task graph.",
 	specification: [
 		"Implement a mid-complexity habit insights feature in this TypeScript CLI project.",
 		"",
@@ -83,7 +83,7 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 	id: "habit-product-cline-complex",
 	title: "Habit product Cline buildout",
 	prompt:
-		"Task: Read specification.md, decompose the product buildout into at least ten Kanban task leaves with dependencies, and apply the generated task graph.",
+		"Task: Read specification.md, decompose the product buildout into at least ten !Klein task leaves with dependencies, and apply the generated task graph.",
 	specification: [
 		"Turn the tiny habit scoring CLI into a more complete habit-insights product slice.",
 		"",
@@ -134,9 +134,9 @@ async function initializeGitRepository(workspacePath: string): Promise<void> {
 		cwd: workspacePath,
 		env: {
 			...process.env,
-			GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || "Kanban Dev Test",
+			GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || "!Klein Dev Test",
 			GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || "kanban-dev-test@example.invalid",
-			GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || "Kanban Dev Test",
+			GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME || "!Klein Dev Test",
 			GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL || "kanban-dev-test@example.invalid",
 		},
 	});

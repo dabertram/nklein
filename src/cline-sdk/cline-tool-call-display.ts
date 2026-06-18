@@ -173,7 +173,7 @@ function parseToolPayload(input: unknown): unknown {
 }
 
 /**
- * Maps a `kanban task <subcommand>` to a human-friendly display label.
+ * Maps an `nklein task <subcommand>` to a human-friendly display label.
  */
 const KANBAN_SUBCOMMAND_LABELS: Record<string, string> = {
 	create: "Creating task",
@@ -188,13 +188,14 @@ const KANBAN_SUBCOMMAND_LABELS: Record<string, string> = {
 };
 
 /**
- * Detects whether a command string is a kanban task CLI invocation and returns
+ * Detects whether a command string is an nklein task CLI invocation and returns
  * a friendly display override. The command may be prefixed with a full node
  * binary path (e.g. `'/opt/homebrew/.../node' '/opt/.../cli.js' task create ...`)
- * or a simple `kanban task create ...`.
+ * or a simple `nklein task create ...`. Legacy `kanban` invocations are still
+ * recognized during the rename transition.
  */
 function resolveKanbanCommandDisplay(command: string): ClineToolCallDisplay | null {
-	if (!/kanban/i.test(command)) {
+	if (!/(?:nklein|kanban)/i.test(command)) {
 		return null;
 	}
 	const taskSubcommandMatch = command.match(/\btask\s+(create|link|unlink|trash|done|delete|start|update|list)\b/);
@@ -342,8 +343,8 @@ function summarizeParsedToolInput(toolName: string, input: unknown, output?: unk
 }
 
 /**
- * Resolves a kanban-friendly display from run_commands input when the command
- * is a kanban task CLI invocation. Returns null for non-kanban commands.
+ * Resolves an nklein-friendly display from run_commands input when the command
+ * is an nklein task CLI invocation. Returns null for non-nklein commands.
  */
 function resolveKanbanRunCommandDisplay(input: unknown): ClineToolCallDisplay | null {
 	if (!isRecord(input)) {

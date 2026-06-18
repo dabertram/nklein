@@ -68,7 +68,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				const currentBranch = runGit(repoPath, ["symbolic-ref", "--short", "HEAD"]);
@@ -94,7 +94,7 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "card1.txt"), "x".repeat(568_000), "utf8");
@@ -139,7 +139,7 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "shared.txt"), "base\n", "utf8");
@@ -187,7 +187,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
@@ -247,7 +247,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
@@ -296,7 +296,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
@@ -345,7 +345,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(appPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
@@ -397,7 +397,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
@@ -473,7 +473,7 @@ describe.sequential("task-worktree integration", () => {
 				const repoPath = join(sandboxRoot, "repo");
 				mkdirSync(repoPath, { recursive: true });
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "card1.txt"), "base\n", "utf8");
@@ -524,7 +524,7 @@ describe.sequential("task-worktree integration", () => {
 				mkdirSync(repoPath, { recursive: true });
 
 				runGit(repoPath, ["init"]);
-				runGit(repoPath, ["config", "user.name", "Kanban Test"]);
+				runGit(repoPath, ["config", "user.name", "!Klein Test"]);
 				runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
 
 				writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");

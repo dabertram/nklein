@@ -13,7 +13,7 @@ popd >nul
 set "CLI_ENTRY=%REPO_ROOT%\dist\cli.js"
 
 if not exist "%CLI_ENTRY%" (
-  echo error: Kanban CLI not found at %CLI_ENTRY% >&2
+  echo error: nklein CLI not found at %CLI_ENTRY% >&2
   echo hint: Run 'npm run build' at the repo root first >&2
   endlocal
   exit /b 1

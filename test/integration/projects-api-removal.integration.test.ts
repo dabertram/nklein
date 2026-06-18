@@ -129,7 +129,7 @@ describe.sequential("project Git repository removal", () => {
 				});
 
 				expect(result.ok).toBe(false);
-				expect(result.error).toContain("Kanban did not create this Git repository");
+				expect(result.error).toContain("!Klein did not create this Git repository");
 				expect(existsSync(join(projectPath, ".git"))).toBe(true);
 				expect(await listWorkspaceIndexEntries()).toHaveLength(1);
 			} finally {

@@ -411,7 +411,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			reasoningEffort: "low",
 		});
 		expect(result.createdTasks[0]?.prompt).toContain(
-			"Model fit: validated by Kanban routing guard (ollama / qwen3.5-9b, role worker, context 64,000, capability 35)",
+			"Model fit: validated by !Klein routing guard (ollama / qwen3.5-9b, role worker, context 64,000, capability 35)",
 		);
 		expect(result.createdTasks[1]?.clineSettings).toEqual({
 			providerId: "lmstudio",
@@ -419,7 +419,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			reasoningEffort: "high",
 		});
 		expect(result.createdTasks[1]?.prompt).toContain(
-			"Model fit: validated by Kanban routing guard (ollama / deepseek-coder-33b, role architect, context 64,000, capability 70)",
+			"Model fit: validated by !Klein routing guard (ollama / deepseek-coder-33b, role architect, context 64,000, capability 70)",
 		);
 		expect(result.preview.summary).toContain("across 2 cards");
 		expect(result.preview.tasks[0]).toMatchObject({
@@ -674,7 +674,7 @@ describe("cline decomposition tools", () => {
 		expect(result.createdTaskCount).toBe(0);
 		expect(result.modelFitValidated).toBe(false);
 		expect(result.instruction).toContain("nklein task decompose --slug habit-tracker");
-		expect(result.instruction).toContain("Apply them through Kanban, not by editing task files");
+		expect(result.instruction).toContain("Apply them through !Klein, not by editing task files");
 		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
 		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
@@ -709,7 +709,7 @@ describe("cline decomposition tools", () => {
 		).rejects.toThrow("still open");
 	});
 
-	it("applies decompose_project artifacts to a Git-backed Kanban workspace", async () => {
+	it("applies decompose_project artifacts to a Git-backed !Klein workspace", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-apply-"));
 		const homePath = await mkdtemp(join(tmpdir(), "kanban-decompose-home-"));
 		const previousHome = process.env.HOME;
@@ -720,9 +720,9 @@ describe("cline decomposition tools", () => {
 				cwd: workspacePath,
 				env: {
 					...process.env,
-					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
-					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_NAME: "!Klein Test",
 					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
 				},
 			});
@@ -805,9 +805,9 @@ describe("cline decomposition tools", () => {
 				cwd: parentWorkspacePath,
 				env: {
 					...process.env,
-					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
-					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_NAME: "!Klein Test",
 					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
 				},
 			});
@@ -902,9 +902,9 @@ describe("cline decomposition tools", () => {
 				cwd: workspacePath,
 				env: {
 					...process.env,
-					GIT_AUTHOR_NAME: "Kanban Test",
+					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
-					GIT_COMMITTER_NAME: "Kanban Test",
+					GIT_COMMITTER_NAME: "!Klein Test",
 					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
 				},
 			});

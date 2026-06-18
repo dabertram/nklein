@@ -8,7 +8,7 @@ const EMPTY_REGISTRY = {
 };
 
 describe("buildClineStartGuardCandidate", () => {
-	it("rejects launch candidates below the Kanban minimum context window", () => {
+	it("rejects launch candidates below the !Klein minimum context window", () => {
 		expect(() =>
 			buildClineStartGuardCandidate({
 				launchConfig: {
@@ -22,7 +22,7 @@ describe("buildClineStartGuardCandidate", () => {
 		).toThrow("requires at least 32,000");
 	});
 
-	it("accepts launch candidates at the Kanban minimum context window", () => {
+	it("accepts launch candidates at the !Klein minimum context window", () => {
 		const candidate = buildClineStartGuardCandidate({
 			launchConfig: {
 				providerId: "ollama",

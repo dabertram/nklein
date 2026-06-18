@@ -4616,7 +4616,7 @@ describe("createRuntimeApi update handlers", () => {
 			status: "updated" as const,
 			currentVersion: "0.1.0",
 			latestVersion: "0.2.0",
-			message: "Updated Kanban to 0.2.0.",
+			message: "Updated !Klein to 0.2.0.",
 		}));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -4633,7 +4633,7 @@ describe("createRuntimeApi update handlers", () => {
 			status: "updated",
 			currentVersion: "0.1.0",
 			latestVersion: "0.2.0",
-			message: "Updated Kanban to 0.2.0.",
+			message: "Updated !Klein to 0.2.0.",
 		});
 		expect(runUpdateNow).toHaveBeenCalledTimes(1);
 	});

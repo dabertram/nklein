@@ -2,8 +2,8 @@ import { compactKanbanMessagesForContextTarget } from "./cline-context-focus-pol
 import type { ClineSdkPersistedMessage } from "./sdk-runtime-boundary";
 
 /**
- * Temporary Kanban-side fallback for context overflow recovery.
- * TODO: remove this once SDK-side pluggable compaction policies are available and wired through Kanban.
+ * Temporary !Klein-side fallback for context overflow recovery.
+ * TODO: remove this once SDK-side pluggable compaction policies are available and wired through !Klein.
  */
 const CONTEXT_OVERFLOW_ERROR_PATTERNS = [
 	/prompt is too long/i,

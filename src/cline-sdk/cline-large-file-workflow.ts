@@ -344,7 +344,7 @@ export class ClineLargeFileWorkflow {
 					...context.request.messages,
 					createRailMessage(
 						[
-							"[Kanban large-file workflow: reading incomplete]",
+							"[!Klein large-file workflow: reading incomplete]",
 							...instructions,
 							"Call read_large_file again for the same path and update durable running notes after analyzing each returned chunk.",
 						].join("\n"),
@@ -378,7 +378,7 @@ export class ClineLargeFileWorkflow {
 					...context.request.messages,
 					createRailMessage(
 						[
-							"[Kanban large-file workflow: stitching required before synthesis]",
+							"[!Klein large-file workflow: stitching required before synthesis]",
 							...instructions,
 							"Call read_large_file (not read_files) exactly once in this assistant response. Never issue parallel read_large_file calls for stitching boundaries.",
 							"The tool automatically returns as many separate pending stitching areas as fit the current context budget and advances the workflow state.",
@@ -401,7 +401,7 @@ export class ClineLargeFileWorkflow {
 				...context.request.messages,
 				createRailMessage(
 					[
-						"[Kanban large-file workflow: verified coverage parked]",
+						"[!Klein large-file workflow: verified coverage parked]",
 						"Complete large-file coverage is verified and persisted for:",
 						...coverageSummary,
 						...persistedContext,
@@ -556,7 +556,7 @@ export class ClineLargeFileWorkflow {
 				throw new Error(`Unable to build stitching window for ${path}.`);
 			}
 			const chunk = [
-				"[Kanban stitching areas: discontiguous boundary windows]",
+				"[!Klein stitching areas: discontiguous boundary windows]",
 				`Returned ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"}. Each area is laid over its own primary-chunk boundary; do not treat the first start line through the last end line as one continuous read.`,
 				...stitchingAreas.map((area) => area.content),
 			].join("\n\n");
@@ -646,7 +646,7 @@ export class ClineLargeFileWorkflow {
 			budgets.safeWorkingBudget ? Math.floor(budgets.safeWorkingBudget * 0.75) : budgets.fileChunkContentTokenBudget,
 		);
 		const sections: string[] = [];
-		let usedTokens = countKanbanTextTokens("[Kanban persisted read_large_file context]\n");
+		let usedTokens = countKanbanTextTokens("[!Klein persisted read_large_file context]\n");
 		for (const output of this.index.outputs) {
 			const content = await readFile(join(this.getWorkflowRoot(), output.path), "utf8").catch(() => null);
 			if (!content) {
@@ -662,12 +662,12 @@ export class ClineLargeFileWorkflow {
 		}
 		if (sections.length === 0) {
 			return [
-				"[Kanban persisted read_large_file context]",
+				"[!Klein persisted read_large_file context]",
 				"No persisted read outputs fit the current synthesis budget; use the running notes already in context.",
 			];
 		}
 		return [
-			"[Kanban persisted read_large_file context]",
+			"[!Klein persisted read_large_file context]",
 			`Included ${sections.length} of ${this.index.outputs.length} persisted read_large_file output${this.index.outputs.length === 1 ? "" : "s"} within the synthesis budget.`,
 			...sections,
 		];
@@ -788,7 +788,7 @@ export function createReadLargeFileTool(options: {
 	return {
 		name: "read_large_file",
 		description:
-			"Read and analyze a large text file through Kanban's enforced workflow. Make one call at a time with the current cursor; each stitching call may return a batch of separate stitching areas, so never call this tool in parallel for boundaries.",
+			"Read and analyze a large text file through !Klein's enforced workflow. Make one call at a time with the current cursor; each stitching call may return a batch of separate stitching areas, so never call this tool in parallel for boundaries.",
 		inputSchema: {
 			type: "object",
 			properties: {

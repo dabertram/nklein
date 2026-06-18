@@ -231,7 +231,7 @@ export async function compressKanbanContextTextWithProvider(
 export function buildCompressedContextPreview(text: string, maxTokens: number): string {
 	const compressed = compressKanbanContextText(text, { maxTokens });
 	return [
-		`[Kanban context focus: older text compressed with ${compressed.mode}; ${compressed.originalTokens} -> ${compressed.compressedTokens} tokens.]`,
+		`[!Klein context focus: older text compressed with ${compressed.mode}; ${compressed.originalTokens} -> ${compressed.compressedTokens} tokens.]`,
 		compressed.text,
 	].join(" ");
 }
@@ -239,7 +239,7 @@ export function buildCompressedContextPreview(text: string, maxTokens: number): 
 export async function buildCompressedContextPreviewWithProvider(text: string, maxTokens: number): Promise<string> {
 	const compressed = await compressKanbanContextTextWithProvider(text, { maxTokens });
 	return [
-		`[Kanban context focus: older text compressed with ${compressed.mode}${compressed.provider ? ` via ${compressed.provider}` : ""}; ${compressed.originalTokens} -> ${compressed.compressedTokens} tokens.]`,
+		`[!Klein context focus: older text compressed with ${compressed.mode}${compressed.provider ? ` via ${compressed.provider}` : ""}; ${compressed.originalTokens} -> ${compressed.compressedTokens} tokens.]`,
 		compressed.text,
 	].join(" ");
 }

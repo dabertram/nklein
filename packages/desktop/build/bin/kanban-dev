@@ -8,7 +8,7 @@ REPO_ROOT="$(dirname "$(dirname "$DESKTOP_ROOT")")"
 CLI_ENTRY="$REPO_ROOT/dist/cli.js"
 
 if [ ! -f "$CLI_ENTRY" ]; then
-  echo "error: Kanban CLI not found at $CLI_ENTRY" >&2
+  echo "error: nklein CLI not found at $CLI_ENTRY" >&2
   echo "hint: Run 'npm run build' at the repo root first" >&2
   exit 1
 fi

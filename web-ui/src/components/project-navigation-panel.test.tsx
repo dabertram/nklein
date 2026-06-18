@@ -43,7 +43,7 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 const PROJECTS: RuntimeProjectSummary[] = [
 	{
 		id: "project-1",
-		name: "Kanban",
+		name: "!Klein",
 		path: "/tmp/kanban",
 		taskCounts: {
 			backlog: 0,
@@ -61,7 +61,7 @@ const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
 	PROJECTS[0] as RuntimeProjectSummary,
 	{
 		id: "worktree-project",
-		name: "Kanban",
+		name: "!Klein",
 		path: "/Users/david/.cline/worktrees/source-card/kanban",
 		taskCounts: {
 			backlog: 10,

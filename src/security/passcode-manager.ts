@@ -1,5 +1,5 @@
 /**
- * Passcode manager for remotely-hosted Kanban instances.
+ * Passcode manager for remotely-hosted !Klein instances.
  *
  * Security properties:
  * - Passcode is generated via crypto.randomBytes — cryptographically secure.

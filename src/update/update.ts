@@ -594,7 +594,7 @@ export function runPendingAutoUpdateOnShutdown(options?: {
 	pendingShutdownAutoUpdate = null;
 
 	const log = options?.log ?? console.log;
-	log(`New version ${pendingUpdate.latestVersion} detected. Refreshing cached Kanban for next launch.`);
+	log(`New version ${pendingUpdate.latestVersion} detected. Refreshing cached !Klein for next launch.`);
 
 	const spawnUpdate = options?.spawnUpdate ?? spawnDetachedUpdate;
 	spawnUpdate(pendingUpdate.command, pendingUpdate.args);
@@ -608,7 +608,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion: null,
 			packageManager: UpdatePackageManager.UNKNOWN,
-			message: "Could not resolve the Kanban entrypoint for this installation.",
+			message: "Could not resolve the !Klein entrypoint for this installation.",
 		};
 	}
 
@@ -622,7 +622,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion: null,
 			packageManager: UpdatePackageManager.UNKNOWN,
-			message: "Could not resolve the Kanban entrypoint for this installation.",
+			message: "Could not resolve the !Klein entrypoint for this installation.",
 		};
 	}
 
@@ -653,7 +653,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion: null,
 			packageManager: manualInstallation.packageManager,
-			message: "Could not determine an automatic update command for this Kanban installation.",
+			message: "Could not determine an automatic update command for this !Klein installation.",
 		};
 	}
 
@@ -668,7 +668,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion: null,
 			packageManager: manualInstallation.packageManager,
-			message: "Could not check the latest Kanban version from npm.",
+			message: "Could not check the latest !Klein version from npm.",
 		};
 	}
 
@@ -700,7 +700,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 			currentVersion: options.currentVersion,
 			latestVersion,
 			packageManager: manualInstallation.packageManager,
-			message: `Cleared transient Kanban cache. Re-run your command to launch version ${latestVersion}.`,
+			message: `Cleared transient !Klein cache. Re-run your command to launch version ${latestVersion}.`,
 		};
 	}
 
@@ -709,7 +709,7 @@ export async function runOnDemandUpdate(options: OnDemandUpdateOptions): Promise
 		currentVersion: options.currentVersion,
 		latestVersion,
 		packageManager: manualInstallation.packageManager,
-		message: `Updated Kanban from ${options.currentVersion} to ${latestVersion}.`,
+		message: `Updated !Klein from ${options.currentVersion} to ${latestVersion}.`,
 	};
 }
 

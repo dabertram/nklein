@@ -34,7 +34,7 @@ describe("pickRecoveryUrl", () => {
 	it("falls back to runtimeUrl for file:// URLs (e.g. disconnected screen)", () => {
 		expect(
 			pickRecoveryUrl(
-				"file:///Applications/Kanban.app/Contents/Resources/disconnected.html",
+				"file:///Applications/nKlein.app/Contents/Resources/disconnected.html",
 				runtimeUrl,
 			),
 		).toBe(runtimeUrl);

@@ -1,7 +1,7 @@
 const LOCALHOST_HOSTS = ["localhost", "127.0.0.1", "::1"];
 
 /**
- * Returns true when the browser is accessing Kanban from the same machine
+ * Returns true when the browser is accessing !Klein from the same machine
  * where it is hosted (i.e. via localhost, 127.0.0.1, or the IPv6 loopback).
  *
  * This is a best-effort heuristic — it won't catch cases where a user accesses

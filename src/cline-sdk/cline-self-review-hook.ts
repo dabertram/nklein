@@ -53,6 +53,6 @@ export function reviewClineAfterModelCompletion(
 	return {
 		stop: true,
 		reason:
-			"Kanban self-review blocked completion because the assistant response admits unfinished work or claims completion without changes.",
+			"!Klein self-review blocked completion because the assistant response admits unfinished work or claims completion without changes.",
 	};
 }

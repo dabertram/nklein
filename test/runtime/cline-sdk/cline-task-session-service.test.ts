@@ -1004,7 +1004,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.getSummary("task-1")?.mode).toBe("plan");
 	});
 
-	it("prepends a Kanban-managed planning prompt when start in plan mode is enabled", async () => {
+	it("prepends a !Klein-managed planning prompt when start in plan mode is enabled", async () => {
 		const { service, runtime } = createTrackedService();
 
 		await service.startTaskSession({
@@ -1020,7 +1020,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				mode: "act",
-				prompt: expect.stringContaining("Kanban decomposition is available during planning"),
+				prompt: expect.stringContaining("!Klein decomposition is available during planning"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
@@ -1030,7 +1030,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				prompt: expect.stringContaining("workspace's overridable Kanban workflow rules"),
+				prompt: expect.stringContaining("workspace's overridable !Klein workflow rules"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
@@ -1159,7 +1159,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary.warningMessage).toBeNull();
 	});
 
-	it("appends Kanban sidebar instructions for home sessions", async () => {
+	it("appends !Klein sidebar instructions for home sessions", async () => {
 		const { service, runtime } = createTrackedService();
 		setKanbanProcessContext();
 
@@ -2155,7 +2155,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.getSummary("task-1")?.latestHookActivity?.activityText).toContain(
 			"parked after repeated failures",
 		);
-		expect(service.listMessages("task-1").at(-1)?.content).toContain("Kanban parked this task");
+		expect(service.listMessages("task-1").at(-1)?.content).toContain("!Klein parked this task");
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				signal: "runtime_error",

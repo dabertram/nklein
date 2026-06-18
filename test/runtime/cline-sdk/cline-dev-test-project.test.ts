@@ -55,7 +55,7 @@ describe("cline dev test project", () => {
 		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
 	});
 
-	it("initializes git with Kanban ownership metadata", async () => {
+	it("initializes git with !Klein ownership metadata", async () => {
 		const parentDir = await createParentDir();
 		const project = await scaffoldClineDevTestProject({
 			parentDir,

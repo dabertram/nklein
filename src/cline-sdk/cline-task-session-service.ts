@@ -132,7 +132,7 @@ export interface StartClineTaskSessionRequest {
 	workspaceRoot?: string | null;
 	prompt: string;
 	startInPlanMode?: boolean;
-	/** Normalized Kanban task title; written to SDK session metadata (best-effort). */
+	/** Normalized !Klein task title; written to SDK session metadata (best-effort). */
 	taskTitle?: string;
 	initialMessages?: ClineSdkPersistedMessage[];
 	images?: RuntimeTaskImage[];
@@ -189,7 +189,7 @@ export function buildKanbanEfficiencyRules(options: {
 	const promptOverheadReserveText = budgets.promptOverheadReserveTokens.toLocaleString();
 	const maxAgentWritableFileLines = normalizeMaxAgentWritableFileLines(options.maxAgentWritableFileLines);
 	return [
-		"# Kanban Efficiency Rules",
+		"# !Klein Efficiency Rules",
 		"",
 		"## Adaptive Prompt Selection",
 		"Before acting, briefly decide which optional rule packs fit the user's task. Apply a pack only when its description matches the requested work; ignore packs that do not fit. Do not keyword-match mechanically: reason from the task intent, source shape, and expected output.",
@@ -225,7 +225,7 @@ export function buildKanbanEfficiencyRules(options: {
 		"every included file has EOF-confirmed coverage or an explicit exclusion reason.",
 		"If a pass cannot finish now, resume from the last confirmed line. Treat an incomplete pass as incomplete work.",
 		"The newest successful chunk remains verbatim for its immediate analysis request. Before reading the next chunk, distill its salient facts into durable running notes (or append them incrementally to the output file); once a newer chunk arrives, older raw chunk bodies are removed from request context.",
-		"Do not restart a file you have already covered. When a Kanban context-focus brief or coverage ledger reports ranges read through line N, resume at N+1 and never re-read 1..N from line 1.",
+		"Do not restart a file you have already covered. When a !Klein context-focus brief or coverage ledger reports ranges read through line N, resume at N+1 and never re-read 1..N from line 1.",
 		"To re-confirm continuity across a covered file, read only a small stitching window around the relevant chunk boundary, then synthesize from your running notes rather than re-reading the whole file.",
 		budgets.contextWindow
 			? `Model context window: ${budgets.contextWindow.toLocaleString()} tokens. Treat this as the authoritative upper bound for prompt planning and reserve about ${budgets.outputReserveTokens.toLocaleString()} tokens for reasoning/tool chatter/final answer.`
@@ -452,9 +452,9 @@ function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): strin
 	const trimmedPrompt = prompt.trim();
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
-		"Kanban decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable Kanban workflow rules are applied.",
+		"!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.",
 		"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
-		"Continue autonomously through the planning workflow when the task can be completed with Kanban-managed tools.",
+		"Continue autonomously through the planning workflow when the task can be completed with !Klein-managed tools.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");
 }
@@ -715,7 +715,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				taskId,
 				"system",
 				shouldPark
-					? `Cline SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so Kanban parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
+					? `Cline SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so !Klein parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
 					: `Cline SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`,
 			);
 			entry.messages.push(systemMessage);
@@ -1208,11 +1208,11 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			});
 			if (promptAloneOverflows) {
 				throw new Error(
-					`Your message (~${nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask Kanban to summarize pasted content first, or pick a larger-window local model.`,
+					`Your message (~${nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask !Klein to summarize pasted content first, or pick a larger-window local model.`,
 				);
 			}
 			throw new Error(
-				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after Kanban compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
+				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after !Klein compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
 			);
 		}
 		if (compactedMessages !== messages || originalProjectedTokens > input.contextWindow) {
@@ -2029,7 +2029,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return this.parkTaskForAutonomyBudget({
 				taskId,
 				entry,
-				message: `Kanban paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
+				message: `!Klein paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
 				metadata: {
 					guardrail: "max_autonomous_turns",
 					turn: checkpoint.turn,
@@ -2044,7 +2044,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return this.parkTaskForAutonomyBudget({
 				taskId,
 				entry,
-				message: `Kanban paused this task after ${noDiffState.count} consecutive checkpoints produced no new diff commit. Review progress, then send a new instruction to continue.`,
+				message: `!Klein paused this task after ${noDiffState.count} consecutive checkpoints produced no new diff commit. Review progress, then send a new instruction to continue.`,
 				metadata: {
 					guardrail: "repeated_no_diff_checkpoints",
 					count: noDiffState.count,
@@ -2064,7 +2064,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return this.parkTaskForAutonomyBudget({
 			taskId,
 			entry,
-			message: `Kanban paused this task after ${formatWallTimeDuration(elapsedMs)} of autonomous wall time so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
+			message: `!Klein paused this task after ${formatWallTimeDuration(elapsedMs)} of autonomous wall time so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
 			metadata: {
 				guardrail: "max_autonomous_wall_time",
 				elapsedMs,
@@ -2119,7 +2119,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return this.parkTaskForAutonomyBudget({
 			taskId: summary.taskId,
 			entry,
-			message: `Kanban paused this task after ${nextState.count} repeated ${nextState.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`,
+			message: `!Klein paused this task after ${nextState.count} repeated ${nextState.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`,
 			metadata: {
 				guardrail: "repeated_tool_calls",
 				count: nextState.count,

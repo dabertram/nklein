@@ -56,8 +56,8 @@ function createWriteTool(options: {
 	return {
 		name: options.name,
 		description: isBatchTool
-			? "Create or replace one or more text files. Each file entry must include both path and complete content in the same tool call. Use this for generated artifacts that fit Kanban's per-file line guard rail; split larger output across files."
-			: "Create or replace one text file. Include both path and complete content in the same tool call. Use this for a generated artifact that fits Kanban's per-file line guard rail; split larger output across files.",
+			? "Create or replace one or more text files. Each file entry must include both path and complete content in the same tool call. Use this for generated artifacts that fit !Klein's per-file line guard rail; split larger output across files."
+			: "Create or replace one text file. Include both path and complete content in the same tool call. Use this for a generated artifact that fits !Klein's per-file line guard rail; split larger output across files.",
 		inputSchema: {
 			type: "object",
 			properties: isBatchTool

@@ -1,6 +1,6 @@
 // Centralize direct SDK runtime imports here.
 // All native Cline session-host creation and persisted artifact reads should
-// flow through this boundary so the rest of Kanban stays decoupled from the
+// flow through this boundary so the rest of !Klein stays decoupled from the
 // SDK package layout.
 
 import {
@@ -129,7 +129,7 @@ export async function resolveClineSdkSystemPrompt(input: {
 	const shouldAppendWorkspaceMetadata = input.providerId === "cline";
 	const workspaceMetadata = shouldAppendWorkspaceMetadata ? await buildWorkspaceMetadata(input.cwd) : "";
 	return getClineDefaultSystemPrompt({
-		ide: "Kanban",
+		ide: "!Klein",
 		rootPath: input.cwd,
 		providerId: input.providerId,
 		metadata: workspaceMetadata,

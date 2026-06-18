@@ -83,7 +83,7 @@ function isClineFileReadToolName(name: string): boolean {
 
 /**
  * Estimates a message's contribution to the actual outbound model request.
- * Older `read_files` results are compacted by the Kanban host. The newest
+ * Older `read_files` results are compacted by the !Klein host. The newest
  * successful result remains verbatim for the request that analyzes it.
  */
 export function estimateClineRequestMessageTokens(

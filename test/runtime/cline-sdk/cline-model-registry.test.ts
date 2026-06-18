@@ -360,7 +360,7 @@ describe("cline model registry", () => {
 });
 
 describe("extractClineModelRegistryObservationFromEvent", () => {
-	it("extracts typed usage events with Kanban-measured timing", () => {
+	it("extracts typed usage events with !Klein-measured timing", () => {
 		const observation = extractClineModelRegistryObservationFromEvent(
 			{
 				type: "agent_event",
@@ -421,7 +421,7 @@ describe("extractClineModelRegistryObservationFromEvent", () => {
 		).toBeNull();
 	});
 
-	it("requires Kanban-measured wall-time for typed usage events", () => {
+	it("requires !Klein-measured wall-time for typed usage events", () => {
 		const observation = extractClineModelRegistryObservationFromEvent(
 			{
 				type: "agent_event",

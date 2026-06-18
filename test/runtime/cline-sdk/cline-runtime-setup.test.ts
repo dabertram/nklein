@@ -223,7 +223,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain('"reason":"The patch tool attempted to change a protected test-suite path."');
 	});
 
-	it("seeds the Kanban decomposition workflow without overwriting user edits", async () => {
+	it("seeds the !Klein decomposition workflow without overwriting user edits", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 
@@ -237,7 +237,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		await expect(readFile(workflowPath, "utf8")).resolves.toBe("user custom workflow");
 	});
 
-	it("excludes generated Kanban workflows from task Git diffs", async () => {
+	it("excludes generated !Klein workflows from task Git diffs", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		await execFileAsync("git", ["init"], { cwd: workspacePath });
@@ -289,7 +289,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(status.stdout).not.toContain("nklein-ts");
 	});
 
-	it("seeds and resolves the Kanban decomposition workflow during runtime setup", async () => {
+	it("seeds and resolves the !Klein decomposition workflow during runtime setup", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 
@@ -335,7 +335,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		}
 	});
 
-	it("resolves user-edited Kanban decomposition workflows instead of the built-in default", async () => {
+	it("resolves user-edited !Klein decomposition workflows instead of the built-in default", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
 		const workflowPath = await ensureKanbanDefaultWorkflows(workspacePath);
@@ -347,7 +347,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 				"description: Custom decomposition workflow.",
 				"---",
 				"",
-				"Custom Kanban decomposition workflow.",
+				"Custom !Klein decomposition workflow.",
 			].join("\n"),
 			"utf8",
 		);
@@ -356,7 +356,7 @@ describe("createKanbanToolApprovalPolicy", () => {
 		try {
 			const resolved = runtimeSetup.resolvePrompt("/kanban-decompose\n\nTitle: Custom workflow");
 
-			expect(resolved).toContain("Custom Kanban decomposition workflow.");
+			expect(resolved).toContain("Custom !Klein decomposition workflow.");
 			expect(resolved).toContain("Title: Custom workflow");
 			expect(resolved).not.toContain("You are decomposing a project-scale idea for !Klein.");
 		} finally {

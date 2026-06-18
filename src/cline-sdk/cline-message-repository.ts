@@ -1,4 +1,4 @@
-// Stores the Kanban-side view of native Cline chat state.
+// Stores the !Klein-side view of native Cline chat state.
 // It combines live in-memory updates with hydration from persisted SDK
 // session artifacts so the rest of the backend can read one repository shape.
 import type { RuntimeTaskImage, RuntimeTaskSessionSummary, RuntimeTaskTurnCheckpoint } from "../core/api-contract";

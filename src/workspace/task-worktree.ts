@@ -86,7 +86,7 @@ function getWorktreeBaseRefResolutionErrorMessage(baseRef: string, errorMessage:
 		return errorMessage;
 	}
 
-	return `This repository does not have an initial commit yet, so Kanban cannot create a task worktree from base ref "${baseRef}". Create an initial commit, then try moving the task to in progress again.`;
+	return `This repository does not have an initial commit yet, so !Klein cannot create a task worktree from base ref "${baseRef}". Create an initial commit, then try moving the task to in progress again.`;
 }
 
 async function tryRunGit(cwd: string, args: string[]): Promise<string | null> {
@@ -382,7 +382,7 @@ async function syncManagedIgnoredPathExcludes(repoPath: string, relativePaths: s
 			? ""
 			: [
 					KANBAN_MANAGED_EXCLUDE_BLOCK_START,
-					"# Keep symlinked ignored paths ignored inside Kanban task worktrees.",
+					"# Keep symlinked ignored paths ignored inside !Klein task worktrees.",
 					...managedPaths.map((relativePath) => `/${escapeGitIgnoreLiteral(relativePath)}`),
 					KANBAN_MANAGED_EXCLUDE_BLOCK_END,
 				].join("\n");

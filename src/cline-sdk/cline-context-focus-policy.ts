@@ -13,9 +13,9 @@ const COMPACTED_TOOL_RESULT_PREVIEW_CHARS = 240;
 const COMPACTED_MESSAGE_PREVIEW_CHARS = 480;
 const MAX_FOCUS_BRIEF_PATHS = 24;
 const MAX_FOCUS_BRIEF_READS = 32;
-const FOCUS_BRIEF_START = "[Kanban context focus brief]";
-const FOCUS_BRIEF_END = "[/Kanban context focus brief]";
-const FOCUS_BRIEF_PATTERN = /\[Kanban context focus brief\][\s\S]*?\[\/Kanban context focus brief\]\n*/g;
+const FOCUS_BRIEF_START = "[!Klein context focus brief]";
+const FOCUS_BRIEF_END = "[/!Klein context focus brief]";
+const FOCUS_BRIEF_PATTERN = /\[!Klein context focus brief\][\s\S]*?\[\/!Klein context focus brief\]\n*/g;
 
 interface ToolResultReference {
 	messageIndex: number;
@@ -299,7 +299,7 @@ function replaceToolResultContent(
 function buildReadFilesSummary(reference: ToolResultReference): string {
 	const originalText = stringifyToolResultContent(reference.block.content);
 	return [
-		"[Kanban context focus: previous read_files result compacted before the next model request.]",
+		"[!Klein context focus: previous read_files result compacted before the next model request.]",
 		`Tool input: ${summarizeReadFileInput(reference.toolInput)}`,
 		`Original result size: ${originalText.length.toLocaleString()} characters.`,
 		"Full source text is omitted from active context; use the coverage ledger and re-read explicit ranges if verbatim text is needed.",
@@ -309,7 +309,7 @@ function buildReadFilesSummary(reference: ToolResultReference): string {
 function buildFailedReadFilesSummary(reference: ToolResultReference): string {
 	const originalText = stringifyToolResultContent(reference.block.content);
 	return [
-		"[Kanban context focus: failed read_files result compacted before the next model request.]",
+		"[!Klein context focus: failed read_files result compacted before the next model request.]",
 		`Invalid or unreadable input: ${summarizeReadFileInput(reference.toolInput)}`,
 		`Error preview: ${summarizeText(originalText, COMPACTED_TOOL_RESULT_PREVIEW_CHARS)}`,
 		"Do not retry this path unless a directory listing confirms it exists.",
@@ -495,7 +495,7 @@ function prependFocusBriefToFirstUserMessage(messages: ClineSdkPersistedMessage[
 function buildGenericToolResultSummary(reference: ToolResultReference): string {
 	const originalText = stringifyToolResultContent(reference.block.content);
 	return [
-		`[Kanban context focus: older ${reference.toolName} result compacted before the next model request.]`,
+		`[!Klein context focus: older ${reference.toolName} result compacted before the next model request.]`,
 		`Tool input: ${summarizeValue(reference.toolInput)}`,
 		`Original result size: ${originalText.length.toLocaleString()} characters.`,
 		`Preview: ${summarizeText(originalText, COMPACTED_TOOL_RESULT_PREVIEW_CHARS)}`,
@@ -606,7 +606,7 @@ function compactStructuredContentBlock(block: ClineSdkContentBlock): ClineSdkCon
 	if (block.type === "thinking" && block.thinking.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
 		return {
 			...block,
-			thinking: `[Kanban context focus: older reasoning compacted.] ${summarizeText(
+			thinking: `[!Klein context focus: older reasoning compacted.] ${summarizeText(
 				block.thinking,
 				COMPACTED_MESSAGE_PREVIEW_CHARS,
 			)}`,
@@ -615,7 +615,7 @@ function compactStructuredContentBlock(block: ClineSdkContentBlock): ClineSdkCon
 	if (block.type === "file" && block.content.length > COMPACTED_MESSAGE_PREVIEW_CHARS) {
 		return {
 			...block,
-			content: `[Kanban context focus: older attached file content compacted.] ${summarizeText(
+			content: `[!Klein context focus: older attached file content compacted.] ${summarizeText(
 				block.content,
 				COMPACTED_MESSAGE_PREVIEW_CHARS,
 			)}`,
@@ -703,7 +703,7 @@ function buildEmergencyCompactionMessage(
 			)
 		: "unavailable";
 	let summary = [
-		"[Kanban context focus: earlier conversation history was compacted to prevent context overflow.]",
+		"[!Klein context focus: earlier conversation history was compacted to prevent context overflow.]",
 		`Initial user request preview: ${firstUserPreview}`,
 		"Recent transcript previews:",
 		...recentPreviews,

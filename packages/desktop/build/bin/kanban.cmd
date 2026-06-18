@@ -1,5 +1,5 @@
 @echo off
-REM Kanban CLI shim — bundled with the desktop app.
+REM nklein CLI shim — bundled with the desktop app.
 REM
 REM Prefers the bundled Electron binary (via ELECTRON_RUN_AS_NODE=1) so
 REM we don't depend on the user having a system `node` on PATH. Falls
@@ -12,15 +12,15 @@ set "RESOURCES_DIR=%SCRIPT_DIR%.."
 set "CLI_ENTRY=%RESOURCES_DIR%\app.asar.unpacked\cli\cli.js"
 
 REM Windows packaged layout:
-REM   Kanban\resources\bin\kanban.cmd     (this file)
-REM   RESOURCES_DIR = Kanban\resources
-REM   APP_ROOT      = Kanban
-REM   electron exec = Kanban\Kanban.exe
+REM   nKlein\resources\bin\kanban.cmd     (this file)
+REM   RESOURCES_DIR = nKlein\resources
+REM   APP_ROOT      = nKlein
+REM   electron exec = nKlein\nKlein.exe
 set "APP_ROOT=%RESOURCES_DIR%\.."
-set "ELECTRON_BIN=%APP_ROOT%\Kanban.exe"
+set "ELECTRON_BIN=%APP_ROOT%\nKlein.exe"
 
 if not exist "%CLI_ENTRY%" (
-  echo error: Kanban CLI not found at %CLI_ENTRY% >&2
+  echo error: nklein CLI not found at %CLI_ENTRY% >&2
   endlocal
   exit /b 1
 )

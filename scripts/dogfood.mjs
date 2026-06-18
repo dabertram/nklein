@@ -11,7 +11,7 @@ const repoRoot = resolve(here, "..");
 const nodeBinary = process.execPath;
 const npmBinary = process.platform === "win32" ? "npm.cmd" : "npm";
 // Dogfood can run multiple wrapper processes at once. Exactly one wrapper should
-// own shutdown cleanup, while all others launch Kanban with
+// own shutdown cleanup, while all others launch !Klein with
 // --skip-shutdown-cleanup. We elect that owner with an exclusive lock file in
 // the OS temp directory. If the recorded owner PID is no longer alive, the lock
 // is treated as stale and recovered so the next run can become owner.
@@ -290,7 +290,7 @@ function runRuntimeCommand(command, args, spawnOptions = {}) {
 		// Dogfood used to rely on the shell/npm process group behavior, but under
 		// `npm run dogfood` Ctrl+C could reach the runtime twice: once directly
 		// from the terminal group and again through npm wrapper shutdown. That
-		// second SIGINT was enough to make Kanban force-exit before shutdown
+		// second SIGINT was enough to make !Klein force-exit before shutdown
 		// cleanup finished, which left in_progress/review cards behind. Running
 		// the runtime in its own process group and forwarding exactly one graceful
 		// shutdown signal from this wrapper keeps shutdown deterministic while
@@ -365,7 +365,7 @@ function stripNodeModulesBinFromPath(pathValue) {
 		return pathValue;
 	}
 	// `npm run dogfood` prepends this repo's node_modules/.bin, which can shadow
-	// globally installed agent CLIs (codex/claude/etc) that Kanban should exercise.
+	// globally installed agent CLIs (codex/claude/etc) that !Klein should exercise.
 	// This is mostly a dogfood/dev-launch issue; normal installed CLI usage does
 	// not inject repo-local node_modules/.bin ahead of user PATH entries.
 	return pathValue
@@ -446,7 +446,7 @@ async function main() {
 			console.log(`[dogfood] Target project: ${args.project}`);
 		} else {
 			console.log(`[dogfood] No --project provided; launching from non-git cwd ${launchCwd}`);
-			console.log("[dogfood] Kanban will open the first indexed project if one exists.");
+			console.log("[dogfood] !Klein will open the first indexed project if one exists.");
 		}
 		console.log(`[dogfood] Runtime port: ${args.port}`);
 

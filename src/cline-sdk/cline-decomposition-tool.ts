@@ -637,7 +637,7 @@ function formatTaskModelFitEvidence(candidate: ClineTaskRoutingCandidate | null 
 		return "not validated before card creation; connected-local-model fit is checked when the card starts";
 	}
 	if (candidate === null) {
-		return "validated by Kanban routing guard with the default local model";
+		return "validated by !Klein routing guard with the default local model";
 	}
 	const contextWindow = candidate.entry.contextWindow.effective;
 	const contextWindowText =
@@ -648,7 +648,7 @@ function formatTaskModelFitEvidence(candidate: ClineTaskRoutingCandidate | null 
 	const capabilityText =
 		typeof capability === "number" && Number.isFinite(capability) ? `, capability ${Math.round(capability)}` : "";
 	const roleText = candidate.role ? `, role ${candidate.role}` : "";
-	return `validated by Kanban routing guard (${candidate.entry.providerId} / ${candidate.entry.modelId}${roleText}${contextWindowText}${capabilityText})`;
+	return `validated by !Klein routing guard (${candidate.entry.providerId} / ${candidate.entry.modelId}${roleText}${contextWindowText}${capabilityText})`;
 }
 
 function estimateTaskWallTimeMs(
@@ -909,7 +909,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					createdDependencyCount: applied.createdDependencies.length,
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 					baseRef,
-					message: `Applied task graph to Kanban: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
+					message: `Applied task graph to !Klein: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
 					preview: applied.preview,
 				},
 			};
@@ -992,7 +992,7 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 				tasks: {
 					type: "array",
 					description:
-						"Task leaves. Kanban adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
+						"Task leaves. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
 					items: {
 						type: "object",
 						properties: {
@@ -1096,8 +1096,8 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
-					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created Kanban cards; do not implement this planning card directly.`
-					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through Kanban, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
+					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created !Klein cards; do not implement this planning card directly.`
+					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through !Klein, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
 			};
 		},
 	};
@@ -1126,7 +1126,7 @@ function createExpandTaskTool(): AgentTool {
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
 				instruction:
-					"Replacement graph passes the Kanban sizing contract. Connected-model fit is checked when the graph is applied. Put these replacement task leaves in decompose_project.expansions for the oversized task instead of editing plan artifacts directly.",
+					"Replacement graph passes the !Klein sizing contract. Connected-model fit is checked when the graph is applied. Put these replacement task leaves in decompose_project.expansions for the oversized task instead of editing plan artifacts directly.",
 			};
 		},
 	};

@@ -64,14 +64,14 @@ export function evaluateClineContextWindowPolicy(input: ClineContextWindowPolicy
 		return {
 			ok: false,
 			contextWindow: null,
-			message: `${label} ${modelReference} does not report a context window. Kanban requires at least ${minContextWindow} context tokens before this model can be activated.`,
+			message: `${label} ${modelReference} does not report a context window. !Klein requires at least ${minContextWindow} context tokens before this model can be activated.`,
 		};
 	}
 	if (contextWindow < CLINE_MIN_CONTEXT_WINDOW_TOKENS) {
 		return {
 			ok: false,
 			contextWindow,
-			message: `${label} ${modelReference} reports ${formatClineContextWindowTokens(contextWindow)} context tokens. Kanban requires at least ${minContextWindow} before this model can be activated.`,
+			message: `${label} ${modelReference} reports ${formatClineContextWindowTokens(contextWindow)} context tokens. !Klein requires at least ${minContextWindow} before this model can be activated.`,
 		};
 	}
 	return {

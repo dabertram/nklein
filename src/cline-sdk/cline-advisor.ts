@@ -63,7 +63,7 @@ function buildPrompt(input: {
 			? ["Recommended sources:", ...input.sources.map((source) => `- ${source}`)].join("\n")
 			: "Recommended sources: none.";
 	return [
-		"You are Kanban's on-demand advisor. This is user-triggered guidance only; do not apply changes, install tools, or start background work.",
+		"You are !Klein's on-demand advisor. This is user-triggered guidance only; do not apply changes, install tools, or start background work.",
 		"",
 		input.instruction,
 		"",
@@ -125,7 +125,7 @@ export function buildClineAdvisorRequest(kind: ClineAdvisorKind, context: ClineA
 	if (kind === "log_analysis") {
 		return {
 			kind,
-			title: "Analyze Kanban Logs",
+			title: "Analyze !Klein Logs",
 			requiresWebResearch: false,
 			recommendedSources: [],
 			prompt: buildPrompt({

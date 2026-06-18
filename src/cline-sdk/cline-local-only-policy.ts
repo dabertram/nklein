@@ -1,6 +1,6 @@
-// Local-only lockdown policy — the single source of truth for which providers Kanban may dispatch to.
+// Local-only lockdown policy — the single source of truth for which providers !Klein may dispatch to.
 //
-// Decision (see plan.md "Phase L0 — LOCAL-ONLY LOCKDOWN"): Kanban runs on LOCAL models only. Cloud /
+// Decision (see plan.md "Phase L0 — LOCAL-ONLY LOCKDOWN"): !Klein runs on LOCAL models only. Cloud /
 // paid providers are hard-disabled in code because they caused real harm (runaway 1M-token requests to
 // a paid API, relentless retries against a $0 balance). Re-enabling cloud is a single, reviewed code
 // change *here* (flip CLOUD_ENABLED), never a runtime setting, env var, or UI toggle.

@@ -132,7 +132,7 @@ export function installKanbanFetchTimeoutPolicy(): void {
 }
 
 /**
- * Returns true when Kanban is bound to a non-localhost host, meaning it is
+ * Returns true when !Klein is bound to a non-localhost host, meaning it is
  * accessible to other machines on the network and passcode auth is required.
  */
 export function isKanbanRemoteHost(): boolean {

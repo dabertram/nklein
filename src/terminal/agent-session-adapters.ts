@@ -1275,7 +1275,7 @@ const kiroAdapter: AgentSessionAdapter = {
 			const configPath = getKiroAgentConfigPath();
 			const config: Record<string, unknown> = {
 				name: KIRO_KANBAN_AGENT_NAME,
-				description: "Kanban-managed Kiro agent with hook forwarding.",
+				description: "!Klein-managed Kiro agent with hook forwarding.",
 				tools: ["*"],
 			};
 

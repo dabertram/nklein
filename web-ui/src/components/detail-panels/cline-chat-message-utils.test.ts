@@ -156,22 +156,22 @@ describe("formatToolInputForDisplay", () => {
 	});
 });
 
-describe("kanban command display", () => {
-	it("shows Creating task for kanban task create with simple prefix", () => {
+describe("nklein command display", () => {
+	it("shows Creating task for nklein task create with simple prefix", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ['kanban task create --prompt "Fix the login bug"'] }),
+			JSON.stringify({ commands: ['nklein task create --prompt "Fix the login bug"'] }),
 		);
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe("Fix the login bug");
 	});
 
-	it("shows Creating task for kanban task create with full node path prefix", () => {
+	it("shows Creating task for nklein task create with full node path prefix", () => {
 		const display = getToolDisplay(
 			"run_commands",
 			JSON.stringify({
 				commands: [
-					"'/opt/homebrew/Cellar/node/25.5.0/bin/node' '/opt/homebrew/lib/kanban/dist/cli.js' task create --prompt \"Add unit tests for auth module\"",
+					"'/opt/homebrew/Cellar/node/25.5.0/bin/node' '/opt/homebrew/lib/nklein/dist/cli.js' task create --prompt \"Add unit tests for auth module\"",
 				],
 			}),
 		);
@@ -183,7 +183,7 @@ describe("kanban command display", () => {
 		const longPrompt = "A".repeat(100);
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: [`kanban task create --prompt "${longPrompt}"`] }),
+			JSON.stringify({ commands: [`nklein task create --prompt "${longPrompt}"`] }),
 		);
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe(`${"A".repeat(80)}\u2026`);
@@ -193,7 +193,7 @@ describe("kanban command display", () => {
 		const display = getToolDisplay(
 			"run_commands",
 			JSON.stringify({
-				commands: ["kanban task link --task-id abc12345-6789 --linked-task-id def98765-4321"],
+				commands: ["nklein task link --task-id abc12345-6789 --linked-task-id def98765-4321"],
 			}),
 		);
 		expect(display.toolName).toBe("Linking tasks");
@@ -203,7 +203,7 @@ describe("kanban command display", () => {
 	it("shows Moving task to done with short task ID", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task trash --task-id abc12345-6789"] }),
+			JSON.stringify({ commands: ["nklein task trash --task-id abc12345-6789"] }),
 		);
 		expect(display.toolName).toBe("Moving task to done");
 		expect(display.inputSummary).toBe("abc123");
@@ -212,7 +212,7 @@ describe("kanban command display", () => {
 	it("shows Moving task to done with column target", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task trash --column in_progress"] }),
+			JSON.stringify({ commands: ["nklein task trash --column in_progress"] }),
 		);
 		expect(display.toolName).toBe("Moving task to done");
 		expect(display.inputSummary).toBe("in_progress");
@@ -221,14 +221,14 @@ describe("kanban command display", () => {
 	it("shows Starting task with short task ID", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task start --task-id abc12345-6789"] }),
+			JSON.stringify({ commands: ["nklein task start --task-id abc12345-6789"] }),
 		);
 		expect(display.toolName).toBe("Starting task");
 		expect(display.inputSummary).toBe("abc123");
 	});
 
 	it("shows Listing tasks with no inputSummary when no column filter", () => {
-		const display = getToolDisplay("run_commands", JSON.stringify({ commands: ["kanban task list"] }));
+		const display = getToolDisplay("run_commands", JSON.stringify({ commands: ["nklein task list"] }));
 		expect(display.toolName).toBe("Listing tasks");
 		expect(display.inputSummary).toBeNull();
 	});
@@ -236,7 +236,7 @@ describe("kanban command display", () => {
 	it("shows Listing tasks with column filter", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task list --column backlog"] }),
+			JSON.stringify({ commands: ["nklein task list --column backlog"] }),
 		);
 		expect(display.toolName).toBe("Listing tasks");
 		expect(display.inputSummary).toBe("backlog");
@@ -246,7 +246,7 @@ describe("kanban command display", () => {
 		const display = getToolDisplay(
 			"run_commands",
 			JSON.stringify({
-				commands: ['kanban task update --task-id abc12345-6789 --prompt "New prompt"'],
+				commands: ['nklein task update --task-id abc12345-6789 --prompt "New prompt"'],
 			}),
 		);
 		expect(display.toolName).toBe("Updating task");
@@ -256,7 +256,7 @@ describe("kanban command display", () => {
 	it("shows Deleting task with short task ID", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task delete --task-id abc12345-6789"] }),
+			JSON.stringify({ commands: ["nklein task delete --task-id abc12345-6789"] }),
 		);
 		expect(display.toolName).toBe("Deleting task");
 		expect(display.inputSummary).toBe("abc123");
@@ -265,13 +265,13 @@ describe("kanban command display", () => {
 	it("shows Unlinking tasks with short dependency ID", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task unlink --dependency-id dep12345-6789"] }),
+			JSON.stringify({ commands: ["nklein task unlink --dependency-id dep12345-6789"] }),
 		);
 		expect(display.toolName).toBe("Unlinking tasks");
 		expect(display.inputSummary).toBe("dep123");
 	});
 
-	it("falls back to standard run_commands display for non-kanban commands", () => {
+	it("falls back to standard run_commands display for non-nklein commands", () => {
 		const display = getToolDisplay("run_commands", JSON.stringify({ commands: ["git status"] }));
 		expect(display.toolName).toBe("run_commands");
 		expect(display.inputSummary).toBe("git status");
@@ -281,31 +281,31 @@ describe("kanban command display", () => {
 		const display = getToolDisplay(
 			"run_commands",
 			JSON.stringify({
-				commands: ["git status", 'kanban task create --prompt "Fix the bug"'],
+				commands: ["git status", 'nklein task create --prompt "Fix the bug"'],
 			}),
 		);
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe("Fix the bug");
 	});
 
-	it("does not match non-kanban tools that use task subcommands", () => {
-		// A tool named 'grunt' or 'task' itself should not trigger kanban labels
+	it("does not match non-nklein tools that use task subcommands", () => {
+		// A tool named 'grunt' or 'task' itself should not trigger nklein labels
 		const display = getToolDisplay("run_commands", JSON.stringify({ commands: ["grunt task create --name foo"] }));
 		expect(display.toolName).toBe("run_commands");
 	});
 
-	it("detects kanban commands with npx prefix", () => {
+	it("detects nklein commands with npx prefix", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ['npx -y kanban task create --prompt "Test"'] }),
+			JSON.stringify({ commands: ['npx -y nklein task create --prompt "Test"'] }),
 		);
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe("Test");
 	});
 
-	it("works with getClineToolCallDisplay directly for kanban commands", () => {
+	it("works with getClineToolCallDisplay directly for nklein commands", () => {
 		const display = getClineToolCallDisplay("run_commands", {
-			commands: ['kanban task create --prompt "Build the feature"'],
+			commands: ['nklein task create --prompt "Build the feature"'],
 		});
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe("Build the feature");
@@ -314,7 +314,7 @@ describe("kanban command display", () => {
 	it("shows Creating task with single-quoted prompt", () => {
 		const display = getToolDisplay(
 			"run_commands",
-			JSON.stringify({ commands: ["kanban task create --prompt 'Fix the login bug'"] }),
+			JSON.stringify({ commands: ["nklein task create --prompt 'Fix the login bug'"] }),
 		);
 		expect(display.toolName).toBe("Creating task");
 		expect(display.inputSummary).toBe("Fix the login bug");

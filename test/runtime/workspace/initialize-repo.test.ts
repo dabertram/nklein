@@ -25,7 +25,7 @@ describe("Git repository ownership", () => {
 		runGitMock.mockReset();
 	});
 
-	it("marks repositories initialized by Kanban", async () => {
+	it("marks repositories initialized by !Klein", async () => {
 		runGitMock.mockResolvedValue(gitResult(true));
 
 		await expect(initializeGitRepository("/project")).resolves.toEqual({

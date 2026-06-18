@@ -67,7 +67,7 @@ describe("createClineProviderService provider selection", () => {
 		listSdkProviderCatalogMock.mockResolvedValue([]);
 	});
 
-	it("ignores SDK last-used cloud settings until Kanban explicitly selects a provider", async () => {
+	it("ignores SDK last-used cloud settings until !Klein explicitly selects a provider", async () => {
 		getLastUsedSdkProviderSettingsMock.mockReturnValue({
 			provider: "cline",
 			model: "anthropic/claude-sonnet-4.6",
@@ -91,7 +91,7 @@ describe("createClineProviderService provider selection", () => {
 		});
 	});
 
-	it("persists a Kanban-owned local provider selection when settings are saved", async () => {
+	it("persists a !Klein-owned local provider selection when settings are saved", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "worker-model",
@@ -513,7 +513,7 @@ describe("loadProviderModelsWithFallback", () => {
 		expect(models[1]?.contextWindow).toBe(16_000);
 	});
 
-	it("rejects saving an active model below the Kanban minimum context window", async () => {
+	it("rejects saving an active model below the !Klein minimum context window", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "small-model",
@@ -570,7 +570,7 @@ describe("loadProviderModelsWithFallback", () => {
 		).rejects.toThrow("is not currently loaded");
 	});
 
-	it("allows saving an active model at the Kanban minimum context window", async () => {
+	it("allows saving an active model at the !Klein minimum context window", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{
 				id: "worker-model",

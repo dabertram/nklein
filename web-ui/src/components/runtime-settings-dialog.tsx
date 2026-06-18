@@ -1,4 +1,4 @@
-// Settings dialog composition for Kanban.
+// Settings dialog composition for !Klein.
 // Generic app settings live here, while Cline-specific provider state and
 // side effects should stay in use-runtime-settings-cline-controller.ts.
 import * as RadixCheckbox from "@radix-ui/react-checkbox";

@@ -349,7 +349,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						ok: false,
 						project: null,
 						requiresTaskWorktreeProjectConfirmation: true,
-						error: "That folder is a Kanban task worktree. Add the owning parent project instead, or use an advanced task-worktree project flow.",
+						error: "That folder is a !Klein task worktree. Add the owning parent project instead, or use an advanced task-worktree project flow.",
 					} satisfies RuntimeProjectAddResponse;
 				}
 				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
@@ -358,7 +358,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						ok: false,
 						project: null,
 						requiresSelfProjectConfirmation: true,
-						error: "This is Kanban's own source repository. Loading it as a project is a self-improvement workflow and needs confirmation.",
+						error: "This is !Klein's own source repository. Loading it as a project is a self-improvement workflow and needs confirmation.",
 					} satisfies RuntimeProjectAddResponse;
 				}
 				const context = await loadWorkspaceContext(projectPath, {
@@ -443,7 +443,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					finishedAt: now,
 					outcome: "unknown",
 					summary:
-						"Visible Kanban dev scenario scaffolded. Start the seeded decomposition task in the UI to exercise the normal planning and task-graph pipeline.",
+						"Visible !Klein dev scenario scaffolded. Start the seeded decomposition task in the UI to exercise the normal planning and task-graph pipeline.",
 					metrics: [
 						{ label: "workspace", value: context.repoPath },
 						{
@@ -759,7 +759,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				if (body.deleteGitRepository && !projectToRemove.gitRepositoryCreatedByKanban) {
 					return {
 						ok: false,
-						error: "Kanban did not create this Git repository, so its .git metadata will not be deleted.",
+						error: "!Klein did not create this Git repository, so its .git metadata will not be deleted.",
 					};
 				}
 

@@ -6,7 +6,7 @@ import {
 	KANBAN_DECOMPOSE_WORKFLOW_NAME,
 } from "../../../src/cline-sdk/cline-decomposition-workflow";
 
-describe("Kanban decomposition workflow defaults", () => {
+describe("!Klein decomposition workflow defaults", () => {
 	it("defines an overridable workflow with the built-in decomposition instructions", () => {
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(`name: ${KANBAN_DECOMPOSE_WORKFLOW_NAME}`);
 		expect(KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN).toContain(KANBAN_DECOMPOSE_PROMPT.trimEnd());

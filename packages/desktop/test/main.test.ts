@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // ---------------------------------------------------------------------------
 // before-quit shutdown safety
 //
-// Regression tests for the macOS quit bug where a "Quit Kanban" from the
+// Regression tests for the macOS quit bug where a "Quit nKlein" from the
 // app menu would leave an orphaned node process running because:
 //   1. main.ts's before-quit handler didn't await the runtime shutdown
 //      before calling app.quit().

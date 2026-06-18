@@ -186,7 +186,7 @@ export class WindowRegistry {
 
 	/**
 	 * All live (non-destroyed) windows we own. Used by callers that need to
-	 * broadcast to "every Kanban window" without picking up renderers we
+	 * broadcast to "every nKlein window" without picking up renderers we
 	 * didn't create (e.g. devtools, preload-spawned helpers).
 	 */
 	getAllLive(): BrowserWindow[] {

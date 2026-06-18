@@ -535,7 +535,11 @@ function parseModelFitFromPrompt(prompt: string): { label: string; detail: strin
 			tone: "waiting",
 		};
 	}
-	if (detail.toLowerCase().startsWith("validated by kanban routing guard")) {
+	const normalizedDetail = detail.toLowerCase();
+	if (
+		normalizedDetail.startsWith("validated by !klein routing guard") ||
+		normalizedDetail.startsWith("validated by kanban routing guard")
+	) {
 		return {
 			label: "Backend fit validated",
 			detail,

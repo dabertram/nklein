@@ -107,7 +107,7 @@ describe("InMemoryClineMessageRepository", () => {
 		expect(summary.warningMessage).toBeNull();
 	});
 
-	it("hydrates persisted SDK history into Kanban chat messages and caches the result", async () => {
+	it("hydrates persisted SDK history into !Klein chat messages and caches the result", async () => {
 		const repository = createInMemoryClineMessageRepository();
 		const loadPersistedSession = vi.fn(async () =>
 			createPersistedSnapshot([

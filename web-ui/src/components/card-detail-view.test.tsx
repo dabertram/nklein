@@ -748,7 +748,7 @@ describe("CardDetailView", () => {
 		const selected = createCard("plan-ui", {
 			title: "Build UI",
 			prompt:
-				"Implement UI.\n\nComplexity: 45/100\n\nModel fit: validated by Kanban routing guard (lmstudio / qwen3, role worker, context 64,000, capability 70)",
+				"Implement UI.\n\nComplexity: 45/100\n\nModel fit: validated by !Klein routing guard (lmstudio / qwen3, role worker, context 64,000, capability 70)",
 			startInPlanMode: true,
 			filesLikelyTouched: ["web-ui/src/App.tsx"],
 			agentId: "cline",

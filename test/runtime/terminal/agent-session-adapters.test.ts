@@ -120,7 +120,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(existsSync(wrapperPath)).toBe(false);
 	});
 
-	it("appends Kanban sidebar instructions for home Claude sessions", async () => {
+	it("appends !Klein sidebar instructions for home Claude sessions", async () => {
 		setupTempHome();
 		setKanbanProcessContext();
 		const launch = await prepareAgentLaunch({
@@ -140,7 +140,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		);
 	});
 
-	it("appends Kanban sidebar instructions for home Codex sessions", async () => {
+	it("appends !Klein sidebar instructions for home Codex sessions", async () => {
 		setupTempHome();
 		setKanbanProcessContext();
 		const launch = await prepareAgentLaunch({
@@ -159,7 +159,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(getCodexConfigOverrideValues(launch.args, "check_for_update_on_startup")).toEqual(["false"]);
 	});
 
-	it("disables Codex startup update checks for Kanban-launched sessions", async () => {
+	it("disables Codex startup update checks for !Klein-launched sessions", async () => {
 		setupTempHome();
 		const launch = await prepareAgentLaunch({
 			taskId: "task-codex-updates",
@@ -352,7 +352,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(settings.hooks?.UserPromptSubmit?.[0]?.hooks?.[0]?.command).toContain("to_in_progress");
 	});
 
-	it("writes Kiro agent hooks and uses a Kanban-managed soft planning prompt", async () => {
+	it("writes Kiro agent hooks and uses a !Klein-managed soft planning prompt", async () => {
 		setupTempHome();
 		const launch = await prepareAgentLaunch({
 			taskId: "task-kiro-1",

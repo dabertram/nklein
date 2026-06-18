@@ -250,7 +250,7 @@ async function resolveRuntimeTls(options: CliOptions): Promise<TlsResult> {
 	}
 	const cert = readFileSync(resolve(options.cert), "utf8");
 	const key = readFileSync(resolve(options.key), "utf8");
-	// Trust the exact configured cert for Kanban's own subcommands without
+	// Trust the exact configured cert for !Klein's own subcommands without
 	// disabling certificate validation for unrelated HTTPS endpoints.
 	setKanbanRuntimeTls({ cert, key, ca: cert });
 	return { enabled: true };
@@ -423,7 +423,7 @@ async function startServer(): Promise<{
 		its JSON result. The issue first appeared after the native Cline SDK runtime
 		was added to the server import graph. We have not yet isolated the deepest
 		handle creator inside that graph, so we keep command-style subcommands on the
-		lightweight path and only load the server stack when we actually start Kanban.
+		lightweight path and only load the server stack when we actually start !Klein.
 	*/
 	const [
 		{ resolveProjectInputPath },

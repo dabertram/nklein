@@ -1,5 +1,5 @@
 /**
- * RuntimeChildManager — spawns the Kanban CLI as a subprocess, polls for
+ * RuntimeChildManager — spawns the nklein CLI as a subprocess, polls for
  * readiness over HTTP, and manages orderly shutdown.
  *
  * Non-goals (intentional):

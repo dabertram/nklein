@@ -298,7 +298,7 @@ describe.sequential("workspace-state integration", () => {
 					loadWorkspaceContext(workspacePath, {
 						autoCreateIfMissing: false,
 					}),
-				).rejects.toThrow("is not added to Kanban yet");
+				).rejects.toThrow("is not added to !Klein yet");
 
 				const created = await loadWorkspaceContext(workspacePath);
 				expect(created.repoPath).toBeTruthy();
@@ -340,7 +340,7 @@ describe.sequential("workspace-state integration", () => {
 				mkdirSync(worktreePath, { recursive: true });
 				initGitRepository(worktreePath);
 
-				await expect(loadWorkspaceContext(worktreePath)).rejects.toThrow("not a standalone Kanban project");
+				await expect(loadWorkspaceContext(worktreePath)).rejects.toThrow("not a standalone !Klein project");
 				expect(await listWorkspaceIndexEntries()).toHaveLength(0);
 				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 					expect.objectContaining({

@@ -395,7 +395,7 @@ describe("InMemoryClineSessionRuntime", () => {
 
 		expect(decision).toEqual({
 			action: "stop",
-			reason: "Kanban swarm guardrail stopped this task after repeated Cline mistakes.",
+			reason: "!Klein swarm guardrail stopped this task after repeated Cline mistakes.",
 		});
 		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -417,7 +417,7 @@ describe("InMemoryClineSessionRuntime", () => {
 		);
 	});
 
-	it("wires Kanban focused context compaction into SDK local runtime", async () => {
+	it("wires !Klein focused context compaction into SDK local runtime", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 				sessionId: input.config?.sessionId ?? "session-1",
@@ -629,7 +629,7 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(doesClineToolInvalidateRepoMap(createToolContext("read_files"))).toBe(false);
 	});
 
-	it("disables SDK MCP settings auto-load when Kanban injects MCP tools", async () => {
+	it("disables SDK MCP settings auto-load when !Klein injects MCP tools", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 				sessionId: input.config?.sessionId ?? "session-1",
@@ -921,7 +921,7 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(update).toHaveBeenCalledTimes(2);
 	});
 
-	it("persists and reads Kanban launch config from session metadata", async () => {
+	it("persists and reads !Klein launch config from session metadata", async () => {
 		const update = vi.fn(
 			async (_sessionId: string, _updates: { metadata?: Record<string, unknown>; title?: string | null }) => ({
 				updated: true,

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kanban CLI shim — bundled with the desktop app.
+# nklein CLI shim — bundled with the desktop app.
 #
 # Prefers the bundled Electron binary (via ELECTRON_RUN_AS_NODE=1) so we
 # don't depend on the user having a system `node` on PATH. GUI-launched
@@ -15,18 +15,18 @@ RESOURCES_DIR="$(dirname "$SCRIPT_DIR")"
 CLI_ENTRY="$RESOURCES_DIR/app.asar.unpacked/cli/cli.js"
 
 if [ ! -f "$CLI_ENTRY" ]; then
-  echo "error: Kanban CLI not found at $CLI_ENTRY" >&2
+  echo "error: nklein CLI not found at $CLI_ENTRY" >&2
   exit 1
 fi
 
 # Locate the bundled Electron binary relative to RESOURCES_DIR.
-#   macOS:  Kanban.app/Contents/Resources/.. → Kanban.app/Contents
-#           electron exec = Kanban.app/Contents/MacOS/Kanban
+#   macOS:  nKlein.app/Contents/Resources/.. → nKlein.app/Contents
+#           electron exec = nKlein.app/Contents/MacOS/nKlein
 #   Linux:  kanban/resources/..              → kanban/
 #           electron exec = kanban/kanban
 APP_ROOT="$(dirname "$RESOURCES_DIR")"
 if [ "$(uname)" = "Darwin" ]; then
-  ELECTRON_BIN="$APP_ROOT/MacOS/Kanban"
+  ELECTRON_BIN="$APP_ROOT/MacOS/nKlein"
 else
   ELECTRON_BIN="$APP_ROOT/kanban"
 fi

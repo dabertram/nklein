@@ -662,7 +662,7 @@ export async function loadWorkspaceContext(
 					},
 				});
 				throw new Error(
-					`Task worktree ${repoPath} is not a standalone Kanban project. Use the owning parent project path instead.`,
+					`Task worktree ${repoPath} is not a standalone !Klein project. Use the owning parent project path instead.`,
 				);
 			}
 			recordWorkspaceResolutionDecision({
@@ -676,7 +676,7 @@ export async function loadWorkspaceContext(
 					...(options.resolutionMetadata ?? {}),
 				},
 			});
-			throw new Error(`Project ${repoPath} is not added to Kanban yet.`);
+			throw new Error(`Project ${repoPath} is not added to !Klein yet.`);
 		}
 		recordWorkspaceResolutionDecision({
 			repoPath,

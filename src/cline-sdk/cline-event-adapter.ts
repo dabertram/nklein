@@ -1,4 +1,4 @@
-// Translates raw SDK session events into Kanban summary and message mutations.
+// Translates raw SDK session events into !Klein summary and message mutations.
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary, RuntimeTaskSessionUsage } from "../core/api-contract";
@@ -277,7 +277,7 @@ function isRecoverableToolCallFailure(message: string | null): boolean {
 	return Boolean(message?.includes("tool call(s) failed:"));
 }
 
-// Translate raw SDK events into Kanban summary and chat mutations so the session service can stay focused on host ownership.
+// Translate raw SDK events into !Klein summary and chat mutations so the session service can stay focused on host ownership.
 export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void {
 	const { entry, event, taskId } = input;
 	const agentEvent = readAgentEvent(event);

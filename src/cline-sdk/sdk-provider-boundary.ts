@@ -1,5 +1,5 @@
 // Centralize direct SDK provider imports here.
-// The rest of Kanban should talk to the SDK through local service modules so
+// The rest of !Klein should talk to the SDK through local service modules so
 // auth, catalog, and provider-settings behavior stay behind one boundary.
 
 import { readFile, writeFile } from "node:fs/promises";

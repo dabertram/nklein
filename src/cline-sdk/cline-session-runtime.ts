@@ -245,7 +245,7 @@ async function appendRepoMapBeforeModel(
 		messages: [
 			createRepoMapRailMessage(
 				[
-					"[Kanban repo map: compact codebase orientation]",
+					"[!Klein repo map: compact codebase orientation]",
 					`Workspace: ${workspacePath}`,
 					`Context window: ${contextWindow ?? "unknown"} tokens`,
 					repoMap,
@@ -427,7 +427,7 @@ export interface StartClineSessionRuntimeRequest {
 	cwd: string;
 	workspaceRoot?: string | null;
 	prompt: string;
-	/** Normalized Kanban task title; persisted to SDK session metadata when supported. */
+	/** Normalized !Klein task title; persisted to SDK session metadata when supported. */
 	taskTitle?: string;
 	initialMessages?: ClineSdkPersistedMessage[];
 	images?: RuntimeTaskImage[];
@@ -501,8 +501,8 @@ export interface CreateInMemoryClineSessionRuntimeOptions {
 	createMcpRuntimeService?: () => ClineMcpRuntimeService;
 }
 
-// Best-effort: write the Kanban task title to the SDK session metadata so external session
-// lists (e.g. the Cline extension) show a human-readable name. Kanban never reads this back.
+// Best-effort: write the !Klein task title to the SDK session metadata so external session
+// lists (e.g. the Cline extension) show a human-readable name. !Klein never reads this back.
 async function persistKanbanTitleToClineSessionMetadata(
 	sessionHost: ClineSessionHostBoundary,
 	sessionId: string,
@@ -757,7 +757,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				await recordSelfObservation({
 					signal: "task_abandoned",
 					severity: "warning",
-					message: `Kanban stopped Cline task ${request.taskId} after ${context.consecutiveMistakes}/${context.maxConsecutiveMistakes} consecutive ${context.reason} mistakes.`,
+					message: `!Klein stopped Cline task ${request.taskId} after ${context.consecutiveMistakes}/${context.maxConsecutiveMistakes} consecutive ${context.reason} mistakes.`,
 					taskId: request.taskId,
 					providerId: request.providerId,
 					modelId: request.modelId,
@@ -773,7 +773,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				});
 				return {
 					action: "stop",
-					reason: "Kanban swarm guardrail stopped this task after repeated Cline mistakes.",
+					reason: "!Klein swarm guardrail stopped this task after repeated Cline mistakes.",
 				};
 			},
 			systemPrompt: request.systemPrompt,

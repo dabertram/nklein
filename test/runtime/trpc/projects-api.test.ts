@@ -41,7 +41,7 @@ function initGitRepository(path: string): void {
 	}
 	for (const [key, value] of [
 		["user.email", "kanban-test@example.com"],
-		["user.name", "Kanban Test"],
+		["user.name", "!Klein Test"],
 	] as const) {
 		const config = spawnSync("git", ["config", "--local", key, value], {
 			cwd: path,
@@ -175,7 +175,7 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
-		expect(backlog[0]?.prompt).not.toContain("Create reviewable Kanban tasks");
+		expect(backlog[0]?.prompt).not.toContain("Create reviewable !Klein tasks");
 		expect(backlog[0]?.prompt).not.toContain("Acceptance command for implementation leaves");
 		expect(board.dependencies).toHaveLength(0);
 	});
@@ -727,7 +727,7 @@ describe("addProject", () => {
 		expect(resolveSpy).not.toHaveBeenCalledWith("my-new-proj", activeProjectPath);
 	});
 
-	it("requires confirmation before adding the Kanban source repo as a project", async () => {
+	it("requires confirmation before adding the !Klein source repo as a project", async () => {
 		await withTemporaryHome(async () => {
 			const sourceRepoPath = join(testCwd, "kanban-source");
 			mkdirSync(sourceRepoPath, { recursive: true });

@@ -129,7 +129,7 @@ async function stopStaleDevProcesses() {
 		return;
 	}
 
-	console.log(`Stopping stale Kanban dev process${stalePids.size === 1 ? "" : "es"}: ${[...stalePids].join(", ")}`);
+	console.log(`Stopping stale nKlein dev process${stalePids.size === 1 ? "" : "es"}: ${[...stalePids].join(", ")}`);
 	await Promise.allSettled([...stalePids].map((pid) => treeKillAsync(pid)));
 	const remainingPids = await waitForProcessesToExit([...stalePids]);
 	if (remainingPids.length > 0) {
@@ -225,7 +225,7 @@ async function canReachExistingDevServer(timeoutMs = 3000) {
 
 if (await canReachExistingDevServer()) {
 	const url = "http://127.0.0.1:4173";
-	console.log(`Kanban dev server already running at ${url}`);
+	console.log(`nKlein dev server already running at ${url}`);
 	await open(url);
 	process.exit(0);
 }

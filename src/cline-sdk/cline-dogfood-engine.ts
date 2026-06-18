@@ -205,7 +205,7 @@ function buildCandidate(input: {
 	const score = input.events.reduce((total, event) => total + SEVERITY_WEIGHT[event.severity], 0);
 	const title = `Dogfood: reduce ${titleForSignal(primary?.signal ?? "custom")}`;
 	const prompt = [
-		"Investigate and implement a narrowly scoped Kanban self-improvement from recurring local telemetry.",
+		"Investigate and implement a narrowly scoped !Klein self-improvement from recurring local telemetry.",
 		"",
 		`Cluster key: ${input.key}`,
 		`Occurrences: ${input.events.length}`,
@@ -256,12 +256,12 @@ function buildUserSuggestionCandidate(input: {
 		id: `suggestion-${input.index + 1}`,
 		title: "Dogfood: user suggested improvement",
 		prompt: [
-			"Investigate and implement a narrowly scoped Kanban self-improvement suggested by the user.",
+			"Investigate and implement a narrowly scoped !Klein self-improvement suggested by the user.",
 			"",
 			"User suggestion:",
 			suggestion,
 			"",
-			"Turn this into a concrete, safe change against the Kanban codebase. Keep the scope tight, add or update focused tests, and preserve existing safety guardrails.",
+			"Turn this into a concrete, safe change against the !Klein codebase. Keep the scope tight, add or update focused tests, and preserve existing safety guardrails.",
 		].join("\n"),
 		acceptanceCommand: input.acceptanceCommand,
 		score: 50,
@@ -305,7 +305,7 @@ export async function readClineDogfoodTelemetry(rootDir: string): Promise<SelfOb
 export function buildClineDogfoodBacklog(options: BuildClineDogfoodBacklogOptions): ClineDogfoodBacklog {
 	const now = options.now?.() ?? Date.now();
 	const slug = slugify(options.slug ?? `dogfood-${new Date(now).toISOString().slice(0, 10)}`);
-	const title = options.title ?? "Kanban Dogfood Improvements";
+	const title = options.title ?? "!Klein Dogfood Improvements";
 	const acceptanceCommand = options.acceptanceCommand ?? DEFAULT_ACCEPTANCE_COMMAND;
 	const clusters = new Map<string, SelfObservationEventRecord[]>();
 	for (const event of options.events) {

@@ -124,7 +124,7 @@ describe("CLI shim (packaging level)", () => {
 			} catch (error: unknown) {
 				const err = error as { stderr?: string; status?: number };
 				expect(err.status).not.toBe(0);
-				expect(err.stderr).toContain("Kanban CLI not found");
+				expect(err.stderr).toContain("nklein CLI not found");
 			} finally {
 				rmSync(emptyResourcesDir, { recursive: true, force: true });
 			}
@@ -219,7 +219,7 @@ describe("CLI shim (packaging level)", () => {
 			const resourcesDir = path.join(appRoot, "Resources");
 			const binDir = path.join(resourcesDir, "bin");
 			const cliDir = path.join(resourcesDir, "app.asar.unpacked", "cli");
-			// macOS layout: APP_ROOT/MacOS/Kanban is the Electron exec.
+			// macOS layout: APP_ROOT/MacOS/nKlein is the Electron exec.
 			// On Linux the shim looks for APP_ROOT/kanban — mirror both so
 			// this test runs on either OS without a platform branch.
 			const macOsDir = path.join(appRoot, "MacOS");
@@ -245,7 +245,7 @@ if [ "$ELECTRON_RUN_AS_NODE" != "1" ]; then
 fi
 exec node "$@"
 `;
-			const electronBinMac = path.join(macOsDir, "Kanban");
+			const electronBinMac = path.join(macOsDir, "nKlein");
 			const electronBinLinux = path.join(appRoot, "kanban");
 			writeFileSync(electronBinMac, electronStub, { mode: 0o755 });
 			writeFileSync(electronBinLinux, electronStub, { mode: 0o755 });

@@ -1,4 +1,4 @@
-// Kanban-facing facade over the SDK-backed provider store.
+// !Klein-facing facade over the SDK-backed provider store.
 // It resolves provider settings, model catalogs, OAuth flows, and launch
 // config without leaking SDK details into runtime-api.ts or the UI.
 

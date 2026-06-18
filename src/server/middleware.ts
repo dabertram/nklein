@@ -84,7 +84,7 @@ export function getAllowedHostHeaders(): ReadonlySet<string> {
 }
 
 const ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].join(", ");
-const ALLOWED_HEADERS = ["Authorization", "Content-Type", "X-Kanban-Workspace-Id"].join(", ");
+const ALLOWED_HEADERS = ["Authorization", "Content-Type", "X-Nklein-Workspace-Id", "X-Kanban-Workspace-Id"].join(", ");
 const PREFLIGHT_MAX_AGE_SECONDS = "600";
 
 function applyAllowedOriginHeaders(res: ServerResponse, origin: string): void {

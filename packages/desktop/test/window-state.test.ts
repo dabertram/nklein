@@ -259,14 +259,14 @@ describe("isPersistableRuntimePath", () => {
 
 	it.each([
 		// file:// URLs from disconnected.html fallback — the original bug.
-		"/Users/someone/main/kanban-desktop/packages/desktop/out/mac-arm64/Kanban.app/Contents/Resources/app.asar/dist/disconnected.html",
+		"/Users/someone/main/kanban-desktop/packages/desktop/out/mac-arm64/nKlein.app/Contents/Resources/app.asar/dist/disconnected.html",
 		"/Users/johnchoi1/Library/whatever.html",
-		"/private/var/folders/x/y/z/Kanban.app/Contents/disconnected.html",
+		"/private/var/folders/x/y/z/nKlein.app/Contents/disconnected.html",
 		"/tmp/disconnected.html",
 		"/home/user/kanban/disconnected.html",
 		"/var/folders/abc/disconnected.html",
 		"/opt/kanban/disconnected.html",
-		"/Applications/Kanban.app/Contents/Resources/disconnected.html",
+		"/Applications/nKlein.app/Contents/Resources/disconnected.html",
 		// Any .html pathname — the runtime SPA never exposes those.
 		"/index.html",
 		"/some/deep/page.html",
@@ -295,7 +295,7 @@ describe("loadAllWindowStates heals stale file:// lastViewedPath", () => {
 				isMaximized: false,
 				projectId: null,
 				lastViewedPath:
-					"/Users/alice/main/kanban-desktop/packages/desktop/out/mac-arm64/Kanban.app/Contents/Resources/app.asar/dist/disconnected.html",
+					"/Users/alice/main/kanban-desktop/packages/desktop/out/mac-arm64/nKlein.app/Contents/Resources/app.asar/dist/disconnected.html",
 			},
 		];
 		writeFileSync(resolveMultiWindowStatePath(tmpDir), JSON.stringify(raw), "utf-8");
@@ -358,12 +358,12 @@ describe("extractPersistablePath", () => {
 
 	it("returns null for a file:// URL pointing at a disconnected.html fallback", () => {
 		const url =
-			"file:///Users/dev/Library/Application%20Support/Kanban/disconnected.html";
+			"file:///Users/dev/Library/Application%20Support/nKlein/disconnected.html";
 		expect(extractPersistablePath(url)).toBeNull();
 	});
 
 	it("returns null for a file:// URL pointing at a /home/ path (Linux)", () => {
-		const url = "file:///home/dev/.config/Kanban/disconnected.html";
+		const url = "file:///home/dev/.config/nKlein/disconnected.html";
 		expect(extractPersistablePath(url)).toBeNull();
 	});
 

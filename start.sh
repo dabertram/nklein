@@ -9,5 +9,5 @@ if [[ ! -d node_modules || ! -d web-ui/node_modules || ! -d packages/desktop/nod
   npm run install:all
 fi
 
-echo "Starting Kanban in full dev mode..."
+echo "Starting !Klein in full dev mode..."
 exec npm run dev:full

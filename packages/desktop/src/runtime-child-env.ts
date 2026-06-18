@@ -1,5 +1,5 @@
 /**
- * Environment and PATH policy for the Kanban CLI subprocess.
+ * Environment and PATH policy for the nklein CLI subprocess.
  *
  * Isolated from runtime-child.ts so the process-lifecycle code stays
  * focused on spawn/poll/kill concerns. Two policy decisions live here:

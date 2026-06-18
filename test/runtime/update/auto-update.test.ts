@@ -392,7 +392,7 @@ describe("runAutoUpdateCheck", () => {
 			},
 		});
 
-		expect(messages).toEqual(["New version 1.1.0 detected. Refreshing cached Kanban for next launch."]);
+		expect(messages).toEqual(["New version 1.1.0 detected. Refreshing cached !Klein for next launch."]);
 		expect(spawnedUpdates).toHaveLength(1);
 		expect(spawnedUpdates[0]?.command).toBe(process.execPath);
 		expect(spawnedUpdates[0]?.args[0]).toBe("-e");
