@@ -724,6 +724,48 @@ describe("ClineAgentChatPanel", () => {
 		const contextBudgetGroup = container.querySelector('[aria-label^="Context budget"]');
 		expect(contextBudgetGroup?.className).toContain("w-full");
 		expect(contextBudgetGroup?.parentElement?.className).toContain("w-full");
+		const segmentWidths = Array.from(
+			contextBudgetGroup?.querySelectorAll<HTMLElement>("[title$='tokens']") ?? [],
+		).map((segment) => Number.parseFloat(segment.style.width));
+		const widthTotal = segmentWidths.reduce((total, width) => total + width, 0);
+		expect(widthTotal).toBeCloseTo(24.625, 3);
+	});
+
+	it("caps context budget segment widths to prevent narrow-panel overflow", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={createSummary("running", null, {
+						contextBudgetBreakdown: {
+							systemPromptTokens: 30_000,
+							toolSchemaTokens: 20_000,
+							taskPromptTokens: 15_000,
+							userMessageTokens: 10_000,
+							includedFileContentTokens: 8_000,
+							otherHistoryTokens: 7_000,
+							reservedPromptOverheadTokens: 6_000,
+							reservedOutputTokens: 24_000,
+							usedWorkingTokens: 90_000,
+							freeWorkingTokens: 0,
+							effectiveContextWindow: 80_000,
+							projectedTokens: 120_000,
+						},
+					})}
+					onLoadMessages={async () => []}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const contextBudgetGroup = container.querySelector('[aria-label^="Context budget"]');
+		const segmentWidths = Array.from(
+			contextBudgetGroup?.querySelectorAll<HTMLElement>("[title$='tokens']") ?? [],
+		).map((segment) => Number.parseFloat(segment.style.width));
+		const widthTotal = segmentWidths.reduce((total, width) => total + width, 0);
+		expect(widthTotal).toBeCloseTo(100, 3);
+		expect(segmentWidths.every((width) => width > 0 && width <= 100)).toBe(true);
 	});
 
 	it("keeps completed reasoning collapsed after the stream finishes", async () => {

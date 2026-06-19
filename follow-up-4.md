@@ -916,7 +916,9 @@ to `min-w-[220px]` and wraps awkwardly.
   [card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx) and
   [board-card.tsx](web-ui/src/components/board-card.tsx) (both import context-budget formatting); give the bar its own
   full-width row there too. Do not change the bar's colors/segments — only its placement/width.
-- [ ] Verify no horizontal overflow at the narrowest supported panel width and that the segments still sum correctly.
+- [x] Verify no horizontal overflow at the narrowest supported panel width and that the segments still sum correctly.
+  - [x] Context budget segments now use normalized `flex-basis` / `width` percentages that sum to the visible budget
+    width and cap at 100%, with focused UI tests covering both under-budget and over-budget breakdowns.
 
 ---
 

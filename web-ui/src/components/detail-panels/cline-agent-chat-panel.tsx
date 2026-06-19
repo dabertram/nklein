@@ -204,7 +204,8 @@ function getContextBudgetTone(projectedTokens: number, effectiveContextWindow: n
 }
 
 function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetBreakdown }): ReactElement {
-	const segments = [
+	const effectiveContextWindow = Math.max(1, breakdown.effectiveContextWindow);
+	const rawSegments = [
 		{ label: "System", tokens: breakdown.systemPromptTokens, className: "bg-status-purple" },
 		{ label: "Tools", tokens: breakdown.toolSchemaTokens, className: "bg-status-blue" },
 		{ label: "Task", tokens: breakdown.taskPromptTokens, className: "bg-accent" },
@@ -214,6 +215,18 @@ function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetB
 		{ label: "Prompt reserve", tokens: breakdown.reservedPromptOverheadTokens, className: "bg-surface-4" },
 		{ label: "Output reserve", tokens: breakdown.reservedOutputTokens, className: "bg-border-bright" },
 	].filter((segment) => segment.tokens > 0);
+	const rawSegmentPercentTotal = rawSegments.reduce(
+		(total, segment) => total + (segment.tokens / effectiveContextWindow) * 100,
+		0,
+	);
+	const visibleSegmentPercentTotal = Math.min(100, Math.max(0, rawSegmentPercentTotal));
+	const segments = rawSegments.map((segment) => ({
+		...segment,
+		width:
+			rawSegmentPercentTotal > 0
+				? (segment.tokens / effectiveContextWindow / (rawSegmentPercentTotal / 100)) * visibleSegmentPercentTotal
+				: 0,
+	}));
 	const percent = Math.min(
 		100,
 		Math.max(0, Math.round((breakdown.projectedTokens / breakdown.effectiveContextWindow) * 100)),
@@ -235,17 +248,14 @@ function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetB
 					aria-hidden="true"
 				/>
 				<div className="relative flex h-full w-full">
-					{segments.map((segment) => {
-						const width = Math.max(1, (segment.tokens / breakdown.effectiveContextWindow) * 100);
-						return (
-							<div
-								key={segment.label}
-								className={segment.className}
-								style={{ width: `${width}%` }}
-								title={`${segment.label}: ~${formatTokenCount(segment.tokens)} tokens`}
-							/>
-						);
-					})}
+					{segments.map((segment) => (
+						<div
+							key={segment.label}
+							className={`flex-none ${segment.className}`}
+							style={{ flexBasis: `${segment.width}%`, width: `${segment.width}%` }}
+							title={`${segment.label}: ~${formatTokenCount(segment.tokens)} tokens`}
+						/>
+					))}
 				</div>
 			</div>
 		</div>
