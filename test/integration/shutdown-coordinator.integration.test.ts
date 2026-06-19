@@ -2,12 +2,13 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
+import type { RuntimeAgentId, RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
 import { shutdownRuntimeServer } from "../../src/server/shutdown-coordinator";
 import { loadWorkspaceState, saveWorkspaceState } from "../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../src/terminal/session-manager";
+import type { deleteTaskWorktree } from "../../src/workspace/task-worktree";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
@@ -45,7 +46,7 @@ function initGitRepository(path: string): void {
 	}
 }
 
-function createCard(taskId: string) {
+function createCard(taskId: string, agentId?: RuntimeAgentId) {
 	return {
 		id: taskId,
 		title: `Task ${taskId}`,
@@ -54,22 +55,27 @@ function createCard(taskId: string) {
 		baseRef: "main",
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
+		...(agentId !== undefined ? { agentId } : {}),
 	};
 }
 
-function createBoard(taskIds: { inProgress?: string[]; review?: string[] }): RuntimeBoardData {
+type TestBoardTask = string | { id: string; agentId?: RuntimeAgentId };
+
+function createBoard(taskIds: { inProgress?: TestBoardTask[]; review?: TestBoardTask[] }): RuntimeBoardData {
+	const toCard = (task: TestBoardTask) =>
+		typeof task === "string" ? createCard(task) : createCard(task.id, task.agentId);
 	return {
 		columns: [
 			{ id: "backlog", title: "Backlog", cards: [] },
 			{
 				id: "in_progress",
 				title: "In Progress",
-				cards: (taskIds.inProgress ?? []).map((taskId) => createCard(taskId)),
+				cards: (taskIds.inProgress ?? []).map(toCard),
 			},
 			{
 				id: "review",
 				title: "Review",
-				cards: (taskIds.review ?? []).map((taskId) => createCard(taskId)),
+				cards: (taskIds.review ?? []).map(toCard),
 			},
 			{ id: "trash", title: "Done", cards: [] },
 		],
@@ -77,11 +83,15 @@ function createBoard(taskIds: { inProgress?: string[]; review?: string[] }): Run
 	};
 }
 
-function createSession(taskId: string, state: "running" | "awaiting_review" | "idle"): RuntimeTaskSessionSummary {
+function createSession(
+	taskId: string,
+	state: "running" | "awaiting_review" | "idle",
+	agentId: RuntimeAgentId = "codex",
+): RuntimeTaskSessionSummary {
 	return {
 		taskId,
 		state,
-		agentId: "codex",
+		agentId,
 		workspacePath: `/tmp/${taskId}`,
 		pid: state === "idle" ? null : 1234,
 		startedAt: state === "idle" ? null : Date.now() - 1_000,
@@ -179,6 +189,91 @@ describe.sequential("shutdown coordinator integration", () => {
 				);
 				expect(indexedAfter.sessions["indexed-awaiting-review"]?.state).toBe("interrupted");
 				expect(indexedAfter.sessions["indexed-missing-session"]).toBeUndefined();
+			} finally {
+				cleanup();
+			}
+		});
+	}, 30_000);
+
+	it("cleans up host task workspaces only for explicit legacy agents", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-shutdown-legacy-workspace-");
+			try {
+				const projectPath = join(sandboxRoot, "project");
+				mkdirSync(projectPath, { recursive: true });
+				initGitRepository(projectPath);
+
+				const initial = await loadWorkspaceState(projectPath);
+				await saveWorkspaceState(projectPath, {
+					board: createBoard({
+						inProgress: [
+							"default-cline",
+							{ id: "explicit-cline", agentId: "cline" },
+							{ id: "legacy-codex", agentId: "codex" },
+							{ id: "legacy-card-only", agentId: "claude" },
+						],
+					}),
+					sessions: {
+						"default-cline": createSession("default-cline", "running", "cline"),
+						"explicit-cline": createSession("explicit-cline", "running", "cline"),
+						"legacy-codex": createSession("legacy-codex", "running", "codex"),
+					},
+					expectedRevision: initial.revision,
+				});
+
+				const managedTerminalManager = {
+					markInterruptedAndStopAll: () => [
+						createSession("default-cline", "running", "cline"),
+						createSession("legacy-codex", "running", "codex"),
+					],
+					listSummaries: () => [
+						createSession("default-cline", "running", "cline"),
+						createSession("legacy-codex", "running", "codex"),
+					],
+					getSummary: (taskId: string) => {
+						if (taskId === "default-cline") {
+							return createSession("default-cline", "running", "cline");
+						}
+						if (taskId === "explicit-cline") {
+							return createSession("explicit-cline", "running", "cline");
+						}
+						if (taskId === "legacy-codex") {
+							return createSession("legacy-codex", "running", "codex");
+						}
+						return null;
+					},
+				} as unknown as TerminalSessionManager;
+				const deleteTaskWorkspace = vi.fn<typeof deleteTaskWorktree>(async () => ({
+					ok: true,
+					removed: true,
+				}));
+
+				await shutdownRuntimeServer({
+					workspaceRegistry: {
+						listManagedWorkspaces: () => [
+							{
+								workspaceId: "project",
+								workspacePath: projectPath,
+								terminalManager: managedTerminalManager,
+							},
+						],
+					},
+					warn: () => {},
+					closeRuntimeServer: async () => {},
+					deleteTaskWorkspace,
+				});
+
+				expect(deleteTaskWorkspace.mock.calls.map(([input]) => input.taskId).sort()).toEqual(
+					["legacy-card-only", "legacy-codex"].sort(),
+				);
+				const after = await loadWorkspaceState(projectPath);
+				const trash = after.board.columns.find((column) => column.id === "trash")?.cards ?? [];
+				expect(trash.map((card) => card.id).sort()).toEqual(
+					["default-cline", "explicit-cline", "legacy-card-only", "legacy-codex"].sort(),
+				);
+				expect(after.sessions["default-cline"]?.state).toBe("interrupted");
+				expect(after.sessions["explicit-cline"]?.state).toBe("interrupted");
+				expect(after.sessions["legacy-codex"]?.state).toBe("interrupted");
 			} finally {
 				cleanup();
 			}

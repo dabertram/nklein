@@ -1,4 +1,8 @@
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
+	RuntimeAgentId,
 	RuntimeBoardColumnId,
 	RuntimeBoardData,
 	RuntimeTaskSessionSummary,
@@ -15,21 +19,42 @@ export interface RuntimeShutdownCoordinatorDependencies {
 	warn: (message: string) => void;
 	closeRuntimeServer: () => Promise<void>;
 	skipSessionCleanup?: boolean;
+	deleteTaskWorkspace?: typeof deleteTaskWorktree;
 }
 
 const SHUTDOWN_ACTIVE_COLUMN_IDS = new Set<RuntimeBoardColumnId>(["planning", "in_progress", "review"]);
 
-function collectActiveBoardTaskIdsForShutdown(board: RuntimeBoardData): string[] {
-	const taskIds: string[] = [];
+function normalizeWorkspacePathForShutdown(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return resolve(path);
+	}
+}
+
+interface ShutdownActiveBoardTask {
+	taskId: string;
+	agentId?: RuntimeAgentId;
+}
+
+interface ShutdownPersistenceResult {
+	legacyHostWorkspaceTaskIds: string[];
+}
+
+function collectActiveBoardTasksForShutdown(board: RuntimeBoardData): ShutdownActiveBoardTask[] {
+	const tasks: ShutdownActiveBoardTask[] = [];
 	for (const column of board.columns) {
 		if (!SHUTDOWN_ACTIVE_COLUMN_IDS.has(column.id)) {
 			continue;
 		}
 		for (const card of column.cards) {
-			taskIds.push(card.id);
+			tasks.push({
+				taskId: card.id,
+				...(card.agentId !== undefined ? { agentId: card.agentId } : {}),
+			});
 		}
 	}
-	return taskIds;
+	return tasks;
 }
 
 function moveActiveBoardTasksToTrash(board: RuntimeBoardData, taskIds: Iterable<string>): RuntimeBoardData {
@@ -50,19 +75,29 @@ async function persistInterruptedSessions(
 		workspaceState?: RuntimeWorkspaceStateResponse;
 		resolveSummary?: (taskId: string) => RuntimeTaskSessionSummary | null;
 	},
-): Promise<string[]> {
+): Promise<ShutdownPersistenceResult> {
 	const workspaceState = options?.workspaceState ?? (await loadWorkspaceState(workspacePath));
-	const activeBoardTaskIds = collectActiveBoardTaskIdsForShutdown(workspaceState.board);
+	const activeBoardTasks = collectActiveBoardTasksForShutdown(workspaceState.board);
+	const activeBoardTaskById = new Map(activeBoardTasks.map((task) => [task.taskId, task]));
+	const activeBoardTaskIds = activeBoardTasks.map((task) => task.taskId);
 	const taskIdsToInterrupt = Array.from(new Set([...interruptedTaskIds, ...activeBoardTaskIds]));
 	if (taskIdsToInterrupt.length === 0) {
-		return [];
+		return {
+			legacyHostWorkspaceTaskIds: [],
+		};
 	}
 	const now = Date.now();
 	const nextSessions = {
 		...workspaceState.sessions,
 	};
+	const legacyHostWorkspaceTaskIds = new Set<string>();
 	for (const taskId of taskIdsToInterrupt) {
 		const summary = options?.resolveSummary?.(taskId) ?? workspaceState.sessions[taskId] ?? null;
+		const activeBoardTask = activeBoardTaskById.get(taskId) ?? null;
+		const agentId = summary?.agentId ?? activeBoardTask?.agentId ?? null;
+		if (usesLegacyHostTaskWorkspace(agentId)) {
+			legacyHostWorkspaceTaskIds.add(taskId);
+		}
 		if (summary) {
 			nextSessions[taskId] = {
 				...summary,
@@ -78,13 +113,16 @@ async function persistInterruptedSessions(
 		board: nextBoard,
 		sessions: nextSessions,
 	});
-	return taskIdsToInterrupt;
+	return {
+		legacyHostWorkspaceTaskIds: Array.from(legacyHostWorkspaceTaskIds),
+	};
 }
 
 async function cleanupInterruptedTaskWorktrees(
 	repoPath: string,
 	taskIds: string[],
 	warn: (message: string) => void,
+	deleteTaskWorkspace: typeof deleteTaskWorktree,
 ): Promise<void> {
 	if (taskIds.length === 0) {
 		return;
@@ -92,7 +130,7 @@ async function cleanupInterruptedTaskWorktrees(
 	const deletions = await Promise.all(
 		taskIds.map(async (taskId) => ({
 			taskId,
-			deleted: await deleteTaskWorktree({
+			deleted: await deleteTaskWorkspace({
 				repoPath,
 				taskId,
 			}),
@@ -157,6 +195,7 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 		resolveSummary?: (taskId: string) => RuntimeTaskSessionSummary | null;
 	}> = [];
 	const managedWorkspacePaths = new Set<string>();
+	const managedWorkspaceKeys = new Set<string>();
 
 	for (const { workspacePath, terminalManager } of deps.workspaceRegistry.listManagedWorkspaces()) {
 		const interrupted = terminalManager.markInterruptedAndStopAll();
@@ -165,6 +204,7 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 			continue;
 		}
 		managedWorkspacePaths.add(workspacePath);
+		managedWorkspaceKeys.add(normalizeWorkspacePathForShutdown(workspacePath));
 		try {
 			const workspaceState = await loadWorkspaceState(workspacePath);
 			interruptedByWorkspace.push({
@@ -180,12 +220,13 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 	}
 
 	for (const indexedWorkspace of await listWorkspaceIndexEntries()) {
-		if (managedWorkspacePaths.has(indexedWorkspace.repoPath)) {
+		const indexedWorkspaceKey = normalizeWorkspacePathForShutdown(indexedWorkspace.repoPath);
+		if (managedWorkspaceKeys.has(indexedWorkspaceKey)) {
 			continue;
 		}
 		try {
 			const workspaceState = await loadWorkspaceState(indexedWorkspace.repoPath);
-			const activeTaskIds = collectActiveBoardTaskIdsForShutdown(workspaceState.board);
+			const activeTaskIds = collectActiveBoardTasksForShutdown(workspaceState.board).map((task) => task.taskId);
 			if (activeTaskIds.length === 0) {
 				continue;
 			}
@@ -195,6 +236,7 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 				workspaceState,
 			});
 			managedWorkspacePaths.add(indexedWorkspace.repoPath);
+			managedWorkspaceKeys.add(indexedWorkspaceKey);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(
@@ -205,15 +247,16 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 
 	await Promise.all(
 		interruptedByWorkspace.map(async (workspace) => {
-			const worktreeTaskIds = await persistInterruptedSessions(
+			const persisted = await persistInterruptedSessions(workspace.workspacePath, workspace.interruptedTaskIds, {
+				workspaceState: workspace.workspaceState,
+				resolveSummary: workspace.resolveSummary,
+			});
+			await cleanupInterruptedTaskWorktrees(
 				workspace.workspacePath,
-				workspace.interruptedTaskIds,
-				{
-					workspaceState: workspace.workspaceState,
-					resolveSummary: workspace.resolveSummary,
-				},
+				persisted.legacyHostWorkspaceTaskIds,
+				deps.warn,
+				deps.deleteTaskWorkspace ?? deleteTaskWorktree,
 			);
-			await cleanupInterruptedTaskWorktrees(workspace.workspacePath, worktreeTaskIds, deps.warn);
 		}),
 	);
 

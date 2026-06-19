@@ -22,6 +22,7 @@ import { createClineProviderService } from "../cline-sdk/cline-provider-service"
 import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
 import { buildClineStartGuardCandidate } from "../cline-sdk/cline-task-start-guard";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
@@ -1403,7 +1404,7 @@ function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
 }
 
 function shouldPrepareLegacyHostTaskWorkspace(task: Pick<RuntimeBoardCard, "agentId">): boolean {
-	return task.agentId !== undefined && task.agentId !== "cline";
+	return usesLegacyHostTaskWorkspace(task.agentId);
 }
 
 async function autoMergeFinishedTaskWorktree(input: {

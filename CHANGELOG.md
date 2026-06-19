@@ -50,6 +50,7 @@
 - Reconciled sandbox/result-branch wording across prompts, CLI help/errors, merge observations, evidence summaries, auto-review notices, project-health diagnostics, and cleanup confirmations so visible surfaces describe task workspaces and task results instead of host task worktrees.
 - Reused the scoped runtime sandbox pool for acceptance auto-repair and the default `nklein task verify` path, removing the remaining ad hoc acceptance-verification `AgentSandboxManager` instances outside runtime-server ownership.
 - Stopped web and CLI Cline/default task starts from pre-creating host task worktrees before sandbox launch, while retaining the legacy host-worktree preparation path for explicitly non-Cline task agents.
+- Scoped shutdown host-worktree cleanup to explicit legacy task agents and de-duped managed/indexed workspaces by canonical path, so Cline/default sandbox tasks are interrupted without entering saved host-patch cleanup.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

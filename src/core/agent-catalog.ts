@@ -93,3 +93,7 @@ export function getRuntimeLaunchSupportedAgentCatalog(): RuntimeAgentCatalogEntr
 export function getRuntimeAgentCatalogEntry(agentId: RuntimeAgentId): RuntimeAgentCatalogEntry | null {
 	return RUNTIME_AGENT_CATALOG.find((entry) => entry.id === agentId) ?? null;
 }
+
+export function usesLegacyHostTaskWorkspace(agentId: RuntimeAgentId | null | undefined): boolean {
+	return agentId !== undefined && agentId !== null && agentId !== "cline";
+}

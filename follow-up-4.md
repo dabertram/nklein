@@ -267,6 +267,10 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   - Web and CLI task-start paths now skip `workspace.ensureWorktree` for Cline/default tasks, letting
     `runtime.startTaskSession` prepare the Docker sandbox. The host worktree ensure remains only for explicitly
     non-Cline legacy agent tasks.
+  - Runtime shutdown now uses the same legacy-agent boundary before deleting/preserving host task workspaces:
+    interrupted Cline/default cards are still moved to Trash and marked interrupted, but only explicit non-Cline
+    legacy agents enter the host worktree cleanup path. Shutdown also canonicalizes managed/indexed workspace paths
+    before de-duping, avoiding duplicate cleanup when macOS temp paths differ by `/var` vs `/private/var`.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container
