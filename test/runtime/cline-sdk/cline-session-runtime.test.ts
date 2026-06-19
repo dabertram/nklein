@@ -514,6 +514,59 @@ describe("InMemoryClineSessionRuntime", () => {
 		);
 	});
 
+	it("omits host web research when sandbox extra tools are supplied", async () => {
+		const previousWebResearch = process.env.KANBAN_ENABLE_WEB_RESEARCH;
+		process.env.KANBAN_ENABLE_WEB_RESEARCH = "1";
+		try {
+			const fakeHost = {
+				start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+					sessionId: input.config?.sessionId ?? "session-1",
+					result: {},
+				})),
+				send: vi.fn(async () => ({})),
+				stop: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+				delete: vi.fn(async () => true),
+				dispose: vi.fn(async () => {}),
+				get: vi.fn(async () => undefined),
+				list: vi.fn(async () => []),
+				readMessages: vi.fn(async () => []),
+				subscribe: vi.fn(() => () => {}),
+			};
+			const runtime = createInMemoryClineSessionRuntime({
+				createSessionHost: async () => fakeHost,
+				createMcpRuntimeService: createNoopMcpRuntimeService,
+			});
+			const sandboxExtraTool: AgentTool = {
+				name: "repo_map",
+				description: "Sandbox proxy.",
+				inputSchema: { type: "object", properties: {} },
+				execute: async () => ({}),
+			};
+
+			await runtime.startTaskSession({
+				taskId: "task-1",
+				cwd: "/workspaces/task-1",
+				prompt: "Investigate startup",
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				systemPrompt: "You are a helpful coding assistant.",
+				extraTools: [sandboxExtraTool],
+			});
+
+			const startInput = fakeHost.start.mock.calls[0]?.[0];
+			const toolNames = startInput?.localRuntime?.extraTools?.map((tool) => tool.name) ?? [];
+			expect(toolNames).toContain("repo_map");
+			expect(toolNames).not.toContain("web_research");
+		} finally {
+			if (previousWebResearch === undefined) {
+				delete process.env.KANBAN_ENABLE_WEB_RESEARCH;
+			} else {
+				process.env.KANBAN_ENABLE_WEB_RESEARCH = previousWebResearch;
+			}
+		}
+	});
+
 	it("refreshes the cached repo map after successful mutating tools", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-runtime-repo-map-"));
 		await mkdir(join(workspacePath, "src"), { recursive: true });

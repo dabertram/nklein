@@ -707,7 +707,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			}),
 			...workspaceExtraTools,
 			...createWebResearchTool({
-				enabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+				enabled: !request.extraTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),
 			...(mcpToolBundle?.tools ?? []),
 		];

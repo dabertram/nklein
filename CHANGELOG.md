@@ -39,6 +39,7 @@
 - Added a typed queued task-session state for sandbox-capacity waits, including card-visible "Queued — waiting for sandbox capacity" activity and active-task accounting.
 - Applied live sandbox pool setting changes to the active manager so lowering max containers retires only idle excess containers and lets occupied excess containers finish before cleanup.
 - Routed !Klein's custom Cline workspace tools through the Docker sandbox tool-runner for sandboxed Cline tasks, covering repo map/search, file discovery, large-file reads, and write-file tools.
+- Prevented env-enabled web research from registering on sandboxed Cline tasks, preserving the no-host-network strict isolation boundary.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

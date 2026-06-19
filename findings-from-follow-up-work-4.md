@@ -10,10 +10,10 @@
   - The runner-side large-file workflow stores its state under `/tmp/nklein-large-file-workflows` inside the container because the runner is per-tool-call and the container root filesystem is read-only.
 
 - [ ] Finish the remaining strict-isolation extra-tool audit.
-  - `cline-session-runtime.ts` still registers decomposition tools and an env-gated web research tool outside the sandbox workspace-tool proxy list.
+  - `cline-session-runtime.ts` still registers decomposition tools outside the sandbox workspace-tool proxy list.
   - Decomposition mutates trusted !Klein board/artifact state and may belong on the host side, but it is still invoked on the LLM's behalf and needs an explicit strict-isolation decision rather than accidental inheritance.
-  - Web research is disabled by default, but `KANBAN_ENABLE_WEB_RESEARCH=1` should not create a host-network escape hatch for sandboxed Cline tasks. Either make sandboxed starts omit it unconditionally or replace it with a no-network denial tool.
-  - Do not mark J7 complete until those two surfaces are explicitly resolved and covered.
+  - Web research is disabled by default, and sandboxed Cline starts now also omit it when `KANBAN_ENABLE_WEB_RESEARCH=1`, so that env var cannot create a host-network escape hatch for sandboxed Cline tasks.
+  - Do not mark J7 complete until decomposition is explicitly resolved and covered.
 
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.

@@ -354,8 +354,9 @@ agents in one container still cannot read each other's files.
   - [x] `runClineAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
     explicit runner or opt into trusted host execution, while agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
   - [x] Add the no-host execution guard test across SDK default executors and acceptance.
-  - [ ] Decomposition and explicitly enabled web-research extra tools still need a final strict-isolation audit before
-    the broader structural no-host-fallback item is complete.
+  - [x] Sandboxed Cline starts omit host `web_research` even when `KANBAN_ENABLE_WEB_RESEARCH=1`.
+  - [ ] Decomposition extra tools still need a final strict-isolation audit before the broader structural
+    no-host-fallback item is complete.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
 - [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image
