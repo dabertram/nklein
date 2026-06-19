@@ -39,6 +39,9 @@
     Cline/default tasks are still interrupted and moved to Trash, but only explicit non-Cline legacy agents enter the
     host worktree cleanup path. The shutdown pass also canonicalizes managed/indexed workspace paths before de-duping
     so one project is not cleaned twice when path spellings differ.
+  - Workspace metadata polling now also uses that boundary: active default/Cline cards no longer publish missing host
+    task-workspace paths, while explicit non-Cline legacy cards still expose host worktree Git status for the existing
+    review/diff UI.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

@@ -926,6 +926,7 @@ describe.sequential("runtime state stream integration", () => {
 			expect(stateResponse.status).toBe(200);
 
 			const taskId = "metadata-stream-task";
+			const defaultClineTaskId = "metadata-default-cline-task";
 			const trashTaskId = "metadata-trash-task";
 			const baseRef = runGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
 			const board = createReviewBoard(taskId, "Metadata stream task", trashTaskId);
@@ -934,7 +935,17 @@ describe.sequential("runtime state stream integration", () => {
 			if (!reviewColumn?.cards[0]) {
 				throw new Error("Expected seeded review card.");
 			}
+			reviewColumn.cards[0].agentId = "codex";
 			reviewColumn.cards[0].baseRef = baseRef;
+			reviewColumn.cards.push({
+				id: defaultClineTaskId,
+				title: "Default Cline metadata task",
+				prompt: "Default Cline metadata task",
+				startInPlanMode: false,
+				baseRef,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+			});
 			if (!trashColumn?.cards[0]) {
 				throw new Error("Expected seeded trash card.");
 			}
@@ -980,6 +991,9 @@ describe.sequential("runtime state stream integration", () => {
 				snapshot.workspaceMetadata?.taskWorkspaces.find((task) => task.taskId === taskId) ?? null;
 			expect(initialTaskMetadata).not.toBeNull();
 			expect(initialTaskMetadata?.changedFiles ?? 0).toBe(0);
+			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === defaultClineTaskId)).toBe(
+				false,
+			);
 			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === trashTaskId)).toBe(false);
 			const messagesAfterInitialSnapshot = await stream.collectFor(250);
 			expect(messagesAfterInitialSnapshot.some((message) => message.type === "workspace_metadata_updated")).toBe(

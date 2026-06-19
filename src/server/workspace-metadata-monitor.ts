@@ -1,3 +1,4 @@
+import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
 	RuntimeBoardData,
 	RuntimeGitSyncSummary,
@@ -65,6 +66,9 @@ function collectTrackedTasks(board: RuntimeBoardData): TrackedTaskWorkspace[] {
 			continue;
 		}
 		for (const card of column.cards) {
+			if (!usesLegacyHostTaskWorkspace(card.agentId)) {
+				continue;
+			}
 			tracked.push({
 				taskId: card.id,
 				baseRef: card.baseRef,
