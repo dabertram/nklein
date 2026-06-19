@@ -197,6 +197,20 @@ describe("AgentSandboxManager", () => {
 		expect(runTool).toHaveBeenCalledWith("task-1", "bash", "npm test");
 	});
 
+	it("disables web fetch without falling back to host networking", async () => {
+		const runTool = vi.fn(async () => "unexpected");
+		const executors = createAgentSandboxToolExecutors({ runTool } as unknown as AgentSandboxManager, "task-1");
+		const webFetch = executors.webFetch;
+		if (!webFetch) {
+			throw new Error("Expected sandbox webFetch executor.");
+		}
+
+		await expect(webFetch("https://example.com", "/workspace", {} as AgentToolContext)).resolves.toContain(
+			"no-network Docker sandbox",
+		);
+		expect(runTool).not.toHaveBeenCalled();
+	});
+
 	it("rejects queued tool execution when the task wait is aborted", async () => {
 		const pauseController = new ClinePauseController();
 		pauseController.setCardPaused("task-1", true);

@@ -324,13 +324,13 @@ agents in one container still cannot read each other's files.
   out of scope for v1; default-deny is the safe behavior.)
 
 ### J6. Network policy — default no egress; disable agent web fetch
-- [ ] Containers run with `--network none`. The LLM provider HTTP calls are made by the **host** !Klein process
+- [x] Containers run with `--network none`. The LLM provider HTTP calls are made by the **host** !Klein process
   (the SDK runs in-process, `backendMode` local), so the agent loop works with zero container networking. Do not add
   container networking in v1.
-- [ ] **`webFetch`:** with no egress it cannot work. Register a `webFetch` executor that returns a clear
+- [x] **`webFetch`:** with no egress it cannot work. Register a `webFetch` executor that returns a clear
   "Web fetch is disabled under strict local isolation." message (or omit the tool). Do **not** fall back to host
   fetch. (!Klein is local-only anyway.)
-- [ ] The existing opt-in agent egress guard (commit `bd182a06`, `src/security/*`) targeted host PTY agents; it is
+- [x] The existing opt-in agent egress guard (commit `bd182a06`, `src/security/*`) targeted host PTY agents; it is
   superseded for agent tools by `--network none`. Leave it for user terminals; note the reconciliation in a comment.
 
 ### J7. Fail-closed enforcement (no path may ever run a tool on the host)

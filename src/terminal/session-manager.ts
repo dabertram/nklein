@@ -202,6 +202,8 @@ export function applyAgentEgressRestrictionEnvironment(
 	env: Record<string, string | undefined>,
 	processEnv: NodeJS.ProcessEnv = process.env,
 ): Record<string, string | undefined> {
+	// Docker-backed Cline agent tools are isolated with `--network none`.
+	// This best-effort proxy guard remains only for user-launched terminal agents.
 	if (processEnv[AGENT_EGRESS_RESTRICTION_ENV]?.trim() !== BEST_EFFORT_LOCAL_ONLY_EGRESS) {
 		return env;
 	}
