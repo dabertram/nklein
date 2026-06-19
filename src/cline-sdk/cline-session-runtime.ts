@@ -674,6 +674,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				}
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
+		const useHostWorkspaceTools = !request.extraTools;
 		const workspaceExtraTools =
 			request.extraTools ??
 			([
@@ -700,14 +701,16 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				}),
 			] satisfies AgentTool[]);
 		const extraTools = [
-			...createClineDecompositionTools({
-				workspacePath: request.cwd,
-				artifactWorkspacePath,
-				sourceTaskId: request.taskId,
-			}),
+			...(useHostWorkspaceTools
+				? createClineDecompositionTools({
+						workspacePath: request.cwd,
+						artifactWorkspacePath,
+						sourceTaskId: request.taskId,
+					})
+				: []),
 			...workspaceExtraTools,
 			...createWebResearchTool({
-				enabled: !request.extraTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+				enabled: useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),
 			...(mcpToolBundle?.tools ?? []),
 		];

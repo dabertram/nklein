@@ -535,6 +535,7 @@ describe("InMemoryClineTaskSessionService", () => {
 			workspaceRoot: "/tmp/project",
 			baseRef: "main",
 			prompt: "Investigate startup",
+			startInPlanMode: true,
 		});
 
 		await vi.waitFor(() => {
@@ -556,6 +557,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				cwd: "/workspaces/task-1",
+				prompt: expect.stringContaining("Strict Docker isolation is active"),
 				toolExecutors: expect.objectContaining({
 					bash: expect.any(Function),
 					applyPatch: expect.any(Function),

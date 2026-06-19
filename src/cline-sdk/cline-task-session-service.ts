@@ -461,14 +461,22 @@ function formatStartWarnings(warnings: readonly string[] | undefined): string | 
 	return `${normalized[0]} (+${normalized.length - 1} more MCP warning${normalized.length === 2 ? "" : "s"})`;
 }
 
-function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): string {
+function buildClineStartPrompt(
+	prompt: string,
+	startInPlanMode?: boolean,
+	options?: { decompositionToolsAvailable?: boolean },
+): string {
 	if (!startInPlanMode) {
 		return prompt;
 	}
 	const trimmedPrompt = prompt.trim();
+	const decompositionInstruction =
+		options?.decompositionToolsAvailable === false
+			? "Strict Docker isolation is active, so the host-side !Klein decomposition tool is unavailable in this agent session. Produce a clear implementation plan in chat and do not edit !Klein board, workspace, plan, or task state directly."
+			: "!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.";
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
-		"!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.",
+		decompositionInstruction,
 		"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
 		"Continue autonomously through the planning workflow when the task can be completed with !Klein-managed tools.",
 		trimmedPrompt ? `\n\nTask:\n${trimmedPrompt}` : " Ask the user what they want planned if the task is unclear.",
@@ -1525,7 +1533,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			try {
 				const runtimeSetup = await this.ensureRuntimeSetup(request.cwd);
 				const runtimePrompt = runtimeSetup.resolvePrompt(
-					buildClineStartPrompt(request.prompt, request.startInPlanMode),
+					buildClineStartPrompt(request.prompt, request.startInPlanMode, {
+						decompositionToolsAvailable: !sandboxWorkspace,
+					}),
 				);
 				let systemPrompt =
 					request.systemPrompt?.trim() ||

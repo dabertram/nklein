@@ -9,11 +9,14 @@
   - Sandboxed Cline starts now register proxy `AgentTool`s for `repo_map`, `search_code`, `list_files`, `find_files`, `get_file_size`, `read_large_file`, `write_file`, and `write_files`. Their host-side `execute` functions call `manager.runTool(taskId, "kanbanExtraTool", ...)`, and the bundled `/opt/nklein/tool-runner.mjs` runs the real implementations inside `/workspaces/<taskId>`.
   - The runner-side large-file workflow stores its state under `/tmp/nklein-large-file-workflows` inside the container because the runner is per-tool-call and the container root filesystem is read-only.
 
-- [ ] Finish the remaining strict-isolation extra-tool audit.
-  - `cline-session-runtime.ts` still registers decomposition tools outside the sandbox workspace-tool proxy list.
-  - Decomposition mutates trusted !Klein board/artifact state and may belong on the host side, but it is still invoked on the LLM's behalf and needs an explicit strict-isolation decision rather than accidental inheritance.
+- [x] Finish the strict-isolation extra-tool audit for sandboxed Cline starts.
+  - Sandboxed Cline starts now omit `decompose_project` and `expand_task` instead of exposing host-side plan artifact and board mutation tools to the LLM.
+  - Strict-isolation planning prompts now tell the agent to produce a plan in chat instead of using `/kanban-decompose`, so the prompt does not advertise an unavailable host mutation workflow.
   - Web research is disabled by default, and sandboxed Cline starts now also omit it when `KANBAN_ENABLE_WEB_RESEARCH=1`, so that env var cannot create a host-network escape hatch for sandboxed Cline tasks.
-  - Do not mark J7 complete until decomposition is explicitly resolved and covered.
+
+- [ ] Remove or quarantine the remaining no-sandbox Cline service construction path.
+  - `createInMemoryClineTaskSessionService` still accepts no `agentSandboxManager`, and many unit tests use that in-process path to avoid Docker and real SDK startup. Production runtime-server creates the service with an `AgentSandboxManager`, but the optional constructor path is still a structural host-fallback surface.
+  - Do not mark J7 complete until that path either throws before Cline task start, is moved behind a test-only helper, or is otherwise made impossible for production/runtime callers.
 
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.

@@ -557,6 +557,8 @@ describe("InMemoryClineSessionRuntime", () => {
 			const startInput = fakeHost.start.mock.calls[0]?.[0];
 			const toolNames = startInput?.localRuntime?.extraTools?.map((tool) => tool.name) ?? [];
 			expect(toolNames).toContain("repo_map");
+			expect(toolNames).not.toContain("decompose_project");
+			expect(toolNames).not.toContain("expand_task");
 			expect(toolNames).not.toContain("web_research");
 		} finally {
 			if (previousWebResearch === undefined) {
