@@ -9,6 +9,7 @@ import {
 	buildAgentSandboxDockerRunArgs,
 	createAgentSandboxTaskUid,
 	createAgentSandboxToolExecutors,
+	DEFAULT_AGENT_SANDBOX_IMAGE,
 	normalizeAgentSandboxPoolConfig,
 } from "../../../src/cline-sdk/cline-agent-sandbox";
 import { ClinePauseController } from "../../../src/cline-sdk/cline-pause-controller";
@@ -18,6 +19,7 @@ interface ExecFileStubOptions {
 	failImageInspect?: boolean;
 	psOutput?: string;
 	volumeLsOutput?: string;
+	execStdout?: string;
 }
 
 function createExecFileStub(options?: ExecFileStubOptions): {
@@ -44,6 +46,8 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 			stdout = options?.volumeLsOutput ?? "";
 		} else if (args[0] === "run") {
 			stdout = "container-id\n";
+		} else if (args[0] === "exec") {
+			stdout = options?.execStdout ?? "";
 		}
 		done(null, { stdout, stderr: "" });
 		return {} as ReturnType<typeof execFile>;
@@ -54,7 +58,40 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 	};
 }
 
+function createDelayedRunExecFileStub(): {
+	execFile: typeof execFile;
+	calls: string[][];
+	finishRun: () => void;
+} {
+	const calls: string[][] = [];
+	let runCallback: ((error: unknown, result?: { stdout: string; stderr: string }) => void) | null = null;
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (args[0] === "run") {
+			runCallback = done;
+			return {} as ReturnType<typeof execFile>;
+		}
+		done(null, { stdout: "", stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		finishRun: () => {
+			runCallback?.(null, { stdout: "container-id\n", stderr: "" });
+			runCallback = null;
+		},
+	};
+}
+
 describe("AgentSandboxManager", () => {
+	it("uses a pinned default sandbox image tag", () => {
+		expect(DEFAULT_AGENT_SANDBOX_IMAGE).not.toMatch(/:latest$/);
+		expect(DEFAULT_AGENT_SANDBOX_IMAGE).toMatch(/:\d+\.\d+\.\d+$/);
+	});
+
 	it("builds a locked-down docker run command", () => {
 		const args = buildAgentSandboxDockerRunArgs({
 			slot: 1,
@@ -165,13 +202,102 @@ describe("AgentSandboxManager", () => {
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
 	});
 
+	it("starts each container slot with a single in-flight docker run", async () => {
+		const { execFile: execFileStub, calls, finishRun } = createDelayedRunExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 0,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		const first = manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const second = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+
+		await vi.waitFor(() => {
+			expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+		});
+
+		finishRun();
+
+		await expect(Promise.all([first, second])).resolves.toEqual([
+			expect.objectContaining({ slot: 1 }),
+			expect.objectContaining({ slot: 1 }),
+		]);
+	});
+
+	it("cancels idle teardown when a new task reuses the container", async () => {
+		vi.useFakeTimers();
+		try {
+			const { execFile: execFileStub, calls } = createExecFileStub();
+			const manager = new AgentSandboxManager({
+				image: "test-image",
+				execFile: execFileStub,
+				poolConfig: {
+					maxContainers: 1,
+					agentsPerContainer: 1,
+					idleTimeoutMs: 100,
+				},
+			});
+
+			await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+			await manager.disposeWorkspace("task-1");
+			const containerRmCallCountBeforeReuse = calls.filter(
+				(args) => args.join(" ") === "rm -f nklein-agent-sandbox-1",
+			).length;
+			await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+			await vi.advanceTimersByTimeAsync(101);
+
+			expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(
+				containerRmCallCountBeforeReuse,
+			);
+
+			await manager.disposeWorkspace("task-2");
+			await vi.advanceTimersByTimeAsync(101);
+
+			expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(
+				containerRmCallCountBeforeReuse + 1,
+			);
+			expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-1"]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("assigns stable unprivileged task uids", () => {
 		const first = createAgentSandboxTaskUid("task-1");
 		const second = createAgentSandboxTaskUid("task-1");
+		const otherTask = createAgentSandboxTaskUid("task-2");
 
 		expect(first).toBe(second);
+		expect(first).not.toBe(otherTask);
 		expect(first).toBeGreaterThanOrEqual(70_000);
 		expect(first).toBeLessThan(90_000);
+	});
+
+	it("serializes tool-runner input and parses JSON results", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			execStdout: JSON.stringify({ ok: true, result: "edited" }),
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.runTool("task-1", "editor", { command: "replace" })).resolves.toBe("edited");
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces/task-1",
+			"nklein-agent-sandbox-1",
+			"node",
+			"/opt/nklein/tool-runner.mjs",
+			"editor",
+			JSON.stringify({ command: "replace" }),
+		]);
 	});
 
 	it("queues tool execution while the task is paused", async () => {

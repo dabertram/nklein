@@ -200,4 +200,20 @@ describe("cline acceptance gate", () => {
 		});
 		expect(disposeWorkspace).toHaveBeenCalledWith("task-1");
 	});
+
+	it("rejects sandbox acceptance without a bound task id", async () => {
+		const sandboxManager = {
+			assertAvailable: vi.fn(async () => {}),
+		} as unknown as AgentSandboxManager;
+
+		await expect(
+			runClineAcceptanceGateInSandbox({
+				taskId: "",
+				projectRepoPath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				sandboxManager,
+			}),
+		).rejects.toThrow("A task id is required to run the acceptance gate in the agent sandbox.");
+		expect(sandboxManager.assertAvailable).not.toHaveBeenCalled();
+	});
 });

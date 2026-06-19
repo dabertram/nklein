@@ -373,7 +373,7 @@ agents in one container still cannot read each other's files.
   start-guard message). Tasks cannot be created/started until Docker is ready.
 
 ### J9. Tests (mandatory; this is a safety feature)
-- [ ] **Unit, no Docker needed:** the `docker run` argv builder includes every lockdown flag, the named-volume mount,
+- [x] **Unit, no Docker needed:** the `docker run` argv builder includes every lockdown flag, the named-volume mount,
   and a pinned image (assert no `:latest`); per-task uid assignment is stable and distinct per `taskId`;
   `assertAvailable` throws `AgentSandboxUnavailableError` when `execFile` reports docker missing/daemon down (mock
   `execFile`); `startContainer` is single-flight per slot and `acquireSlot` reuses a free container before starting a
