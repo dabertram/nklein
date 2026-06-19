@@ -1291,12 +1291,14 @@ async function startTask(input: {
 				`Task "${task.id}" likely touches the same files as active task "${overlappingTask.id}". Wait for the active task to finish before starting this one.`,
 			);
 		}
-		const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
-			taskId: task.id,
-			baseRef: task.baseRef,
-		});
-		if (!ensured.ok) {
-			throw new Error(ensured.error ?? "Could not prepare task workspace.");
+		if (shouldPrepareLegacyHostTaskWorkspace(task)) {
+			const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
+				taskId: task.id,
+				baseRef: task.baseRef,
+			});
+			if (!ensured.ok) {
+				throw new Error(ensured.error ?? "Could not prepare task workspace.");
+			}
 		}
 
 		const started = await runtimeClient.runtime.startTaskSession.mutate({
@@ -1398,6 +1400,10 @@ interface FinishTaskMutationValue {
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
 	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
+}
+
+function shouldPrepareLegacyHostTaskWorkspace(task: Pick<RuntimeBoardCard, "agentId">): boolean {
+	return task.agentId !== undefined && task.agentId !== "cline";
 }
 
 async function autoMergeFinishedTaskWorktree(input: {

@@ -52,6 +52,10 @@ function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardC
 	return task.startInPlanMode ? "planning" : "in_progress";
 }
 
+function shouldPrepareLegacyHostTaskWorkspace(task: Pick<BoardCard, "agentId">): boolean {
+	return task.agentId !== undefined && task.agentId !== "cline";
+}
+
 function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardColumnId {
 	return summary.mode === "plan" ? "planning" : "in_progress";
 }
@@ -389,44 +393,46 @@ export function useBoardInteractions({
 		): Promise<boolean> => {
 			const optimisticMove = options?.optimisticMove ?? true;
 			const activeColumnId = getTaskActiveColumnId(task);
-			const ensured = await ensureTaskWorkspace(task);
-			if (!ensured.ok) {
-				notifyError(ensured.message ?? "Could not set up task workspace.");
-				if (optimisticMove) {
-					setBoard((currentBoard) => {
-						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== activeColumnId) {
-							return currentBoard;
-						}
-						const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
-						return reverted.moved ? reverted.board : currentBoard;
+			if (shouldPrepareLegacyHostTaskWorkspace(task)) {
+				const ensured = await ensureTaskWorkspace(task);
+				if (!ensured.ok) {
+					notifyError(ensured.message ?? "Could not set up task workspace.");
+					if (optimisticMove) {
+						setBoard((currentBoard) => {
+							const currentColumnId = getTaskColumnId(currentBoard, taskId);
+							if (currentColumnId !== activeColumnId) {
+								return currentBoard;
+							}
+							const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
+							return reverted.moved ? reverted.board : currentBoard;
+						});
+					}
+					return false;
+				}
+				if (ensured.response?.warning) {
+					showAppToast({
+						intent: "warning",
+						icon: "warning-sign",
+						message: ensured.response.warning,
+						timeout: 7000,
 					});
 				}
-				return false;
-			}
-			if (ensured.response?.warning) {
-				showAppToast({
-					intent: "warning",
-					icon: "warning-sign",
-					message: ensured.response.warning,
-					timeout: 7000,
-				});
-			}
-			if (selectedTaskId === taskId) {
-				if (ensured.response) {
-					setTaskWorkspaceInfo({
-						taskId,
-						path: ensured.response.path,
-						exists: true,
-						baseRef: ensured.response.baseRef,
-						branch: null,
-						isDetached: true,
-						headCommit: ensured.response.baseCommit,
-					});
-				}
-				const infoAfterEnsure = await fetchTaskWorkspaceInfo(task);
-				if (infoAfterEnsure) {
-					setTaskWorkspaceInfo(infoAfterEnsure);
+				if (selectedTaskId === taskId) {
+					if (ensured.response) {
+						setTaskWorkspaceInfo({
+							taskId,
+							path: ensured.response.path,
+							exists: true,
+							baseRef: ensured.response.baseRef,
+							branch: null,
+							isDetached: true,
+							headCommit: ensured.response.baseCommit,
+						});
+					}
+					const infoAfterEnsure = await fetchTaskWorkspaceInfo(task);
+					if (infoAfterEnsure) {
+						setTaskWorkspaceInfo(infoAfterEnsure);
+					}
 				}
 			}
 			const started = await startTaskSession(task, { queueOnEndpointBusy: options?.queueOnEndpointBusy });
@@ -654,31 +660,33 @@ export function useBoardInteractions({
 
 	const resumeTaskFromTrash = useCallback(
 		async (task: BoardCard, taskId: string, options?: { optimisticMoveApplied?: boolean }): Promise<void> => {
-			const ensured = await ensureTaskWorkspace(task);
-			if (!ensured.ok) {
-				notifyError(ensured.message ?? "Could not set up task workspace.");
-				if (!options?.optimisticMoveApplied) {
+			if (shouldPrepareLegacyHostTaskWorkspace(task)) {
+				const ensured = await ensureTaskWorkspace(task);
+				if (!ensured.ok) {
+					notifyError(ensured.message ?? "Could not set up task workspace.");
+					if (!options?.optimisticMoveApplied) {
+						return;
+					}
+					setBoard((currentBoard) => {
+						const currentColumnId = getTaskColumnId(currentBoard, taskId);
+						if (currentColumnId !== "review") {
+							return currentBoard;
+						}
+						const reverted = moveTaskToColumn(currentBoard, taskId, "trash", {
+							insertAtTop: true,
+						});
+						return reverted.moved ? reverted.board : currentBoard;
+					});
 					return;
 				}
-				setBoard((currentBoard) => {
-					const currentColumnId = getTaskColumnId(currentBoard, taskId);
-					if (currentColumnId !== "review") {
-						return currentBoard;
-					}
-					const reverted = moveTaskToColumn(currentBoard, taskId, "trash", {
-						insertAtTop: true,
+				if (ensured.response?.warning) {
+					showAppToast({
+						intent: "warning",
+						icon: "warning-sign",
+						message: ensured.response.warning,
+						timeout: 7000,
 					});
-					return reverted.moved ? reverted.board : currentBoard;
-				});
-				return;
-			}
-			if (ensured.response?.warning) {
-				showAppToast({
-					intent: "warning",
-					icon: "warning-sign",
-					message: ensured.response.warning,
-					timeout: 7000,
-				});
+				}
 			}
 			const resumed = await startTaskSession(task, { resumeFromTrash: true });
 			if (resumed.ok) {
@@ -924,18 +932,20 @@ export function useBoardInteractions({
 						delete nextSessions[taskId];
 						return nextSessions;
 					});
-					const ensured = await ensureTaskWorkspace(selection.card);
-					if (!ensured.ok) {
-						notifyError(ensured.message ?? "Could not set up task workspace.");
-						return;
-					}
-					if (ensured.response?.warning) {
-						showAppToast({
-							intent: "warning",
-							icon: "warning-sign",
-							message: ensured.response.warning,
-							timeout: 7000,
-						});
+					if (shouldPrepareLegacyHostTaskWorkspace(selection.card)) {
+						const ensured = await ensureTaskWorkspace(selection.card);
+						if (!ensured.ok) {
+							notifyError(ensured.message ?? "Could not set up task workspace.");
+							return;
+						}
+						if (ensured.response?.warning) {
+							showAppToast({
+								intent: "warning",
+								icon: "warning-sign",
+								message: ensured.response.warning,
+								timeout: 7000,
+							});
+						}
 					}
 					const started = await startTaskSession(selection.card, { queueOnEndpointBusy: true });
 					if (!started.ok) {
@@ -983,10 +993,12 @@ export function useBoardInteractions({
 				return;
 			}
 			void (async () => {
-				const ensured = await ensureTaskWorkspace(selection.card);
-				if (!ensured.ok) {
-					notifyError(ensured.message ?? "Could not set up task workspace.");
-					return;
+				if (shouldPrepareLegacyHostTaskWorkspace(selection.card)) {
+					const ensured = await ensureTaskWorkspace(selection.card);
+					if (!ensured.ok) {
+						notifyError(ensured.message ?? "Could not set up task workspace.");
+						return;
+					}
 				}
 				const started = await startTaskSession(selection.card, {
 					mode: "plan",

@@ -313,7 +313,7 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(started).toBe(true);
-		expect(ensureTaskWorkspace).toHaveBeenCalledWith(backlogTask);
+		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).toHaveBeenCalledWith(backlogTask, { queueOnEndpointBusy: true });
 	});
 
@@ -1483,7 +1483,7 @@ describe("useBoardInteractions", () => {
 		);
 		expect(stopTaskSession).toHaveBeenCalledWith("task-review");
 		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-review", { preserveChanges: false });
-		expect(ensureTaskWorkspace).toHaveBeenCalledWith(reviewTask);
+		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).toHaveBeenCalledWith(reviewTask, { queueOnEndpointBusy: true });
 		const replayedTask = currentBoard.columns.find((column) => column.id === "in_progress")?.cards[0];
 		expect(replayedTask?.id).toBe("task-review");
@@ -1515,7 +1515,7 @@ describe("useBoardInteractions", () => {
 			requestMoveTaskToTrash: async () => {},
 		});
 
-		const trashTask = createTask("task-trash", "Trash task", 2);
+		const trashTask: BoardCard = { ...createTask("task-trash", "Trash task", 2), agentId: "codex" };
 		const board: BoardData = {
 			columns: [
 				{ id: "backlog", title: "Backlog", cards: [] },

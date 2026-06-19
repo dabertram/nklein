@@ -32,6 +32,9 @@
   - User-facing prompts, CLI help/errors, merge observations, evidence summaries, auto-review notices, project-health
     diagnostics, project registration errors, and cleanup confirmations now say task workspace/task result instead of
     promising host task worktrees. Compatibility API names and low-level legacy worktree modules remain unchanged.
+  - Web and CLI task-start paths now skip host `workspace.ensureWorktree` for Cline/default tasks, so sandbox starts do
+    not pre-create host task worktrees. Explicitly non-Cline legacy agent tasks still use the host worktree preparation
+    path.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

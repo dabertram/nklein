@@ -264,6 +264,9 @@ isolated from other tasks. This is the larger implementation effort and it is wo
     diagnostics, and cleanup confirmations now describe task workspaces/task results instead of promising host task
     worktrees. Compatibility API names and low-level legacy worktree modules remain unchanged while terminal-agent
     legacy worktree behavior is still supported.
+  - Web and CLI task-start paths now skip `workspace.ensureWorktree` for Cline/default tasks, letting
+    `runtime.startTaskSession` prepare the Docker sandbox. The host worktree ensure remains only for explicitly
+    non-Cline legacy agent tasks.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container
