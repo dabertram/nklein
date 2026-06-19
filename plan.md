@@ -1031,7 +1031,7 @@ needs to be audited against the current `main...HEAD` diff before release.
 - `agent-write-guard` write-scope guardrail; ownership-aware worktree sync of external project-folder changes with isolation warnings; `kanban.repositoryCreatedByKanban` ownership marker (survives remove/re-add) and guarded `.git` deletion; worktree cleanup hardening; projects tRPC API refactor/removal *(verify user-facing impact)*
 
 **Dev tooling & CI**
-- Dev Test Project scaffold + smoke eval harness/CLI with scored runs and one-click trial; `dev` commands; root `start.sh`; CI gate (`check-cline-boundary.mjs`) enforcing the Cline SDK boundary
+- Dev Test Project scaffold + smoke eval harness/CLI with scored runs and one-click trial; `dev` commands; root `start.sh` and `start.bat`; CI gate (`check-cline-boundary.mjs`) enforcing the Cline SDK boundary
 
 **Settings & UX**
 - Settings dialog overhaul: model-role editor, explicit Cline provider selection, expanded model selectors, chat reset controls, context-efficiency + timeout task settings; token usage, model telemetry, and a context-budget display on cards

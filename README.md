@@ -38,6 +38,9 @@ npm run install:all
 npm run dev:full
 ```
 
+On Windows, run `start.bat` from the repository root. It checks the required local tools, installs missing
+dependencies, and starts the same full development runtime.
+
 See [DEVELOPMENT.md](./DEVELOPMENT.md) and [docs/architecture.md](./docs/architecture.md) for the current engineering notes.
 
 ### License

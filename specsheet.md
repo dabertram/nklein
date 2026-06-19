@@ -285,6 +285,9 @@
       Docker for agent isolation. Windows support must explicitly verify path translation, shell/PTY behavior,
       Git availability, Docker volume/mount semantics, local model endpoint discovery, browser/runtime launch,
       and packaged app behavior before it is marked shipped.
+  - [x] Added a repository-root `start.bat` development launcher for Windows test machines. It checks Node.js
+        22+, npm, Git, and Docker Desktop reachability, installs missing dependencies, and starts the existing
+        full dev runtime without duplicating launch orchestration.
 - [ ] Cross-platform support must not weaken the strict-isolation invariant: no host shell/FS fallback, no
       Docker-disabled mode, and the same fail-closed task-start behavior when Docker or the sandbox image is
       unavailable.

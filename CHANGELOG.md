@@ -2,6 +2,7 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Added a Windows `start.bat` development launcher that checks Node.js 22+, npm, Git, and Docker Desktop reachability, installs missing repo/web/desktop dependencies, and starts the existing full dev runtime for Windows testing.
 - Restored autonomous decomposition under strict Docker isolation: the trusted control-plane `decompose_project` / `expand_task` tools (which mutate only !Klein plan artifacts and the board, never the user's working tree) now stay available host-side during sandboxed planning, so a single high-level prompt can again become a Planning-lane DAG of dependent cards. Planning prompts advertise the decomposition workflow again, and the host workspace root is always forwarded to the session runtime so board/plan mutations resolve to the owning workspace rather than the container workdir.
 - Fixed decomposition-generated Planning cards so the original decomposition source card is moved to Completed after successful auto-apply, default project acceptance commands override brittle per-card shell probes, and routine workspace-resolution polling no longer floods local self-observation telemetry.
 - Renamed task evidence actions to `Create evidence` and made the board-card control visibly labeled, clarifying that the action creates an evidence bundle and copies the agent-ready prompt; the self-improvement project button remains a separate flow that can consume an evidence bundle path.
