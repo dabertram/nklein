@@ -741,7 +741,7 @@ renders a `<NativeSelect>` of `discoveredModels` — but only after a manual but
 
 ## G. Cross-cutting cleanups (do alongside the above)
 
-- [ ] **CHANGELOG.** Update the two `## [Upcoming]` bullets the agent added ([CHANGELOG.md](CHANGELOG.md)) to describe
+- [x] **CHANGELOG.** Update the two `## [Upcoming]` bullets the agent added ([CHANGELOG.md](CHANGELOG.md)) to describe
   the final behavior (prune action, chat-panel filtering, live loaded-model line, cloud-picker hidden, developer-mode
   rename, embedding auto-discovery). Keep `## [Upcoming]` current in this same change (repo rule).
 - [x] **State typing.** `RuntimeConfigState.developerModeEnabled` stays required `boolean`; inputs/file-shape stay
