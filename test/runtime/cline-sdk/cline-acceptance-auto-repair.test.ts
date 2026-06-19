@@ -182,6 +182,50 @@ describe("cline acceptance auto repair", () => {
 		);
 	});
 
+	it("uses the scoped service sandbox verifier for automatic repair checks", async () => {
+		const sendTaskSessionInput = vi.fn(async () => createSummary());
+		const verifyTaskAcceptanceInSandbox = vi.fn(async () => ({
+			present: true,
+			command: "npm test",
+			passed: false,
+			exitCode: 1,
+			output: "failed",
+			durationMs: 20,
+		}));
+
+		const outcome = await runClineAcceptanceAutoRepair({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			summary: createSummary(),
+			service: {
+				sendTaskSessionInput,
+				verifyTaskAcceptanceInSandbox,
+			},
+			attemptStore: new Map<string, number>(),
+			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
+			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+		});
+
+		expect(verifyTaskAcceptanceInSandbox).toHaveBeenCalledWith({
+			taskId: "task-1",
+			projectRepoPath: "/repo",
+			baseRef: "main",
+			taskPrompt: "Acceptance check: npm test",
+		});
+		expect(outcome).toMatchObject({
+			type: "repair_sent",
+			action: "repair",
+			attempt: 1,
+		});
+		expect(sendTaskSessionInput).toHaveBeenCalledWith(
+			"task-1",
+			expect.stringContaining("Acceptance check failed"),
+			"act",
+			undefined,
+			undefined,
+		);
+	});
+
 	it("escalates to reviewer settings after repair attempts are exhausted", async () => {
 		const sendTaskSessionInput = vi.fn(async () => createSummary());
 		const attemptStore = new Map<string, number>([["task-1", 2]]);

@@ -144,6 +144,67 @@ describe("task verify command helper", () => {
 		});
 	});
 
+	it("uses the runtime scoped sandbox verifier by default", async () => {
+		const verifyTaskAcceptance = vi.fn(async () => ({
+			ok: true,
+			taskId: "task-1",
+			taskWorkspacePath: null,
+			acceptance: {
+				present: true,
+				command: "npm test",
+				passed: true,
+				exitCode: 0,
+				output: "ok",
+				durationMs: 10,
+			},
+			message: "Acceptance check passed: npm test.",
+		}));
+		const resolveTaskCwd = vi.fn(async () => "/worktree");
+		const ensureRuntimeWorkspace = vi.fn(async () => "workspace-1");
+		const createRuntimeTrpcClient = vi.fn(() => ({
+			runtime: {
+				verifyTaskAcceptance: {
+					mutate: verifyTaskAcceptance,
+				},
+			},
+		}));
+
+		const result = await runVerifyTaskAcceptanceCommand(
+			{
+				cwd: "/repo",
+				taskId: "task-1",
+				ensureWorktree: true,
+				timeoutMs: 1_000,
+			},
+			{
+				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
+				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
+				resolveTaskCwd,
+				ensureRuntimeWorkspace,
+				createRuntimeTrpcClient,
+				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			},
+		);
+
+		expect(ensureRuntimeWorkspace).toHaveBeenCalledWith("/repo");
+		expect(createRuntimeTrpcClient).toHaveBeenCalledWith("workspace-1");
+		expect(resolveTaskCwd).not.toHaveBeenCalled();
+		expect(verifyTaskAcceptance).toHaveBeenCalledWith({
+			taskId: "task-1",
+			ensureWorktree: true,
+			timeoutMs: 1_000,
+		});
+		expect(result).toMatchObject({
+			ok: true,
+			workspacePath: "/repo",
+			taskWorkspacePath: null,
+			acceptance: {
+				passed: true,
+				command: "npm test",
+			},
+		});
+	});
+
 	it("returns ok false when the acceptance gate fails", async () => {
 		const recordPlanGap = vi.fn();
 		const result = await runVerifyTaskAcceptanceCommand(

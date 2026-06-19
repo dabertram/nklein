@@ -48,6 +48,7 @@
 - Added discard cleanup for sandbox task result branches, threading `preserveChanges=false` through permanent task delete, Clear Trash, project removal, dev cleanup, and Replay while leaving ordinary move-to-trash cleanup on the preserving path; restoring from Trash now resumes from the preserved result branch when present.
 - Routed runtime task acceptance verification through the scoped Cline task-session service, reusing the configured sandbox pool and pause controller instead of constructing an endpoint-local Docker sandbox manager.
 - Reconciled sandbox/result-branch wording across prompts, CLI help/errors, merge observations, evidence summaries, auto-review notices, project-health diagnostics, and cleanup confirmations so visible surfaces describe task workspaces and task results instead of host task worktrees.
+- Reused the scoped runtime sandbox pool for acceptance auto-repair and the default `nklein task verify` path, removing the remaining ad hoc acceptance-verification `AgentSandboxManager` instances outside runtime-server ownership.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

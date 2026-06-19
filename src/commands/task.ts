@@ -4,9 +4,8 @@ import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
-import { type runClineAcceptanceGate, runClineAcceptanceGateInSandbox } from "../cline-sdk/cline-acceptance-gate";
+import type { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan, type ClineAcceptanceRepairAction } from "../cline-sdk/cline-acceptance-repair";
-import { AgentSandboxManager } from "../cline-sdk/cline-agent-sandbox";
 import {
 	applyClinePlanTaskGraphToBoard,
 	applyClinePlanTaskReplacementArtifacts,
@@ -29,6 +28,8 @@ import type {
 	RuntimeBoardColumnId,
 	RuntimeBoardDependency,
 	RuntimeClineReasoningEffort,
+	RuntimeTaskAcceptanceVerifyRequest,
+	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskClineSettings,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
@@ -127,11 +128,21 @@ interface DecompositionRejectionInput {
 	recordObservation?: RecordSelfObservation;
 }
 
+interface RuntimeTaskAcceptanceVerifyMutationClient {
+	runtime: {
+		verifyTaskAcceptance: {
+			mutate: (input: RuntimeTaskAcceptanceVerifyRequest) => Promise<RuntimeTaskAcceptanceVerifyResponse>;
+		};
+	};
+}
+
 interface VerifyTaskAcceptanceDependencies {
 	resolveWorkspaceRepoPath?: typeof resolveWorkspaceRepoPath;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	resolveTaskCwd?: typeof resolveTaskCwd;
 	runAcceptanceGate?: typeof runClineAcceptanceGate;
+	ensureRuntimeWorkspace?: typeof ensureRuntimeWorkspace;
+	createRuntimeTrpcClient?: (workspaceId: string | null) => RuntimeTaskAcceptanceVerifyMutationClient;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 	recordPlanGap?: typeof recordPlanGap;
 }
@@ -1144,14 +1155,20 @@ export async function runVerifyTaskAcceptanceCommand(
 					timeoutMs: input.timeoutMs,
 				});
 			})()
-		: await runClineAcceptanceGateInSandbox({
-				taskId: input.taskId,
-				projectRepoPath: workspaceRepoPath,
-				baseRef: taskRecord.task.baseRef,
-				taskPrompt: taskRecord.task.prompt,
-				timeoutMs: input.timeoutMs,
-				sandboxManager: new AgentSandboxManager(),
-			});
+		: await (async () => {
+				if (input.workspaceRoot) {
+					throw new Error("--workspace-root is not available for sandboxed task verification.");
+				}
+				const workspaceId = await (deps.ensureRuntimeWorkspace ?? ensureRuntimeWorkspace)(workspaceRepoPath);
+				const runtimeClient = (deps.createRuntimeTrpcClient ?? createRuntimeTrpcClient)(workspaceId);
+				const response = await runtimeClient.runtime.verifyTaskAcceptance.mutate({
+					taskId: input.taskId,
+					...(input.ensureWorktree === true ? { ensureWorktree: true } : {}),
+					...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
+				});
+				taskWorkspacePath = response.taskWorkspacePath;
+				return response.acceptance;
+			})();
 
 	const ok = result.present === true && result.passed === true;
 	const repair = ok

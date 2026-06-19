@@ -2,10 +2,8 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { resolveTaskCwd } from "../workspace/task-worktree";
-import { type runClineAcceptanceGate, runClineAcceptanceGateInSandbox } from "./cline-acceptance-gate";
+import type { runClineAcceptanceGate } from "./cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan } from "./cline-acceptance-repair";
-import { AgentSandboxManager } from "./cline-agent-sandbox";
-import type { ClinePauseController } from "./cline-pause-controller";
 import type { ClineTaskLaunchConfigOverrides, ClineTaskSessionService } from "./cline-task-session-service";
 
 const DEFAULT_AUTO_REPAIR_MAX_ATTEMPTS = 2;
@@ -36,13 +34,13 @@ export interface RunClineAcceptanceAutoRepairInput {
 	workspacePath: string;
 	taskId: string;
 	summary: RuntimeTaskSessionSummary;
-	service: Pick<ClineTaskSessionService, "sendTaskSessionInput">;
+	service: Pick<ClineTaskSessionService, "sendTaskSessionInput"> &
+		Partial<Pick<ClineTaskSessionService, "verifyTaskAcceptanceInSandbox">>;
 	attemptStore: ClineAcceptanceAutoRepairAttemptStore;
 	maxAttempts?: number;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	resolveTaskCwd?: typeof resolveTaskCwd;
 	runAcceptanceGate?: typeof runClineAcceptanceGate;
-	pauseController?: Pick<ClinePauseController, "waitUntilResumed">;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 }
 
@@ -91,14 +89,14 @@ export async function runClineAcceptanceAutoRepair(
 					taskPrompt: taskRecord.task.prompt,
 				});
 			})()
-		: await runClineAcceptanceGateInSandbox({
-				taskId: input.taskId,
-				projectRepoPath: input.workspacePath,
-				baseRef: taskRecord.task.baseRef,
-				taskPrompt: taskRecord.task.prompt,
-				sandboxManager: new AgentSandboxManager(),
-				pauseController: input.pauseController,
-			});
+		: input.service.verifyTaskAcceptanceInSandbox
+			? await input.service.verifyTaskAcceptanceInSandbox({
+					taskId: input.taskId,
+					projectRepoPath: input.workspacePath,
+					baseRef: taskRecord.task.baseRef,
+					taskPrompt: taskRecord.task.prompt,
+				})
+			: null;
 	if (!acceptance) {
 		return { type: "skipped", reason: "worktree_unavailable" };
 	}
