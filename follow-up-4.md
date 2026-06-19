@@ -397,13 +397,13 @@ agents in one container still cannot read each other's files.
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 
 ### J10. Docs, changelog, AGENTS.md reconciliation
-- [ ] New spec `.plan/docs/agent-isolation.md` mirroring CAKE2's `docs/specs/03-isolation-security.md` (policy, flags,
+- [x] New spec `.plan/docs/agent-isolation.md` mirroring CAKE2's `docs/specs/03-isolation-security.md` (policy, flags,
   lifecycle, fail-closed, network, secrets-never-in-env, kill-switch via container removal).
-- [ ] Update [DEVELOPMENT.md](DEVELOPMENT.md): Docker is now a prerequisite; document `npm run sandbox:build`.
-- [ ] Update [AGENTS.md](AGENTS.md): the existing note ("!Klein is launched from the user's shell … prefer direct
+- [x] Update [DEVELOPMENT.md](DEVELOPMENT.md): Docker is now a prerequisite; document `npm run sandbox:build`.
+- [x] Update [AGENTS.md](AGENTS.md): the existing note ("!Klein is launched from the user's shell … prefer direct
   process launches") was about cloud-CLI **agent detection/startup** (now disabled). Add a note that **agent tool
   execution is containerized and host execution is forbidden**, so that guidance no longer applies to agent runs.
-- [ ] Update `## [Upcoming]` in [CHANGELOG.md](CHANGELOG.md) with the strict-isolation feature.
+- [x] Update `## [Upcoming]` in [CHANGELOG.md](CHANGELOG.md) with the strict-isolation feature.
 
 ### J11. Order of work within this section
 1. J2 image + J1 tool-runner (the in-container half).  2. J3 `AgentSandboxManager` + J3b per-task workspace

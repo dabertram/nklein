@@ -6,12 +6,21 @@ This repo is still named `kanban`, but the product name is `!Klein` and the CLI 
 
 - Node.js 20+
 - npm 10+
+- Docker, for strict local isolation of Cline agent tool execution
 
 ## Install
 
 ```bash
 npm run install:all
 ```
+
+Build the pinned agent sandbox image before starting Cline-backed tasks:
+
+```bash
+npm run sandbox:build
+```
+
+The runtime fails closed when Docker is unavailable or the sandbox image has not been built. Settings shows the current Docker daemon and sandbox image status in the Agent isolation row.
 
 ## Hot reload workflow
 
@@ -166,6 +175,7 @@ npm run unlink
 - `npm run dev:full`: run the runtime watch server and Vite web UI dev server together
 - `npm run web:dev`: run web UI dev server
 - `npm run web:build`: build web UI
+- `npm run sandbox:build`: build the pinned Docker image used for Cline agent tool isolation
 - `npm run typecheck`: typecheck runtime
 - `npm run web:typecheck`: typecheck web UI
 - `npm run test`: run runtime tests
