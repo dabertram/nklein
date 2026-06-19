@@ -61,6 +61,9 @@ function describeState(summary: RuntimeTaskSessionSummary | null): string {
 	if (summary.state === "running") {
 		return "Running";
 	}
+	if (summary.state === "queued") {
+		return "Queued";
+	}
 	if (summary.state === "awaiting_review") {
 		return "Ready for review";
 	}
@@ -81,6 +84,9 @@ function getStateTagStyle(summary: RuntimeTaskSessionSummary | null): StatusTagS
 	}
 	if (summary.state === "running") {
 		return "success";
+	}
+	if (summary.state === "queued") {
+		return "warning";
 	}
 	if (summary.state === "awaiting_review") {
 		return "warning";

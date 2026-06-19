@@ -583,7 +583,7 @@ function isActiveProjectTaskSession(summary: RuntimeTaskSessionSummary): boolean
 	return (
 		!isHomeAgentSessionId(summary.taskId) &&
 		summary.state !== "idle" &&
-		(summary.state === "running" || summary.state === "awaiting_review")
+		(summary.state === "queued" || summary.state === "running" || summary.state === "awaiting_review")
 	);
 }
 

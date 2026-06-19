@@ -203,7 +203,7 @@ export default function App(): ReactElement {
 			Object.values(sessions).filter(
 				(session) =>
 					!isShellTerminalTaskId(session.taskId) &&
-					(session.state === "running" || session.state === "awaiting_review"),
+					(session.state === "queued" || session.state === "running" || session.state === "awaiting_review"),
 			).length,
 		[sessions],
 	);

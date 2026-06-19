@@ -89,7 +89,7 @@ function normalizeRequiredTaskWorkspaceScopeInput(input: {
 }
 
 function isActiveTaskSessionState(summary: RuntimeTaskSessionSummary | null): boolean {
-	return summary?.state === "running" || summary?.state === "awaiting_review";
+	return summary?.state === "queued" || summary?.state === "running" || summary?.state === "awaiting_review";
 }
 
 function selectLastTurnSummary(

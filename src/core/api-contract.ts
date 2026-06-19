@@ -310,6 +310,7 @@ export type RuntimeGitDiscardResponse = z.infer<typeof runtimeGitDiscardResponse
 
 export const runtimeTaskSessionStateSchema = z.enum([
 	"idle",
+	"queued",
 	"running",
 	"paused",
 	"awaiting_review",

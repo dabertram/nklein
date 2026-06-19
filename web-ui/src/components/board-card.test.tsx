@@ -301,6 +301,19 @@ describe("BoardCard", () => {
 		expect(container.querySelector('button[aria-label="Resume task"]')).toBeNull();
 	});
 
+	it("shows sandbox capacity queue state without run controls", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard card={createCard()} index={0} columnId="in_progress" sessionSummary={createSummary("queued")} />,
+			);
+		});
+
+		expect(container.textContent).toContain("Queued");
+		expect(container.textContent).toContain("waiting for sandbox capacity");
+		expect(container.querySelector('button[aria-label="Pause task"]')).toBeNull();
+		expect(container.querySelector('button[aria-label="Start task"]')).toBeNull();
+	});
+
 	it("shows a resume control for paused task sessions", async () => {
 		const handleResumeTask = vi.fn();
 

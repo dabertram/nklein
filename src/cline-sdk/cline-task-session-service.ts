@@ -534,7 +534,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.pauseController = options.pauseController ?? new ClinePauseController();
 	}
 
-	private async prepareSandboxWorkspace(request: StartClineTaskSessionRequest): Promise<{
+	private async prepareSandboxWorkspace(
+		request: StartClineTaskSessionRequest,
+		options?: { onQueued?: () => void },
+	): Promise<{
 		manager: AgentSandboxManager;
 		workdir: string;
 	} | null> {
@@ -547,6 +550,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			taskId: request.taskId,
 			projectRepoPath,
 			baseRef: request.baseRef ?? null,
+			onQueued: options?.onQueued,
 		});
 		return {
 			manager: this.agentSandboxManager,
@@ -1354,7 +1358,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			!request.resumeFromTrash &&
 			!request.resumeFromPersistence &&
 			existing &&
-			(existing.summary.state === "running" || existing.summary.state === "awaiting_review")
+			(existing.summary.state === "queued" ||
+				existing.summary.state === "running" ||
+				existing.summary.state === "awaiting_review")
 		) {
 			return cloneSummary(existing.summary);
 		}
@@ -1362,8 +1368,6 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		this.noDiffCheckpointByTaskId.delete(request.taskId);
 		this.repeatedToolCallByTaskId.delete(request.taskId);
-		const sandboxWorkspace = await this.prepareSandboxWorkspace(request);
-		const effectiveCwd = sandboxWorkspace?.workdir ?? request.cwd;
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
@@ -1401,12 +1405,11 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const persistedResumeSnapshot = shouldHydratePersistedHistory
 			? await this.sessionRuntime.readPersistedTaskSession(request.taskId).catch(() => null)
 			: null;
-
 		const entry = persistedResumeSnapshot
 			? createTaskEntryFromPersistedSession(request.taskId, persistedResumeSnapshot.messages, {
 					state: initialState,
 					mode: resolvedMode,
-					workspacePath: effectiveCwd,
+					workspacePath: request.cwd,
 					providerId,
 					modelId,
 					endpoint,
@@ -1420,7 +1423,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						...createDefaultSummary(request.taskId),
 						state: initialState,
 						mode: resolvedMode,
-						workspacePath: effectiveCwd,
+						workspacePath: request.cwd,
 						providerId,
 						modelId,
 						endpoint,
@@ -1443,6 +1446,51 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			toolTimeoutMs: request.toolTimeoutMs ?? null,
 			conversationTimeoutMs: request.conversationTimeoutMs ?? null,
 		});
+		let sandboxWorkspace: { manager: AgentSandboxManager; workdir: string } | null;
+		let queuedForSandboxCapacity = false;
+		try {
+			sandboxWorkspace = await this.prepareSandboxWorkspace(request, {
+				onQueued: () => {
+					queuedForSandboxCapacity = true;
+					this.emitSummary(
+						updateSummary(entry, {
+							state: "queued",
+							workspacePath: request.cwd,
+							lastOutputAt: now(),
+							lastHookAt: now(),
+							lastTokenAt: null,
+							lastHeartbeatAt: null,
+							heartbeatStatus: "healthy",
+							warningMessage: null,
+							latestHookActivity: {
+								activityText: "Queued — waiting for sandbox capacity",
+								toolName: null,
+								toolInputSummary: null,
+								finalMessage: null,
+								hookEventName: "sandbox_queue",
+								notificationType: null,
+								source: "nklein",
+							},
+						}),
+					);
+				},
+			});
+		} catch (error) {
+			if (queuedForSandboxCapacity) {
+				this.emitTaskFailure(request.taskId, entry, "start", error);
+			}
+			throw error;
+		}
+		const effectiveCwd = sandboxWorkspace?.workdir ?? request.cwd;
+		entry.summary = {
+			...entry.summary,
+			state: initialState,
+			workspacePath: effectiveCwd,
+			reviewReason: initialReviewReason,
+			warningMessage: queuedForSandboxCapacity ? null : entry.summary.warningMessage,
+			latestHookActivity: queuedForSandboxCapacity ? null : entry.summary.latestHookActivity,
+			updatedAt: now(),
+		};
 
 		if (!request.resumeFromTrash && (normalizedPrompt.length > 0 || hasRequestImages)) {
 			const message = createMessage(request.taskId, "user", normalizedPrompt, request.images);

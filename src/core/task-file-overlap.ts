@@ -1,6 +1,6 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskSessionSummary } from "./api-contract";
 
-const ACTIVE_SESSION_STATES = new Set<RuntimeTaskSessionSummary["state"]>(["running", "awaiting_review"]);
+const ACTIVE_SESSION_STATES = new Set<RuntimeTaskSessionSummary["state"]>(["queued", "running", "awaiting_review"]);
 
 function normalizeLikelyTouchedPath(path: string): string {
 	return path

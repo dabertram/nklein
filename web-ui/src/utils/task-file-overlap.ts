@@ -2,7 +2,7 @@ import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { findCardSelection } from "@/state/board-state";
 import type { BoardCard, BoardData } from "@/types";
 
-const ACTIVE_SESSION_STATES = new Set<RuntimeTaskSessionSummary["state"]>(["running", "awaiting_review"]);
+const ACTIVE_SESSION_STATES = new Set<RuntimeTaskSessionSummary["state"]>(["queued", "running", "awaiting_review"]);
 const ACTIVE_BOARD_COLUMN_IDS = new Set(["in_progress", "review"]);
 
 function normalizeLikelyTouchedPath(path: string): string {

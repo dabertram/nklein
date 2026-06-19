@@ -368,6 +368,9 @@ function getCardSessionActivity(summary: RuntimeTaskSessionSummary | undefined):
 	if (summary.state === "awaiting_review") {
 		return { dotColor: SESSION_ACTIVITY_COLOR.success, text: "Waiting for review" };
 	}
+	if (summary.state === "queued") {
+		return { dotColor: SESSION_ACTIVITY_COLOR.waiting, text: "Queued — waiting for sandbox capacity" };
+	}
 	if (summary.state === "running") {
 		return { dotColor: SESSION_ACTIVITY_COLOR.thinking, text: "Thinking..." };
 	}

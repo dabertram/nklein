@@ -110,6 +110,12 @@ interface QueueEntry {
 	reject: (error: unknown) => void;
 }
 
+interface AgentSandboxAcquireSlotInput {
+	taskId: string;
+	projectRepoPath: string;
+	onQueued?: () => void;
+}
+
 export class AgentSandboxUnavailableError extends Error {
 	readonly code = "AGENT_SANDBOX_UNAVAILABLE";
 
@@ -318,7 +324,7 @@ export class AgentSandboxManager {
 		}
 	}
 
-	async acquireSlot(input: { taskId: string; projectRepoPath: string }): Promise<TaskPlacement> {
+	async acquireSlot(input: AgentSandboxAcquireSlotInput): Promise<TaskPlacement> {
 		const existing = this.placements.get(input.taskId);
 		if (existing) {
 			return existing;
@@ -328,6 +334,7 @@ export class AgentSandboxManager {
 		if (immediate) {
 			return immediate;
 		}
+		input.onQueued?.();
 		return await new Promise<TaskPlacement>((resolve, reject) => {
 			this.queue.push({
 				taskId: input.taskId,
@@ -342,10 +349,12 @@ export class AgentSandboxManager {
 		taskId: string;
 		projectRepoPath: string;
 		baseRef?: string | null;
+		onQueued?: () => void;
 	}): Promise<{ workdir: string; uid: number }> {
 		const placement = await this.acquireSlot({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,
+			onQueued: input.onQueued,
 		});
 		try {
 			const repoSource = `/repos/${placement.projectKey}`;

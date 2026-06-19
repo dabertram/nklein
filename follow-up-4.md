@@ -259,13 +259,13 @@ agents in one container still cannot read each other's files.
   to `sandboxMaxContainers` containers. Effective parallel agents =
   `min(maxConcurrentTasks, sandboxMaxContainers × agentsPerContainer)` (treat unlimited as +∞); `maxConcurrentTasks`
   stays the outer cap.
-- [ ] **Placement (`acquireSlot`).** (1) reuse any running container whose occupancy < agentsPerContainer (cancel its
+- [x] **Placement (`acquireSlot`).** (1) reuse any running container whose occupancy < agentsPerContainer (cancel its
   idle timer); (2) else `startContainer` if pool size < `sandboxMaxContainers`; (3) else **enqueue** the task and
   resolve when `releaseSlot` frees capacity. FIFO by board/start order. A queued task shows a "Queued — waiting for
   sandbox capacity" state on its card (reuse the existing concurrency-cap waiting state if one already exists).
   - [x] Pool slot reservation now happens before async Docker startup waits, so queue draining cannot over-assign a
     freed slot or arm idle teardown while queued work takes that slot.
-  - [ ] Surface sandbox-capacity queueing on the card/session state.
+  - [x] Surface sandbox-capacity queueing on the card/session state.
 - [x] **Per-container resource caps come from settings** (you chose explicit budgets): `--memory
   <sandboxMemoryPerContainerMb>m`, `--cpus <sandboxCpusPerContainer>` — shared by all agents in that container;
   `--pids-limit` scales with agents-per-container. **Total footprint = (#containers) × (per-container budget)** —

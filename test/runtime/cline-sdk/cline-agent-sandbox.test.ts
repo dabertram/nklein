@@ -202,6 +202,31 @@ describe("AgentSandboxManager", () => {
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
 	});
 
+	it("notifies only tasks that actually wait for sandbox capacity", async () => {
+		const { execFile: execFileStub } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+		const firstQueued = vi.fn();
+		const secondQueued = vi.fn();
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo", onQueued: firstQueued });
+		const queued = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo", onQueued: secondQueued });
+		await Promise.resolve();
+
+		expect(firstQueued).not.toHaveBeenCalled();
+		expect(secondQueued).toHaveBeenCalledTimes(1);
+
+		await manager.disposeWorkspace("task-1");
+		await expect(queued).resolves.toMatchObject({ taskId: "task-2", slot: 1 });
+	});
+
 	it("does not over-assign a freed slot while draining multiple queued tasks", async () => {
 		const { execFile: execFileStub, calls } = createExecFileStub();
 		const manager = new AgentSandboxManager({

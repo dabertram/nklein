@@ -17,7 +17,11 @@ import {
 } from "../../../src/cline-sdk/cline-task-session-service";
 import { createClineWatcherRegistry } from "../../../src/cline-sdk/cline-watcher-registry";
 import type { ClineSdkPersistedMessage } from "../../../src/cline-sdk/sdk-runtime-boundary";
-import type { RuntimeTaskImage, RuntimeTaskSessionMode } from "../../../src/core/api-contract";
+import type {
+	RuntimeTaskImage,
+	RuntimeTaskSessionMode,
+	RuntimeTaskSessionSummary,
+} from "../../../src/core/api-contract";
 
 const originalArgv = [...process.argv];
 const originalExecArgv = [...process.execArgv];
@@ -537,11 +541,13 @@ describe("InMemoryClineTaskSessionService", () => {
 			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
 		});
 		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
-		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
-			taskId: "task-1",
-			projectRepoPath: "/tmp/project",
-			baseRef: "main",
-		});
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				projectRepoPath: "/tmp/project",
+				baseRef: "main",
+			}),
+		);
 		const assertAvailableCallOrder = sandboxManager.assertAvailableMock.mock.invocationCallOrder[0];
 		const prepareWorkspaceCallOrder = sandboxManager.prepareWorkspaceMock.mock.invocationCallOrder[0];
 		expect(assertAvailableCallOrder).toBeDefined();
@@ -556,6 +562,72 @@ describe("InMemoryClineTaskSessionService", () => {
 				}),
 			}),
 		);
+	});
+
+	it("emits a queued summary while waiting for sandbox capacity", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		let releaseSandboxSlot: (() => void) | undefined;
+		sandboxManager.prepareWorkspaceMock.mockImplementationOnce(async (input) => {
+			input.onQueued?.();
+			await new Promise<void>((resolve) => {
+				releaseSandboxSlot = resolve;
+			});
+			return {
+				workdir: `/workspaces/${input.taskId}`,
+				uid: 70_001,
+			};
+		});
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+		const summaries: RuntimeTaskSessionSummary[] = [];
+		service.onSummary((summary) => {
+			summaries.push(summary);
+		});
+
+		const startPromise = service.startTaskSession({
+			taskId: "task-queued",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			prompt: "Investigate startup",
+		});
+
+		await vi.waitFor(() => {
+			expect(summaries.some((summary) => summary.state === "queued")).toBe(true);
+		});
+		const queuedSummary = summaries.find((summary) => summary.state === "queued");
+		expect(queuedSummary).toMatchObject({
+			taskId: "task-queued",
+			workspacePath: "/tmp/worktree",
+			latestHookActivity: expect.objectContaining({
+				activityText: "Queued — waiting for sandbox capacity",
+				hookEventName: "sandbox_queue",
+			}),
+		});
+		expect(runtime.startTaskSessionMock).not.toHaveBeenCalled();
+
+		if (!releaseSandboxSlot) {
+			throw new Error("Expected queued sandbox slot release callback.");
+		}
+		releaseSandboxSlot();
+		const startSummary = await startPromise;
+
+		expect(startSummary).toMatchObject({
+			state: "running",
+			workspacePath: "/workspaces/task-queued",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		expect(service.getSummary("task-queued")).toMatchObject({
+			state: "running",
+			workspacePath: "/workspaces/task-queued",
+		});
 	});
 
 	it("disposes a sandbox workspace when SDK start fails", async () => {

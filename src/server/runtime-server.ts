@@ -290,7 +290,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
 			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
-				if (summary.state !== "running") {
+				if (summary.state !== "queued" && summary.state !== "running") {
 					drainQueuedTaskStarts(scope, { force: true });
 				}
 			});
