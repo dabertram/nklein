@@ -1,4 +1,5 @@
 import type { DropResult } from "@hello-pangea/dnd";
+import { usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
 import { clampRuntimeSwarmCardStartBatchSize } from "@runtime-contract";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -53,7 +54,7 @@ function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardC
 }
 
 function shouldPrepareLegacyHostTaskWorkspace(task: Pick<BoardCard, "agentId">): boolean {
-	return task.agentId !== undefined && task.agentId !== "cline";
+	return usesLegacyHostTaskWorkspace(task.agentId);
 }
 
 function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardColumnId {
