@@ -52,6 +52,7 @@ import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
 import { routeClineTask } from "../cline-sdk/cline-task-router";
 import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import {
+	buildClineSandboxStartBlock,
 	buildClineStartGuardCandidate,
 	type ClineStartGuardCandidate,
 	estimateClineStartDifficulty,
@@ -1104,14 +1105,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					const sandboxStatus = deps.refreshAgentSandboxStatus
 						? await deps.refreshAgentSandboxStatus()
 						: deps.getAgentSandboxStatus?.();
-					if (sandboxStatus && sandboxStatus.state !== "ready") {
+					const sandboxStartBlock = buildClineSandboxStartBlock(sandboxStatus);
+					if (sandboxStartBlock) {
 						return {
 							ok: false,
 							summary: null,
-							error:
-								sandboxStatus.message ??
-								"Docker is required for !Klein agent isolation, but the sandbox is unavailable.",
-							errorCode: "agent_sandbox_unavailable",
+							error: sandboxStartBlock.error,
+							errorCode: sandboxStartBlock.errorCode,
 						};
 					}
 					const hasTaskLevelClineSettingsOverride = body.clineSettings !== undefined;

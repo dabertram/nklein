@@ -11,6 +11,8 @@ const DEFAULT_START_GUARD_CONTEXT_WINDOW = 80_000;
 const START_GUARD_MIN_WORKING_ROOM_TOKENS = 4_000;
 const START_GUARD_BASE_DIFFICULTY = 25;
 const START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS = 35;
+const DEFAULT_SANDBOX_UNAVAILABLE_START_MESSAGE =
+	"Docker is required for !Klein agent isolation, but the sandbox is unavailable.";
 
 export interface ClineStartGuardLaunchConfig {
 	providerId: string;
@@ -25,6 +27,28 @@ export interface ClineStartGuardCandidate<
 	entry: ClineModelRegistryEntry;
 	role: string | null;
 	launchConfig: TLaunchConfig;
+}
+
+export interface ClineStartGuardSandboxStatus {
+	state: "checking" | "ready" | "blocked";
+	message: string | null;
+}
+
+export interface ClineStartGuardSandboxBlock {
+	error: string;
+	errorCode: "agent_sandbox_unavailable";
+}
+
+export function buildClineSandboxStartBlock(
+	status: ClineStartGuardSandboxStatus | null | undefined,
+): ClineStartGuardSandboxBlock | null {
+	if (!status || status.state === "ready") {
+		return null;
+	}
+	return {
+		error: status.message?.trim() || DEFAULT_SANDBOX_UNAVAILABLE_START_MESSAGE,
+		errorCode: "agent_sandbox_unavailable",
+	};
 }
 
 export function estimateClineStartPromptTokens(input: {

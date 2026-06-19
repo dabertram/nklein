@@ -334,7 +334,7 @@ agents in one container still cannot read each other's files.
   superseded for agent tools by `--network none`. Leave it for user terminals; note the reconciliation in a comment.
 
 ### J7. Fail-closed enforcement (no path may ever run a tool on the host)
-- [ ] Add the preflight to [cline-task-start-guard.ts](src/cline-sdk/cline-task-start-guard.ts): before any task
+- [x] Add the preflight to [cline-task-start-guard.ts](src/cline-sdk/cline-task-start-guard.ts): before any task
   starts, `await AgentSandbox.assertAvailable(image)`; on failure, block the start and return the
   `AgentSandboxUnavailableError` message ("Docker is required for strict agent isolation and is unavailable: <reason>.
   Install/start Docker and run `npm run sandbox:build`.") so it surfaces in the UI start flow.
@@ -393,7 +393,7 @@ agents in one container still cannot read each other's files.
   1 agent each, with `--memory`/`--cpus` matching the settings; a finished container is **reused** (not destroyed) by
   the next task within the idle window; lowering `sandboxMaxContainers` reaps now-excess idle containers;
   `sandboxIdleTimeoutMinutes` drives teardown (fake timers); setting changes affect only newly-started tasks.
-- [ ] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
+- [x] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 
 ### J10. Docs, changelog, AGENTS.md reconciliation

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildClineStartGuardCandidate } from "../../../src/cline-sdk/cline-task-start-guard";
+import {
+	buildClineSandboxStartBlock,
+	buildClineStartGuardCandidate,
+} from "../../../src/cline-sdk/cline-task-start-guard";
 
 const EMPTY_REGISTRY = {
 	schemaVersion: 1 as const,
@@ -8,6 +11,37 @@ const EMPTY_REGISTRY = {
 };
 
 describe("buildClineStartGuardCandidate", () => {
+	it("allows Cline starts when the sandbox preflight is ready or unavailable to the caller", () => {
+		expect(buildClineSandboxStartBlock(undefined)).toBeNull();
+		expect(
+			buildClineSandboxStartBlock({
+				state: "ready",
+				message: null,
+			}),
+		).toBeNull();
+	});
+
+	it("blocks Cline starts while the sandbox preflight is unavailable", () => {
+		expect(
+			buildClineSandboxStartBlock({
+				state: "blocked",
+				message: "Docker daemon is unavailable.",
+			}),
+		).toEqual({
+			error: "Docker daemon is unavailable.",
+			errorCode: "agent_sandbox_unavailable",
+		});
+		expect(
+			buildClineSandboxStartBlock({
+				state: "checking",
+				message: null,
+			}),
+		).toEqual({
+			error: "Docker is required for !Klein agent isolation, but the sandbox is unavailable.",
+			errorCode: "agent_sandbox_unavailable",
+		});
+	});
+
 	it("rejects launch candidates below the !Klein minimum context window", () => {
 		expect(() =>
 			buildClineStartGuardCandidate({
