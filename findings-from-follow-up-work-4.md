@@ -112,6 +112,11 @@
     `NKLEIN_AGENT_SANDBOX_IMAGE=nklein/agent-sandbox:missing-failclosed-check`: starting task `7a727` returned the
     sandbox-image remediation, runtime state kept the card in Backlog with `sessions:{}`, and Docker showed no
     `nklein.kind=agent-sandbox` containers or volumes.
+  - Later 2026-06-19 real-task manual recheck is blocked in this Codex session: `docker image inspect
+    nklein/agent-sandbox:0.0.1` still succeeds, but sandboxed `docker ps --filter label=nklein.kind=agent-sandbox`
+    and `docker volume ls --filter label=nklein.kind=agent-sandbox` fail with Docker socket permission denied. The
+    required escalation was rejected by the Codex app usage-limit guard, so container/volume observation must be rerun
+    from an approved Docker shell.
   - Do not mark the remaining strict-isolation manual checks complete until real Cline task starts can be observed in
     Docker and the Settings isolation status/pool controls can be inspected in the UI.
 

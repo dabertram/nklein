@@ -1018,6 +1018,10 @@ to `min-w-[220px]` and wraps awkwardly.
     `~/.cline/nklein/` worktrees or anywhere on the host); the result patch applies to your repo on review; the
     container stays up between tasks and is removed only after the generous idle grace (~10 min) (or on exit). No host
     shell is spawned for the agent.
+    - Blocked recheck on 2026-06-19: `docker image inspect nklein/agent-sandbox:0.0.1` succeeds, but sandboxed
+      `docker ps --filter label=nklein.kind=agent-sandbox` and `docker volume ls --filter label=nklein.kind=agent-sandbox`
+      fail with Docker socket permission denied. The required escalation was rejected by the Codex app usage-limit
+      guard, so this manual container/volume observation still needs to be rerun from an approved Docker shell.
   - [ ] Settings shows the read-only "Agent isolation" status (Docker ✓, image ✓) **and** the sandbox pool settings
     (max containers, agents-per-container, per-container CPU/RAM, idle timeout) — but **no** control to *disable*
     isolation. Default = one container for all agents. Set maxContainers=2 / agentsPerContainer=1 → two single-agent
