@@ -268,7 +268,20 @@
 - [ ] Only after the above are signed off: design the committed schema, the export/import, the load-time
       re-resolution against local models, and the conflict UX; add to `plan.md` as a phased workstream.
 
-### 14.3 — Backlog of smaller enhancements (promote to plan.md when picked up)
+### 14.3 — LATER: Linux and Windows runtime support
+- [ ] !Klein should run as a first-class local runtime on Linux desktops/servers, while keeping Docker
+      mandatory for every agent shell/filesystem action. Linux support must verify Docker availability,
+      sandbox image build/run behavior, local model endpoint discovery, browser/runtime launch, file-picker
+      fallback behavior on headless systems, and path handling.
+- [ ] !Klein should run as a first-class local runtime on Windows, still requiring Docker Desktop/WSL-backed
+      Docker for agent isolation. Windows support must explicitly verify path translation, shell/PTY behavior,
+      Git availability, Docker volume/mount semantics, local model endpoint discovery, browser/runtime launch,
+      and packaged app behavior before it is marked shipped.
+- [ ] Cross-platform support must not weaken the strict-isolation invariant: no host shell/FS fallback, no
+      Docker-disabled mode, and the same fail-closed task-start behavior when Docker or the sandbox image is
+      unavailable.
+
+### 14.4 — Backlog of smaller enhancements (promote to plan.md when picked up)
 - [ ] Scripted/automated end-to-end smoke that exercises a full 1-shot → decomposition → parallel execution →
       merge cycle on a tiny local model, as a CI-able dogfood gate.
 - [ ] Explicit in-UI sandbox queue list (currently only a per-card "queued" state).
