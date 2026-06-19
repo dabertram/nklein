@@ -398,6 +398,9 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			summary,
 			service,
 			attemptStore: getAcceptanceRepairAttemptStore(workspaceId),
+			pauseController: {
+				waitUntilResumed: (taskId) => service.waitUntilTaskResumed(taskId),
+			},
 		})
 			.then((outcome) => {
 				if (outcome.type !== "repair_sent") {

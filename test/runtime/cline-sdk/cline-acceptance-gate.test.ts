@@ -3,7 +3,10 @@ import {
 	extractClineAcceptanceCommand,
 	resolveShellExecution,
 	runClineAcceptanceGate,
+	runClineAcceptanceGateInSandbox,
 } from "../../../src/cline-sdk/cline-acceptance-gate";
+import type { AgentSandboxManager } from "../../../src/cline-sdk/cline-agent-sandbox";
+import { ClinePauseController } from "../../../src/cline-sdk/cline-pause-controller";
 
 describe("cline acceptance gate", () => {
 	it("extracts acceptance commands from decomposed task prompts", () => {
@@ -133,5 +136,68 @@ describe("cline acceptance gate", () => {
 			},
 			createdAt: 500,
 		});
+	});
+
+	it("queues sandbox acceptance commands while the task is paused", async () => {
+		const pauseController = new ClinePauseController();
+		pauseController.setCardPaused("task-1", true);
+		const assertAvailable = vi.fn(async () => {});
+		const prepareWorkspace = vi.fn(async () => ({
+			workdir: "/sandbox/task-1",
+			uid: 70_001,
+		}));
+		const exec = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "ok",
+			stderr: "",
+		}));
+		const disposeWorkspace = vi.fn(async () => {});
+		const sandboxManager = {
+			assertAvailable,
+			prepareWorkspace,
+			exec,
+			disposeWorkspace,
+		} as unknown as AgentSandboxManager;
+
+		const pending = runClineAcceptanceGateInSandbox({
+			taskId: "task-1",
+			projectRepoPath: "/repo",
+			taskPrompt: "Acceptance check: npm test",
+			sandboxManager,
+			pauseController,
+			now: (() => {
+				let value = 100;
+				return () => {
+					value += 25;
+					return value;
+				};
+			})(),
+		});
+
+		await vi.waitFor(() => {
+			expect(prepareWorkspace).toHaveBeenCalledWith({
+				taskId: "task-1",
+				projectRepoPath: "/repo",
+				baseRef: null,
+			});
+		});
+		await Promise.resolve();
+
+		expect(exec).not.toHaveBeenCalled();
+
+		pauseController.setCardPaused("task-1", false);
+
+		await expect(pending).resolves.toMatchObject({
+			present: true,
+			command: "npm test",
+			passed: true,
+			output: "ok",
+		});
+		const shellExecution = resolveShellExecution("npm test");
+		expect(assertAvailable).toHaveBeenCalledTimes(1);
+		expect(exec).toHaveBeenCalledWith("task-1", [shellExecution.binary, ...shellExecution.args], {
+			timeoutMs: 300_000,
+		});
+		expect(disposeWorkspace).toHaveBeenCalledWith("task-1");
 	});
 });

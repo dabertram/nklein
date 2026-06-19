@@ -1,12 +1,15 @@
 import type { execFile } from "node:child_process";
+import type { AgentToolContext } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	AgentSandboxManager,
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
 	createAgentSandboxTaskUid,
+	createAgentSandboxToolExecutors,
 	normalizeAgentSandboxPoolConfig,
 } from "../../../src/cline-sdk/cline-agent-sandbox";
+import { ClinePauseController } from "../../../src/cline-sdk/cline-pause-controller";
 
 function createExecFileStub(options?: { failVersion?: boolean; failImageInspect?: boolean }): {
 	execFile: typeof execFile;
@@ -120,5 +123,49 @@ describe("AgentSandboxManager", () => {
 		expect(first).toBe(second);
 		expect(first).toBeGreaterThanOrEqual(70_000);
 		expect(first).toBeLessThan(90_000);
+	});
+
+	it("queues tool execution while the task is paused", async () => {
+		const pauseController = new ClinePauseController();
+		pauseController.setCardPaused("task-1", true);
+		const runTool = vi.fn(async () => "ok");
+		const executors = createAgentSandboxToolExecutors({ runTool } as unknown as AgentSandboxManager, "task-1", {
+			pauseController,
+		});
+		const bash = executors.bash;
+		if (!bash) {
+			throw new Error("Expected sandbox bash executor.");
+		}
+
+		const pending = bash("npm test", "/workspace", {} as AgentToolContext);
+		await Promise.resolve();
+
+		expect(runTool).not.toHaveBeenCalled();
+
+		pauseController.setCardPaused("task-1", false);
+
+		await expect(pending).resolves.toBe("ok");
+		expect(runTool).toHaveBeenCalledWith("task-1", "bash", "npm test");
+	});
+
+	it("rejects queued tool execution when the task wait is aborted", async () => {
+		const pauseController = new ClinePauseController();
+		pauseController.setCardPaused("task-1", true);
+		const runTool = vi.fn(async () => "ok");
+		const executors = createAgentSandboxToolExecutors({ runTool } as unknown as AgentSandboxManager, "task-1", {
+			pauseController,
+		});
+		const bash = executors.bash;
+		if (!bash) {
+			throw new Error("Expected sandbox bash executor.");
+		}
+
+		const pending = bash("npm test", "/workspace", {} as AgentToolContext);
+		await Promise.resolve();
+
+		pauseController.abortTaskWaiters("task-1");
+
+		await expect(pending).rejects.toThrow("Task pause wait was aborted.");
+		expect(runTool).not.toHaveBeenCalled();
 	});
 });

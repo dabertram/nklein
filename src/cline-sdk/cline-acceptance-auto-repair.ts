@@ -5,6 +5,7 @@ import { resolveTaskCwd } from "../workspace/task-worktree";
 import { type runClineAcceptanceGate, runClineAcceptanceGateInSandbox } from "./cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan } from "./cline-acceptance-repair";
 import { AgentSandboxManager } from "./cline-agent-sandbox";
+import type { ClinePauseController } from "./cline-pause-controller";
 import type { ClineTaskLaunchConfigOverrides, ClineTaskSessionService } from "./cline-task-session-service";
 
 const DEFAULT_AUTO_REPAIR_MAX_ATTEMPTS = 2;
@@ -41,6 +42,7 @@ export interface RunClineAcceptanceAutoRepairInput {
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	resolveTaskCwd?: typeof resolveTaskCwd;
 	runAcceptanceGate?: typeof runClineAcceptanceGate;
+	pauseController?: Pick<ClinePauseController, "waitUntilResumed">;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 }
 
@@ -95,6 +97,7 @@ export async function runClineAcceptanceAutoRepair(
 				baseRef: taskRecord.task.baseRef,
 				taskPrompt: taskRecord.task.prompt,
 				sandboxManager: new AgentSandboxManager(),
+				pauseController: input.pauseController,
 			});
 	if (!acceptance) {
 		return { type: "skipped", reason: "worktree_unavailable" };

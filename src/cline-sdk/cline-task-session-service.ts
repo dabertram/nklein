@@ -348,6 +348,7 @@ export interface ClineTaskSessionService {
 	applyTurnCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null;
 	setBoardPaused(paused: boolean): void;
 	setCardPaused(taskId: string, paused: boolean): void;
+	waitUntilTaskResumed(taskId: string): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
@@ -1542,7 +1543,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 					}),
 					toolExecutors: sandboxWorkspace
-						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId)
+						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
+								pauseController: this.pauseController,
+							})
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
 					onTeamEvent: (event, teamName) => {
@@ -1603,6 +1606,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.repeatedToolCallByTaskId.delete(taskId);
+		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
@@ -1642,6 +1646,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.repeatedToolCallByTaskId.delete(taskId);
+		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
@@ -2041,6 +2046,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	setCardPaused(taskId: string, paused: boolean): void {
 		this.pauseController.setCardPaused(taskId, paused);
+	}
+
+	async waitUntilTaskResumed(taskId: string): Promise<void> {
+		await this.pauseController.waitUntilResumed(taskId);
 	}
 
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {

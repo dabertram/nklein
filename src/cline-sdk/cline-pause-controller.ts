@@ -36,6 +36,19 @@ export class ClinePauseController {
 		this.controllerPausedTaskIds.delete(taskId);
 	}
 
+	abortTaskWaiters(taskId: string): void {
+		for (const waiter of [...this.waiters]) {
+			if (waiter.taskId !== taskId) {
+				continue;
+			}
+			this.waiters.delete(waiter);
+			if (waiter.abortListener) {
+				waiter.signal?.removeEventListener("abort", waiter.abortListener);
+			}
+			waiter.reject(new Error("Task pause wait was aborted."));
+		}
+	}
+
 	listControllerPausedTaskIds(): string[] {
 		return [...this.controllerPausedTaskIds];
 	}

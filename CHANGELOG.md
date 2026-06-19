@@ -37,6 +37,7 @@
 - Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.
 - Made board pause park native Cline tasks at the next turn checkpoint with a distinct `paused` session state, aborting the SDK before another turn and automatically continuing paused tasks when the board is resumed.
 - Added per-card Pause/Resume controls backed by durable `.cline/nklein/paused-tasks.json` state, runtime API mutations, immediate board/session updates, and restart-aware Cline pause-controller hydration.
+- Made Docker-backed SDK tool executors and sandbox acceptance checks honor board/card pause before running side effects, with task stop/abort rejecting queued pause waits.
 - Added an opt-in finished-card Replay control, disabled by default in global settings, that confirms before stopping the old session, clearing the prior task workspace/session state, and starting again from the original card prompt.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.

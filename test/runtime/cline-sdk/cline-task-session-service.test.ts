@@ -1791,6 +1791,29 @@ describe("InMemoryClineTaskSessionService", () => {
 		});
 	});
 
+	it.each(["stop", "abort"] as const)("rejects queued pause waits when a task is %sed", async (action) => {
+		const { service } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working until paused.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		service.setCardPaused("task-1", true);
+		const pending = service.waitUntilTaskResumed("task-1");
+		const rejection = expect(pending).rejects.toThrow("Task pause wait was aborted.");
+
+		if (action === "stop") {
+			await service.stopTaskSession("task-1");
+		} else {
+			await service.abortTaskSession("task-1");
+		}
+
+		await rejection;
+	});
+
 	it("parks a task when the autonomous wall-time budget is reached", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		try {

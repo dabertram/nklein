@@ -789,11 +789,13 @@ through !Klein's injected executors (★ MANDATORY WORKSTREAM, J1) and the accep
 `runCommand`, `await pauseController.waitUntilResumed(taskId, abortSignal)`. Effect: if a response arrives mid-turn
 with pending tool calls while paused, the tool calls **block (queue) until resume** instead of running — no host/agent
 side effects occur while paused. On task stop/abort the gate rejects so the executor unwinds cleanly.
+**Done for Docker-backed SDK default tool executors and sandbox acceptance-gate commands.**
 
 **K1.6 Tests.** Pause while a task is running ⇒ no further `start`/turn requests are issued (spy on the SDK
 start/continue); the `"paused"` state is emitted; a queued tool executor does not run until resume; on resume the task
 re-continues exactly once; board-resume drains all paused tasks; card stop while paused rejects the gate. **Checkpoint
-park/resume and board API drain are covered; executor gate/card-stop coverage remains with K1.5/K2.**
+park/resume, board API drain, queued sandbox tool gating, sandbox acceptance gating, and stop/abort waiter rejection are
+covered.**
 
 ### K2. Per-card pause / resume, and a replay control for finished cards
 **K2.1 Card pause store + API.**

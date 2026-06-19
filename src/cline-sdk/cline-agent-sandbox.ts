@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@clinebot/core";
+import type { ClinePauseController } from "./cline-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
 export const AGENT_SANDBOX_IMAGE_ENV = "NKLEIN_AGENT_SANDBOX_IMAGE";
@@ -29,6 +30,10 @@ type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];
 type SandboxReadFileInput = Parameters<NonNullable<ToolExecutors["readFile"]>>[0];
 type SandboxEditorInput = Parameters<NonNullable<ToolExecutors["editor"]>>[0];
 type SandboxApplyPatchInput = Parameters<NonNullable<ToolExecutors["applyPatch"]>>[0];
+
+export interface AgentSandboxToolExecutorOptions {
+	pauseController?: Pick<ClinePauseController, "waitUntilResumed">;
+}
 
 export interface AgentSandboxPoolConfig {
 	maxContainers: number;
@@ -189,13 +194,21 @@ export function createAgentSandboxVolumeName(slot: number): string {
 	return `${AGENT_SANDBOX_VOLUME_PREFIX}-${slot}`;
 }
 
-export function createAgentSandboxToolExecutors(manager: AgentSandboxManager, taskId: string): Partial<ToolExecutors> {
+export function createAgentSandboxToolExecutors(
+	manager: AgentSandboxManager,
+	taskId: string,
+	options: AgentSandboxToolExecutorOptions = {},
+): Partial<ToolExecutors> {
+	const runToolWhenResumed = async (tool: string, input: unknown): Promise<string> => {
+		await options.pauseController?.waitUntilResumed(taskId);
+		return await manager.runTool(taskId, tool, input);
+	};
 	return {
-		bash: async (command: SandboxBashInput) => manager.runTool(taskId, "bash", command),
-		readFile: async (request: SandboxReadFileInput) => manager.runTool(taskId, "readFile", request),
-		search: async (query: string) => manager.runTool(taskId, "search", query),
-		editor: async (input: SandboxEditorInput) => manager.runTool(taskId, "editor", input),
-		applyPatch: async (input: SandboxApplyPatchInput) => manager.runTool(taskId, "applyPatch", input),
+		bash: async (command: SandboxBashInput) => runToolWhenResumed("bash", command),
+		readFile: async (request: SandboxReadFileInput) => runToolWhenResumed("readFile", request),
+		search: async (query: string) => runToolWhenResumed("search", query),
+		editor: async (input: SandboxEditorInput) => runToolWhenResumed("editor", input),
+		applyPatch: async (input: SandboxApplyPatchInput) => runToolWhenResumed("applyPatch", input),
 		webFetch: async () =>
 			"Agent web fetch is disabled because !Klein runs agent tools in a no-network Docker sandbox.",
 	};

@@ -33,10 +33,11 @@
   - Mutation responses update the parent session summary immediately, and the board overlays returned paused task ids so the card control flips without waiting for the next session event.
   - Backend and UI coverage now exercise the persistence helper, runtime API pause/resume flow, card controls, and board-level Pause → Resume transition.
 
-- [ ] Gate sandbox/tool side effects on pause before claiming "processing goes into a queue."
-  - `ClinePauseController.waitUntilResumed` exists for this purpose, but Docker-backed tool executors and acceptance-gate `runCommand` do not call it yet.
-  - Until those executor calls await the pause gate, a turn that already received tool calls may still run side effects before the checkpoint parks the next turn.
-  - This should be implemented with abort-signal handling so stopping or aborting a paused task rejects any queued tool waiters cleanly.
+- [x] Gate sandbox/tool side effects on pause before claiming "processing goes into a queue."
+  - Docker-backed SDK default tool executors (`bash`, `readFile`, `search`, `editor`, `applyPatch`) now await `ClinePauseController.waitUntilResumed` before entering the sandbox tool runner.
+  - Sandbox acceptance-gate commands now await the same pause controller before `docker exec`, and acceptance auto-repair receives the task-session service's pause wait from the runtime hub.
+  - Stopping or aborting a task now rejects queued pause waiters before clearing paused state, so blocked side-effect calls unwind instead of hanging.
+  - This completes the pause queue for the Docker-backed SDK default-tool and sandbox acceptance paths; host-side !Klein custom tools and local MCP execution remain tracked above under the strict Docker-isolation findings.
 
 - [x] Add replay only after its destructive reset semantics are explicit and tested.
   - Replay is now gated by the global `replayCardsEnabled` setting, which defaults to false and is saved through the normal runtime config path.
