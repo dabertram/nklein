@@ -141,6 +141,9 @@ export function useHomeAgentSession({
 			panelMode = "chat";
 			descriptorKey = buildClineDescriptor(runtimeProjectConfig);
 		} else {
+			if (runtimeProjectConfig.cloudProviderSupportEnabled !== true) {
+				return null;
+			}
 			if (!runtimeProjectConfig.effectiveCommand) {
 				return null;
 			}
@@ -179,6 +182,7 @@ export function useHomeAgentSession({
 		clineProviderSettings.reasoningEffort,
 		clineProviderSettings.oauthProvider,
 		clineProviderSettings.providerId,
+		runtimeProjectConfig?.cloudProviderSupportEnabled,
 		runtimeProjectConfig?.effectiveCommand,
 		runtimeProjectConfig?.selectedAgentId,
 	]);

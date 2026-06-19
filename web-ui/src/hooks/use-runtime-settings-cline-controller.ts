@@ -399,11 +399,21 @@ export function useRuntimeSettingsClineController(
 		if (!open || selectedAgentId !== "cline") {
 			return;
 		}
-		if (providerId.trim().length > 0) {
+		const normalizedProviderId = providerId.trim().toLowerCase();
+		const providerIsInCatalog =
+			normalizedProviderId.length > 0 &&
+			providerCatalog.some((provider) => provider.id.trim().toLowerCase() === normalizedProviderId);
+		if (providerIsInCatalog) {
+			return;
+		}
+		if (normalizedProviderId.length > 0 && providerCatalog.length === 0) {
 			return;
 		}
 		const defaultProvider =
-			providerCatalog.find((provider) => provider.id.trim().toLowerCase() === "cline") ?? providerCatalog[0] ?? null;
+			providerCatalog.find((provider) => provider.id.trim().toLowerCase() === "lmstudio") ??
+			providerCatalog.find((provider) => provider.id.trim().toLowerCase() === "ollama") ??
+			providerCatalog[0] ??
+			null;
 		if (!defaultProvider) {
 			return;
 		}

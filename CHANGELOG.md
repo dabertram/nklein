@@ -7,6 +7,7 @@
 - Kept the current robot app mark for `!Klein 0.0.1`, renamed the sidebar icon component to `NKleinMark`, and removed the leftover `ClineIcon` UI component name.
 - Continued the rename migration across desktop metadata, protocol handling, runtime env vars, workspace headers, session cookies, runtime-home paths, and terminal/status surfaces, with one-release compatibility fallbacks for legacy `KANBAN_*` env vars plus legacy workspace header/cookie acceptance.
 - Swept remaining user-facing `Kanban` wording from launch scripts, runtime messages, desktop shims, model/tool prompts, and UI tests, and allowed the new `x-nklein-workspace-id` CORS header alongside the legacy header.
+- Kept the sidebar `!Klein Agent` in local-only mode from auto-launching terminal/cloud CLI agents such as Claude, defaulted settings back to local Cline, hid cloud agent rows behind a static local-only settings line, and limited onboarding to the local Cline agent when cloud support is disabled.
 - Taught the desktop runtime health probe to recognize both the current `!Klein` browser title and the legacy `Kanban` title during the rename transition, so packaged shells can still attach to already-running older runtimes.
 - Tightened the Electron shell with regression coverage for isolated/sandboxed renderer preferences, packaged devtools disabling, deny-by-default popup handling, and a CSP on the disconnected recovery page; desktop window/menu fallback titles now use `nKlein`.
 - Added a small brand-regression guard that scans UI/CLI user-visible strings and fails if a new accidental app-brand `Cline`/`Kanban` string slips back in outside the explicit engine/legacy allowlist.
@@ -28,6 +29,8 @@
 - Added Git clone ref selection for project add, letting cloned projects check out a branch, tag, or commit in detached mode after clone.
 - Added an additive command palette on `Cmd/Ctrl+K` for core board actions including new task, add project, settings, git history, backlog start, and Developer Tools.
 - Added a local-model setup action to the empty project state so first-run users can open onboarding before adding their first repository.
+- Reduced stale local model telemetry noise by sharing the loaded-model filter across Settings and task chat, labeling registry rows as past telemetry, and showing the selected loaded model's live context window in both places.
+- Renamed the persistent debug toggle to a global Developer Mode setting, moved it into General settings, made saved values override debug env vars, and gated sidebar dev-test scenarios, command-palette Developer Tools, debug tools, data-dir, and reset surfaces behind that setting.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.

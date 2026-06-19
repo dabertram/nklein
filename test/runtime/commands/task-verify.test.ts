@@ -61,6 +61,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 	return {
 		selectedAgentId: "cline",
 		selectedShortcutLabel: null,
+		developerModeEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

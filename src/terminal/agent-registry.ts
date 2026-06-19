@@ -1,4 +1,5 @@
 import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
+import { isDebugOverrideEnvEnabled } from "../config/debug-override";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { getRuntimeLaunchSupportedAgentCatalog, RUNTIME_AGENT_CATALOG } from "../core/agent-catalog";
 import type {
@@ -39,14 +40,15 @@ function joinCommand(binary: string, args: string[]): string {
 	return [binary, ...args.map(quoteForDisplay)].join(" ");
 }
 
-function parseBooleanEnvValue(value: string | undefined): boolean {
-	const normalized = value?.trim().toLowerCase();
-	return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+export function isRuntimeDebugModeEnabled(): boolean {
+	return isDebugOverrideEnvEnabled();
 }
 
-function isRuntimeDebugModeEnabled(): boolean {
-	const debugModeValue = process.env.KANBAN_DEBUG_MODE ?? process.env.DEBUG_MODE ?? process.env.debug_mode;
-	return parseBooleanEnvValue(debugModeValue);
+function resolveSelectedAgentIdForLocalOnly(selectedAgentId: RuntimeAgentId): RuntimeAgentId {
+	if (!CLOUD_ENABLED && selectedAgentId !== "cline") {
+		return "cline";
+	}
+	return selectedAgentId;
 }
 
 export function detectInstalledCommands(): string[] {
@@ -64,7 +66,11 @@ export function detectInstalledCommands(): string[] {
 
 function getCuratedDefinitions(runtimeConfig: RuntimeConfigState, detected: string[]): RuntimeAgentDefinition[] {
 	const detectedSet = new Set(detected);
-	return getRuntimeLaunchSupportedAgentCatalog().map((entry) => {
+	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
+	const supportedAgents = CLOUD_ENABLED
+		? getRuntimeLaunchSupportedAgentCatalog()
+		: getRuntimeLaunchSupportedAgentCatalog().filter((entry) => entry.id === "cline");
+	return supportedAgents.map((entry) => {
 		const defaultArgs = getDefaultArgs(entry.id);
 		const command = joinCommand(entry.binary, defaultArgs);
 		const isInstalled = entry.id === "cline" ? true : detectedSet.has(entry.binary);
@@ -75,13 +81,14 @@ function getCuratedDefinitions(runtimeConfig: RuntimeConfigState, detected: stri
 			command,
 			defaultArgs,
 			installed: isInstalled,
-			configured: runtimeConfig.selectedAgentId === entry.id,
+			configured: selectedAgentId === entry.id,
 		};
 	});
 }
 
 export function resolveAgentCommand(runtimeConfig: RuntimeConfigState): ResolvedAgentCommand | null {
-	const selected = getRuntimeLaunchSupportedAgentCatalog().find((entry) => entry.id === runtimeConfig.selectedAgentId);
+	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
+	const selected = getRuntimeLaunchSupportedAgentCatalog().find((entry) => entry.id === selectedAgentId);
 	if (!selected) {
 		return null;
 	}
@@ -107,9 +114,10 @@ export function buildRuntimeConfigResponse(
 	const agents = getCuratedDefinitions(runtimeConfig, detectedCommands);
 	const resolved = resolveAgentCommand(runtimeConfig);
 	const effectiveCommand = resolved ? joinCommand(resolved.binary, resolved.args) : null;
+	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
 
 	return {
-		selectedAgentId: runtimeConfig.selectedAgentId,
+		selectedAgentId,
 		selectedShortcutLabel: runtimeConfig.selectedShortcutLabel,
 		cloudProviderSupportEnabled: CLOUD_ENABLED,
 		agentAutonomousModeEnabled: runtimeConfig.agentAutonomousModeEnabled,
@@ -127,7 +135,7 @@ export function buildRuntimeConfigResponse(
 		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
 		codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
-		debugModeEnabled: isRuntimeDebugModeEnabled(),
+		developerModeEnabled: runtimeConfig.developerModeEnabled,
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,
 		projectConfigPath: runtimeConfig.projectConfigPath,

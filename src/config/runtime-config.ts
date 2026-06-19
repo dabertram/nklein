@@ -4,6 +4,7 @@
 import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
@@ -18,12 +19,14 @@ import type {
 import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskClineSettingsSchema } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { detectInstalledCommands } from "../terminal/agent-registry";
+import { isDebugOverrideEnvEnabled } from "./debug-override";
 import { CLINE_HOME_DIR_NAME, NKLEIN_PROJECT_CONFIG_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "./runtime-path-constants";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 
 interface RuntimeGlobalConfigFileShape {
 	selectedAgentId?: RuntimeAgentId;
 	selectedShortcutLabel?: string;
+	developerModeEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -53,6 +56,7 @@ export interface RuntimeConfigState {
 	projectConfigPath: string | null;
 	selectedAgentId: RuntimeAgentId;
 	selectedShortcutLabel: string | null;
+	developerModeEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -80,6 +84,7 @@ export interface RuntimeConfigState {
 export interface RuntimeConfigUpdateInput {
 	selectedAgentId?: RuntimeAgentId;
 	selectedShortcutLabel?: string | null;
+	developerModeEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -108,7 +113,8 @@ const PROJECT_CONFIG_PARENT_DIR = CLINE_HOME_DIR_NAME;
 const PROJECT_CONFIG_DIR = NKLEIN_PROJECT_CONFIG_DIR_NAME;
 const PROJECT_CONFIG_FILENAME = "config.json";
 const DEFAULT_AGENT_ID: RuntimeAgentId = "cline";
-const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = ["claude", "codex", "droid", "kiro"];
+const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = [];
+const DEFAULT_DEVELOPER_MODE_ENABLED = false;
 const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
@@ -198,9 +204,34 @@ function normalizeAgentId(agentId: RuntimeAgentId | string | null | undefined): 
 			agentId === "cline") &&
 		isRuntimeAgentLaunchSupported(agentId)
 	) {
+		if (!CLOUD_ENABLED && agentId !== "cline") {
+			return DEFAULT_AGENT_ID;
+		}
 		return agentId;
 	}
 	return DEFAULT_AGENT_ID;
+}
+
+function normalizeDeveloperModeEnabled(globalConfig: RuntimeGlobalConfigFileShape | null): boolean {
+	if (hasOwnKey(globalConfig, "developerModeEnabled")) {
+		return normalizeBoolean(globalConfig?.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
+	}
+	const legacyValue = readLegacyDeveloperModeEnabled(globalConfig);
+	if (legacyValue !== null) {
+		return legacyValue;
+	}
+	return isDebugOverrideEnvEnabled();
+}
+
+function readLegacyDeveloperModeEnabled(globalConfig: RuntimeGlobalConfigFileShape | null): boolean | null {
+	const legacyKey = `debug${"Mode"}Enabled`;
+	if (!globalConfig || !Object.hasOwn(globalConfig, legacyKey)) {
+		return null;
+	}
+	return normalizeBoolean(
+		(globalConfig as Record<string, unknown> | null)?.[legacyKey],
+		DEFAULT_DEVELOPER_MODE_ENABLED,
+	);
 }
 
 function normalizeAgentTimeoutMode(value: unknown): RuntimeAgentTimeoutMode {
@@ -488,6 +519,7 @@ function toRuntimeConfigState({
 		projectConfigPath,
 		selectedAgentId: normalizeAgentId(globalConfig?.selectedAgentId),
 		selectedShortcutLabel: normalizeShortcutLabel(globalConfig?.selectedShortcutLabel),
+		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -539,6 +571,7 @@ async function writeRuntimeGlobalConfigFile(
 	config: {
 		selectedAgentId?: RuntimeAgentId;
 		selectedShortcutLabel?: string | null;
+		developerModeEnabled?: boolean;
 		agentAutonomousModeEnabled?: boolean;
 		agentTimeoutMode?: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -565,6 +598,10 @@ async function writeRuntimeGlobalConfigFile(
 		: undefined;
 	const selectedShortcutLabel =
 		config.selectedShortcutLabel === undefined ? undefined : normalizeShortcutLabel(config.selectedShortcutLabel);
+	const developerModeEnabled =
+		config.developerModeEnabled === undefined
+			? DEFAULT_DEVELOPER_MODE_ENABLED
+			: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
@@ -652,6 +689,13 @@ async function writeRuntimeGlobalConfigFile(
 		}
 	} else if (existingSelectedShortcutLabel) {
 		payload.selectedShortcutLabel = existingSelectedShortcutLabel;
+	}
+	if (
+		hasOwnKey(existing, "developerModeEnabled") ||
+		readLegacyDeveloperModeEnabled(existing) !== null ||
+		developerModeEnabled !== DEFAULT_DEVELOPER_MODE_ENABLED
+	) {
+		payload.developerModeEnabled = developerModeEnabled;
 	}
 	if (
 		hasOwnKey(existing, "agentAutonomousModeEnabled") ||
@@ -804,6 +848,7 @@ function createRuntimeConfigStateFromValues(input: {
 	projectConfigPath: string | null;
 	selectedAgentId: RuntimeAgentId;
 	selectedShortcutLabel: string | null;
+	developerModeEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -829,6 +874,7 @@ function createRuntimeConfigStateFromValues(input: {
 		projectConfigPath: input.projectConfigPath,
 		selectedAgentId: normalizeAgentId(input.selectedAgentId),
 		selectedShortcutLabel: normalizeShortcutLabel(input.selectedShortcutLabel),
+		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -874,6 +920,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		projectConfigPath: null,
 		selectedAgentId: current.selectedAgentId,
 		selectedShortcutLabel: current.selectedShortcutLabel,
+		developerModeEnabled: current.developerModeEnabled,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -923,6 +970,7 @@ export async function saveRuntimeConfig(
 	config: {
 		selectedAgentId: RuntimeAgentId;
 		selectedShortcutLabel: string | null;
+		developerModeEnabled?: boolean;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -949,6 +997,7 @@ export async function saveRuntimeConfig(
 		await writeRuntimeGlobalConfigFile(globalConfigPath, {
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
+			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -979,6 +1028,7 @@ export async function saveRuntimeConfig(
 			projectConfigPath,
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
+			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -1016,6 +1066,10 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			selectedAgentId: updates.selectedAgentId ?? current.selectedAgentId,
 			selectedShortcutLabel:
 				updates.selectedShortcutLabel === undefined ? current.selectedShortcutLabel : updates.selectedShortcutLabel,
+			developerModeEnabled:
+				updates.developerModeEnabled === undefined
+					? current.developerModeEnabled
+					: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 			agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
 			agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
@@ -1060,6 +1114,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		const hasChanges =
 			nextConfig.selectedAgentId !== current.selectedAgentId ||
 			nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
+			nextConfig.developerModeEnabled !== current.developerModeEnabled ||
 			nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 			nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
 			nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
@@ -1087,6 +1142,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		await writeRuntimeGlobalConfigFile(globalConfigPath, {
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+			developerModeEnabled: nextConfig.developerModeEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
 			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1114,6 +1170,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			projectConfigPath,
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+			developerModeEnabled: nextConfig.developerModeEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
 			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1156,6 +1213,10 @@ export async function updateGlobalRuntimeConfig(
 					updates.selectedShortcutLabel === undefined
 						? current.selectedShortcutLabel
 						: updates.selectedShortcutLabel,
+				developerModeEnabled:
+					updates.developerModeEnabled === undefined
+						? current.developerModeEnabled
+						: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 				agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 				agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
 				agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
@@ -1200,6 +1261,7 @@ export async function updateGlobalRuntimeConfig(
 			const hasChanges =
 				nextConfig.selectedAgentId !== current.selectedAgentId ||
 				nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
+				nextConfig.developerModeEnabled !== current.developerModeEnabled ||
 				nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 				nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
 				nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
@@ -1225,6 +1287,7 @@ export async function updateGlobalRuntimeConfig(
 			await writeRuntimeGlobalConfigFile(globalConfigPath, {
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+				developerModeEnabled: nextConfig.developerModeEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
 				agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1249,6 +1312,7 @@ export async function updateGlobalRuntimeConfig(
 				projectConfigPath: current.projectConfigPath,
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+				developerModeEnabled: nextConfig.developerModeEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
 				agentTimeoutProfile: nextConfig.agentTimeoutProfile,

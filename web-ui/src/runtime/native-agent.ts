@@ -12,6 +12,7 @@ export function isNativeClineAgentSelected(agentId: RuntimeAgentId | null | unde
 	return agentId === "cline";
 }
 
+// Secondary UI screen only; the backend policy in src/cline-sdk/cline-local-only-policy.ts is authoritative.
 const KNOWN_CLOUD_PROVIDER_IDS = new Set([
 	"anthropic",
 	"bedrock",

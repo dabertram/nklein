@@ -173,7 +173,7 @@ export function useHomeSidebarAgentPanel({
 				incomingMessage={latestHomeTaskChatMessage}
 				incomingMessages={homeTaskChatMessages}
 				teamProgress={homeTeamProgress}
-				composerPlaceholder="Ask Cline to add, edit, start, or link tasks"
+				composerPlaceholder="Ask !Klein to add, edit, start, or link tasks"
 			/>
 		);
 	}
@@ -196,6 +196,13 @@ export function useHomeSidebarAgentPanel({
 	}
 
 	if (runtimeProjectConfig.selectedAgentId !== "cline") {
+		if (runtimeProjectConfig.cloudProviderSupportEnabled !== true) {
+			return (
+				<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
+					Local-only mode is enabled. Select a local Cline provider in Settings to use the !Klein Agent.
+				</div>
+			);
+		}
 		return (
 			<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
 				No runnable {selectedAgentLabel} command is configured. Open Settings, install the CLI, and select it.
@@ -205,7 +212,7 @@ export function useHomeSidebarAgentPanel({
 
 	return (
 		<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
-			Select a Cline provider in Settings to start a home chat session.
+			Select a local Cline provider in Settings to start a home chat session.
 		</div>
 	);
 }

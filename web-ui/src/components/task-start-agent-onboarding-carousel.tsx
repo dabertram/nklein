@@ -98,6 +98,10 @@ const FALLBACK_ONBOARDING_SLIDE: OnboardingSlide = {
 	title: "",
 	description: "",
 };
+
+export function resolveOnboardingAgentIds(cloudProviderSupportEnabled: boolean): RuntimeAgentId[] {
+	return cloudProviderSupportEnabled ? [...ONBOARDING_AGENT_IDS] : ["cline"];
+}
 const ONBOARDING_MEDIA_SLIDES = TASK_START_ONBOARDING_SLIDES.filter(
 	(slide): slide is MediaOnboardingSlide => slide.kind === "media",
 );
@@ -544,7 +548,7 @@ export function TaskStartAgentOnboardingCarousel({
 	);
 	const onboardingAgents = useMemo(
 		() =>
-			ONBOARDING_AGENT_IDS.map((agentId) => {
+			resolveOnboardingAgentIds(cloudProviderSupportEnabled).map((agentId) => {
 				const configuredAgent = agents.find((agent) => agent.id === agentId) ?? null;
 				const catalogEntry = getRuntimeAgentCatalogEntry(agentId);
 				return {
@@ -554,7 +558,7 @@ export function TaskStartAgentOnboardingCarousel({
 					installed: configuredAgent?.installed ?? false,
 				};
 			}),
-		[agents],
+		[agents, cloudProviderSupportEnabled],
 	);
 	const selectedClineProviderModel = clineSettings.providerModels.find((model) => model.id === clineSettings.modelId);
 	const selectedModelContextWindow = selectedClineProviderModel?.contextWindow ?? null;

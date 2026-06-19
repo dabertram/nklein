@@ -3,8 +3,12 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import { CLINE_MIN_CONTEXT_WINDOW_TOKENS, formatClineContextWindowTokens } from "@/runtime/cline-context-window-policy";
-import type { RuntimeClineModelRegistryEntry } from "@/runtime/types";
+import {
+	CLINE_MIN_CONTEXT_WINDOW_TOKENS,
+	formatClineContextWindowTokens,
+	isLmStudioProviderId,
+} from "@/runtime/cline-context-window-policy";
+import type { RuntimeClineModelRegistryEntry, RuntimeClineProviderModel } from "@/runtime/types";
 
 export function findClineModelRegistryEntry(
 	entries: readonly RuntimeClineModelRegistryEntry[],
@@ -44,6 +48,44 @@ export function formatClineModelRegistryDisplay(entry: RuntimeClineModelRegistry
 	}
 	parts.push(`cap ${Math.round(entry.capability.effectiveScore)}`);
 	return parts.length > 0 ? `Model telemetry: ${parts.join(" · ")}` : null;
+}
+
+function normalizeOnDeviceLocalProviderId(providerId: string): "lmstudio" | "ollama" | null {
+	const normalizedProviderId = providerId.trim().toLowerCase();
+	if (isLmStudioProviderId(normalizedProviderId)) {
+		return "lmstudio";
+	}
+	if (normalizedProviderId === "ollama") {
+		return "ollama";
+	}
+	return null;
+}
+
+export function isOnDeviceLocalProviderId(providerId: string): boolean {
+	return normalizeOnDeviceLocalProviderId(providerId) !== null;
+}
+
+export function filterRegistryEntriesToLoadedModels(
+	entries: readonly RuntimeClineModelRegistryEntry[],
+	selectedProviderId: string,
+	loadedProviderModels: readonly RuntimeClineProviderModel[],
+): RuntimeClineModelRegistryEntry[] {
+	const normalizedSelectedProviderId = normalizeOnDeviceLocalProviderId(selectedProviderId);
+	if (normalizedSelectedProviderId === null) {
+		return [...entries];
+	}
+	const loadedModelIds = new Set(
+		loadedProviderModels.map((model) => model.id.trim()).filter((modelId) => modelId.length > 0),
+	);
+	if (loadedModelIds.size === 0) {
+		return [];
+	}
+	return entries.filter((entry) => {
+		if (normalizeOnDeviceLocalProviderId(entry.providerId) !== normalizedSelectedProviderId) {
+			return false;
+		}
+		return loadedModelIds.has(entry.modelId.trim());
+	});
 }
 
 function formatTokenWindow(value: number | null): string {
@@ -161,7 +203,7 @@ export function ClineModelRegistryPanel({
 		<section className="mt-2 rounded-lg border border-border bg-surface-1 px-3 py-2" aria-label="Model telemetry">
 			<div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-primary">
 				<Activity size={14} className="text-status-green" />
-				<span>Model Telemetry</span>
+				<span>Past telemetry</span>
 				{isLoading ? <span className="ml-auto text-[11px] font-normal text-text-tertiary">Refreshing</span> : null}
 			</div>
 			{visibleEntries.length === 0 ? (

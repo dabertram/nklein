@@ -179,7 +179,7 @@ export default function App(): ReactElement {
 		refreshSettingsRuntimeProjectConfig,
 	});
 	const {
-		debugModeEnabled,
+		developerModeEnabled,
 		isDebugDialogOpen,
 		isResetAllStatePending,
 		dataDirectoryPath,
@@ -909,7 +909,7 @@ export default function App(): ReactElement {
 						selectedAgentId={settingsRuntimeProjectConfig?.selectedAgentId ?? null}
 						clineProviderSettings={settingsRuntimeProjectConfig?.clineProviderSettings ?? null}
 						cloudProviderSupportEnabled={cloudProviderSupportEnabled}
-						debugModeEnabled={debugModeEnabled}
+						developerModeEnabled={developerModeEnabled}
 						featurebaseFeedbackState={featurebaseFeedbackState}
 						onSelectProject={(projectId) => {
 							void handleSelectProject(projectId);
@@ -925,6 +925,7 @@ export default function App(): ReactElement {
 					/>
 				) : null}
 				<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+					{/* informational dev surface -> developer mode only (works in packaged builds) */}
 					<TopBar
 						onToggleSidebar={!selectedCard ? handleToggleSidebar : undefined}
 						onBack={selectedCard ? handleBack : undefined}
@@ -963,8 +964,8 @@ export default function App(): ReactElement {
 						isTerminalOpen={selectedCard ? isDetailTerminalOpen : showHomeBottomTerminal}
 						isTerminalLoading={selectedCard ? isDetailTerminalStarting : isHomeTerminalStarting}
 						onOpenSettings={handleOpenSettings}
-						showDebugButton={debugModeEnabled}
-						onOpenDebugDialog={debugModeEnabled ? handleOpenDebugDialog : undefined}
+						showDebugButton={developerModeEnabled}
+						onOpenDebugDialog={developerModeEnabled ? handleOpenDebugDialog : undefined}
 						shortcuts={shortcuts}
 						selectedShortcutLabel={selectedShortcutLabel}
 						onSelectShortcutLabel={handleSelectShortcutLabel}
@@ -1233,20 +1234,22 @@ export default function App(): ReactElement {
 					}}
 					onAccountSwitched={refreshKanbanAccess}
 				/>
+				{/* informational dev surface -> developer mode only (works in packaged builds) */}
 				<CommandPalette
 					open={isCommandPaletteOpen}
 					onOpenChange={setIsCommandPaletteOpen}
 					hasProject={!hasNoProjects && currentProjectId !== null}
-					showDebugCommands={debugModeEnabled}
+					showDebugCommands={developerModeEnabled}
 					onCreateTask={handleOpenCreateTask}
 					onAddProject={() => {
 						void handleAddProject();
 					}}
 					onOpenSettings={handleOpenSettings}
-					onOpenDebugTools={debugModeEnabled ? handleOpenDebugDialog : undefined}
+					onOpenDebugTools={developerModeEnabled ? handleOpenDebugDialog : undefined}
 					onToggleGitHistory={handleToggleGitHistory}
 					onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 				/>
+				{/* informational dev surface -> developer mode only (works in packaged builds) */}
 				<DebugDialog
 					open={isDebugDialogOpen}
 					onOpenChange={handleDebugDialogOpenChange}

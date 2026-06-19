@@ -24,6 +24,7 @@ import {
 } from "@/components/detail-panels/cline-model-picker-options";
 import {
 	ClineModelRegistryPanel,
+	filterRegistryEntriesToLoadedModels,
 	findClineModelRegistryEntry,
 	formatClineModelRegistryDisplay,
 } from "@/components/detail-panels/cline-model-registry-panel";
@@ -36,6 +37,7 @@ import { useClineChatPanelController } from "@/hooks/use-cline-chat-panel-contro
 import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
+import { formatClineModelContextWindowLabel } from "@/runtime/cline-context-window-policy";
 import { fetchClineModelRegistry, saveClineModelContextWindowOverride } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeClineModelRegistryEntry,
@@ -742,9 +744,19 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			[modelRegistryQuery.refetch, workspaceId],
 		);
 		const modelRegistryEntries = modelRegistryQuery.data?.models ?? [];
+		const visibleModelRegistryEntries = useMemo(
+			() =>
+				filterRegistryEntriesToLoadedModels(
+					modelRegistryEntries,
+					clineSettings.providerId,
+					clineSettings.providerModels,
+				),
+			[clineSettings.providerId, clineSettings.providerModels, modelRegistryEntries],
+		);
 		const selectedModelRegistryEntry = useMemo(
-			() => findClineModelRegistryEntry(modelRegistryEntries, clineSettings.providerId, clineSettings.modelId),
-			[clineSettings.modelId, clineSettings.providerId, modelRegistryEntries],
+			() =>
+				findClineModelRegistryEntry(visibleModelRegistryEntries, clineSettings.providerId, clineSettings.modelId),
+			[clineSettings.modelId, clineSettings.providerId, visibleModelRegistryEntries],
 		);
 		const modelRegistryText = useMemo(
 			() => formatClineModelRegistryDisplay(selectedModelRegistryEntry),
@@ -1206,14 +1218,25 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 						</div>
 					</div>
 					{isModelRegistryPanelOpen ? (
-						<ClineModelRegistryPanel
-							entries={modelRegistryEntries}
-							selectedProviderId={clineSettings.providerId}
-							selectedModelId={clineSettings.modelId}
-							nowMs={nowMs}
-							isLoading={modelRegistryQuery.isLoading}
-							onContextWindowOverrideSave={handleSaveModelContextWindowOverride}
-						/>
+						<>
+							{selectedModel ? (
+								<p className="mx-2 mt-2 mb-0 text-[12px] text-text-secondary">
+									Selected loaded model (live): {formatClineModelContextWindowLabel(selectedModel)}
+								</p>
+							) : (
+								<p className="mx-2 mt-2 mb-0 text-[12px] text-text-tertiary">
+									Selected model is not currently loaded in LM Studio.
+								</p>
+							)}
+							<ClineModelRegistryPanel
+								entries={visibleModelRegistryEntries}
+								selectedProviderId={clineSettings.providerId}
+								selectedModelId={clineSettings.modelId}
+								nowMs={nowMs}
+								isLoading={modelRegistryQuery.isLoading}
+								onContextWindowOverrideSave={handleSaveModelContextWindowOverride}
+							/>
+						</>
 					) : null}
 				</div>
 				<div className="px-2 py-3">

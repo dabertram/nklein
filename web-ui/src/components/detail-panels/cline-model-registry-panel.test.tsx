@@ -125,7 +125,7 @@ describe("ClineModelRegistryPanel", () => {
 		});
 
 		const text = container.textContent ?? "";
-		expect(text).toContain("Model Telemetry");
+		expect(text).toContain("Past telemetry");
 		expect(text).toContain("ollama/qwen");
 		expect(text).toContain("cline/sonnet");
 		expect(text).toContain("Endpoint: ollama-local");

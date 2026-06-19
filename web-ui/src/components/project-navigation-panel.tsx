@@ -88,7 +88,7 @@ export function ProjectNavigationPanel({
 	selectedAgentId,
 	clineProviderSettings,
 	cloudProviderSupportEnabled = false,
-	debugModeEnabled = false,
+	developerModeEnabled = false,
 	featurebaseFeedbackState,
 	onSelectProject,
 	onRemoveProject,
@@ -109,7 +109,7 @@ export function ProjectNavigationPanel({
 	selectedAgentId?: RuntimeAgentId | null;
 	clineProviderSettings?: RuntimeClineProviderSettings | null;
 	cloudProviderSupportEnabled?: boolean;
-	debugModeEnabled?: boolean;
+	developerModeEnabled?: boolean;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 	onSelectProject: (projectId: string) => void;
 	onRemoveProject: (projectId: string, options?: { deleteGitRepository?: boolean }) => Promise<boolean>;
@@ -498,7 +498,8 @@ export function ProjectNavigationPanel({
 								}}
 							/>
 						) : null}
-						{import.meta.env.DEV && debugModeEnabled ? (
+						{/* dev source tree required -> DEV build AND developer mode */}
+						{import.meta.env.DEV && developerModeEnabled ? (
 							<DevTestProjectCard
 								disabled={
 									removingProjectId !== null ||
@@ -651,7 +652,9 @@ export function ProjectNavigationPanel({
 				</>
 			) : (
 				<div className="flex flex-1 min-h-0 flex-col">
-					{selectedAgentId && selectedAgentId !== "cline" ? <TerminalAgentHints /> : null}
+					{cloudProviderSupportEnabled && selectedAgentId && selectedAgentId !== "cline" ? (
+						<TerminalAgentHints />
+					) : null}
 					<div className="flex flex-1 min-h-0 overflow-hidden bg-surface-1 px-2 pb-2 pt-1">
 						{agentSectionContent ?? (
 							<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">

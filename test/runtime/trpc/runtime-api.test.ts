@@ -329,8 +329,9 @@ function createModelRegistryEntry(input: {
 
 function createRuntimeConfigState(): RuntimeConfigState {
 	return {
-		selectedAgentId: "claude",
+		selectedAgentId: "cline",
 		selectedShortcutLabel: null,
+		developerModeEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",
@@ -772,12 +773,18 @@ describe("createRuntimeApi startTaskSession", () => {
 
 	it("reuses an existing worktree path before falling back to ensure", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+		});
 
 		const terminalManager = {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
 		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -808,23 +815,30 @@ describe("createRuntimeApi startTaskSession", () => {
 			baseRef: "main",
 			ensure: false,
 		});
-		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				cwd: "/tmp/existing-worktree",
 			}),
 		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("ensures the worktree when no existing task cwd is available", async () => {
 		taskWorktreeMocks.resolveTaskCwd
 			.mockRejectedValueOnce(new Error("missing"))
 			.mockResolvedValueOnce("/tmp/new-worktree");
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+		});
 
 		const terminalManager = {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
 		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -860,6 +874,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			baseRef: "main",
 			ensure: true,
 		});
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cwd: "/tmp/new-worktree",
+			}),
+		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("records checkpoint capture failures without blocking task start", async () => {
@@ -2154,12 +2174,20 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("starts home agent sessions in the workspace root without resolving a task worktree", async () => {
-		const homeTaskId = "__home_agent__:workspace-1:codex";
+		const homeTaskId = "__home_agent__:workspace-1:cline";
+		setSelectedProviderSettings({
+			provider: "ollama",
+			model: "qwen3.5-9b",
+			baseUrl: "http://127.0.0.1:11434",
+		});
 		const terminalManager = {
 			startTaskSession: vi.fn(async () => createSummary({ taskId: homeTaskId })),
 			applyTurnCheckpoint: vi.fn(),
 		};
 		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		clineTaskSessionService.startTaskSession.mockResolvedValue(
+			createSummary({ taskId: homeTaskId, agentId: "cline", pid: null }),
+		);
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -2184,12 +2212,13 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
+		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: homeTaskId,
 				cwd: "/tmp/repo",
 			}),
 		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
 	});
 
@@ -3313,66 +3342,84 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("collects a task evidence bundle and copyable prompt block", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-task-evidence-workspace-"));
 		const evidenceRoot = mkdtempSync(join(tmpdir(), "kanban-task-evidence-"));
-		execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
-		const board: RuntimeBoardData = {
-			columns: [
+		const tempHome = mkdtempSync(join(tmpdir(), "kanban-task-evidence-home-"));
+		const originalHome = process.env.HOME;
+		const originalUserProfile = process.env.USERPROFILE;
+
+		try {
+			process.env.HOME = tempHome;
+			process.env.USERPROFILE = tempHome;
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			const board: RuntimeBoardData = {
+				columns: [
+					{
+						id: "backlog",
+						title: "Backlog",
+						cards: [
+							{
+								id: "task-1",
+								title: "Fix local model timeout",
+								prompt: "Acceptance check: npm test",
+								startInPlanMode: false,
+								baseRef: "main",
+								createdAt: 1,
+								updatedAt: 2,
+							},
+						],
+					},
+					{ id: "in_progress", title: "In Progress", cards: [] },
+					{ id: "review", title: "Review", cards: [] },
+					{ id: "trash", title: "Done", cards: [] },
+				],
+				dependencies: [],
+			};
+			await saveWorkspaceState(workspacePath, { board, sessions: {} });
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			clineTaskSessionService.listMessages.mockReturnValue([
 				{
-					id: "backlog",
-					title: "Backlog",
-					cards: [
-						{
-							id: "task-1",
-							title: "Fix local model timeout",
-							prompt: "Acceptance check: npm test",
-							startInPlanMode: false,
-							baseRef: "main",
-							createdAt: 1,
-							updatedAt: 2,
-						},
-					],
+					id: "message-1",
+					role: "assistant",
+					content: "The timeout failed.",
+					createdAt: 10,
 				},
-				{ id: "in_progress", title: "In Progress", cards: [] },
-				{ id: "review", title: "Review", cards: [] },
-				{ id: "trash", title: "Done", cards: [] },
-			],
-			dependencies: [],
-		};
-		await saveWorkspaceState(workspacePath, { board, sessions: {} });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.listMessages.mockReturnValue([
-			{
-				id: "message-1",
-				role: "assistant",
-				content: "The timeout failed.",
-				createdAt: 10,
-			},
-		]);
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-			getEvidenceBundleRoot: () => evidenceRoot,
-		});
+			]);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({}) as never),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+				getEvidenceBundleRoot: () => evidenceRoot,
+			});
+			const response = await api.collectTaskEvidence(
+				{ workspaceId: "workspace-1", workspacePath },
+				{ taskId: "task-1" },
+			);
 
-		const response = await api.collectTaskEvidence(
-			{ workspaceId: "workspace-1", workspacePath },
-			{ taskId: "task-1" },
-		);
-
-		expect(response.bundlePath).toContain(evidenceRoot);
-		expect(response.promptBlock).toContain("Here is evidence from a !Klein task.");
-		expect(response.promptBlock).toContain("Fix local model timeout");
-		expect(response.promptBlock).toContain(response.bundlePath);
-		expect(existsSync(join(response.bundlePath, "summary.md"))).toBe(true);
-		expect(existsSync(join(response.bundlePath, "config-snapshot.json"))).toBe(true);
-		expect(readFileSync(join(response.bundlePath, "summary.md"), "utf8")).toContain("Acceptance check: npm test");
-		expect(readFileSync(join(response.bundlePath, "transcript", "01-task-1.json"), "utf8")).toContain(
-			"The timeout failed.",
-		);
+			expect(response.bundlePath).toContain(evidenceRoot);
+			expect(response.promptBlock).toContain("Here is evidence from a !Klein task.");
+			expect(response.promptBlock).toContain("Fix local model timeout");
+			expect(response.promptBlock).toContain(response.bundlePath);
+			expect(existsSync(join(response.bundlePath, "summary.md"))).toBe(true);
+			expect(existsSync(join(response.bundlePath, "config-snapshot.json"))).toBe(true);
+			expect(readFileSync(join(response.bundlePath, "summary.md"), "utf8")).toContain("Acceptance check: npm test");
+			expect(readFileSync(join(response.bundlePath, "transcript", "01-task-1.json"), "utf8")).toContain(
+				"The timeout failed.",
+			);
+		} finally {
+			if (originalHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = originalHome;
+			}
+			if (originalUserProfile === undefined) {
+				delete process.env.USERPROFILE;
+			} else {
+				process.env.USERPROFILE = originalUserProfile;
+			}
+		}
 	});
 
 	it("builds a model freshness advisor request from the runtime model registry", async () => {

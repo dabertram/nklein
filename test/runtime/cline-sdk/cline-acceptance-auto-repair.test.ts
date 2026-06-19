@@ -67,6 +67,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 	return {
 		selectedAgentId: "cline",
 		selectedShortcutLabel: null,
+		developerModeEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

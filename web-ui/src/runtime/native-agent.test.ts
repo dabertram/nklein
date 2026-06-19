@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	filterVisibleClineProviderCatalog,
 	getTaskAgentNavbarHint,
 	isClineProviderAuthenticated,
 	isNativeClineAgentSelected,
@@ -8,7 +9,11 @@ import {
 	selectLatestTaskChatMessageForTask,
 	selectTaskChatMessagesForTask,
 } from "@/runtime/native-agent";
-import type { RuntimeConfigResponse, RuntimeStateStreamTaskChatMessage } from "@/runtime/types";
+import type {
+	RuntimeClineProviderCatalogItem,
+	RuntimeConfigResponse,
+	RuntimeStateStreamTaskChatMessage,
+} from "@/runtime/types";
 
 function createRuntimeConfigResponse(
 	selectedAgentId: RuntimeConfigResponse["selectedAgentId"],
@@ -103,6 +108,36 @@ function createLatestTaskChatMessage(taskId: string): RuntimeStateStreamTaskChat
 		},
 	};
 }
+
+const providerCatalog: RuntimeClineProviderCatalogItem[] = [
+	{
+		id: "anthropic",
+		name: "Anthropic",
+		enabled: true,
+		oauthSupported: false,
+		defaultModelId: null,
+		baseUrl: null,
+		supportsBaseUrl: false,
+	},
+	{
+		id: "lmstudio",
+		name: "LM Studio",
+		enabled: true,
+		oauthSupported: false,
+		defaultModelId: null,
+		baseUrl: "http://127.0.0.1:1234",
+		supportsBaseUrl: true,
+	},
+	{
+		id: "ollama",
+		name: "Ollama",
+		enabled: true,
+		oauthSupported: false,
+		defaultModelId: null,
+		baseUrl: "http://127.0.0.1:11434",
+		supportsBaseUrl: true,
+	},
+];
 
 describe("native-agent helpers", () => {
 	it("treats cline as the native chat agent", () => {
@@ -215,6 +250,21 @@ describe("native-agent helpers", () => {
 				shouldUseNavigationPath: true,
 			}),
 		).toBeUndefined();
+	});
+
+	it("filters cloud providers out of the visible Cline provider catalog when cloud is disabled", () => {
+		expect(filterVisibleClineProviderCatalog(providerCatalog, false).map((provider) => provider.id)).toEqual([
+			"lmstudio",
+			"ollama",
+		]);
+	});
+
+	it("keeps cloud providers in the visible Cline provider catalog when cloud is enabled", () => {
+		expect(filterVisibleClineProviderCatalog(providerCatalog, true).map((provider) => provider.id)).toEqual([
+			"anthropic",
+			"lmstudio",
+			"ollama",
+		]);
 	});
 
 	it("checks for a provider selection when determining cline authentication", () => {

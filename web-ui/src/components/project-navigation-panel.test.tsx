@@ -377,16 +377,8 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).not.toContain("Code intelligence");
 	});
 
-	it("hides dev-test project tools unless debug mode is enabled", () => {
-		renderPanel();
-
-		expect(container.textContent).not.toContain("Create fixture projects");
-		expect(container.textContent).not.toContain("Create mid task project");
-		expect(container.textContent).not.toContain("Create self-improvement project");
-	});
-
-	it("shows dev-test project tools in debug mode", () => {
-		renderPanel({ debugModeEnabled: true });
+	it("shows dev-test project tools in dev builds", () => {
+		renderPanel({ developerModeEnabled: true });
 
 		expect(container.textContent).toContain("Create fixture projects");
 		expect(container.textContent).toContain("Create mid task project");
@@ -397,7 +389,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 	it("requires confirmation before creating dev-test projects", () => {
 		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 		try {
-			renderPanel({ debugModeEnabled: true });
+			renderPanel({ developerModeEnabled: true });
 
 			act(() => {
 				getButtonByText(container, "Create mid task project").click();
@@ -415,7 +407,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 	it("requires confirmation before deleting dev-test workspaces", () => {
 		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 		try {
-			renderPanel({ debugModeEnabled: true });
+			renderPanel({ developerModeEnabled: true });
 
 			act(() => {
 				getButtonByText(container, "Delete dev workspaces").click();
@@ -433,7 +425,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 	it("requires confirmation before creating a self-improvement project", () => {
 		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 		try {
-			renderPanel({ debugModeEnabled: true });
+			renderPanel({ developerModeEnabled: true });
 
 			act(() => {
 				getButtonByText(container, "Create self-improvement project").click();
@@ -452,7 +444,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 		const onSelectProject = vi.fn();
 		try {
-			renderPanel({ debugModeEnabled: true, onSelectProject });
+			renderPanel({ onSelectProject, developerModeEnabled: true });
 			const notes = container.querySelector("textarea");
 			if (!(notes instanceof HTMLTextAreaElement)) {
 				throw new Error("Expected self-improvement notes field.");
@@ -570,6 +562,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 		renderPanel({
 			activeSection: "agent",
 			selectedAgentId: "droid",
+			cloudProviderSupportEnabled: true,
 		});
 		expect(container.textContent).toContain("Tips");
 		expect(localStorage.getItem(LocalStorageKey.AgentTipsDismissed)).toBeNull();

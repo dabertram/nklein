@@ -71,6 +71,7 @@ function createRuntimeConfig(overrides: Partial<RuntimeConfigResponse> = {}): Ru
 		toolTimeoutMs: 600_000,
 		agentTimeoutMs: 3_600_000,
 		conversationTimeoutMs: 7_200_000,
+		cloudProviderSupportEnabled: true,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
 		lostHeartbeatPolicy: "park",
@@ -329,6 +330,32 @@ describe("useHomeAgentSession", () => {
 			taskId: initialTaskId,
 		});
 		expect(rotatedSnapshot.sessionKeys).toEqual([rotatedSnapshot.taskId]);
+	});
+
+	it("does not start terminal CLI agents while cloud support is disabled", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					config={createRuntimeConfig({
+						selectedAgentId: "claude",
+						effectiveCommand: "claude --dangerously-skip-permissions",
+						cloudProviderSupportEnabled: false,
+					})}
+					currentProjectId="workspace-1"
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+			await createFlushPromises();
+		});
+
+		const snapshot = requireSnapshot(latestSnapshot);
+		expect(snapshot.panelMode).toBeNull();
+		expect(snapshot.taskId).toBeNull();
+		expect(startTaskSessionMutateMock).not.toHaveBeenCalled();
 	});
 
 	it("does not restart the home terminal session on a no-op rerender", async () => {

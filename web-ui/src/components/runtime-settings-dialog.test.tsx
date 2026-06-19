@@ -201,6 +201,7 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 			{ id: "claude-opus-4", name: "Claude Opus 4", contextWindow: 200_000, supportsReasoningEffort: true },
 		],
 		isLoadingProviderModels: false,
+		refreshProviderModels: vi.fn(async () => ({ ok: true })),
 		saveProviderSettings: vi.fn(async () => ({ ok: true })),
 	}),
 }));
@@ -345,7 +346,7 @@ const savedClineOauthConfig = {
 
 const debugClineOauthConfig = {
 	...savedClineOauthConfig,
-	debugModeEnabled: true,
+	developerModeEnabled: true,
 } as RuntimeConfigResponse;
 
 describe("RuntimeSettingsDialog", () => {
@@ -604,6 +605,23 @@ describe("RuntimeSettingsDialog", () => {
 		expect(architectProviderSelect).not.toBeNull();
 		const roleProviderValues = Array.from(architectProviderSelect?.options ?? []).map((option) => option.value);
 		expect(roleProviderValues).toEqual(["", "lmstudio"]);
+	});
+
+	it("replaces the cloud agent picker with a local-only Cline line", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		expect(document.body.textContent).toContain("Local Cline agent (cloud disabled).");
+		expect(document.body.textContent).not.toContain("Claude Code");
+		expect(document.body.textContent).not.toContain("Checking which CLIs are installed");
 	});
 
 	it("surfaces local swarm guardrail limits in settings", async () => {

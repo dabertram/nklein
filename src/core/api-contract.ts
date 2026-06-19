@@ -1430,7 +1430,7 @@ export const runtimeConfigResponseSchema = z.object({
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
 	effectiveCodeEmbeddingSettings: runtimeCodeEmbeddingSettingsSchema,
-	debugModeEnabled: z.boolean().optional(),
+	developerModeEnabled: z.boolean().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
 	projectConfigPath: z.string().nullable(),
@@ -1450,6 +1450,7 @@ export type RuntimeConfigResponse = z.infer<typeof runtimeConfigResponseSchema>;
 export const runtimeConfigSaveRequestSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema.optional(),
 	selectedShortcutLabel: z.string().nullable().optional(),
+	developerModeEnabled: z.boolean().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema.optional(),
 	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema.optional(),

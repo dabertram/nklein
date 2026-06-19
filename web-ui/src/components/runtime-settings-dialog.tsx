@@ -34,7 +34,10 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClineModelRegistryPanel } from "@/components/detail-panels/cline-model-registry-panel";
+import {
+	ClineModelRegistryPanel,
+	filterRegistryEntriesToLoadedModels,
+} from "@/components/detail-panels/cline-model-registry-panel";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import {
@@ -1328,6 +1331,8 @@ function ClineModelContextWindowSettingsPanel({
 	disabled,
 	selectedProviderId,
 	selectedModelId,
+	selectedProviderModels,
+	onRefreshProviderModels,
 	onError,
 }: {
 	workspaceId: string | null;
@@ -1335,11 +1340,21 @@ function ClineModelContextWindowSettingsPanel({
 	disabled: boolean;
 	selectedProviderId: string;
 	selectedModelId: string;
+	selectedProviderModels: RuntimeClineProviderModel[];
+	onRefreshProviderModels: () => Promise<void>;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [isLoading, setIsLoading] = useState(false);
 	const [registryEntries, setRegistryEntries] = useState<RuntimeClineModelRegistryEntry[]>([]);
 	const [nowMs, setNowMs] = useState(() => Date.now());
+	const visibleRegistryEntries = useMemo(
+		() => filterRegistryEntriesToLoadedModels(registryEntries, selectedProviderId, selectedProviderModels),
+		[registryEntries, selectedProviderId, selectedProviderModels],
+	);
+	const selectedLoadedProviderModel = useMemo(
+		() => findClineProviderModel(selectedProviderModels, selectedModelId),
+		[selectedModelId, selectedProviderModels],
+	);
 
 	const refreshRegistry = useCallback(async () => {
 		if (!open) {
@@ -1348,6 +1363,7 @@ function ClineModelContextWindowSettingsPanel({
 		onError(null);
 		setIsLoading(true);
 		try {
+			await onRefreshProviderModels();
 			const response = await fetchClineModelRegistry(workspaceId);
 			setRegistryEntries(response.models);
 			setNowMs(Date.now());
@@ -1357,7 +1373,7 @@ function ClineModelContextWindowSettingsPanel({
 		} finally {
 			setIsLoading(false);
 		}
-	}, [onError, open, workspaceId]);
+	}, [onError, onRefreshProviderModels, open, workspaceId]);
 
 	useEffect(() => {
 		void refreshRegistry();
@@ -1388,10 +1404,19 @@ function ClineModelContextWindowSettingsPanel({
 						Model context windows
 					</h6>
 					<p className="text-[12px] text-text-secondary mt-1 mb-0">
-						{registryEntries.length > 0
-							? `${registryEntries.length} local model${registryEntries.length === 1 ? "" : "s"} tracked`
+						{visibleRegistryEntries.length > 0
+							? `${visibleRegistryEntries.length} local model${visibleRegistryEntries.length === 1 ? "" : "s"} tracked`
 							: "No local model telemetry loaded"}
 					</p>
+					{selectedLoadedProviderModel ? (
+						<p className="text-[12px] text-text-secondary mt-1 mb-0">
+							Selected loaded model (live): {formatClineModelContextWindowLabel(selectedLoadedProviderModel)}
+						</p>
+					) : (
+						<p className="text-[12px] text-text-tertiary mt-1 mb-0">
+							Selected model is not currently loaded in LM Studio.
+						</p>
+					)}
 				</div>
 				<Button
 					size="sm"
@@ -1406,7 +1431,7 @@ function ClineModelContextWindowSettingsPanel({
 				</Button>
 			</div>
 			<ClineModelRegistryPanel
-				entries={registryEntries}
+				entries={visibleRegistryEntries}
 				selectedProviderId={selectedProviderId}
 				selectedModelId={selectedModelId}
 				nowMs={nowMs}
@@ -1520,7 +1545,7 @@ export function RuntimeSettingsDialog({
 }): React.ReactElement {
 	const { config, isLoading, isSaving, save, refresh } = useRuntimeConfig(open, workspaceId, initialConfig);
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
-	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("claude");
+	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("cline");
 	const [agentAutonomousModeEnabled, setAgentAutonomousModeEnabled] = useState(true);
 	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">("normal");
 	const [agentTimeoutProfile, setAgentTimeoutProfile] = useState<"cloud" | "local" | "custom">("local");
@@ -1533,6 +1558,7 @@ export function RuntimeSettingsDialog({
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
+	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -1597,12 +1623,14 @@ export function RuntimeSettingsDialog({
 	const selectedPromptPlaceholder =
 		selectedPromptVariant === "commit" ? "Commit prompt template" : "PR prompt template";
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
+	const developerModeCheckboxId = "runtime-settings-developer-mode";
 	const taskDefaultStartInPlanModeId = "runtime-settings-task-default-start-in-plan-mode";
 	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
+	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(config);
 
 	const supportedAgents = useMemo<RuntimeSettingsAgentRowModel[]>(() => {
 		const agents =
@@ -1629,7 +1657,10 @@ export function RuntimeSettingsDialog({
 			command: buildDisplayedAgentCommand(agent.id, agent.binary, agentAutonomousModeEnabled),
 		}));
 	}, [agentAutonomousModeEnabled, config?.agents]);
-	const displayedAgents = useMemo(() => supportedAgents, [supportedAgents]);
+	const displayedAgents = useMemo(
+		() => (cloudProviderSupportEnabled ? supportedAgents : supportedAgents.filter((agent) => agent.id === "cline")),
+		[cloudProviderSupportEnabled, supportedAgents],
+	);
 	const navItems = useMemo(
 		() => SETTINGS_NAV_ITEMS.filter((item) => !item.clineOnly || selectedAgentId === "cline"),
 		[selectedAgentId],
@@ -1644,10 +1675,8 @@ export function RuntimeSettingsDialog({
 	}, [loadingModelRoleProviderIds]);
 
 	const configuredAgentId = config?.selectedAgentId ?? null;
-	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(config);
-	const firstInstalledAgentId = displayedAgents.find((agent) => agent.installed)?.id;
-	const fallbackAgentId = firstInstalledAgentId ?? displayedAgents[0]?.id ?? "claude";
-	const initialSelectedAgentId = configuredAgentId ?? fallbackAgentId;
+	const fallbackAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? "cline") : "cline";
+	const initialSelectedAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? fallbackAgentId) : "cline";
 	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
 	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
 	const initialAgentTimeoutProfile = normalizeAgentTimeoutProfile(
@@ -1664,6 +1693,7 @@ export function RuntimeSettingsDialog({
 	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
+	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -1800,6 +1830,9 @@ export function RuntimeSettingsDialog({
 		if (decompositionAutoApplyEnabled !== initialDecompositionAutoApplyEnabled) {
 			return true;
 		}
+		if (developerModeEnabled !== initialDeveloperModeEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -1852,6 +1885,7 @@ export function RuntimeSettingsDialog({
 		conversationTimeoutMs,
 		config,
 		decompositionAutoApplyEnabled,
+		developerModeEnabled,
 		draftCodeEmbeddingDefaults,
 		draftCodeEmbeddingOverride,
 		draftThemeId,
@@ -1864,6 +1898,7 @@ export function RuntimeSettingsDialog({
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
 		initialDecompositionAutoApplyEnabled,
+		initialDeveloperModeEnabled,
 		initialMaxAgentWritableFileLines,
 		initialMaxConcurrentTasks,
 		initialLostHeartbeatPolicy,
@@ -1899,7 +1934,7 @@ export function RuntimeSettingsDialog({
 		if (!open) {
 			return;
 		}
-		setSelectedAgentId(configuredAgentId ?? fallbackAgentId);
+		setSelectedAgentId(fallbackAgentId);
 		setAgentAutonomousModeEnabled(config?.agentAutonomousModeEnabled ?? true);
 		setAgentTimeoutMode(config?.agentTimeoutMode ?? "normal");
 		setAgentTimeoutProfile(normalizeAgentTimeoutProfile(config?.agentTimeoutProfile, cloudProviderSupportEnabled));
@@ -1912,6 +1947,7 @@ export function RuntimeSettingsDialog({
 		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
+		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -1951,6 +1987,7 @@ export function RuntimeSettingsDialog({
 		config?.codeEmbeddingDefaults,
 		config?.codeEmbeddingOverride,
 		config?.decompositionAutoApplyEnabled,
+		config?.developerModeEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.lostHeartbeatPolicy,
@@ -2416,6 +2453,7 @@ export function RuntimeSettingsDialog({
 			maxConcurrentTasks: parsedMaxConcurrentTasks,
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
+			developerModeEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			...(workspaceId ? { codeEmbeddingOverride: draftCodeEmbeddingOverride } : {}),
 			readyForReviewNotificationsEnabled,
@@ -2465,6 +2503,13 @@ export function RuntimeSettingsDialog({
 		onSaved?.();
 	}, [onSaved, refresh]);
 
+	const handleRefreshClineProviderModels = useCallback(async () => {
+		const result = await clineSettings.refreshProviderModels();
+		if (!result.ok && result.message) {
+			throw new Error(result.message);
+		}
+	}, [clineSettings.refreshProviderModels]);
+
 	const handleDialogOpenChange = useCallback(
 		(nextOpen: boolean) => {
 			if (!nextOpen) {
@@ -2506,20 +2551,50 @@ export function RuntimeSettingsDialog({
 					</div>
 					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+							Developer Mode
+						</h6>
+						<label
+							htmlFor={developerModeCheckboxId}
+							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
+						>
+							<RadixSwitch.Root
+								id={developerModeCheckboxId}
+								checked={developerModeEnabled}
+								disabled={controlsDisabled}
+								onCheckedChange={setDeveloperModeEnabled}
+								className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+							>
+								<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+							</RadixSwitch.Root>
+							<span>Enable developer mode</span>
+						</label>
+						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
+							Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
+							state.
+						</p>
+						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
 							Agent
 						</h6>
-						{displayedAgents.map((agent) => (
-							<AgentRow
-								key={agent.id}
-								agent={agent}
-								isSelected={agent.id === selectedAgentId}
-								onSelect={() => setSelectedAgentId(agent.id)}
-								disabled={controlsDisabled}
-							/>
-						))}
-						{config === null ? (
-							<p className="text-text-secondary py-2">Checking which CLIs are installed for this project...</p>
-						) : null}
+						{cloudProviderSupportEnabled ? (
+							<>
+								{displayedAgents.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										isSelected={agent.id === selectedAgentId}
+										onSelect={() => setSelectedAgentId(agent.id)}
+										disabled={controlsDisabled}
+									/>
+								))}
+								{config === null ? (
+									<p className="text-text-secondary py-2">
+										Checking which CLIs are installed for this project...
+									</p>
+								) : null}
+							</>
+						) : (
+							<p className="text-[13px] text-text-secondary mt-0 mb-3">Local Cline agent (cloud disabled).</p>
+						)}
 						<label
 							htmlFor={bypassPermissionsCheckboxId}
 							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
@@ -2851,6 +2926,8 @@ export function RuntimeSettingsDialog({
 									disabled={controlsDisabled}
 									selectedProviderId={clineSettings.providerId}
 									selectedModelId={clineSettings.modelId}
+									selectedProviderModels={clineSettings.providerModels}
+									onRefreshProviderModels={handleRefreshClineProviderModels}
 									onError={setSaveError}
 								/>
 								<ClineAdvisorActions
@@ -2862,7 +2939,8 @@ export function RuntimeSettingsDialog({
 									advisorModelId={config?.clineProviderSettings.modelId ?? ""}
 									onError={setSaveError}
 								/>
-								{config?.debugModeEnabled ? (
+								{/* informational dev surface -> developer mode only (works in packaged builds) */}
+								{developerModeEnabled ? (
 									<div className="mt-4 border-t border-border pt-4">
 										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
 											Developer Tools

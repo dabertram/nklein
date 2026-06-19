@@ -53,6 +53,50 @@ function withTemporaryEnv<T>(
 	});
 }
 
+async function withTemporaryDebugEnv<T>(value: string | undefined, run: () => Promise<T>): Promise<T> {
+	const previousNkleinDebug = process.env.NKLEIN_DEBUG;
+	const previousKanbanDebug = process.env.KANBAN_DEBUG;
+	const previousKanbanDebugMode = process.env.KANBAN_DEBUG_MODE;
+	const previousDebugMode = process.env.DEBUG_MODE;
+	const previousLowerDebugMode = process.env.debug_mode;
+	if (value === undefined) {
+		delete process.env.NKLEIN_DEBUG;
+	} else {
+		process.env.NKLEIN_DEBUG = value;
+	}
+	delete process.env.KANBAN_DEBUG;
+	delete process.env.KANBAN_DEBUG_MODE;
+	delete process.env.DEBUG_MODE;
+	delete process.env.debug_mode;
+	return run().finally(() => {
+		if (previousNkleinDebug === undefined) {
+			delete process.env.NKLEIN_DEBUG;
+		} else {
+			process.env.NKLEIN_DEBUG = previousNkleinDebug;
+		}
+		if (previousKanbanDebug === undefined) {
+			delete process.env.KANBAN_DEBUG;
+		} else {
+			process.env.KANBAN_DEBUG = previousKanbanDebug;
+		}
+		if (previousKanbanDebugMode === undefined) {
+			delete process.env.KANBAN_DEBUG_MODE;
+		} else {
+			process.env.KANBAN_DEBUG_MODE = previousKanbanDebugMode;
+		}
+		if (previousDebugMode === undefined) {
+			delete process.env.DEBUG_MODE;
+		} else {
+			process.env.DEBUG_MODE = previousDebugMode;
+		}
+		if (previousLowerDebugMode === undefined) {
+			delete process.env.debug_mode;
+		} else {
+			process.env.debug_mode = previousLowerDebugMode;
+		}
+	});
+}
+
 function writeFakeCommand(binDir: string, command: string): void {
 	mkdirSync(binDir, { recursive: true });
 	if (process.platform === "win32") {
@@ -66,19 +110,19 @@ function writeFakeCommand(binDir: string, command: string): void {
 }
 
 describe.sequential("runtime-config auto agent selection", () => {
-	it("selects agents using the configured priority order", () => {
-		expect(pickBestInstalledAgentIdFromDetected(["codex", "opencode", "gemini"])).toBe("codex");
-		expect(pickBestInstalledAgentIdFromDetected(["opencode", "droid", "gemini"])).toBe("droid");
-		expect(pickBestInstalledAgentIdFromDetected(["kiro-cli", "gemini"])).toBe("kiro");
-		expect(pickBestInstalledAgentIdFromDetected(["droid", "gemini", "cline"])).toBe("droid");
+	it("does not auto-select external CLI agents in local-only mode", () => {
+		expect(pickBestInstalledAgentIdFromDetected(["codex", "opencode", "gemini"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["opencode", "droid", "gemini"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["kiro-cli", "gemini"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["droid", "gemini", "cline"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["gemini", "cline"])).toBeNull();
-		expect(pickBestInstalledAgentIdFromDetected(["claude", "codex", "cline"])).toBe("claude");
-		expect(pickBestInstalledAgentIdFromDetected(["claude", "droid"])).toBe("claude");
+		expect(pickBestInstalledAgentIdFromDetected(["claude", "codex", "cline"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["claude", "droid"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["cline"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected([])).toBeNull();
 	});
 
-	it("auto-selects and persists when unset", async () => {
+	it("keeps fresh config on local Cline even when external CLIs are installed", async () => {
 		if (process.platform === "win32") {
 			return;
 		}
@@ -97,24 +141,11 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const isolatedPath = `${tempBin}${delimiter}/usr/bin${delimiter}/bin`;
 				await withTemporaryEnv({ home: tempHome, pathPrefix: isolatedPath, replacePath: true }, async () => {
 					const state = await loadRuntimeConfig(tempProject);
-					expect(state.selectedAgentId).toBe("codex");
-					const persisted = JSON.parse(
-						readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
-					) as {
-						selectedAgentId?: string;
-						agentAutonomousModeEnabled?: boolean;
-						readyForReviewNotificationsEnabled?: boolean;
-						commitPromptTemplate?: string;
-						openPrPromptTemplate?: string;
-					};
-					expect(persisted.selectedAgentId).toBe("codex");
-					expect(persisted.agentAutonomousModeEnabled).toBeUndefined();
-					expect(persisted.readyForReviewNotificationsEnabled).toBeUndefined();
-					expect(persisted.commitPromptTemplate).toBeUndefined();
-					expect(persisted.openPrPromptTemplate).toBeUndefined();
+					expect(state.selectedAgentId).toBe("cline");
+					expect(existsSync(join(tempHome, ".cline", "nklein", "config.json"))).toBe(false);
 
 					const reloadedState = await loadRuntimeConfig(tempProject);
-					expect(reloadedState.selectedAgentId).toBe("codex");
+					expect(reloadedState.selectedAgentId).toBe("cline");
 				});
 			} finally {
 				if (previousShell === undefined) {
@@ -172,18 +203,18 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(state.shortcuts).toEqual([]);
 
 				const updated = await updateRuntimeConfig(tempHome, {
-					selectedAgentId: "codex",
+					agentAutonomousModeEnabled: false,
 				});
-				expect(updated.selectedAgentId).toBe("codex");
+				expect(updated.agentAutonomousModeEnabled).toBe(false);
 				expect(updated.projectConfigPath).toBeNull();
 
 				const globalPayload = JSON.parse(
 					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
 				) as {
-					selectedAgentId?: string;
+					agentAutonomousModeEnabled?: boolean;
 					shortcuts?: unknown;
 				};
-				expect(globalPayload.selectedAgentId).toBe("codex");
+				expect(globalPayload.agentAutonomousModeEnabled).toBe(false);
 				expect(globalPayload.shortcuts).toBeUndefined();
 			});
 		} finally {
@@ -206,7 +237,104 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
-	it("normalizes unsupported configured agents to the default launch agent", async () => {
+	it("uses the debug env override only when developer mode is unset", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-debug-env-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-debug-env-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				await withTemporaryDebugEnv("true", async () => {
+					const state = await loadRuntimeConfig(tempProject);
+					expect(state.developerModeEnabled).toBe(true);
+
+					const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+					mkdirSync(runtimeConfigDir, { recursive: true });
+					writeFileSync(
+						join(runtimeConfigDir, "config.json"),
+						JSON.stringify({ developerModeEnabled: false }, null, 2),
+						"utf8",
+					);
+
+					const persistedFalseState = await loadRuntimeConfig(tempProject);
+					expect(persistedFalseState.developerModeEnabled).toBe(false);
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("loads the legacy debugModeEnabled setting as developer mode", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-legacy-debug-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-legacy-debug-",
+		);
+
+		try {
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			mkdirSync(runtimeConfigDir, { recursive: true });
+			writeFileSync(
+				join(runtimeConfigDir, "config.json"),
+				JSON.stringify({ debugModeEnabled: true }, null, 2),
+				"utf8",
+			);
+
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const state = await loadRuntimeConfig(tempProject);
+				expect(state.developerModeEnabled).toBe(true);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("uses the debug env override only when developer mode is not stored", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-debug-env-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-debug-env-");
+
+		try {
+			await withTemporaryDebugEnv("true", async () => {
+				await withTemporaryEnv({ home: tempHome }, async () => {
+					const state = await loadRuntimeConfig(tempProject);
+					expect(state.developerModeEnabled).toBe(true);
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("lets stored developer mode false override the debug env", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-debug-stored-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-debug-stored-",
+		);
+
+		try {
+			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			mkdirSync(runtimeConfigDir, { recursive: true });
+			writeFileSync(
+				join(runtimeConfigDir, "config.json"),
+				JSON.stringify({ developerModeEnabled: false }, null, 2),
+				"utf8",
+			);
+
+			await withTemporaryDebugEnv("true", async () => {
+				await withTemporaryEnv({ home: tempHome }, async () => {
+					const state = await loadRuntimeConfig(tempProject);
+					expect(state.developerModeEnabled).toBe(false);
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("normalizes cloud configured agents to the default local launch agent", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-set-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-set-");
 		const { path: tempBin, cleanup: cleanupBin } = createTempDir("kanban-bin-runtime-config-set-");
@@ -221,7 +349,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				join(runtimeConfigDir, "config.json"),
 				JSON.stringify(
 					{
-						selectedAgentId: "gemini",
+						selectedAgentId: "claude",
 					},
 					null,
 					2,
@@ -509,9 +637,9 @@ describe.sequential("runtime-config auto agent selection", () => {
 				await loadRuntimeConfig(tempProject);
 
 				const updated = await updateRuntimeConfig(tempProject, {
-					selectedAgentId: "codex",
+					readyForReviewNotificationsEnabled: false,
 				});
-				expect(updated.selectedAgentId).toBe("codex");
+				expect(updated.readyForReviewNotificationsEnabled).toBe(false);
 
 				const globalPayload = JSON.parse(
 					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
@@ -521,10 +649,10 @@ describe.sequential("runtime-config auto agent selection", () => {
 					agentAutonomousModeEnabled?: boolean;
 					readyForReviewNotificationsEnabled?: boolean;
 				};
-				expect(globalPayload.selectedAgentId).toBe("codex");
+				expect(globalPayload.selectedAgentId).toBeUndefined();
 				expect(globalPayload.selectedShortcutLabel).toBeUndefined();
 				expect(globalPayload.agentAutonomousModeEnabled).toBeUndefined();
-				expect(globalPayload.readyForReviewNotificationsEnabled).toBeUndefined();
+				expect(globalPayload.readyForReviewNotificationsEnabled).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -732,18 +860,18 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 				const [selectedAgentState, autonomousModeState] = await Promise.all([
 					updateRuntimeConfig(tempProject, {
-						selectedAgentId: "codex",
+						lostHeartbeatPolicy: "keep_running",
 					}),
 					updateRuntimeConfig(tempProject, {
 						agentAutonomousModeEnabled: false,
 					}),
 				]);
 
-				expect(selectedAgentState.selectedAgentId).toBe("codex");
+				expect(selectedAgentState.lostHeartbeatPolicy).toBe("keep_running");
 				expect(autonomousModeState.agentAutonomousModeEnabled).toBe(false);
 
 				const reloaded = await loadRuntimeConfig(tempProject);
-				expect(reloaded.selectedAgentId).toBe("codex");
+				expect(reloaded.lostHeartbeatPolicy).toBe("keep_running");
 				expect(reloaded.agentAutonomousModeEnabled).toBe(false);
 			});
 		} finally {

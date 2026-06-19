@@ -11,7 +11,7 @@ interface UseDebugToolsParams {
 }
 
 interface UseDebugToolsResult {
-	debugModeEnabled: boolean;
+	developerModeEnabled: boolean;
 	isDebugDialogOpen: boolean;
 	isResetAllStatePending: boolean;
 	dataDirectoryPath: string | null;
@@ -43,8 +43,9 @@ export function useDebugTools({
 }: UseDebugToolsParams): UseDebugToolsResult {
 	const [isDebugDialogOpen, setIsDebugDialogOpen] = useState(false);
 	const [isResetAllStatePending, setIsResetAllStatePending] = useState(false);
-	const debugModeEnabled =
-		(settingsRuntimeProjectConfig?.debugModeEnabled ?? runtimeProjectConfig?.debugModeEnabled ?? false) === true;
+	const developerModeEnabled =
+		(settingsRuntimeProjectConfig?.developerModeEnabled ?? runtimeProjectConfig?.developerModeEnabled ?? false) ===
+		true;
 	const dataDirectoryPath =
 		resolveRuntimeDataDirectoryPath(settingsRuntimeProjectConfig) ??
 		resolveRuntimeDataDirectoryPath(runtimeProjectConfig);
@@ -93,7 +94,7 @@ export function useDebugTools({
 	}, [isResetAllStatePending]);
 
 	return {
-		debugModeEnabled,
+		developerModeEnabled,
 		isDebugDialogOpen,
 		isResetAllStatePending,
 		dataDirectoryPath,

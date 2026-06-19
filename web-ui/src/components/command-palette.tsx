@@ -77,6 +77,7 @@ export function CommandPalette({
 			onRun: onStartAllTasks,
 		},
 	];
+	// informational dev surface -> developer mode only (works in packaged builds)
 	if (showDebugCommands && onOpenDebugTools) {
 		actions.push({
 			id: "developer-tools",

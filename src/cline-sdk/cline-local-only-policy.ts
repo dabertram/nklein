@@ -14,7 +14,7 @@ export const CLOUD_ENABLED = false;
 /** Providers that are inherently local, on-device inference servers. */
 export const LOCAL_PROVIDER_IDS = new Set<string>(["ollama", "lmstudio", "lm-studio"]);
 
-/** Managed Cline OAuth providers — these always route to Cline's cloud regardless of any baseUrl. */
+/** Managed Cline OAuth providers — keep in sync with web-ui/src/runtime/native-agent.ts cloud screen. */
 const MANAGED_CLOUD_PROVIDER_IDS = new Set<string>(["cline", "oca", "openai-codex"]);
 
 export class CloudProviderDisabledError extends Error {
