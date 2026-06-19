@@ -269,7 +269,7 @@ agents in one container still cannot read each other's files.
   predictable for limited hardware.
 - [x] **Release + reuse.** On task end `releaseSlot` frees the slot; the container is **reused** by the next queued/new
   agent; an empty container idles for `sandboxIdleTimeoutMinutes` then is destroyed (J4). Never spawn/kill per task.
-- [ ] **Presets (UX sugar over the numbers):** "Shared" = `sandboxMaxContainers` 1 + `sandboxAgentsPerContainer`
+- [x] **Presets (UX sugar over the numbers):** "Shared" = `sandboxMaxContainers` 1 + `sandboxAgentsPerContainer`
   unlimited (the default); "Dedicated" = `sandboxAgentsPerContainer` 1 (one agent per container, pool grows to
   `sandboxMaxContainers`). The numbers are the source of truth; presets just set them. Setting changes apply to **new**
   placements; running agents keep their container; now-excess idle containers reap on their timer.

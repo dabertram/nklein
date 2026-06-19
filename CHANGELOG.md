@@ -33,6 +33,7 @@
 - Renamed the persistent debug toggle to a global Developer Mode setting, moved it into General settings, made saved values override debug env vars, and gated sidebar dev-test scenarios, command-palette Developer Tools, debug tools, data-dir, and reset surfaces behind that setting.
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
 - Added persisted Docker agent-sandbox pool settings for container count, agents per container, memory, CPU, and idle timeout, with General settings controls and runtime manager wiring for new placements.
+- Added Shared and Dedicated sandbox pool presets in General settings as shortcuts over the existing numeric pool controls.
 - Added Docker agent-sandbox preflight status to Settings and made Cline task starts fail closed with the sandbox remediation message when Docker or the sandbox image is unavailable.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.
 - Persisted Docker agent-sandbox start failures on task cards, keeping the remediation visible after the failed start toast.

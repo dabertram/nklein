@@ -750,6 +750,59 @@ describe("RuntimeSettingsDialog", () => {
 		);
 	});
 
+	it("applies sandbox pool presets as numeric setting shortcuts", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedClineOauthConfig,
+							sandboxMaxContainers: 3,
+							sandboxAgentsPerContainer: 2,
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const inputByPlaceholder = (placeholder: string): HTMLInputElement => {
+			const input = document.body.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`);
+			if (!input) {
+				throw new Error(`Expected input with placeholder ${placeholder}.`);
+			}
+			return input;
+		};
+		const maxContainersInput = inputByPlaceholder("1");
+		const agentsPerContainerInput = inputByPlaceholder("0");
+
+		expect(maxContainersInput.value).toBe("3");
+		expect(agentsPerContainerInput.value).toBe("2");
+
+		await act(async () => {
+			findButtonByText(document.body, "Dedicated")?.click();
+		});
+
+		expect(maxContainersInput.value).toBe("3");
+		expect(agentsPerContainerInput.value).toBe("1");
+
+		await act(async () => {
+			findButtonByText(document.body, "Shared")?.click();
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sandboxMaxContainers: 1,
+				sandboxAgentsPerContainer: 0,
+			}),
+		);
+	});
+
 	it("saves the replay cards opt-in from general settings", async () => {
 		await act(async () => {
 			root.render(

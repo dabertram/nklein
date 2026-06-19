@@ -1951,6 +1951,22 @@ export function RuntimeSettingsDialog({
 			poolCapacityLabel: agentsPerContainer === 0 ? "unlimited pool slots" : `${poolCapacity} pool slots`,
 		};
 	}, [maxConcurrentTasks, sandboxAgentsPerContainer, sandboxMaxContainers, sandboxMemoryPerContainerMb]);
+	const sandboxPoolPreset = useMemo(() => {
+		if (sandboxMaxContainers.trim() === "1" && sandboxAgentsPerContainer.trim() === "0") {
+			return "shared";
+		}
+		if (sandboxAgentsPerContainer.trim() === "1") {
+			return "dedicated";
+		}
+		return "custom";
+	}, [sandboxAgentsPerContainer, sandboxMaxContainers]);
+	const applySharedSandboxPreset = useCallback(() => {
+		setSandboxMaxContainers("1");
+		setSandboxAgentsPerContainer("0");
+	}, []);
+	const applyDedicatedSandboxPreset = useCallback(() => {
+		setSandboxAgentsPerContainer("1");
+	}, []);
 	const hasUnsavedChanges = useMemo(() => {
 		if (!config) {
 			return false;
@@ -3037,9 +3053,31 @@ export function RuntimeSettingsDialog({
 								</p>
 							</div>
 							<div style={{ gridColumn: "1 / span 2" }} className="border-t border-border pt-3">
-								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
-									<ShieldCheck size={14} />
-									<span>Agent isolation pool</span>
+								<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+									<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+										<ShieldCheck size={14} />
+										<span>Agent isolation pool</span>
+									</div>
+									<div className="flex items-center gap-1">
+										<Button
+											size="sm"
+											variant={sandboxPoolPreset === "shared" ? "primary" : "default"}
+											aria-pressed={sandboxPoolPreset === "shared"}
+											disabled={controlsDisabled}
+											onClick={applySharedSandboxPreset}
+										>
+											Shared
+										</Button>
+										<Button
+											size="sm"
+											variant={sandboxPoolPreset === "dedicated" ? "primary" : "default"}
+											aria-pressed={sandboxPoolPreset === "dedicated"}
+											disabled={controlsDisabled}
+											onClick={applyDedicatedSandboxPreset}
+										>
+											Dedicated
+										</Button>
+									</div>
 								</div>
 								<div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
 									<div>
