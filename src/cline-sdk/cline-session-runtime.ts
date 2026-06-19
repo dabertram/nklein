@@ -701,13 +701,17 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				}),
 			] satisfies AgentTool[]);
 		const extraTools = [
-			...(useHostWorkspaceTools
-				? createClineDecompositionTools({
-						workspacePath: request.cwd,
-						artifactWorkspacePath,
-						sourceTaskId: request.taskId,
-					})
-				: []),
+			// Decomposition / board / plan tools are TRUSTED CONTROL-PLANE: they mutate only !Klein-owned
+			// state (`~/.cline/nklein` plan artifacts + the board via mutateWorkspaceState), never the user's
+			// working tree or a shell. They therefore stay host-side even under strict Docker isolation
+			// (J0 scope boundary: !Klein's own config/state file I/O is trusted runtime, not agent activity).
+			// Keeping them available is what lets a sandboxed planning agent turn a 1-shot idea into a
+			// Planning-lane DAG of cards. Data-plane file/shell/edit/patch/search stay sandboxed below.
+			...createClineDecompositionTools({
+				workspacePath: request.cwd,
+				artifactWorkspacePath,
+				sourceTaskId: request.taskId,
+			}),
 			...workspaceExtraTools,
 			...createWebResearchTool({
 				enabled: useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",

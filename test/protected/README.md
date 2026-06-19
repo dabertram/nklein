@@ -20,3 +20,6 @@ Current protected groups:
 - `swarm-guardrails`: swarm stop/resume and autonomous guardrails.
 - `workspace-registry`: workspace identity, ownership, and project-health diagnostics.
 - `cline-decomposition-tool`: decomposition graph application and Planning artifacts.
+- `cline-agent-sandbox-host-guard`: strict-isolation guarantee that agent tools + the acceptance gate never run on the host (no host fallback).
+- `cline-agent-sandbox`: Docker sandbox lockdown flags, fail-closed availability, per-task uid isolation, and pool/queue admission.
+- `cline-task-start-guard`: fail-closed task-start preflight and candidate-window fit budget.

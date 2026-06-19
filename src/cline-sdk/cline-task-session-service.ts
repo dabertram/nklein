@@ -488,19 +488,16 @@ function formatStartWarnings(warnings: readonly string[] | undefined): string | 
 	return `${normalized[0]} (+${normalized.length - 1} more MCP warning${normalized.length === 2 ? "" : "s"})`;
 }
 
-function buildClineStartPrompt(
-	prompt: string,
-	startInPlanMode?: boolean,
-	options?: { decompositionToolsAvailable?: boolean },
-): string {
+function buildClineStartPrompt(prompt: string, startInPlanMode?: boolean): string {
 	if (!startInPlanMode) {
 		return prompt;
 	}
 	const trimmedPrompt = prompt.trim();
+	// Decomposition / board / plan tools are trusted control-plane and remain available even under strict
+	// Docker isolation (they touch only !Klein-owned state, never the user's working tree), so planning
+	// agents can always split a task into dependent cards via the overridable `/kanban-decompose` workflow.
 	const decompositionInstruction =
-		options?.decompositionToolsAvailable === false
-			? "Strict Docker isolation is active, so the host-side !Klein decomposition tool is unavailable in this agent session. Produce a clear implementation plan in chat and do not edit !Klein board, workspace, plan, or task state directly."
-			: "!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.";
+		"!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.";
 	return [
 		"First, inspect the codebase and produce a clear implementation plan only.",
 		decompositionInstruction,
@@ -1578,9 +1575,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			try {
 				const runtimeSetup = await this.ensureRuntimeSetup(request.cwd);
 				const runtimePrompt = runtimeSetup.resolvePrompt(
-					buildClineStartPrompt(request.prompt, request.startInPlanMode, {
-						decompositionToolsAvailable: !sandboxWorkspace,
-					}),
+					buildClineStartPrompt(request.prompt, request.startInPlanMode),
 				);
 				let systemPrompt =
 					request.systemPrompt?.trim() ||
@@ -1630,7 +1625,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
 					cwd: effectiveCwd,
-					workspaceRoot: request.workspaceRoot,
+					// Always hand the runtime a host workspace root so the trusted control-plane decomposition
+					// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
+					// container workdir (effectiveCwd points inside the sandbox volume when isolation is active).
+					workspaceRoot: request.workspaceRoot ?? request.cwd,
 					prompt: runtimePrompt,
 					taskTitle: request.taskTitle,
 					initialMessages,

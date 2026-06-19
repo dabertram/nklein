@@ -557,8 +557,12 @@ describe("InMemoryClineSessionRuntime", () => {
 			const startInput = fakeHost.start.mock.calls[0]?.[0];
 			const toolNames = startInput?.localRuntime?.extraTools?.map((tool) => tool.name) ?? [];
 			expect(toolNames).toContain("repo_map");
-			expect(toolNames).not.toContain("decompose_project");
-			expect(toolNames).not.toContain("expand_task");
+			// Decomposition / board-mutation tools are trusted control-plane (they only touch !Klein-owned
+			// state, never the user's working tree), so they remain available even when sandbox proxy
+			// workspace tools are supplied — this is what keeps the 1-shot idea → Planning DAG flow alive
+			// under strict isolation. Host web research stays omitted (it is real network egress).
+			expect(toolNames).toContain("decompose_project");
+			expect(toolNames).toContain("expand_task");
 			expect(toolNames).not.toContain("web_research");
 		} finally {
 			if (previousWebResearch === undefined) {

@@ -2,6 +2,9 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Restored autonomous decomposition under strict Docker isolation: the trusted control-plane `decompose_project` / `expand_task` tools (which mutate only !Klein plan artifacts and the board, never the user's working tree) now stay available host-side during sandboxed planning, so a single high-level prompt can again become a Planning-lane DAG of dependent cards. Planning prompts advertise the decomposition workflow again, and the host workspace root is always forwarded to the session runtime so board/plan mutations resolve to the owning workspace rather than the container workdir.
+- Added the strict-isolation safety guards to the protected test suite (no-host-execution guard, Docker sandbox lockdown/fail-closed/uid-isolation, and the fail-closed task-start preflight), so weakening agent isolation now requires explicit human approval.
+
 - Renamed the fork's user-facing product to `!Klein` and the command-line entry point/package command to `nklein`, while preserving repository/internal compatibility names where they still matter.
 - Replaced the remaining app-brand "Cline" labels in the UI with `!Klein` (sidebar wordmark, UI error screen, runtime-disconnected screen, and offline fallback now say `!Klein` / `nklein`), while keeping genuine Cline engine/provider/account references intact.
 - Kept the current robot app mark for `!Klein 0.0.1`, renamed the sidebar icon component to `NKleinMark`, and removed the leftover `ClineIcon` UI component name.

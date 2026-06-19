@@ -606,7 +606,10 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				cwd: "/workspaces/task-1",
-				prompt: expect.stringContaining("Strict Docker isolation is active"),
+				// The host workspace root must be forwarded distinctly from the container cwd so the trusted
+				// control-plane decomposition tools resolve board/plan artifacts to the host owning workspace.
+				workspaceRoot: "/tmp/project",
+				prompt: expect.stringContaining("!Klein decomposition is available during planning"),
 				toolExecutors: expect.objectContaining({
 					bash: expect.any(Function),
 					applyPatch: expect.any(Function),

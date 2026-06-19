@@ -2,6 +2,71 @@
 
 > **Note:** This document is the consolidated successor to the original `plan.md` and `plan2.md`
 > (the implementation review), merged into a single source of truth.
+>
+> **Live document set (2026-06-19):** the live, maintained docs are **`plan.md`** (this file — phased
+> implementation tracker), **`specsheet.md`** (the canonical feature spec / source of truth for what !Klein
+> *is*), **`iteration-instructions.md`** (the perpetual-iteration playbook for an agent), and
+> **`follow-up-5.md`** (latest audit findings). The earlier `follow-up-1.md` … `follow-up-4.md` and
+> `findings-from-follow-up-work-4.md` are now **historical/archival** — their open items are folded into the
+> "Consolidated status" section below. Do not re-mine the archive; work from this section, `specsheet.md`,
+> and `follow-up-5.md`.
+
+---
+
+## Consolidated status (last reconciled 2026-06-19)
+
+**Health:** typecheck ✓ · web:typecheck ✓ · lint ✓ (537 files) · cline-boundary ✓ ·
+`test/runtime/cline-sdk` 396/42 ✓ · protected suite 79/9 ✓.
+
+**Recent (2026-06-19, this session):** §2.A decomposition restored under isolation; §3.1 isolation guard
+tests protected (human-approved). Remaining open: §2.B, §2.C, and the §3.x polish below.
+
+**Done and verified:** L0 cloud lockdown · L1 reliability (never-overflow guard, real effective window,
+local timeouts, back-off, acceptance shell, context bar) · L2 swarm executor (concurrency, auto-start,
+endpoint serialization, tool routing, roles, guardrails) · L3 decomposition machinery (recursive expand,
+clarifying questions, summary, adaptive re-plan, revisions) · L4 operator UI (cockpit, swarm header+Stop,
+MCSR panel, DAG review+approve, diagnostics drawer, first-run wizard, code-intel, activity surface,
+settings coverage, coverage matrix) · follow-up-1 robustness (200k clamp relaxed, oversized-prompt graceful,
+cold-start floor, tree-sitter repo map, hybrid local embeddings, MCSR decay, no-diff self-review, dogfood
+clamp, null-delta merge block) · follow-up-2 hardening (workspace identity, artifact ownership,
+lost-session recovery, persistence split, advisor send, code-intel settings, dev-tools gating) · follow-up-3
+rename (!Klein/nKlein/nklein + migration), evidence one-click, self-improvement project, protected suite,
+guidance skills, security hardening, cloud-UI hidden · follow-up-4 §A–G,K (model-telemetry prune+filter,
+live loaded model, NO-CLOUD clamp, Developer Mode, embedding auto-discovery, board pause halts loop,
+per-card pause/resume, chat timestamps, full-width context bar) · follow-up-4 ★J strict Docker isolation
+(image, runner, manager, pool, queue, clone-in/patch-out, fail-closed, acceptance, MCP disable, network,
+unit+integration tests).
+
+**Open work (tracked in `follow-up-5.md`; see that doc for full detail):**
+
+- [x] **🔴 §2.A — Restore autonomous decomposition→cards under strict isolation.** *(done 2026-06-19)* The
+      trusted control-plane `decompose_project`/`expand_task` tools now stay available host-side even under
+      isolation (they mutate only `~/.cline/nklein/` plan artifacts + the board via `mutateWorkspaceState`,
+      never the user's working tree), so sandboxed planning can again produce a Planning-lane DAG of cards.
+      Implemented in [cline-session-runtime.ts](src/cline-sdk/cline-session-runtime.ts) (always include the
+      decomposition tools), [cline-task-session-service.ts](src/cline-sdk/cline-task-session-service.ts)
+      (planning prompt advertises the workflow again; host `workspaceRoot` always forwarded so artifacts/board
+      resolve to the owning workspace, not the container workdir). Covered by updated session-runtime +
+      task-session-service tests.
+- [ ] **🟠 §2.B — Reconcile / retire the host worktree subsystem.** `resolveTaskCwd`/`ensureWorktree` and
+      `src/workspace/task-worktree*.ts` still run in parallel with the sandbox result-branch model behind an
+      ad-hoc "legacy non-Cline agent" boundary re-derived in ~10 sites. Decide the terminal-agent story,
+      retire saved-host-patch semantics, centralize the legacy predicate, update AGENTS.md + project-health,
+      add a "no host worktree created for default/Cline starts" guard test.
+- [ ] **🟠 §2.C — End-to-end manual verification debt** (env-blocked, not code): observe a real Cline task in
+      Docker (one shared container, workspace volume only, no host worktree, result-patch applies, idle
+      teardown); inspect Settings isolation status + pool controls; dev-build UX (no Claude default, registry
+      prune, live loaded model, Developer Mode persistence, embedding auto-discovery); local dogfood telemetry
+      diff (zero balance/overflow/1s-timeout). Convert into a scripted runbook.
+- [x] **🟠 §3.1 — Protect the strict-isolation guard tests.** *(done 2026-06-19, human-approved)* Added
+      `cline-agent-sandbox-host-guard`, `cline-agent-sandbox`, and `cline-task-start-guard` to
+      `test/protected/protected-tests.json` + README; protected suite now 9 files / 79 tests. Weakening agent
+      isolation now requires explicit human approval via the write-guard.
+- [ ] **§3.2/§3.3/§3.4/§3.5/§3.6 — Polish:** document parked cloud features as PARKED in `specsheet.md`;
+      verify acceptance-repair/plan-gap/merge resolve the owning workspace (not a host worktree) under
+      isolation; UX polish for paused/queued/sandbox-unavailable card states + isolation empty state;
+      centralize the legacy predicate; consider extracting sandbox-lifecycle/pause from
+      `cline-task-session-service.ts`; reconcile docs so L3 isn't overstated.
 
 ---
 
