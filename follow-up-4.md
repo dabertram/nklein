@@ -350,7 +350,7 @@ agents in one container still cannot read each other's files.
   Grep after implementing: no agent tool path calls `child_process`/`fs` write/`/bin/sh` directly.
   - [x] `runClineAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
     explicit runner or opt into trusted host execution, while agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
-  - [ ] Add the no-host execution guard test across SDK default executors and acceptance.
+  - [x] Add the no-host execution guard test across SDK default executors and acceptance.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
 - [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image
@@ -385,7 +385,7 @@ agents in one container still cannot read each other's files.
   `execFile`); `startContainer` is single-flight per slot and `acquireSlot` reuses a free container before starting a
   new one; the per-container idle timer arms when a container empties and is cancelled by a new agent; the executor
   shims serialize input and parse the runner's JSON; the acceptance gate throws if no sandbox/`taskId` is bound.
-- [ ] **No-host-execution guard:** with the sandbox active, spy on `node:child_process` and `node:fs` write APIs and
+- [x] **No-host-execution guard:** with the sandbox active, spy on `node:child_process` and `node:fs` write APIs and
   assert the `bash`/`editor`/`applyPatch`/`readFile`/`search` executors and the acceptance gate **never** call them on
   the host (only `docker exec` is invoked).
 - [ ] **Integration, gated on Docker available** (skip when `docker version` fails): `acquireSlot` + `prepareWorkspace`
