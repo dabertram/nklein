@@ -287,6 +287,10 @@ isolated from other tasks. This is the larger implementation effort and it is wo
     otherwise sandbox `sandbox_patch_captured`/`sandbox_patch_empty`. This lets sandbox result-branch tasks start
     auto-commit/PR and later auto-move to Done without host workspace metadata, and its durable notices no longer
     describe the task result as a host workspace.
+  - Sandbox patch capture now diffs the staged index against the task base ref instead of only against current `HEAD`,
+    preserving changes even when an agent creates a local commit inside the container before review. The default
+    Commit/Open PR prompts were rewritten to keep agents inside the isolated task workspace/result-branch flow instead
+    of asking them to find or mutate the user's base checkout with `git worktree`/`cherry-pick` operations.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

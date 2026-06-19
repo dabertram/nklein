@@ -56,6 +56,7 @@
 - Stopped trashed default/Cline sandbox cards from reconstructing synthetic `~/.cline/worktrees/...` paths, while preserving that fallback for explicit legacy host-workspace agents.
 - Kept Commit/Open PR controls visible for sandbox result-branch review tasks by recognizing captured result patches even when no host task-workspace snapshot exists.
 - Updated auto-review commit/PR scheduling to use sandbox result-patch dirty/clean signals when host workspace metadata is unavailable, and neutralized its durable notices away from host-workspace wording.
+- Fixed sandbox task result capture after local agent commits by diffing the staged index against the task base ref, and rewrote default Commit/Open PR prompts to stay inside the isolated workspace/result-branch flow instead of mutating host worktrees.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

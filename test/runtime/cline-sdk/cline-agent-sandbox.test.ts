@@ -627,13 +627,13 @@ describe("AgentSandboxManager", () => {
 		]);
 	});
 
-	it("captures a staged binary workspace patch from inside the sandbox", async () => {
+	it("captures a staged binary workspace patch against the task base ref", async () => {
 		const patch = "diff --git a/README.md b/README.md\n";
 		const { execFile: execFileStub, calls } = createExecFileStub({ execStdout: patch });
 		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
 
-		await expect(manager.captureWorkspacePatch("task-1")).resolves.toBe(patch);
+		await expect(manager.captureWorkspacePatch("task-1", { baseRef: "main" })).resolves.toBe(patch);
 		expect(calls).toContainEqual([
 			"exec",
 			"-u",
@@ -645,6 +645,29 @@ describe("AgentSandboxManager", () => {
 			"add",
 			"-A",
 		]);
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces/task-1",
+			"nklein-agent-sandbox-1",
+			"git",
+			"diff",
+			"--staged",
+			"--binary",
+			"main",
+			"--",
+		]);
+	});
+
+	it("captures a staged binary workspace patch from HEAD when no base ref is available", async () => {
+		const patch = "diff --git a/README.md b/README.md\n";
+		const { execFile: execFileStub, calls } = createExecFileStub({ execStdout: patch });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.captureWorkspacePatch("task-1")).resolves.toBe(patch);
 		expect(calls).toContainEqual([
 			"exec",
 			"-u",

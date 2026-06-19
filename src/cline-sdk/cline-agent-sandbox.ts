@@ -418,13 +418,18 @@ export class AgentSandboxManager {
 		return typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result);
 	}
 
-	async captureWorkspacePatch(taskId: string): Promise<string> {
+	async captureWorkspacePatch(taskId: string, options: { baseRef?: string | null } = {}): Promise<string> {
 		const placement = this.requirePlacement(taskId);
 		assertSandboxExecOk(
 			await this.execAsTaskUser(placement, ["git", "add", "-A"]),
 			"stage sandbox workspace changes",
 		);
-		const diff = await this.execAsTaskUser(placement, ["git", "diff", "--staged", "--binary"], {
+		const diffArgs = ["git", "diff", "--staged", "--binary"];
+		const baseRef = options.baseRef?.trim();
+		if (baseRef) {
+			diffArgs.push(baseRef, "--");
+		}
+		const diff = await this.execAsTaskUser(placement, diffArgs, {
 			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
 		});
 		assertSandboxExecOk(diff, "capture sandbox workspace patch");

@@ -551,6 +551,30 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("uses sandbox-safe git action prompt defaults", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-git-prompts-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-git-prompts-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const current = await loadRuntimeConfig(tempProject);
+
+				expect(current.commitPromptTemplateDefault).toContain("isolated task workspace");
+				expect(current.commitPromptTemplateDefault).toContain("result branch");
+				expect(current.commitPromptTemplateDefault).not.toContain("git worktree list");
+				expect(current.commitPromptTemplateDefault).not.toContain("cherry-pick");
+				expect(current.openPrPromptTemplateDefault).toContain("isolated task workspace");
+				expect(current.openPrPromptTemplateDefault).not.toContain("git worktree list");
+				expect(current.openPrPromptTemplateDefault).not.toContain("base workspace");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("removes an existing empty project config file when no shortcuts are saved", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-cleanup-empty-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir(

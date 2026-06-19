@@ -2579,7 +2579,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.finalizingSandboxReviewTaskIds.add(taskId);
 		void (async () => {
 			try {
-				const patch = await manager.captureWorkspacePatch(taskId);
+				const patch = await manager.captureWorkspacePatch(taskId, { baseRef });
 				const branch = await applyTaskPatchToResultBranch({
 					repoPath,
 					taskId,

@@ -53,6 +53,11 @@
   - Auto-review commit/PR scheduling now uses the same tri-state source (`dirty` / `clean` / `unknown`), allowing
     sandbox result-branch captures to start automation and `sandbox_patch_empty` to complete the move-to-Done flow
     without host workspace metadata.
+  - Sandbox patch capture now diffs the staged task index against the task base ref. This preserves work even if the
+    agent followed a Commit/Open PR instruction and created a local commit before review; the previous `HEAD`-relative
+    staged diff would become empty after such a commit. The default git-action prompts now keep agents inside the
+    isolated workspace/result-branch flow and no longer ask them to mutate the host checkout through `git worktree` or
+    `cherry-pick`.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

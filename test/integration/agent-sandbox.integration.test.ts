@@ -208,7 +208,7 @@ if (dockerGate.ready) {
 					};
 					await expect(manager.runTool(taskA, "applyPatch", applyPatchInput)).resolves.toContain("patched.txt");
 
-					const patch = await manager.captureWorkspacePatch(taskA);
+					const patch = await manager.captureWorkspacePatch(taskA, { baseRef: "HEAD" });
 					expect(patch).toContain("diff --git a/README.md b/README.md");
 					expect(patch).toContain("diff --git a/patched.txt b/patched.txt");
 

@@ -824,7 +824,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-result");
 		});
-		expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-result");
+		expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-result", { baseRef: "main" });
 		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
 		expect(service.getSummary("task-result")).toMatchObject({
 			state: "awaiting_review",

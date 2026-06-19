@@ -158,7 +158,7 @@ const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_AGENT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
+const LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
 - Do not edit files outside git workflows unless required for conflict resolution.
@@ -184,7 +184,7 @@ Steps:
    - Whether stash was used
    - Whether conflicts were resolved
    - Any remaining manual follow-up needed`;
-const DEFAULT_OPEN_PR_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, open a pull request against {{base_ref}}.
+const LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, open a pull request against {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
 - Do not modify the base workspace.
@@ -198,6 +198,41 @@ Steps:
 5. If a pull request already exists for the same head and base, return that existing PR URL instead of creating a duplicate.
 6. If PR creation is blocked, explain exactly why and provide the exact commands to complete it manually.
 7. Report:
+   - PR title: PR URL
+   - Base branch
+   - Head branch
+   - Any follow-up needed`;
+const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in an isolated task workspace. Prepare the task changes for !Klein to capture into a result branch based on {{base_ref}}.
+
+- Work only inside the current task workspace.
+- Do not modify or run git commands in any path outside this task workspace.
+- Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
+
+Steps:
+1. Inspect the pending task changes and make sure they match the task request.
+2. Stage all intended task changes and create one commit in the current task workspace with a clear message.
+3. If Git identity is missing, set only this repository's local identity, then retry the commit.
+4. Run git status --short and verify the task workspace is clean.
+5. If conflicts or uncertainty remain, stop and explain the exact files and commands needed for manual follow-up.
+6. Report:
+   - Final commit hash
+   - Final commit message
+   - Whether any manual follow-up is needed`;
+const DEFAULT_OPEN_PR_PROMPT_TEMPLATE = `You are in an isolated task workspace. Prepare and open a pull request for the task changes against {{base_ref}}.
+
+- Work only inside the current task workspace.
+- Do not modify or run git commands in any path outside this task workspace.
+- Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
+
+Steps:
+1. Inspect the pending task changes and make sure they match the task request.
+2. Stage all intended task changes and create one commit in the current task workspace with a clear message.
+3. If currently on detached HEAD, create a branch at the current commit in this task workspace.
+4. Push the branch to origin and set upstream.
+5. Create a pull request with base {{base_ref}} and head as the pushed branch (use gh CLI if available).
+6. If a pull request already exists for the same head and base, return that existing PR URL instead of creating a duplicate.
+7. If PR creation is blocked, explain exactly why and provide the exact commands to complete it manually.
+8. Report:
    - PR title: PR URL
    - Base branch
    - Head branch
@@ -395,6 +430,11 @@ function normalizePromptTemplate(value: unknown, fallback: string): string {
 	}
 	const normalized = value.trim();
 	return normalized.length > 0 ? value : fallback;
+}
+
+function normalizePromptTemplateWithLegacyDefault(value: unknown, fallback: string, legacyDefault: string): string {
+	const normalized = normalizePromptTemplate(value, fallback);
+	return normalized === legacyDefault ? fallback : normalized;
 }
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {
@@ -614,10 +654,15 @@ function toRuntimeConfigState({
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
-		commitPromptTemplate: normalizePromptTemplate(globalConfig?.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
-		openPrPromptTemplate: normalizePromptTemplate(
+		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
+			globalConfig?.commitPromptTemplate,
+			DEFAULT_COMMIT_PROMPT_TEMPLATE,
+			LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
+		),
+		openPrPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			globalConfig?.openPrPromptTemplate,
 			DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+			LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 		),
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
@@ -766,11 +811,19 @@ async function writeRuntimeGlobalConfigFile(
 	const commitPromptTemplate =
 		config.commitPromptTemplate === undefined
 			? DEFAULT_COMMIT_PROMPT_TEMPLATE
-			: normalizePromptTemplate(config.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE);
+			: normalizePromptTemplateWithLegacyDefault(
+					config.commitPromptTemplate,
+					DEFAULT_COMMIT_PROMPT_TEMPLATE,
+					LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
+				);
 	const openPrPromptTemplate =
 		config.openPrPromptTemplate === undefined
 			? DEFAULT_OPEN_PR_PROMPT_TEMPLATE
-			: normalizePromptTemplate(config.openPrPromptTemplate, DEFAULT_OPEN_PR_PROMPT_TEMPLATE);
+			: normalizePromptTemplateWithLegacyDefault(
+					config.openPrPromptTemplate,
+					DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+					LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
+				);
 
 	const payload: RuntimeGlobalConfigFileShape = {};
 	if (selectedAgentId !== undefined) {
@@ -1058,8 +1111,16 @@ function createRuntimeConfigStateFromValues(input: {
 			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 		modelRoles: normalizeModelRoles(input.modelRoles),
 		shortcuts: normalizeShortcuts(input.shortcuts),
-		commitPromptTemplate: normalizePromptTemplate(input.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
-		openPrPromptTemplate: normalizePromptTemplate(input.openPrPromptTemplate, DEFAULT_OPEN_PR_PROMPT_TEMPLATE),
+		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
+			input.commitPromptTemplate,
+			DEFAULT_COMMIT_PROMPT_TEMPLATE,
+			LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
+		),
+		openPrPromptTemplate: normalizePromptTemplateWithLegacyDefault(
+			input.openPrPromptTemplate,
+			DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+			LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
+		),
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 	};
