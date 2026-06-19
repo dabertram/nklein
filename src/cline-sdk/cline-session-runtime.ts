@@ -30,6 +30,7 @@ import {
 	releaseAllClineLargeFileWorkflows,
 	releaseClineLargeFileWorkflow,
 } from "./cline-large-file-workflow";
+import { CLOUD_ENABLED } from "./cline-local-only-policy";
 import {
 	type ClineMcpRuntimeService,
 	type ClineMcpToolBundle,
@@ -714,7 +715,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			}),
 			...workspaceExtraTools,
 			...createWebResearchTool({
-				enabled: useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),
 			...(mcpToolBundle?.tools ?? []),
 		];

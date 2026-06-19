@@ -375,6 +375,11 @@ const savedClineOauthConfig = {
 	},
 } as unknown as RuntimeConfigResponse;
 
+const cloudEnabledClineOauthConfig = {
+	...savedClineOauthConfig,
+	cloudProviderSupportEnabled: true,
+} as RuntimeConfigResponse;
+
 const debugClineOauthConfig = {
 	...savedClineOauthConfig,
 	developerModeEnabled: true,
@@ -1658,7 +1663,26 @@ describe("RuntimeSettingsDialog", () => {
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("builds, sends, and copies Cline advisor prompts from settings", async () => {
+	it("hides parked advisor actions while cloud provider support is disabled", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		expect(findButtonByText(document.body, "Check models")).toBeNull();
+		expect(findButtonByText(document.body, "Explain config")).toBeNull();
+		expect(findButtonByText(document.body, "Analyze logs")).toBeNull();
+		expect(findButtonByText(document.body, "Find MCP plugins")).toBeNull();
+		expect(buildClineAdvisorRequestMock).not.toHaveBeenCalled();
+	});
+
+	it("builds, sends, and copies Cline advisor prompts when cloud provider support is enabled", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
@@ -1666,9 +1690,9 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...savedClineOauthConfig,
+							...cloudEnabledClineOauthConfig,
 							clineProviderSettings: {
-								...savedClineOauthConfig.clineProviderSettings,
+								...cloudEnabledClineOauthConfig.clineProviderSettings,
 								providerId: "lmstudio",
 								modelId: "loaded-qwen",
 								baseUrl: "http://localhost:1234/v1",
@@ -1732,7 +1756,7 @@ describe("RuntimeSettingsDialog", () => {
 		);
 	});
 
-	it("adds a pasted MCP advisor suggestion to Cline MCP settings", async () => {
+	it("adds a pasted MCP advisor suggestion to Cline MCP settings when cloud provider support is enabled", async () => {
 		buildClineAdvisorRequestMock.mockResolvedValueOnce({
 			kind: "mcp_discovery",
 			title: "Find Useful MCP Plugins",
@@ -1746,7 +1770,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={cloudEnabledClineOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);

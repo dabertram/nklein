@@ -1,6 +1,6 @@
 import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/core";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { AgentSandboxManager } from "../../../src/cline-sdk/cline-agent-sandbox";
+import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/cline-sdk/cline-agent-sandbox";
 import type { ClineRuntimeSetup } from "../../../src/cline-sdk/cline-runtime-setup";
 import type {
 	ClinePersistedTaskSessionSnapshot,
@@ -906,6 +906,72 @@ describe("InMemoryClineTaskSessionService", () => {
 			}),
 		);
 		const summary = service.getSummary("task-race");
+		expect(summary?.state).toBe("awaiting_review");
+		expect(summary?.warningMessage ?? null).toBeNull();
+	});
+
+	it("treats sandbox patch staging teardown as benign when the workspace path disappeared", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		sandboxManager.captureWorkspacePatchMock.mockRejectedValueOnce(
+			new AgentSandboxExecutionError("Could not stage sandbox workspace changes.", {
+				exitCode: 1,
+				stdout: "",
+				stderr:
+					'OCI runtime exec failed: exec failed: unable to start container process: chdir to cwd ("/workspaces/task-missing") failed: no such file or directory',
+			}),
+		);
+		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-missing",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-missing");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "custom",
+					severity: "info",
+					taskId: "task-missing",
+					metadata: expect.objectContaining({
+						category: "agent_sandbox_result_patch",
+						reason: "workspace_missing_before_capture",
+					}),
+				}),
+			);
+		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-missing");
+		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "task-missing" }),
+		);
+		expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				taskId: "task-missing",
+				metadata: expect.objectContaining({
+					category: "agent_sandbox_result_patch",
+				}),
+			}),
+		);
+		const summary = service.getSummary("task-missing");
 		expect(summary?.state).toBe("awaiting_review");
 		expect(summary?.warningMessage ?? null).toBeNull();
 	});

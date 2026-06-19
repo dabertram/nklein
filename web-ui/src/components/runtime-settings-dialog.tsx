@@ -3351,15 +3351,17 @@ export function RuntimeSettingsDialog({
 									onRefreshProviderModels={handleRefreshClineProviderModels}
 									onError={setSaveError}
 								/>
-								<ClineAdvisorActions
-									workspaceId={workspaceId}
-									disabled={controlsDisabled}
-									mcpController={clineMcpSettings}
-									runtimeConfigSummary={advisorRuntimeConfigSummary}
-									advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
-									advisorModelId={config?.clineProviderSettings.modelId ?? ""}
-									onError={setSaveError}
-								/>
+								{cloudProviderSupportEnabled ? (
+									<ClineAdvisorActions
+										workspaceId={workspaceId}
+										disabled={controlsDisabled}
+										mcpController={clineMcpSettings}
+										runtimeConfigSummary={advisorRuntimeConfigSummary}
+										advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
+										advisorModelId={config?.clineProviderSettings.modelId ?? ""}
+										onError={setSaveError}
+									/>
+								) : null}
 								{/* informational dev surface -> developer mode only (works in packaged builds) */}
 								{developerModeEnabled ? (
 									<div className="mt-4 border-t border-border pt-4">

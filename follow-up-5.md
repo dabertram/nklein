@@ -248,28 +248,26 @@ and a **manual-verification debt** that is environmental, not code (§4).
         [agent-write-guard.ts:28-29](src/core/agent-write-guard.ts#L28)), and that adding these entries is the
         only manifest change in scope.
 
-### 3.2 — Parked cloud-dependent features still live in the tree; document + confirm hidden
+### 3.2 — ✅ RESOLVED (2026-06-19): parked cloud-dependent features are documented and hidden
 
-- [~] `cline-advisor.ts`, `cline-model-research.ts`, `cline-team-delegation.ts`, `cline-team-progress.ts`,
-  `cline-trusted-auto-merge.ts`, and `cline-web-research-tool.ts` exist and compile but are **parked**
-  (cloud-dependent or self-merge-off). This is fine, but:
-  - [ ] `specsheet.md` must list each as **PARKED** with the re-enable trigger (cloud revisited / strong local
-        model proven), so a future agent doesn't "discover" them and wire them into the default surface.
-  - [ ] Confirm none of them render any UI affordance while parked (the L0/G5 cloud-hiding sweep should cover
-        advisor/research; spot-check `web-research` and `team` surfaces are not reachable in the local-only UI).
+- [x] `cline-advisor.ts`, `cline-model-research.ts`, `cline-team-delegation.ts`, `cline-team-progress.ts`,
+  `cline-trusted-auto-merge.ts`, and `cline-web-research-tool.ts` remain in the tree as compile-only parked
+  helpers and are listed in `specsheet.md` with their re-enable trigger. Local-only UI/runtime affordances are
+  now gated: Settings advisor actions render only when cloud provider support is enabled, host web research is
+  not registered while `CLOUD_ENABLED=false`, and native SDK team delegation stays disabled even if the legacy
+  env flag is set. Covered by runtime + web-ui regression tests.
 
 ### 3.3 — Agentic workflow consistency under isolation (beyond 2.A)
 
-- [ ] **Acceptance gate / repair / plan-gap under isolation.** Acceptance now runs in the sandbox
-  (`runClineAcceptanceGateInSandbox`) — good. But `cline-acceptance-auto-repair.ts` still imports
-  `resolveTaskCwd` ([:4](src/cline-sdk/cline-acceptance-auto-repair.ts#L4),
-  [:77](src/cline-sdk/cline-acceptance-auto-repair.ts#L77)). Verify the repair loop reads the diff/worktree
-  from the **result branch / sandbox**, not a host worktree, for sandboxed tasks; otherwise repair guidance
-  is computed against an empty/stale host path.
-- [ ] **`nklein task plan-gap` / `expand-plan-task` / `task merge` are host-side CLI mutations.** These are
-  control-plane (board/plan) operations, so under the §2.A recommended resolution they're fine host-side —
-  but confirm they resolve the **owning workspace**, not a (now non-existent) task worktree, when invoked in
-  the new model. (`follow-up-2 F0` made decompose/hooks workspace-aware; re-verify plan-gap/merge.)
+- [x] **Acceptance gate / repair / plan-gap under isolation.** Acceptance now runs in the sandbox
+  (`runClineAcceptanceGateInSandbox`). The automatic repair loop uses the scoped service
+  `verifyTaskAcceptanceInSandbox` path for normal runtime repair checks and no longer depends on a legacy host
+  task worktree; a regression test now passes a `resolveTaskCwd` spy and asserts it is not called on that path.
+- [x] **`nklein task plan-gap` / `expand-plan-task` / `task merge` are host-side CLI mutations.** These are
+  control-plane (board/plan) operations and resolve the owning workspace repo path, not a task worktree:
+  `recordTaskPlanGapCommand` and `expandSavedPlanTaskCommand` derive `workspaceRepoPath` with
+  `resolveWorkspaceRepoPath`, and the merge path already has result-branch coverage asserting
+  `resolveTaskCwd` is not called when a task result branch exists.
 - [ ] **Auto-start / swarm executor vs sandbox queue.** L2 concurrency cap and the sandbox pool queue are two
   separate admission gates. Confirm they compose sanely: a card admitted by `maxConcurrentTasks` but blocked
   by sandbox capacity should show the "Queued — waiting for sandbox capacity" state (it does per findings),
@@ -291,14 +289,12 @@ and a **manual-verification debt** that is environmental, not code (§4).
   `npm run sandbox:build`) rather than only erroring on click — this is the first thing a new user hits if
   they don't have Docker.
 
-### 3.7 — Robustness polish surfaced during §2.C live verification (2026-06-19)
+### 3.7 — ✅ RESOLVED (2026-06-19): robustness polish surfaced during §2.C live verification
 
-- [ ] **Patch capture on interrupt-before-any-edit logs a `runtime_error`.** When a sandbox task is
-  stopped/aborted/disposed while running but before the agent has written anything, `captureWorkspacePatch`
-  fails to stage (empty/no-diff) and emits `runtime_error: "Could not stage sandbox workspace changes."`
-  Treat an empty sandbox workspace as a benign "no changes to capture" (info, not error) so interrupting an
-  idle/early task doesn't pollute diagnostics. Cosmetic, not a functional break (real-change capture works —
-  integration test proves it).
+- [x] **Patch capture on interrupt-before-any-edit logs a `runtime_error`.** Result-patch finalization now
+  treats teardown/no-workspace staging races as benign "no changes to capture" observations (`custom`/`info`)
+  and disposes any still-registered placement, while preserving the warning/error path for real capture
+  failures. Covered by task-session-service regression tests.
 
 ### 3.5 — Code quality / maintainability observations
 

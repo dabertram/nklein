@@ -153,7 +153,7 @@ function readInjectedRepoMapIndex(result: AgentBeforeModelResult | undefined): n
 }
 
 describe("InMemoryClineSessionRuntime", () => {
-	it("passes native SDK team config when team delegation is explicitly enabled", async () => {
+	it("keeps native SDK team config disabled in local-only mode even when explicitly requested", async () => {
 		const previousFlag = process.env.KANBAN_ENABLE_CLINE_TEAMS;
 		process.env.KANBAN_ENABLE_CLINE_TEAMS = "1";
 		const fakeHost = {
@@ -189,11 +189,11 @@ describe("InMemoryClineSessionRuntime", () => {
 
 			expect(fakeHost.start.mock.calls[0]?.[0].config).toEqual(
 				expect.objectContaining({
-					enableAgentTeams: true,
-					enableSpawnAgent: true,
-					teamName: expect.stringContaining("kanban"),
+					enableAgentTeams: false,
+					enableSpawnAgent: false,
 				}),
 			);
+			expect(fakeHost.start.mock.calls[0]?.[0].config).not.toHaveProperty("teamName");
 		} finally {
 			if (previousFlag === undefined) {
 				delete process.env.KANBAN_ENABLE_CLINE_TEAMS;
@@ -563,6 +563,52 @@ describe("InMemoryClineSessionRuntime", () => {
 			// under strict isolation. Host web research stays omitted (it is real network egress).
 			expect(toolNames).toContain("decompose_project");
 			expect(toolNames).toContain("expand_task");
+			expect(toolNames).not.toContain("web_research");
+		} finally {
+			if (previousWebResearch === undefined) {
+				delete process.env.KANBAN_ENABLE_WEB_RESEARCH;
+			} else {
+				process.env.KANBAN_ENABLE_WEB_RESEARCH = previousWebResearch;
+			}
+		}
+	});
+
+	it("keeps host web research parked in local-only mode even when explicitly requested", async () => {
+		const previousWebResearch = process.env.KANBAN_ENABLE_WEB_RESEARCH;
+		process.env.KANBAN_ENABLE_WEB_RESEARCH = "1";
+		try {
+			const fakeHost = {
+				start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+					sessionId: input.config?.sessionId ?? "session-1",
+					result: {},
+				})),
+				send: vi.fn(async () => ({})),
+				stop: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+				delete: vi.fn(async () => true),
+				dispose: vi.fn(async () => {}),
+				get: vi.fn(async () => undefined),
+				list: vi.fn(async () => []),
+				readMessages: vi.fn(async () => []),
+				subscribe: vi.fn(() => () => {}),
+			};
+			const runtime = createInMemoryClineSessionRuntime({
+				createSessionHost: async () => fakeHost,
+				createMcpRuntimeService: createNoopMcpRuntimeService,
+			});
+
+			await runtime.startTaskSession({
+				taskId: "task-web-research",
+				cwd: "/tmp/worktree",
+				prompt: "Research current docs",
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				systemPrompt: "You are a helpful coding assistant.",
+			});
+
+			const startInput = fakeHost.start.mock.calls[0]?.[0];
+			const toolNames = startInput?.localRuntime?.extraTools?.map((tool) => tool.name) ?? [];
+			expect(toolNames).toContain("repo_map");
 			expect(toolNames).not.toContain("web_research");
 		} finally {
 			if (previousWebResearch === undefined) {

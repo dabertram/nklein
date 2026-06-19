@@ -184,6 +184,7 @@ describe("cline acceptance auto repair", () => {
 
 	it("uses the scoped service sandbox verifier for automatic repair checks", async () => {
 		const sendTaskSessionInput = vi.fn(async () => createSummary());
+		const resolveTaskCwd = vi.fn(async () => "/legacy-worktree");
 		const verifyTaskAcceptanceInSandbox = vi.fn(async () => ({
 			present: true,
 			command: "npm test",
@@ -203,6 +204,7 @@ describe("cline acceptance auto repair", () => {
 			},
 			attemptStore: new Map<string, number>(),
 			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
+			resolveTaskCwd,
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
 
@@ -212,6 +214,7 @@ describe("cline acceptance auto repair", () => {
 			baseRef: "main",
 			taskPrompt: "Acceptance check: npm test",
 		});
+		expect(resolveTaskCwd).not.toHaveBeenCalled();
 		expect(outcome).toMatchObject({
 			type: "repair_sent",
 			action: "repair",

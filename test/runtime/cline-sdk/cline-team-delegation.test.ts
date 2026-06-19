@@ -14,16 +14,17 @@ describe("cline team delegation", () => {
 		});
 	});
 
-	it("enables SDK teams for act sessions when explicitly requested", () => {
+	it("keeps SDK teams parked in local-only mode even when explicitly requested", () => {
 		const policy = resolveClineTeamDelegationPolicy({
 			taskId: "Task With Spaces",
 			mode: "act",
 			env: { KANBAN_ENABLE_CLINE_TEAMS: "1" },
 		});
 
-		expect(policy.enabled).toBe(true);
-		expect(policy.teamName).toContain("kanban");
-		expect(policy.teamName).not.toContain(" ");
+		expect(policy).toMatchObject({
+			enabled: false,
+			reason: "SDK team delegation is parked while !Klein is in local-only mode.",
+		});
 	});
 
 	it("does not expose team tools in plan mode", () => {

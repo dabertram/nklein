@@ -26,6 +26,7 @@ import {
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import { runClineAcceptanceGateInSandbox } from "./cline-acceptance-gate";
 import {
+	AgentSandboxExecutionError,
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
 	createAgentSandboxToolExecutors,
@@ -410,6 +411,21 @@ function toErrorMessage(error: unknown): string {
 		}
 	}
 	return "Unknown error";
+}
+
+function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
+	if (!(error instanceof AgentSandboxExecutionError)) {
+		return false;
+	}
+	if (!error.message.startsWith("Could not stage sandbox workspace changes.")) {
+		return false;
+	}
+	const output = `${error.result.stderr}\n${error.result.stdout}`.toLowerCase();
+	return (
+		output.includes("chdir to cwd") ||
+		output.includes("unable to get current working directory") ||
+		output.includes("no such file or directory")
+	);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -2650,18 +2666,27 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				const errorMessage = toErrorMessage(error);
 				// Benign teardown race: the sandbox workspace was disposed concurrently before the patch could
 				// be captured. Genuine capture failures while the workspace still exists fall through below.
-				if (!manager.hasWorkspace(taskId)) {
+				const hasWorkspace = manager.hasWorkspace(taskId);
+				const benignReason = !hasWorkspace
+					? "workspace_disposed_before_capture"
+					: isBenignSandboxPatchStagingTeardown(error)
+						? "workspace_missing_before_capture"
+						: null;
+				if (benignReason) {
 					recordSelfObservation({
 						signal: "custom",
 						severity: "info",
-						message: `Sandbox workspace for task ${taskId} was disposed before a result patch could be captured; nothing to capture.`,
+						message: `Sandbox workspace for task ${taskId} was unavailable before a result patch could be captured; nothing to capture.`,
 						taskId,
 						workspacePath: repoPath,
 						metadata: {
 							category: "agent_sandbox_result_patch",
-							reason: "workspace_disposed_before_capture",
+							reason: benignReason,
 						},
 					});
+					if (hasWorkspace) {
+						await manager.disposeWorkspace(taskId).catch(() => null);
+					}
 					this.forgetSandboxTask(taskId);
 					return;
 				}

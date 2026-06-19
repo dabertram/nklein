@@ -21,8 +21,10 @@
 **Recent (2026-06-19):** §2.A decomposition restored under isolation; §3.1 isolation guard tests protected
 (human-approved); §2.B start-path retirement locked + deletion blockers mapped; §2.C **strict isolation
 verified end-to-end on a real Cline task in Docker against LM Studio** (container observed, no host worktree,
-clean teardown, fail-closed, clean telemetry) via a new scripted runbook. Remaining open: §2.B code deletion
-(UI-gated), §2.C **browser-only** UI checks, and the §3.x polish below.
+clean teardown, fail-closed, clean telemetry) via a new scripted runbook; §3.7 sandbox empty-teardown patch
+capture now records info instead of noisy runtime errors; §3.2 parked cloud-dependent helpers are documented
+and hidden from local-only UI/runtime affordances. Remaining open: §2.B code deletion (UI-gated), §2.C
+**browser-only** UI checks, and the §3.x polish below.
 
 **Done and verified:** L0 cloud lockdown · L1 reliability (never-overflow guard, real effective window,
 local timeouts, back-off, acceptance shell, context bar) · L2 swarm executor (concurrency, auto-start,
@@ -78,17 +80,26 @@ unit+integration tests).
       remediation, zero containers); run telemetry showed **zero** `Insufficient balance` / `1s timeout` /
       `>1M overflow` / `context_overflow` / `provider_error`. **Still owed (needs the in-app browser):**
       Settings isolation status + pool-control inspection, and dev-build UX (no Claude default, registry prune,
-      live loaded-model line, Developer Mode persistence, embedding auto-discovery). Minor polish surfaced:
-      interrupting a still-empty sandbox task logs a `runtime_error` "Could not stage sandbox workspace
-      changes" instead of a benign no-op (see follow-up-5 §3.x).
+      live loaded-model line, Developer Mode persistence, embedding auto-discovery).
 - [x] **🟠 §3.1 — Protect the strict-isolation guard tests.** *(done 2026-06-19, human-approved)* Added
       `cline-agent-sandbox-host-guard`, `cline-agent-sandbox`, and `cline-task-start-guard` to
       `test/protected/protected-tests.json` + README; protected suite now 9 files / 79 tests. Weakening agent
       isolation now requires explicit human approval via the write-guard.
-- [ ] **§3.2/§3.3/§3.4/§3.5/§3.6 — Polish:** document parked cloud features as PARKED in `specsheet.md`;
-      verify acceptance-repair/plan-gap/merge resolve the owning workspace (not a host worktree) under
-      isolation; UX polish for paused/queued/sandbox-unavailable card states + isolation empty state;
-      centralize the legacy predicate; consider extracting sandbox-lifecycle/pause from
+- [x] **§3.7 — Sandbox patch-capture teardown polish.** *(done 2026-06-19)* Result-patch finalization now
+      treats early teardown/no-workspace staging races as benign "no changes to capture" observations and
+      still emits warnings for real capture failures. Covered by task-session-service regression tests.
+- [x] **§3.2 — Parked cloud-dependent features hidden.** *(done 2026-06-19)* Advisor/model-research, host
+      web-research, native Cline teams, and trusted auto-merge remain documented parked helpers; Settings no
+      longer renders advisor actions in local-only mode, host web research is not registered while
+      `CLOUD_ENABLED=false`, and native SDK team delegation stays disabled even if the legacy env flag is set.
+      Covered by runtime + web-ui regression tests.
+- [~] **§3.3 — Agentic workflow consistency under isolation.** *(partly verified 2026-06-19)* Acceptance
+      auto-repair uses the scoped sandbox verifier without resolving a host worktree; plan-gap and
+      expand-plan-task resolve the owning workspace repo path; task merge already has result-branch coverage
+      proving it skips legacy worktree resolution when a result branch exists. Remaining: verify the swarm
+      concurrency cap and sandbox pool queue compose visibly in the card/header UI.
+- [ ] **§3.4/§3.5/§3.6 — Polish:** UX polish for paused/queued/sandbox-unavailable card states + isolation
+      empty state; centralize the legacy predicate; consider extracting sandbox-lifecycle/pause from
       `cline-task-session-service.ts`; reconcile docs so L3 isn't overstated.
 
 ---

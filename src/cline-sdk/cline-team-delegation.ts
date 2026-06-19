@@ -1,5 +1,6 @@
 import { sanitizeTeamName } from "@clinebot/core";
 import type { RuntimeTaskSessionMode } from "../core/api-contract";
+import { CLOUD_ENABLED } from "./cline-local-only-policy";
 
 export interface ClineTeamDelegationPolicyInput {
 	taskId: string;
@@ -19,6 +20,12 @@ function isTruthyEnv(value: string | undefined): boolean {
 
 export function resolveClineTeamDelegationPolicy(input: ClineTeamDelegationPolicyInput): ClineTeamDelegationPolicy {
 	const env = input.env ?? process.env;
+	if (!CLOUD_ENABLED) {
+		return {
+			enabled: false,
+			reason: "SDK team delegation is parked while !Klein is in local-only mode.",
+		};
+	}
 	if (!isTruthyEnv(env.KANBAN_ENABLE_CLINE_TEAMS)) {
 		return {
 			enabled: false,

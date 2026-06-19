@@ -169,6 +169,8 @@
   sandbox container, no host worktree, clean teardown, fail-closed when the image is missing, and clean
   telemetry — via `scripts/verify-strict-isolation.mts`. **Still owed:** browser-only Settings isolation
   status/pool UI inspection.
+- [x] Sandbox result-patch finalization treats early teardown/no-workspace staging races as benign "no changes
+  to capture" observations, while preserving warnings for real capture failures.
 - [ ] **Open:** §2.B retire the parallel host worktree subsystem (code deletion, UI-gated).
 
 ## 10. Runtime control & chat UX  *(shipped)*
@@ -220,7 +222,9 @@
   - `cline-team-delegation.ts` / `cline-team-progress.ts` (native Cline team delegation UI).
   - `cline-trusted-auto-merge.ts` (self-merge safety policy — stays off; `null` regression delta blocks).
   - `cline-web-research-tool.ts` (host web research — also incompatible with `--network none` sandbox).
-  - These compile and are unused; confirm they render **no** UI affordance while parked.
+  - These compile as parked helpers but render no local-only UI affordance: Settings advisor actions are
+    hidden while cloud support is disabled, host web research is not registered while `CLOUD_ENABLED=false`,
+    and native SDK team delegation stays disabled even if the legacy env flag is set.
 
 ---
 
