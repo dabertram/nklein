@@ -960,6 +960,12 @@ to `min-w-[220px]` and wraps awkwardly.
 - [x] `npm --prefix web-ui run test` — green (project-navigation, settings dialog, home-agent-session, model picker).
 - [x] `npx vitest run test/runtime/config/runtime-config.test.ts test/runtime/terminal/agent-registry.test.ts test/runtime/trpc/runtime-api.test.ts` — green.
 - [ ] **Manual (dev build: `npm run web:dev` + runtime):**
+  - Recheck on 2026-06-19: started the source runtime and Vite against isolated
+    `HOME=/private/tmp/nklein-follow-up-4-home` so the user's real `~/.cline/nklein` config was not mutated.
+    Runtime responded at `http://127.0.0.1:3484/api/trpc/projects.list` with an empty fresh project list, and Vite
+    responded `200 OK` at `http://127.0.0.1:4173/`. The in-app browser could not complete manual UI inspection because
+    new local tabs timed out while attaching to the Browser webview, so the visible Settings/onboarding checks below
+    remain open.
   - [ ] Fresh config: nothing defaults to Claude; only the local Cline agent appears anywhere (settings shows the
     static "Local Cline agent (cloud disabled)" line, onboarding lists `cline` only).
   - [ ] Settings → model context windows: junk LM Studio rows are hidden; "Clear stale models" / per-row remove

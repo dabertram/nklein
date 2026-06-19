@@ -92,6 +92,16 @@
   - Do not mark the remaining strict-isolation manual checks complete until `npm run sandbox:build` finishes,
     `docker image inspect nklein-agent-sandbox:latest` succeeds, and real task starts can be observed in Docker.
 
+- [ ] Complete dev-build manual UI verification when the in-app browser can attach to local tabs.
+  - Rechecked on 2026-06-19 with an isolated runtime home at `/private/tmp/nklein-follow-up-4-home` to avoid mutating
+    the user's real `~/.cline/nklein` config.
+  - Runtime and Vite started successfully after running the local dev servers outside the filesystem sandbox: the
+    runtime responded at `http://127.0.0.1:3484/api/trpc/projects.list` with `currentProjectId:null` and an empty
+    project list, and Vite responded `200 OK` at `http://127.0.0.1:4173/`.
+  - Manual UI inspection could not be completed because new in-app Browser local tabs repeatedly timed out while
+    attaching to the Browser webview. Leave the fresh-config, Settings model-registry, live-loaded-model,
+    Developer Mode, and embedding-settings checklist items open until visible UI inspection can run.
+
 - [x] Finish per-card pause/resume as a complete API + UI feature, not just a service primitive.
   - Per-card pause now persists to `.cline/nklein/paused-tasks.json`, exposes `pauseTask` / `resumeTask` tRPC mutations, flips the shared `ClinePauseController`, and threads Pause/Resume controls through the board.
   - Mutation responses update the parent session summary immediately, and the board overlays returned paused task ids so the card control flips without waiting for the next session event.
