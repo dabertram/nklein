@@ -913,7 +913,7 @@ export function useBoardInteractions({
 			void (async () => {
 				try {
 					await stopTaskSession(taskId);
-					const cleanupResult = await cleanupTaskWorkspace(taskId);
+					const cleanupResult = await cleanupTaskWorkspace(taskId, { preserveChanges: false });
 					if (cleanupResult === null) {
 						notifyError("Could not clean up the previous task workspace.");
 						return;

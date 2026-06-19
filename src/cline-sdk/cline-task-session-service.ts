@@ -17,7 +17,11 @@ import { RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-cont
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
-import { applyTaskPatchToResultBranch, type TaskResultBranch } from "../workspace/task-result-branches";
+import {
+	applyTaskPatchToResultBranch,
+	resolveTaskResultBranchCommit,
+	type TaskResultBranch,
+} from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import {
 	type AgentSandboxManager,
@@ -579,14 +583,21 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		const projectRepoPath = request.workspaceRoot?.trim() || request.cwd;
 		await this.agentSandboxManager.assertAvailable();
+		const resumeResultCommit = request.resumeFromTrash
+			? await resolveTaskResultBranchCommit({
+					repoPath: projectRepoPath,
+					taskId: request.taskId,
+				})
+			: null;
+		const baseRef = resumeResultCommit ?? request.baseRef ?? null;
 		const workspace = await this.agentSandboxManager.prepareWorkspace({
 			taskId: request.taskId,
 			projectRepoPath,
-			baseRef: request.baseRef ?? null,
+			baseRef,
 			onQueued: options?.onQueued,
 		});
 		this.sandboxRepoPathByTaskId.set(request.taskId, projectRepoPath);
-		this.sandboxBaseRefByTaskId.set(request.taskId, request.baseRef?.trim() || "HEAD");
+		this.sandboxBaseRefByTaskId.set(request.taskId, baseRef?.trim() || "HEAD");
 		return {
 			manager: this.agentSandboxManager,
 			workdir: workspace.workdir,

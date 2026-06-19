@@ -41,6 +41,7 @@ const selfObservationMocks = vi.hoisted(() => ({
 
 const taskResultBranchMocks = vi.hoisted(() => ({
 	applyTaskPatchToResultBranch: vi.fn(),
+	resolveTaskResultBranchCommit: vi.fn(),
 }));
 
 vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
@@ -50,6 +51,7 @@ vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
 
 vi.mock("../../../src/workspace/task-result-branches.js", () => ({
 	applyTaskPatchToResultBranch: taskResultBranchMocks.applyTaskPatchToResultBranch,
+	resolveTaskResultBranchCommit: taskResultBranchMocks.resolveTaskResultBranchCommit,
 }));
 
 vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
@@ -478,6 +480,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		turnCheckpointMocks.deleteTaskTurnCheckpointRef.mockReset();
 		selfObservationMocks.recordSelfObservation.mockReset();
 		taskResultBranchMocks.applyTaskPatchToResultBranch.mockReset();
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockReset();
 		taskResultBranchMocks.applyTaskPatchToResultBranch.mockImplementation(async (input: { taskId: string }) => ({
 			taskId: input.taskId,
 			branchName: `nklein/tasks/${input.taskId}`,
@@ -485,6 +488,7 @@ describe("InMemoryClineTaskSessionService", () => {
 			baseCommit: "base-commit",
 			headCommit: "result-commit",
 		}));
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue(null);
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockImplementation(
 			async (input: { taskId: string; turn: number }) => ({
 				turn: input.turn,
@@ -674,6 +678,40 @@ describe("InMemoryClineTaskSessionService", () => {
 			state: "running",
 			workspacePath: "/workspaces/task-queued",
 		});
+	});
+
+	it("resumes trashed sandbox tasks from the task result branch when it exists", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-branch-commit");
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-trash",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "",
+			resumeFromTrash: true,
+		});
+
+		expect(taskResultBranchMocks.resolveTaskResultBranchCommit).toHaveBeenCalledWith({
+			repoPath: "/tmp/project",
+			taskId: "task-trash",
+		});
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-trash",
+				projectRepoPath: "/tmp/project",
+				baseRef: "result-branch-commit",
+			}),
+		);
 	});
 
 	it("disposes a sandbox workspace when SDK start fails", async () => {

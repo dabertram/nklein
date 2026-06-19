@@ -1482,7 +1482,7 @@ describe("useBoardInteractions", () => {
 			'Replay "Finished task" from scratch? This stops any existing session and deletes the previous task workspace.',
 		);
 		expect(stopTaskSession).toHaveBeenCalledWith("task-review");
-		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-review");
+		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-review", { preserveChanges: false });
 		expect(ensureTaskWorkspace).toHaveBeenCalledWith(reviewTask);
 		expect(startTaskSession).toHaveBeenCalledWith(reviewTask, { queueOnEndpointBusy: true });
 		const replayedTask = currentBoard.columns.find((column) => column.id === "in_progress")?.cards[0];

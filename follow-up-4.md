@@ -247,12 +247,13 @@ isolated from other tasks. This is the larger implementation effort and it is wo
     apply it through a temporary Git index + `commit-tree` without touching the user's checkout, dispose the sandbox
     workspace after successful capture, and route review diff/evidence/merge flows to the result branch before falling
     back to legacy host worktrees.
-- [ ] **Cleanup:** `manager.exec(taskId, ["rm","-rf","/workspaces/<taskId>"])` + drop the uid mapping on task
+- [x] **Cleanup:** `manager.exec(taskId, ["rm","-rf","/workspaces/<taskId>"])` + drop the uid mapping on task
   end/trash; discard any saved patch on delete. Removing the container (J4 idle stop / `stopNow`) wipes the volume —
   **zero residue on the host filesystem**.
   - Review completion, stop, abort, clear, start-failure, and service disposal now release sandbox workspaces. Task
     permanent delete, project removal, and dev cleanup now discard task result branches when `preserveChanges=false`.
-    Trash/restore semantics still need result-branch reconciliation before this box can close.
+    Trash restore now resumes from the task result branch when one exists; Replay passes `preserveChanges=false`
+    because it is a destructive reset from the original prompt.
 - [ ] **Reconcile the existing worktree subsystem:** host-worktree assumptions in `src/workspace/` (worktree path,
   health checks for "accidental worktree projects", saved task patches, cleanup, and the related notes in AGENTS.md)
   must be updated to the container-workspace model or retired. Keep the diff/merge UX identical from the user's point
@@ -296,7 +297,7 @@ agents in one container still cannot read each other's files.
   runtime so the J1 executor shims exec into this task's workspace (thread through the
   `StartClineTaskSessionRequest` / `request.cwd` carrier at
   [cline-session-runtime.ts:580](src/cline-sdk/cline-session-runtime.ts#L580)).
-- [ ] **On task end** (`stopTaskSession` [L1545](src/cline-sdk/cline-task-session-service.ts#L1545), `abortTaskSession`
+- [x] **On task end** (`stopTaskSession` [L1545](src/cline-sdk/cline-task-session-service.ts#L1545), `abortTaskSession`
   [L1591](src/cline-sdk/cline-task-session-service.ts#L1591), error/park, completion): extract the patch (J3b), then
   `await manager.disposeWorkspace(taskId)` (releases the slot, dequeues the next queued task, and arms the container's
   idle timer only if it is now empty). **Never** stop a container because a single task ended — it may host others and
