@@ -10,8 +10,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
+import { runClineAcceptanceGateInSandbox } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
+import { AgentSandboxManager } from "../cline-sdk/cline-agent-sandbox";
 import { createClineCodeEmbeddingProviderFromSettings } from "../cline-sdk/cline-code-embeddings";
 import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
 import {
@@ -945,22 +946,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: `Task "${input.taskId}" was not found.`,
 				});
 			}
-			const taskWorkspacePath = await resolveTaskCwd({
-				cwd: workspaceScope.workspacePath,
+			const sandboxManager = new AgentSandboxManager();
+			const acceptance = await runClineAcceptanceGateInSandbox({
 				taskId: input.taskId,
+				projectRepoPath: workspaceScope.workspacePath,
 				baseRef: taskRecord.card.baseRef,
-				ensure: input.ensureWorktree ?? true,
-			});
-			const acceptance = await runClineAcceptanceGate({
-				taskId: input.taskId,
-				workspacePath: taskWorkspacePath,
 				taskPrompt: taskRecord.card.prompt,
 				timeoutMs: input.timeoutMs,
+				sandboxManager,
 			});
 			return {
 				ok: acceptance.present === true && acceptance.passed === true,
 				taskId: input.taskId,
-				taskWorkspacePath,
+				taskWorkspacePath: null,
 				acceptance,
 				message: formatAcceptanceVerifyMessage(acceptance),
 			};
@@ -1046,14 +1044,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						};
 					}
 				}
-				const taskCwd = isHomeAgentSessionId(body.taskId)
-					? workspaceScope.workspacePath
-					: await resolveExistingTaskCwdOrEnsure({
-							cwd: workspaceScope.workspacePath,
-							taskId: body.taskId,
-							baseRef: body.baseRef,
-						});
-				const shouldCaptureTurnCheckpoint = !body.resumeFromTrash && !isHomeAgentSessionId(body.taskId);
+				const isHomeSession = isHomeAgentSessionId(body.taskId);
 
 				// Per-task config source-of-truth precedence:
 				//
@@ -1223,8 +1214,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					const resolvedClineTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
 					const summary = await clineTaskSessionService.startTaskSession({
 						taskId: body.taskId,
-						cwd: taskCwd,
+						cwd: workspaceScope.workspacePath,
 						workspaceRoot: workspaceScope.workspacePath,
+						baseRef: body.baseRef,
 						prompt: body.prompt,
 						taskTitle: resolvedClineTitle.length > 0 ? resolvedClineTitle : undefined,
 						images: body.images,
@@ -1248,35 +1240,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						codeEmbeddingProvider,
 					});
 
-					let nextSummary = summary;
-					if (shouldCaptureTurnCheckpoint) {
-						try {
-							const nextTurn = (summary.latestTurnCheckpoint?.turn ?? 0) + 1;
-							const checkpoint = await captureTaskTurnCheckpoint({
-								cwd: taskCwd,
-								taskId: body.taskId,
-								turn: nextTurn,
-							});
-							nextSummary = clineTaskSessionService.applyTurnCheckpoint(body.taskId, checkpoint) ?? summary;
-						} catch (error) {
-							const message = error instanceof Error ? error.message : String(error);
-							recordSelfObservation({
-								signal: "runtime_error",
-								severity: "warning",
-								message: `Task checkpoint capture failed: ${message}`,
-								taskId: body.taskId,
-								workspacePath: workspaceScope.workspacePath,
-								metadata: {
-									operation: "capture_task_turn_checkpoint",
-									agentId: "cline",
-								},
-							});
-						}
-					}
-
 					return {
 						ok: true,
-						summary: nextSummary,
+						summary,
 					};
 				}
 
@@ -1292,6 +1258,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						error: "No runnable agent command is configured. Open Settings, install a supported CLI, and select it.",
 					};
 				}
+				const taskCwd = isHomeSession
+					? workspaceScope.workspacePath
+					: await resolveExistingTaskCwdOrEnsure({
+							cwd: workspaceScope.workspacePath,
+							taskId: body.taskId,
+							baseRef: body.baseRef,
+						});
 				const summary = await terminalManager.startTaskSession({
 					taskId: body.taskId,
 					agentId: resolved.agentId,
@@ -1309,7 +1282,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				});
 
 				let nextSummary = summary;
-				if (shouldCaptureTurnCheckpoint) {
+				if (!body.resumeFromTrash && !isHomeSession) {
 					try {
 						const nextTurn = (summary.latestTurnCheckpoint?.turn ?? 0) + 1;
 						const checkpoint = await captureTaskTurnCheckpoint({

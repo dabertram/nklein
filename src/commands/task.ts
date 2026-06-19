@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 
-import { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
+import { type runClineAcceptanceGate, runClineAcceptanceGateInSandbox } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan, type ClineAcceptanceRepairAction } from "../cline-sdk/cline-acceptance-repair";
+import { AgentSandboxManager } from "../cline-sdk/cline-agent-sandbox";
 import {
 	applyClinePlanTaskGraphToBoard,
 	applyClinePlanTaskReplacementArtifacts,
@@ -1122,20 +1123,33 @@ export async function runVerifyTaskAcceptanceCommand(
 		throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
 	}
 
-	const taskWorkspacePath = input.workspaceRoot
-		? workspaceRepoPath
-		: await (deps.resolveTaskCwd ?? resolveTaskCwd)({
-				cwd: workspaceRepoPath,
+	let taskWorkspacePath: string | null = null;
+	const runAcceptanceGate = deps.runAcceptanceGate;
+	const result = runAcceptanceGate
+		? await (async () => {
+				taskWorkspacePath = input.workspaceRoot
+					? workspaceRepoPath
+					: await (deps.resolveTaskCwd ?? resolveTaskCwd)({
+							cwd: workspaceRepoPath,
+							taskId: input.taskId,
+							baseRef: taskRecord.task.baseRef,
+							ensure: input.ensureWorktree === true,
+						});
+				return await runAcceptanceGate({
+					taskId: input.taskId,
+					workspacePath: taskWorkspacePath,
+					taskPrompt: taskRecord.task.prompt,
+					timeoutMs: input.timeoutMs,
+				});
+			})()
+		: await runClineAcceptanceGateInSandbox({
 				taskId: input.taskId,
+				projectRepoPath: workspaceRepoPath,
 				baseRef: taskRecord.task.baseRef,
-				ensure: input.ensureWorktree === true,
+				taskPrompt: taskRecord.task.prompt,
+				timeoutMs: input.timeoutMs,
+				sandboxManager: new AgentSandboxManager(),
 			});
-	const result = await (deps.runAcceptanceGate ?? runClineAcceptanceGate)({
-		taskId: input.taskId,
-		workspacePath: taskWorkspacePath,
-		taskPrompt: taskRecord.task.prompt,
-		timeoutMs: input.timeoutMs,
-	});
 
 	const ok = result.present === true && result.passed === true;
 	const repair = ok
@@ -1170,7 +1184,7 @@ export async function runVerifyTaskAcceptanceCommand(
 	return {
 		ok,
 		workspacePath: workspaceRepoPath,
-		taskWorkspacePath,
+		taskWorkspacePath: taskWorkspacePath ?? (input.workspaceRoot ? workspaceRepoPath : null),
 		task: formatTaskRecord(state, taskRecord.task, taskRecord.columnId),
 		acceptance: result,
 		...(repair ? { repair } : {}),

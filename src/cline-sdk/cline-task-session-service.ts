@@ -18,6 +18,7 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./cline-agent-sandbox";
 import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
@@ -130,6 +131,7 @@ export interface StartClineTaskSessionRequest {
 	taskId: string;
 	cwd: string;
 	workspaceRoot?: string | null;
+	baseRef?: string | null;
 	prompt: string;
 	startInPlanMode?: boolean;
 	/** Normalized !Klein task title; written to SDK session metadata (best-effort). */
@@ -351,6 +353,7 @@ export interface CreateInMemoryClineTaskSessionServiceOptions {
 	createMessageRepository?: () => ClineMessageRepository;
 	createRuntimeSetup?: (workspacePath: string) => Promise<ClineRuntimeSetup>;
 	watcherRegistry?: ClineWatcherRegistry;
+	agentSandboxManager?: AgentSandboxManager;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -497,6 +500,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly sessionRuntime: ClineSessionRuntime;
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
+	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<ClineRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeClineTeamProgressEvent) => void>();
 
@@ -514,6 +518,27 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			},
 		});
 		this.messageRepository = createMessageRepository();
+		this.agentSandboxManager = options.agentSandboxManager ?? null;
+	}
+
+	private async prepareSandboxWorkspace(request: StartClineTaskSessionRequest): Promise<{
+		manager: AgentSandboxManager;
+		workdir: string;
+	} | null> {
+		if (!this.agentSandboxManager) {
+			return null;
+		}
+		const projectRepoPath = request.workspaceRoot?.trim() || request.cwd;
+		await this.agentSandboxManager.assertAvailable();
+		const workspace = await this.agentSandboxManager.prepareWorkspace({
+			taskId: request.taskId,
+			projectRepoPath,
+			baseRef: request.baseRef ?? null,
+		});
+		return {
+			manager: this.agentSandboxManager,
+			workdir: workspace.workdir,
+		};
 	}
 
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void {
@@ -1324,6 +1349,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		this.noDiffCheckpointByTaskId.delete(request.taskId);
 		this.repeatedToolCallByTaskId.delete(request.taskId);
+		const sandboxWorkspace = await this.prepareSandboxWorkspace(request);
+		const effectiveCwd = sandboxWorkspace?.workdir ?? request.cwd;
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
@@ -1366,7 +1393,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			? createTaskEntryFromPersistedSession(request.taskId, persistedResumeSnapshot.messages, {
 					state: initialState,
 					mode: resolvedMode,
-					workspacePath: request.cwd,
+					workspacePath: effectiveCwd,
 					providerId,
 					modelId,
 					endpoint,
@@ -1380,7 +1407,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						...createDefaultSummary(request.taskId),
 						state: initialState,
 						mode: resolvedMode,
-						workspacePath: request.cwd,
+						workspacePath: effectiveCwd,
 						providerId,
 						modelId,
 						endpoint,
@@ -1484,7 +1511,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				this.markModelRequestStarted(request.taskId);
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
-					cwd: request.cwd,
+					cwd: effectiveCwd,
 					workspaceRoot: request.workspaceRoot,
 					prompt: runtimePrompt,
 					taskTitle: request.taskTitle,
@@ -1507,6 +1534,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						contextWindow: requestContextWindow,
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 					}),
+					toolExecutors: sandboxWorkspace
+						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId)
+						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);
@@ -1535,6 +1565,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				}
 			} catch (error) {
 				this.clearTaskTimeouts(request.taskId);
+				await sandboxWorkspace?.manager.disposeWorkspace(request.taskId).catch(() => null);
 				this.emitTaskFailure(request.taskId, entry, "start", error);
 			}
 		})();
@@ -1568,6 +1599,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
 		}
@@ -1604,6 +1636,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
+		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		const summary = updateSummary(entry, {
 			state: "interrupted",
 			reviewReason: "interrupted",
@@ -1895,6 +1928,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
+		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.messageRepository.clearHydratedTaskMessages(taskId);
 		if (!existingEntry) {
 			return null;
@@ -2209,6 +2243,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.noDiffCheckpointByTaskId.clear();
 		this.repeatedToolCallByTaskId.clear();
 		this.teamProgressListeners.clear();
+		await this.agentSandboxManager?.stopNow().catch(() => null);
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
 			try {
 				const lease = await leasePromise;

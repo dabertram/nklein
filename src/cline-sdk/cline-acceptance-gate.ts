@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import type { AgentSandboxManager } from "./cline-agent-sandbox";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -35,6 +36,13 @@ export interface RunClineAcceptanceGateOptions {
 		stderr?: string;
 	}>;
 	recordObservation?: typeof recordSelfObservation;
+}
+
+export interface RunClineAcceptanceGateInSandboxOptions
+	extends Omit<RunClineAcceptanceGateOptions, "workspacePath" | "runCommand"> {
+	sandboxManager: AgentSandboxManager;
+	projectRepoPath: string;
+	baseRef?: string | null;
 }
 
 export function extractClineAcceptanceCommand(taskPrompt: string): string | null {
@@ -143,4 +151,34 @@ export async function runClineAcceptanceGate(
 		output,
 		durationMs: Math.max(0, finishedAt - startedAt),
 	};
+}
+
+export async function runClineAcceptanceGateInSandbox(
+	options: RunClineAcceptanceGateInSandboxOptions,
+): Promise<ClineAcceptanceGateResult> {
+	if (!options.taskId) {
+		throw new Error("A task id is required to run the acceptance gate in the agent sandbox.");
+	}
+	await options.sandboxManager.assertAvailable();
+	const workspace = await options.sandboxManager.prepareWorkspace({
+		taskId: options.taskId,
+		projectRepoPath: options.projectRepoPath,
+		baseRef: options.baseRef ?? null,
+	});
+	try {
+		return await runClineAcceptanceGate({
+			...options,
+			workspacePath: workspace.workdir,
+			runCommand: async (execution) => {
+				const shellExecution = resolveShellExecution(execution.command);
+				return await options.sandboxManager.exec(
+					options.taskId ?? "",
+					[shellExecution.binary, ...shellExecution.args],
+					{ timeoutMs: execution.timeoutMs },
+				);
+			},
+		});
+	} finally {
+		await options.sandboxManager.disposeWorkspace(options.taskId).catch(() => null);
+	}
 }

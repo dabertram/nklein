@@ -152,7 +152,7 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
   the shared container. (Rationale: never re-implement `apply_patch`/`editor` semantics by hand.)
 
 ### J2. The sandbox image (new) — `docker/agent-sandbox/`
-- [ ] Add `docker/agent-sandbox/Dockerfile`:
+- [x] Add `docker/agent-sandbox/Dockerfile`:
   - Base `FROM node:22-bookworm-slim` **pinned by digest** (`node:22-bookworm-slim@sha256:…`); **never `:latest`**.
   - `RUN apt-get update && apt-get install -y --no-install-recommends git ripgrep ca-certificates python3 && rm -rf /var/lib/apt/lists/*`.
   - `RUN mkdir -m 1777 /workspaces` (a fresh named volume inherits this mode, so per-task uids can create their own
@@ -160,10 +160,10 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
     pass `-u <taskUid>` at runtime.
   - `COPY` the bundled `tool-runner.mjs` (+ its node_modules or a bundled single file) to `/opt/nklein/`.
   - No secrets, no `ENV` credentials.
-- [ ] Build script `scripts/build-agent-sandbox.mjs` + npm script `"sandbox:build"` that builds and tags
+- [x] Build script `scripts/build-agent-sandbox.mjs` + npm script `"sandbox:build"` that builds and tags
   `nklein/agent-sandbox:<package.json version>`. Resolve the image name from env `NKLEIN_AGENT_SANDBOX_IMAGE`,
   defaulting to that pinned tag.
-- [ ] The `tool-runner` is built from a new `src/cline-sdk/agent-sandbox/tool-runner.ts` via esbuild into a single
+- [x] The `tool-runner` is built from a new `src/cline-sdk/agent-sandbox/tool-runner.ts` via esbuild into a single
   `.mjs` during `sandbox:build` (and on `npm run build`).
 
 ### J3. The sandbox boundary module (new) — `src/cline-sdk/cline-agent-sandbox.ts`
@@ -303,7 +303,7 @@ agents in one container still cannot read each other's files.
   any container left by a previous crash before starting a fresh one. The volume is recreated clean; nothing persists.
 
 ### J5. Route the remaining host-touching agent surfaces through the container
-- [ ] **Acceptance gate.** [cline-acceptance-gate.ts](src/cline-sdk/cline-acceptance-gate.ts) `defaultRunCommand`
+- [x] **Acceptance gate.** [cline-acceptance-gate.ts](src/cline-sdk/cline-acceptance-gate.ts) `defaultRunCommand`
   (L63) execs `/bin/sh -c` on the host via `execFileAsync`. The gate already accepts an injectable
   `options.runCommand` ([L32](src/cline-sdk/cline-acceptance-gate.ts#L32)). Every caller that runs the gate for a
   task **must** pass `runCommand` = a shim over `manager.exec(taskId, ["/bin/sh","-c",command])` (runs

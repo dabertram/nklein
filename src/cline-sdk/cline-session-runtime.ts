@@ -1,6 +1,8 @@
 // Owns the live SDK session host plus taskId to sessionId bindings.
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native Cline sessions without exposing SDK details upstream.
+
+import type { ToolExecutors } from "@clinebot/core";
 import type {
 	AgentAfterToolContext,
 	AgentBeforeModelContext,
@@ -446,6 +448,7 @@ export interface StartClineSessionRuntimeRequest {
 	userInstructionService?: ClineSdkUserInstructionService;
 	toolPolicies?: ClineSdkStartSessionInput["toolPolicies"];
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
+	toolExecutors?: Partial<ToolExecutors>;
 	onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 }
 
@@ -800,7 +803,14 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 					}),
 					extraTools,
 				},
-				...(requestToolApproval ? { capabilities: { requestToolApproval } } : {}),
+				...(requestToolApproval || request.toolExecutors
+					? {
+							capabilities: {
+								...(requestToolApproval ? { requestToolApproval } : {}),
+								...(request.toolExecutors ? { toolExecutors: request.toolExecutors } : {}),
+							},
+						}
+					: {}),
 				...(request.toolPolicies ? { toolPolicies: request.toolPolicies } : {}),
 			});
 		} catch (error) {

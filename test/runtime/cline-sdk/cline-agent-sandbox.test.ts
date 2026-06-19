@@ -1,0 +1,124 @@
+import type { execFile } from "node:child_process";
+import { describe, expect, it, vi } from "vitest";
+import {
+	AgentSandboxManager,
+	AgentSandboxUnavailableError,
+	buildAgentSandboxDockerRunArgs,
+	createAgentSandboxTaskUid,
+	normalizeAgentSandboxPoolConfig,
+} from "../../../src/cline-sdk/cline-agent-sandbox";
+
+function createExecFileStub(options?: { failVersion?: boolean; failImageInspect?: boolean }): {
+	execFile: typeof execFile;
+	calls: string[][];
+} {
+	const calls: string[][] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (options?.failVersion && args[0] === "version") {
+			done(Object.assign(new Error("docker missing"), { code: 127, stdout: "", stderr: "command not found" }));
+			return {} as ReturnType<typeof execFile>;
+		}
+		if (options?.failImageInspect && args.join(" ") === "image inspect test-image") {
+			done(Object.assign(new Error("missing image"), { code: 1, stdout: "", stderr: "No such image" }));
+			return {} as ReturnType<typeof execFile>;
+		}
+		const stdout = args[0] === "run" ? "container-id\n" : "";
+		done(null, { stdout, stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+	};
+}
+
+describe("AgentSandboxManager", () => {
+	it("builds a locked-down docker run command", () => {
+		const args = buildAgentSandboxDockerRunArgs({
+			slot: 1,
+			image: "test-image",
+			projectMounts: [{ projectKey: "abc123", projectRepoPath: "/repo" }],
+			config: normalizeAgentSandboxPoolConfig({
+				maxContainers: 1,
+				agentsPerContainer: 2,
+				memoryPerContainerMb: 2048,
+				cpusPerContainer: 1.5,
+			}),
+		});
+
+		expect(args).toContain("--network");
+		expect(args).toContain("none");
+		expect(args).toContain("--cap-drop");
+		expect(args).toContain("ALL");
+		expect(args).toContain("--security-opt");
+		expect(args).toContain("no-new-privileges");
+		expect(args).toContain("--read-only");
+		expect(args).toContain("--tmpfs");
+		expect(args).toContain("/tmp:noexec,nosuid,size=512m");
+		expect(args).toContain("--memory");
+		expect(args).toContain("2048m");
+		expect(args).toContain("--cpus");
+		expect(args).toContain("1.5");
+		expect(args).toContain("--pids-limit");
+		expect(args).toContain("512");
+		expect(args).toContain("type=volume,src=nklein-agent-ws-1,dst=/workspaces");
+		expect(args).toContain("type=bind,src=/repo,dst=/repos/abc123,readonly");
+		expect(args.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
+	});
+
+	it("fails closed when docker is unavailable", async () => {
+		const { execFile: execFileStub } = createExecFileStub({ failVersion: true });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await expect(manager.assertAvailable()).rejects.toBeInstanceOf(AgentSandboxUnavailableError);
+	});
+
+	it("fails closed when the sandbox image is missing", async () => {
+		const { execFile: execFileStub } = createExecFileStub({ failImageInspect: true });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await expect(manager.assertAvailable()).rejects.toThrow("sandbox image test-image is unavailable");
+	});
+
+	it("queues tasks when the pool is full and reuses the freed container", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		const first = await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const queued = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		let queuedResolved = false;
+		void queued.then(() => {
+			queuedResolved = true;
+		});
+		await Promise.resolve();
+
+		expect(first.slot).toBe(1);
+		expect(queuedResolved).toBe(false);
+
+		await manager.disposeWorkspace("task-1");
+		const second = await queued;
+
+		expect(second.slot).toBe(1);
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+	});
+
+	it("assigns stable unprivileged task uids", () => {
+		const first = createAgentSandboxTaskUid("task-1");
+		const second = createAgentSandboxTaskUid("task-1");
+
+		expect(first).toBe(second);
+		expect(first).toBeGreaterThanOrEqual(70_000);
+		expect(first).toBeLessThan(90_000);
+	});
+});

@@ -771,7 +771,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("reuses an existing worktree path before falling back to ensure", async () => {
+	it("starts Cline tasks without resolving a host task worktree", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		setSelectedProviderSettings({
 			provider: "ollama",
@@ -808,22 +808,18 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(taskWorktreeMocks.resolveTaskCwd).toHaveBeenCalledTimes(1);
-		expect(taskWorktreeMocks.resolveTaskCwd).toHaveBeenCalledWith({
-			cwd: "/tmp/repo",
-			taskId: "task-1",
-			baseRef: "main",
-			ensure: false,
-		});
+		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
 		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
-				cwd: "/tmp/existing-worktree",
+				cwd: "/tmp/repo",
+				workspaceRoot: "/tmp/repo",
+				baseRef: "main",
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("ensures the worktree when no existing task cwd is available", async () => {
+	it("still avoids host worktree creation for Cline when no existing task cwd is available", async () => {
 		taskWorktreeMocks.resolveTaskCwd
 			.mockRejectedValueOnce(new Error("missing"))
 			.mockResolvedValueOnce("/tmp/new-worktree");
@@ -862,21 +858,12 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(taskWorktreeMocks.resolveTaskCwd).toHaveBeenNthCalledWith(1, {
-			cwd: "/tmp/repo",
-			taskId: "task-1",
-			baseRef: "main",
-			ensure: false,
-		});
-		expect(taskWorktreeMocks.resolveTaskCwd).toHaveBeenNthCalledWith(2, {
-			cwd: "/tmp/repo",
-			taskId: "task-1",
-			baseRef: "main",
-			ensure: true,
-		});
+		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
 		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
-				cwd: "/tmp/new-worktree",
+				cwd: "/tmp/repo",
+				workspaceRoot: "/tmp/repo",
+				baseRef: "main",
 			}),
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
@@ -1079,7 +1066,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
-				cwd: "/tmp/existing-worktree",
+				cwd: "/tmp/repo",
+				workspaceRoot: "/tmp/repo",
+				baseRef: "main",
 				prompt: "Continue task",
 				images: [
 					{

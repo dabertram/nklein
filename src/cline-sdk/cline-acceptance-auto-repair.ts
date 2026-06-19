@@ -2,8 +2,9 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { resolveTaskCwd } from "../workspace/task-worktree";
-import { runClineAcceptanceGate } from "./cline-acceptance-gate";
+import { type runClineAcceptanceGate, runClineAcceptanceGateInSandbox } from "./cline-acceptance-gate";
 import { buildClineAcceptanceRepairPlan } from "./cline-acceptance-repair";
+import { AgentSandboxManager } from "./cline-agent-sandbox";
 import type { ClineTaskLaunchConfigOverrides, ClineTaskSessionService } from "./cline-task-session-service";
 
 const DEFAULT_AUTO_REPAIR_MAX_ATTEMPTS = 2;
@@ -71,21 +72,33 @@ export async function runClineAcceptanceAutoRepair(
 		return { type: "skipped", reason: "task_not_found" };
 	}
 
-	const taskWorkspacePath = await (input.resolveTaskCwd ?? resolveTaskCwd)({
-		cwd: input.workspacePath,
-		taskId: input.taskId,
-		baseRef: taskRecord.task.baseRef,
-		ensure: false,
-	}).catch(() => null);
-	if (!taskWorkspacePath) {
+	const acceptance = input.runAcceptanceGate
+		? await (async () => {
+				const taskWorkspacePath = await (input.resolveTaskCwd ?? resolveTaskCwd)({
+					cwd: input.workspacePath,
+					taskId: input.taskId,
+					baseRef: taskRecord.task.baseRef,
+					ensure: false,
+				}).catch(() => null);
+				if (!taskWorkspacePath) {
+					return null;
+				}
+				return await input.runAcceptanceGate?.({
+					taskId: input.taskId,
+					workspacePath: taskWorkspacePath,
+					taskPrompt: taskRecord.task.prompt,
+				});
+			})()
+		: await runClineAcceptanceGateInSandbox({
+				taskId: input.taskId,
+				projectRepoPath: input.workspacePath,
+				baseRef: taskRecord.task.baseRef,
+				taskPrompt: taskRecord.task.prompt,
+				sandboxManager: new AgentSandboxManager(),
+			});
+	if (!acceptance) {
 		return { type: "skipped", reason: "worktree_unavailable" };
 	}
-
-	const acceptance = await (input.runAcceptanceGate ?? runClineAcceptanceGate)({
-		taskId: input.taskId,
-		workspacePath: taskWorkspacePath,
-		taskPrompt: taskRecord.task.prompt,
-	});
 	if (acceptance.present !== true) {
 		input.attemptStore.delete(input.taskId);
 		return { type: "ready", reason: "missing_acceptance" };
