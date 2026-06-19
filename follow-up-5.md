@@ -124,6 +124,17 @@ and a **manual-verification debt** that is environmental, not code (§4).
 > session): remove unreachable non-Cline `ensureWorktree` start branches + unused `task-worktree*.ts` creation
 > modules, retire saved-host-patch semantics, update AGENTS.md + project-health. The bullets below remain the
 > detailed checklist for that deletion pass.
+>
+> **Reachability audit (2026-06-19) — deletion is blocked, not just deferred.** A full caller map proved the
+> worktree modules are NOT dead: `ensureWorktree` is live web-ui/CLI contract (gated, dead-at-runtime for
+> Cline but compile-coupled), and `ensureTaskWorktreeIfDoesntExist` + the saved-patch sync are reachable via
+> user shell-terminals-on-a-task (`startShellSession` → `resolveTaskCwd({ ensure: true })`) and legacy
+> diff/merge reads — every helper has live external callers. So blind deletion would break the build/flows.
+> True deletion requires two larger, **UI-verifiable** changes first: (1) remove terminal/CLI agents from
+> `RUNTIME_AGENT_CATALOG` + the web-ui legacy path; (2) decide the shell-terminal-on-task story. AGENTS.md is
+> reconciled to the container-primary model. Done safely this session: invariant lock + predicate docs +
+> AGENTS.md note. The remaining deletion is correctly deferred to an environment with review/diff/merge + shell
+> UI verification.
 
 - [~] **Host worktree code is still load-bearing.** `resolveTaskCwd` / `ensureWorktree` are still called from
   `src/trpc/runtime-api.ts`, `src/trpc/workspace-api.ts`, `src/trpc/app-router.ts`,

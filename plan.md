@@ -54,12 +54,17 @@ unit+integration tests).
       ([agent-catalog.ts:97](src/core/agent-catalog.ts#L97)) — now documented as THE source of truth and
       covered by an invariant test ([test/runtime/agent-catalog.test.ts](test/runtime/agent-catalog.test.ts))
       proving Cline/default/null never create a host worktree; under local-only every agent clamps to `cline`,
-      so no reachable task start creates a worktree. **Remaining (dead-code deletion, deletion-risk — schedule
-      a focused session):** remove the now-unreachable non-Cline `ensureWorktree` start branches and the unused
-      `src/workspace/task-worktree*.ts` creation modules (keep read-only legacy diff/merge compat for any
-      pre-existing worktree-backed tasks); retire saved-host-patch semantics in `task-worktree-sync.ts`; update
-      AGENTS.md worktree note + re-validate project-health "accidental worktree" diagnostics against the
-      container-workspace model.
+      so no reachable task start creates a worktree. AGENTS.md worktree note reconciled to the
+      container-primary model (2026-06-19). **Reachability audit (2026-06-19): the worktree modules are NOT
+      dead and cannot be safely deleted yet.** Every helper has live callers: `ensureWorktree` is live
+      web-ui/CLI contract (gated by `usesLegacyHostTaskWorkspace`, dead-at-runtime for Cline but
+      compile-coupled), and `ensureTaskWorktreeIfDoesntExist` + the saved-patch sync are reachable via
+      user shell-terminals-on-a-task (`startShellSession` → `resolveTaskCwd({ ensure: true })`) and legacy
+      diff/merge reads. **True deletion is therefore blocked on two larger, UI-verifiable changes:** (1) remove
+      terminal/CLI agents from `RUNTIME_AGENT_CATALOG` / launch-support and the web-ui legacy path, and (2)
+      decide the shell-terminal-on-task story (it still legitimately ensures a host checkout). Schedule both in
+      an environment where the review/diff/merge + shell UI can be verified. The saved-host-patch retirement
+      and project-health "accidental worktree" re-validation ride along with (1).
 - [ ] **🟠 §2.C — End-to-end manual verification debt** (env-blocked, not code): observe a real Cline task in
       Docker (one shared container, workspace volume only, no host worktree, result-patch applies, idle
       teardown); inspect Settings isolation status + pool controls; dev-build UX (no Claude default, registry
