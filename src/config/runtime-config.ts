@@ -158,18 +158,18 @@ const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_AGENT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in a worktree on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
+const DEFAULT_COMMIT_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, commit the working changes onto {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
 - Do not edit files outside git workflows unless required for conflict resolution.
-- Preserve any pre-existing user uncommitted changes in the base worktree.
+- Preserve any pre-existing user uncommitted changes in the base workspace.
 
 Steps:
-1. In the current task worktree, stage and create a commit for the pending task changes.
+1. In the current task workspace, stage and create a commit for the pending task changes.
 2. Find where {{base_ref}} is checked out:
    - Run: git worktree list --porcelain
    - If branch {{base_ref}} is checked out in path P, use that P.
-   - If not checked out anywhere, use current worktree as P by checking out {{base_ref}} there.
+   - If not checked out anywhere, use current task workspace as P by checking out {{base_ref}} there.
 3. In P, verify current branch is {{base_ref}}.
 4. If P has uncommitted changes, stash them: git -C P stash push -u -m "kanban-pre-cherry-pick"
 5. Cherry-pick the task commit into P. If this fails because .git/index.lock exists, wait briefly for any active git process to finish. If the lock remains and no git process is active, treat the lock as stale, remove it, and retry.
@@ -184,15 +184,15 @@ Steps:
    - Whether stash was used
    - Whether conflicts were resolved
    - Any remaining manual follow-up needed`;
-const DEFAULT_OPEN_PR_PROMPT_TEMPLATE = `You are in a worktree on a detached HEAD. When you are finished with the task, open a pull request against {{base_ref}}.
+const DEFAULT_OPEN_PR_PROMPT_TEMPLATE = `You are in a task workspace on a detached HEAD. When you are finished with the task, open a pull request against {{base_ref}}.
 
 - Do not run destructive commands: git reset --hard, git clean -fdx, git worktree remove, rm/mv on repository paths.
-- Do not modify the base worktree.
-- Keep all PR preparation in the current task worktree.
+- Do not modify the base workspace.
+- Keep all PR preparation in the current task workspace.
 
 Steps:
-1. Ensure all intended changes are committed in the current task worktree.
-2. If currently on detached HEAD, create a branch at the current commit in this worktree.
+1. Ensure all intended changes are committed in the current task workspace.
+2. If currently on detached HEAD, create a branch at the current commit in this task workspace.
 3. Push the branch to origin and set upstream.
 4. Create a pull request with base {{base_ref}} and head as the pushed branch (use gh CLI if available).
 5. If a pull request already exists for the same head and base, return that existing PR URL instead of creating a duplicate.

@@ -29,8 +29,13 @@
   - The result branch helper intentionally does not check out the branch or use a host worktree; tests prove the user's checked-out files remain clean/unchanged while the branch contains the sandbox patch, including newly added files.
   - Permanent discard paths now pass `preserveChanges=false` through the typed workspace delete API. That deletes task result branches for individual task deletes, Clear Trash, project removal, dev-test cleanup, and Replay, and keeps ordinary move-to-trash cleanup on the preserving path.
   - Trash restore now checks out the preserved task result branch commit into the new sandbox workspace when one exists, so a restored sandbox task resumes from its saved changes instead of from the original base branch.
-  - The broader task-worktree subsystem is still used by terminal agents, merge/review flows, trash cleanup, evidence, UI copy, and several CLI commands.
-  - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply, update project-health/CLI wording that still promises host task worktrees, and decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model.
+  - User-facing prompts, CLI help/errors, merge observations, evidence summaries, auto-review notices, project-health
+    diagnostics, project registration errors, and cleanup confirmations now say task workspace/task result instead of
+    promising host task worktrees. Compatibility API names and low-level legacy worktree modules remain unchanged.
+  - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
+  - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
+    decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any
+    internal API/module renames that would otherwise create churn without changing behavior.
 
 - [ ] Share one sandbox pool and expose its health/settings instead of creating ad hoc managers.
   - The first chunk creates a production `AgentSandboxManager` for Cline task-session services.

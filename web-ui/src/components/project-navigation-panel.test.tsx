@@ -76,8 +76,8 @@ const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
 			{
 				kind: "task_worktree_project",
 				severity: "warning",
-				title: "Task worktree added as project",
-				message: "This project points at a task worktree.",
+				title: "Legacy task workspace added as project",
+				message: "This project points at a legacy task workspace.",
 				taskId: "source-card",
 				parentWorkspaceId: "project-1",
 				parentWorkspacePath: "/tmp/kanban",
@@ -414,7 +414,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 			});
 
 			expect(confirmSpy).toHaveBeenCalledWith(
-				"Delete marked !Klein dev-test projects, their task worktrees, and saved dev-test task patches?",
+				"Delete marked !Klein dev-test projects, their task workspaces, and saved dev-test task patches?",
 			);
 			expect(cleanupDevTestProjectsMock).not.toHaveBeenCalled();
 		} finally {
@@ -469,12 +469,12 @@ describe("ProjectNavigationPanel width persistence", () => {
 		}
 	});
 
-	it("shows accidental task worktree projects with explicit recovery actions", () => {
+	it("shows accidental legacy task workspace projects with explicit recovery actions", () => {
 		renderPanel({ projects: ACCIDENTAL_PROJECTS });
 
 		expect(container.textContent).toContain("Project Health");
 		expect(container.textContent).toContain("Diagnostics need review before cleanup or continued work.");
-		expect(container.textContent).toContain("Task worktree added as project");
+		expect(container.textContent).toContain("Legacy task workspace added as project");
 		expect(container.textContent).toContain("1 issue");
 		expect(container.textContent).toContain("1 artifact");
 		expect(container.textContent).toContain("Inspect");
@@ -534,7 +534,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 			});
 
 			expect(confirmSpy).toHaveBeenCalledWith(
-				"Copy this accidental task-worktree project's plan artifacts into the detected parent project?",
+				"Copy this accidental legacy task workspace project's plan artifacts into the detected parent project?",
 			);
 			expect(migrateAccidentalProjectArtifactsMock).not.toHaveBeenCalled();
 		} finally {

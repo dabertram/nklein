@@ -45,15 +45,15 @@ function getAutoReviewActionName(action: TaskGitAction): string {
 }
 
 function getAutoReviewRunningMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} is running. !Klein will move this task to Done once the task worktree is clean.`;
+	return `${getAutoReviewActionName(action)} is running. !Klein will move this task to Done once the task workspace is clean.`;
 }
 
 function getAutoReviewNoEffectMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} did not start. Review the task worktree, then run the action manually or cancel automation.`;
+	return `${getAutoReviewActionName(action)} did not start. Review the task workspace, then run the action manually or cancel automation.`;
 }
 
 function getAutoReviewStuckMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} started, but the task worktree is still dirty. Review the remaining changes, then run the action manually or cancel automation.`;
+	return `${getAutoReviewActionName(action)} started, but the task workspace is still dirty. Review the remaining changes, then run the action manually or cancel automation.`;
 }
 
 function formatUnknownError(error: unknown): string {

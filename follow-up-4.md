@@ -260,6 +260,10 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   of view (they still review diffs and merge from the board). This is the bulk of the effort — do it deliberately.
   - Review diff, task evidence, and merge now prefer task result branches; legacy host worktree fallback remains for
     older terminal/worktree-backed tasks and the remaining CLI/project-health/trash cleanup surfaces.
+  - User-facing prompts, CLI help/errors, merge observations, evidence summaries, auto-review notices, project-health
+    diagnostics, and cleanup confirmations now describe task workspaces/task results instead of promising host task
+    worktrees. Compatibility API names and low-level legacy worktree modules remain unchanged while terminal-agent
+    legacy worktree behavior is still supported.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

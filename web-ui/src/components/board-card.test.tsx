@@ -228,7 +228,7 @@ describe("BoardCard", () => {
 					card={createCard({
 						autoReviewEnabled: true,
 						autoReviewStatus: "failed",
-						autoReviewMessage: "Auto-commit did not start. Review the task worktree.",
+						autoReviewMessage: "Auto-commit did not start. Review the task workspace.",
 					})}
 					index={0}
 					columnId="review"
@@ -236,7 +236,7 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("Auto-commit did not start. Review the task worktree.");
+		expect(container.textContent).toContain("Auto-commit did not start. Review the task workspace.");
 	});
 
 	it("does not show a finished-card action when replay is disabled", async () => {

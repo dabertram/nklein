@@ -194,7 +194,10 @@ function isMissingTaskWorktreeError(error: unknown): boolean {
 	if (!(error instanceof Error)) {
 		return false;
 	}
-	return error.message.startsWith("Task worktree not found for task ");
+	return (
+		error.message.startsWith("Task workspace not found for task ") ||
+		error.message.startsWith("Task worktree not found for task ")
+	);
 }
 
 export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): RuntimeTrpcContext["workspaceApi"] {

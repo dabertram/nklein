@@ -998,7 +998,7 @@ function TaskRecoveryActionsPanel({
 				timeout: 7000,
 			});
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Could not merge this task worktree.";
+			const message = error instanceof Error ? error.message : "Could not merge this task result.";
 			setMergeResult(message);
 			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
 		} finally {

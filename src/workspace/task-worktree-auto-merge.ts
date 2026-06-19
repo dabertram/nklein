@@ -157,8 +157,8 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			type: "blocked",
 			taskId: null,
 			reason: status.ok
-				? "Base worktree has uncommitted changes; merge task worktrees from a clean base."
-				: (status.error ?? "Could not read base worktree status."),
+				? "Base workspace has uncommitted changes; merge task results from a clean base."
+				: (status.error ?? "Could not read base workspace status."),
 		};
 		return { ok: false, steps: [blocked], mergedTaskIds, skippedTaskIds, blocked };
 	}
@@ -178,7 +178,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			const blocked: TaskWorktreeAutoMergeBlocked = {
 				type: "blocked",
 				taskId: task.id,
-				reason: `Base worktree must be checked out on "${task.baseRef}" before merging task "${task.id}".`,
+				reason: `Base workspace must be checked out on "${task.baseRef}" before merging task "${task.id}".`,
 			};
 			steps.push(blocked);
 			return { ok: false, steps, mergedTaskIds, skippedTaskIds, blocked };
@@ -219,7 +219,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 				type: "skipped",
 				taskId: task.id,
 				headCommit,
-				reason: "task worktree HEAD is already merged into the base worktree.",
+				reason: "task result HEAD is already merged into the base workspace.",
 			};
 			steps.push(skipped);
 			skippedTaskIds.push(task.id);
@@ -246,7 +246,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			type: "merged",
 			taskId: task.id,
 			headCommit,
-			reason: "task worktree HEAD merged into the base worktree.",
+			reason: "task result HEAD merged into the base workspace.",
 		};
 		steps.push(merged);
 		mergedTaskIds.push(task.id);

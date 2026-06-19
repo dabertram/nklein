@@ -277,12 +277,12 @@ describe("CardDetailView", () => {
 					type: "merged",
 					taskId: "task-1",
 					headCommit: "abc123",
-					reason: "task worktree HEAD merged into the base worktree.",
+					reason: "task result HEAD merged into the base workspace.",
 				},
 			],
 			conflict: null,
 			blocked: null,
-			message: "Merged 1 task worktrees; skipped 0.",
+			message: "Merged 1 task results; skipped 0.",
 		} satisfies RuntimeTaskWorktreeMergeResponse);
 		mockUseRuntimeWorkspaceChanges.mockReturnValue({
 			changes: {
@@ -645,7 +645,7 @@ describe("CardDetailView", () => {
 					schemaVersion: 1,
 					signal: "custom",
 					severity: "info",
-					message: "Task worktree merged: task-1",
+					message: "Task result merged: task-1",
 					taskId: "task-1",
 					runId: null,
 					providerId: null,
@@ -741,7 +741,7 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Acceptance");
 		expect(container.textContent).toContain("Acceptance gate failed: npm test");
 		expect(container.textContent).toContain("Merge");
-		expect(container.textContent).toContain("Task worktree merged: task-1");
+		expect(container.textContent).toContain("Task result merged: task-1");
 	});
 
 	it("shows a planning DAG review panel for linked Planning cards", async () => {
@@ -884,7 +884,7 @@ describe("CardDetailView", () => {
 			await Promise.resolve();
 		});
 		expect(mockMergeTaskWorktrees).toHaveBeenCalledWith("workspace-1", "task-1");
-		expect(container.textContent).toContain("Merged 1 task worktrees");
+		expect(container.textContent).toContain("Merged 1 task results");
 	});
 
 	it("collects and copies evidence for the selected card", async () => {

@@ -467,7 +467,7 @@ function buildTaskEvidencePromptBlock(input: {
 		"",
 		`Evidence bundle: ${input.bundlePath}`,
 		`Workspace: ${input.workspacePath}`,
-		`Task worktree: ${input.taskCwd}`,
+		`Task workspace: ${input.taskCwd}`,
 		`Task: ${input.task.title?.trim() || input.task.id} (${input.task.id})`,
 		`Base ref: ${input.task.baseRef}`,
 		`Base commit: ${input.baseCommit ?? "unknown"}`,
@@ -657,12 +657,12 @@ function recordTaskWorktreeMergeObservations(input: {
 		const severity = step.type === "conflict" || step.type === "blocked" ? "warning" : "info";
 		const message =
 			step.type === "merged"
-				? `Task worktree merged: ${step.taskId}`
+				? `Task result merged: ${step.taskId}`
 				: step.type === "skipped"
-					? `Task worktree merge skipped: ${step.taskId}`
+					? `Task result merge skipped: ${step.taskId}`
 					: step.type === "conflict"
-						? `Task worktree merge conflict: ${step.taskId}`
-						: `Task worktree merge blocked: ${step.reason}`;
+						? `Task result merge conflict: ${step.taskId}`
+						: `Task result merge blocked: ${step.reason}`;
 		recordSelfObservation({
 			signal: "custom",
 			severity,
@@ -696,7 +696,7 @@ function formatMergeMessage(input: {
 	if (input.blocked) {
 		return `Merge blocked: ${input.blocked.reason}`;
 	}
-	return `Merged ${input.mergedTaskIds.length} task worktrees; skipped ${input.skippedTaskIds.length}.`;
+	return `Merged ${input.mergedTaskIds.length} task results; skipped ${input.skippedTaskIds.length}.`;
 }
 
 function addConfiguredLocalModelRegistryEntries(input: {
@@ -1981,7 +1981,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const summaryText = [
 				`Task: ${title} (${task.id})`,
 				`Workspace: ${workspaceScope.workspacePath}`,
-				`Task worktree: ${taskCwd}`,
+				`Task workspace: ${taskCwd}`,
 				`Base ref: ${task.baseRef}`,
 				`Base commit: ${baseCommit ?? "unknown"}`,
 				"",

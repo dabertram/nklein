@@ -657,7 +657,7 @@ export async function loadWorkspaceContext(
 				recordWorkspaceResolutionDecision({
 					repoPath,
 					severity: "warning",
-					message: "Workspace resolution rejected task worktree auto-registration.",
+					message: "Workspace resolution rejected legacy task workspace auto-registration.",
 					source: "rejected_task_worktree",
 					metadata: {
 						autoCreateIfMissing,
@@ -666,7 +666,7 @@ export async function loadWorkspaceContext(
 					},
 				});
 				throw new Error(
-					`Task worktree ${repoPath} is not a standalone !Klein project. Use the owning parent project path instead.`,
+					`Legacy task workspace ${repoPath} is not a standalone !Klein project. Use the owning parent project path instead.`,
 				);
 			}
 			recordWorkspaceResolutionDecision({

@@ -472,7 +472,7 @@ export function ProjectNavigationPanel({
 								onMigrateArtifacts={async (project) => {
 									if (
 										!window.confirm(
-											"Copy this accidental task-worktree project's plan artifacts into the detected parent project?",
+											"Copy this accidental legacy task workspace project's plan artifacts into the detected parent project?",
 										)
 									) {
 										return;
@@ -1003,7 +1003,7 @@ function DevTestProjectCard({
 					onClick={() => {
 						if (
 							!window.confirm(
-								"Delete marked !Klein dev-test projects, their task worktrees, and saved dev-test task patches?",
+								"Delete marked !Klein dev-test projects, their task workspaces, and saved dev-test task patches?",
 							)
 						) {
 							return;

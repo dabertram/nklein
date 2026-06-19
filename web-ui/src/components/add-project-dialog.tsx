@@ -491,7 +491,7 @@ function PathTabContent({
 			{pendingGitInitPath !== null ? (
 				<div className="rounded-md border border-status-orange/30 bg-status-orange/5 px-3 py-2.5 flex flex-col gap-2">
 					<p className="text-[13px] text-text-primary">
-						This directory is not a git repository. !Klein requires git to manage worktrees for tasks.
+						This directory is not a git repository. !Klein requires git to manage isolated task workspaces.
 					</p>
 					<p className="font-mono text-[11px] text-text-secondary break-all">{pendingGitInitPath}</p>
 					<Button variant="primary" size="sm" type="submit" disabled={isInitializingGit} className="self-start">

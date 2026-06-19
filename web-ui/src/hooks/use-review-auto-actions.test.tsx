@@ -158,12 +158,12 @@ describe("useReviewAutoActions", () => {
 		expect(runAutoReviewGitAction).toHaveBeenCalledWith("task-1", "commit");
 		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
 			status: "running",
-			message: "Auto-commit is running. !Klein will move this task to Done once the task worktree is clean.",
+			message: "Auto-commit is running. !Klein will move this task to Done once the task workspace is clean.",
 		});
 		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
 			status: "failed",
 			message:
-				"Auto-commit did not start. Review the task worktree, then run the action manually or cancel automation.",
+				"Auto-commit did not start. Review the task workspace, then run the action manually or cancel automation.",
 		});
 		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
 	});

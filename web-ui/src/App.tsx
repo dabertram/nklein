@@ -761,7 +761,7 @@ export default function App(): ReactElement {
 			return undefined;
 		}
 		if (!activeSelectedTaskWorkspaceInfo.exists) {
-			return selectedCard.column.id === "trash" ? "Task worktree deleted" : "Task worktree not created yet";
+			return selectedCard.column.id === "trash" ? "Task workspace cleaned up" : "Task workspace not prepared yet";
 		}
 		return undefined;
 	}, [selectedCard]);

@@ -175,7 +175,7 @@ export async function detectProjectHealthIssuesByWorkspaceId(
 			recordSelfObservation({
 				signal: "custom",
 				severity: "debug",
-				message: `Workspace resolution detected parent workspace for task worktree project: ${parent.workspaceId}`,
+				message: `Workspace resolution detected parent workspace for legacy task workspace project: ${parent.workspaceId}`,
 				workspacePath: project.repoPath,
 				metadata: {
 					operation: "workspace_resolution",
@@ -190,10 +190,10 @@ export async function detectProjectHealthIssuesByWorkspaceId(
 		issues.unshift({
 			kind: parent ? "task_worktree_project" : "missing_parent_workspace",
 			severity: parent ? "warning" : "error",
-			title: parent ? "Task worktree added as project" : "Task worktree project has no parent",
+			title: parent ? "Legacy task workspace added as project" : "Legacy task workspace project has no parent",
 			message: parent
-				? "This project points at a task worktree. Inspect it before removing the accidental project entry or migrating plan artifacts back to the parent project."
-				: "This project points at a task worktree, but !Klein could not find a parent project with the matching source card.",
+				? "This project points at a legacy task workspace. Inspect it before removing the accidental project entry or migrating plan artifacts back to the parent project."
+				: "This project points at a legacy task workspace, but !Klein could not find a parent project with the matching source card.",
 			taskId,
 			parentWorkspaceId: parent?.workspaceId ?? null,
 			parentWorkspacePath: parent?.repoPath ?? null,

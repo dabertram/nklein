@@ -1279,7 +1279,7 @@ async function startTask(input: {
 			baseRef: task.baseRef,
 		});
 		if (!ensured.ok) {
-			throw new Error(ensured.error ?? "Could not ensure task worktree.");
+			throw new Error(ensured.error ?? "Could not prepare task workspace.");
 		}
 
 		const started = await runtimeClient.runtime.startTaskSession.mutate({
@@ -1432,12 +1432,12 @@ function recordTaskWorktreeMergeObservations(input: {
 		const severity = step.type === "conflict" || step.type === "blocked" ? "warning" : "info";
 		const message =
 			step.type === "merged"
-				? `Task worktree merged: ${step.taskId}`
+				? `Task result merged: ${step.taskId}`
 				: step.type === "skipped"
-					? `Task worktree merge skipped: ${step.taskId}`
+					? `Task result merge skipped: ${step.taskId}`
 					: step.type === "conflict"
-						? `Task worktree merge conflict: ${step.taskId}`
-						: `Task worktree merge blocked: ${step.reason}`;
+						? `Task result merge conflict: ${step.taskId}`
+						: `Task result merge blocked: ${step.reason}`;
 		recordSelfObservation({
 			signal: "custom",
 			severity,
@@ -1554,7 +1554,7 @@ async function finishTaskById(input: {
 
 	const deletedWorkspace = canContinueAfterMerge
 		? await deleteTaskWorkspace(input.runtimeClient, input.taskId)
-		: { removed: false, error: "Task worktree kept because auto-merge did not complete." };
+		: { removed: false, error: "Task workspace kept because auto-merge did not complete." };
 
 	return {
 		task: mutation.value.task,
@@ -1678,7 +1678,7 @@ function buildIntegrationCardPrompt(conflict: TaskWorktreeAutoMergeConflict): st
 		`Task head: ${conflict.headCommit}`,
 		"Conflicting paths:",
 		paths,
-		"Re-run the task worktree merge after resolving the integration changes.",
+		"Re-run the task result merge after resolving the integration changes.",
 		`Git message: ${conflict.message}`,
 	].join("\n\n");
 }
@@ -2546,7 +2546,7 @@ export function registerTaskCommand(program: Command): void {
 
 	task
 		.command("merge")
-		.description("Merge reviewed task worktrees into the base worktree in dependency order.")
+		.description("Merge reviewed task results into the base workspace in dependency order.")
 		.option("--task-id <id>", "Single task ID to merge.")
 		.option("--column <column>", "Column to merge: review | completed. Defaults to review.", parseAutoMergeColumn)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
@@ -2790,11 +2790,11 @@ export function registerTaskCommand(program: Command): void {
 
 	task
 		.command("verify")
-		.description("Run the task's embedded Acceptance check in its task worktree.")
+		.description("Run the task's embedded Acceptance check in its task workspace.")
 		.requiredOption("--task-id <id>", "Task ID.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
-		.option("--workspace-root", "Run the acceptance check in the workspace root instead of the task worktree.")
-		.option("--ensure-worktree", "Create the task worktree first if it is missing.")
+		.option("--workspace-root", "Run the acceptance check in the workspace root instead of the task workspace.")
+		.option("--ensure-worktree", "Prepare the task workspace first if it is missing.")
 		.option("--timeout-ms <ms>", "Acceptance command timeout in milliseconds.", (value: string) => {
 			const timeoutMs = Number(value);
 			if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {

@@ -87,7 +87,7 @@ function getWorktreeBaseRefResolutionErrorMessage(baseRef: string, errorMessage:
 		return errorMessage;
 	}
 
-	return `This repository does not have an initial commit yet, so !Klein cannot create a task worktree from base ref "${baseRef}". Create an initial commit, then try moving the task to in progress again.`;
+	return `This repository does not have an initial commit yet, so !Klein cannot prepare a task workspace from base ref "${baseRef}". Create an initial commit, then try moving the task to in progress again.`;
 }
 
 async function tryRunGit(cwd: string, args: string[]): Promise<string | null> {
@@ -712,7 +712,7 @@ export async function resolveTaskCwd(options: {
 	if (await pathExists(worktreePath)) {
 		return worktreePath;
 	}
-	throw new Error(`Task worktree not found for task "${options.taskId}".`);
+	throw new Error(`Task workspace not found for task "${options.taskId}".`);
 }
 
 export async function getTaskWorkspacePathInfo(options: {

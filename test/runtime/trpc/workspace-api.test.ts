@@ -423,7 +423,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 	it("returns an empty diff when the task worktree does not exist yet", async () => {
 		workspaceTaskWorktreeMocks.resolveTaskCwd.mockRejectedValue(
-			new Error('Task worktree not found for task "task-1".'),
+			new Error('Task workspace not found for task "task-1".'),
 		);
 
 		const emptyResponse = createChangesResponse();

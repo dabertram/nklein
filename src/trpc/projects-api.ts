@@ -350,7 +350,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						ok: false,
 						project: null,
 						requiresTaskWorktreeProjectConfirmation: true,
-						error: "That folder is a !Klein task worktree. Add the owning parent project instead, or use an advanced task-worktree project flow.",
+						error: "That folder is a legacy !Klein task workspace. Add the owning parent project instead, or use the advanced legacy task-workspace project flow.",
 					} satisfies RuntimeProjectAddResponse;
 				}
 				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
@@ -801,7 +801,9 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						const message = deleted.error ?? `Could not delete task workspace for task "${taskId}".`;
 						deps.warn(message);
 						if (body.deleteGitRepository) {
-							throw new Error(`Could not remove all task worktrees, so the Git repository was kept. ${message}`);
+							throw new Error(
+								`Could not remove all task workspaces, so the Git repository was kept. ${message}`,
+							);
 						}
 					}
 				}
@@ -877,7 +879,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						parentWorkspaceId: null,
 						parentWorkspacePath: null,
 						errors: [],
-						error: "This project is not detected as an accidental task-worktree project.",
+						error: "This project is not detected as an accidental legacy task workspace project.",
 					};
 				}
 				if (!issue.parentWorkspaceId || !issue.parentWorkspacePath) {
@@ -888,7 +890,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						parentWorkspaceId: null,
 						parentWorkspacePath: null,
 						errors: [],
-						error: "No parent project was detected for this task worktree project.",
+						error: "No parent project was detected for this legacy task workspace project.",
 					};
 				}
 				if (!issue.canMigrateArtifacts) {
