@@ -15,6 +15,7 @@ import {
 	DEFAULT_TASK_AUTO_REVIEW_MODE,
 	resolveTaskAutoReviewMode,
 	type TaskAutoReviewMode,
+	type TaskBlockedKind,
 	type TaskImage,
 } from "@/types";
 
@@ -28,7 +29,7 @@ export interface TaskDraft {
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
 	filesLikelyTouched?: string[];
-	blockedKind?: "needs_decomposition" | "local_model_required";
+	blockedKind?: TaskBlockedKind;
 	blockedReason?: string;
 	baseRef: string;
 }
@@ -271,9 +272,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
 		...(clineSettings !== undefined ? { clineSettings } : {}),
-		...(card.blockedKind === "needs_decomposition" || card.blockedKind === "local_model_required"
-			? { blockedKind: card.blockedKind }
-			: {}),
+		...(isTaskBlockedKind(card.blockedKind) ? { blockedKind: card.blockedKind } : {}),
 		...(typeof card.blockedReason === "string" && card.blockedReason.trim()
 			? { blockedReason: card.blockedReason.trim() }
 			: {}),
@@ -688,7 +687,7 @@ export function updateTaskBlockedState(
 	board: BoardData,
 	taskId: string,
 	blocked: {
-		kind: "needs_decomposition" | "local_model_required";
+		kind: TaskBlockedKind;
 		reason: string;
 	} | null,
 ): { board: BoardData; updated: boolean } {
@@ -718,6 +717,10 @@ export function updateTaskBlockedState(
 		return { board, updated: false };
 	}
 	return { board: withUpdatedColumns(board, columns), updated: true };
+}
+
+function isTaskBlockedKind(value: unknown): value is TaskBlockedKind {
+	return value === "needs_decomposition" || value === "local_model_required" || value === "agent_sandbox_unavailable";
 }
 
 export function approvePlanningTaskForExecution(

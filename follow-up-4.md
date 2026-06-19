@@ -369,7 +369,7 @@ agents in one container still cannot read each other's files.
     placements; running agents keep their container; now-excess idle containers reap on their timer.
   - Persisted config, API schemas, General settings controls, effective-parallelism summary, and task-session manager
     wiring are done. Preset buttons remain optional and are not required for the numeric settings source of truth.
-- [ ] When the preflight fails, the task create / start affordances must show the blocked reason prominently (reuse the
+- [x] When the preflight fails, the task create / start affordances must show the blocked reason prominently (reuse the
   start-guard message). Tasks cannot be created/started until Docker is ready.
 
 ### J9. Tests (mandatory; this is a safety feature)

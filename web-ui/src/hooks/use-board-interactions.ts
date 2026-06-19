@@ -22,7 +22,7 @@ import {
 } from "@/state/board-state";
 import { clearTaskWorkspaceInfo, setTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
-import type { BoardCard, BoardColumnId, BoardData } from "@/types";
+import type { BoardCard, BoardColumnId, BoardData, TaskBlockedKind } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
 import {
 	getBrowserNotificationPermission,
@@ -54,6 +54,21 @@ function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardC
 
 function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardColumnId {
 	return summary.mode === "plan" ? "planning" : "in_progress";
+}
+
+function getStartBlockedKind(
+	errorCode: Awaited<ReturnType<UseTaskSessionsResult["startTaskSession"]>>["errorCode"],
+): TaskBlockedKind | null {
+	if (errorCode === "needs_decomposition") {
+		return "needs_decomposition";
+	}
+	if (errorCode === "cloud_provider_disabled") {
+		return "local_model_required";
+	}
+	if (errorCode === "agent_sandbox_unavailable") {
+		return "agent_sandbox_unavailable";
+	}
+	return null;
 }
 
 function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
@@ -417,10 +432,11 @@ export function useBoardInteractions({
 			const started = await startTaskSession(task, { queueOnEndpointBusy: options?.queueOnEndpointBusy });
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
-				if (started.errorCode === "needs_decomposition" || started.errorCode === "cloud_provider_disabled") {
+				const blockedKind = getStartBlockedKind(started.errorCode);
+				if (blockedKind) {
 					setBoard((currentBoard) => {
 						const marked = updateTaskBlockedState(currentBoard, taskId, {
-							kind: started.errorCode === "needs_decomposition" ? "needs_decomposition" : "local_model_required",
+							kind: blockedKind,
 							reason: started.message ?? "This task needs to be decomposed before it can start.",
 						});
 						return marked.updated ? marked.board : currentBoard;

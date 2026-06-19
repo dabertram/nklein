@@ -654,7 +654,9 @@ export function BoardCard({
 			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
 			: card.blockedKind === "local_model_required"
 				? (card.blockedReason ?? "Configure a local Cline model before starting this task.")
-				: null;
+				: card.blockedKind === "agent_sandbox_unavailable"
+					? (card.blockedReason ?? "Docker agent isolation must be ready before starting this task.")
+					: null;
 	const autoReviewNotice =
 		card.autoReviewEnabled === true && card.autoReviewMessage
 			? {

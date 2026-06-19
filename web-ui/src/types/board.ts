@@ -13,6 +13,7 @@ export type TaskAutoReviewMode = RuntimeTaskAutoReviewMode;
 export type TaskImage = RuntimeTaskImage;
 
 export const DEFAULT_TASK_AUTO_REVIEW_MODE: TaskAutoReviewMode = "commit";
+export type TaskBlockedKind = "needs_decomposition" | "local_model_required" | "agent_sandbox_unavailable";
 
 export function resolveTaskAutoReviewMode(mode: TaskAutoReviewMode | null | undefined): TaskAutoReviewMode {
 	if (mode === "pr") {
@@ -51,7 +52,7 @@ export interface BoardCard {
 	clineSettings?: RuntimeTaskClineSettings;
 	filesLikelyTouched?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
-	blockedKind?: "needs_decomposition" | "local_model_required";
+	blockedKind?: TaskBlockedKind;
 	blockedReason?: string;
 	baseRef: string;
 	createdAt: number;

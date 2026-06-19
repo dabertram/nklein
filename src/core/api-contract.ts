@@ -197,7 +197,7 @@ export const runtimeBoardCardSchema = z
 		clineSettings: runtimeTaskClineSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
-		blockedKind: z.enum(["needs_decomposition", "local_model_required"]).optional(),
+		blockedKind: z.enum(["needs_decomposition", "local_model_required", "agent_sandbox_unavailable"]).optional(),
 		blockedReason: z.string().optional(),
 		clineProviderId: z.string().optional(),
 		clineModelId: z.string().optional(),

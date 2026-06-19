@@ -387,6 +387,83 @@ describe("useBoardInteractions", () => {
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
 	});
 
+	it("marks tasks as blocked when Docker agent isolation is unavailable", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard = createBoard();
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: {
+				ok: true as const,
+				path: "/tmp/task-1",
+				baseRef: "main",
+				baseCommit: "abc123",
+			},
+		}));
+		const startTaskSession = vi.fn(async () => ({
+			ok: false as const,
+			message: "Docker is required for !Klein agent isolation, but it is unavailable.",
+			errorCode: "agent_sandbox_unavailable" as const,
+		}));
+
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable" as const,
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		await act(async () => {
+			await Promise.resolve();
+		});
+		setBoard.mockClear();
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		const backlogTask = currentBoard.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(backlogTask?.blockedKind).toBe("agent_sandbox_unavailable");
+		expect(backlogTask?.blockedReason).toBe("Docker is required for !Klein agent isolation, but it is unavailable.");
+		expect(notifyErrorMock).toHaveBeenCalledWith(
+			"Docker is required for !Klein agent isolation, but it is unavailable.",
+		);
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
+	});
+
 	it("caps manual start-all by available task capacity", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		let currentBoard: BoardData = {
