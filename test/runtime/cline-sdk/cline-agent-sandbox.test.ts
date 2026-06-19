@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
+	AgentSandboxExecutionError,
 	AgentSandboxManager,
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
@@ -625,6 +626,29 @@ describe("AgentSandboxManager", () => {
 			"editor",
 			JSON.stringify({ command: "replace" }),
 		]);
+	});
+
+	it("adds next-step guidance when sandbox tool execution fails", async () => {
+		const input = "npm test";
+		const { execFile: execFileStub } = createExecFileStub({
+			failExecCommand: ["node", "/opt/nklein/tool-runner.cjs", "bash", JSON.stringify(input)],
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.runTool("task-1", "bash", input)).rejects.toThrow(AgentSandboxExecutionError);
+		await expect(manager.runTool("task-1", "bash", input)).rejects.toThrow("Next step:");
+	});
+
+	it("adds next-step guidance when the sandbox tool runner returns a failed result", async () => {
+		const { execFile: execFileStub } = createExecFileStub({
+			execStdout: JSON.stringify({ ok: false, error: "Command Failed: npm test" }),
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.runTool("task-1", "bash", "npm test")).rejects.toThrow("Command Failed: npm test");
+		await expect(manager.runTool("task-1", "bash", "npm test")).rejects.toThrow("Next step:");
 	});
 
 	it("captures a staged binary workspace patch against the task base ref", async () => {

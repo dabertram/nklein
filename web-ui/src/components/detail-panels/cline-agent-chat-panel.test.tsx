@@ -594,6 +594,46 @@ describe("ClineAgentChatPanel", () => {
 		expect(container.textContent).toContain('{"ok":true}');
 	});
 
+	it("shows a collapsed failure marker for structured run_commands failures", async () => {
+		const messages: ClineChatMessage[] = [
+			{
+				id: "tool-1",
+				role: "tool",
+				content: [
+					"Tool: run_commands",
+					"Input:",
+					JSON.stringify({ commands: ["npm test"] }),
+					"Output:",
+					JSON.stringify([
+						{
+							query: "npm test",
+							result: "",
+							success: false,
+							error: "Command Failed: npm test",
+						},
+					]),
+				].join("\n"),
+				createdAt: 1,
+				meta: {
+					hookEventName: "tool_result",
+					toolName: "run_commands",
+					streamType: "tool",
+				},
+			},
+		];
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel taskId="task-1" summary={null} onLoadMessages={async () => messages} />,
+			);
+			await Promise.resolve();
+		});
+
+		expect(container.textContent).toContain("run_commands");
+		expect(container.querySelector('[aria-label="Tool failed"]')).toBeInstanceOf(SVGElement);
+	});
+
 	it("renders message timestamps with duration tooltips and persists collapsed state", async () => {
 		const createdAt = new Date(2026, 0, 2, 3, 4, 5).getTime();
 		const expectedTime = new Intl.DateTimeFormat(undefined, {

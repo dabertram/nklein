@@ -78,6 +78,19 @@ function isToolOperationResult(
 	return typeof obj.result === "string" && typeof obj.success === "boolean";
 }
 
+function ensureNextStepGuidance(error: string | null, success: boolean): string | null {
+	const normalized = error?.trim() ?? "";
+	if (normalized.length === 0) {
+		return success
+			? null
+			: "Command failed without a message. Next step: inspect the command and retry with a smaller focused request.";
+	}
+	if (/\bNext step:/i.test(normalized)) {
+		return normalized;
+	}
+	return `${normalized}\nNext step: inspect the command, file path, permissions, and output above; then retry with a smaller focused request.`;
+}
+
 function toToolOutputResult(item: {
 	query: string;
 	result: string;
@@ -87,7 +100,7 @@ function toToolOutputResult(item: {
 	return {
 		query: String(item.query ?? ""),
 		content: stripAnsi(item.result),
-		error: typeof item.error === "string" ? stripAnsi(item.error) : null,
+		error: ensureNextStepGuidance(typeof item.error === "string" ? stripAnsi(item.error) : null, item.success),
 		success: item.success,
 	};
 }
@@ -112,6 +125,14 @@ export function parseToolOutput(output: string): ParsedToolOutput | null {
 	}
 
 	return null;
+}
+
+export function hasFailedToolOutput(output: string | null): boolean {
+	if (!output) {
+		return false;
+	}
+	const parsed = parseToolOutput(output);
+	return parsed ? parsed.results.some((result) => result.success === false || Boolean(result.error)) : false;
 }
 
 function normalizeSectionValue(lines: string[]): string | null {

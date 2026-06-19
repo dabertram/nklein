@@ -4,7 +4,9 @@ import {
 	formatToolInputForDisplay,
 	getToolDisplay,
 	getToolSummary,
+	hasFailedToolOutput,
 	parseToolMessageContent,
+	parseToolOutput,
 } from "@/components/detail-panels/cline-chat-message-utils";
 
 describe("parseToolMessageContent", () => {
@@ -153,6 +155,53 @@ describe("formatToolInputForDisplay", () => {
 	it("returns null for empty commands array", () => {
 		const input = JSON.stringify({ commands: [] });
 		expect(formatToolInputForDisplay("run_commands", input)).toBeNull();
+	});
+});
+
+describe("hasFailedToolOutput", () => {
+	it("detects structured run_commands failures without a top-level Error section", () => {
+		expect(
+			hasFailedToolOutput(
+				JSON.stringify([
+					{
+						query: "npm test",
+						result: "",
+						success: false,
+						error: "Command Failed: npm test",
+					},
+				]),
+			),
+		).toBe(true);
+	});
+
+	it("does not mark successful structured output as failed", () => {
+		expect(
+			hasFailedToolOutput(
+				JSON.stringify([
+					{
+						query: "npm test",
+						result: "passed",
+						success: true,
+					},
+				]),
+			),
+		).toBe(false);
+	});
+
+	it("adds next-step guidance to structured command errors", () => {
+		const parsed = parseToolOutput(
+			JSON.stringify([
+				{
+					query: "npm test",
+					result: "",
+					success: false,
+					error: "Command Failed: Sandbox tool bash failed.",
+				},
+			]),
+		);
+
+		expect(parsed?.results[0]?.error).toContain("Command Failed: Sandbox tool bash failed.");
+		expect(parsed?.results[0]?.error).toContain("Next step:");
 	});
 });
 

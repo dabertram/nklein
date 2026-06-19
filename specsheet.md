@@ -171,6 +171,10 @@
   status/pool UI inspection.
 - [x] Sandbox result-patch finalization treats early teardown/no-workspace staging races as benign "no changes
   to capture" observations, while preserving warnings for real capture failures.
+- [ ] **LATER:** Add a purpose-built in-sandbox operator for "real" command execution. Because !Klein owns
+  the Docker image, the image can ship a small command operator that runs shell commands directly with
+  structured stdout/stderr/exit-code/error metadata, typed next-step guidance, and clearer UI status than the
+  current generic SDK `bash` bridge.
 - [ ] **Open:** §2.B retire the parallel host worktree subsystem (code deletion, UI-gated).
 
 ## 10. Runtime control & chat UX  *(shipped)*

@@ -427,6 +427,9 @@ function summarizeToolError(error: string): string {
 	);
 	const selectedLines = (actionableLines.length > 0 ? actionableLines : lines).slice(0, 12);
 	const summary = truncateToolText(selectedLines.join("\n"), MAX_TOOL_ERROR_CHARS, "tool error");
+	if (/\bNext step:/i.test(summary)) {
+		return summary;
+	}
 	return summary
 		? `${summary}\nNext step: adjust the tool input or inspect the referenced file/command, then retry with a smaller focused request.`
 		: "Tool failed without a message. Next step: retry with a smaller focused request.";

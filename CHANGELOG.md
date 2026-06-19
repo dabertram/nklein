@@ -74,8 +74,12 @@
 - Added subtle per-message Cline chat timestamps with persisted collapse/expand controls and duration hover details.
 - Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.
 - Made board pause park native Cline tasks at the next turn checkpoint with a distinct `paused` session state, aborting the SDK before another turn and automatically continuing paused tasks when the board is resumed.
+- Made board/card pause park and abort active native Cline tasks immediately, and added a pre-dispatch pause gate so queued/restart paths cannot make additional LLM requests while paused.
 - Added per-card Pause/Resume controls backed by durable `.cline/nklein/paused-tasks.json` state, runtime API mutations, immediate board/session updates, and restart-aware Cline pause-controller hydration.
 - Made Docker-backed SDK tool executors and sandbox acceptance checks honor board/card pause before running side effects, with task stop/abort rejecting queued pause waits.
+- Marked structured `run_commands` failures with the same collapsed chat failure indicator as top-level tool errors, and added next-step guidance for structured command failures.
+- Added next-step guidance to Docker sandbox tool failures, including failed `bash` executions and tool-runner failures, while avoiding duplicate guidance when an error already contains it.
+- Added a specsheet follow-up to ship a purpose-built in-sandbox operator for real command execution inside the Docker image.
 - Added an opt-in finished-card Replay control, disabled by default in global settings, that confirms before stopping the old session, clearing the prior task workspace/session state, and starting again from the original card prompt.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.

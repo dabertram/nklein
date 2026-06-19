@@ -409,11 +409,11 @@ export class AgentSandboxManager {
 			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
 		});
 		if (result.exitCode !== 0) {
-			throw new AgentSandboxExecutionError(`Sandbox tool ${tool} failed.`, result);
+			throw new AgentSandboxExecutionError(formatSandboxToolFailure(tool, joinDockerOutput(result)), result);
 		}
 		const parsed = parseToolRunnerResult(result.stdout);
 		if (!parsed.ok) {
-			throw new Error(parsed.error || `Sandbox tool ${tool} failed.`);
+			throw new Error(formatSandboxToolFailure(tool, parsed.error));
 		}
 		return typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result);
 	}
@@ -862,6 +862,13 @@ function parseToolRunnerResult(stdout: string): { ok: true; result: unknown } | 
 		// Fall through to a plain output error.
 	}
 	return { ok: false, error: stdout.trim() || "Tool runner returned invalid JSON." };
+}
+
+function formatSandboxToolFailure(tool: string, details: string): string {
+	const normalizedTool = tool.trim() || "unknown";
+	const normalizedDetails = details.trim();
+	const detailText = normalizedDetails ? `\n${normalizedDetails}` : "";
+	return `Sandbox tool ${normalizedTool} failed.${detailText}\nNext step: inspect the command, file path, permissions, and sandbox output above; then retry with a smaller focused ${normalizedTool} request.`;
 }
 
 function assertSandboxExecOk(result: AgentSandboxExecResult, operation: string): void {

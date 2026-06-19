@@ -4,6 +4,7 @@ import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import {
 	formatToolInputForDisplay,
 	getToolDisplay,
+	hasFailedToolOutput,
 	parseToolMessageContent,
 	parseToolOutput,
 } from "@/components/detail-panels/cline-chat-message-utils";
@@ -77,7 +78,8 @@ function MessageTimestampControl({
 function ToolMessageBlock({ message }: { message: ClineChatMessage }): ReactElement {
 	const parsed = useMemo(() => parseToolMessageContent(message.content), [message.content]);
 	const isRunning = message.meta?.hookEventName === "tool_call_start";
-	const hasError = Boolean(parsed.error);
+	const toolOutputFailed = useMemo(() => hasFailedToolOutput(parsed.output), [parsed.output]);
+	const hasError = Boolean(parsed.error) || toolOutputFailed;
 	const [expanded, setExpanded] = useState(false);
 
 	const toolDisplay = useMemo(
@@ -104,7 +106,7 @@ function ToolMessageBlock({ message }: { message: ClineChatMessage }): ReactElem
 				{isRunning ? (
 					<Spinner size={14} className="shrink-0" />
 				) : hasError ? (
-					<XCircle size={14} className="shrink-0 text-status-red" />
+					<XCircle size={14} className="shrink-0 text-status-red" aria-label="Tool failed" role="img" />
 				) : null}
 				<span
 					className={cn(

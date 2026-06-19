@@ -738,6 +738,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 		})}`;
 
+		await this.waitUntilTaskResumed(input.taskId);
 		this.markModelRequestStarted(input.taskId);
 		const startResult = await this.sessionRuntime.startTaskSession({
 			taskId: input.taskId,
@@ -989,6 +990,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			this.sessionRuntime.getTaskSessionId(input.taskId) &&
 			!this.sessionRuntime.requiresTaskSessionRestart(input.taskId, input.mode, input.launchConfigOverrides)
 		) {
+			await this.waitUntilTaskResumed(input.taskId);
 			this.markModelRequestStarted(input.taskId);
 			return {
 				result: await this.sessionRuntime.sendTaskSessionInput(
@@ -1020,6 +1022,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			});
 			await this.sessionRuntime.stopTaskSession(input.taskId);
 			if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+				await this.waitUntilTaskResumed(input.taskId);
 				this.markModelRequestStarted(input.taskId);
 				const restartedSession = await this.sessionRuntime.restartTaskSession({
 					taskId: input.taskId,
@@ -1074,6 +1077,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			contextWindow,
 		});
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			await this.waitUntilTaskResumed(input.taskId);
 			this.markModelRequestStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
@@ -1142,6 +1146,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			await this.waitUntilTaskResumed(input.taskId);
 			this.markModelRequestStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
@@ -1389,6 +1394,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				persistedSnapshot,
 			});
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
+			await this.waitUntilTaskResumed(input.taskId);
 			this.markModelRequestStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
@@ -1637,6 +1643,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					this.scheduleStreamTimeout(request.taskId);
 					this.scheduleConversationTimeout(request.taskId);
 				}
+				await this.waitUntilTaskResumed(request.taskId);
 				this.markModelRequestStarted(request.taskId);
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
@@ -2176,10 +2183,16 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	setBoardPaused(paused: boolean): void {
 		this.pauseController.setBoardPaused(paused);
+		if (paused) {
+			this.parkActiveTasksForOperatorPause();
+		}
 	}
 
 	setCardPaused(taskId: string, paused: boolean): void {
 		this.pauseController.setCardPaused(taskId, paused);
+		if (paused) {
+			this.parkActiveTasksForOperatorPause(taskId);
+		}
 	}
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
@@ -2229,6 +2242,32 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			this.pauseController.clearTaskParked(taskId);
 		}
 		return resumed;
+	}
+
+	private parkActiveTasksForOperatorPause(taskId?: string): void {
+		const summaries = taskId
+			? [this.messageRepository.getTaskEntry(taskId)?.summary].filter(Boolean)
+			: this.messageRepository.listSummaries();
+		for (const summary of summaries) {
+			if (!summary || (summary.state !== "running" && summary.state !== "queued")) {
+				continue;
+			}
+			const entry = this.messageRepository.getTaskEntry(summary.taskId);
+			if (!entry) {
+				continue;
+			}
+			this.emitSummary(
+				this.parkTaskForPause({
+					taskId: summary.taskId,
+					entry,
+					message: "Paused — will resume when the board/card is resumed.",
+					metadata: {
+						guardrail: "operator_pause",
+						source: taskId ? "card_pause" : "board_pause",
+					},
+				}),
+			);
+		}
 	}
 
 	async listSlashCommands(workspacePath: string): Promise<ClineSdkSlashCommand[]> {

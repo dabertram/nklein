@@ -2378,6 +2378,56 @@ describe("InMemoryClineTaskSessionService", () => {
 		});
 	});
 
+	it("parks and aborts running tasks immediately when the board is paused", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working until paused.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		service.setBoardPaused(true);
+
+		expect(service.getSummary("task-1")).toMatchObject({
+			state: "paused",
+			latestHookActivity: {
+				hookEventName: "operator_pause",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+	});
+
+	it("does not dispatch queued input to the SDK while the board is paused", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working until paused.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+		service.setBoardPaused(true);
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		await service.sendTaskSessionInput("task-1", "Do not send until resumed.");
+		await Promise.resolve();
+
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
+
+		service.setBoardPaused(false);
+		await vi.waitFor(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				"resolved:Do not send until resumed.",
+				"act",
+				undefined,
+			);
+		});
+	});
+
 	it.each(["stop", "abort"] as const)("rejects queued pause waits when a task is %sed", async (action) => {
 		const { service } = createTrackedService();
 		await service.startTaskSession({
