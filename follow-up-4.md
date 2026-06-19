@@ -459,9 +459,10 @@ files too — the §E grep will catch them.)
   - [x] [test/runtime/terminal/agent-registry.test.ts:18-19](test/runtime/terminal/agent-registry.test.ts#L18) — `function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {})`. Add `developerModeEnabled: false,` to the **base literal before** the `...overrides` spread (this clears the TS2322 `boolean | undefined`).
 - [x] **A2.** Re-run `npm run typecheck` until clean (0 errors), then `npm run web:typecheck` (keep it clean).
 - [x] **A3.** Run `npm run lint`; fix any Biome findings from the edits.
-- [ ] **A4. Leave the pre-existing failures alone.** `test/integration/runtime-state-stream.integration.test.ts` has
+- [x] **A4. Leave the pre-existing failures alone.** `test/integration/runtime-state-stream.integration.test.ts` has
   9 failing tests (empty `workspaceId`) that fail identically on the base branch — environmental, not this work. Do
   not touch them; just confirm the count is unchanged at the end.
+  - Verified with `npx vitest run test/integration/runtime-state-stream.integration.test.ts`: 9 failed, 2 passed.
 
 ---
 
@@ -975,5 +976,5 @@ to `min-w-[220px]` and wraps awkwardly.
     icon (persists across reload); hovering shows full date-time **and** duration. It never covers tool chevrons/spinner.
   - [ ] The context-usage bar sits on its own full-width line (chat panel and card detail), no longer squeezed beside
     the meta text / scope select; no horizontal overflow at the narrowest panel width.
-- [ ] `test/integration/runtime-state-stream.integration.test.ts` still fails exactly 9 (pre-existing, not a
+- [x] `test/integration/runtime-state-stream.integration.test.ts` still fails exactly 9 (pre-existing, not a
   regression).
