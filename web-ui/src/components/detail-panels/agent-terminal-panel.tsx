@@ -11,6 +11,7 @@ import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
 import { usePersistentTerminalSession } from "@/terminal/use-persistent-terminal-session";
 import { isMacPlatform } from "@/utils/platform";
+import { hasReviewGitActionChanges } from "@/utils/review-git-actions";
 
 interface AgentTerminalSessionControls {
 	clearTerminal: () => void;
@@ -166,6 +167,7 @@ const statusTagColors: Record<StatusTagStyle, string> = {
 function AgentTerminalReviewActions({
 	taskId,
 	taskColumnId,
+	summary,
 	onCommit,
 	onOpenPr,
 	isCommitLoading,
@@ -173,13 +175,19 @@ function AgentTerminalReviewActions({
 }: {
 	taskId: string;
 	taskColumnId: string;
+	summary: RuntimeTaskSessionSummary | null;
 	onCommit?: () => void;
 	onOpenPr?: () => void;
 	isCommitLoading: boolean;
 	isOpenPrLoading: boolean;
 }): ReactElement | null {
 	const reviewWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(taskId);
-	const showReviewGitActions = taskColumnId === "review" && (reviewWorkspaceSnapshot?.changedFiles ?? 0) > 0;
+	const showReviewGitActions =
+		taskColumnId === "review" &&
+		hasReviewGitActionChanges({
+			changedFiles: reviewWorkspaceSnapshot?.changedFiles,
+			summary,
+		});
 
 	if (!showReviewGitActions) {
 		return null;
@@ -402,6 +410,7 @@ function AgentTerminalPanelLayout({
 					<AgentTerminalReviewActions
 						taskId={taskId}
 						taskColumnId={taskColumnId}
+						summary={summary}
 						onCommit={onCommit}
 						onOpenPr={onOpenPr}
 						isCommitLoading={isCommitLoading}

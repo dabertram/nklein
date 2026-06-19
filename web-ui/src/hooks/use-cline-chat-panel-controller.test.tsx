@@ -311,6 +311,27 @@ describe("useClineChatPanelController", () => {
 		expect(requireSnapshot(latestSnapshot).showReviewActions).toBe(false);
 	});
 
+	it("shows review actions for sandbox result branches without workspace snapshots", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					summary={createSummary("awaiting_review", {
+						latestHookActivity: createHookActivity("sandbox_patch_captured"),
+					})}
+					taskColumnId="review"
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		expect(requireSnapshot(latestSnapshot).showReviewActions).toBe(true);
+	});
+
 	it("keeps the thinking indicator visible while assistant text is streaming", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 

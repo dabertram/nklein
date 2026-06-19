@@ -277,6 +277,16 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   - Task commit/PR prompt dispatch now derives the configured `{{base_ref}}` git context from the review card instead
     of resolving host task-workspace metadata first, so sandbox-native Cline/default tasks can ask their chat session
     to commit or open a PR without requiring a host worktree path.
+  - Trashed-card workspace-path fallback now uses the same legacy-agent boundary: explicit non-Cline terminal-agent
+    cards may still reconstruct their old host task-workspace path, but default/Cline sandbox cards no longer invent a
+    `~/.cline/worktrees/...` path when no workspace metadata exists.
+  - Review Commit/Open PR controls now also recognize the sandbox result-branch capture signal
+    (`sandbox_patch_captured`) when no host workspace snapshot exists, so default/Cline review cards and chat footers
+    keep their git action affordances after metadata polling is limited to legacy workspaces.
+  - Auto-review commit/PR scheduling now uses the same tri-state change signal: host snapshot dirty/clean when present,
+    otherwise sandbox `sandbox_patch_captured`/`sandbox_patch_empty`. This lets sandbox result-branch tasks start
+    auto-commit/PR and later auto-move to Done without host workspace metadata, and its durable notices no longer
+    describe the task result as a host workspace.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

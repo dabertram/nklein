@@ -647,6 +647,7 @@ export function useBoardInteractions({
 
 	useReviewAutoActions({
 		board,
+		sessions,
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
 		requestMoveTaskToCompleted,

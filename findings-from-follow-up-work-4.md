@@ -45,6 +45,14 @@
   - Web task commit/PR prompt dispatch now uses the review card's `baseRef` directly instead of requiring
     `RuntimeTaskWorkspaceInfoResponse`, removing another host-worktree metadata dependency from sandbox-native
     Cline/default task actions.
+  - Trashed-card host path reconstruction now runs only for explicit legacy host-workspace agents. Default/Cline
+    sandbox cards no longer display synthetic `~/.cline/worktrees/...` paths when no task-workspace metadata exists.
+  - Review Commit/Open PR action visibility now treats `sandbox_patch_captured` as a changed-task signal when no host
+    workspace snapshot exists, keeping sandbox result-branch review cards/chat footers actionable after host metadata
+    polling was limited to legacy agents.
+  - Auto-review commit/PR scheduling now uses the same tri-state source (`dirty` / `clean` / `unknown`), allowing
+    sandbox result-branch captures to start automation and `sandbox_patch_empty` to complete the move-to-Done flow
+    without host workspace metadata.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

@@ -12,6 +12,7 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
+import { hasReviewGitActionChanges } from "@/utils/review-git-actions";
 
 interface UseClineChatPanelControllerInput {
 	taskId: string;
@@ -88,7 +89,10 @@ export function useClineChatPanelController({
 	const canCancel = Boolean(onCancelTurn) && summary?.state === "running" && !isCanceling;
 	const showReviewActions =
 		taskColumnId === "review" &&
-		(reviewWorkspaceSnapshot?.changedFiles ?? 0) > 0 &&
+		hasReviewGitActionChanges({
+			changedFiles: reviewWorkspaceSnapshot?.changedFiles,
+			summary,
+		}) &&
 		Boolean(onCommit) &&
 		Boolean(onOpenPr);
 	const showAgentProgressIndicator = summary?.state === "running";

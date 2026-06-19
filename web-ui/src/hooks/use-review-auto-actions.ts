@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import type { TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
+import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { findCardSelection } from "@/state/board-state";
 import { getTaskWorkspaceSnapshot, subscribeToAnyTaskMetadata } from "@/stores/workspace-metadata-store";
 import type { BoardCard, BoardColumnId, BoardData, TaskAutoReviewMode } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
+import { getReviewGitActionChangeState } from "@/utils/review-git-actions";
 
 const AUTO_REVIEW_ACTION_DELAY_MS = 500;
 const AUTO_REVIEW_STUCK_AFTER_MS = 30_000;
@@ -29,6 +31,7 @@ interface AutoReviewNotice {
 
 interface UseReviewAutoActionsOptions {
 	board: BoardData;
+	sessions: Record<string, RuntimeTaskSessionSummary>;
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
 	requestMoveTaskToCompleted: (
@@ -45,15 +48,15 @@ function getAutoReviewActionName(action: TaskGitAction): string {
 }
 
 function getAutoReviewRunningMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} is running. !Klein will move this task to Done once the task workspace is clean.`;
+	return `${getAutoReviewActionName(action)} is running. !Klein will move this task to Done once no task changes remain.`;
 }
 
 function getAutoReviewNoEffectMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} did not start. Review the task workspace, then run the action manually or cancel automation.`;
+	return `${getAutoReviewActionName(action)} did not start. Review the task result, then run the action manually or cancel automation.`;
 }
 
 function getAutoReviewStuckMessage(action: TaskGitAction): string {
-	return `${getAutoReviewActionName(action)} started, but the task workspace is still dirty. Review the remaining changes, then run the action manually or cancel automation.`;
+	return `${getAutoReviewActionName(action)} started, but task changes still remain. Review the task result, then run the action manually or cancel automation.`;
 }
 
 function formatUnknownError(error: unknown): string {
@@ -62,6 +65,7 @@ function formatUnknownError(error: unknown): string {
 
 export function useReviewAutoActions({
 	board,
+	sessions,
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
 	requestMoveTaskToCompleted,
@@ -69,6 +73,7 @@ export function useReviewAutoActions({
 	resetKey,
 }: UseReviewAutoActionsOptions): void {
 	const boardRef = useRef<BoardData>(board);
+	const sessionsRef = useRef<Record<string, RuntimeTaskSessionSummary>>(sessions);
 	const runAutoReviewGitActionRef = useRef(runAutoReviewGitAction);
 	const requestMoveTaskToCompletedRef = useRef(requestMoveTaskToCompleted);
 	const onAutoReviewNoticeChangeRef = useRef(onAutoReviewNoticeChange);
@@ -82,6 +87,10 @@ export function useReviewAutoActions({
 	useEffect(() => {
 		boardRef.current = board;
 	}, [board]);
+
+	useEffect(() => {
+		sessionsRef.current = sessions;
+	}, [sessions]);
 
 	useEffect(() => {
 		runAutoReviewGitActionRef.current = runAutoReviewGitAction;
@@ -209,10 +218,14 @@ export function useReviewAutoActions({
 				// - Review entries with zero changes (common during start-in-plan-mode planning loops) are intentionally ignored.
 				// - Once armed, a later review state with zero changes is treated as commit/pr success, then we auto-move to done.
 				const changedFiles = getTaskWorkspaceSnapshot(reviewTask.id)?.changedFiles;
+				const changeState = getReviewGitActionChangeState({
+					changedFiles,
+					summary: sessionsRef.current[reviewTask.id] ?? null,
+				});
 				const awaitingAction = awaitingCleanActionByTaskIdRef.current[reviewTask.id] ?? null;
 				if (awaitingAction) {
 					if (
-						changedFiles === 0 &&
+						changeState === "clean" &&
 						!isGitActionInFlight &&
 						!moveToCompletedInFlightTaskIdsRef.current.has(reviewTask.id)
 					) {
@@ -263,7 +276,7 @@ export function useReviewAutoActions({
 					continue;
 				}
 
-				if ((changedFiles ?? 0) <= 0 || isGitActionInFlight) {
+				if (changeState !== "dirty" || isGitActionInFlight) {
 					clearAutoReviewTimer(reviewTask.id);
 					continue;
 				}
@@ -322,7 +335,7 @@ export function useReviewAutoActions({
 		evaluateAutoReview({
 			source: "board_or_loading_change",
 		});
-	}, [board, evaluateAutoReview, taskGitActionLoadingByTaskId]);
+	}, [board, evaluateAutoReview, sessions, taskGitActionLoadingByTaskId]);
 
 	useEffect(() => {
 		return subscribeToAnyTaskMetadata((taskId) => {

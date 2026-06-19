@@ -53,6 +53,9 @@
 - Scoped shutdown host-worktree cleanup to explicit legacy task agents and de-duped managed/indexed workspaces by canonical path, so Cline/default sandbox tasks are interrupted without entering saved host-patch cleanup.
 - Scoped host task-workspace metadata polling to explicit legacy task agents, so active Cline/default cards no longer publish fake missing host-workspace paths while terminal-agent worktrees still report Git status.
 - Decoupled task commit/PR prompt dispatch from host task-workspace metadata, using each review card's base ref for `{{base_ref}}` so sandbox-native Cline/default tasks can request git actions without a host worktree path.
+- Stopped trashed default/Cline sandbox cards from reconstructing synthetic `~/.cline/worktrees/...` paths, while preserving that fallback for explicit legacy host-workspace agents.
+- Kept Commit/Open PR controls visible for sandbox result-branch review tasks by recognizing captured result patches even when no host task-workspace snapshot exists.
+- Updated auto-review commit/PR scheduling to use sandbox result-patch dirty/clean signals when host workspace metadata is unavailable, and neutralized its durable notices away from host-workspace wording.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useReviewAutoActions } from "@/hooks/use-review-auto-actions";
+import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { resetWorkspaceMetadataStore, setTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 import type { BoardColumnId, BoardData, ReviewTaskWorkspaceSnapshot } from "@/types";
 
@@ -50,11 +51,15 @@ const workspaceSnapshots: Record<string, ReviewTaskWorkspaceSnapshot> = {
 
 function HookHarness({
 	board,
+	sessions = {},
+	workspaceSnapshot = workspaceSnapshots["task-1"] ?? null,
 	runAutoReviewGitAction,
 	requestMoveTaskToCompleted,
 	onAutoReviewNoticeChange,
 }: {
 	board: BoardData;
+	sessions?: Record<string, RuntimeTaskSessionSummary>;
+	workspaceSnapshot?: ReviewTaskWorkspaceSnapshot | null;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
 	requestMoveTaskToCompleted: (taskId: string, fromColumnId: BoardColumnId) => Promise<void>;
 	onAutoReviewNoticeChange?: (
@@ -62,15 +67,43 @@ function HookHarness({
 		notice: { status: "running" | "failed"; message: string } | null,
 	) => void;
 }): null {
-	setTaskWorkspaceSnapshot(workspaceSnapshots["task-1"] ?? null);
+	setTaskWorkspaceSnapshot(workspaceSnapshot);
 	useReviewAutoActions({
 		board,
+		sessions,
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction,
 		requestMoveTaskToCompleted,
 		onAutoReviewNoticeChange,
 	});
 	return null;
+}
+
+function createSession(hookEventName: string): RuntimeTaskSessionSummary {
+	return {
+		taskId: "task-1",
+		state: "awaiting_review",
+		agentId: "cline",
+		workspacePath: "/repo",
+		pid: null,
+		startedAt: 1,
+		updatedAt: 1,
+		lastOutputAt: 1,
+		reviewReason: "exit",
+		exitCode: 0,
+		lastHookAt: 1,
+		latestHookActivity: {
+			activityText: hookEventName === "sandbox_patch_captured" ? "Result patch captured" : "No changes",
+			toolName: null,
+			toolInputSummary: null,
+			finalMessage: null,
+			hookEventName,
+			notificationType: null,
+			source: "nklein",
+		},
+		latestTurnCheckpoint: null,
+		previousTurnCheckpoint: null,
+	};
 }
 
 describe("useReviewAutoActions", () => {
@@ -158,13 +191,80 @@ describe("useReviewAutoActions", () => {
 		expect(runAutoReviewGitAction).toHaveBeenCalledWith("task-1", "commit");
 		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
 			status: "running",
-			message: "Auto-commit is running. !Klein will move this task to Done once the task workspace is clean.",
+			message: "Auto-commit is running. !Klein will move this task to Done once no task changes remain.",
 		});
 		expect(onAutoReviewNoticeChange).toHaveBeenCalledWith("task-1", {
 			status: "failed",
 			message:
-				"Auto-commit did not start. Review the task workspace, then run the action manually or cancel automation.",
+				"Auto-commit did not start. Review the task result, then run the action manually or cancel automation.",
 		});
 		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
+	});
+
+	it("starts auto review from a captured sandbox result branch without a workspace snapshot", async () => {
+		const runAutoReviewGitAction = vi.fn(async () => true);
+		const requestMoveTaskToCompleted = vi.fn(async () => {});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={createBoard(true)}
+					sessions={{ "task-1": createSession("sandbox_patch_captured") }}
+					workspaceSnapshot={null}
+					runAutoReviewGitAction={runAutoReviewGitAction}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1000);
+		});
+
+		expect(runAutoReviewGitAction).toHaveBeenCalledWith("task-1", "commit");
+		expect(requestMoveTaskToCompleted).not.toHaveBeenCalled();
+	});
+
+	it("moves auto-reviewed sandbox tasks to done after a clean result capture", async () => {
+		const runAutoReviewGitAction = vi.fn(async () => true);
+		const requestMoveTaskToCompleted = vi.fn(async () => {});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={createBoard(true)}
+					sessions={{ "task-1": createSession("sandbox_patch_captured") }}
+					workspaceSnapshot={null}
+					runAutoReviewGitAction={runAutoReviewGitAction}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1000);
+			await Promise.resolve();
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={createBoard(true)}
+					sessions={{ "task-1": createSession("sandbox_patch_empty") }}
+					workspaceSnapshot={null}
+					runAutoReviewGitAction={runAutoReviewGitAction}
+					requestMoveTaskToCompleted={requestMoveTaskToCompleted}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1000);
+			await Promise.resolve();
+		});
+
+		expect(requestMoveTaskToCompleted).toHaveBeenCalledWith("task-1", "review", {
+			skipWorkingChangeWarning: true,
+		});
 	});
 });

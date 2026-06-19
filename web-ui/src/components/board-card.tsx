@@ -1,5 +1,5 @@
 import { Draggable } from "@hello-pangea/dnd";
-import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
+import { getRuntimeAgentCatalogEntry, usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
 import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
 import { AlertCircle, AlertTriangle, Bot, Clipboard, GitBranch, Pause, Pencil, Play, RotateCcw } from "lucide-react";
@@ -21,6 +21,7 @@ import type { BoardCard as BoardCardModel, BoardColumnId } from "@/types";
 import { getTaskAutoReviewCancelButtonLabel } from "@/types";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useMeasure } from "@/utils/react-use";
+import { hasReviewGitActionChanges } from "@/utils/review-git-actions";
 import {
 	clampTextWithInlineSuffix,
 	getTaskPromptDescription,
@@ -598,7 +599,7 @@ export function BoardCard({
 	const showWorkspaceStatus = columnId === "in_progress" || columnId === "review" || isTrashCard;
 	const reviewWorkspacePath = reviewWorkspaceSnapshot
 		? formatPathForDisplay(reviewWorkspaceSnapshot.path)
-		: isTrashCard
+		: isTrashCard && usesLegacyHostTaskWorkspace(card.agentId)
 			? reconstructTaskWorktreeDisplayPath(card.id, workspacePath)
 			: null;
 	const reviewRefLabel = reviewWorkspaceSnapshot?.branch ?? reviewWorkspaceSnapshot?.headCommit?.slice(0, 8) ?? "HEAD";
@@ -611,7 +612,12 @@ export function BoardCard({
 					deletions: reviewWorkspaceSnapshot.deletions ?? 0,
 				}
 		: null;
-	const showReviewGitActions = columnId === "review" && (reviewWorkspaceSnapshot?.changedFiles ?? 0) > 0;
+	const showReviewGitActions =
+		columnId === "review" &&
+		hasReviewGitActionChanges({
+			changedFiles: reviewWorkspaceSnapshot?.changedFiles,
+			summary: sessionSummary,
+		});
 	const isAnyGitActionLoading = isCommitLoading || isOpenPrLoading;
 	const canCopyEvidence = !isTrashCard && Boolean(onCopyEvidence);
 	const cancelAutomaticActionLabel =

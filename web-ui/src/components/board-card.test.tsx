@@ -248,6 +248,43 @@ describe("BoardCard", () => {
 		expect(container.querySelector('button[aria-label="Replay task"]')).toBeNull();
 	});
 
+	it("shows review git actions for sandbox result branches without workspace snapshots", async () => {
+		const handleCommit = vi.fn();
+		const handleOpenPr = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({ agentId: "cline" })}
+					index={0}
+					columnId="review"
+					sessionSummary={createSummary("awaiting_review", {
+						latestHookActivity: {
+							activityText: "Result patch captured: nklein/tasks/task-1",
+							toolName: null,
+							toolInputSummary: null,
+							finalMessage: "abc1234",
+							hookEventName: "sandbox_patch_captured",
+							notificationType: null,
+							source: "nklein",
+						},
+					})}
+					onCommit={handleCommit}
+					onOpenPr={handleOpenPr}
+				/>,
+			);
+		});
+
+		const commitButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Commit",
+		);
+		const openPrButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Open PR",
+		);
+		expect(commitButton).toBeInstanceOf(HTMLButtonElement);
+		expect(openPrButton).toBeInstanceOf(HTMLButtonElement);
+	});
+
 	it("shows a replay control for finished cards when replay is enabled", async () => {
 		const handleReplayTask = vi.fn();
 
@@ -377,12 +414,29 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("final hidden segment");
 	});
 
-	it("reconstructs and shows trashed worktree path when workspace metadata is not tracked", async () => {
+	it("does not reconstruct a host worktree path for default trashed sandbox tasks", async () => {
 		await act(async () => {
 			root.render(
 				<TooltipProvider>
 					<BoardCard
 						card={createCard({ id: "trash-task-1" })}
+						index={0}
+						columnId="trash"
+						workspacePath="/Users/alice/projects/kanban"
+					/>
+				</TooltipProvider>,
+			);
+		});
+
+		expect(container.textContent).not.toContain("~/.cline/worktrees/trash-task-1/kanban");
+	});
+
+	it("reconstructs and shows trashed worktree path for legacy host-workspace agents", async () => {
+		await act(async () => {
+			root.render(
+				<TooltipProvider>
+					<BoardCard
+						card={createCard({ id: "trash-task-1", agentId: "codex" })}
 						index={0}
 						columnId="trash"
 						workspacePath="/Users/alice/projects/kanban"
