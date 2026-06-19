@@ -42,6 +42,9 @@
   - Workspace metadata polling now also uses that boundary: active default/Cline cards no longer publish missing host
     task-workspace paths, while explicit non-Cline legacy cards still expose host worktree Git status for the existing
     review/diff UI.
+  - Web task commit/PR prompt dispatch now uses the review card's `baseRef` directly instead of requiring
+    `RuntimeTaskWorkspaceInfoResponse`, removing another host-worktree metadata dependency from sandbox-native
+    Cline/default task actions.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

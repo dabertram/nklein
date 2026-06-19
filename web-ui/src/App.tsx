@@ -449,7 +449,6 @@ export default function App(): ReactElement {
 		runtimeProjectConfig,
 		sendTaskSessionInput,
 		sendTaskChatMessage,
-		fetchTaskWorkspaceInfo,
 		isGitHistoryOpen,
 		refreshWorkspaceState,
 	});

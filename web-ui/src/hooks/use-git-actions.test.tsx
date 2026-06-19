@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type UseGitActionsResult, useGitActions } from "@/hooks/use-git-actions";
-import type { RuntimeConfigResponse, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
+import type { RuntimeConfigResponse } from "@/runtime/types";
 import { clearTaskWorkspaceInfo, clearTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 import type { BoardData } from "@/types";
 
@@ -145,22 +145,10 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 			oauthAccountId: null,
 			oauthExpiresAt: null,
 		},
-		commitPromptTemplate: "commit",
+		commitPromptTemplate: "commit {{base_ref}}",
 		openPrPromptTemplate: "pr",
 		commitPromptTemplateDefault: "commit",
 		openPrPromptTemplateDefault: "pr",
-	};
-}
-
-function createWorkspaceInfo(): RuntimeTaskWorkspaceInfoResponse {
-	return {
-		taskId: "task-1",
-		path: "/tmp/task-1",
-		exists: true,
-		baseRef: "main",
-		branch: "task-1",
-		isDetached: false,
-		headCommit: "abc1234",
 	};
 }
 
@@ -180,7 +168,6 @@ function HookHarness({
 		runtimeProjectConfig: createRuntimeConfig("cline"),
 		sendTaskSessionInput,
 		sendTaskChatMessage,
-		fetchTaskWorkspaceInfo: async () => createWorkspaceInfo(),
 		isGitHistoryOpen: false,
 		refreshWorkspaceState: async () => {},
 	});
@@ -257,7 +244,7 @@ describe("useGitActions", () => {
 			await Promise.resolve();
 		});
 
-		expect(sendTaskChatMessage).toHaveBeenCalledWith("task-1", expect.any(String), { mode: "act" });
+		expect(sendTaskChatMessage).toHaveBeenCalledWith("task-1", "commit main", { mode: "act" });
 		expect(sendTaskSessionInput).not.toHaveBeenCalled();
 		expect(showAppToastMock).not.toHaveBeenCalled();
 	});

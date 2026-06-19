@@ -274,6 +274,9 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   - Workspace metadata polling now applies the same boundary: host task-workspace Git metadata is collected only for
     explicitly non-Cline legacy agent cards. Default/Cline active cards no longer publish fake missing host-workspace
     paths, while explicit Codex/Claude-style task workspaces still drive the existing diff/status UI.
+  - Task commit/PR prompt dispatch now derives the configured `{{base_ref}}` git context from the review card instead
+    of resolving host task-workspace metadata first, so sandbox-native Cline/default tasks can ask their chat session
+    to commit or open a PR without requiring a host worktree path.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

@@ -1,4 +1,4 @@
-import type { RuntimeTaskAutoReviewMode, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
+import type { RuntimeTaskAutoReviewMode } from "@/runtime/types";
 
 export type TaskGitAction = Extract<RuntimeTaskAutoReviewMode, "commit" | "pr">;
 
@@ -11,7 +11,7 @@ interface TaskGitPromptVariable {
 export const TASK_GIT_BASE_REF_PROMPT_VARIABLE: TaskGitPromptVariable = {
 	key: "base_ref",
 	token: "{{base_ref}}",
-	description: "the base branch/ref this task workspace was prepared from",
+	description: "the base branch/ref this task result should be compared against",
 };
 
 export interface TaskGitPromptTemplates {
@@ -23,7 +23,9 @@ export interface TaskGitPromptTemplates {
 
 interface BuildTaskGitActionPromptInput {
 	action: TaskGitAction;
-	workspaceInfo: RuntimeTaskWorkspaceInfoResponse;
+	gitContext: {
+		baseRef: string;
+	};
 	templates?: TaskGitPromptTemplates | null;
 }
 
@@ -60,7 +62,7 @@ function interpolateTemplate(template: string, variables: Record<string, string>
 
 export function buildTaskGitActionPrompt(input: BuildTaskGitActionPromptInput): string {
 	const variables: Record<string, string> = {
-		[TASK_GIT_BASE_REF_PROMPT_VARIABLE.key]: input.workspaceInfo.baseRef,
+		[TASK_GIT_BASE_REF_PROMPT_VARIABLE.key]: input.gitContext.baseRef,
 	};
 	const template = resolveTemplate(input.action, input.templates);
 	return interpolateTemplate(template, variables);

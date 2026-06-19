@@ -4,20 +4,17 @@ import { type UseGitHistoryDataResult, useGitHistoryData } from "@/components/gi
 import { buildTaskGitActionPrompt, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { isNativeClineAgentSelected } from "@/runtime/native-agent";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
-import type { RuntimeConfigResponse, RuntimeGitSyncAction, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
+import type { RuntimeConfigResponse, RuntimeGitSyncAction } from "@/runtime/types";
 import { findCardSelection } from "@/state/board-state";
 import {
-	getTaskWorkspaceInfo,
-	getTaskWorkspaceSnapshot,
 	setHomeGitSummary,
-	setTaskWorkspaceInfo,
 	useHomeGitStateVersionValue,
 	useHomeGitSummaryValue,
 	useTaskWorkspaceSnapshotValue,
 	useTaskWorkspaceStateVersionValue,
 } from "@/stores/workspace-metadata-store";
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
-import type { BoardCard, BoardData, CardSelection } from "@/types";
+import type { BoardData, CardSelection } from "@/types";
 
 type TaskGitActionSource = "card" | "agent";
 
@@ -41,7 +38,6 @@ interface UseGitActionsInput {
 		text: string,
 		options?: { mode?: "plan" | "act" },
 	) => Promise<{ ok: boolean; message?: string }>;
-	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 	isGitHistoryOpen: boolean;
 	refreshWorkspaceState: () => Promise<void>;
 }
@@ -74,16 +70,6 @@ export interface UseGitActionsResult {
 	resetGitActionState: () => void;
 }
 
-function matchesWorkspaceInfoSelection(
-	workspaceInfo: RuntimeTaskWorkspaceInfoResponse | null,
-	card: BoardCard | null,
-): workspaceInfo is RuntimeTaskWorkspaceInfoResponse {
-	if (!workspaceInfo || !card) {
-		return false;
-	}
-	return workspaceInfo.taskId === card.id && workspaceInfo.baseRef === card.baseRef;
-}
-
 export function useGitActions({
 	currentProjectId,
 	board,
@@ -91,7 +77,6 @@ export function useGitActions({
 	runtimeProjectConfig,
 	sendTaskSessionInput,
 	sendTaskChatMessage,
-	fetchTaskWorkspaceInfo,
 	isGitHistoryOpen,
 	refreshWorkspaceState,
 }: UseGitActionsInput): UseGitActionsResult {
@@ -247,36 +232,11 @@ export function useGitActions({
 					return false;
 				}
 
-				const snapshot = getTaskWorkspaceSnapshot(taskId);
-				const snapshotWorkspaceInfo = snapshot
-					? {
-							taskId,
-							path: snapshot.path,
-							exists: true,
-							baseRef: selection.card.baseRef,
-							branch: snapshot.branch,
-							isDetached: snapshot.isDetached,
-							headCommit: snapshot.headCommit,
-						}
-					: null;
-				const storedWorkspaceInfo = getTaskWorkspaceInfo(selection.card.id, selection.card.baseRef);
-				const workspaceInfo = matchesWorkspaceInfoSelection(storedWorkspaceInfo, selection.card)
-					? storedWorkspaceInfo
-					: (snapshotWorkspaceInfo ?? (await fetchTaskWorkspaceInfo(selection.card)));
-				if (!workspaceInfo) {
-					showAppToast({
-						intent: "danger",
-						icon: "warning-sign",
-						message: "Could not resolve task workspace details.",
-						timeout: 6000,
-					});
-					return false;
-				}
-				setTaskWorkspaceInfo(workspaceInfo);
-
 				const prompt = buildTaskGitActionPrompt({
 					action,
-					workspaceInfo,
+					gitContext: {
+						baseRef: selection.card.baseRef,
+					},
 					templates: runtimeProjectConfig
 						? {
 								commitPromptTemplate: runtimeProjectConfig.commitPromptTemplate,
@@ -329,7 +289,6 @@ export function useGitActions({
 		},
 		[
 			board,
-			fetchTaskWorkspaceInfo,
 			runtimeProjectConfig,
 			sendTaskChatMessage,
 			sendTaskSessionInput,
