@@ -172,7 +172,7 @@ via `node:child_process` `execFile`, proven in CAKE2 — do **not** add `dockero
 pool** of containers per the J8 settings. The default settings (1 container, unlimited agents per container) give
 "one container for all agents." The flag block below is **one** pool container; per-task `exec` / `disposeWorkspace` /
 idle / killswitch / fail-closed logic is identical no matter how many containers/agents you configure.
-- [ ] `class AgentSandboxManager` (singleton) with:
+- [x] `class AgentSandboxManager` (singleton) with:
   - `assertAvailable(): Promise<void>` — `docker version` + `docker image inspect <image>`; throws
     `AgentSandboxUnavailableError` (CAKE2 detection of missing daemon/exe: exit 125/126/127 + stderr markers "cannot
     connect to the docker daemon", "is the docker daemon running", "executable file not found", …).
@@ -187,7 +187,7 @@ idle / killswitch / fail-closed logic is identical no matter how many containers
     (decrement occupancy, dequeue the next waiter; if the container is now empty, arm its idle timer — J4).
   - `stopNow(): Promise<void>` — `docker rm -f` **all** pool containers + their volumes (implicit killswitch; on dispose).
   - private `startContainer(slot)` (single-flight per slot), `releaseSlot(taskId)`, per-container idle timers, FIFO queue.
-- [ ] **Exact `docker run` flags for the single shared container** (limits are now **container-wide**, sized for
+- [x] **Exact `docker run` flags for the single shared container** (limits are now **container-wide**, sized for
   concurrency; copy the lockdown set from CAKE2 `_restricted_docker_command`,
   `/Users/david/GIT/CAKE2/src/cake/services/sandbox/isolation.py:385`):
   ```
@@ -215,11 +215,11 @@ idle / killswitch / fail-closed logic is identical no matter how many containers
   `mkdir` its **own** dir as its **own uid**, so no `CAP_CHOWN` is needed and `--cap-drop ALL` stays fully intact.
   Every actual agent tool runs via `docker exec -u <taskUid>` — **never as root**. (Root main + all caps dropped +
   no-new-privileges + read-only root fs + no network is a well-contained posture.)
-- [ ] **Project ro-mounts:** every pool container mounts each registered project's repo read-only at
+- [x] **Project ro-mounts:** every pool container mounts each registered project's repo read-only at
   `/repos/<projectKey>` as the clone source (containers are created with the current project set; if it changes, new
   containers pick it up and stale ones reap on idle). The project repo is the user's own repo (not pollution) and
   read-only guarantees the agent cannot mutate it directly.
-- [ ] **All sizing comes from J8 settings:** per-container `--memory`/`--cpus` from `sandboxMemoryPerContainerMb` /
+- [x] **All sizing comes from J8 settings:** per-container `--memory`/`--cpus` from `sandboxMemoryPerContainerMb` /
   `sandboxCpusPerContainer`; pool shape from `sandboxMaxContainers` / `sandboxAgentsPerContainer`; idle from
   `sandboxIdleTimeoutMinutes`; total parallelism from the existing `maxConcurrentTasks`. On container teardown also
   `docker volume rm nklein-agent-ws-<slot>` so nothing lingers.
@@ -227,15 +227,15 @@ idle / killswitch / fail-closed logic is identical no matter how many containers
 ### J3b. Per-task workspace lifecycle inside its pool container (this removes the host worktree folders)
 **There are no host worktree directories anymore.** Each task's working copy lives **only** in the container volume,
 isolated from other tasks. This is the larger implementation effort and it is worth it.
-- [ ] **Per-task uid:** assign a stable unprivileged uid per task (e.g. `70000 + (hash(taskId) % 20000)`, tracked in a
+- [x] **Per-task uid:** assign a stable unprivileged uid per task (e.g. `70000 + (hash(taskId) % 20000)`, tracked in a
   `Map<taskId,uid>`). All of that task's execs use `-u <uid>`. Distinct uids ⇒ **OS-enforced** filesystem isolation
   between task workspaces inside the one container.
-- [ ] **Prepare (clone in):** `docker exec -u <uid> mkdir -m 700 /workspaces/<taskId>`, then
+- [x] **Prepare (clone in):** `docker exec -u <uid> mkdir -m 700 /workspaces/<taskId>`, then
   `docker exec -u <uid> git clone --no-hardlinks /repos/<projectKey> /workspaces/<taskId>` and check out `baseRef`.
   Because `/workspaces` is mode 1777, the uid owns its dir at mode 700 and sibling task uids cannot read it. This
   **replaces** today's host `git worktree add` (the worktree-creation code around
   [src/workspace/task-worktree-path.ts](src/workspace/task-worktree-path.ts) and `src/workspace/`).
-- [ ] **Run:** the J1 executors and the J5 acceptance gate exec with `-u <uid> -w /workspaces/<taskId>` via
+- [x] **Run:** the J1 executors and the J5 acceptance gate exec with `-u <uid> -w /workspaces/<taskId>` via
   `manager.exec(taskId, …)`. The in-container tool-runner uses `cwd = /workspaces/<taskId>`.
 - [ ] **Extract results (patch out):** at review/completion, read the diff with
   `manager.exec(taskId, ["git","-C","/workspaces/<taskId>","add","-A"])` then
@@ -255,7 +255,7 @@ isolated from other tasks. This is the larger implementation effort and it is wo
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container
 for all agents." Per-agent isolation is always the J3b model (own uid + own `/workspaces/<taskId>`), so co-tenant
 agents in one container still cannot read each other's files.
-- [ ] **Capacity model.** A container hosts up to `sandboxAgentsPerContainer` agents (`0` = unlimited). The pool grows
+- [x] **Capacity model.** A container hosts up to `sandboxAgentsPerContainer` agents (`0` = unlimited). The pool grows
   to `sandboxMaxContainers` containers. Effective parallel agents =
   `min(maxConcurrentTasks, sandboxMaxContainers × agentsPerContainer)` (treat unlimited as +∞); `maxConcurrentTasks`
   stays the outer cap.
@@ -263,11 +263,11 @@ agents in one container still cannot read each other's files.
   idle timer); (2) else `startContainer` if pool size < `sandboxMaxContainers`; (3) else **enqueue** the task and
   resolve when `releaseSlot` frees capacity. FIFO by board/start order. A queued task shows a "Queued — waiting for
   sandbox capacity" state on its card (reuse the existing concurrency-cap waiting state if one already exists).
-- [ ] **Per-container resource caps come from settings** (you chose explicit budgets): `--memory
+- [x] **Per-container resource caps come from settings** (you chose explicit budgets): `--memory
   <sandboxMemoryPerContainerMb>m`, `--cpus <sandboxCpusPerContainer>` — shared by all agents in that container;
   `--pids-limit` scales with agents-per-container. **Total footprint = (#containers) × (per-container budget)** —
   predictable for limited hardware.
-- [ ] **Release + reuse.** On task end `releaseSlot` frees the slot; the container is **reused** by the next queued/new
+- [x] **Release + reuse.** On task end `releaseSlot` frees the slot; the container is **reused** by the next queued/new
   agent; an empty container idles for `sandboxIdleTimeoutMinutes` then is destroyed (J4). Never spawn/kill per task.
 - [ ] **Presets (UX sugar over the numbers):** "Shared" = `sandboxMaxContainers` 1 + `sandboxAgentsPerContainer`
   unlimited (the default); "Dedicated" = `sandboxAgentsPerContainer` 1 (one agent per container, pool grows to
@@ -275,9 +275,9 @@ agents in one container still cannot read each other's files.
   placements; running agents keep their container; now-excess idle containers reap on their timer.
 
 ### J4. Lifecycle: lazy start, pool reuse, configurable idle teardown
-- [ ] **Single manager instance** owned by the task-session service
+- [x] **Single manager instance** owned by the task-session service
   ([cline-task-session-service.ts](src/cline-sdk/cline-task-session-service.ts)). Never create a container per task.
-- [ ] **On task start** (`startTaskSession` [L1313](src/cline-sdk/cline-task-session-service.ts#L1313) /
+- [x] **On task start** (`startTaskSession` [L1313](src/cline-sdk/cline-task-session-service.ts#L1313) /
   `startRuntimeTaskSessionFromLaunchConfig` [L592](src/cline-sdk/cline-task-session-service.ts#L592)): before
   `sessionHost.start`, `await manager.assertAvailable()` → `await manager.acquireSlot(taskId)` (may **queue** — J3c) →
   `await manager.prepareWorkspace({ taskId, projectRepoPath, baseRef })`. Pass the manager + `taskId` into the session
@@ -289,11 +289,11 @@ agents in one container still cannot read each other's files.
   `await manager.disposeWorkspace(taskId)` (releases the slot, dequeues the next queued task, and arms the container's
   idle timer only if it is now empty). **Never** stop a container because a single task ended — it may host others and
   the pool serves the queue.
-- [ ] **Idle teardown + reuse (configurable):** each container with **zero** agents arms an idle timer set by
+- [x] **Idle teardown + reuse (configurable):** each container with **zero** agents arms an idle timer set by
   `sandboxIdleTimeoutMinutes` (J8, default **10**). A new agent before it fires cancels the timer and **reuses** the
   container; if it fires with still no demand, `docker rm -f` that container and `docker volume rm` its volume. Applies
   to every container in the pool. Reuse-before-recreate is mandatory — the "no constant spawn/kill" requirement.
-- [ ] **Killswitch (implicit, not a separate control):** removing the containers kills all agent activity at once. Wire
+- [x] **Killswitch (implicit, not a separate control):** removing the containers kills all agent activity at once. Wire
   `stopNow()` (removes **all** pool containers + their volumes) into `dispose`
   ([L2197](src/cline-sdk/cline-task-session-service.ts#L2197)) and runtime shutdown. Do
   **not** add a user-facing "kill agents" button — the board Start/Pause/Resume (§K) plus this idle teardown are the

@@ -1,5 +1,6 @@
 import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/core";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import type { AgentSandboxManager } from "../../../src/cline-sdk/cline-agent-sandbox";
 import type { ClineRuntimeSetup } from "../../../src/cline-sdk/cline-runtime-setup";
 import type {
 	ClinePersistedTaskSessionSnapshot,
@@ -100,6 +101,15 @@ interface FakeRuntimeSetupController {
 	loadRulesMock: Mock<() => string>;
 	requestToolApprovalMock: Mock<(request: ToolApprovalRequest) => Promise<ToolApprovalResult>>;
 	disposeMock: Mock<() => Promise<void>>;
+}
+
+interface FakeAgentSandboxManagerController {
+	manager: AgentSandboxManager;
+	assertAvailableMock: Mock<AgentSandboxManager["assertAvailable"]>;
+	prepareWorkspaceMock: Mock<AgentSandboxManager["prepareWorkspace"]>;
+	disposeWorkspaceMock: Mock<AgentSandboxManager["disposeWorkspace"]>;
+	stopNowMock: Mock<AgentSandboxManager["stopNow"]>;
+	updatePoolConfigMock: Mock<AgentSandboxManager["updatePoolConfig"]>;
 }
 
 function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
@@ -380,6 +390,32 @@ function createFakeRuntimeSetup(): FakeRuntimeSetupController {
 	};
 }
 
+function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
+	const assertAvailableMock: FakeAgentSandboxManagerController["assertAvailableMock"] = vi.fn(async () => {});
+	const prepareWorkspaceMock: FakeAgentSandboxManagerController["prepareWorkspaceMock"] = vi.fn(async (input) => ({
+		workdir: `/workspaces/${input.taskId}`,
+		uid: 70_001,
+	}));
+	const disposeWorkspaceMock: FakeAgentSandboxManagerController["disposeWorkspaceMock"] = vi.fn(async () => {});
+	const stopNowMock: FakeAgentSandboxManagerController["stopNowMock"] = vi.fn(async () => {});
+	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(() => {});
+	const manager = {
+		assertAvailable: assertAvailableMock,
+		prepareWorkspace: prepareWorkspaceMock,
+		disposeWorkspace: disposeWorkspaceMock,
+		stopNow: stopNowMock,
+		updatePoolConfig: updatePoolConfigMock,
+	} as unknown as AgentSandboxManager;
+	return {
+		manager,
+		assertAvailableMock,
+		prepareWorkspaceMock,
+		disposeWorkspaceMock,
+		stopNowMock,
+		updatePoolConfigMock,
+	};
+}
+
 async function waitForTaskSessionId(runtime: FakeClineSessionRuntimeController, taskId: string): Promise<string> {
 	await vi.waitFor(() => {
 		expect(runtime.getTaskSessionId(taskId)).toBeTruthy();
@@ -476,6 +512,107 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary.state).toBe("running");
 		expect(summary.workspacePath).toBe("/tmp/worktree");
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
+	});
+
+	it("prepares a sandbox workspace before starting the SDK session", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate startup",
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
+			taskId: "task-1",
+			projectRepoPath: "/tmp/project",
+			baseRef: "main",
+		});
+		const assertAvailableCallOrder = sandboxManager.assertAvailableMock.mock.invocationCallOrder[0];
+		const prepareWorkspaceCallOrder = sandboxManager.prepareWorkspaceMock.mock.invocationCallOrder[0];
+		expect(assertAvailableCallOrder).toBeDefined();
+		expect(prepareWorkspaceCallOrder).toBeDefined();
+		expect(assertAvailableCallOrder ?? 0).toBeLessThan(prepareWorkspaceCallOrder ?? 0);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cwd: "/workspaces/task-1",
+				toolExecutors: expect.objectContaining({
+					bash: expect.any(Function),
+					applyPatch: expect.any(Function),
+				}),
+			}),
+		);
+	});
+
+	it("disposes a sandbox workspace when SDK start fails", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		runtime.startTaskSessionMock.mockRejectedValue(new Error("start failed"));
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+		});
+
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-1");
+		});
+	});
+
+	it("releases sandbox workspaces on stop, clear, and service disposal", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-stop",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate stop",
+		});
+		await waitForTaskSessionId(runtime, "task-stop");
+		await service.stopTaskSession("task-stop");
+
+		await service.startTaskSession({
+			taskId: "task-clear",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate clear",
+		});
+		await waitForTaskSessionId(runtime, "task-clear");
+		await service.clearTaskSession("task-clear");
+
+		await service.dispose();
+
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-stop");
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-clear");
+		expect(sandboxManager.stopNowMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("aborts a stalled stream and surfaces the configured timeout", async () => {

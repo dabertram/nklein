@@ -10,6 +10,8 @@
 
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.
+  - The Cline task-session service now prepares the Docker workspace before SDK start, passes the sandbox workdir and Docker-backed default tool executors into the SDK runtime, releases workspaces on start failure/stop/abort/clear, and calls `stopNow()` when the service is disposed.
+  - Completion/awaiting-review intentionally does not dispose the sandbox workspace yet: until patch-out exists, deleting `/workspaces/<taskId>` at completion would destroy the only Docker-side copy of the agent's changes before the review/diff flow can consume them.
   - The broader task-worktree subsystem is still used by terminal agents, merge/review flows, trash cleanup, evidence, UI copy, and several CLI commands.
   - The correct next step is a deliberate workspace lifecycle refactor: produce diffs from `git -C /workspaces/<taskId> diff --staged --binary`, apply them to the host repo through trusted !Klein code, then retire/rename UI and CLI text that promises host task worktrees.
 
