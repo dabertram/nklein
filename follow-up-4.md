@@ -968,6 +968,10 @@ to `min-w-[220px]` and wraps awkwardly.
     model dropdown with no "Discover models" click.
 - [ ] **🔒 Strict isolation (★ MANDATORY WORKSTREAM):**
   - [x] `npm run sandbox:build` builds the pinned sandbox image; `docker image inspect` shows it.
+    - Recheck on 2026-06-19: Docker daemon is available, but `docker image inspect nklein-agent-sandbox:latest`
+      reported the image missing. `npm run sandbox:build` was started and then canceled after it stayed at Docker's
+      pinned `node:22-bookworm-slim` metadata step for roughly two minutes with no progress, so the remaining
+      Docker-gated manual checks are blocked until the base image can be pulled/built locally.
   - [x] Isolation unit tests + the **no-host-execution guard** test pass; Docker-gated integration tests pass when a
     daemon is present (and skip cleanly when not).
   - [ ] **Fail-closed:** stop the Docker daemon (or point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image) → creating /

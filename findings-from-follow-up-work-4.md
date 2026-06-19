@@ -79,6 +79,15 @@
 
 ## Runtime pause/replay work still has unsolved surfaces
 
+- [ ] Complete Docker-gated manual strict-isolation verification after the sandbox image can be built locally.
+  - Recheck on 2026-06-19 found Docker Desktop running (`docker version` succeeded), but
+    `docker image inspect nklein-agent-sandbox:latest` reported the sandbox image missing.
+  - `npm run sandbox:build` was attempted and canceled after roughly two minutes because Docker stayed at the pinned
+    `node:22-bookworm-slim` metadata step with no progress. This looked like a base-image pull/registry wait, not a
+    TypeScript/build failure.
+  - Do not mark the remaining strict-isolation manual checks complete until `npm run sandbox:build` finishes,
+    `docker image inspect nklein-agent-sandbox:latest` succeeds, and real task starts can be observed in Docker.
+
 - [x] Finish per-card pause/resume as a complete API + UI feature, not just a service primitive.
   - Per-card pause now persists to `.cline/nklein/paused-tasks.json`, exposes `pauseTask` / `resumeTask` tRPC mutations, flips the shared `ClinePauseController`, and threads Pause/Resume controls through the board.
   - Mutation responses update the parent session summary immediately, and the board overlays returned paused task ids so the card control flips without waiting for the next session event.
