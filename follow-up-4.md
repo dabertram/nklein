@@ -878,14 +878,14 @@ crammed into a `flex flex-wrap items-center gap-2` row at
 [L1136-1143](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L1136) alongside `cardContentText`,
 `modelActivityText`, `modelRegistryText`, and (via `ml-auto`) the context-scope `<NativeSelect>` — so it is squeezed
 to `min-w-[220px]` and wraps awkwardly.
-- [ ] Move `ClineContextBudgetBar` **out** of that flex row into its **own row** directly above (or below) it, spanning
+- [x] Move `ClineContextBudgetBar` **out** of that flex row into its **own row** directly above (or below) it, spanning
   the full panel width: wrap it in `<div className="px-2 pt-2 w-full">`. Leave the meta text + scope select in their
   own row.
-- [ ] In `ClineContextBudgetBar` change the root from `flex min-w-[220px] max-w-full flex-col gap-1`
+- [x] In `ClineContextBudgetBar` change the root from `flex min-w-[220px] max-w-full flex-col gap-1`
   ([L215](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L215)) to `flex w-full flex-col gap-1`, so
   the segmented bar (already `w-full` at [L223](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L223))
   uses all available width. Keep the summary text line; it can sit left-aligned above the bar.
-- [ ] Apply the same dedicated-line treatment anywhere else the bar renders for a card — check
+- [x] Apply the same dedicated-line treatment anywhere else the bar renders for a card — check
   [card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx) and
   [board-card.tsx](web-ui/src/components/board-card.tsx) (both import context-budget formatting); give the bar its own
   full-width row there too. Do not change the bar's colors/segments — only its placement/width.

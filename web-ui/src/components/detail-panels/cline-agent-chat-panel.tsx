@@ -218,11 +218,7 @@ function ClineContextBudgetBar({ breakdown }: { breakdown: RuntimeContextBudgetB
 		breakdown.effectiveContextWindow,
 	)} tokens (${percent}%)`;
 	return (
-		<div
-			className="flex min-w-[220px] max-w-full flex-col gap-1"
-			role="group"
-			aria-label={`Context budget ${summaryText}`}
-		>
+		<div className="flex w-full flex-col gap-1" role="group" aria-label={`Context budget ${summaryText}`}>
 			<div className="flex items-center gap-2 text-[11px] text-text-tertiary">
 				<span className="text-text-secondary">Context</span>
 				<span>{summaryText}</span>
@@ -1171,14 +1167,16 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 						{panelError}
 					</div>
 				) : null}
+				{summary?.contextBudgetBreakdown ? (
+					<div className="w-full px-2 pt-2">
+						<ClineContextBudgetBar breakdown={summary.contextBudgetBreakdown} />
+					</div>
+				) : null}
 				<div className="px-2 pt-2">
 					<div className="flex flex-wrap items-center gap-2">
 						<div className="text-[11px] text-text-secondary">{cardContentText}</div>
 						{modelActivityText ? <div className="text-[11px] text-text-tertiary">{modelActivityText}</div> : null}
 						{modelRegistryText ? <div className="text-[11px] text-text-tertiary">{modelRegistryText}</div> : null}
-						{summary?.contextBudgetBreakdown ? (
-							<ClineContextBudgetBar breakdown={summary.contextBudgetBreakdown} />
-						) : null}
 						<div className="ml-auto flex flex-wrap items-center gap-2">
 							<NativeSelect
 								value={contextScope}

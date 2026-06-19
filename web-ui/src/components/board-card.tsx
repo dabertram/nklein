@@ -998,16 +998,16 @@ export function BoardCard({
 											</p>
 										) : null}
 										{contextBudgetMiniStatus ? (
-											<div className="mt-1 flex h-1.5 items-center gap-1.5">
-												<div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-4">
+											<div className="mt-1 flex w-full flex-col gap-1">
+												<span className="font-mono text-[10px] leading-none text-text-tertiary">
+													{contextBudgetMiniStatus.label}
+												</span>
+												<div className="h-1.5 w-full overflow-hidden rounded-sm bg-surface-4">
 													<div
 														className={cn("h-full rounded-sm", contextBudgetMiniStatus.barClassName)}
 														style={{ width: `${contextBudgetMiniStatus.percent}%` }}
 													/>
 												</div>
-												<span className="shrink-0 font-mono text-[10px] leading-none text-text-tertiary">
-													{contextBudgetMiniStatus.label}
-												</span>
 											</div>
 										) : null}
 									</div>

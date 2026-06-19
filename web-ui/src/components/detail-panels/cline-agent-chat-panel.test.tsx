@@ -656,6 +656,9 @@ describe("ClineAgentChatPanel", () => {
 		expect(container.textContent).toContain("Context");
 		expect(container.textContent).toContain("20k / 80k tokens");
 		expect(container.textContent).toContain("80k effective window");
+		const contextBudgetGroup = container.querySelector('[aria-label^="Context budget"]');
+		expect(contextBudgetGroup?.className).toContain("w-full");
+		expect(contextBudgetGroup?.parentElement?.className).toContain("w-full");
 	});
 
 	it("keeps completed reasoning collapsed after the stream finishes", async () => {

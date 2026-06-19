@@ -804,6 +804,10 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("12 tok/s");
 		expect(container.textContent).toContain("Turn 3");
 		expect(container.textContent).toContain("Ctx 50%");
+		const contextLabel = Array.from(container.querySelectorAll("span")).find(
+			(element) => element.textContent === "Ctx 50%",
+		);
+		expect(contextLabel?.parentElement?.className).toContain("w-full");
 	});
 
 	it("shows plain-language recovery text for parked local-only errors", async () => {

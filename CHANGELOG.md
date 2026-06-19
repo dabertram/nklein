@@ -32,6 +32,7 @@
 - Reduced stale local model telemetry noise by sharing the loaded-model filter across Settings and task chat, labeling registry rows as past telemetry, adding per-row removal plus Clear stale models actions, and showing the selected loaded model's live context window in both places.
 - Renamed the persistent debug toggle to a global Developer Mode setting, moved it into General settings, made saved values override debug env vars, and gated sidebar dev-test scenarios, command-palette Developer Tools, debug tools, data-dir, and reset surfaces behind that setting.
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
+- Gave the Cline context-usage bar its own full-width chat-panel row and widened the active-card mini context bar so context telemetry no longer competes with model/activity controls.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.
