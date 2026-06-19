@@ -751,7 +751,7 @@ renders a `<NativeSelect>` of `discoveredModels` — but only after a manual but
 never re-checks it, so its autonomous loop keeps issuing turn after turn (LLM request after request). That is the bug.
 > Also fix the latent rename miss: `getSwarmStopSignalPath` uses `.cline/kanban/`
 > ([swarm-guardrails.ts:16](src/core/swarm-guardrails.ts#L16)) — change to `.cline/nklein/` (the runtime-home
-> constant), with a one-release read-fallback to the old path so an in-flight pause survives the rename.
+> constant), with a one-release read-fallback to the old path so an in-flight pause survives the rename. **Done.**
 
 **K1.1 Add a shared pause primitive.** Create `src/cline-sdk/cline-pause-controller.ts` exporting a `PauseController`
 with: `isPaused(taskId): boolean` (true if the **board** is paused OR **this card** is paused — K2),

@@ -34,6 +34,7 @@
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
 - Gave the Cline context-usage bar its own full-width chat-panel row and widened the active-card mini context bar so context telemetry no longer competes with model/activity controls.
 - Added subtle per-message Cline chat timestamps with persisted collapse/expand controls and duration hover details.
+- Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.

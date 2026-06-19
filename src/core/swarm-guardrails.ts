@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { LEGACY_KANBAN_RUNTIME_HOME_DIR_NAME, NKLEIN_RUNTIME_HOME_DIR_NAME } from "../config/runtime-path-constants";
 import { lockedFileSystem } from "../fs/locked-file-system";
 
 const SWARM_STOP_FILENAME = "swarm-stop.json";
@@ -13,7 +14,11 @@ export const swarmStopSignalSchema = z.object({
 export type SwarmStopSignal = z.infer<typeof swarmStopSignalSchema>;
 
 export function getSwarmStopSignalPath(workspacePath: string): string {
-	return join(workspacePath, ".cline", "kanban", SWARM_STOP_FILENAME);
+	return join(workspacePath, NKLEIN_RUNTIME_HOME_DIR_NAME, SWARM_STOP_FILENAME);
+}
+
+function getLegacySwarmStopSignalPath(workspacePath: string): string {
+	return join(workspacePath, LEGACY_KANBAN_RUNTIME_HOME_DIR_NAME, SWARM_STOP_FILENAME);
 }
 
 export async function readSwarmStopSignal(workspacePath: string): Promise<SwarmStopSignal | null> {
@@ -21,7 +26,13 @@ export async function readSwarmStopSignal(workspacePath: string): Promise<SwarmS
 	try {
 		return swarmStopSignalSchema.parse(JSON.parse(await readFile(path, "utf8")));
 	} catch {
-		return null;
+		try {
+			return swarmStopSignalSchema.parse(
+				JSON.parse(await readFile(getLegacySwarmStopSignalPath(workspacePath), "utf8")),
+			);
+		} catch {
+			return null;
+		}
 	}
 }
 
@@ -36,11 +47,12 @@ export async function requestSwarmStop(input: {
 		reason: input.reason?.trim() || "Operator stop signal is active.",
 		createdAt: input.now ?? Date.now(),
 	};
-	await mkdir(join(input.workspacePath, ".cline", "kanban"), { recursive: true });
+	await mkdir(join(input.workspacePath, NKLEIN_RUNTIME_HOME_DIR_NAME), { recursive: true });
 	await lockedFileSystem.writeJsonFileAtomic(path, signal, { lock: null });
 	return signal;
 }
 
 export async function clearSwarmStop(workspacePath: string): Promise<void> {
 	await rm(getSwarmStopSignalPath(workspacePath), { force: true });
+	await rm(getLegacySwarmStopSignalPath(workspacePath), { force: true });
 }
