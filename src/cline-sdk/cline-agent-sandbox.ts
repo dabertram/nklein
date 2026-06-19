@@ -347,29 +347,34 @@ export class AgentSandboxManager {
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,
 		});
-		const repoSource = `/repos/${placement.projectKey}`;
-		assertSandboxExecOk(
-			await this.execAsRoot(placement, ["mkdir", "-p", AGENT_SANDBOX_WORKSPACES_DIR]),
-			"create sandbox workspace root",
-		);
-		assertSandboxExecOk(
-			await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir]),
-			"create sandbox task workspace",
-		);
-		assertSandboxExecOk(
-			await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir]),
-			"clone project into sandbox workspace",
-		);
-		if (input.baseRef?.trim()) {
+		try {
+			const repoSource = `/repos/${placement.projectKey}`;
 			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["git", "-C", placement.workdir, "checkout", input.baseRef.trim()]),
-				"check out sandbox task base ref",
+				await this.execAsRoot(placement, ["mkdir", "-p", AGENT_SANDBOX_WORKSPACES_DIR]),
+				"create sandbox workspace root",
 			);
+			assertSandboxExecOk(
+				await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir]),
+				"create sandbox task workspace",
+			);
+			assertSandboxExecOk(
+				await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir]),
+				"clone project into sandbox workspace",
+			);
+			if (input.baseRef?.trim()) {
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["git", "-C", placement.workdir, "checkout", input.baseRef.trim()]),
+					"check out sandbox task base ref",
+				);
+			}
+			return {
+				workdir: placement.workdir,
+				uid: placement.uid,
+			};
+		} catch (error) {
+			await this.disposeWorkspace(input.taskId).catch(() => null);
+			throw error;
 		}
-		return {
-			workdir: placement.workdir,
-			uid: placement.uid,
-		};
 	}
 
 	async exec(
@@ -450,7 +455,6 @@ export class AgentSandboxManager {
 			this.clearTimeoutImpl(container.idleTimer);
 			container.idleTimer = null;
 		}
-		await this.ensureContainerStarted(container);
 		const projectKey = createAgentSandboxProjectKey(projectRepoPath);
 		const placement = {
 			taskId,
@@ -461,6 +465,17 @@ export class AgentSandboxManager {
 		};
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);
+		try {
+			await this.ensureContainerStarted(container);
+		} catch (error) {
+			this.placements.delete(taskId);
+			container.occupancy.delete(taskId);
+			if (!container.containerId) {
+				this.containers.delete(container.slot);
+				container.starting = null;
+			}
+			throw error;
+		}
 		return placement;
 	}
 

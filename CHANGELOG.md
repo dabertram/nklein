@@ -35,6 +35,7 @@
 - Added persisted Docker agent-sandbox pool settings for container count, agents per container, memory, CPU, and idle timeout, with General settings controls and runtime manager wiring for new placements.
 - Added Shared and Dedicated sandbox pool presets in General settings as shortcuts over the existing numeric pool controls.
 - Added Docker agent-sandbox preflight status to Settings and made Cline task starts fail closed with the sandbox remediation message when Docker or the sandbox image is unavailable.
+- Fixed Docker agent-sandbox queue draining so freed slots are reserved before async startup waits, preventing queued tasks from overfilling a container or blocking later idle teardown.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.
 - Persisted Docker agent-sandbox start failures on task cards, keeping the remediation visible after the failed start toast.
 - Disabled stdio MCP servers under strict agent isolation, returning a warning instead of spawning local MCP subprocesses.

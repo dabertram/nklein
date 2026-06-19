@@ -202,6 +202,76 @@ describe("AgentSandboxManager", () => {
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
 	});
 
+	it("does not over-assign a freed slot while draining multiple queued tasks", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const secondQueued = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		const thirdQueued = manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" });
+		let thirdResolved = false;
+		void thirdQueued.then(() => {
+			thirdResolved = true;
+		});
+		await Promise.resolve();
+
+		await manager.disposeWorkspace("task-1");
+		await expect(secondQueued).resolves.toMatchObject({ taskId: "task-2", slot: 1 });
+		await Promise.resolve();
+
+		expect(thirdResolved).toBe(false);
+
+		await manager.disposeWorkspace("task-2");
+		await expect(thirdQueued).resolves.toMatchObject({ taskId: "task-3", slot: 1 });
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+	});
+
+	it("does not arm idle teardown while a queued task takes the freed slot", async () => {
+		vi.useFakeTimers();
+		try {
+			const { execFile: execFileStub, calls } = createExecFileStub();
+			const manager = new AgentSandboxManager({
+				image: "test-image",
+				execFile: execFileStub,
+				poolConfig: {
+					maxContainers: 1,
+					agentsPerContainer: 1,
+					idleTimeoutMs: 100,
+				},
+			});
+
+			await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+			const queued = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+			await Promise.resolve();
+
+			await manager.disposeWorkspace("task-1");
+			await expect(queued).resolves.toMatchObject({ taskId: "task-2", slot: 1 });
+			await vi.advanceTimersByTimeAsync(101);
+
+			const containerRmCallCountBeforeFinalRelease = calls.filter(
+				(args) => args.join(" ") === "rm -f nklein-agent-sandbox-1",
+			).length;
+			expect(containerRmCallCountBeforeFinalRelease).toBe(1);
+
+			await manager.disposeWorkspace("task-2");
+			await vi.advanceTimersByTimeAsync(101);
+
+			expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(
+				containerRmCallCountBeforeFinalRelease + 1,
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("starts each container slot with a single in-flight docker run", async () => {
 		const { execFile: execFileStub, calls, finishRun } = createDelayedRunExecFileStub();
 		const manager = new AgentSandboxManager({
