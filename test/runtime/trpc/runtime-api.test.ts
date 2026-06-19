@@ -526,6 +526,9 @@ function createClineTaskSessionServiceMock() {
 		listMessages: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
 		loadTaskSessionMessages: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
 		applyTurnCheckpoint: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
+		setBoardPaused: vi.fn<(...args: unknown[]) => void>(),
+		setCardPaused: vi.fn<(...args: unknown[]) => void>(),
+		resumePausedTasks: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary[]>>(async () => []),
 		dispose: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
 	};
 }
@@ -2508,12 +2511,14 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("manages workspace swarm stop signal through runtime api", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-swarm-stop-api-"));
 		try {
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(),
 				getScopedClineTaskSessionService: vi.fn(),
+				getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2527,6 +2532,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				stopped: true,
 				reason: "Operator paused from UI.",
 			});
+			expect(clineTaskSessionService.setBoardPaused).toHaveBeenCalledWith(true);
 			await expect(api.getSwarmStop(scope)).resolves.toMatchObject({
 				ok: true,
 				signal: expect.objectContaining({
@@ -2536,6 +2542,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			});
 
 			await expect(api.clearSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
+			expect(clineTaskSessionService.setBoardPaused).toHaveBeenLastCalledWith(false);
+			expect(clineTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
 			await expect(api.getSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });

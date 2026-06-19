@@ -819,6 +819,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				workspacePath: workspaceScope.workspacePath,
 				reason: input.reason,
 			});
+			deps.getLoadedScopedClineTaskSessionService?.(workspaceScope)?.setBoardPaused(true);
 			return {
 				ok: true,
 				signal,
@@ -826,6 +827,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		clearSwarmStop: async (workspaceScope) => {
 			await clearSwarmStop(workspaceScope.workspacePath);
+			const clineTaskSessionService = deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
+			clineTaskSessionService?.setBoardPaused(false);
+			await clineTaskSessionService?.resumePausedTasks();
 			return {
 				ok: true,
 				signal: null,

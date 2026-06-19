@@ -1747,6 +1747,50 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.listMessages("task-1").at(-1)?.content).toContain("paused this task");
 	});
 
+	it("parks a running task as paused at a checkpoint and resumes it when unpaused", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working until paused.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		service.setBoardPaused(true);
+		const pausedSummary = service.applyTurnCheckpoint("task-1", {
+			turn: 1,
+			ref: "refs/kanban/checkpoints/task-1/turn/1",
+			commit: "commit-1",
+			createdAt: 1,
+		});
+
+		expect(pausedSummary).toMatchObject({
+			state: "paused",
+			reviewReason: null,
+			warningMessage: null,
+			latestHookActivity: {
+				hookEventName: "operator_pause",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+
+		service.setBoardPaused(false);
+		const resumed = await service.resumePausedTasks();
+
+		expect(resumed).toHaveLength(1);
+		expect(resumed[0]?.state).toBe("running");
+		await vi.waitFor(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				"resolved:Continue from the paused checkpoint.",
+				"act",
+				undefined,
+			);
+		});
+	});
+
 	it("parks a task when the autonomous wall-time budget is reached", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		try {

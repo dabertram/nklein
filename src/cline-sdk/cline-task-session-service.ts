@@ -37,6 +37,7 @@ import {
 	createTaskEntryFromPersistedSession,
 } from "./cline-message-repository";
 import { extractClineModelRegistryObservationFromEvent, getDefaultClineModelRegistry } from "./cline-model-registry";
+import { ClinePauseController } from "./cline-pause-controller";
 import { type ClineRuntimeSetup, createClineRuntimeSetup } from "./cline-runtime-setup";
 import {
 	type ClinePersistedTaskSessionSnapshot,
@@ -345,6 +346,9 @@ export interface ClineTaskSessionService {
 	listSlashCommands(workspacePath: string): Promise<ClineSdkSlashCommand[]>;
 	loadTaskSessionMessages(taskId: string): Promise<ClineTaskMessage[]>;
 	applyTurnCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null;
+	setBoardPaused(paused: boolean): void;
+	setCardPaused(taskId: string, paused: boolean): void;
+	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
 
@@ -354,6 +358,7 @@ export interface CreateInMemoryClineTaskSessionServiceOptions {
 	createRuntimeSetup?: (workspacePath: string) => Promise<ClineRuntimeSetup>;
 	watcherRegistry?: ClineWatcherRegistry;
 	agentSandboxManager?: AgentSandboxManager;
+	pauseController?: ClinePauseController;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -501,6 +506,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
 	private readonly agentSandboxManager: AgentSandboxManager | null;
+	private readonly pauseController: ClinePauseController;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<ClineRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeClineTeamProgressEvent) => void>();
 
@@ -519,6 +525,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		});
 		this.messageRepository = createMessageRepository();
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
+		this.pauseController = options.pauseController ?? new ClinePauseController();
 	}
 
 	private async prepareSandboxWorkspace(request: StartClineTaskSessionRequest): Promise<{
@@ -1596,6 +1603,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.repeatedToolCallByTaskId.delete(taskId);
+		this.pauseController.clearTaskParked(taskId);
+		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
@@ -1633,6 +1642,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
 		this.repeatedToolCallByTaskId.delete(taskId);
+		this.pauseController.clearTaskParked(taskId);
+		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
@@ -1694,6 +1705,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		}
 		if (
 			entry.summary.state !== "running" &&
+			entry.summary.state !== "paused" &&
 			entry.summary.state !== "awaiting_review" &&
 			entry.summary.state !== "idle" &&
 			entry.summary.state !== "failed"
@@ -2023,6 +2035,34 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		return this.messageRepository.listMessages(taskId);
 	}
 
+	setBoardPaused(paused: boolean): void {
+		this.pauseController.setBoardPaused(paused);
+	}
+
+	setCardPaused(taskId: string, paused: boolean): void {
+		this.pauseController.setCardPaused(taskId, paused);
+	}
+
+	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {
+		const resumed: RuntimeTaskSessionSummary[] = [];
+		for (const taskId of this.pauseController.listControllerPausedTaskIds()) {
+			if (this.pauseController.isPaused(taskId)) {
+				continue;
+			}
+			const entry = this.messageRepository.getTaskEntry(taskId);
+			if (entry?.summary.state !== "paused") {
+				this.pauseController.clearTaskParked(taskId);
+				continue;
+			}
+			const summary = await this.sendTaskSessionInput(taskId, "Continue from the paused checkpoint.");
+			if (summary) {
+				resumed.push(summary);
+			}
+			this.pauseController.clearTaskParked(taskId);
+		}
+		return resumed;
+	}
+
 	async listSlashCommands(workspacePath: string): Promise<ClineSdkSlashCommand[]> {
 		const runtimeSetup = await this.ensureRuntimeSetup(workspacePath);
 		await Promise.all([
@@ -2058,6 +2098,19 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry || entry.summary.reviewReason === "attention") {
 			return null;
+		}
+		if (this.pauseController.isPaused(taskId)) {
+			return this.parkTaskForPause({
+				taskId,
+				entry,
+				message: "Paused — will resume when the board/card is resumed.",
+				metadata: {
+					guardrail: "operator_pause",
+					turn: checkpoint.turn,
+					checkpointRef: checkpoint.ref,
+					checkpointCommit: checkpoint.commit,
+				},
+			});
 		}
 		if (checkpoint.turn >= CLINE_MAX_AUTONOMOUS_TURNS_PER_TASK) {
 			return this.parkTaskForAutonomyBudget({
@@ -2185,6 +2238,48 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			toolName,
 			toolInputSummary,
 		};
+	}
+
+	private parkTaskForPause(input: {
+		taskId: string;
+		entry: ClineTaskSessionEntry;
+		message: string;
+		metadata: Record<string, unknown>;
+	}): RuntimeTaskSessionSummary {
+		this.clearTaskTimeouts(input.taskId);
+		this.noDiffCheckpointByTaskId.delete(input.taskId);
+		this.repeatedToolCallByTaskId.delete(input.taskId);
+		this.pauseController.markTaskParked(input.taskId);
+		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message: input.message,
+			taskId: input.taskId,
+			providerId: this.resolveProviderIdForTask(input.taskId),
+			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: input.metadata,
+		});
+		const systemMessage = createMessage(input.taskId, "system", input.message);
+		input.entry.messages.push(systemMessage);
+		this.emitMessage(input.taskId, systemMessage);
+		clearActiveTurnState(input.entry);
+		return updateSummary(input.entry, {
+			state: "paused",
+			reviewReason: null,
+			lastOutputAt: now(),
+			lastHookAt: now(),
+			warningMessage: null,
+			latestHookActivity: {
+				activityText: input.message,
+				toolName: null,
+				toolInputSummary: null,
+				finalMessage: input.message,
+				hookEventName: "operator_pause",
+				notificationType: null,
+				source: "kanban",
+			},
+		});
 	}
 
 	private parkTaskForAutonomyBudget(input: {

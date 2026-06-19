@@ -764,10 +764,10 @@ per-turn checkpoint: `applyTurnCheckpoint` → `enforceAutonomyBudgets`
 ([cline-task-session-service.ts:2007-2017](src/cline-sdk/cline-task-session-service.ts#L2007)), which parks the task
 via `parkTaskForAutonomyBudget` ([L2156](src/cline-sdk/cline-task-session-service.ts#L2156)) — and that helper stops
 the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/cline-sdk/cline-task-session-service.ts#L2165)).
-- [ ] In `enforceAutonomyBudgets`, **before** the existing budget checks, add: `if (pauseController.isPaused(taskId)) return this.parkTaskForPause({ taskId, entry });`. Because this runs **after** the in-flight turn's checkpoint, the in-flight response is fully received and processed first, then the loop halts before the next turn — exactly the user's accepted semantics ("ok to receive responses for already-sent requests; no new requests").
+- [x] In `enforceAutonomyBudgets`, **before** the existing budget checks, add: `if (pauseController.isPaused(taskId)) return this.parkTaskForPause({ taskId, entry });`. Because this runs **after** the in-flight turn's checkpoint, the in-flight response is fully received and processed first, then the loop halts before the next turn — exactly the user's accepted semantics ("ok to receive responses for already-sent requests; no new requests").
 
 **K1.3 New "paused" park state (distinct from the guardrail "attention" park).**
-- [ ] Add `parkTaskForPause(...)` mirroring `parkTaskForAutonomyBudget` but: set `state: "paused"` (add this state to
+- [x] Add `parkTaskForPause(...)` mirroring `parkTaskForAutonomyBudget` but: set `state: "paused"` (add this state to
   the session-summary state union / schema in [src/core/api-contract.ts](src/core/api-contract.ts) and the web type),
   **do not** set `reviewReason: "attention"`, inject a quieter system note ("Paused — will resume when the board/card
   is resumed."), and record that the task is *resumable* (so K1.4 knows to auto-continue it). Still call
@@ -779,8 +779,8 @@ the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/c
   existing continuation path `sendTaskSessionInput` ([cline-task-session-service.ts:1651](src/cline-sdk/cline-task-session-service.ts#L1651))
   with an empty/continue instruction (the same way a parked task is continued today), so the agent picks up from the
   last checkpoint. Resume only tasks that were paused by this controller — never silently restart guardrail-parked or
-  failed tasks.
-- [ ] `clearSwarmStop`/`requestSwarmStop` handlers must call `pauseController.setBoardPaused(...)` so the in-memory
+  failed tasks. **Board resume is done; card resume remains under K2.**
+- [x] `clearSwarmStop`/`requestSwarmStop` handlers must call `pauseController.setBoardPaused(...)` so the in-memory
   gate flips immediately (not only on next poll).
 
 **K1.5 Queue in-flight side effects too (precise "processing goes into a queue").** Because every agent tool now runs
@@ -792,7 +792,8 @@ side effects occur while paused. On task stop/abort the gate rejects so the exec
 
 **K1.6 Tests.** Pause while a task is running ⇒ no further `start`/turn requests are issued (spy on the SDK
 start/continue); the `"paused"` state is emitted; a queued tool executor does not run until resume; on resume the task
-re-continues exactly once; board-resume drains all paused tasks; card stop while paused rejects the gate.
+re-continues exactly once; board-resume drains all paused tasks; card stop while paused rejects the gate. **Checkpoint
+park/resume and board API drain are covered; executor gate/card-stop coverage remains with K1.5/K2.**
 
 ### K2. Per-card pause / resume, and a replay control for finished cards
 **K2.1 Card pause store + API.**

@@ -308,7 +308,14 @@ export const runtimeGitDiscardResponseSchema = z.object({
 });
 export type RuntimeGitDiscardResponse = z.infer<typeof runtimeGitDiscardResponseSchema>;
 
-export const runtimeTaskSessionStateSchema = z.enum(["idle", "running", "awaiting_review", "failed", "interrupted"]);
+export const runtimeTaskSessionStateSchema = z.enum([
+	"idle",
+	"running",
+	"paused",
+	"awaiting_review",
+	"failed",
+	"interrupted",
+]);
 export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
 
 export const runtimeTaskSessionModeSchema = z.enum(["act", "plan"]);
