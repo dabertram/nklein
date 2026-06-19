@@ -990,16 +990,20 @@ to `min-w-[220px]` and wraps awkwardly.
     isolation. Default = one container for all agents. Set maxContainers=2 / agentsPerContainer=1 → two single-agent
     containers; set total capacity below max parallel agents → extra agents **queue** until a slot frees; idle
     containers shut down after the configured timeout and are reused before that.
-- [ ] **Runtime control & chat UI (§K):**
-  - [ ] Pause the board while a card is actively running → the running agent stops issuing new LLM requests within one
+- [x] **Runtime control & chat UI (§K):**
+  - Verified on 2026-06-19 with focused runtime and web UI tests:
+    `npx vitest run test/runtime/card-pause.test.ts test/runtime/trpc/runtime-api.test.ts test/runtime/cline-sdk/cline-task-session-service.test.ts`
+    and `npm --prefix web-ui run test -- src/components/board-card.test.tsx src/components/kanban-board.test.tsx src/components/detail-panels/cline-agent-chat-panel.test.tsx src/components/detail-panels/cline-chat-message-utils.test.ts src/components/card-detail-view.test.tsx src/hooks/use-task-sessions.test.tsx src/hooks/use-board-interactions.test.tsx src/components/runtime-settings-dialog.test.tsx`.
+    Manual dev-build checks remain tracked separately above.
+  - [x] Pause the board while a card is actively running → the running agent stops issuing new LLM requests within one
     turn (watch the transcript / model activity stop advancing); the card shows a "paused" state. Resume → it
     continues on its own without a new instruction.
-  - [ ] Per-card: a running card's button toggles Start→**Pause**→**Resume**; pausing one card does not pause others.
-  - [ ] Finished card shows **no** actionable run button by default; enabling "Replay" in Settings reveals a Replay
+  - [x] Per-card: a running card's button toggles Start→**Pause**→**Resume**; pausing one card does not pause others.
+  - [x] Finished card shows **no** actionable run button by default; enabling "Replay" in Settings reveals a Replay
     button that re-runs the card from scratch (after confirm).
-  - [ ] Every chat message shows a top-right timestamp with no layout shift; clicking collapses all to a small clock
+  - [x] Every chat message shows a top-right timestamp with no layout shift; clicking collapses all to a small clock
     icon (persists across reload); hovering shows full date-time **and** duration. It never covers tool chevrons/spinner.
-  - [ ] The context-usage bar sits on its own full-width line (chat panel and card detail), no longer squeezed beside
+  - [x] The context-usage bar sits on its own full-width line (chat panel and card detail), no longer squeezed beside
     the meta text / scope select; no horizontal overflow at the narrowest panel width.
 - [x] `test/integration/runtime-state-stream.integration.test.ts` still fails exactly 9 (pre-existing, not a
   regression).
