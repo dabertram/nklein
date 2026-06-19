@@ -48,11 +48,18 @@ unit+integration tests).
       (planning prompt advertises the workflow again; host `workspaceRoot` always forwarded so artifacts/board
       resolve to the owning workspace, not the container workdir). Covered by updated session-runtime +
       task-session-service tests.
-- [ ] **🟠 §2.B — Reconcile / retire the host worktree subsystem.** `resolveTaskCwd`/`ensureWorktree` and
-      `src/workspace/task-worktree*.ts` still run in parallel with the sandbox result-branch model behind an
-      ad-hoc "legacy non-Cline agent" boundary re-derived in ~10 sites. Decide the terminal-agent story,
-      retire saved-host-patch semantics, centralize the legacy predicate, update AGENTS.md + project-health,
-      add a "no host worktree created for default/Cline starts" guard test.
+- [~] **🟠 §2.B — Retire the host worktree subsystem.** *(direction decided 2026-06-19: retire — terminal/CLI
+      agents stay permanently disabled under local-only. Start-path retirement confirmed + locked this
+      session.)* Done so far: the boundary is the single predicate `usesLegacyHostTaskWorkspace(agentId)`
+      ([agent-catalog.ts:97](src/core/agent-catalog.ts#L97)) — now documented as THE source of truth and
+      covered by an invariant test ([test/runtime/agent-catalog.test.ts](test/runtime/agent-catalog.test.ts))
+      proving Cline/default/null never create a host worktree; under local-only every agent clamps to `cline`,
+      so no reachable task start creates a worktree. **Remaining (dead-code deletion, deletion-risk — schedule
+      a focused session):** remove the now-unreachable non-Cline `ensureWorktree` start branches and the unused
+      `src/workspace/task-worktree*.ts` creation modules (keep read-only legacy diff/merge compat for any
+      pre-existing worktree-backed tasks); retire saved-host-patch semantics in `task-worktree-sync.ts`; update
+      AGENTS.md worktree note + re-validate project-health "accidental worktree" diagnostics against the
+      container-workspace model.
 - [ ] **🟠 §2.C — End-to-end manual verification debt** (env-blocked, not code): observe a real Cline task in
       Docker (one shared container, workspace volume only, no host worktree, result-patch applies, idle
       teardown); inspect Settings isolation status + pool controls; dev-build UX (no Claude default, registry

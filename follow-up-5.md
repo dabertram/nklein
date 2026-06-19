@@ -116,6 +116,15 @@ and a **manual-verification debt** that is environmental, not code (§4).
 > behind a "legacy non-Cline agent" boundary. This dual-path state is correct but is a maintainability and
 > correctness liability that must be deliberately finished.
 
+> **Update 2026-06-19:** direction decided — **retire** (terminal/CLI agents stay permanently disabled under
+> local-only). Start-path retirement is confirmed and locked: `usesLegacyHostTaskWorkspace(agentId)`
+> ([agent-catalog.ts:97](src/core/agent-catalog.ts#L97)) is the single boundary predicate (now documented),
+> covered by [test/runtime/agent-catalog.test.ts](test/runtime/agent-catalog.test.ts) proving Cline/default/null
+> never create a host worktree. Remaining work is **dead-code deletion** (deletion-risk; schedule a focused
+> session): remove unreachable non-Cline `ensureWorktree` start branches + unused `task-worktree*.ts` creation
+> modules, retire saved-host-patch semantics, update AGENTS.md + project-health. The bullets below remain the
+> detailed checklist for that deletion pass.
+
 - [~] **Host worktree code is still load-bearing.** `resolveTaskCwd` / `ensureWorktree` are still called from
   `src/trpc/runtime-api.ts`, `src/trpc/workspace-api.ts`, `src/trpc/app-router.ts`,
   `src/commands/task.ts`, `src/cline-sdk/cline-acceptance-auto-repair.ts`, and the whole

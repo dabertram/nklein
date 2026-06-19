@@ -94,6 +94,17 @@ export function getRuntimeAgentCatalogEntry(agentId: RuntimeAgentId): RuntimeAge
 	return RUNTIME_AGENT_CATALOG.find((entry) => entry.id === agentId) ?? null;
 }
 
+/**
+ * THE single boundary predicate for the legacy host-worktree subsystem.
+ *
+ * Only explicit non-Cline terminal/CLI agents (Codex/Claude/etc.) use host task worktrees. The default
+ * Cline / sandboxed agent path never creates a host worktree — its work lives in the Docker sandbox volume
+ * and is captured as a `nklein/tasks/<task>` result branch. Under the LOCAL-ONLY lockdown every agent id is
+ * clamped to `cline`, so for all *reachable* tasks this returns false and **no host worktree is ever created
+ * on a new task start**. The remaining host-worktree code paths are read-only legacy compatibility for any
+ * pre-existing worktree-backed tasks. Any code deciding "should I touch a host task worktree?" must call this
+ * predicate rather than re-deriving the boundary (see plan.md §2.B — host worktree retirement).
+ */
 export function usesLegacyHostTaskWorkspace(agentId: RuntimeAgentId | null | undefined): boolean {
 	return agentId !== undefined && agentId !== null && agentId !== "cline";
 }
