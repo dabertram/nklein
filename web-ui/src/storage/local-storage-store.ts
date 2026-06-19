@@ -25,6 +25,7 @@ export enum LocalStorageKey {
 	PreferredOpenTarget = "nklein.preferred-open-target",
 	NotificationBadgeClearEvent = "nklein.notification-badge-clear.v1",
 	TabVisibilityPresence = "nklein.tab-visibility-presence.v1",
+	ClineChatTimestampsCollapsed = "nklein.cline-chat.timestamps-collapsed.v1",
 	Theme = "nklein.theme",
 }
 

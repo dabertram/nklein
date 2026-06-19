@@ -24,6 +24,7 @@ import type {
 	RuntimeTaskHookActivity,
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
+import { LocalStorageKey } from "@/storage/local-storage-store";
 import { resetWorkspaceMetadataStore, setTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 
 function createSummary(
@@ -226,6 +227,7 @@ describe("ClineAgentChatPanel", () => {
 			root.unmount();
 		});
 		resetWorkspaceMetadataStore();
+		window.localStorage.clear();
 		container.remove();
 		if (previousActEnvironment === undefined) {
 			delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
@@ -577,6 +579,56 @@ describe("ClineAgentChatPanel", () => {
 
 		expect(container.textContent).toContain("Output");
 		expect(container.textContent).toContain('{"ok":true}');
+	});
+
+	it("renders message timestamps with duration tooltips and persists collapsed state", async () => {
+		const createdAt = new Date(2026, 0, 2, 3, 4, 5).getTime();
+		const expectedTime = new Intl.DateTimeFormat(undefined, {
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+			hour12: false,
+		}).format(new Date(createdAt));
+		const messages: ClineChatMessage[] = [
+			{
+				id: "user-1",
+				role: "user",
+				content: "Please inspect the cache layer.",
+				createdAt,
+			},
+			{
+				id: "assistant-1",
+				role: "assistant",
+				content: "I will inspect it now.",
+				createdAt: createdAt + 4_200,
+			},
+		];
+
+		await act(async () => {
+			renderPanel(
+				root,
+				<ClineAgentChatPanel
+					taskId="task-1"
+					summary={null}
+					nowMs={createdAt + 6_000}
+					onLoadMessages={async () => messages}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const expandedTimestampButtons = container.querySelectorAll('button[aria-label="Collapse message timestamps"]');
+		expect(expandedTimestampButtons.length).toBe(2);
+		expect(expandedTimestampButtons[0]?.textContent).toBe(expectedTime);
+
+		expect((expandedTimestampButtons[0] as HTMLButtonElement | undefined)?.title).toContain("took 4.2s");
+
+		await act(async () => {
+			(expandedTimestampButtons[0] as HTMLButtonElement | undefined)?.click();
+		});
+
+		expect(window.localStorage.getItem(LocalStorageKey.ClineChatTimestampsCollapsed)).toBe("true");
+		expect(container.querySelectorAll('button[aria-label="Show message timestamps"]').length).toBe(2);
 	});
 
 	it("renders compact team progress telemetry when available", async () => {

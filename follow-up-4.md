@@ -850,21 +850,21 @@ createdAt`, using the existing `nowMs` ticker). This represents "how long the un
 before the next event." (Optional accuracy later: record a real `meta.durationMs` at the source.)
 
 **K3.2 Render the timestamp — top-right, inside existing space, zero layout shift.**
-- [ ] Make each message wrapper `relative` and add an **absolutely-positioned** timestamp at `top-0 right-0`
+- [x] Make each message wrapper `relative` and add an **absolutely-positioned** timestamp at `top-0 right-0`
   (`absolute top-0.5 right-1`), `text-[10px] text-text-tertiary`, non-selectable, `pointer-events-auto`. Because it is
   absolutely positioned it does **not** change the existing layout/line height. Format as local `HH:MM:SS`
   (use `Intl.DateTimeFormat` / `date-fns` `format`, already-available deps).
-- [ ] Add right padding to the message content (`pr-12` or similar) **only** so long content doesn't run under the
+- [x] Add right padding to the message content (`pr-12` or similar) **only** so long content doesn't run under the
   timestamp — keep it minimal so the layout is visually unchanged when there is no overlap.
 
 **K3.3 Collapsible to a tiny icon (click to toggle), hover shows full info.**
-- [ ] One panel-level state `timestampsCollapsed` (persist in `localStorage` via a new `LocalStorageKey`), toggled by
+- [x] One panel-level state `timestampsCollapsed` (persist in `localStorage` via a new `LocalStorageKey`), toggled by
   clicking **any** timestamp or the collapsed icon. Expanded = the `HH:MM:SS` text; collapsed = a tiny `Clock`
   (`lucide-react`, size 11) sitting in the same top-right corner — still large enough to click to expand again.
-- [ ] In **both** states, a `Tooltip` (`@/components/ui/tooltip`) on hover shows the full absolute date-time **and**
+- [x] In **both** states, a `Tooltip` (`@/components/ui/tooltip`) on hover shows the full absolute date-time **and**
   the duration (e.g. "2026-06-19 14:03:11 · took 4.2s"). Use the existing `Tooltip` primitive; format duration with a
   small helper (`<1s` → "Nms", else "N.Ns", minutes as "Nm Ns").
-- [ ] Keep it subtle and NICE: tertiary color, no border, no background; the clock icon only appears on the corner and
+- [x] Keep it subtle and NICE: tertiary color, no border, no background; the clock icon only appears on the corner and
   brightens on hover (`hover:text-text-secondary`). It must never cover tool-block chevrons or the spinner — verify
   against the running-tool layout ([cline-chat-message-item.tsx:43](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L43)).
 

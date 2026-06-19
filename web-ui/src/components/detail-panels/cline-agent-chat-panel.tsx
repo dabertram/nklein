@@ -56,6 +56,7 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
 import { useTrpcQuery } from "@/runtime/use-trpc-query";
+import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import type { TaskImage } from "@/types";
 
 const BOTTOM_LOCK_THRESHOLD_PX = 24;
@@ -63,6 +64,10 @@ const CLINE_BUY_CREDITS_URL = "https://app.cline.bot/";
 
 function countClineDisplayTokens(text: string): number {
 	return countTokens(text, { allowedSpecial: ALL_SPECIAL_TOKENS });
+}
+
+function readChatTimestampsCollapsedDefault(): boolean {
+	return readLocalStorageItem(LocalStorageKey.ClineChatTimestampsCollapsed) === "true";
 }
 
 // Approximate token cost of the short summary the host substitutes for a compacted
@@ -582,6 +587,7 @@ export interface ClineAgentChatPanelProps {
 	) => Promise<ClineChatActionResult>;
 	incomingMessages?: ClineChatMessage[] | null;
 	incomingMessage?: ClineChatMessage | null;
+	nowMs?: number;
 	teamProgress?: RuntimeClineTeamProgressEvent[];
 	onCommit?: () => void;
 	onOpenPr?: () => void;
@@ -619,6 +625,7 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			onGrantProtectedTestApproval,
 			incomingMessages,
 			incomingMessage,
+			nowMs: nowMsOverride,
 			teamProgress = [],
 			onCommit,
 			onOpenPr,
@@ -699,7 +706,9 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 		const [isSavingModel, setIsSavingModel] = useState(false);
 		const [isClearingChat, setIsClearingChat] = useState(false);
 		const [isModelRegistryPanelOpen, setIsModelRegistryPanelOpen] = useState(false);
-		const [nowMs, setNowMs] = useState(() => Date.now());
+		const [tickerNowMs, setTickerNowMs] = useState(() => Date.now());
+		const nowMs = nowMsOverride ?? tickerNowMs;
+		const [timestampsCollapsed, setTimestampsCollapsed] = useState(readChatTimestampsCollapsedDefault);
 		const [contextScope, setContextScope] = useState<"full" | "smart" | "minimal" | "custom">(
 			taskClineSettings?.contextScope ?? "smart",
 		);
@@ -916,9 +925,9 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			if (summary?.state !== "running") {
 				return;
 			}
-			setNowMs(Date.now());
+			setTickerNowMs(Date.now());
 			const intervalId = window.setInterval(() => {
-				setNowMs(Date.now());
+				setTickerNowMs(Date.now());
 			}, 1000);
 			return () => {
 				window.clearInterval(intervalId);
@@ -1148,6 +1157,14 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			[handleSendText, isClearingChat, isSending],
 		);
 
+		const handleToggleTimestampsCollapsed = useCallback(() => {
+			setTimestampsCollapsed((current) => {
+				const next = !current;
+				writeLocalStorageItem(LocalStorageKey.ClineChatTimestampsCollapsed, String(next));
+				return next;
+			});
+		}, []);
+
 		return (
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				<div
@@ -1155,9 +1172,19 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 					className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-2 py-3"
 					onScroll={handleMessageListScroll}
 				>
-					{messages.map((message) => (
-						<ClineChatMessageItem key={message.id} message={message} />
-					))}
+					{messages.map((message, index) => {
+						const nextMessage = messages[index + 1];
+						const durationMs = Math.max(0, (nextMessage?.createdAt ?? nowMs) - message.createdAt);
+						return (
+							<ClineChatMessageItem
+								key={message.id}
+								message={message}
+								durationMs={durationMs}
+								timestampsCollapsed={timestampsCollapsed}
+								onToggleTimestampsCollapsed={handleToggleTimestampsCollapsed}
+							/>
+						);
+					})}
 					<ClineTeamProgressStrip events={teamProgress} nowMs={nowMs} />
 					{showAgentProgressIndicator ? <ClineThinkingIndicator /> : null}
 					{isCreditLimitNoticeVisible ? <ClineCreditLimitNotice /> : null}

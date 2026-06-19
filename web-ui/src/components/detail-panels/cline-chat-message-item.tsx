@@ -1,5 +1,5 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { Brain, ChevronDown, ChevronRight, XCircle } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight, Clock, XCircle } from "lucide-react";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import {
 	formatToolInputForDisplay,
@@ -11,7 +11,68 @@ import { ClineMarkdownContent } from "@/components/detail-panels/cline-markdown-
 import { TaskImageStrip } from "@/components/task-image-strip";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
+
+const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+	hour12: false,
+});
+
+const MESSAGE_DATE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+	hour12: false,
+});
+
+function formatMessageDuration(durationMs: number): string {
+	const normalizedMs = Math.max(0, Math.round(durationMs));
+	if (normalizedMs < 1000) {
+		return `${normalizedMs}ms`;
+	}
+	const totalSeconds = Math.round(normalizedMs / 100) / 10;
+	if (totalSeconds < 60) {
+		return `${totalSeconds.toFixed(totalSeconds >= 10 ? 0 : 1)}s`;
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = Math.round(totalSeconds % 60);
+	return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function MessageTimestampControl({
+	createdAt,
+	durationMs,
+	collapsed,
+	onToggle,
+}: {
+	createdAt: number;
+	durationMs: number;
+	collapsed: boolean;
+	onToggle: () => void;
+}): ReactElement {
+	const date = new Date(createdAt);
+	const timeLabel = MESSAGE_TIME_FORMATTER.format(date);
+	const tooltipContent = `${MESSAGE_DATE_TIME_FORMATTER.format(date)} · took ${formatMessageDuration(durationMs)}`;
+	return (
+		<Tooltip content={tooltipContent}>
+			<button
+				type="button"
+				aria-label={collapsed ? "Show message timestamps" : "Collapse message timestamps"}
+				title={tooltipContent}
+				onClick={onToggle}
+				className="absolute top-0.5 right-1 z-10 cursor-pointer text-[10px] leading-none text-text-tertiary hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+			>
+				{collapsed ? <Clock size={11} /> : timeLabel}
+			</button>
+		</Tooltip>
+	);
+}
 
 function ToolMessageBlock({ message }: { message: ClineChatMessage }): ReactElement {
 	const parsed = useMemo(() => parseToolMessageContent(message.content), [message.content]);
@@ -178,18 +239,47 @@ function ReasoningMessageBlock({ message }: { message: ClineChatMessage }): Reac
 	);
 }
 
-export function ClineChatMessageItem({ message }: { message: ClineChatMessage }): ReactElement {
+export function ClineChatMessageItem({
+	message,
+	durationMs,
+	timestampsCollapsed,
+	onToggleTimestampsCollapsed,
+}: {
+	message: ClineChatMessage;
+	durationMs: number;
+	timestampsCollapsed: boolean;
+	onToggleTimestampsCollapsed: () => void;
+}): ReactElement {
+	const timestamp = (
+		<MessageTimestampControl
+			createdAt={message.createdAt}
+			durationMs={durationMs}
+			collapsed={timestampsCollapsed}
+			onToggle={onToggleTimestampsCollapsed}
+		/>
+	);
 	if (message.role === "tool") {
-		return <ToolMessageBlock message={message} />;
+		return (
+			<div className="relative w-full pr-12">
+				{timestamp}
+				<ToolMessageBlock message={message} />
+			</div>
+		);
 	}
 	if (message.role === "reasoning") {
-		return <ReasoningMessageBlock message={message} />;
+		return (
+			<div className="relative w-full pr-12">
+				{timestamp}
+				<ReasoningMessageBlock message={message} />
+			</div>
+		);
 	}
 	if (message.role === "user") {
 		const hasText = message.content.trim().length > 0;
 		const hasImages = Boolean(message.images && message.images.length > 0);
 		return (
-			<div className="ml-auto max-w-[85%] rounded-md bg-accent/10 border border-accent/20 px-3 py-2 text-sm text-text-primary">
+			<div className="relative ml-auto max-w-[85%] rounded-md border border-accent/20 bg-accent/10 py-2 pr-12 pl-3 text-sm text-text-primary">
+				{timestamp}
 				{hasText ? <div className="whitespace-pre-wrap break-words">{message.content}</div> : null}
 				{hasImages ? (
 					<TaskImageStrip images={message.images ?? []} className={hasText ? "mt-2" : undefined} />
@@ -200,14 +290,16 @@ export function ClineChatMessageItem({ message }: { message: ClineChatMessage })
 	if (message.role === "assistant") {
 		const normalizedAssistantContent = message.content.replace(/^\n+/, "");
 		return (
-			<div className="min-w-0 w-full px-1.5 text-sm text-text-primary">
+			<div className="relative min-w-0 w-full px-1.5 pr-12 text-sm text-text-primary">
+				{timestamp}
 				<ClineMarkdownContent content={normalizedAssistantContent} />
 			</div>
 		);
 	}
 	const label = message.role === "status" ? "Status" : "System";
 	return (
-		<div className="max-w-[85%] rounded-md border border-border bg-surface-3/70 px-3 py-2 text-sm whitespace-pre-wrap break-all text-text-secondary">
+		<div className="relative max-w-[85%] rounded-md border border-border bg-surface-3/70 py-2 pr-12 pl-3 text-sm whitespace-pre-wrap break-all text-text-secondary">
+			{timestamp}
 			<div className="mb-1 text-xs uppercase tracking-wide text-text-tertiary">{label}</div>
 			{message.content}
 		</div>
