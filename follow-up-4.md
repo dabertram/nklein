@@ -251,7 +251,8 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   end/trash; discard any saved patch on delete. Removing the container (J4 idle stop / `stopNow`) wipes the volume —
   **zero residue on the host filesystem**.
   - Review completion, stop, abort, clear, start-failure, and service disposal now release sandbox workspaces. Task
-    trash/delete still needs task result branch/saved-patch cleanup before this box can close.
+    permanent delete, project removal, and dev cleanup now discard task result branches when `preserveChanges=false`.
+    Trash/restore semantics still need result-branch reconciliation before this box can close.
 - [ ] **Reconcile the existing worktree subsystem:** host-worktree assumptions in `src/workspace/` (worktree path,
   health checks for "accidental worktree projects", saved task patches, cleanup, and the related notes in AGENTS.md)
   must be updated to the container-workspace model or retired. Keep the diff/merge UX identical from the user's point

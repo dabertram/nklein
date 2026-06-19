@@ -11,6 +11,7 @@ import type {
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath, getTaskWorktreesHomePath, loadWorkspaceContext } from "../state/workspace-state";
 import { getGitCommandErrorMessage, getGitStdout, readGitHeadInfo, runGit } from "./git-utils";
+import { deleteTaskResultBranch } from "./task-result-branches";
 import { getWorkspaceFolderLabelForWorktreePath, normalizeTaskIdForWorktreePath } from "./task-worktree-path";
 import { deleteTaskWorktreeSyncState, syncWorkspaceChangesIntoTaskWorktree } from "./task-worktree-sync";
 import { listTurbopackNodeModulesSymlinkSkipPaths } from "./task-worktree-turbopack";
@@ -637,7 +638,10 @@ export async function deleteTaskWorktree(options: {
 		const rootPath = getWorktreesBaseRootPath();
 		const worktreePath = getTaskWorktreePath(options.repoPath, taskId);
 		if (!(await pathExists(worktreePath))) {
-			await deleteTaskPatchFiles(options.repoPath, taskId);
+			if (!preserveChanges) {
+				await deleteTaskPatchFiles(options.repoPath, taskId);
+				await deleteTaskResultBranch({ repoPath: options.repoPath, taskId });
+			}
 			await deleteTaskWorktreeSyncState(options.repoPath, taskId);
 			await pruneEmptyParents(rootPath, dirname(worktreePath));
 			return {
@@ -659,6 +663,7 @@ export async function deleteTaskWorktree(options: {
 			}
 		} else {
 			await deleteTaskPatchFiles(options.repoPath, taskId);
+			await deleteTaskResultBranch({ repoPath: options.repoPath, taskId });
 		}
 		const removed = await removeTaskWorktreeInternal(options.repoPath, worktreePath);
 		await deleteTaskWorktreeSyncState(options.repoPath, taskId);

@@ -98,6 +98,7 @@ interface HookSnapshot {
 	handleDecomposeTask: (taskId: string) => void;
 	handleReplayTask: (taskId: string) => void;
 	handleCardSelect: (taskId: string) => void;
+	handleConfirmClearTrash: () => void;
 	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
 }
 
@@ -134,7 +135,7 @@ function HookHarness({
 	ensureTaskWorkspace: UseTaskSessionsResult["ensureTaskWorkspace"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
 	stopTaskSession?: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace?: (taskId: string) => Promise<unknown>;
+	cleanupTaskWorkspace?: UseTaskSessionsResult["cleanupTaskWorkspace"];
 	selectedCard?: {
 		card: BoardCard;
 		column: { id: "backlog" | "planning" | "in_progress" | "review" | "trash" };
@@ -182,10 +183,12 @@ function HookHarness({
 			handleDecomposeTask: actions.handleDecomposeTask,
 			handleReplayTask: actions.handleReplayTask,
 			handleCardSelect: actions.handleCardSelect,
+			handleConfirmClearTrash: actions.handleConfirmClearTrash,
 			setSessions,
 		});
 	}, [
 		actions.handleCardSelect,
+		actions.handleConfirmClearTrash,
 		actions.handleDecomposeTask,
 		actions.handleRestoreTaskFromTrash,
 		actions.handleStartAllBacklogTasks,
@@ -617,6 +620,73 @@ describe("useBoardInteractions", () => {
 		expect(startTaskSession).toHaveBeenCalledTimes(12);
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toHaveLength(12);
 		expect(currentBoard.columns.find((column) => column.id === "backlog")?.cards).toHaveLength(3);
+	});
+
+	it("discards saved workspace changes when clearing trash permanently", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Trash", cards: [createTask("trash-task", "Trash task", 1)] },
+			],
+			dependencies: [],
+		};
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const stopTaskSession = vi.fn(async (_taskId: string) => {});
+		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
+		useProgrammaticCardMovesMock.mockReturnValue({
+			handleProgrammaticCardMoveReady: () => {},
+			setRequestMoveTaskToTrashHandler: () => {},
+			tryProgrammaticCardMove: () => "unavailable",
+			consumeProgrammaticCardMove: () => ({}),
+			resolvePendingProgrammaticTrashMove: () => {},
+			waitForProgrammaticCardMoveAvailability: async () => {},
+			resetProgrammaticCardMoves: () => {},
+			requestMoveTaskToTrashWithAnimation: async () => {},
+			programmaticCardMoveCycle: 0,
+		});
+		useLinkedBacklogTaskActionsMock.mockReturnValue({
+			handleCreateDependency: () => {},
+			handleDeleteDependency: () => {},
+			confirmMoveTaskToTrash: async () => {},
+			requestMoveTaskToTrash: async () => {},
+		});
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={vi.fn()}
+					startTaskSession={vi.fn()}
+					stopTaskSession={stopTaskSession}
+					cleanupTaskWorkspace={cleanupTaskWorkspace}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleConfirmClearTrash();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(stopTaskSession).toHaveBeenCalledWith("trash-task");
+		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("trash-task", { preserveChanges: false });
+		expect(currentBoard.columns.find((column) => column.id === "trash")?.cards).toEqual([]);
 	});
 
 	it("prioritizes backlog cards for the already loaded Cline model during manual start-all", async () => {
@@ -1350,7 +1420,7 @@ describe("useBoardInteractions", () => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
 		const stopTaskSession = vi.fn(async (_taskId: string) => {});
-		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true }));
+		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
 		const ensureTaskWorkspace = vi.fn(async () => ({
 			ok: true as const,
 			response: {

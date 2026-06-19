@@ -794,6 +794,7 @@ export type RuntimeWorktreeEnsureResponse = z.infer<typeof runtimeWorktreeEnsure
 
 export const runtimeWorktreeDeleteRequestSchema = z.object({
 	taskId: z.string(),
+	preserveChanges: z.boolean().optional(),
 });
 export type RuntimeWorktreeDeleteRequest = z.infer<typeof runtimeWorktreeDeleteRequestSchema>;
 

@@ -61,6 +61,48 @@ export async function resolveTaskResultBranchCommit(input: {
 	return result.ok && result.stdout.trim() ? result.stdout.trim() : null;
 }
 
+export async function deleteTaskResultBranch(input: {
+	repoPath: string;
+	taskId: string;
+	runGit?: RunGit;
+}): Promise<boolean> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const refName = createTaskResultBranchRef(input.taskId);
+	const existing = await runGit(input.repoPath, ["rev-parse", "--verify", `${refName}^{commit}`]);
+	if (!existing.ok) {
+		return false;
+	}
+	const deleted = await runGit(input.repoPath, ["update-ref", "-d", refName]);
+	if (!deleted.ok) {
+		throw new Error(deleted.error ?? `Could not delete task result branch "${refName}".`);
+	}
+	return true;
+}
+
+export async function deleteTaskResultBranchesForRepo(input: { repoPath: string; runGit?: RunGit }): Promise<number> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const refs = await runGit(input.repoPath, [
+		"for-each-ref",
+		"--format=%(refname)",
+		`refs/heads/${TASK_RESULT_BRANCH_PREFIX}`,
+	]);
+	if (!refs.ok || !refs.stdout.trim()) {
+		return 0;
+	}
+	let deletedCount = 0;
+	for (const refName of refs.stdout
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean)) {
+		const deleted = await runGit(input.repoPath, ["update-ref", "-d", refName]);
+		if (!deleted.ok) {
+			throw new Error(deleted.error ?? `Could not delete task result branch "${refName}".`);
+		}
+		deletedCount += 1;
+	}
+	return deletedCount;
+}
+
 export async function applyTaskPatchToResultBranch(
 	input: ApplyTaskPatchToResultBranchInput,
 ): Promise<TaskResultBranch | null> {

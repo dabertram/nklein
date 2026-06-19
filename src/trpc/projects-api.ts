@@ -54,6 +54,7 @@ import {
 } from "../workspace/initialize-repo";
 import { isPathWithinRoot } from "../workspace/path-sandbox";
 import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
+import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branches";
 import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -691,6 +692,10 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						}
 					}
 					await deleteTaskPatchFilesForRepo(entry.repoPath);
+					await deleteTaskResultBranchesForRepo({ repoPath: entry.repoPath }).catch((error) => {
+						const message = error instanceof Error ? error.message : String(error);
+						errors.push(`Could not delete task result branches for ${entry.workspaceId}: ${message}`);
+					});
 
 					const removed = await removeWorkspaceIndexEntry(entry.workspaceId);
 					if (!removed) {
@@ -801,6 +806,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					}
 				}
 				if (body.deleteGitRepository) {
+					await deleteTaskResultBranchesForRepo({ repoPath: projectToRemove.repoPath });
 					await rm(join(projectToRemove.repoPath, ".git"), {
 						recursive: true,
 						force: true,

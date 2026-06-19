@@ -7,6 +7,8 @@ import { createGitProcessEnv } from "../../src/core/git-process-env";
 import {
 	applyTaskPatchToResultBranch,
 	createTaskResultBranchName,
+	deleteTaskResultBranch,
+	deleteTaskResultBranchesForRepo,
 	resolveTaskResultBranchCommit,
 } from "../../src/workspace/task-result-branches";
 
@@ -78,6 +80,40 @@ describe("task result branches", () => {
 				}),
 			).resolves.toBeNull();
 			await expect(resolveTaskResultBranchCommit({ repoPath: repo.path, taskId: "empty" })).resolves.toBeNull();
+		} finally {
+			repo.cleanup();
+		}
+	});
+
+	it("deletes individual and repo-wide task result branches", async () => {
+		const repo = createRepo();
+		try {
+			writeFileSync(join(repo.path, "README.md"), "changed\n", "utf8");
+			const patch = runGit(repo.path, ["diff", "--binary", "HEAD", "--"]);
+			runGit(repo.path, ["reset", "--hard", "HEAD"]);
+			const first = await applyTaskPatchToResultBranch({
+				repoPath: repo.path,
+				taskId: "first",
+				baseRef: "main",
+				patch,
+			});
+			const second = await applyTaskPatchToResultBranch({
+				repoPath: repo.path,
+				taskId: "second",
+				baseRef: "main",
+				patch,
+			});
+			expect(first?.headCommit).toBeTruthy();
+			expect(second?.headCommit).toBeTruthy();
+
+			await expect(deleteTaskResultBranch({ repoPath: repo.path, taskId: "first" })).resolves.toBe(true);
+			await expect(resolveTaskResultBranchCommit({ repoPath: repo.path, taskId: "first" })).resolves.toBeNull();
+			await expect(resolveTaskResultBranchCommit({ repoPath: repo.path, taskId: "second" })).resolves.toBe(
+				second?.headCommit,
+			);
+
+			await expect(deleteTaskResultBranchesForRepo({ repoPath: repo.path })).resolves.toBe(1);
+			await expect(resolveTaskResultBranchCommit({ repoPath: repo.path, taskId: "second" })).resolves.toBeNull();
 		} finally {
 			repo.cleanup();
 		}

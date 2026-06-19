@@ -83,7 +83,10 @@ export interface UseTaskSessionsResult {
 		approval: RuntimeProtectedTestApprovalPayload,
 	) => Promise<ClineChatActionResult>;
 	fetchTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
-	cleanupTaskWorkspace: (taskId: string) => Promise<RuntimeWorktreeDeleteResponse | null>;
+	cleanupTaskWorkspace: (
+		taskId: string,
+		options?: { preserveChanges?: boolean },
+	) => Promise<RuntimeWorktreeDeleteResponse | null>;
 	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 }
 
@@ -265,13 +268,19 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 	);
 
 	const cleanupTaskWorkspace = useCallback(
-		async (taskId: string): Promise<RuntimeWorktreeDeleteResponse | null> => {
+		async (
+			taskId: string,
+			options: { preserveChanges?: boolean } = {},
+		): Promise<RuntimeWorktreeDeleteResponse | null> => {
 			if (!currentProjectId) {
 				return null;
 			}
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const payload = await trpcClient.workspace.deleteWorktree.mutate({ taskId });
+				const payload = await trpcClient.workspace.deleteWorktree.mutate({
+					taskId,
+					...(Object.hasOwn(options, "preserveChanges") ? { preserveChanges: options.preserveChanges } : {}),
+				});
 				if (!payload.ok) {
 					const message = payload.error ?? "Could not clean up task workspace.";
 					console.error(`[cleanupTaskWorkspace] ${message}`);

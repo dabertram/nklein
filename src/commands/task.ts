@@ -776,10 +776,12 @@ async function stopTaskRuntimeSession(
 async function deleteTaskWorkspace(
 	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
 	taskId: string,
+	options: { preserveChanges?: boolean } = {},
 ): Promise<{ removed: boolean; error?: string }> {
 	try {
 		const deleted = await runtimeClient.workspace.deleteWorktree.mutate({
 			taskId,
+			...(Object.hasOwn(options, "preserveChanges") ? { preserveChanges: options.preserveChanges } : {}),
 		});
 		return {
 			removed: deleted.removed,
@@ -2350,7 +2352,7 @@ async function deleteTaskCommand(input: {
 	const workspaceCleanupResults = await Promise.all(
 		mutation.value.deletedTaskIds.map(async (taskId) => ({
 			taskId,
-			...(await deleteTaskWorkspace(runtimeClient, taskId)),
+			...(await deleteTaskWorkspace(runtimeClient, taskId, { preserveChanges: false })),
 		})),
 	);
 

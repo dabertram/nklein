@@ -358,4 +358,28 @@ describe("useTaskSessions", () => {
 		expect(deleteWorktreeMutateMock).toHaveBeenCalledWith({ taskId: "task-1" });
 		expect(notifyErrorMock).not.toHaveBeenCalled();
 	});
+
+	it("passes discard cleanup options through to task workspace deletion", async () => {
+		let latestSnapshot: HookSnapshot | null = null;
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (latestSnapshot === null) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			await latestSnapshot?.cleanupTaskWorkspace("task-1", { preserveChanges: false });
+		});
+
+		expect(deleteWorktreeMutateMock).toHaveBeenCalledWith({ taskId: "task-1", preserveChanges: false });
+	});
 });

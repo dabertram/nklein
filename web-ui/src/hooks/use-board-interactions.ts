@@ -146,7 +146,7 @@ interface UseBoardInteractionsInput {
 	setIsClearTrashDialogOpen: Dispatch<SetStateAction<boolean>>;
 	setIsGitHistoryOpen: Dispatch<SetStateAction<boolean>>;
 	stopTaskSession: (taskId: string) => Promise<void>;
-	cleanupTaskWorkspace: (taskId: string) => Promise<unknown>;
+	cleanupTaskWorkspace: UseTaskSessionsResult["cleanupTaskWorkspace"];
 	ensureTaskWorkspace: UseTaskSessionsResult["ensureTaskWorkspace"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
 	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
@@ -1140,7 +1140,7 @@ export function useBoardInteractions({
 			await Promise.all(
 				taskIds.map(async (taskId) => {
 					await stopTaskSession(taskId);
-					await cleanupTaskWorkspace(taskId);
+					await cleanupTaskWorkspace(taskId, { preserveChanges: false });
 				}),
 			);
 		})();

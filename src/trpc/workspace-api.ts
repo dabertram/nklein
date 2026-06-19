@@ -343,6 +343,7 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 			return await deleteTaskWorktree({
 				repoPath: workspaceScope.workspacePath,
 				taskId: body.taskId,
+				preserveChanges: body.preserveChanges,
 			});
 		},
 		loadTaskContext: async (workspaceScope, input) => {

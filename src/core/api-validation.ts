@@ -195,6 +195,7 @@ export function parseWorktreeDeleteRequest(value: unknown): RuntimeWorktreeDelet
 	}
 	return {
 		taskId,
+		preserveChanges: parsed.preserveChanges,
 	};
 }
 
