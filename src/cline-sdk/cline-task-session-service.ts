@@ -8,6 +8,7 @@ import type {
 	RuntimeClineReasoningEffort,
 	RuntimeClineTeamProgressEvent,
 	RuntimeContextBudgetBreakdown,
+	RuntimeTaskAcceptanceResult,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
@@ -23,6 +24,7 @@ import {
 	type TaskResultBranch,
 } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import { runClineAcceptanceGateInSandbox } from "./cline-acceptance-gate";
 import {
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
@@ -360,6 +362,13 @@ export interface ClineTaskSessionService {
 	setBoardPaused(paused: boolean): void;
 	setCardPaused(taskId: string, paused: boolean): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
+	verifyTaskAcceptanceInSandbox(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		taskPrompt: string;
+		timeoutMs?: number;
+	}): Promise<RuntimeTaskAcceptanceResult>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -2161,6 +2170,27 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
 		await this.pauseController.waitUntilResumed(taskId);
+	}
+
+	async verifyTaskAcceptanceInSandbox(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		taskPrompt: string;
+		timeoutMs?: number;
+	}): Promise<RuntimeTaskAcceptanceResult> {
+		if (!this.agentSandboxManager) {
+			throw new Error("Cline acceptance verification requires the configured agent sandbox manager.");
+		}
+		return await runClineAcceptanceGateInSandbox({
+			taskId: input.taskId,
+			projectRepoPath: input.projectRepoPath,
+			baseRef: input.baseRef,
+			taskPrompt: input.taskPrompt,
+			timeoutMs: input.timeoutMs,
+			sandboxManager: this.agentSandboxManager,
+			pauseController: this.pauseController,
+		});
 	}
 
 	async updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {

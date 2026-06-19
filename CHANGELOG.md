@@ -46,6 +46,7 @@
 - Required Cline task-session service construction to pass an `AgentSandboxManager`, with only an explicit test-only unisolated mode for in-process unit harnesses.
 - Captured completed sandbox task changes as binary patches into deterministic `nklein/tasks/<task>` result branches via a temporary Git index, keeping the user's checkout clean while review diff, evidence, and merge flows prefer the branch over legacy host task worktrees.
 - Added discard cleanup for sandbox task result branches, threading `preserveChanges=false` through permanent task delete, Clear Trash, project removal, dev cleanup, and Replay while leaving ordinary move-to-trash cleanup on the preserving path; restoring from Trash now resumes from the preserved result branch when present.
+- Routed runtime task acceptance verification through the scoped Cline task-session service, reusing the configured sandbox pool and pause controller instead of constructing an endpoint-local Docker sandbox manager.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

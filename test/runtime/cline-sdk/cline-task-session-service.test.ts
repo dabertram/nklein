@@ -124,6 +124,7 @@ interface FakeAgentSandboxManagerController {
 	manager: AgentSandboxManager;
 	assertAvailableMock: Mock<AgentSandboxManager["assertAvailable"]>;
 	prepareWorkspaceMock: Mock<AgentSandboxManager["prepareWorkspace"]>;
+	execMock: Mock<AgentSandboxManager["exec"]>;
 	captureWorkspacePatchMock: Mock<AgentSandboxManager["captureWorkspacePatch"]>;
 	disposeWorkspaceMock: Mock<AgentSandboxManager["disposeWorkspace"]>;
 	stopNowMock: Mock<AgentSandboxManager["stopNow"]>;
@@ -414,6 +415,11 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		workdir: `/workspaces/${input.taskId}`,
 		uid: 70_001,
 	}));
+	const execMock: FakeAgentSandboxManagerController["execMock"] = vi.fn(async () => ({
+		exitCode: 0,
+		stdout: "ok",
+		stderr: "",
+	}));
 	const captureWorkspacePatchMock: FakeAgentSandboxManagerController["captureWorkspacePatchMock"] = vi.fn(
 		async () => "diff --git a/README.md b/README.md\n",
 	);
@@ -423,6 +429,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 	const manager = {
 		assertAvailable: assertAvailableMock,
 		prepareWorkspace: prepareWorkspaceMock,
+		exec: execMock,
 		captureWorkspacePatch: captureWorkspacePatchMock,
 		disposeWorkspace: disposeWorkspaceMock,
 		stopNow: stopNowMock,
@@ -432,6 +439,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		manager,
 		assertAvailableMock,
 		prepareWorkspaceMock,
+		execMock,
 		captureWorkspacePatchMock,
 		disposeWorkspaceMock,
 		stopNowMock,
@@ -712,6 +720,44 @@ describe("InMemoryClineTaskSessionService", () => {
 				baseRef: "result-branch-commit",
 			}),
 		);
+	});
+
+	it("verifies acceptance checks through the configured sandbox manager", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		const result = await service.verifyTaskAcceptanceInSandbox({
+			taskId: "task-acceptance",
+			projectRepoPath: "/tmp/project",
+			baseRef: "main",
+			taskPrompt: "Acceptance check: npm test",
+			timeoutMs: 1234,
+		});
+
+		expect(result).toMatchObject({
+			present: true,
+			command: "npm test",
+			passed: true,
+			exitCode: 0,
+			output: "ok",
+		});
+		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
+		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
+			taskId: "task-acceptance",
+			projectRepoPath: "/tmp/project",
+			baseRef: "main",
+		});
+		expect(sandboxManager.execMock).toHaveBeenCalledWith("task-acceptance", ["/bin/sh", "-c", "npm test"], {
+			timeoutMs: 1234,
+		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-acceptance");
 	});
 
 	it("disposes a sandbox workspace when SDK start fails", async () => {

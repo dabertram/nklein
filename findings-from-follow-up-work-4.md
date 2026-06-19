@@ -33,14 +33,15 @@
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply, update project-health/CLI wording that still promises host task worktrees, and decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model.
 
 - [ ] Share one sandbox pool and expose its health/settings instead of creating ad hoc managers.
-  - The first chunk creates a production `AgentSandboxManager` for Cline task-session services and one-shot managers for acceptance verification.
+  - The first chunk creates a production `AgentSandboxManager` for Cline task-session services.
+  - Runtime API acceptance verification now routes through the scoped Cline task-session service, so the Settings-configured sandbox pool, queue, and pause controller are reused instead of constructing an endpoint-local manager.
   - Persisted pool sizing now exists (`sandboxMaxContainers`, `sandboxAgentsPerContainer`, `sandboxMemoryPerContainerMb`, `sandboxCpusPerContainer`, `sandboxIdleTimeoutMinutes`), is exposed in General settings, and is applied to the task-session manager whenever a scoped Cline service is requested.
   - Runtime startup now records sandbox preflight status, General settings exposes Docker/image health, and Cline task starts refresh that preflight before launch and fail closed with `agent_sandbox_unavailable` when blocked.
   - Runtime startup now also removes stale `nklein.kind=agent-sandbox` containers and generated `nklein-agent-ws-<slot>` volumes left by a previous crash before new sandbox work begins.
   - Pool queue draining now reserves a freed slot before any async Docker wait, so multiple queued tasks cannot overfill the same container and queued handoff does not poison later idle teardown.
   - Sandbox-capacity waits now emit a typed `queued` task-session summary, show "Queued — waiting for sandbox capacity" on the card, and count as active for concurrency/overlap checks until a slot frees.
   - J7 still needs the final no-host-fallback audit across custom !Klein tools/MCP and any non-Cline legacy start surfaces before strict isolation can be called complete.
-  - Acceptance verification and command paths that create one-shot `AgentSandboxManager` instances still need to share the configured pool or be reconciled with the final pool lifecycle.
+  - CLI `nklein task verify` and acceptance auto-repair still create one-shot `AgentSandboxManager` instances. They need either a scoped pool owner of their own or a deliberate documented exception because they do not currently run through the runtime API service instance.
 
 - [x] Reconcile MCP execution with the isolation policy.
   - Locally executing stdio MCP servers are now skipped when building the Cline MCP tool bundle under strict isolation.

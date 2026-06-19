@@ -10,9 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { runClineAcceptanceGateInSandbox } from "../cline-sdk/cline-acceptance-gate";
 import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
-import { AgentSandboxManager } from "../cline-sdk/cline-agent-sandbox";
 import { createClineCodeEmbeddingProviderFromSettings } from "../cline-sdk/cline-code-embeddings";
 import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
 import {
@@ -969,14 +967,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: `Task "${input.taskId}" was not found.`,
 				});
 			}
-			const sandboxManager = new AgentSandboxManager();
-			const acceptance = await runClineAcceptanceGateInSandbox({
+			const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+			const acceptance = await clineTaskSessionService.verifyTaskAcceptanceInSandbox({
 				taskId: input.taskId,
 				projectRepoPath: workspaceScope.workspacePath,
 				baseRef: taskRecord.card.baseRef,
 				taskPrompt: taskRecord.card.prompt,
 				timeoutMs: input.timeoutMs,
-				sandboxManager,
 			});
 			return {
 				ok: acceptance.present === true && acceptance.passed === true,

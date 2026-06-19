@@ -535,6 +535,14 @@ function createClineTaskSessionServiceMock() {
 		applyTurnCheckpoint: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
 		setBoardPaused: vi.fn<(...args: unknown[]) => void>(),
 		setCardPaused: vi.fn<(...args: unknown[]) => void>(),
+		verifyTaskAcceptanceInSandbox: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+			present: true,
+			command: "npm test",
+			passed: true,
+			exitCode: 0,
+			output: "ok",
+			durationMs: 1,
+		})),
 		resumePausedTasks: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary[]>>(async () => []),
 		dispose: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
 	};
@@ -789,6 +797,80 @@ describe("createRuntimeApi startTaskSession", () => {
 				}),
 			}),
 		);
+	});
+
+	it("verifies task acceptance through the scoped Cline sandbox service", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-acceptance-workspace-"));
+		try {
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			const board: RuntimeBoardData = {
+				columns: [
+					{
+						id: "backlog",
+						title: "Backlog",
+						cards: [
+							{
+								id: "task-acceptance",
+								title: "Verify acceptance",
+								prompt: "Acceptance check: npm test",
+								startInPlanMode: false,
+								baseRef: "main",
+								createdAt: 1,
+								updatedAt: 1,
+							},
+						],
+					},
+					{ id: "planning", title: "Planning", cards: [] },
+					{ id: "in_progress", title: "In Progress", cards: [] },
+					{ id: "review", title: "Review", cards: [] },
+					{ id: "completed", title: "Completed", cards: [] },
+					{ id: "trash", title: "Trash", cards: [] },
+				],
+				dependencies: [],
+			};
+			await saveWorkspaceState(workspacePath, { board, sessions: {} });
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			clineTaskSessionService.verifyTaskAcceptanceInSandbox.mockResolvedValue({
+				present: true,
+				command: "npm test",
+				passed: true,
+				exitCode: 0,
+				output: "ok",
+				durationMs: 25,
+			});
+			const getScopedClineTaskSessionService = vi.fn(async () => clineTaskSessionService as never);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({}) as never),
+				getScopedClineTaskSessionService,
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+
+			const response = await api.verifyTaskAcceptance(
+				{ workspaceId: "workspace-1", workspacePath },
+				{ taskId: "task-acceptance", timeoutMs: 1234 },
+			);
+
+			expect(getScopedClineTaskSessionService).toHaveBeenCalledWith({ workspaceId: "workspace-1", workspacePath });
+			expect(clineTaskSessionService.verifyTaskAcceptanceInSandbox).toHaveBeenCalledWith({
+				taskId: "task-acceptance",
+				projectRepoPath: workspacePath,
+				baseRef: "main",
+				taskPrompt: "Acceptance check: npm test",
+				timeoutMs: 1234,
+			});
+			expect(response).toMatchObject({
+				ok: true,
+				taskId: "task-acceptance",
+				taskWorkspacePath: null,
+				message: "Acceptance check passed: npm test.",
+			});
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
 	});
 
 	it("starts Cline tasks without resolving a host task worktree", async () => {
