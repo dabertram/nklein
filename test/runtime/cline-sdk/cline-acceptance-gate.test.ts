@@ -94,10 +94,20 @@ describe("cline acceptance gate", () => {
 		const result = await runClineAcceptanceGate({
 			workspacePath: process.cwd(),
 			taskPrompt: "Acceptance check: node -e \"process.stdout.write('x'.repeat(3 * 1024 * 1024))\"",
+			allowHostExecution: true,
 		});
 
 		expect(result.passed).toBe(true);
 		expect(result.output.length).toBe(3 * 1024 * 1024);
+	});
+
+	it("rejects implicit host execution for acceptance commands", async () => {
+		await expect(
+			runClineAcceptanceGate({
+				workspacePath: "/tmp/project",
+				taskPrompt: "Acceptance check: npm test",
+			}),
+		).rejects.toThrow("Acceptance gate host execution requires an explicit runCommand");
 	});
 
 	it("records failed verification observations", async () => {

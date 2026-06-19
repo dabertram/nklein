@@ -348,6 +348,9 @@ agents in one container still cannot read each other's files.
   if no sandbox manager + bound `taskId` is present. There is no env var, setting, or code branch that runs an agent
   tool on the host.
   Grep after implementing: no agent tool path calls `child_process`/`fs` write/`/bin/sh` directly.
+  - [x] `runClineAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
+    explicit runner or opt into trusted host execution, while agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
+  - [ ] Add the no-host execution guard test across SDK default executors and acceptance.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
 - [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image

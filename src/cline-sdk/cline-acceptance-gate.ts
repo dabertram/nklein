@@ -31,6 +31,7 @@ export interface RunClineAcceptanceGateOptions {
 	taskPrompt: string;
 	timeoutMs?: number;
 	now?: () => number;
+	allowHostExecution?: boolean;
 	runCommand?: (execution: ClineAcceptanceGateExecution) => Promise<{
 		exitCode: number | null;
 		stdout?: string;
@@ -121,6 +122,11 @@ export async function runClineAcceptanceGate(
 	}
 
 	const timeoutMs = options.timeoutMs ?? DEFAULT_ACCEPTANCE_TIMEOUT_MS;
+	if (!options.runCommand && options.allowHostExecution !== true) {
+		throw new Error(
+			"Acceptance gate host execution requires an explicit runCommand or allowHostExecution=true; agent tasks must use the sandbox runner.",
+		);
+	}
 	const runCommand = options.runCommand ?? defaultRunCommand;
 	const execution = await runCommand({
 		command,

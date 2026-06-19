@@ -36,6 +36,7 @@
 - Added Shared and Dedicated sandbox pool presets in General settings as shortcuts over the existing numeric pool controls.
 - Added Docker agent-sandbox preflight status to Settings and made Cline task starts fail closed with the sandbox remediation message when Docker or the sandbox image is unavailable.
 - Fixed Docker agent-sandbox queue draining so freed slots are reserved before async startup waits, preventing queued tasks from overfilling a container or blocking later idle teardown.
+- Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.
 - Persisted Docker agent-sandbox start failures on task cards, keeping the remediation visible after the failed start toast.
 - Disabled stdio MCP servers under strict agent isolation, returning a warning instead of spawning local MCP subprocesses.
