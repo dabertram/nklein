@@ -18,7 +18,11 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
-import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./cline-agent-sandbox";
+import {
+	type AgentSandboxManager,
+	type AgentSandboxPoolConfig,
+	createAgentSandboxToolExecutors,
+} from "./cline-agent-sandbox";
 import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
@@ -349,6 +353,7 @@ export interface ClineTaskSessionService {
 	setBoardPaused(paused: boolean): void;
 	setCardPaused(taskId: string, paused: boolean): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
+	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): void;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
@@ -2050,6 +2055,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
 		await this.pauseController.waitUntilResumed(taskId);
+	}
+
+	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): void {
+		this.agentSandboxManager?.updatePoolConfig(config);
 	}
 
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {

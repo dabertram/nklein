@@ -4,13 +4,14 @@ import { createServer as createHttpsServer } from "node:https";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import { AgentSandboxManager } from "../cline-sdk/cline-agent-sandbox";
+import { AgentSandboxManager, type AgentSandboxPoolConfig } from "../cline-sdk/cline-agent-sandbox";
 import { handleClineMcpOauthCallback } from "../cline-sdk/cline-mcp-runtime-service";
 import {
 	type ClineTaskSessionService,
 	createInMemoryClineTaskSessionService,
 } from "../cline-sdk/cline-task-session-service";
 import { createClineWatcherRegistry } from "../cline-sdk/cline-watcher-registry";
+import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import type {
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
@@ -106,6 +107,16 @@ function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): 
 		}
 	}
 	return null;
+}
+
+function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
+	return {
+		maxContainers: runtimeConfig.sandboxMaxContainers,
+		agentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
+		memoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,
+		cpusPerContainer: runtimeConfig.sandboxCpusPerContainer,
+		idleTimeoutMs: runtimeConfig.sandboxIdleTimeoutMinutes * 60 * 1000,
+	};
 }
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
@@ -227,11 +238,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedClineTaskSessionService = async (
 		scope: RuntimeTrpcWorkspaceScope,
 	): Promise<ClineTaskSessionService> => {
+		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
+		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig);
 		let service = clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {
 			service = createInMemoryClineTaskSessionService({
 				watcherRegistry: clineWatcherRegistry,
-				agentSandboxManager: new AgentSandboxManager(),
+				agentSandboxManager: new AgentSandboxManager({ poolConfig: sandboxPoolConfig }),
 			});
 			service.setBoardPaused((await readSwarmStopSignal(scope.workspacePath)) !== null);
 			for (const taskId of await readPausedTasks(scope.workspacePath)) {
@@ -245,6 +258,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
+		} else {
+			service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 		}
 		return service;
 	};

@@ -1657,6 +1657,11 @@ export function RuntimeSettingsDialog({
 	const [conversationTimeoutMs, setConversationTimeoutMs] = useState("");
 	const [maxAgentWritableFileLines, setMaxAgentWritableFileLines] = useState("1000");
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
+	const [sandboxMaxContainers, setSandboxMaxContainers] = useState("1");
+	const [sandboxAgentsPerContainer, setSandboxAgentsPerContainer] = useState("0");
+	const [sandboxMemoryPerContainerMb, setSandboxMemoryPerContainerMb] = useState("4096");
+	const [sandboxCpusPerContainer, setSandboxCpusPerContainer] = useState("2");
+	const [sandboxIdleTimeoutMinutes, setSandboxIdleTimeoutMinutes] = useState("10");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
@@ -1794,6 +1799,11 @@ export function RuntimeSettingsDialog({
 		config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs);
 	const initialMaxAgentWritableFileLines = String(config?.maxAgentWritableFileLines ?? 1000);
 	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
+	const initialSandboxMaxContainers = String(config?.sandboxMaxContainers ?? 1);
+	const initialSandboxAgentsPerContainer = String(config?.sandboxAgentsPerContainer ?? 0);
+	const initialSandboxMemoryPerContainerMb = String(config?.sandboxMemoryPerContainerMb ?? 4096);
+	const initialSandboxCpusPerContainer = String(config?.sandboxCpusPerContainer ?? 2);
+	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
@@ -1853,6 +1863,11 @@ export function RuntimeSettingsDialog({
 				`timeoutMode=${agentTimeoutMode}`,
 				`timeoutProfile=${agentTimeoutProfile}`,
 				`maxConcurrentTasks=${maxConcurrentTasks}`,
+				`sandboxMaxContainers=${sandboxMaxContainers}`,
+				`sandboxAgentsPerContainer=${sandboxAgentsPerContainer}`,
+				`sandboxMemoryPerContainerMb=${sandboxMemoryPerContainerMb}`,
+				`sandboxCpusPerContainer=${sandboxCpusPerContainer}`,
+				`sandboxIdleTimeoutMinutes=${sandboxIdleTimeoutMinutes}`,
 				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
 				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
@@ -1870,6 +1885,11 @@ export function RuntimeSettingsDialog({
 			decompositionAutoApplyEnabled,
 			lostHeartbeatPolicy,
 			maxConcurrentTasks,
+			sandboxAgentsPerContainer,
+			sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes,
+			sandboxMaxContainers,
+			sandboxMemoryPerContainerMb,
 			readyForReviewNotificationsEnabled,
 			selectedAgentId,
 		],
@@ -1900,6 +1920,29 @@ export function RuntimeSettingsDialog({
 		],
 	);
 	const draftEffectiveCodeEmbeddingSettings = draftCodeEmbeddingOverride ?? draftCodeEmbeddingDefaults;
+	const sandboxPoolSummary = useMemo(() => {
+		const parsePositiveInteger = (value: string, fallback: number) => {
+			const parsed = Number(value.trim());
+			return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+		};
+		const parseNonNegativeInteger = (value: string, fallback: number) => {
+			const parsed = Number(value.trim());
+			return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+		};
+		const maxConcurrent = parsePositiveInteger(maxConcurrentTasks, 3);
+		const maxContainers = parsePositiveInteger(sandboxMaxContainers, 1);
+		const agentsPerContainer = parseNonNegativeInteger(sandboxAgentsPerContainer, 0);
+		const memoryMb = parsePositiveInteger(sandboxMemoryPerContainerMb, 4096);
+		const poolCapacity = agentsPerContainer === 0 ? Number.POSITIVE_INFINITY : maxContainers * agentsPerContainer;
+		const effectiveParallelism =
+			poolCapacity === Number.POSITIVE_INFINITY ? maxConcurrent : Math.min(maxConcurrent, poolCapacity);
+		const memoryGb = memoryMb / 1024;
+		return {
+			effectiveParallelism,
+			memoryGbLabel: `${Number.isInteger(memoryGb) ? memoryGb : memoryGb.toFixed(1)} GB`,
+			poolCapacityLabel: agentsPerContainer === 0 ? "unlimited pool slots" : `${poolCapacity} pool slots`,
+		};
+	}, [maxConcurrentTasks, sandboxAgentsPerContainer, sandboxMaxContainers, sandboxMemoryPerContainerMb]);
 	const hasUnsavedChanges = useMemo(() => {
 		if (!config) {
 			return false;
@@ -1935,6 +1978,21 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (maxConcurrentTasks.trim() !== initialMaxConcurrentTasks.trim()) {
+			return true;
+		}
+		if (sandboxMaxContainers.trim() !== initialSandboxMaxContainers.trim()) {
+			return true;
+		}
+		if (sandboxAgentsPerContainer.trim() !== initialSandboxAgentsPerContainer.trim()) {
+			return true;
+		}
+		if (sandboxMemoryPerContainerMb.trim() !== initialSandboxMemoryPerContainerMb.trim()) {
+			return true;
+		}
+		if (sandboxCpusPerContainer.trim() !== initialSandboxCpusPerContainer.trim()) {
+			return true;
+		}
+		if (sandboxIdleTimeoutMinutes.trim() !== initialSandboxIdleTimeoutMinutes.trim()) {
 			return true;
 		}
 		if (lostHeartbeatPolicy !== initialLostHeartbeatPolicy) {
@@ -2017,6 +2075,11 @@ export function RuntimeSettingsDialog({
 		initialDeveloperModeEnabled,
 		initialMaxAgentWritableFileLines,
 		initialMaxConcurrentTasks,
+		initialSandboxAgentsPerContainer,
+		initialSandboxCpusPerContainer,
+		initialSandboxIdleTimeoutMinutes,
+		initialSandboxMaxContainers,
+		initialSandboxMemoryPerContainerMb,
 		initialLostHeartbeatPolicy,
 		initialModelRoles,
 		initialOpenPrPromptTemplate,
@@ -2033,6 +2096,11 @@ export function RuntimeSettingsDialog({
 		initialToolTimeoutMs,
 		maxAgentWritableFileLines,
 		maxConcurrentTasks,
+		sandboxAgentsPerContainer,
+		sandboxCpusPerContainer,
+		sandboxIdleTimeoutMinutes,
+		sandboxMaxContainers,
+		sandboxMemoryPerContainerMb,
 		lostHeartbeatPolicy,
 		modelRoles,
 		openPrPromptTemplate,
@@ -2063,6 +2131,11 @@ export function RuntimeSettingsDialog({
 		setConversationTimeoutMs(config?.conversationTimeoutMs == null ? "" : String(config.conversationTimeoutMs));
 		setMaxAgentWritableFileLines(String(config?.maxAgentWritableFileLines ?? 1000));
 		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
+		setSandboxMaxContainers(String(config?.sandboxMaxContainers ?? 1));
+		setSandboxAgentsPerContainer(String(config?.sandboxAgentsPerContainer ?? 0));
+		setSandboxMemoryPerContainerMb(String(config?.sandboxMemoryPerContainerMb ?? 4096));
+		setSandboxCpusPerContainer(String(config?.sandboxCpusPerContainer ?? 2));
+		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
@@ -2110,6 +2183,11 @@ export function RuntimeSettingsDialog({
 		config?.replayCardsEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
+		config?.sandboxAgentsPerContainer,
+		config?.sandboxCpusPerContainer,
+		config?.sandboxIdleTimeoutMinutes,
+		config?.sandboxMaxContainers,
+		config?.sandboxMemoryPerContainerMb,
 		config?.lostHeartbeatPolicy,
 		config?.openPrPromptTemplate,
 		config?.requestTimeoutMs,
@@ -2467,6 +2545,13 @@ export function RuntimeSettingsDialog({
 			}
 			return parsed;
 		};
+		const parsePositiveNumberInput = (value: string): number | "invalid" => {
+			const parsed = Number(value.trim());
+			if (!Number.isFinite(parsed) || parsed <= 0) {
+				return "invalid";
+			}
+			return parsed;
+		};
 		const parsedRequestTimeout = parseTimeoutMsInput(requestTimeoutMs);
 		const parsedStreamTimeout = parseTimeoutMsInput(streamTimeoutMs);
 		const parsedToolTimeout = parseTimeoutMsInput(toolTimeoutMs);
@@ -2474,6 +2559,11 @@ export function RuntimeSettingsDialog({
 		const parsedConversationTimeout = parseTimeoutMsInput(conversationTimeoutMs);
 		const parsedMaxAgentWritableFileLines = parseTimeoutMsInput(maxAgentWritableFileLines);
 		const parsedMaxConcurrentTasks = parseTimeoutMsInput(maxConcurrentTasks);
+		const parsedSandboxMaxContainers = parseTimeoutMsInput(sandboxMaxContainers);
+		const parsedSandboxAgentsPerContainer = parseTimeoutMsInput(sandboxAgentsPerContainer);
+		const parsedSandboxMemoryPerContainerMb = parseTimeoutMsInput(sandboxMemoryPerContainerMb);
+		const parsedSandboxCpusPerContainer = parsePositiveNumberInput(sandboxCpusPerContainer);
+		const parsedSandboxIdleTimeoutMinutes = parseTimeoutMsInput(sandboxIdleTimeoutMinutes);
 		if (
 			parsedRequestTimeout === "invalid" ||
 			parsedStreamTimeout === "invalid" ||
@@ -2483,10 +2573,19 @@ export function RuntimeSettingsDialog({
 			parsedMaxAgentWritableFileLines === "invalid" ||
 			parsedMaxAgentWritableFileLines === null ||
 			parsedMaxConcurrentTasks === "invalid" ||
-			parsedMaxConcurrentTasks === null
+			parsedMaxConcurrentTasks === null ||
+			parsedSandboxMaxContainers === "invalid" ||
+			parsedSandboxMaxContainers === null ||
+			parsedSandboxAgentsPerContainer === "invalid" ||
+			parsedSandboxAgentsPerContainer === null ||
+			parsedSandboxMemoryPerContainerMb === "invalid" ||
+			parsedSandboxMemoryPerContainerMb === null ||
+			parsedSandboxCpusPerContainer === "invalid" ||
+			parsedSandboxIdleTimeoutMinutes === "invalid" ||
+			parsedSandboxIdleTimeoutMinutes === null
 		) {
 			setSaveError(
-				"Timeout values must be integers >= 0; max writable file lines and max concurrent tasks must be integers >= 1.",
+				"Timeout values must be integers >= 0; max writable file lines, concurrency, and sandbox pool settings must be within their allowed ranges.",
 			);
 			return;
 		}
@@ -2496,6 +2595,22 @@ export function RuntimeSettingsDialog({
 		}
 		if (parsedMaxConcurrentTasks < 1) {
 			setSaveError("Max concurrent tasks must be an integer >= 1.");
+			return;
+		}
+		if (parsedSandboxMaxContainers < 1) {
+			setSaveError("Sandbox max containers must be an integer >= 1.");
+			return;
+		}
+		if (parsedSandboxAgentsPerContainer < 0) {
+			setSaveError("Sandbox agents per container must be an integer >= 0.");
+			return;
+		}
+		if (parsedSandboxMemoryPerContainerMb < 1) {
+			setSaveError("Sandbox memory per container must be an integer >= 1.");
+			return;
+		}
+		if (parsedSandboxIdleTimeoutMinutes < 1) {
+			setSaveError("Sandbox idle timeout must be an integer >= 1 minute.");
 			return;
 		}
 		if (!config) {
@@ -2571,6 +2686,11 @@ export function RuntimeSettingsDialog({
 			conversationTimeoutMs: parsedConversationTimeout,
 			maxAgentWritableFileLines: parsedMaxAgentWritableFileLines,
 			maxConcurrentTasks: parsedMaxConcurrentTasks,
+			sandboxMaxContainers: parsedSandboxMaxContainers,
+			sandboxAgentsPerContainer: parsedSandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb: parsedSandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer: parsedSandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes: parsedSandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
 			developerModeEnabled,
@@ -2867,6 +2987,68 @@ export function RuntimeSettingsDialog({
 									Maximum dependency-unblocked tasks !Klein may start at once.
 								</p>
 							</div>
+							<div style={{ gridColumn: "1 / span 2" }} className="border-t border-border pt-3">
+								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+									<ShieldCheck size={14} />
+									<span>Agent isolation pool</span>
+								</div>
+								<div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+									<div>
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMaxContainers</p>
+										<input
+											value={sandboxMaxContainers}
+											onChange={(event) => setSandboxMaxContainers(event.target.value)}
+											placeholder="1"
+											disabled={controlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+										/>
+									</div>
+									<div>
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxAgentsPerContainer</p>
+										<input
+											value={sandboxAgentsPerContainer}
+											onChange={(event) => setSandboxAgentsPerContainer(event.target.value)}
+											placeholder="0"
+											disabled={controlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+										/>
+									</div>
+									<div>
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMemoryPerContainerMb</p>
+										<input
+											value={sandboxMemoryPerContainerMb}
+											onChange={(event) => setSandboxMemoryPerContainerMb(event.target.value)}
+											placeholder="4096"
+											disabled={controlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+										/>
+									</div>
+									<div>
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxCpusPerContainer</p>
+										<input
+											value={sandboxCpusPerContainer}
+											onChange={(event) => setSandboxCpusPerContainer(event.target.value)}
+											placeholder="2"
+											disabled={controlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+										/>
+									</div>
+									<div style={{ gridColumn: "1 / span 2" }}>
+										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxIdleTimeoutMinutes</p>
+										<input
+											value={sandboxIdleTimeoutMinutes}
+											onChange={(event) => setSandboxIdleTimeoutMinutes(event.target.value)}
+											placeholder="10"
+											disabled={controlsDisabled}
+											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+										/>
+										<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+											Agents per container accepts 0 for unlimited sharing; maxConcurrentTasks remains the
+											outer parallelism cap.
+										</p>
+									</div>
+								</div>
+							</div>
 							<div style={{ gridColumn: "1 / span 2" }}>
 								<p className="text-text-secondary text-[12px] mt-0 mb-1">Lost heartbeat policy</p>
 								<NativeSelect
@@ -2916,6 +3098,16 @@ export function RuntimeSettingsDialog({
 											{maxConcurrentTasks.trim() || "3"} running max
 										</div>
 										<div className="mt-1 text-[11px] text-text-secondary">Saved by maxConcurrentTasks.</div>
+									</div>
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Sandbox pool</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{sandboxPoolSummary.effectiveParallelism} effective parallel
+										</div>
+										<div className="mt-1 text-[11px] text-text-secondary">
+											{sandboxMaxContainers.trim() || "1"} containers, {sandboxPoolSummary.poolCapacityLabel}
+											, {sandboxPoolSummary.memoryGbLabel} each.
+										</div>
 									</div>
 									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
 										<div className="text-[11px] text-text-tertiary">Lost heartbeat</div>

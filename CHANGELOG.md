@@ -32,6 +32,7 @@
 - Reduced stale local model telemetry noise by sharing the loaded-model filter across Settings and task chat, labeling registry rows as past telemetry, adding per-row removal plus Clear stale models actions, and showing the selected loaded model's live context window in both places.
 - Renamed the persistent debug toggle to a global Developer Mode setting, moved it into General settings, made saved values override debug env vars, and gated sidebar dev-test scenarios, command-palette Developer Tools, debug tools, data-dir, and reset surfaces behind that setting.
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
+- Added persisted Docker agent-sandbox pool settings for container count, agents per container, memory, CPU, and idle timeout, with General settings controls and runtime manager wiring for new placements.
 - Gave the Cline context-usage bar its own full-width chat-panel row and widened the active-card mini context bar so context telemetry no longer competes with model/activity controls.
 - Added subtle per-message Cline chat timestamps with persisted collapse/expand controls and duration hover details.
 - Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.

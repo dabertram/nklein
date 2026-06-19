@@ -33,6 +33,11 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		sandboxMaxContainers: 1,
+		sandboxAgentsPerContainer: 0,
+		sandboxMemoryPerContainerMb: 4096,
+		sandboxCpusPerContainer: 2,
+		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
 		readyForReviewNotificationsEnabled: true,
@@ -113,6 +118,11 @@ describe("buildRuntimeConfigResponse", () => {
 		expect(response.agentAutonomousModeEnabled).toBe(true);
 		expect(response.lostHeartbeatPolicy).toBe("park");
 		expect(response.decompositionAutoApplyEnabled).toBe(true);
+		expect(response.sandboxMaxContainers).toBe(1);
+		expect(response.sandboxAgentsPerContainer).toBe(0);
+		expect(response.sandboxMemoryPerContainerMb).toBe(4096);
+		expect(response.sandboxCpusPerContainer).toBe(2);
+		expect(response.sandboxIdleTimeoutMinutes).toBe(10);
 		expect(response.modelRoles).toEqual({
 			worker: {
 				providerId: "ollama",

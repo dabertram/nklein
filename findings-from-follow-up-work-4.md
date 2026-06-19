@@ -15,8 +15,9 @@
 
 - [ ] Share one sandbox pool and expose its health/settings instead of creating ad hoc managers.
   - The first chunk creates a production `AgentSandboxManager` for Cline task-session services and one-shot managers for acceptance verification.
-  - J8 still requires persisted pool settings, runtime startup preflight status, settings UI rows, and clear blocked-start messaging when Docker/image preflight fails.
-  - Until that lands, the manager uses hardcoded defaults: one container, unlimited agents per container, 4096 MB, 4 CPUs, 10 minute idle timeout.
+  - Persisted pool sizing now exists (`sandboxMaxContainers`, `sandboxAgentsPerContainer`, `sandboxMemoryPerContainerMb`, `sandboxCpusPerContainer`, `sandboxIdleTimeoutMinutes`), is exposed in General settings, and is applied to the task-session manager whenever a scoped Cline service is requested.
+  - J8/J7 still require runtime startup preflight status, a read-only isolation health row, and clear blocked-start messaging when Docker/image preflight fails.
+  - Acceptance verification and command paths that create one-shot `AgentSandboxManager` instances still need to share the configured pool or be reconciled with the final pool lifecycle.
 
 - [ ] Reconcile MCP execution with the isolation policy.
   - Locally executing MCP tools are still not audited or routed through Docker.

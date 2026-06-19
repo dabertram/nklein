@@ -348,7 +348,7 @@ agents in one container still cannot read each other's files.
 - [ ] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image
   present ✓/✗, plus remediation text when missing ("Install Docker, start the daemon, run `npm run sandbox:build`").
   There is **no control to disable isolation** — it is mandatory.
-- [ ] **Sandbox pool settings (global).** Add these fields, each implemented like §E `developerModeEnabled` (config
+- [x] **Sandbox pool settings (global).** Add these fields, each implemented like §E `developerModeEnabled` (config
   file shape + `RuntimeConfigState` + update inputs + read/write/save in
   [src/config/runtime-config.ts](src/config/runtime-config.ts); request **and** response schema in
   [api-contract.ts](src/core/api-contract.ts); inputs in the General section of
@@ -365,6 +365,8 @@ agents in one container still cannot read each other's files.
     sandboxAgentsPerContainer)` so the user sees when containers bound concurrency and agents will **queue**.
   - Validate ranges (maxContainers ≥ 1; agentsPerContainer ≥ 0; memory/cpus > 0; idle ≥ 1). Changes apply to **new**
     placements; running agents keep their container; now-excess idle containers reap on their timer.
+  - Persisted config, API schemas, General settings controls, effective-parallelism summary, and task-session manager
+    wiring are done. Preset buttons remain optional and are not required for the numeric settings source of truth.
 - [ ] When the preflight fails, the task create / start affordances must show the blocked reason prominently (reuse the
   start-guard message). Tasks cannot be created/started until Docker is ready.
 

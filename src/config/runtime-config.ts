@@ -4,6 +4,13 @@
 import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import {
+	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+} from "../cline-sdk/cline-agent-sandbox";
 import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
@@ -38,6 +45,11 @@ interface RuntimeGlobalConfigFileShape {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	maxConcurrentTasks?: number;
+	sandboxMaxContainers?: number;
+	sandboxAgentsPerContainer?: number;
+	sandboxMemoryPerContainerMb?: number;
+	sandboxCpusPerContainer?: number;
+	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	readyForReviewNotificationsEnabled?: boolean;
@@ -69,6 +81,11 @@ export interface RuntimeConfigState {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	sandboxMaxContainers: number;
+	sandboxAgentsPerContainer: number;
+	sandboxMemoryPerContainerMb: number;
+	sandboxCpusPerContainer: number;
+	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
@@ -98,6 +115,11 @@ export interface RuntimeConfigUpdateInput {
 	conversationTimeoutMs?: number | null;
 	maxAgentWritableFileLines?: number;
 	maxConcurrentTasks?: number;
+	sandboxMaxContainers?: number;
+	sandboxAgentsPerContainer?: number;
+	sandboxMemoryPerContainerMb?: number;
+	sandboxCpusPerContainer?: number;
+	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	readyForReviewNotificationsEnabled?: boolean;
@@ -390,6 +412,26 @@ function normalizeMaxConcurrentTasks(value: unknown): number {
 	return normalized > 0 ? normalized : DEFAULT_MAX_CONCURRENT_TASKS;
 }
 
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return fallback;
+	}
+	const normalized = Math.trunc(value);
+	return normalized > 0 ? normalized : fallback;
+}
+
+function normalizeNonNegativeInteger(value: unknown, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return fallback;
+	}
+	const normalized = Math.trunc(value);
+	return normalized >= 0 ? normalized : fallback;
+}
+
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 function normalizeLostHeartbeatPolicy(value: unknown): RuntimeLostHeartbeatPolicy {
 	return value === "keep_running" ? "keep_running" : DEFAULT_LOST_HEARTBEAT_POLICY;
 }
@@ -538,6 +580,26 @@ function toRuntimeConfigState({
 		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		maxConcurrentTasks: normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks),
+		sandboxMaxContainers: normalizePositiveInteger(
+			globalConfig?.sandboxMaxContainers,
+			DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+		),
+		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
+			globalConfig?.sandboxAgentsPerContainer,
+			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+		),
+		sandboxMemoryPerContainerMb: normalizePositiveInteger(
+			globalConfig?.sandboxMemoryPerContainerMb,
+			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+		),
+		sandboxCpusPerContainer: normalizePositiveNumber(
+			globalConfig?.sandboxCpusPerContainer,
+			DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+		),
+		sandboxIdleTimeoutMinutes: normalizePositiveInteger(
+			globalConfig?.sandboxIdleTimeoutMinutes,
+			DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		decompositionAutoApplyEnabled: normalizeBoolean(
 			globalConfig?.decompositionAutoApplyEnabled,
@@ -588,6 +650,11 @@ async function writeRuntimeGlobalConfigFile(
 		conversationTimeoutMs?: number | null;
 		maxAgentWritableFileLines?: number;
 		maxConcurrentTasks?: number;
+		sandboxMaxContainers?: number;
+		sandboxAgentsPerContainer?: number;
+		sandboxMemoryPerContainerMb?: number;
+		sandboxCpusPerContainer?: number;
+		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
 		readyForReviewNotificationsEnabled?: boolean;
@@ -656,6 +723,26 @@ async function writeRuntimeGlobalConfigFile(
 		config.maxConcurrentTasks === undefined
 			? DEFAULT_MAX_CONCURRENT_TASKS
 			: normalizeMaxConcurrentTasks(config.maxConcurrentTasks);
+	const sandboxMaxContainers =
+		config.sandboxMaxContainers === undefined
+			? DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS
+			: normalizePositiveInteger(config.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS);
+	const sandboxAgentsPerContainer =
+		config.sandboxAgentsPerContainer === undefined
+			? DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER
+			: normalizeNonNegativeInteger(config.sandboxAgentsPerContainer, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER);
+	const sandboxMemoryPerContainerMb =
+		config.sandboxMemoryPerContainerMb === undefined
+			? DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB
+			: normalizePositiveInteger(config.sandboxMemoryPerContainerMb, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
+	const sandboxCpusPerContainer =
+		config.sandboxCpusPerContainer === undefined
+			? DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER
+			: normalizePositiveNumber(config.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER);
+	const sandboxIdleTimeoutMinutes =
+		config.sandboxIdleTimeoutMinutes === undefined
+			? DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES
+			: normalizePositiveInteger(config.sandboxIdleTimeoutMinutes, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES);
 	const lostHeartbeatPolicy =
 		config.lostHeartbeatPolicy === undefined
 			? DEFAULT_LOST_HEARTBEAT_POLICY
@@ -748,6 +835,33 @@ async function writeRuntimeGlobalConfigFile(
 	}
 	if (hasOwnKey(existing, "maxConcurrentTasks") || maxConcurrentTasks !== DEFAULT_MAX_CONCURRENT_TASKS) {
 		payload.maxConcurrentTasks = maxConcurrentTasks;
+	}
+	if (hasOwnKey(existing, "sandboxMaxContainers") || sandboxMaxContainers !== DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS) {
+		payload.sandboxMaxContainers = sandboxMaxContainers;
+	}
+	if (
+		hasOwnKey(existing, "sandboxAgentsPerContainer") ||
+		sandboxAgentsPerContainer !== DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER
+	) {
+		payload.sandboxAgentsPerContainer = sandboxAgentsPerContainer;
+	}
+	if (
+		hasOwnKey(existing, "sandboxMemoryPerContainerMb") ||
+		sandboxMemoryPerContainerMb !== DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB
+	) {
+		payload.sandboxMemoryPerContainerMb = sandboxMemoryPerContainerMb;
+	}
+	if (
+		hasOwnKey(existing, "sandboxCpusPerContainer") ||
+		sandboxCpusPerContainer !== DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER
+	) {
+		payload.sandboxCpusPerContainer = sandboxCpusPerContainer;
+	}
+	if (
+		hasOwnKey(existing, "sandboxIdleTimeoutMinutes") ||
+		sandboxIdleTimeoutMinutes !== DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES
+	) {
+		payload.sandboxIdleTimeoutMinutes = sandboxIdleTimeoutMinutes;
 	}
 	if (hasOwnKey(existing, "lostHeartbeatPolicy") || lostHeartbeatPolicy !== DEFAULT_LOST_HEARTBEAT_POLICY) {
 		payload.lostHeartbeatPolicy = lostHeartbeatPolicy;
@@ -873,6 +987,11 @@ function createRuntimeConfigStateFromValues(input: {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	sandboxMaxContainers: number;
+	sandboxAgentsPerContainer: number;
+	sandboxMemoryPerContainerMb: number;
+	sandboxCpusPerContainer: number;
+	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
@@ -903,6 +1022,23 @@ function createRuntimeConfigStateFromValues(input: {
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
 		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
+		sandboxMaxContainers: normalizePositiveInteger(input.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
+			input.sandboxAgentsPerContainer,
+			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+		),
+		sandboxMemoryPerContainerMb: normalizePositiveInteger(
+			input.sandboxMemoryPerContainerMb,
+			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+		),
+		sandboxCpusPerContainer: normalizePositiveNumber(
+			input.sandboxCpusPerContainer,
+			DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+		),
+		sandboxIdleTimeoutMinutes: normalizePositiveInteger(
+			input.sandboxIdleTimeoutMinutes,
+			DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		decompositionAutoApplyEnabled: normalizeBoolean(
 			input.decompositionAutoApplyEnabled,
@@ -947,6 +1083,11 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		conversationTimeoutMs: current.conversationTimeoutMs,
 		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
 		maxConcurrentTasks: current.maxConcurrentTasks,
+		sandboxMaxContainers: current.sandboxMaxContainers,
+		sandboxAgentsPerContainer: current.sandboxAgentsPerContainer,
+		sandboxMemoryPerContainerMb: current.sandboxMemoryPerContainerMb,
+		sandboxCpusPerContainer: current.sandboxCpusPerContainer,
+		sandboxIdleTimeoutMinutes: current.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
@@ -998,6 +1139,11 @@ export async function saveRuntimeConfig(
 		conversationTimeoutMs: number | null;
 		maxAgentWritableFileLines?: number;
 		maxConcurrentTasks?: number;
+		sandboxMaxContainers?: number;
+		sandboxAgentsPerContainer?: number;
+		sandboxMemoryPerContainerMb?: number;
+		sandboxCpusPerContainer?: number;
+		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
 		readyForReviewNotificationsEnabled: boolean;
@@ -1026,6 +1172,26 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
+			sandboxMaxContainers: normalizePositiveInteger(
+				config.sandboxMaxContainers,
+				DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+			),
+			sandboxAgentsPerContainer: normalizeNonNegativeInteger(
+				config.sandboxAgentsPerContainer,
+				DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+			),
+			sandboxMemoryPerContainerMb: normalizePositiveInteger(
+				config.sandboxMemoryPerContainerMb,
+				DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+			),
+			sandboxCpusPerContainer: normalizePositiveNumber(
+				config.sandboxCpusPerContainer,
+				DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+			),
+			sandboxIdleTimeoutMinutes: normalizePositiveInteger(
+				config.sandboxIdleTimeoutMinutes,
+				DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+			),
 			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
 			decompositionAutoApplyEnabled: normalizeBoolean(
 				config.decompositionAutoApplyEnabled,
@@ -1058,6 +1224,26 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
+			sandboxMaxContainers: normalizePositiveInteger(
+				config.sandboxMaxContainers,
+				DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+			),
+			sandboxAgentsPerContainer: normalizeNonNegativeInteger(
+				config.sandboxAgentsPerContainer,
+				DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+			),
+			sandboxMemoryPerContainerMb: normalizePositiveInteger(
+				config.sandboxMemoryPerContainerMb,
+				DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+			),
+			sandboxCpusPerContainer: normalizePositiveNumber(
+				config.sandboxCpusPerContainer,
+				DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+			),
+			sandboxIdleTimeoutMinutes: normalizePositiveInteger(
+				config.sandboxIdleTimeoutMinutes,
+				DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+			),
 			lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy),
 			decompositionAutoApplyEnabled: normalizeBoolean(
 				config.decompositionAutoApplyEnabled,
@@ -1110,6 +1296,35 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.maxConcurrentTasks === undefined
 					? current.maxConcurrentTasks
 					: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
+			sandboxMaxContainers:
+				updates.sandboxMaxContainers === undefined
+					? current.sandboxMaxContainers
+					: normalizePositiveInteger(updates.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+			sandboxAgentsPerContainer:
+				updates.sandboxAgentsPerContainer === undefined
+					? current.sandboxAgentsPerContainer
+					: normalizeNonNegativeInteger(
+							updates.sandboxAgentsPerContainer,
+							DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+						),
+			sandboxMemoryPerContainerMb:
+				updates.sandboxMemoryPerContainerMb === undefined
+					? current.sandboxMemoryPerContainerMb
+					: normalizePositiveInteger(
+							updates.sandboxMemoryPerContainerMb,
+							DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+						),
+			sandboxCpusPerContainer:
+				updates.sandboxCpusPerContainer === undefined
+					? current.sandboxCpusPerContainer
+					: normalizePositiveNumber(updates.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+			sandboxIdleTimeoutMinutes:
+				updates.sandboxIdleTimeoutMinutes === undefined
+					? current.sandboxIdleTimeoutMinutes
+					: normalizePositiveInteger(
+							updates.sandboxIdleTimeoutMinutes,
+							DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+						),
 			lostHeartbeatPolicy:
 				updates.lostHeartbeatPolicy === undefined
 					? current.lostHeartbeatPolicy
@@ -1149,6 +1364,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 			nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
+			nextConfig.sandboxMaxContainers !== current.sandboxMaxContainers ||
+			nextConfig.sandboxAgentsPerContainer !== current.sandboxAgentsPerContainer ||
+			nextConfig.sandboxMemoryPerContainerMb !== current.sandboxMemoryPerContainerMb ||
+			nextConfig.sandboxCpusPerContainer !== current.sandboxCpusPerContainer ||
+			nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
 			nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
 			nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
@@ -1178,6 +1398,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+			sandboxMaxContainers: nextConfig.sandboxMaxContainers,
+			sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer: nextConfig.sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
@@ -1207,6 +1432,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+			sandboxMaxContainers: nextConfig.sandboxMaxContainers,
+			sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer: nextConfig.sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
@@ -1267,6 +1497,35 @@ export async function updateGlobalRuntimeConfig(
 					updates.maxConcurrentTasks === undefined
 						? current.maxConcurrentTasks
 						: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
+				sandboxMaxContainers:
+					updates.sandboxMaxContainers === undefined
+						? current.sandboxMaxContainers
+						: normalizePositiveInteger(updates.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+				sandboxAgentsPerContainer:
+					updates.sandboxAgentsPerContainer === undefined
+						? current.sandboxAgentsPerContainer
+						: normalizeNonNegativeInteger(
+								updates.sandboxAgentsPerContainer,
+								DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+							),
+				sandboxMemoryPerContainerMb:
+					updates.sandboxMemoryPerContainerMb === undefined
+						? current.sandboxMemoryPerContainerMb
+						: normalizePositiveInteger(
+								updates.sandboxMemoryPerContainerMb,
+								DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+							),
+				sandboxCpusPerContainer:
+					updates.sandboxCpusPerContainer === undefined
+						? current.sandboxCpusPerContainer
+						: normalizePositiveNumber(updates.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+				sandboxIdleTimeoutMinutes:
+					updates.sandboxIdleTimeoutMinutes === undefined
+						? current.sandboxIdleTimeoutMinutes
+						: normalizePositiveInteger(
+								updates.sandboxIdleTimeoutMinutes,
+								DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+							),
 				lostHeartbeatPolicy:
 					updates.lostHeartbeatPolicy === undefined
 						? current.lostHeartbeatPolicy
@@ -1303,6 +1562,11 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
 				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
 				nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
+				nextConfig.sandboxMaxContainers !== current.sandboxMaxContainers ||
+				nextConfig.sandboxAgentsPerContainer !== current.sandboxAgentsPerContainer ||
+				nextConfig.sandboxMemoryPerContainerMb !== current.sandboxMemoryPerContainerMb ||
+				nextConfig.sandboxCpusPerContainer !== current.sandboxCpusPerContainer ||
+				nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
 				nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
 				nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
@@ -1330,6 +1594,11 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+				sandboxMaxContainers: nextConfig.sandboxMaxContainers,
+				sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
+				sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
+				sandboxCpusPerContainer: nextConfig.sandboxCpusPerContainer,
+				sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
@@ -1356,6 +1625,11 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+				sandboxMaxContainers: nextConfig.sandboxMaxContainers,
+				sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
+				sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
+				sandboxCpusPerContainer: nextConfig.sandboxCpusPerContainer,
+				sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,

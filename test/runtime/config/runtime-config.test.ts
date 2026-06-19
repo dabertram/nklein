@@ -690,6 +690,62 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists sandbox pool settings as global runtime settings", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-sandbox-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-sandbox-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const initial = await loadRuntimeConfig(tempProject);
+				expect(initial.sandboxMaxContainers).toBe(1);
+				expect(initial.sandboxAgentsPerContainer).toBe(0);
+				expect(initial.sandboxMemoryPerContainerMb).toBe(4096);
+				expect(initial.sandboxCpusPerContainer).toBe(2);
+				expect(initial.sandboxIdleTimeoutMinutes).toBe(10);
+
+				const updated = await updateRuntimeConfig(tempProject, {
+					sandboxMaxContainers: 2,
+					sandboxAgentsPerContainer: 1,
+					sandboxMemoryPerContainerMb: 8192,
+					sandboxCpusPerContainer: 1.5,
+					sandboxIdleTimeoutMinutes: 15,
+				});
+				expect(updated.sandboxMaxContainers).toBe(2);
+				expect(updated.sandboxAgentsPerContainer).toBe(1);
+				expect(updated.sandboxMemoryPerContainerMb).toBe(8192);
+				expect(updated.sandboxCpusPerContainer).toBe(1.5);
+				expect(updated.sandboxIdleTimeoutMinutes).toBe(15);
+
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+				) as {
+					sandboxMaxContainers?: number;
+					sandboxAgentsPerContainer?: number;
+					sandboxMemoryPerContainerMb?: number;
+					sandboxCpusPerContainer?: number;
+					sandboxIdleTimeoutMinutes?: number;
+				};
+				expect(globalPayload).toMatchObject({
+					sandboxMaxContainers: 2,
+					sandboxAgentsPerContainer: 1,
+					sandboxMemoryPerContainerMb: 8192,
+					sandboxCpusPerContainer: 1.5,
+					sandboxIdleTimeoutMinutes: 15,
+				});
+
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.sandboxMaxContainers).toBe(2);
+				expect(reloaded.sandboxAgentsPerContainer).toBe(1);
+				expect(reloaded.sandboxMemoryPerContainerMb).toBe(8192);
+				expect(reloaded.sandboxCpusPerContainer).toBe(1.5);
+				expect(reloaded.sandboxIdleTimeoutMinutes).toBe(15);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists and reloads global code embedding defaults", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-embedding-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-embedding-");

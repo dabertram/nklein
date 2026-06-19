@@ -74,6 +74,11 @@ function createRuntimeConfig(overrides: Partial<RuntimeConfigResponse> = {}): Ru
 		cloudProviderSupportEnabled: true,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		sandboxMaxContainers: 1,
+		sandboxAgentsPerContainer: 0,
+		sandboxMemoryPerContainerMb: 4096,
+		sandboxCpusPerContainer: 2,
+		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
 		codeEmbeddingDefaults: {

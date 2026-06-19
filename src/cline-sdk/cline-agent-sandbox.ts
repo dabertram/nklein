@@ -11,11 +11,12 @@ export const AGENT_SANDBOX_VOLUME_PREFIX = "nklein-agent-ws";
 export const AGENT_SANDBOX_CONTAINER_PREFIX = "nklein-agent-sandbox";
 export const AGENT_SANDBOX_WORKSPACES_DIR = "/workspaces";
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
-const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
-const DEFAULT_MEMORY_PER_CONTAINER_MB = 4096;
-const DEFAULT_CPUS_PER_CONTAINER = 4;
-const DEFAULT_MAX_CONTAINERS = 1;
-const DEFAULT_AGENTS_PER_CONTAINER = 0;
+export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
+export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS = DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES * 60 * 1000;
+export const DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB = 4096;
+export const DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER = 2;
+export const DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS = 1;
+export const DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER = 0;
 const TASK_UID_BASE = 70_000;
 const TASK_UID_SPAN = 20_000;
 const DOCKER_UNAVAILABLE_MARKERS = [
@@ -123,11 +124,17 @@ export function normalizeAgentSandboxPoolConfig(
 	config: Partial<AgentSandboxPoolConfig> | undefined,
 ): AgentSandboxPoolConfig {
 	return {
-		maxContainers: normalizePositiveInteger(config?.maxContainers, DEFAULT_MAX_CONTAINERS),
-		agentsPerContainer: normalizeNonNegativeInteger(config?.agentsPerContainer, DEFAULT_AGENTS_PER_CONTAINER),
-		memoryPerContainerMb: normalizePositiveInteger(config?.memoryPerContainerMb, DEFAULT_MEMORY_PER_CONTAINER_MB),
-		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_CPUS_PER_CONTAINER),
-		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS),
+		maxContainers: normalizePositiveInteger(config?.maxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+		agentsPerContainer: normalizeNonNegativeInteger(
+			config?.agentsPerContainer,
+			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+		),
+		memoryPerContainerMb: normalizePositiveInteger(
+			config?.memoryPerContainerMb,
+			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+		),
+		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS),
 	};
 }
 
@@ -216,7 +223,7 @@ export function createAgentSandboxToolExecutors(
 
 export class AgentSandboxManager {
 	private readonly image: string;
-	private readonly poolConfig: AgentSandboxPoolConfig;
+	private poolConfig: AgentSandboxPoolConfig;
 	private readonly execFileImpl: typeof execFile;
 	private readonly setTimeoutImpl: typeof setTimeout;
 	private readonly clearTimeoutImpl: typeof clearTimeout;
@@ -231,6 +238,10 @@ export class AgentSandboxManager {
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
+	}
+
+	updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): void {
+		this.poolConfig = normalizeAgentSandboxPoolConfig(config);
 	}
 
 	async assertAvailable(): Promise<void> {

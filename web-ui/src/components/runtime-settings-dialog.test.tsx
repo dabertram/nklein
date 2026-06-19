@@ -321,6 +321,12 @@ const savedClineOauthConfig = {
 	decompositionAutoApplyEnabled: true,
 	readyForReviewNotificationsEnabled: false,
 	replayCardsEnabled: false,
+	maxConcurrentTasks: 3,
+	sandboxMaxContainers: 1,
+	sandboxAgentsPerContainer: 0,
+	sandboxMemoryPerContainerMb: 4096,
+	sandboxCpusPerContainer: 2,
+	sandboxIdleTimeoutMinutes: 10,
 	effectiveCommand: "cline",
 	detectedCommands: [],
 	shortcuts: [],
@@ -654,7 +660,14 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={{ ...savedClineOauthConfig, maxConcurrentTasks: 5 } as RuntimeConfigResponse}
+					initialConfig={
+						{
+							...savedClineOauthConfig,
+							maxConcurrentTasks: 5,
+							sandboxMaxContainers: 2,
+							sandboxAgentsPerContainer: 2,
+						} as RuntimeConfigResponse
+					}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -662,6 +675,9 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(document.body.textContent).toContain("Local swarm guardrails");
 		expect(document.body.textContent).toContain("5 running max");
+		expect(document.body.textContent).toContain("Sandbox pool");
+		expect(document.body.textContent).toContain("4 effective parallel");
+		expect(document.body.textContent).toContain("2 containers, 4 pool slots, 4 GB each.");
 		expect(document.body.textContent).toContain("Card batch budget");
 		expect(document.body.textContent).toContain("12 cards");
 		expect(document.body.textContent).toContain("Autonomous turns");
@@ -678,6 +694,48 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("Acceptance gate");
 		expect(document.body.textContent).toContain("Telemetry");
 		expect(document.body.textContent).toContain(".cline/nklein/telemetry, limit 20");
+	});
+
+	it("saves sandbox pool settings from general settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const inputByPlaceholder = (placeholder: string): HTMLInputElement => {
+			const input = document.body.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`);
+			if (!input) {
+				throw new Error(`Expected input with placeholder ${placeholder}.`);
+			}
+			return input;
+		};
+
+		await act(async () => {
+			setInputValue(inputByPlaceholder("1"), "2");
+			setInputValue(inputByPlaceholder("0"), "1");
+			setInputValue(inputByPlaceholder("4096"), "8192");
+			setInputValue(inputByPlaceholder("2"), "1.5");
+			setInputValue(inputByPlaceholder("10"), "15");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sandboxMaxContainers: 2,
+				sandboxAgentsPerContainer: 1,
+				sandboxMemoryPerContainerMb: 8192,
+				sandboxCpusPerContainer: 1.5,
+				sandboxIdleTimeoutMinutes: 15,
+			}),
+		);
 	});
 
 	it("saves the replay cards opt-in from general settings", async () => {
