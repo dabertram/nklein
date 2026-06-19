@@ -299,7 +299,7 @@ agents in one container still cannot read each other's files.
   **not** add a user-facing "kill agents" button — the board Start/Pause/Resume (§K) plus this idle teardown are the
   only exposed controls. Note: **board pause halts the agent loops (§K1) but keeps the container up**, so resume is
   instant.
-- [ ] **Orphan reaping:** on runtime startup, `docker ps -aq --filter label=nklein.kind=agent-sandbox` → `docker rm -f`
+- [x] **Orphan reaping:** on runtime startup, `docker ps -aq --filter label=nklein.kind=agent-sandbox` → `docker rm -f`
   any container left by a previous crash before starting a fresh one. The volume is recreated clean; nothing persists.
 
 ### J5. Route the remaining host-touching agent surfaces through the container

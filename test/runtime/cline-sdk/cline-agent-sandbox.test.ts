@@ -2,6 +2,8 @@ import type { execFile } from "node:child_process";
 import type { AgentToolContext } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	AGENT_SANDBOX_CONTAINER_LABEL,
+	AGENT_SANDBOX_VOLUME_PREFIX,
 	AgentSandboxManager,
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
@@ -11,7 +13,14 @@ import {
 } from "../../../src/cline-sdk/cline-agent-sandbox";
 import { ClinePauseController } from "../../../src/cline-sdk/cline-pause-controller";
 
-function createExecFileStub(options?: { failVersion?: boolean; failImageInspect?: boolean }): {
+interface ExecFileStubOptions {
+	failVersion?: boolean;
+	failImageInspect?: boolean;
+	psOutput?: string;
+	volumeLsOutput?: string;
+}
+
+function createExecFileStub(options?: ExecFileStubOptions): {
 	execFile: typeof execFile;
 	calls: string[][];
 } {
@@ -28,7 +37,14 @@ function createExecFileStub(options?: { failVersion?: boolean; failImageInspect?
 			done(Object.assign(new Error("missing image"), { code: 1, stdout: "", stderr: "No such image" }));
 			return {} as ReturnType<typeof execFile>;
 		}
-		const stdout = args[0] === "run" ? "container-id\n" : "";
+		let stdout = "";
+		if (args.join(" ") === `ps -aq --filter label=${AGENT_SANDBOX_CONTAINER_LABEL}`) {
+			stdout = options?.psOutput ?? "";
+		} else if (args.join(" ") === `volume ls -q --filter name=${AGENT_SANDBOX_VOLUME_PREFIX}`) {
+			stdout = options?.volumeLsOutput ?? "";
+		} else if (args[0] === "run") {
+			stdout = "container-id\n";
+		}
 		done(null, { stdout, stderr: "" });
 		return {} as ReturnType<typeof execFile>;
 	});
@@ -98,6 +114,25 @@ describe("AgentSandboxManager", () => {
 			message: "Docker agent sandbox image test-image is unavailable. Run npm run sandbox:build, then retry.",
 			checkedAt: 123,
 		});
+	});
+
+	it("reaps orphan containers and workspace volumes by label and generated-name prefix", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			psOutput: "container-a\ncontainer-b\n",
+			volumeLsOutput: "nklein-agent-ws-1\nother-volume\nnklein-agent-ws-backup\nnklein-agent-ws-2\n",
+		});
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await manager.reapOrphanResources();
+
+		expect(calls).toContainEqual(["ps", "-aq", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`]);
+		expect(calls).toContainEqual(["rm", "-f", "container-a"]);
+		expect(calls).toContainEqual(["rm", "-f", "container-b"]);
+		expect(calls).toContainEqual(["volume", "ls", "-q", "--filter", `name=${AGENT_SANDBOX_VOLUME_PREFIX}`]);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-1"]);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-2"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "other-volume"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-backup"]);
 	});
 
 	it("queues tasks when the pool is full and reuses the freed container", async () => {

@@ -34,6 +34,7 @@
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
 - Added persisted Docker agent-sandbox pool settings for container count, agents per container, memory, CPU, and idle timeout, with General settings controls and runtime manager wiring for new placements.
 - Added Docker agent-sandbox preflight status to Settings and made Cline task starts fail closed with the sandbox remediation message when Docker or the sandbox image is unavailable.
+- Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.
 - Gave the Cline context-usage bar its own full-width chat-panel row and widened the active-card mini context bar so context telemetry no longer competes with model/activity controls.
 - Added subtle per-message Cline chat timestamps with persisted collapse/expand controls and duration hover details.
 - Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.

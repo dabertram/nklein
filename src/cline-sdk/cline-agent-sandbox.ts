@@ -306,6 +306,18 @@ export class AgentSandboxManager {
 		}
 	}
 
+	async reapOrphanResources(): Promise<void> {
+		const containerIds = await this.listOrphanContainerIds();
+		for (const containerId of containerIds) {
+			await this.runDocker(["rm", "-f", containerId], { timeoutMs: 30_000 }).catch(() => null);
+		}
+
+		const volumeNames = await this.listOrphanWorkspaceVolumeNames();
+		for (const volumeName of volumeNames) {
+			await this.runDocker(["volume", "rm", volumeName], { timeoutMs: 30_000 }).catch(() => null);
+		}
+	}
+
 	async acquireSlot(input: { taskId: string; projectRepoPath: string }): Promise<TaskPlacement> {
 		const existing = this.placements.get(input.taskId);
 		if (existing) {
@@ -507,6 +519,23 @@ export class AgentSandboxManager {
 		return this.poolConfig.agentsPerContainer === 0 || container.occupancy.size < this.poolConfig.agentsPerContainer;
 	}
 
+	private async listOrphanContainerIds(): Promise<string[]> {
+		const result = await this.runDocker(["ps", "-aq", "--filter", `label=${AGENT_SANDBOX_CONTAINER_LABEL}`], {
+			timeoutMs: 10_000,
+		});
+		return result.exitCode === 0 ? parseDockerOutputLines(result.stdout) : [];
+	}
+
+	private async listOrphanWorkspaceVolumeNames(): Promise<string[]> {
+		const result = await this.runDocker(["volume", "ls", "-q", "--filter", `name=${AGENT_SANDBOX_VOLUME_PREFIX}`], {
+			timeoutMs: 10_000,
+		});
+		if (result.exitCode !== 0) {
+			return [];
+		}
+		return parseDockerOutputLines(result.stdout).filter(isAgentSandboxWorkspaceVolumeName);
+	}
+
 	private releaseSlot(taskId: string): void {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
@@ -671,6 +700,21 @@ function joinDockerOutput(result: AgentSandboxExecResult): string {
 		.map((part) => part.trim())
 		.filter(Boolean)
 		.join("\n");
+}
+
+function parseDockerOutputLines(stdout: string): string[] {
+	return stdout
+		.split(/\r?\n/g)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
+function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
+	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-\\d+$`).test(volumeName);
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function toSandboxUnavailableError(error: unknown, image: string): AgentSandboxUnavailableError {

@@ -137,13 +137,17 @@ function createCheckingAgentSandboxStatus(): RuntimeAgentSandboxStatus {
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
 	const webUiDir = getWebUiDir();
+	const startupAgentSandboxManager = new AgentSandboxManager();
 	let agentSandboxStatus = createCheckingAgentSandboxStatus();
 	const refreshAgentSandboxStatus = async (): Promise<RuntimeAgentSandboxStatus> => {
 		agentSandboxStatus = createCheckingAgentSandboxStatus();
-		agentSandboxStatus = await new AgentSandboxManager().checkAvailability();
+		agentSandboxStatus = await startupAgentSandboxManager.checkAvailability();
 		return agentSandboxStatus;
 	};
-	void refreshAgentSandboxStatus().catch((error) => {
+	void (async () => {
+		await startupAgentSandboxManager.reapOrphanResources();
+		await refreshAgentSandboxStatus();
+	})().catch((error) => {
 		const message = error instanceof Error ? error.message : String(error);
 		agentSandboxStatus = {
 			state: "blocked",
