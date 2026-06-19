@@ -165,7 +165,11 @@
 - [x] Fail-closed preflight at start + runtime startup; no-host-execution guard tests; Docker-gated
   lifecycle/queue integration tests; orphan reaping; killswitch via container removal; Settings isolation
   status + pool controls.
-- [ ] **Open:** §2.B reconcile/retire the parallel host worktree subsystem; §2.C live real-task verification.
+- [x] **Live-verified end-to-end (2026-06-19):** a real Cline task against LM Studio ran with a shared Docker
+  sandbox container, no host worktree, clean teardown, fail-closed when the image is missing, and clean
+  telemetry — via `scripts/verify-strict-isolation.mts`. **Still owed:** browser-only Settings isolation
+  status/pool UI inspection.
+- [ ] **Open:** §2.B retire the parallel host worktree subsystem (code deletion, UI-gated).
 
 ## 10. Runtime control & chat UX  *(shipped)*
 

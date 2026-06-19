@@ -18,8 +18,11 @@
 **Health:** typecheck ✓ · web:typecheck ✓ · lint ✓ (537 files) · cline-boundary ✓ ·
 `test/runtime/cline-sdk` 396/42 ✓ · protected suite 79/9 ✓.
 
-**Recent (2026-06-19, this session):** §2.A decomposition restored under isolation; §3.1 isolation guard
-tests protected (human-approved). Remaining open: §2.B, §2.C, and the §3.x polish below.
+**Recent (2026-06-19):** §2.A decomposition restored under isolation; §3.1 isolation guard tests protected
+(human-approved); §2.B start-path retirement locked + deletion blockers mapped; §2.C **strict isolation
+verified end-to-end on a real Cline task in Docker against LM Studio** (container observed, no host worktree,
+clean teardown, fail-closed, clean telemetry) via a new scripted runbook. Remaining open: §2.B code deletion
+(UI-gated), §2.C **browser-only** UI checks, and the §3.x polish below.
 
 **Done and verified:** L0 cloud lockdown · L1 reliability (never-overflow guard, real effective window,
 local timeouts, back-off, acceptance shell, context bar) · L2 swarm executor (concurrency, auto-start,
@@ -65,11 +68,19 @@ unit+integration tests).
       decide the shell-terminal-on-task story (it still legitimately ensures a host checkout). Schedule both in
       an environment where the review/diff/merge + shell UI can be verified. The saved-host-patch retirement
       and project-health "accidental worktree" re-validation ride along with (1).
-- [ ] **🟠 §2.C — End-to-end manual verification debt** (env-blocked, not code): observe a real Cline task in
-      Docker (one shared container, workspace volume only, no host worktree, result-patch applies, idle
-      teardown); inspect Settings isolation status + pool controls; dev-build UX (no Claude default, registry
-      prune, live loaded model, Developer Mode persistence, embedding auto-discovery); local dogfood telemetry
-      diff (zero balance/overflow/1s-timeout). Convert into a scripted runbook.
+- [~] **🟠 §2.C — End-to-end verification.** *(headless parts DONE 2026-06-19; UI parts still owed.)* Verified
+      against real Docker (29.4.3) + real LM Studio (`qwen3.5-9b-mlx-8bit-m4-32kctx`) via the new scripted
+      runbook [scripts/verify-strict-isolation.mts](scripts/verify-strict-isolation.mts) (run against an
+      isolated HOME): a **real Cline task** booted the SDK against the local model and **a shared
+      `nklein-agent-sandbox-1` container appeared**, **no host worktree** was created, and the container **tore
+      down cleanly** on dispose; the Docker-gated `agent-sandbox.integration.test.ts` passes against the real
+      image; **fail-closed** confirmed (bogus `NKLEIN_AGENT_SANDBOX_IMAGE` → `AgentSandboxUnavailableError`
+      remediation, zero containers); run telemetry showed **zero** `Insufficient balance` / `1s timeout` /
+      `>1M overflow` / `context_overflow` / `provider_error`. **Still owed (needs the in-app browser):**
+      Settings isolation status + pool-control inspection, and dev-build UX (no Claude default, registry prune,
+      live loaded-model line, Developer Mode persistence, embedding auto-discovery). Minor polish surfaced:
+      interrupting a still-empty sandbox task logs a `runtime_error` "Could not stage sandbox workspace
+      changes" instead of a benign no-op (see follow-up-5 §3.x).
 - [x] **🟠 §3.1 — Protect the strict-isolation guard tests.** *(done 2026-06-19, human-approved)* Added
       `cline-agent-sandbox-host-guard`, `cline-agent-sandbox`, and `cline-task-start-guard` to
       `test/protected/protected-tests.json` + README; protected suite now 9 files / 79 tests. Weakening agent

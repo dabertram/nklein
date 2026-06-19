@@ -164,7 +164,36 @@ and a **manual-verification debt** that is environmental, not code (§4).
   `~/.cline/nklein/worktrees` (the integration test asserts this for the sandbox; add a unit-level guard on
   the start path too), and that diff/merge/evidence read from the result branch.
 
-### 2.C — 🟠 End-to-end manual verification debt (headline feature never observed working live)
+### 2.C — ✅ MOSTLY VERIFIED (2026-06-19): strict isolation observed working on a real Cline task
+
+> **Headless verification done** against real Docker (29.4.3) + real LM Studio
+> (`qwen3.5-9b-mlx-8bit-m4-32kctx`, loaded, tool_use). New scripted runbook
+> [scripts/verify-strict-isolation.mts](scripts/verify-strict-isolation.mts) drives the **real**
+> `AgentSandboxManager` + `InMemoryClineTaskSessionService` against the local model in an isolated HOME and
+> asserts the invariants. Results:
+> - **Real Cline task in Docker:** the SDK booted against LM Studio, a shared `nklein-agent-sandbox-1`
+>   container appeared during the run, the session advanced to `running`, **no host worktree** was created
+>   under `<HOME>/.cline/nklein/worktrees`, and the container **tore down cleanly** on dispose (zero leftover
+>   containers/volumes). ✓
+> - **Docker-gated integration test** (`test/integration/agent-sandbox.integration.test.ts`) passes against
+>   the real image (uid isolation, exec, patch capture/apply, no host worktree, idle teardown). ✓
+> - **Fail-closed:** `NKLEIN_AGENT_SANDBOX_IMAGE=...bogus` → `AgentSandboxUnavailableError` with the
+>   `npm run sandbox:build` remediation and **zero** containers created. ✓
+> - **Telemetry diff (isolated HOME):** zero `Insufficient balance`, zero `1s timeout`, zero `>1M overflow`,
+>   zero `context_overflow`, zero `provider_error`. ✓
+> - **Minor polish surfaced:** abruptly disposing a still-empty running sandbox task logs a `runtime_error`
+>   "Could not stage sandbox workspace changes" instead of a benign "no changes to capture" no-op. Cosmetic
+>   telemetry noise on interrupt-before-any-edit; not a functional break (patch capture works on real
+>   changes — proven by the integration test). Track as a small robustness fix (§3.x).
+>
+> **Still owed — needs the in-app browser (only blocker left):** Settings "Agent isolation" status + pool
+> controls inspection (no disable toggle; effective-parallelism helper; maxContainers=2/agentsPerContainer=1
+> → two single-agent containers; over-capacity → queued), and the dev-build UX checks (no Claude default;
+> registry prune deletes from `model-registry.json`; live loaded-model line; Developer Mode persistence beats
+> the env var; embedding OpenAI-compatible endpoint prefill + auto-discovery). The original bullets below
+> remain the checklist for that browser pass.
+
+
 
 > These are blocked by **environment**, not code: prior Codex/agent sessions could not get Docker socket
 > permission or attach the in-app browser. They must be run from an interactive shell + a real LM Studio /
@@ -261,6 +290,15 @@ and a **manual-verification debt** that is environmental, not code (§4).
   fail-closed. Confirm the board/empty-state surfaces the remediation prominently (install/start Docker, run
   `npm run sandbox:build`) rather than only erroring on click — this is the first thing a new user hits if
   they don't have Docker.
+
+### 3.7 — Robustness polish surfaced during §2.C live verification (2026-06-19)
+
+- [ ] **Patch capture on interrupt-before-any-edit logs a `runtime_error`.** When a sandbox task is
+  stopped/aborted/disposed while running but before the agent has written anything, `captureWorkspacePatch`
+  fails to stage (empty/no-diff) and emits `runtime_error: "Could not stage sandbox workspace changes."`
+  Treat an empty sandbox workspace as a benign "no changes to capture" (info, not error) so interrupting an
+  idle/early task doesn't pollute diagnostics. Cosmetic, not a functional break (real-change capture works —
+  integration test proves it).
 
 ### 3.5 — Code quality / maintainability observations
 
