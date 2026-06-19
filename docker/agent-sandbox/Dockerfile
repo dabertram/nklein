@@ -8,6 +8,6 @@ RUN mkdir -m 1777 /workspaces
 
 WORKDIR /workspaces
 
-COPY tool-runner.mjs /opt/nklein/tool-runner.mjs
+COPY tool-runner.cjs /opt/nklein/tool-runner.cjs
 
 CMD ["sleep", "infinity"]

@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const dockerContextDir = join(rootDir, "docker", "agent-sandbox");
-const bundledToolRunnerPath = join(dockerContextDir, "tool-runner.mjs");
+const bundledToolRunnerPath = join(dockerContextDir, "tool-runner.cjs");
 const imageName = process.env.NKLEIN_AGENT_SANDBOX_IMAGE?.trim() || `nklein/agent-sandbox:${packageJson.version}`;
 
 await mkdir(dockerContextDir, { recursive: true });
@@ -15,10 +15,16 @@ await esbuild.build({
 	entryPoints: [join(rootDir, "src", "cline-sdk", "agent-sandbox", "tool-runner.ts")],
 	outfile: bundledToolRunnerPath,
 	bundle: true,
-	format: "esm",
+	format: "cjs",
 	platform: "node",
 	target: "node22",
 	packages: "bundle",
+	banner: {
+		js: 'const __nkleinImportMetaUrl = require("node:url").pathToFileURL(__filename).href;',
+	},
+	define: {
+		"import.meta.url": "__nkleinImportMetaUrl",
+	},
 });
 
 try {

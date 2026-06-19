@@ -20,6 +20,7 @@ interface ExecFileStubOptions {
 	psOutput?: string;
 	volumeLsOutput?: string;
 	execStdout?: string;
+	failExecCommand?: readonly string[];
 }
 
 function createExecFileStub(options?: ExecFileStubOptions): {
@@ -47,6 +48,11 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 		} else if (args[0] === "run") {
 			stdout = "container-id\n";
 		} else if (args[0] === "exec") {
+			const command = args.slice(6);
+			if (options?.failExecCommand && command.join("\0") === options.failExecCommand.join("\0")) {
+				done(Object.assign(new Error("exec failed"), { code: 1, stdout: "", stderr: "sandbox failure" }));
+				return {} as ReturnType<typeof execFile>;
+			}
 			stdout = options?.execStdout ?? "";
 		}
 		done(null, { stdout, stderr: "" });
@@ -225,6 +231,71 @@ describe("AgentSandboxManager", () => {
 
 		await manager.disposeWorkspace("task-1");
 		await expect(queued).resolves.toMatchObject({ taskId: "task-2", slot: 1 });
+	});
+
+	it("enforces shared workspace root permissions before creating a task workspace", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await expect(
+			manager.prepareWorkspace({
+				taskId: "task-1",
+				projectRepoPath: "/repo",
+				baseRef: "HEAD",
+			}),
+		).resolves.toEqual({
+			workdir: "/workspaces/task-1",
+			uid: createAgentSandboxTaskUid("task-1"),
+		});
+
+		const mkdirRootCallIndex = calls.findIndex(
+			(args) => args.join(" ") === "exec -u 0:0 -w /workspaces nklein-agent-sandbox-1 mkdir -p /workspaces",
+		);
+		const chmodRootCallIndex = calls.findIndex(
+			(args) => args.join(" ") === "exec -u 0:0 -w /workspaces nklein-agent-sandbox-1 chmod 1777 /workspaces",
+		);
+		const mkdirTaskCallIndex = calls.findIndex(
+			(args) =>
+				args.join(" ") ===
+				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 mkdir -m 700 -p /workspaces/task-1`,
+		);
+
+		expect(mkdirRootCallIndex).toBeGreaterThanOrEqual(0);
+		expect(chmodRootCallIndex).toBeGreaterThan(mkdirRootCallIndex);
+		expect(mkdirTaskCallIndex).toBeGreaterThan(chmodRootCallIndex);
+	});
+
+	it("reports workspace cleanup failures without leaking the pool slot", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			failExecCommand: ["rm", "-rf", "/workspaces/task-1"],
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await expect(manager.disposeWorkspace("task-1")).rejects.toThrow("Could not remove sandbox task workspace.");
+		await expect(manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" })).resolves.toMatchObject({
+			taskId: "task-2",
+			slot: 1,
+		});
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces",
+			"nklein-agent-sandbox-1",
+			"rm",
+			"-rf",
+			"/workspaces/task-1",
+		]);
 	});
 
 	it("does not over-assign a freed slot while draining multiple queued tasks", async () => {
@@ -550,10 +621,52 @@ describe("AgentSandboxManager", () => {
 			"/workspaces/task-1",
 			"nklein-agent-sandbox-1",
 			"node",
-			"/opt/nklein/tool-runner.mjs",
+			"/opt/nklein/tool-runner.cjs",
 			"editor",
 			JSON.stringify({ command: "replace" }),
 		]);
+	});
+
+	it("captures a staged binary workspace patch from inside the sandbox", async () => {
+		const patch = "diff --git a/README.md b/README.md\n";
+		const { execFile: execFileStub, calls } = createExecFileStub({ execStdout: patch });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.captureWorkspacePatch("task-1")).resolves.toBe(patch);
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces/task-1",
+			"nklein-agent-sandbox-1",
+			"git",
+			"add",
+			"-A",
+		]);
+		expect(calls).toContainEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces/task-1",
+			"nklein-agent-sandbox-1",
+			"git",
+			"diff",
+			"--staged",
+			"--binary",
+		]);
+	});
+
+	it("fails closed when sandbox patch staging fails", async () => {
+		const { execFile: execFileStub } = createExecFileStub({ failExecCommand: ["git", "add", "-A"] });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+
+		await expect(manager.captureWorkspacePatch("task-1")).rejects.toThrow(
+			"Could not stage sandbox workspace changes.",
+		);
 	});
 
 	it("queues tool execution while the task is paused", async () => {

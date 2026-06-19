@@ -6,7 +6,7 @@
   - The first isolation chunk wires SDK-owned default executors (`bash`, `readFile`, `search`, `editor`, `applyPatch`) through `RuntimeCapabilities.toolExecutors`.
   - Acceptance-gate host execution is now explicit opt-in: `runClineAcceptanceGate` requires an injected runner or `allowHostExecution=true`, and agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
   - A no-host-execution guard test now mocks `node:child_process` and `node:fs/promises` write APIs for the SDK default tool executors, sandbox acceptance path, and the custom workspace tool proxies.
-  - Sandboxed Cline starts now register proxy `AgentTool`s for `repo_map`, `search_code`, `list_files`, `find_files`, `get_file_size`, `read_large_file`, `write_file`, and `write_files`. Their host-side `execute` functions call `manager.runTool(taskId, "kanbanExtraTool", ...)`, and the bundled `/opt/nklein/tool-runner.mjs` runs the real implementations inside `/workspaces/<taskId>`.
+  - Sandboxed Cline starts now register proxy `AgentTool`s for `repo_map`, `search_code`, `list_files`, `find_files`, `get_file_size`, `read_large_file`, `write_file`, and `write_files`. Their host-side `execute` functions call `manager.runTool(taskId, "kanbanExtraTool", ...)`, and the bundled `/opt/nklein/tool-runner.cjs` runs the real implementations inside `/workspaces/<taskId>`.
   - The runner-side large-file workflow stores its state under `/tmp/nklein-large-file-workflows` inside the container because the runner is per-tool-call and the container root filesystem is read-only.
 
 - [x] Finish the strict-isolation extra-tool audit for sandboxed Cline starts.
@@ -40,11 +40,22 @@
   - The user-facing warning is `MCP local execution is disabled under strict isolation.`, and remote HTTP/SSE MCP servers keep their existing OAuth/auth flow.
   - Containerizing local MCP servers remains out of scope for v1; the shipped behavior is default-deny for host subprocess MCP.
 
-- [ ] Add Docker-gated integration coverage after the lifecycle refactor.
+- [x] Add Docker-gated lifecycle integration coverage.
   - Unit tests cover Docker run lockdown flags, fail-closed availability checks, queueing, stable task UIDs, one shared
     container with two agents plus a queued third task, two dedicated containers with configured CPU/RAM caps, and the
     no-host-execution guard for SDK default tools plus sandbox acceptance.
-  - Integration tests that require a real Docker daemon/image are still open: build image, prepare workspace, prove sibling task UID isolation, run a real SDK tool through `/opt/nklein/tool-runner.mjs`, and confirm no host writes occur.
+  - `test/integration/agent-sandbox.integration.test.ts` now skips cleanly when Docker or the sandbox image is missing,
+    and runs against the real image when available. It prepares two task workspaces from a temp Git repo, proves sibling
+    UID isolation, runs `bash`, `readFile`, `editor`, and `applyPatch` through `/opt/nklein/tool-runner.cjs`, captures a
+    binary staged patch, proves that patch applies to a throwaway host clone through trusted !Klein code, verifies no
+    temp-home host worktree directory was created, disposes the task workspace, and waits for idle container/volume
+    teardown by Docker label/name.
+  - The real Docker run found and fixed four bugs that unit stubs could not expose: named volumes may need `chmod 1777`
+    after mount, Docker cannot `exec -w /workspaces/<taskId>` until that directory exists, the bundled runner must be
+    CJS with `import.meta.url` rewritten to a file URL for bundled dependencies, and with `--cap-drop ALL` cleanup must
+    run as the task UID rather than container root.
+  - Queue-specific Docker integration remains useful future coverage: the current real-daemon test proves lifecycle and
+    same-pool placement, while Docker-free tests still own the 3-ready-task wait/release and resource-cap permutations.
 
 ## Runtime pause/replay work still has unsolved surfaces
 

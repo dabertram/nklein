@@ -141,14 +141,16 @@ async function runTool(): Promise<ToolRunnerResult> {
 	}
 }
 
-try {
+async function main(): Promise<void> {
 	const result = await runTool();
 	process.stdout.write(JSON.stringify(result));
 	process.stdout.write("\n");
 	if (!result.ok) {
 		process.exitCode = 1;
 	}
-} catch (error) {
+}
+
+main().catch((error: unknown) => {
 	const failure: ToolRunnerFailure = {
 		ok: false,
 		error: error instanceof Error ? error.message : String(error),
@@ -156,4 +158,4 @@ try {
 	process.stdout.write(JSON.stringify(failure));
 	process.stdout.write("\n");
 	process.exitCode = 1;
-}
+});

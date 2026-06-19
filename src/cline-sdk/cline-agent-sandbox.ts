@@ -366,7 +366,13 @@ export class AgentSandboxManager {
 				"create sandbox workspace root",
 			);
 			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir]),
+				await this.execAsRoot(placement, ["chmod", "1777", AGENT_SANDBOX_WORKSPACES_DIR]),
+				"set sandbox workspace root permissions",
+			);
+			assertSandboxExecOk(
+				await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir], {
+					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+				}),
 				"create sandbox task workspace",
 			);
 			assertSandboxExecOk(
@@ -399,7 +405,7 @@ export class AgentSandboxManager {
 	}
 
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {
-		const result = await this.exec(taskId, ["node", "/opt/nklein/tool-runner.mjs", tool, JSON.stringify(input)], {
+		const result = await this.exec(taskId, ["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input)], {
 			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
 		});
 		if (result.exitCode !== 0) {
@@ -412,13 +418,32 @@ export class AgentSandboxManager {
 		return typeof parsed.result === "string" ? parsed.result : JSON.stringify(parsed.result);
 	}
 
+	async captureWorkspacePatch(taskId: string): Promise<string> {
+		const placement = this.requirePlacement(taskId);
+		assertSandboxExecOk(
+			await this.execAsTaskUser(placement, ["git", "add", "-A"]),
+			"stage sandbox workspace changes",
+		);
+		const diff = await this.execAsTaskUser(placement, ["git", "diff", "--staged", "--binary"], {
+			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+		});
+		assertSandboxExecOk(diff, "capture sandbox workspace patch");
+		return diff.stdout;
+	}
+
 	async disposeWorkspace(taskId: string): Promise<void> {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
 			return;
 		}
-		await this.execAsRoot(placement, ["rm", "-rf", placement.workdir]).catch(() => null);
-		this.releaseSlot(taskId);
+		const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
+			workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+		});
+		try {
+			assertSandboxExecOk(removal, "remove sandbox task workspace");
+		} finally {
+			this.releaseSlot(taskId);
+		}
 	}
 
 	async stopNow(): Promise<void> {
@@ -669,7 +694,7 @@ export class AgentSandboxManager {
 	private async execAsTaskUser(
 		placement: TaskPlacement,
 		argv: string[],
-		options?: { timeoutMs?: number },
+		options?: { timeoutMs?: number; workdir?: string },
 	): Promise<AgentSandboxExecResult> {
 		return await this.runDocker(
 			[
@@ -677,7 +702,7 @@ export class AgentSandboxManager {
 				"-u",
 				String(placement.uid),
 				"-w",
-				placement.workdir,
+				options?.workdir ?? placement.workdir,
 				createAgentSandboxContainerName(placement.slot),
 				...argv,
 			],
@@ -830,5 +855,6 @@ function assertSandboxExecOk(result: AgentSandboxExecResult, operation: string):
 	if (result.exitCode === 0) {
 		return;
 	}
-	throw new AgentSandboxExecutionError(`Could not ${operation}.`, result);
+	const output = joinDockerOutput(result);
+	throw new AgentSandboxExecutionError(`Could not ${operation}.${output ? `\n${output}` : ""}`, result);
 }

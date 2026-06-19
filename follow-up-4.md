@@ -143,11 +143,11 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
   task's workspace>` alongside `requestToolApproval`. Bind them to the task by `taskId` (→ `/workspaces/<taskId>` in the
   shared container); the SDK still passes a `cwd`, but the executors ignore it and always target the task workspace.
 - **In-container tool runner (reuse SDK semantics, relocated).** Bake a small compiled script into the image at
-  `/opt/nklein/tool-runner.mjs` that imports the SDK's real executors (`createDefaultExecutors` from
+  `/opt/nklein/tool-runner.cjs` that imports the SDK's real executors (`createDefaultExecutors` from
   `@clinebot/core`, `.../extensions/tools/executors`) with `cwd` = the per-task workdir it runs in
   (`/workspaces/<taskId>`), and dispatches `{tool, input}` → the matching executor, printing a JSON `{ok,result,error}`
   to stdout. The host-side `toolExecutors` overrides are thin shims that call
-  `manager.exec(taskId, ["node","/opt/nklein/tool-runner.mjs", tool, JSON.stringify(input)])` (which runs
+  `manager.exec(taskId, ["node","/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input)])` (which runs
   `-u <taskUid> -w /workspaces/<taskId>`) and parse the JSON. Identical tool behavior to upstream, just executed inside
   the shared container. (Rationale: never re-implement `apply_patch`/`editor` semantics by hand.)
 
@@ -158,13 +158,13 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
   - `RUN mkdir -m 1777 /workspaces` (a fresh named volume inherits this mode, so per-task uids can create their own
     mode-700 dirs without `CAP_CHOWN` — J3/J3b). `WORKDIR /workspaces`. Do **not** bake a fixed app user; tool execs
     pass `-u <taskUid>` at runtime.
-  - `COPY` the bundled `tool-runner.mjs` (+ its node_modules or a bundled single file) to `/opt/nklein/`.
+  - `COPY` the bundled `tool-runner.cjs` (+ its node_modules or a bundled single file) to `/opt/nklein/`.
   - No secrets, no `ENV` credentials.
 - [x] Build script `scripts/build-agent-sandbox.mjs` + npm script `"sandbox:build"` that builds and tags
   `nklein/agent-sandbox:<package.json version>`. Resolve the image name from env `NKLEIN_AGENT_SANDBOX_IMAGE`,
   defaulting to that pinned tag.
 - [x] The `tool-runner` is built from a new `src/cline-sdk/agent-sandbox/tool-runner.ts` via esbuild into a single
-  `.mjs` during `sandbox:build` (and on `npm run build`).
+  `.cjs` during `sandbox:build` (and on `npm run build`) so bundled CommonJS dependencies execute reliably in Node.
 
 ### J3. The sandbox boundary module (new) — `src/cline-sdk/cline-agent-sandbox.ts`
 A single `AgentSandboxManager` owns **all** Docker interaction (mirrors the `src/cline-sdk/` boundary; **`docker` CLI**
@@ -396,12 +396,15 @@ agents in one container still cannot read each other's files.
 - [x] **No-host-execution guard:** with the sandbox active, spy on `node:child_process` and `node:fs` write APIs and
   assert the `bash`/`editor`/`applyPatch`/`readFile`/`search` executors and the acceptance gate **never** call them on
   the host (only `docker exec` is invoked).
-- [ ] **Integration, gated on Docker available** (skip when `docker version` fails): `acquireSlot` + `prepareWorkspace`
+- [x] **Integration, gated on Docker available** (skip when `docker version` fails): `acquireSlot` + `prepareWorkspace`
   for **two** taskIds (default settings → same container) from a temp repo; assert task A cannot read `/workspaces/<B>`
   (uid isolation); run `bash` (`pwd`→`/workspaces/<A>`), `readFile`, `editor`, `applyPatch` in A; extract the patch and
   assert it applies cleanly to a throwaway clone of the host repo; assert **no** host worktree dir was created under
   `~/.cline/nklein/`; `disposeWorkspace` removes the dir; the idle teardown removes the container + its volume
   (`docker ps -a` / `docker volume ls` clean by label).
+  - Verified by `test/integration/agent-sandbox.integration.test.ts`; the real Docker run also fixed named-volume root
+    permissions, first-workspace bootstrap workdir, CJS tool-runner bundling, task-owned cleanup under `--cap-drop ALL`,
+    and Docker stderr propagation in `AgentSandboxExecutionError`.
 - [ ] **Pool + queue:** maxContainers=1 / agentsPerContainer=2 with 3 ready tasks → 2 run in the one container
   (uid-isolated), the 3rd **queues** and starts when one frees; maxContainers=2 / agentsPerContainer=1 → 2 containers,
   1 agent each, with `--memory`/`--cpus` matching the settings; a finished container is **reused** (not destroyed) by
@@ -411,7 +414,9 @@ agents in one container still cannot read each other's files.
     with configured CPU/RAM arguments.
   - [x] Lowering `sandboxMaxContainers` now reaps idle excess containers, leaves occupied excess containers running,
     blocks new placements into those excess containers, and retires them after their last task releases.
-  - [ ] Docker-gated coverage still needs the lifecycle/integration pass.
+  - [x] Docker-gated lifecycle/integration coverage now exercises the real image, task workspaces, SDK tool runner,
+    patch capture, cleanup, and idle teardown.
+  - [ ] Docker-gated queue-specific coverage is still open for the 3-ready-task wait/release scenario.
 - [x] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 
@@ -942,8 +947,8 @@ to `min-w-[220px]` and wraps awkwardly.
   - [ ] Embedding settings: choosing "OpenAI-compatible endpoint" prefills the LM Studio endpoint and populates the
     model dropdown with no "Discover models" click.
 - [ ] **🔒 Strict isolation (★ MANDATORY WORKSTREAM):**
-  - [ ] `npm run sandbox:build` builds the pinned sandbox image; `docker image inspect` shows it.
-  - [ ] Isolation unit tests + the **no-host-execution guard** test pass; Docker-gated integration tests pass when a
+  - [x] `npm run sandbox:build` builds the pinned sandbox image; `docker image inspect` shows it.
+  - [x] Isolation unit tests + the **no-host-execution guard** test pass; Docker-gated integration tests pass when a
     daemon is present (and skip cleanly when not).
   - [ ] **Fail-closed:** stop the Docker daemon (or point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image) → creating /
     starting a task is blocked with the remediation message, and **no** session or host shell starts.
