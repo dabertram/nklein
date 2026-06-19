@@ -29,7 +29,7 @@
 - Added Git clone ref selection for project add, letting cloned projects check out a branch, tag, or commit in detached mode after clone.
 - Added an additive command palette on `Cmd/Ctrl+K` for core board actions including new task, add project, settings, git history, backlog start, and Developer Tools.
 - Added a local-model setup action to the empty project state so first-run users can open onboarding before adding their first repository.
-- Reduced stale local model telemetry noise by sharing the loaded-model filter across Settings and task chat, labeling registry rows as past telemetry, and showing the selected loaded model's live context window in both places.
+- Reduced stale local model telemetry noise by sharing the loaded-model filter across Settings and task chat, labeling registry rows as past telemetry, adding per-row removal plus Clear stale models actions, and showing the selected loaded model's live context window in both places.
 - Renamed the persistent debug toggle to a global Developer Mode setting, moved it into General settings, made saved values override debug env vars, and gated sidebar dev-test scenarios, command-palette Developer Tools, debug tools, data-dir, and reset surfaces behind that setting.
 - Added the first Docker agent-sandbox boundary: a pinned sandbox image build, in-container SDK tool runner, Docker-backed Cline default tool executors, sandboxed acceptance verification, and Cline starts that no longer create host task worktrees.
 

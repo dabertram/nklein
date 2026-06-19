@@ -1016,6 +1016,21 @@ export type RuntimeClineModelContextWindowOverrideResponse = z.infer<
 	typeof runtimeClineModelContextWindowOverrideResponseSchema
 >;
 
+export const runtimeClineModelRegistryRemoveRequestSchema = z.object({
+	key: z.string().min(1),
+});
+export type RuntimeClineModelRegistryRemoveRequest = z.infer<typeof runtimeClineModelRegistryRemoveRequestSchema>;
+
+export const runtimeClineModelRegistryRemoveResponseSchema = z.object({
+	removed: z.boolean(),
+});
+export type RuntimeClineModelRegistryRemoveResponse = z.infer<typeof runtimeClineModelRegistryRemoveResponseSchema>;
+
+export const runtimeClineModelRegistryPruneResponseSchema = z.object({
+	removed: z.number().int().nonnegative(),
+});
+export type RuntimeClineModelRegistryPruneResponse = z.infer<typeof runtimeClineModelRegistryPruneResponseSchema>;
+
 export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
 	codeEmbeddingSettings: z.object({
 		globalDefaults: runtimeCodeEmbeddingSettingsSchema,

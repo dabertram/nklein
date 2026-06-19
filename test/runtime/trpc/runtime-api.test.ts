@@ -73,6 +73,8 @@ const browserMocks = vi.hoisted(() => ({
 
 const modelRegistryMocks = vi.hoisted(() => ({
 	getSnapshot: vi.fn(),
+	removeEntry: vi.fn(),
+	removeEntries: vi.fn(),
 }));
 
 vi.mock("../../../src/terminal/agent-registry.js", () => ({
@@ -203,6 +205,8 @@ vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
 	},
 	getDefaultClineModelRegistry: () => ({
 		getSnapshot: modelRegistryMocks.getSnapshot,
+		removeEntry: modelRegistryMocks.removeEntry,
+		removeEntries: modelRegistryMocks.removeEntries,
 	}),
 }));
 
@@ -279,19 +283,21 @@ function createModelRegistryEntry(input: {
 	providerId: string;
 	modelId: string;
 	endpoint?: string | null;
-	contextWindow: number;
-	capability: number;
+	contextWindow?: number;
+	capability?: number;
 }): ClineModelRegistryEntry {
+	const contextWindow = input.contextWindow ?? 32_000;
+	const capability = input.capability ?? 35;
 	return {
 		key: input.key,
 		providerId: input.providerId,
 		modelId: input.modelId,
 		endpoint: input.endpoint ?? (input.providerId === "anthropic" ? "http://127.0.0.1:1234/v1" : null),
 		contextWindow: {
-			advertised: input.contextWindow,
+			advertised: contextWindow,
 			observed: null,
 			userOverride: null,
-			effective: input.contextWindow,
+			effective: contextWindow,
 		},
 		speed: {
 			samples: 0,
@@ -310,11 +316,11 @@ function createModelRegistryEntry(input: {
 		},
 		capability: {
 			samples: 0,
-			staticPrior: input.capability,
+			staticPrior: capability,
 			evalScore: null,
 			externalScore: null,
 			observedPassRate: null,
-			effectiveScore: input.capability,
+			effectiveScore: capability,
 			lastObservedAt: null,
 		},
 		constraints: {
@@ -573,6 +579,10 @@ describe("createRuntimeApi startTaskSession", () => {
 		llmsModelMocks.resolveProviderModelCatalogKeys.mockReset();
 		browserMocks.openInBrowser.mockReset();
 		modelRegistryMocks.getSnapshot.mockReset();
+		modelRegistryMocks.removeEntry.mockReset();
+		modelRegistryMocks.removeEntry.mockResolvedValue(false);
+		modelRegistryMocks.removeEntries.mockReset();
+		modelRegistryMocks.removeEntries.mockResolvedValue(0);
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,
 			updatedAt: 0,
@@ -3292,6 +3302,93 @@ describe("createRuntimeApi startTaskSession", () => {
 		]);
 		expect(response.models.every((model) => model.speed.samples === 0)).toBe(true);
 		expect(response.models.find((model) => model.modelId === "remote-role")).toBeUndefined();
+	});
+
+	it("removes a local Cline model registry entry", async () => {
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 40,
+			models: {
+				"ollama:stale:local": createModelRegistryEntry({
+					key: "ollama:stale:local",
+					providerId: "ollama",
+					modelId: "stale",
+					endpoint: "local",
+				}),
+			},
+		});
+		modelRegistryMocks.removeEntry.mockResolvedValue(true);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.removeClineModelRegistryEntry(null, { key: "ollama:stale:local" });
+
+		expect(response).toEqual({ removed: true });
+		expect(modelRegistryMocks.removeEntry).toHaveBeenCalledWith("ollama:stale:local");
+	});
+
+	it("prunes stale local registry entries while keeping configured models", async () => {
+		setSelectedProviderSettings({
+			provider: "lmstudio",
+			model: "configured-model",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 40,
+			models: {
+				"lmstudio:configured-model:http://127.0.0.1:1234/v1": createModelRegistryEntry({
+					key: "lmstudio:configured-model:http://127.0.0.1:1234/v1",
+					providerId: "lmstudio",
+					modelId: "configured-model",
+					endpoint: "http://127.0.0.1:1234/v1",
+				}),
+				"lmstudio:old-model:http://127.0.0.1:1234/v1": createModelRegistryEntry({
+					key: "lmstudio:old-model:http://127.0.0.1:1234/v1",
+					providerId: "lmstudio",
+					modelId: "old-model",
+					endpoint: "http://127.0.0.1:1234/v1",
+				}),
+				"lmstudio:stale-model:http://127.0.0.1:1234/v1": createModelRegistryEntry({
+					key: "lmstudio:stale-model:http://127.0.0.1:1234/v1",
+					providerId: "lmstudio",
+					modelId: "stale-model",
+					endpoint: "http://127.0.0.1:1234/v1",
+				}),
+			},
+		});
+		modelRegistryMocks.removeEntries.mockResolvedValue(2);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "cline";
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.pruneClineModelRegistry({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/repo",
+		});
+
+		expect(response).toEqual({ removed: 2 });
+		expect(modelRegistryMocks.removeEntries).toHaveBeenCalledWith([
+			"lmstudio:old-model:http://127.0.0.1:1234/v1",
+			"lmstudio:stale-model:http://127.0.0.1:1234/v1",
+		]);
 	});
 
 	it("returns Cline code intelligence status for the workspace", async () => {

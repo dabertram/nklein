@@ -11,6 +11,7 @@ import {
 	type RuntimeClineMcpOAuthRequest,
 	type RuntimeClineMcpSettingsSaveRequest,
 	type RuntimeClineModelContextWindowOverrideRequest,
+	type RuntimeClineModelRegistryRemoveRequest,
 	type RuntimeClineOauthLoginRequest,
 	type RuntimeClineProviderModelsRequest,
 	type RuntimeClineProviderSettingsSaveRequest,
@@ -53,6 +54,7 @@ import {
 	runtimeClineMcpOAuthRequestSchema,
 	runtimeClineMcpSettingsSaveRequestSchema,
 	runtimeClineModelContextWindowOverrideRequestSchema,
+	runtimeClineModelRegistryRemoveRequestSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineProviderModelsRequestSchema,
 	runtimeClineProviderSettingsSaveRequestSchema,
@@ -440,6 +442,15 @@ export function parseClineModelContextWindowOverrideRequest(
 		endpoint,
 		contextWindow: parsed.contextWindow,
 	};
+}
+
+export function parseClineModelRegistryRemoveRequest(value: unknown): RuntimeClineModelRegistryRemoveRequest {
+	const parsed = parseWithSchema(runtimeClineModelRegistryRemoveRequestSchema, value);
+	const key = parsed.key.trim();
+	if (!key) {
+		throw new Error("Model registry key cannot be empty.");
+	}
+	return { key };
 }
 
 export function parseClineAdvisorBuildRequest(value: unknown): RuntimeClineAdvisorBuildRequest {

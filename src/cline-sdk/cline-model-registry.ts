@@ -578,6 +578,31 @@ export class ClineModelRegistry {
 		return cloneEntry(entry);
 	}
 
+	async removeEntry(key: string): Promise<boolean> {
+		return (await this.removeEntries([key])) === 1;
+	}
+
+	async removeEntries(keys: readonly string[]): Promise<number> {
+		const normalizedKeys = [...new Set(keys.map((key) => key.trim()).filter((key) => key.length > 0))];
+		if (normalizedKeys.length === 0) {
+			return 0;
+		}
+		const snapshot = await this.mutableSnapshot();
+		let removed = 0;
+		for (const key of normalizedKeys) {
+			if (Object.hasOwn(snapshot.models, key)) {
+				delete snapshot.models[key];
+				removed += 1;
+			}
+		}
+		if (removed === 0) {
+			return 0;
+		}
+		snapshot.updatedAt = this.now();
+		this.schedulePersist(snapshot);
+		return removed;
+	}
+
 	async flush(): Promise<void> {
 		if (this.persistTimer) {
 			clearTimeout(this.persistTimer);

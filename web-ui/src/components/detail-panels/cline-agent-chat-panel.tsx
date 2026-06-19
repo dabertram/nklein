@@ -14,7 +14,7 @@ import React, {
 	useRef,
 	useState,
 } from "react";
-
+import { showAppToast } from "@/components/app-toaster";
 import { ClineChatComposer } from "@/components/detail-panels/cline-chat-composer";
 import { ClineChatMessageItem } from "@/components/detail-panels/cline-chat-message-item";
 import {
@@ -38,7 +38,12 @@ import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actio
 import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import { formatClineModelContextWindowLabel } from "@/runtime/cline-context-window-policy";
-import { fetchClineModelRegistry, saveClineModelContextWindowOverride } from "@/runtime/runtime-config-query";
+import {
+	fetchClineModelRegistry,
+	pruneClineModelRegistry,
+	removeClineModelRegistryEntry,
+	saveClineModelContextWindowOverride,
+} from "@/runtime/runtime-config-query";
 import type {
 	RuntimeClineModelRegistryEntry,
 	RuntimeClineReasoningEffort,
@@ -743,6 +748,27 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 			},
 			[modelRegistryQuery.refetch, workspaceId],
 		);
+		const handleRemoveModelRegistryEntry = useCallback(
+			async (entry: RuntimeClineModelRegistryEntry) => {
+				const response = await removeClineModelRegistryEntry(workspaceId, { key: entry.key });
+				await modelRegistryQuery.refetch();
+				showAppToast({
+					intent: response.removed ? "success" : "none",
+					message: response.removed
+						? `Removed model telemetry for ${entry.providerId}/${entry.modelId}.`
+						: `Model telemetry for ${entry.providerId}/${entry.modelId} was already gone.`,
+				});
+			},
+			[modelRegistryQuery.refetch, workspaceId],
+		);
+		const handlePruneModelRegistry = useCallback(async () => {
+			const response = await pruneClineModelRegistry(workspaceId);
+			await modelRegistryQuery.refetch();
+			showAppToast({
+				intent: "success",
+				message: response.removed === 1 ? "Removed 1 stale model." : `Removed ${response.removed} stale models.`,
+			});
+		}, [modelRegistryQuery.refetch, workspaceId]);
 		const modelRegistryEntries = modelRegistryQuery.data?.models ?? [];
 		const visibleModelRegistryEntries = useMemo(
 			() =>
@@ -1235,6 +1261,8 @@ export const ClineAgentChatPanel = React.forwardRef<ClineAgentChatPanelHandle, C
 								nowMs={nowMs}
 								isLoading={modelRegistryQuery.isLoading}
 								onContextWindowOverrideSave={handleSaveModelContextWindowOverride}
+								onRemoveEntry={handleRemoveModelRegistryEntry}
+								onPruneStale={handlePruneModelRegistry}
 							/>
 						</>
 					) : null}

@@ -86,6 +86,7 @@ import {
 	parseClineMcpOAuthRequest,
 	parseClineMcpSettingsSaveRequest,
 	parseClineModelContextWindowOverrideRequest,
+	parseClineModelRegistryRemoveRequest,
 	parseClineOauthLoginRequest,
 	parseClineProviderModelsRequest,
 	parseClineProviderSettingsSaveRequest,
@@ -1564,6 +1565,63 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
 					}),
 			};
+		},
+		removeClineModelRegistryEntry: async (_workspaceScope, input) => {
+			const body = parseClineModelRegistryRemoveRequest(input);
+			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+			const entry = snapshot.models[body.key] ?? null;
+			if (entry && !isLocalProvider(entry.providerId, entry.endpoint)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Only local Cline model telemetry can be removed.",
+				});
+			}
+			const removed = await getDefaultClineModelRegistry().removeEntry(body.key);
+			return { removed };
+		},
+		pruneClineModelRegistry: async (workspaceScope) => {
+			const registry = getDefaultClineModelRegistry();
+			const snapshot = await registry.getSnapshot();
+			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
+			const launchConfig =
+				runtimeConfig?.selectedAgentId === "cline"
+					? await clineProviderService.resolveLaunchConfig().catch(() => null)
+					: null;
+			const providerSettings =
+				runtimeConfig?.selectedAgentId === "cline" ? clineProviderService.getProviderSettingsSummary() : null;
+			const configuredModels = addConfiguredLocalModelRegistryEntries({
+				models: {},
+				runtimeConfig,
+				launchConfig,
+				providerSettings,
+				now: Date.now(),
+			});
+			const keepKeys = new Set(Object.keys(configuredModels));
+			const providerId = providerSettings?.providerId?.trim();
+			const providerBaseUrl = providerSettings?.baseUrl ?? null;
+			if (providerId && isLocalProvider(providerId, providerBaseUrl)) {
+				const loadedModelsResponse = await clineProviderService.getProviderModels(providerId).catch(() => null);
+				for (const model of loadedModelsResponse?.models ?? []) {
+					keepKeys.add(
+						buildClineModelRegistryKey({
+							providerId,
+							modelId: model.id,
+							endpoint: providerBaseUrl,
+						}),
+					);
+					for (const entry of Object.values(snapshot.models)) {
+						if (entry.providerId === providerId && entry.modelId === model.id) {
+							keepKeys.add(entry.key);
+						}
+					}
+				}
+			}
+			const removeKeys = Object.values(snapshot.models)
+				.filter((entry) => isLocalProvider(entry.providerId, entry.endpoint))
+				.filter((entry) => !keepKeys.has(entry.key))
+				.map((entry) => entry.key);
+			const removed = await registry.removeEntries(removeKeys);
+			return { removed };
 		},
 		saveClineModelContextWindowOverride: async (_workspaceScope, input) => {
 			const body = parseClineModelContextWindowOverrideRequest(input);

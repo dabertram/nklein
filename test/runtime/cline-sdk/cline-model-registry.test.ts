@@ -321,6 +321,50 @@ describe("cline model registry", () => {
 		});
 	});
 
+	it("removes single and multiple persisted entries", async () => {
+		const registryPath = await createRegistryPath();
+		const registry = new ClineModelRegistry({
+			registryPath,
+			now: () => 9_000,
+			persistDebounceMs: 60_000,
+		});
+		const first = await registry.recordContextWindow({
+			providerId: "ollama",
+			modelId: "stale-a",
+			endpoint: "http://127.0.0.1:11434",
+			advertisedContextWindow: 32_000,
+		});
+		const second = await registry.recordContextWindow({
+			providerId: "ollama",
+			modelId: "stale-b",
+			endpoint: "http://127.0.0.1:11434",
+			advertisedContextWindow: 64_000,
+		});
+		const third = await registry.recordContextWindow({
+			providerId: "lmstudio",
+			modelId: "keep",
+			endpoint: "http://127.0.0.1:1234/v1",
+			advertisedContextWindow: 128_000,
+		});
+
+		await expect(registry.removeEntry(first.key)).resolves.toBe(true);
+		await expect(registry.removeEntry(first.key)).resolves.toBe(false);
+		await expect(registry.removeEntries([second.key, "missing"])).resolves.toBe(1);
+
+		const snapshot = await registry.getSnapshot();
+		expect(snapshot.models[first.key]).toBeUndefined();
+		expect(snapshot.models[second.key]).toBeUndefined();
+		expect(snapshot.models[third.key]).toBeDefined();
+
+		await registry.flush();
+		const persisted = JSON.parse(await readFile(registryPath, "utf8")) as {
+			models: Record<string, unknown>;
+		};
+		expect(persisted.models[first.key]).toBeUndefined();
+		expect(persisted.models[second.key]).toBeUndefined();
+		expect(persisted.models[third.key]).toBeDefined();
+	});
+
 	it("does not default cloud models into a serialized shared endpoint", async () => {
 		const registry = new ClineModelRegistry({
 			registryPath: await createRegistryPath(),

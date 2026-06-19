@@ -1,4 +1,4 @@
-import { Activity, Gauge, RotateCcw, Save, Server } from "lucide-react";
+import { Activity, Gauge, RotateCcw, Save, Server, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -155,6 +155,8 @@ interface ClineModelRegistryPanelProps {
 		entry: RuntimeClineModelRegistryEntry,
 		contextWindow: number | null,
 	) => Promise<void> | void;
+	onRemoveEntry?: (entry: RuntimeClineModelRegistryEntry) => Promise<void> | void;
+	onPruneStale?: () => Promise<void> | void;
 }
 
 export function ClineModelRegistryPanel({
@@ -164,6 +166,8 @@ export function ClineModelRegistryPanel({
 	nowMs,
 	isLoading = false,
 	onContextWindowOverrideSave,
+	onRemoveEntry,
+	onPruneStale,
 }: ClineModelRegistryPanelProps) {
 	const selectedEntry = findClineModelRegistryEntry(entries, selectedProviderId, selectedModelId);
 	const visibleEntries = useMemo(
@@ -172,7 +176,11 @@ export function ClineModelRegistryPanel({
 	);
 	const [overrideInputs, setOverrideInputs] = useState<Record<string, string>>({});
 	const [savingKey, setSavingKey] = useState<string | null>(null);
+	const [removingKey, setRemovingKey] = useState<string | null>(null);
+	const [isPruning, setIsPruning] = useState(false);
 	const [saveErrorByKey, setSaveErrorByKey] = useState<Record<string, string>>({});
+	const [removeErrorByKey, setRemoveErrorByKey] = useState<Record<string, string>>({});
+	const [pruneError, setPruneError] = useState("");
 
 	const saveOverride = async (entry: RuntimeClineModelRegistryEntry, contextWindow: number | null) => {
 		if (!onContextWindowOverrideSave) {
@@ -199,13 +207,63 @@ export function ClineModelRegistryPanel({
 		}
 	};
 
+	const removeEntry = async (entry: RuntimeClineModelRegistryEntry) => {
+		if (!onRemoveEntry) {
+			return;
+		}
+		setRemovingKey(entry.key);
+		setRemoveErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: "" }));
+		try {
+			await onRemoveEntry(entry);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setRemoveErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: message }));
+		} finally {
+			setRemovingKey(null);
+		}
+	};
+
+	const pruneStale = async () => {
+		if (!onPruneStale) {
+			return;
+		}
+		setIsPruning(true);
+		setPruneError("");
+		try {
+			await onPruneStale();
+		} catch (error) {
+			setPruneError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setIsPruning(false);
+		}
+	};
+
 	return (
 		<section className="mt-2 rounded-lg border border-border bg-surface-1 px-3 py-2" aria-label="Model telemetry">
 			<div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-primary">
 				<Activity size={14} className="text-status-green" />
 				<span>Past telemetry</span>
-				{isLoading ? <span className="ml-auto text-[11px] font-normal text-text-tertiary">Refreshing</span> : null}
+				{onPruneStale ? (
+					<Button
+						size="sm"
+						variant="ghost"
+						icon={<Trash2 size={14} />}
+						disabled={isPruning || isLoading}
+						onClick={() => {
+							void pruneStale();
+						}}
+						className="ml-auto"
+					>
+						{isPruning ? "Clearing..." : "Clear stale models"}
+					</Button>
+				) : null}
+				{isLoading ? (
+					<span className={cn(!onPruneStale && "ml-auto", "text-[11px] font-normal text-text-tertiary")}>
+						Refreshing
+					</span>
+				) : null}
 			</div>
+			{pruneError ? <div className="mb-2 text-[11px] text-status-red">{pruneError}</div> : null}
 			{visibleEntries.length === 0 ? (
 				<div className="text-xs text-text-secondary">No model observations recorded yet.</div>
 			) : (
@@ -225,7 +283,9 @@ export function ClineModelRegistryPanel({
 							hasValidOverride &&
 							parsedOverride !== entry.contextWindow.userOverride;
 						const isSaving = savingKey === entry.key;
+						const isRemoving = removingKey === entry.key;
 						const saveError = saveErrorByKey[entry.key]?.trim();
+						const removeError = removeErrorByKey[entry.key]?.trim();
 						return (
 							<div
 								key={entry.key}
@@ -248,6 +308,19 @@ export function ClineModelRegistryPanel({
 										<span className="shrink-0 rounded-sm border border-status-orange/50 px-1.5 py-0.5 text-[10px] text-status-orange">
 											Set context window
 										</span>
+									) : null}
+									{onRemoveEntry ? (
+										<Button
+											size="sm"
+											variant="ghost"
+											icon={<Trash2 size={14} />}
+											disabled={isRemoving}
+											onClick={() => {
+												void removeEntry(entry);
+											}}
+										>
+											{isRemoving ? "Removing..." : "Remove"}
+										</Button>
 									) : null}
 								</div>
 								<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-secondary">
@@ -330,6 +403,7 @@ export function ClineModelRegistryPanel({
 										{saveError ? <div className="text-[11px] text-status-red">{saveError}</div> : null}
 									</div>
 								) : null}
+								{removeError ? <div className="mt-2 text-[11px] text-status-red">{removeError}</div> : null}
 							</div>
 						);
 					})}

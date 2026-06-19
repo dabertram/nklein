@@ -34,6 +34,7 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { showAppToast } from "@/components/app-toaster";
 import {
 	ClineModelRegistryPanel,
 	filterRegistryEntriesToLoadedModels,
@@ -77,6 +78,8 @@ import {
 	fetchClineModelRegistry,
 	fetchClineProviderModels,
 	openFileOnHost,
+	pruneClineModelRegistry,
+	removeClineModelRegistryEntry,
 	runClineSmokeEval,
 	saveClineModelContextWindowOverride,
 	sendClineAdvisorRequest,
@@ -1395,6 +1398,35 @@ function ClineModelContextWindowSettingsPanel({
 		[disabled, refreshRegistry, workspaceId],
 	);
 
+	const removeEntry = useCallback(
+		async (entry: RuntimeClineModelRegistryEntry) => {
+			if (disabled) {
+				return;
+			}
+			const response = await removeClineModelRegistryEntry(workspaceId, { key: entry.key });
+			await refreshRegistry();
+			showAppToast({
+				intent: response.removed ? "success" : "none",
+				message: response.removed
+					? `Removed model telemetry for ${entry.providerId}/${entry.modelId}.`
+					: `Model telemetry for ${entry.providerId}/${entry.modelId} was already gone.`,
+			});
+		},
+		[disabled, refreshRegistry, workspaceId],
+	);
+
+	const pruneStale = useCallback(async () => {
+		if (disabled) {
+			return;
+		}
+		const response = await pruneClineModelRegistry(workspaceId);
+		await refreshRegistry();
+		showAppToast({
+			intent: "success",
+			message: response.removed === 1 ? "Removed 1 stale model." : `Removed ${response.removed} stale models.`,
+		});
+	}, [disabled, refreshRegistry, workspaceId]);
+
 	return (
 		<div className="mt-4 border-t border-border pt-4">
 			<div className="flex items-center justify-between gap-3">
@@ -1437,6 +1469,8 @@ function ClineModelContextWindowSettingsPanel({
 				nowMs={nowMs}
 				isLoading={isLoading}
 				onContextWindowOverrideSave={disabled ? undefined : saveOverride}
+				onRemoveEntry={disabled ? undefined : removeEntry}
+				onPruneStale={disabled ? undefined : pruneStale}
 			/>
 		</div>
 	);

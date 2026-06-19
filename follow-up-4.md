@@ -480,11 +480,11 @@ every filter, and never expire. There is **no prune path** today.
   `clineSettings.providerId` and `clineSettings.providerModels`.
 
 ### B3. Add a real prune/delete path (the "drop completely" half)
-- [ ] **Registry.** In [cline-model-registry.ts](src/cline-sdk/cline-model-registry.ts) add
+- [x] **Registry.** In [cline-model-registry.ts](src/cline-sdk/cline-model-registry.ts) add
   `async removeEntry(key: string): Promise<boolean>` and
   `async removeEntries(keys: readonly string[]): Promise<number>`. Each mutates `snapshot.models`, bumps
   `updatedAt`, and calls `schedulePersist` (mirror `setContextWindowOverride`).
-- [ ] **tRPC.** Add `removeClineModelRegistryEntry` (single key) and `pruneClineModelRegistry` (remove every row that
+- [x] **tRPC.** Add `removeClineModelRegistryEntry` (single key) and `pruneClineModelRegistry` (remove every row that
   is not currently loaded or configured):
   - schema in [src/core/api-contract.ts](src/core/api-contract.ts) near
     `runtimeClineModelContextWindowOverrideRequestSchema`;
@@ -495,13 +495,13 @@ every filter, and never expire. There is **no prune path** today.
     `assertLocalProviderAllowed`. `pruneClineModelRegistry` computes the keep-set from
     `addConfiguredLocalModelRegistryEntries` inputs (launch/provider/role configs) ∪ currently-loaded provider
     models, then removes the rest.
-- [ ] **UI.** In [cline-model-registry-panel.tsx](web-ui/src/components/detail-panels/cline-model-registry-panel.tsx):
+- [x] **UI.** In [cline-model-registry-panel.tsx](web-ui/src/components/detail-panels/cline-model-registry-panel.tsx):
   add an optional `onRemoveEntry?(entry)` per-row button (`lucide-react` `Trash2`) and a header **"Clear stale
   models"** button wired to a `onPruneStale?()` callback. Plumb both from the Settings panel and the chat panel;
   refetch after success (like `handleSaveModelContextWindowOverride`, chat-panel L734-742); toast via `showAppToast`
   ("Removed N stale models"). The Clear action must work even when the local server is down so the junk can be
   dropped offline.
-- [ ] Configured/loaded rows that get removed will be re-synthesized by `addConfiguredLocalModelRegistryEntries` —
+- [x] Configured/loaded rows that get removed will be re-synthesized by `addConfiguredLocalModelRegistryEntries` —
   that is correct (real models reappear). The junk rows are neither configured nor loaded, so they stay gone.
 
 ### B4. Verify there is no third consumer

@@ -33,6 +33,9 @@ import type {
 	RuntimeClineMcpSettingsSaveResponse,
 	RuntimeClineModelContextWindowOverrideRequest,
 	RuntimeClineModelContextWindowOverrideResponse,
+	RuntimeClineModelRegistryPruneResponse,
+	RuntimeClineModelRegistryRemoveRequest,
+	RuntimeClineModelRegistryRemoveResponse,
 	RuntimeClineModelRegistryResponse,
 	RuntimeClineOauthLoginRequest,
 	RuntimeClineOauthLoginResponse,
@@ -163,6 +166,9 @@ import {
 	runtimeClineMcpSettingsSaveResponseSchema,
 	runtimeClineModelContextWindowOverrideRequestSchema,
 	runtimeClineModelContextWindowOverrideResponseSchema,
+	runtimeClineModelRegistryPruneResponseSchema,
+	runtimeClineModelRegistryRemoveRequestSchema,
+	runtimeClineModelRegistryRemoveResponseSchema,
 	runtimeClineModelRegistryResponseSchema,
 	runtimeClineOauthLoginRequestSchema,
 	runtimeClineOauthLoginResponseSchema,
@@ -386,6 +392,13 @@ export interface RuntimeTrpcContext {
 			input: RuntimeClineEndpointModelDiscoveryRequest,
 		) => Promise<RuntimeClineEndpointModelDiscoveryResponse>;
 		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
+		removeClineModelRegistryEntry: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeClineModelRegistryRemoveRequest,
+		) => Promise<RuntimeClineModelRegistryRemoveResponse>;
+		pruneClineModelRegistry: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+		) => Promise<RuntimeClineModelRegistryPruneResponse>;
 		saveClineModelContextWindowOverride: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineModelContextWindowOverrideRequest,
@@ -766,6 +779,17 @@ export const runtimeAppRouter = t.router({
 		getClineModelRegistry: t.procedure.output(runtimeClineModelRegistryResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getClineModelRegistry(ctx.workspaceScope);
 		}),
+		removeClineModelRegistryEntry: t.procedure
+			.input(runtimeClineModelRegistryRemoveRequestSchema)
+			.output(runtimeClineModelRegistryRemoveResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.removeClineModelRegistryEntry(ctx.workspaceScope, input);
+			}),
+		pruneClineModelRegistry: t.procedure
+			.output(runtimeClineModelRegistryPruneResponseSchema)
+			.mutation(async ({ ctx }) => {
+				return await ctx.runtimeApi.pruneClineModelRegistry(ctx.workspaceScope);
+			}),
 		saveClineModelContextWindowOverride: t.procedure
 			.input(runtimeClineModelContextWindowOverrideRequestSchema)
 			.output(runtimeClineModelContextWindowOverrideResponseSchema)
