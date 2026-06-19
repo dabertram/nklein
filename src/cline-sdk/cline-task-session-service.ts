@@ -23,6 +23,7 @@ import {
 	type AgentSandboxPoolConfig,
 	createAgentSandboxToolExecutors,
 } from "./cline-agent-sandbox";
+import { createAgentSandboxExtraTools } from "./cline-agent-sandbox-extra-tools";
 import type { ClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import {
@@ -58,6 +59,7 @@ import {
 	createAssistantMessage,
 	createDefaultSummary,
 	createMessage,
+	createSessionId,
 	isClineUserAttentionTool,
 	isCreditLimitError,
 	now,
@@ -1598,6 +1600,13 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					toolExecutors: sandboxWorkspace
 						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
 								pauseController: this.pauseController,
+							})
+						: undefined,
+					extraTools: sandboxWorkspace
+						? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
+								sessionId: createSessionId(request.taskId),
+								contextWindow: requestContextWindow,
+								maxFileLines: request.maxAgentWritableFileLines ?? null,
 							})
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,

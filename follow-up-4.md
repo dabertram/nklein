@@ -312,7 +312,7 @@ agents in one container still cannot read each other's files.
   task **must** pass `runCommand` = a shim over `manager.exec(taskId, ["/bin/sh","-c",command])` (runs
   `-u <taskUid> -w /workspaces/<taskId>`). The host `defaultRunCommand` must never run for an agent task — make it
   throw if used without a bound sandbox/`taskId` in strict mode.
-- [ ] **!Klein-implemented agent tools.** Audit and route through the container any of these that execute on the
+- [x] **!Klein-implemented agent tools.** Audit and route through the container any of these that execute on the
   LLM's behalf: [cline-write-files-tool.ts](src/cline-sdk/cline-write-files-tool.ts),
   [cline-file-discovery-tools.ts](src/cline-sdk/cline-file-discovery-tools.ts),
   [cline-retrieval-tools.ts](src/cline-sdk/cline-retrieval-tools.ts),
@@ -321,6 +321,9 @@ agents in one container still cannot read each other's files.
   agent tool and reads/writes/execs, replace its host fs/child_process calls with `manager.exec(taskId, …)` (read via
   `docker exec cat/sed`, search via `docker exec rg`, large-file read via the in-container runner). If it is only used
   by trusted prebuild (indexing/embeddings), leave it (J0 out-of-scope) and add a comment saying so.
+  - [x] Cline sandbox starts now pass proxy `AgentTool`s for `repo_map`, `search_code`, file discovery, `read_large_file`,
+    `write_file`, and `write_files`; each proxy executes `kanbanExtraTool` through the Docker tool-runner inside the
+    task workspace.
 - [x] **MCP.** [cline-mcp-runtime-service.ts](src/cline-sdk/cline-mcp-runtime-service.ts): locally-executing MCP
   servers run subprocesses on the host. In strict mode, **disable local-exec MCP servers by default** (do not spawn
   them) and surface a one-line "MCP local execution is disabled under strict isolation" note. (Containerizing MCP is
@@ -351,6 +354,8 @@ agents in one container still cannot read each other's files.
   - [x] `runClineAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
     explicit runner or opt into trusted host execution, while agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
   - [x] Add the no-host execution guard test across SDK default executors and acceptance.
+  - [ ] Decomposition and explicitly enabled web-research extra tools still need a final strict-isolation audit before
+    the broader structural no-host-fallback item is complete.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
 - [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image

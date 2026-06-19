@@ -783,8 +783,18 @@ export function createReadLargeFileTool(options: {
 	sessionId: string;
 	workspacePath: string;
 	contextWindow?: number | null;
+	storageRoot?: string;
 }): AgentTool {
-	const workflow = getClineLargeFileWorkflow(options.sessionId, options.workspacePath);
+	const workflow = options.storageRoot
+		? new ClineLargeFileWorkflow(options.sessionId, options.workspacePath, options.storageRoot)
+		: getClineLargeFileWorkflow(options.sessionId, options.workspacePath);
+	return createReadLargeFileToolForWorkflow(workflow, options.contextWindow);
+}
+
+function createReadLargeFileToolForWorkflow(
+	workflow: ClineLargeFileWorkflow,
+	contextWindow?: number | null,
+): AgentTool {
 	return {
 		name: "read_large_file",
 		description:
@@ -816,7 +826,7 @@ export function createReadLargeFileTool(options: {
 			}
 			return await workflow.readNext(
 				(input as Record<string, unknown>).path as string,
-				options.contextWindow,
+				contextWindow,
 				(input as Record<string, unknown>).cursor as string,
 			);
 		},

@@ -6,6 +6,10 @@ import {
 	type AgentSandboxManager,
 	createAgentSandboxToolExecutors,
 } from "../../../src/cline-sdk/cline-agent-sandbox";
+import {
+	AGENT_SANDBOX_EXTRA_TOOL_RUNNER,
+	createAgentSandboxExtraTools,
+} from "../../../src/cline-sdk/cline-agent-sandbox-extra-tools";
 
 const childProcessMocks = vi.hoisted(() => ({
 	execFile: vi.fn(() => {
@@ -124,6 +128,52 @@ describe("sandbox no-host-execution guard", () => {
 			timeoutMs: 300_000,
 		});
 		expect(disposeWorkspace).toHaveBeenCalledWith("task-1");
+		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
+		expect(fsPromisesMocks.appendFile).not.toHaveBeenCalled();
+		expect(fsPromisesMocks.mkdir).not.toHaveBeenCalled();
+		expect(fsPromisesMocks.rm).not.toHaveBeenCalled();
+		expect(fsPromisesMocks.writeFile).not.toHaveBeenCalled();
+	});
+
+	it("routes !Klein custom workspace tools through the sandbox manager", async () => {
+		const runTool = vi.fn(async () => JSON.stringify({ source: "sandbox" }));
+		const manager = { runTool } as unknown as AgentSandboxManager;
+		const tools = createAgentSandboxExtraTools(manager, "task-1", {
+			sessionId: "session-task-1",
+			contextWindow: 80_000,
+			maxFileLines: 100,
+		});
+		const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
+		const toolInputs = new Map<string, unknown>([
+			["repo_map", { query: "auth" }],
+			["search_code", { query: "auth", maxResults: 2 }],
+			["list_files", { path: "src", recursive: false }],
+			["find_files", { query: "auth" }],
+			["get_file_size", { path: "src/index.ts" }],
+			["read_large_file", { path: "src/index.ts", cursor: "start" }],
+			["write_file", { path: "notes.txt", content: "hello" }],
+			["write_files", { files: [{ path: "notes.txt", content: "hello" }] }],
+		]);
+
+		for (const [toolName, input] of toolInputs) {
+			const tool = toolByName.get(toolName);
+			if (!tool) {
+				throw new Error(`Expected sandbox proxy for ${toolName}.`);
+			}
+			await expect(tool.execute(input, createToolContext())).resolves.toEqual({ source: "sandbox" });
+		}
+
+		let callIndex = 1;
+		for (const [toolName, input] of toolInputs) {
+			expect(runTool).toHaveBeenNthCalledWith(callIndex, "task-1", AGENT_SANDBOX_EXTRA_TOOL_RUNNER, {
+				toolName,
+				input,
+				sessionId: "session-task-1",
+				contextWindow: 80_000,
+				maxFileLines: 100,
+			});
+			callIndex += 1;
+		}
 		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.appendFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.mkdir).not.toHaveBeenCalled();

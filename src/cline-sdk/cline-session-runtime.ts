@@ -8,6 +8,7 @@ import type {
 	AgentBeforeModelContext,
 	AgentBeforeModelResult,
 	AgentMessage,
+	AgentTool,
 } from "@clinebot/shared";
 import {
 	type RuntimeClineReasoningEffort,
@@ -449,6 +450,7 @@ export interface StartClineSessionRuntimeRequest {
 	toolPolicies?: ClineSdkStartSessionInput["toolPolicies"];
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 	toolExecutors?: Partial<ToolExecutors>;
+	extraTools?: AgentTool[];
 	onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 }
 
@@ -672,33 +674,38 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				}
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
+		const workspaceExtraTools =
+			request.extraTools ??
+			([
+				...createClineRetrievalTools({
+					workspacePath: request.cwd,
+					embeddingProvider: request.codeEmbeddingProvider ?? createClineCodeEmbeddingProvider(),
+				}),
+				...createFileDiscoveryTools({
+					workspacePath: request.cwd,
+					contextWindow: request.contextWindow,
+				}),
+				createReadLargeFileTool({
+					sessionId: requestedSessionId,
+					workspacePath: request.cwd,
+					contextWindow: request.contextWindow,
+				}),
+				createWriteFilesTool({
+					workspacePath: request.cwd,
+					maxFileLines: request.maxAgentWritableFileLines,
+				}),
+				createWriteFileTool({
+					workspacePath: request.cwd,
+					maxFileLines: request.maxAgentWritableFileLines,
+				}),
+			] satisfies AgentTool[]);
 		const extraTools = [
 			...createClineDecompositionTools({
 				workspacePath: request.cwd,
 				artifactWorkspacePath,
 				sourceTaskId: request.taskId,
 			}),
-			...createClineRetrievalTools({
-				workspacePath: request.cwd,
-				embeddingProvider: request.codeEmbeddingProvider ?? createClineCodeEmbeddingProvider(),
-			}),
-			...createFileDiscoveryTools({
-				workspacePath: request.cwd,
-				contextWindow: request.contextWindow,
-			}),
-			createReadLargeFileTool({
-				sessionId: requestedSessionId,
-				workspacePath: request.cwd,
-				contextWindow: request.contextWindow,
-			}),
-			createWriteFilesTool({
-				workspacePath: request.cwd,
-				maxFileLines: request.maxAgentWritableFileLines,
-			}),
-			createWriteFileTool({
-				workspacePath: request.cwd,
-				maxFileLines: request.maxAgentWritableFileLines,
-			}),
+			...workspaceExtraTools,
 			...createWebResearchTool({
 				enabled: process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),

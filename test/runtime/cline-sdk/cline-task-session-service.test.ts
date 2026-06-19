@@ -560,6 +560,13 @@ describe("InMemoryClineTaskSessionService", () => {
 					bash: expect.any(Function),
 					applyPatch: expect.any(Function),
 				}),
+				extraTools: expect.arrayContaining([
+					expect.objectContaining({ name: "repo_map", execute: expect.any(Function) }),
+					expect.objectContaining({ name: "search_code", execute: expect.any(Function) }),
+					expect.objectContaining({ name: "list_files", execute: expect.any(Function) }),
+					expect.objectContaining({ name: "read_large_file", execute: expect.any(Function) }),
+					expect.objectContaining({ name: "write_files", execute: expect.any(Function) }),
+				]),
 			}),
 		);
 	});

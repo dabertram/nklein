@@ -2,13 +2,18 @@
 
 ## Strict Docker isolation still has open host-touching surfaces
 
-- [ ] Route !Klein custom Cline tools through the Docker sandbox before calling the isolation work complete.
+- [x] Route the listed !Klein custom workspace tools through the Docker sandbox.
   - The first isolation chunk wires SDK-owned default executors (`bash`, `readFile`, `search`, `editor`, `applyPatch`) through `RuntimeCapabilities.toolExecutors`.
   - Acceptance-gate host execution is now explicit opt-in: `runClineAcceptanceGate` requires an injected runner or `allowHostExecution=true`, and agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
-  - A no-host-execution guard test now mocks `node:child_process` and `node:fs/promises` write APIs for the SDK default tool executors and sandbox acceptance path.
-  - `cline-session-runtime.ts` still registers !Klein extra tools such as file discovery, retrieval, large-file workflow, write-file/write-files, decomposition, repo-map, and gated web research on the host side.
-  - Passing the sandbox workdir as `cwd` prevents those tools from touching the user repo directly, but it is not sufficient: the tool code still executes in the host runtime process and can attempt host filesystem I/O against `/workspaces/...`.
-  - Do not mark J1/J5/J7 complete until each extra tool is either implemented as an in-container runner or structurally disabled/replaced with an equivalent sandboxed implementation.
+  - A no-host-execution guard test now mocks `node:child_process` and `node:fs/promises` write APIs for the SDK default tool executors, sandbox acceptance path, and the custom workspace tool proxies.
+  - Sandboxed Cline starts now register proxy `AgentTool`s for `repo_map`, `search_code`, `list_files`, `find_files`, `get_file_size`, `read_large_file`, `write_file`, and `write_files`. Their host-side `execute` functions call `manager.runTool(taskId, "kanbanExtraTool", ...)`, and the bundled `/opt/nklein/tool-runner.mjs` runs the real implementations inside `/workspaces/<taskId>`.
+  - The runner-side large-file workflow stores its state under `/tmp/nklein-large-file-workflows` inside the container because the runner is per-tool-call and the container root filesystem is read-only.
+
+- [ ] Finish the remaining strict-isolation extra-tool audit.
+  - `cline-session-runtime.ts` still registers decomposition tools and an env-gated web research tool outside the sandbox workspace-tool proxy list.
+  - Decomposition mutates trusted !Klein board/artifact state and may belong on the host side, but it is still invoked on the LLM's behalf and needs an explicit strict-isolation decision rather than accidental inheritance.
+  - Web research is disabled by default, but `KANBAN_ENABLE_WEB_RESEARCH=1` should not create a host-network escape hatch for sandboxed Cline tasks. Either make sandboxed starts omit it unconditionally or replace it with a no-network denial tool.
+  - Do not mark J7 complete until those two surfaces are explicitly resolved and covered.
 
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.
