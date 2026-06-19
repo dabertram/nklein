@@ -660,6 +660,36 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists replay cards as a disabled-by-default global setting", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-replay-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-replay-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const initial = await loadRuntimeConfig(tempProject);
+				expect(initial.replayCardsEnabled).toBe(false);
+
+				const updated = await updateRuntimeConfig(tempProject, {
+					replayCardsEnabled: true,
+				});
+				expect(updated.replayCardsEnabled).toBe(true);
+
+				const globalPayload = JSON.parse(
+					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+				) as {
+					replayCardsEnabled?: boolean;
+				};
+				expect(globalPayload.replayCardsEnabled).toBe(true);
+
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.replayCardsEnabled).toBe(true);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists and reloads global code embedding defaults", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-embedding-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-embedding-");

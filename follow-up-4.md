@@ -819,23 +819,23 @@ column-scoped in [board-card.tsx:808-819](web-ui/src/components/board-card.tsx#L
   the card control in sync before the next session event/poll.
 
 **K2.3 Finished cards: disabled by default, optional Replay (off by default in global settings).**
-- [ ] Add a global setting `replayCardsEnabled: boolean` (default **false**) — implement it exactly like the §E
+- [x] Add a global setting `replayCardsEnabled: boolean` (default **false**) — implement it exactly like the §E
   `developerModeEnabled` field: config file shape + `RuntimeConfigState` + update inputs + read/write/save in
   [src/config/runtime-config.ts](src/config/runtime-config.ts), the request **and** response schema in
   [api-contract.ts](src/core/api-contract.ts), and a Settings toggle in
   [runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx) (General section) with help text
   "Show a Replay button on finished cards to re-run them from scratch."
-- [ ] **Finished** cards (`review` / completed / `done`): when `replayCardsEnabled` is false (default), the action
+- [x] **Finished** cards (`review` / completed / `done`): when `replayCardsEnabled` is false (default), the action
   button is **disabled** (or absent). When true, show **Replay** (`RotateCcw` icon, `aria-label="Replay task"`,
   `onReplayTask?.(card.id)`).
-- [ ] Replay = re-run the card from scratch: reset/recreate the task worktree and start a fresh session (reuse the
+- [x] Replay = re-run the card from scratch: reset/recreate the task worktree and start a fresh session (reuse the
   start path used by `onStart`/`startTaskSession`, plus worktree reset). Confirm with the user (`window.confirm`)
   before discarding the previous result. Pass `replayCardsEnabled` down to `BoardCard` so the button only renders when
   enabled.
 
 **K2.4 Tests.** Running card renders Pause; clicking pauses (state → paused) and the button becomes Resume; finished
 card shows no actionable button when `replayCardsEnabled` is false and a Replay button when true; Replay re-starts the
-session. **Per-card pause/resume is covered by card, board, persistence, and runtime API tests; Replay tests remain with K2.3.**
+session. **Done with card, board, settings, persistence/config, runtime API, and interaction-hook tests.**
 
 ### K3. Timestamp every chat-log message (top-right, collapsible, with duration on hover)
 **K3.0 Data.** Each message already carries `createdAt` (`RuntimeTaskChatMessage`,

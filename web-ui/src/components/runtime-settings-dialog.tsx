@@ -1660,6 +1660,7 @@ export function RuntimeSettingsDialog({
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -1725,6 +1726,7 @@ export function RuntimeSettingsDialog({
 		selectedPromptVariant === "commit" ? "Commit prompt template" : "PR prompt template";
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
 	const developerModeCheckboxId = "runtime-settings-developer-mode";
+	const replayCardsCheckboxId = "runtime-settings-replay-cards";
 	const taskDefaultStartInPlanModeId = "runtime-settings-task-default-start-in-plan-mode";
 	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
@@ -1795,6 +1797,7 @@ export function RuntimeSettingsDialog({
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
+	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -1943,6 +1946,9 @@ export function RuntimeSettingsDialog({
 		if (developerModeEnabled !== initialDeveloperModeEnabled) {
 			return true;
 		}
+		if (replayCardsEnabled !== initialReplayCardsEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -2016,6 +2022,7 @@ export function RuntimeSettingsDialog({
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
+		initialReplayCardsEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
 		initialTaskDefaultAutoReviewEnabled,
@@ -2031,6 +2038,7 @@ export function RuntimeSettingsDialog({
 		openPrPromptTemplate,
 		requestTimeoutMs,
 		readyForReviewNotificationsEnabled,
+		replayCardsEnabled,
 		selectedAgentId,
 		shortcuts,
 		streamTimeoutMs,
@@ -2058,6 +2066,7 @@ export function RuntimeSettingsDialog({
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
+		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -2098,6 +2107,7 @@ export function RuntimeSettingsDialog({
 		config?.codeEmbeddingOverride,
 		config?.decompositionAutoApplyEnabled,
 		config?.developerModeEnabled,
+		config?.replayCardsEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.lostHeartbeatPolicy,
@@ -2564,6 +2574,7 @@ export function RuntimeSettingsDialog({
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
 			developerModeEnabled,
+			replayCardsEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			...(workspaceId ? { codeEmbeddingOverride: draftCodeEmbeddingOverride } : {}),
 			readyForReviewNotificationsEnabled,
@@ -2681,6 +2692,27 @@ export function RuntimeSettingsDialog({
 						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
 							Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
 							state.
+						</p>
+						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+							Replay
+						</h6>
+						<label
+							htmlFor={replayCardsCheckboxId}
+							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
+						>
+							<RadixSwitch.Root
+								id={replayCardsCheckboxId}
+								checked={replayCardsEnabled}
+								disabled={controlsDisabled}
+								onCheckedChange={setReplayCardsEnabled}
+								className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+							>
+								<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+							</RadixSwitch.Root>
+							<span>Show Replay on finished cards</span>
+						</label>
+						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
+							Show a Replay button on finished cards to re-run them from scratch.
 						</p>
 						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
 							Agent

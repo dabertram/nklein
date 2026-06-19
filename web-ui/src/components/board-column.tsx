@@ -16,6 +16,7 @@ export function BoardColumn({
 	onStartTask,
 	onPauseTask,
 	onResumeTask,
+	onReplayTask,
 	onDecomposeTask,
 	onStartAllTasks,
 	onClearTrash,
@@ -33,6 +34,7 @@ export function BoardColumn({
 	openPrTaskLoadingById,
 	copyEvidenceLoadingById,
 	moveToTrashLoadingById,
+	replayTaskLoadingById,
 	onCardClick,
 	activeDragTaskId,
 	activeDragSourceColumnId,
@@ -43,6 +45,7 @@ export function BoardColumn({
 	dependencyTargetTaskId,
 	isDependencyLinking,
 	workspacePath,
+	replayCardsEnabled = false,
 	defaultClineModelId,
 }: {
 	column: BoardColumnModel;
@@ -51,6 +54,7 @@ export function BoardColumn({
 	onStartTask?: (taskId: string) => void;
 	onPauseTask?: (taskId: string) => void;
 	onResumeTask?: (taskId: string) => void;
+	onReplayTask?: (taskId: string) => void;
 	onDecomposeTask?: (taskId: string) => void;
 	onStartAllTasks?: () => void;
 	onClearTrash?: () => void;
@@ -68,6 +72,7 @@ export function BoardColumn({
 	openPrTaskLoadingById?: Record<string, boolean>;
 	copyEvidenceLoadingById?: Record<string, boolean>;
 	moveToTrashLoadingById?: Record<string, boolean>;
+	replayTaskLoadingById?: Record<string, boolean>;
 	onCardClick?: (card: BoardCardModel) => void;
 	activeDragTaskId?: string | null;
 	activeDragSourceColumnId?: BoardColumnId | null;
@@ -78,6 +83,7 @@ export function BoardColumn({
 	dependencyTargetTaskId?: string | null;
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
+	replayCardsEnabled?: boolean;
 	defaultClineModelId?: string | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
@@ -185,6 +191,7 @@ export function BoardColumn({
 											onStart={onStartTask}
 											onPauseTask={onPauseTask}
 											onResumeTask={onResumeTask}
+											onReplayTask={onReplayTask}
 											onDecompose={onDecomposeTask}
 											onMoveToTrash={onMoveToTrashTask}
 											onRestoreFromTrash={onRestoreFromTrashTask}
@@ -196,6 +203,8 @@ export function BoardColumn({
 											isOpenPrLoading={openPrTaskLoadingById?.[card.id] ?? false}
 											isCopyEvidenceLoading={copyEvidenceLoadingById?.[card.id] ?? false}
 											isMoveToTrashLoading={moveToTrashLoadingById?.[card.id] ?? false}
+											isReplayLoading={replayTaskLoadingById?.[card.id] ?? false}
+											replayCardsEnabled={replayCardsEnabled}
 											onDependencyPointerDown={onDependencyPointerDown}
 											onDependencyPointerEnter={onDependencyPointerEnter}
 											isDependencySource={dependencySourceTaskId === card.id}

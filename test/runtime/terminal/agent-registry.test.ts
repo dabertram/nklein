@@ -22,6 +22,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		selectedAgentId: "claude",
 		selectedShortcutLabel: null,
 		developerModeEnabled: false,
+		replayCardsEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",
@@ -149,18 +150,22 @@ describe("buildRuntimeConfigResponse", () => {
 	});
 
 	it("returns the normalized developer mode setting from runtime config", () => {
-		const response = buildRuntimeConfigResponse(createRuntimeConfigState({ developerModeEnabled: true }), {
-			providerId: null,
-			modelId: null,
-			baseUrl: null,
-			apiKeyConfigured: false,
-			oauthProvider: null,
-			oauthAccessTokenConfigured: false,
-			oauthRefreshTokenConfigured: false,
-			oauthAccountId: null,
-			oauthExpiresAt: null,
-		});
+		const response = buildRuntimeConfigResponse(
+			createRuntimeConfigState({ developerModeEnabled: true, replayCardsEnabled: true }),
+			{
+				providerId: null,
+				modelId: null,
+				baseUrl: null,
+				apiKeyConfigured: false,
+				oauthProvider: null,
+				oauthAccessTokenConfigured: false,
+				oauthRefreshTokenConfigured: false,
+				oauthAccountId: null,
+				oauthExpiresAt: null,
+			},
+		);
 		expect(response.developerModeEnabled).toBe(true);
+		expect(response.replayCardsEnabled).toBe(true);
 	});
 
 	it("does not let debug env override a normalized developer mode false response", () => {

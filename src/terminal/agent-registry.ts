@@ -136,6 +136,7 @@ export function buildRuntimeConfigResponse(
 		codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
 		developerModeEnabled: runtimeConfig.developerModeEnabled,
+		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,
 		projectConfigPath: runtimeConfig.projectConfigPath,

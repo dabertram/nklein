@@ -339,6 +339,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		selectedAgentId: "cline",
 		selectedShortcutLabel: null,
 		developerModeEnabled: false,
+		replayCardsEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

@@ -92,6 +92,7 @@ export function KanbanBoard({
 	onCreateTask,
 	onStartTask,
 	onDecomposeTask,
+	onReplayTask,
 	onStartAllTasks,
 	onClearTrash,
 	editingTaskId,
@@ -106,6 +107,7 @@ export function KanbanBoard({
 	commitTaskLoadingById,
 	openPrTaskLoadingById,
 	moveToTrashLoadingById,
+	replayTaskLoadingById,
 	dependencies,
 	onCreateDependency,
 	onDeleteDependency,
@@ -116,6 +118,7 @@ export function KanbanBoard({
 	runtimeConfig,
 	onRuntimeConfigChanged,
 	onTaskSessionSummary,
+	replayCardsEnabled = false,
 	defaultClineModelId,
 }: {
 	data: BoardData;
@@ -124,6 +127,7 @@ export function KanbanBoard({
 	onCreateTask: () => void;
 	onStartTask?: (taskId: string) => void;
 	onDecomposeTask?: (taskId: string) => void;
+	onReplayTask?: (taskId: string) => void;
 	onStartAllTasks?: () => void;
 	onClearTrash?: () => void;
 	editingTaskId?: string | null;
@@ -138,6 +142,7 @@ export function KanbanBoard({
 	commitTaskLoadingById?: Record<string, boolean>;
 	openPrTaskLoadingById?: Record<string, boolean>;
 	moveToTrashLoadingById?: Record<string, boolean>;
+	replayTaskLoadingById?: Record<string, boolean>;
 	dependencies: BoardDependency[];
 	onCreateDependency?: (fromTaskId: string, toTaskId: string) => void;
 	onDeleteDependency?: (dependencyId: string) => void;
@@ -148,6 +153,7 @@ export function KanbanBoard({
 	runtimeConfig?: RuntimeConfigResponse | null;
 	onRuntimeConfigChanged?: () => void;
 	onTaskSessionSummary?: (summary: RuntimeTaskSessionSummary) => void;
+	replayCardsEnabled?: boolean;
 	defaultClineModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
@@ -777,6 +783,7 @@ export function KanbanBoard({
 							onStartTask={column.id === "backlog" ? onStartTask : undefined}
 							onPauseTask={currentProjectId ? handlePauseTask : undefined}
 							onResumeTask={currentProjectId ? handleResumeTask : undefined}
+							onReplayTask={onReplayTask}
 							onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
 							onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
 							onClearTrash={column.id === "trash" ? onClearTrash : undefined}
@@ -794,6 +801,7 @@ export function KanbanBoard({
 							openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
 							copyEvidenceLoadingById={copyEvidenceTaskId ? { [copyEvidenceTaskId]: true } : undefined}
 							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
+							replayTaskLoadingById={replayTaskLoadingById}
 							activeDragTaskId={activeDragTaskId}
 							activeDragSourceColumnId={activeDragSourceColumnId}
 							programmaticCardMoveInFlight={programmaticCardMoveInFlight}
@@ -803,6 +811,7 @@ export function KanbanBoard({
 							dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
 							isDependencyLinking={dependencyLinking.draft !== null}
 							workspacePath={workspacePath}
+							replayCardsEnabled={replayCardsEnabled}
 							defaultClineModelId={defaultClineModelId}
 							onCardClick={(card) => {
 								if (!dragOccurredRef.current) {

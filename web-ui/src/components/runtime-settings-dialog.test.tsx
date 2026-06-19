@@ -320,6 +320,7 @@ const savedClineOauthConfig = {
 	lostHeartbeatPolicy: "park",
 	decompositionAutoApplyEnabled: true,
 	readyForReviewNotificationsEnabled: false,
+	replayCardsEnabled: false,
 	effectiveCommand: "cline",
 	detectedCommands: [],
 	shortcuts: [],
@@ -677,6 +678,35 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("Acceptance gate");
 		expect(document.body.textContent).toContain("Telemetry");
 		expect(document.body.textContent).toContain(".cline/nklein/telemetry, limit 20");
+	});
+
+	it("saves the replay cards opt-in from general settings", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const replaySwitch = document.body.querySelector<HTMLElement>("#runtime-settings-replay-cards");
+		expect(replaySwitch).toBeInstanceOf(HTMLElement);
+
+		await act(async () => {
+			replaySwitch?.click();
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				replayCardsEnabled: true,
+			}),
+		);
 	});
 
 	it("saves the lost heartbeat policy from advanced settings", async () => {

@@ -27,6 +27,7 @@ interface RuntimeGlobalConfigFileShape {
 	selectedAgentId?: RuntimeAgentId;
 	selectedShortcutLabel?: string;
 	developerModeEnabled?: boolean;
+	replayCardsEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -57,6 +58,7 @@ export interface RuntimeConfigState {
 	selectedAgentId: RuntimeAgentId;
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
+	replayCardsEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -85,6 +87,7 @@ export interface RuntimeConfigUpdateInput {
 	selectedAgentId?: RuntimeAgentId;
 	selectedShortcutLabel?: string | null;
 	developerModeEnabled?: boolean;
+	replayCardsEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -115,6 +118,7 @@ const PROJECT_CONFIG_FILENAME = "config.json";
 const DEFAULT_AGENT_ID: RuntimeAgentId = "cline";
 const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = [];
 const DEFAULT_DEVELOPER_MODE_ENABLED = false;
+const DEFAULT_REPLAY_CARDS_ENABLED = false;
 const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
@@ -520,6 +524,7 @@ function toRuntimeConfigState({
 		selectedAgentId: normalizeAgentId(globalConfig?.selectedAgentId),
 		selectedShortcutLabel: normalizeShortcutLabel(globalConfig?.selectedShortcutLabel),
 		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
+		replayCardsEnabled: normalizeBoolean(globalConfig?.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -572,6 +577,7 @@ async function writeRuntimeGlobalConfigFile(
 		selectedAgentId?: RuntimeAgentId;
 		selectedShortcutLabel?: string | null;
 		developerModeEnabled?: boolean;
+		replayCardsEnabled?: boolean;
 		agentAutonomousModeEnabled?: boolean;
 		agentTimeoutMode?: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -602,6 +608,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.developerModeEnabled === undefined
 			? DEFAULT_DEVELOPER_MODE_ENABLED
 			: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
+	const replayCardsEnabled =
+		config.replayCardsEnabled === undefined
+			? DEFAULT_REPLAY_CARDS_ENABLED
+			: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
@@ -696,6 +706,9 @@ async function writeRuntimeGlobalConfigFile(
 		developerModeEnabled !== DEFAULT_DEVELOPER_MODE_ENABLED
 	) {
 		payload.developerModeEnabled = developerModeEnabled;
+	}
+	if (hasOwnKey(existing, "replayCardsEnabled") || replayCardsEnabled !== DEFAULT_REPLAY_CARDS_ENABLED) {
+		payload.replayCardsEnabled = replayCardsEnabled;
 	}
 	if (
 		hasOwnKey(existing, "agentAutonomousModeEnabled") ||
@@ -849,6 +862,7 @@ function createRuntimeConfigStateFromValues(input: {
 	selectedAgentId: RuntimeAgentId;
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
+	replayCardsEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -875,6 +889,7 @@ function createRuntimeConfigStateFromValues(input: {
 		selectedAgentId: normalizeAgentId(input.selectedAgentId),
 		selectedShortcutLabel: normalizeShortcutLabel(input.selectedShortcutLabel),
 		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
+		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -921,6 +936,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		selectedAgentId: current.selectedAgentId,
 		selectedShortcutLabel: current.selectedShortcutLabel,
 		developerModeEnabled: current.developerModeEnabled,
+		replayCardsEnabled: current.replayCardsEnabled,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -971,6 +987,7 @@ export async function saveRuntimeConfig(
 		selectedAgentId: RuntimeAgentId;
 		selectedShortcutLabel: string | null;
 		developerModeEnabled?: boolean;
+		replayCardsEnabled?: boolean;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -998,6 +1015,7 @@ export async function saveRuntimeConfig(
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
+			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -1029,6 +1047,7 @@ export async function saveRuntimeConfig(
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
+			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -1070,6 +1089,10 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.developerModeEnabled === undefined
 					? current.developerModeEnabled
 					: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
+			replayCardsEnabled:
+				updates.replayCardsEnabled === undefined
+					? current.replayCardsEnabled
+					: normalizeBoolean(updates.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 			agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
 			agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
@@ -1115,6 +1138,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.selectedAgentId !== current.selectedAgentId ||
 			nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
 			nextConfig.developerModeEnabled !== current.developerModeEnabled ||
+			nextConfig.replayCardsEnabled !== current.replayCardsEnabled ||
 			nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 			nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
 			nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
@@ -1143,6 +1167,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 			developerModeEnabled: nextConfig.developerModeEnabled,
+			replayCardsEnabled: nextConfig.replayCardsEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
 			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1171,6 +1196,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 			developerModeEnabled: nextConfig.developerModeEnabled,
+			replayCardsEnabled: nextConfig.replayCardsEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			agentTimeoutMode: nextConfig.agentTimeoutMode,
 			agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1217,6 +1243,10 @@ export async function updateGlobalRuntimeConfig(
 					updates.developerModeEnabled === undefined
 						? current.developerModeEnabled
 						: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
+				replayCardsEnabled:
+					updates.replayCardsEnabled === undefined
+						? current.replayCardsEnabled
+						: normalizeBoolean(updates.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 				agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
 				agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
 				agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
@@ -1262,6 +1292,7 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.selectedAgentId !== current.selectedAgentId ||
 				nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
 				nextConfig.developerModeEnabled !== current.developerModeEnabled ||
+				nextConfig.replayCardsEnabled !== current.replayCardsEnabled ||
 				nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
 				nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
 				nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
@@ -1288,6 +1319,7 @@ export async function updateGlobalRuntimeConfig(
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 				developerModeEnabled: nextConfig.developerModeEnabled,
+				replayCardsEnabled: nextConfig.replayCardsEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
 				agentTimeoutProfile: nextConfig.agentTimeoutProfile,
@@ -1313,6 +1345,7 @@ export async function updateGlobalRuntimeConfig(
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
 				developerModeEnabled: nextConfig.developerModeEnabled,
+				replayCardsEnabled: nextConfig.replayCardsEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				agentTimeoutMode: nextConfig.agentTimeoutMode,
 				agentTimeoutProfile: nextConfig.agentTimeoutProfile,

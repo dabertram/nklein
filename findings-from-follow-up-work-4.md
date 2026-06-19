@@ -38,6 +38,7 @@
   - Until those executor calls await the pause gate, a turn that already received tool calls may still run side effects before the checkpoint parks the next turn.
   - This should be implemented with abort-signal handling so stopping or aborting a paused task rejects any queued tool waiters cleanly.
 
-- [ ] Add replay only after its destructive reset semantics are explicit and tested.
-  - The `replayCardsEnabled` setting, finished-card `Replay` affordance, confirmation prompt, and task worktree/session reset path are still open.
-  - Replay should not reuse the pause/resume continuation path; it must deliberately clear/recreate task execution state and start from the card prompt.
+- [x] Add replay only after its destructive reset semantics are explicit and tested.
+  - Replay is now gated by the global `replayCardsEnabled` setting, which defaults to false and is saved through the normal runtime config path.
+  - Finished cards show no action by default; when enabled, Replay confirms with the user, stops any old session, deletes the prior task workspace, clears stale session/workspace metadata, recreates the workspace, and starts from the original card prompt.
+  - Tests cover the setting persistence, settings switch save path, finished-card affordance, and interaction-hook reset/start sequence.

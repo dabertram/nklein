@@ -635,6 +635,7 @@ export default function App(): ReactElement {
 		handleStartTask,
 		handleStartAllBacklogTasks,
 		handleDecomposeTask,
+		handleReplayTask,
 		handleDetailTaskDragEnd,
 		handleCardSelect,
 		handleMoveToTrash,
@@ -646,6 +647,7 @@ export default function App(): ReactElement {
 		handleAddReviewComments,
 		handleSendReviewComments,
 		moveToTrashLoadingById,
+		replayTaskLoadingById,
 		trashTaskCount,
 	} = useBoardInteractions({
 		board,
@@ -1064,10 +1066,12 @@ export default function App(): ReactElement {
 													refreshSettingsRuntimeProjectConfig();
 												}}
 												onTaskSessionSummary={upsertSession}
+												replayCardsEnabled={runtimeProjectConfig?.replayCardsEnabled ?? false}
 												onCardSelect={handleCardSelect}
 												onCreateTask={handleOpenCreateTask}
 												onStartTask={handleStartTaskFromBoard}
 												onDecomposeTask={handleDecomposeTask}
+												onReplayTask={handleReplayTask}
 												onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 												onClearTrash={handleOpenClearTrash}
 												editingTaskId={editingTaskId}
@@ -1080,6 +1084,7 @@ export default function App(): ReactElement {
 												commitTaskLoadingById={commitTaskLoadingById}
 												openPrTaskLoadingById={openPrTaskLoadingById}
 												moveToTrashLoadingById={moveToTrashLoadingById}
+												replayTaskLoadingById={replayTaskLoadingById}
 												onMoveToTrashTask={handleMoveReviewCardToTrash}
 												onRestoreFromTrashTask={handleRestoreTaskFromTrash}
 												dependencies={board.dependencies}

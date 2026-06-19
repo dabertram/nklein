@@ -156,6 +156,7 @@ export interface UseBoardInteractionsResult {
 	handleStartTask: (taskId: string) => void;
 	handleStartAllBacklogTasks: (taskIds?: string[]) => void;
 	handleDecomposeTask: (taskId: string) => void;
+	handleReplayTask: (taskId: string) => void;
 	handleDetailTaskDragEnd: (result: DropResult) => void;
 	handleCardSelect: (taskId: string) => void;
 	handleMoveToTrash: () => void;
@@ -167,6 +168,7 @@ export interface UseBoardInteractionsResult {
 	handleAddReviewComments: (taskId: string, text: string) => Promise<void>;
 	handleSendReviewComments: (taskId: string, text: string) => Promise<void>;
 	moveToTrashLoadingById: Record<string, boolean>;
+	replayTaskLoadingById: Record<string, boolean>;
 	trashTaskCount: number;
 }
 
@@ -196,10 +198,12 @@ export function useBoardInteractions({
 	const previousSessionsRef = useRef<Record<string, RuntimeTaskSessionSummary>>({});
 	const notificationPermissionPromptInFlightRef = useRef(false);
 	const moveToTrashLoadingByIdRef = useRef<Record<string, true>>({});
+	const replayTaskLoadingByIdRef = useRef<Record<string, true>>({});
 	const pendingProgrammaticStartMoveCompletionByTaskIdRef = useRef<
 		Record<string, PendingProgrammaticStartMoveCompletion>
 	>({});
 	const [moveToTrashLoadingById, setMoveToTrashLoadingById] = useState<Record<string, boolean>>({});
+	const [replayTaskLoadingById, setReplayTaskLoadingById] = useState<Record<string, boolean>>({});
 	const {
 		handleProgrammaticCardMoveReady,
 		setRequestMoveTaskToTrashHandler,
@@ -855,6 +859,107 @@ export function useBoardInteractions({
 		],
 	);
 
+	const handleReplayTask = useCallback(
+		(taskId: string) => {
+			const selection = findCardSelection(board, taskId);
+			if (!selection || !["review", "completed", "trash"].includes(selection.column.id)) {
+				return;
+			}
+			if (replayTaskLoadingByIdRef.current[taskId]) {
+				return;
+			}
+			const activeFileOwners = getSessionActiveTaskCardsForFileOverlap(board, sessions, new Set([taskId]));
+			if (hasLikelyTouchedFileOverlap(selection.card, activeFileOwners)) {
+				notifyError("Another running task likely touches the same files. Wait for it to finish before replaying.");
+				return;
+			}
+			const availableStartSlots = Math.max(0, Math.max(1, Math.trunc(maxConcurrentTasks)) - activeTaskSessionCount);
+			if (availableStartSlots === 0) {
+				notifyError("Maximum concurrent task limit reached. Wait for a running task to finish before replaying.");
+				return;
+			}
+			const title = selection.card.title.trim() || "this task";
+			if (
+				!window.confirm(
+					`Replay "${title}" from scratch? This stops any existing session and deletes the previous task workspace.`,
+				)
+			) {
+				return;
+			}
+
+			replayTaskLoadingByIdRef.current = {
+				...replayTaskLoadingByIdRef.current,
+				[taskId]: true,
+			};
+			setReplayTaskLoadingById({ ...replayTaskLoadingByIdRef.current });
+			maybeRequestNotificationPermissionForTaskStart();
+
+			void (async () => {
+				try {
+					await stopTaskSession(taskId);
+					const cleanupResult = await cleanupTaskWorkspace(taskId);
+					if (cleanupResult === null) {
+						notifyError("Could not clean up the previous task workspace.");
+						return;
+					}
+					clearTaskWorkspaceInfo(taskId);
+					setSessions((currentSessions) => {
+						const nextSessions = { ...currentSessions };
+						delete nextSessions[taskId];
+						return nextSessions;
+					});
+					const ensured = await ensureTaskWorkspace(selection.card);
+					if (!ensured.ok) {
+						notifyError(ensured.message ?? "Could not set up task workspace.");
+						return;
+					}
+					if (ensured.response?.warning) {
+						showAppToast({
+							intent: "warning",
+							icon: "warning-sign",
+							message: ensured.response.warning,
+							timeout: 7000,
+						});
+					}
+					const started = await startTaskSession(selection.card, { queueOnEndpointBusy: true });
+					if (!started.ok) {
+						notifyError(started.message ?? "Could not replay task.");
+						return;
+					}
+					setBoard((currentBoard) => {
+						const moved = moveTaskToColumn(currentBoard, taskId, getTaskActiveColumnId(selection.card), {
+							insertAtTop: true,
+						});
+						let nextBoard = moved.moved ? moved.board : currentBoard;
+						nextBoard = updateTaskAutoReviewNotice(nextBoard, taskId, null).board;
+						nextBoard = updateTaskBlockedState(nextBoard, taskId, null).board;
+						return nextBoard;
+					});
+					setSelectedTaskId(taskId);
+				} finally {
+					const nextLoadingById = { ...replayTaskLoadingByIdRef.current };
+					delete nextLoadingById[taskId];
+					replayTaskLoadingByIdRef.current = nextLoadingById;
+					setReplayTaskLoadingById(nextLoadingById);
+				}
+			})();
+		},
+		[
+			activeTaskSessionCount,
+			board,
+			cleanupTaskWorkspace,
+			ensureTaskWorkspace,
+			maxConcurrentTasks,
+			maybeRequestNotificationPermissionForTaskStart,
+			sessions,
+			setBoard,
+			setSelectedTaskId,
+			setSessions,
+			startTaskSession,
+			stopTaskSession,
+		],
+	);
+
 	const handleDecomposeTask = useCallback(
 		(taskId: string) => {
 			const selection = findCardSelection(board, taskId);
@@ -1037,7 +1142,9 @@ export function useBoardInteractions({
 	const resetBoardInteractionsState = useCallback(() => {
 		previousSessionsRef.current = {};
 		moveToTrashLoadingByIdRef.current = {};
+		replayTaskLoadingByIdRef.current = {};
 		setMoveToTrashLoadingById({});
+		setReplayTaskLoadingById({});
 		for (const taskId of Object.keys(pendingProgrammaticStartMoveCompletionByTaskIdRef.current)) {
 			resolvePendingProgrammaticStartMove(taskId, false);
 		}
@@ -1058,6 +1165,7 @@ export function useBoardInteractions({
 		handleStartTask,
 		handleStartAllBacklogTasks,
 		handleDecomposeTask,
+		handleReplayTask,
 		handleDetailTaskDragEnd,
 		handleCardSelect,
 		handleMoveToTrash,
@@ -1069,6 +1177,7 @@ export function useBoardInteractions({
 		handleAddReviewComments,
 		handleSendReviewComments,
 		moveToTrashLoadingById,
+		replayTaskLoadingById,
 		trashTaskCount,
 	};
 }

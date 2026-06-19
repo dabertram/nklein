@@ -239,15 +239,39 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("Auto-commit did not start. Review the task worktree.");
 	});
 
-	it("shows a loading state on the review completed button while moving to completed", async () => {
+	it("does not show a finished-card action when replay is disabled", async () => {
 		await act(async () => {
-			root.render(<BoardCard card={createCard()} index={0} columnId="review" isMoveToTrashLoading />);
+			root.render(<BoardCard card={createCard()} index={0} columnId="review" />);
 		});
 
-		const completeButton = container.querySelector('button[aria-label="Move task to completed"]');
-		expect(completeButton).toBeInstanceOf(HTMLButtonElement);
-		expect((completeButton as HTMLButtonElement | null)?.disabled).toBe(true);
-		expect(completeButton?.querySelector("svg.animate-spin")).toBeTruthy();
+		expect(container.querySelector('button[aria-label="Move task to completed"]')).toBeNull();
+		expect(container.querySelector('button[aria-label="Replay task"]')).toBeNull();
+	});
+
+	it("shows a replay control for finished cards when replay is enabled", async () => {
+		const handleReplayTask = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="completed"
+					replayCardsEnabled
+					onReplayTask={handleReplayTask}
+				/>,
+			);
+		});
+
+		const replayButton = container.querySelector<HTMLButtonElement>('button[aria-label="Replay task"]');
+		expect(replayButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			replayButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			replayButton?.click();
+		});
+
+		expect(handleReplayTask).toHaveBeenCalledWith("task-1");
 	});
 
 	it("shows a pause control for running task sessions", async () => {

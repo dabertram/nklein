@@ -2,18 +2,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
-import {
-	AlertCircle,
-	AlertTriangle,
-	Bot,
-	Check,
-	Clipboard,
-	GitBranch,
-	Pause,
-	Pencil,
-	Play,
-	RotateCcw,
-} from "lucide-react";
+import { AlertCircle, AlertTriangle, Bot, Clipboard, GitBranch, Pause, Pencil, Play, RotateCcw } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -395,9 +384,8 @@ export function BoardCard({
 	onStart,
 	onPauseTask,
 	onResumeTask,
+	onReplayTask,
 	onDecompose,
-	onMoveToTrash,
-	onRestoreFromTrash,
 	onSaveTitle,
 	onCommit,
 	onOpenPr,
@@ -406,7 +394,8 @@ export function BoardCard({
 	isCommitLoading = false,
 	isOpenPrLoading = false,
 	isCopyEvidenceLoading = false,
-	isMoveToTrashLoading = false,
+	isReplayLoading = false,
+	replayCardsEnabled = false,
 	onDependencyPointerDown,
 	onDependencyPointerEnter,
 	isDependencySource = false,
@@ -424,6 +413,7 @@ export function BoardCard({
 	onStart?: (taskId: string) => void;
 	onPauseTask?: (taskId: string) => void;
 	onResumeTask?: (taskId: string) => void;
+	onReplayTask?: (taskId: string) => void;
 	onDecompose?: (taskId: string) => void;
 	onMoveToTrash?: (taskId: string) => void;
 	onRestoreFromTrash?: (taskId: string) => void;
@@ -436,6 +426,8 @@ export function BoardCard({
 	isOpenPrLoading?: boolean;
 	isCopyEvidenceLoading?: boolean;
 	isMoveToTrashLoading?: boolean;
+	isReplayLoading?: boolean;
+	replayCardsEnabled?: boolean;
 	onDependencyPointerDown?: (taskId: string, event: MouseEvent<HTMLElement>) => void;
 	onDependencyPointerEnter?: (taskId: string) => void;
 	isDependencySource?: boolean;
@@ -457,6 +449,7 @@ export function BoardCard({
 	const reviewWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(card.id);
 	const isTrashCard = columnId === "trash";
 	const isCompletedCard = columnId === "completed";
+	const isFinishedCard = columnId === "review" || isCompletedCard || isTrashCard;
 	const isPausedSession = sessionSummary?.paused === true || sessionSummary?.state === "paused";
 	const isCardInteractive = !isTrashCard;
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
@@ -857,43 +850,22 @@ export function BoardCard({
 											onStart?.(card.id);
 										}}
 									/>
-								) : columnId === "review" ? (
-									<Button
-										icon={isMoveToTrashLoading ? <Spinner size={13} /> : <Check size={13} />}
-										variant="ghost"
-										size="sm"
-										disabled={isMoveToTrashLoading}
-										aria-label="Move task to completed"
-										onMouseDown={stopEvent}
-										onClick={(event) => {
-											stopEvent(event);
-											onMoveToTrash?.(card.id);
-										}}
-									/>
-								) : isTrashCard ? (
-									<Tooltip
-										side="bottom"
-										content={
-											<>
-												Restore session
-												<br />
-												in new worktree
-											</>
-										}
-									>
+								) : isFinishedCard ? (
+									replayCardsEnabled ? (
 										<Button
-											icon={<RotateCcw size={12} />}
+											icon={isReplayLoading ? <Spinner size={13} /> : <RotateCcw size={13} />}
 											variant="ghost"
 											size="sm"
-											aria-label="Restore task from trash"
+											disabled={isReplayLoading}
+											aria-label="Replay task"
 											onMouseDown={stopEvent}
 											onClick={(event) => {
 												stopEvent(event);
-												onRestoreFromTrash?.(card.id);
+												onReplayTask?.(card.id);
 											}}
 										/>
-									</Tooltip>
-								) : isCompletedCard ? null : null}
+									) : null
+								) : null}
 							</div>
 							{displayDescription ? (
 								<div ref={descriptionContainerRef}>
