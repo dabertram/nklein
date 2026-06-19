@@ -978,12 +978,13 @@ to `min-w-[220px]` and wraps awkwardly.
     model dropdown with no "Discover models" click.
 - [ ] **🔒 Strict isolation (★ MANDATORY WORKSTREAM):**
   - [x] `npm run sandbox:build` builds the pinned sandbox image; `docker image inspect` shows it.
-    - Recheck on 2026-06-19: Docker daemon is available, but `docker image inspect nklein-agent-sandbox:latest`
-      reported the image missing. `npm run sandbox:build` was started and then canceled after it stayed at Docker's
-      pinned `node:22-bookworm-slim` metadata step for roughly two minutes with no progress, so the remaining
-      Docker-gated manual checks are blocked until the base image can be pulled/built locally.
+    - Recheck on 2026-06-19: `npm run sandbox:build` now succeeds and builds the pinned default
+      `nklein/agent-sandbox:0.0.1`; `docker image inspect nklein/agent-sandbox:0.0.1` succeeds.
   - [x] Isolation unit tests + the **no-host-execution guard** test pass; Docker-gated integration tests pass when a
     daemon is present (and skip cleanly when not).
+    - Recheck on 2026-06-19: `npx vitest run test/integration/agent-sandbox.integration.test.ts` passed against the
+      real image, and read-only Docker cleanup checks found no remaining `nklein.kind=agent-sandbox` containers or
+      volumes afterward.
   - [ ] **Fail-closed:** stop the Docker daemon (or point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image) → creating /
     starting a task is blocked with the remediation message, and **no** session or host shell starts.
   - [ ] With Docker running, start real tasks: `docker ps` shows **one** shared `nklein.kind=agent-sandbox` container

@@ -83,14 +83,14 @@
 
 ## Runtime pause/replay work still has unsolved surfaces
 
-- [ ] Complete Docker-gated manual strict-isolation verification after the sandbox image can be built locally.
-  - Recheck on 2026-06-19 found Docker Desktop running (`docker version` succeeded), but
-    `docker image inspect nklein-agent-sandbox:latest` reported the sandbox image missing.
-  - `npm run sandbox:build` was attempted and canceled after roughly two minutes because Docker stayed at the pinned
-    `node:22-bookworm-slim` metadata step with no progress. This looked like a base-image pull/registry wait, not a
-    TypeScript/build failure.
-  - Do not mark the remaining strict-isolation manual checks complete until `npm run sandbox:build` finishes,
-    `docker image inspect nklein-agent-sandbox:latest` succeeds, and real task starts can be observed in Docker.
+- [ ] Complete real-task manual strict-isolation verification now that the sandbox image builds locally.
+  - Recheck on 2026-06-19: `npm run sandbox:build` succeeded and built the pinned default
+    `nklein/agent-sandbox:0.0.1`; `docker image inspect nklein/agent-sandbox:0.0.1` succeeds.
+  - `npx vitest run test/integration/agent-sandbox.integration.test.ts` passed against the real image. Read-only
+    cleanup checks (`docker ps -a --filter label=nklein.kind=agent-sandbox` and
+    `docker volume ls --filter label=nklein.kind=agent-sandbox`) found no remaining containers or volumes afterward.
+  - Do not mark the remaining strict-isolation manual checks complete until real Cline task starts can be observed in
+    Docker and the Settings isolation status/pool controls can be inspected in the UI.
 
 - [ ] Complete dev-build manual UI verification when the in-app browser can attach to local tabs.
   - Rechecked on 2026-06-19 with an isolated runtime home at `/private/tmp/nklein-follow-up-4-home` to avoid mutating
