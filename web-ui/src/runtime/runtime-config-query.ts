@@ -51,6 +51,7 @@ import type {
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceResponse,
+	RuntimeTaskPauseResponse,
 	RuntimeTaskWorktreeMergeResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
@@ -265,6 +266,16 @@ export async function collectTaskEvidence(
 ): Promise<RuntimeTaskEvidenceResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.collectTaskEvidence.mutate({ taskId });
+}
+
+export async function pauseTask(workspaceId: string | null, taskId: string): Promise<RuntimeTaskPauseResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.pauseTask.mutate({ taskId });
+}
+
+export async function resumeTask(workspaceId: string | null, taskId: string): Promise<RuntimeTaskPauseResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.resumeTask.mutate({ taskId });
 }
 
 export async function createDevTestProject(

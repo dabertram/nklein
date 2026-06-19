@@ -34,6 +34,7 @@ import {
 	type RuntimeTaskChatSendRequest,
 	type RuntimeTaskContextImportRequest,
 	type RuntimeTaskEvidenceRequest,
+	type RuntimeTaskPauseRequest,
 	type RuntimeTaskSessionInputRequest,
 	type RuntimeTaskSessionStartRequest,
 	type RuntimeTaskSessionStopRequest,
@@ -77,6 +78,7 @@ import {
 	runtimeTaskChatSendRequestSchema,
 	runtimeTaskContextImportRequestSchema,
 	runtimeTaskEvidenceRequestSchema,
+	runtimeTaskPauseRequestSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionStartRequestSchema,
 	runtimeTaskSessionStopRequestSchema,
@@ -301,6 +303,17 @@ export function parseTaskSessionStopRequest(value: unknown): RuntimeTaskSessionS
 	const taskId = parsed.taskId.trim();
 	if (!taskId) {
 		throw new Error("Invalid task session stop payload.");
+	}
+	return {
+		taskId,
+	};
+}
+
+export function parseTaskPauseRequest(value: unknown): RuntimeTaskPauseRequest {
+	const parsed = parseWithSchema(runtimeTaskPauseRequestSchema, value);
+	const taskId = parsed.taskId.trim();
+	if (!taskId) {
+		throw new Error("Task pause taskId cannot be empty.");
 	}
 	return {
 		taskId,

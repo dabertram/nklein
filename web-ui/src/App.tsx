@@ -1063,6 +1063,7 @@ export default function App(): ReactElement {
 													refreshRuntimeProjectConfig();
 													refreshSettingsRuntimeProjectConfig();
 												}}
+												onTaskSessionSummary={upsertSession}
 												onCardSelect={handleCardSelect}
 												onCreateTask={handleOpenCreateTask}
 												onStartTask={handleStartTaskFromBoard}

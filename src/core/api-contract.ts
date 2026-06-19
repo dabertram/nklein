@@ -379,6 +379,7 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	startedAt: z.number().nullable(),
 	updatedAt: z.number(),
 	lastOutputAt: z.number().nullable(),
+	paused: z.boolean().optional(),
 	lastTokenAt: z.number().nullable().optional(),
 	lastHeartbeatAt: z.number().nullable().optional(),
 	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable().optional(),
@@ -1657,6 +1658,19 @@ export const runtimeTaskSessionStopResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeTaskSessionStopResponse = z.infer<typeof runtimeTaskSessionStopResponseSchema>;
+
+export const runtimeTaskPauseRequestSchema = z.object({
+	taskId: z.string(),
+});
+export type RuntimeTaskPauseRequest = z.infer<typeof runtimeTaskPauseRequestSchema>;
+
+export const runtimeTaskPauseResponseSchema = z.object({
+	ok: z.boolean(),
+	summary: runtimeTaskSessionSummarySchema.nullable(),
+	pausedTaskIds: z.array(z.string()),
+	error: z.string().optional(),
+});
+export type RuntimeTaskPauseResponse = z.infer<typeof runtimeTaskPauseResponseSchema>;
 
 export const runtimeSwarmStopSignalSchema = z.object({
 	stopped: z.literal(true),

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineModelRegistryEntry } from "../../../src/cline-sdk/cline-model-registry";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 import { saveWorkspaceState } from "../../../src/state/workspace-state";
 
@@ -2472,40 +2473,47 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("routes cline task input and stop to cline task session service", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
-		const terminalManager = {
-			writeInput: vi.fn(),
-			stopTaskSession: vi.fn(),
-		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
-		clineTaskSessionService.stopTaskSession.mockResolvedValue(summary);
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-cline-task-stop-"));
+		try {
+			const summary = createSummary({ agentId: "cline", pid: null, paused: true });
+			const terminalManager = {
+				writeInput: vi.fn(),
+				stopTaskSession: vi.fn(),
+			};
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+			clineTaskSessionService.stopTaskSession.mockResolvedValue(summary);
+			await setCardPaused({ workspacePath, taskId: "task-1", paused: true });
 
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+			const scope = { workspaceId: "workspace-1", workspacePath };
 
-		const sendResponse = await api.sendTaskSessionInput(
-			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ taskId: "task-1", text: "hello", appendNewline: true },
-		);
-		expect(sendResponse.ok).toBe(true);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello\n");
-		expect(terminalManager.writeInput).not.toHaveBeenCalled();
+			const sendResponse = await api.sendTaskSessionInput(scope, {
+				taskId: "task-1",
+				text: "hello",
+				appendNewline: true,
+			});
+			expect(sendResponse.ok).toBe(true);
+			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello\n");
+			expect(terminalManager.writeInput).not.toHaveBeenCalled();
 
-		const stopResponse = await api.stopTaskSession(
-			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ taskId: "task-1" },
-		);
-		expect(stopResponse.ok).toBe(true);
-		expect(clineTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
-		expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
+			const stopResponse = await api.stopTaskSession(scope, { taskId: "task-1" });
+			expect(stopResponse.ok).toBe(true);
+			expect(stopResponse.summary?.paused).toBe(false);
+			expect(clineTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
+			expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
+			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
 	});
 
 	it("manages workspace swarm stop signal through runtime api", async () => {
@@ -2517,7 +2525,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(),
-				getScopedClineTaskSessionService: vi.fn(),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
 				getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
@@ -2545,6 +2553,100 @@ describe("createRuntimeApi startTaskSession", () => {
 			expect(clineTaskSessionService.setBoardPaused).toHaveBeenLastCalledWith(false);
 			expect(clineTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
 			await expect(api.getSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	it("persists and resumes per-card pause state through runtime api", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-card-pause-api-"));
+		try {
+			const runningSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
+			const resumedSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			clineTaskSessionService.getSummary.mockReturnValue(runningSummary);
+			clineTaskSessionService.resumePausedTasks.mockResolvedValue([resumedSummary]);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+			const scope = { workspaceId: "workspace-1", workspacePath };
+
+			const pauseResponse = await api.pauseTask(scope, { taskId: " task-1 " });
+			expect(pauseResponse).toMatchObject({
+				ok: true,
+				pausedTaskIds: ["task-1"],
+				summary: {
+					taskId: "task-1",
+					paused: true,
+				},
+			});
+			expect(clineTaskSessionService.setCardPaused).toHaveBeenCalledWith("task-1", true);
+			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set(["task-1"]));
+
+			const resumeResponse = await api.resumeTask(scope, { taskId: "task-1" });
+			expect(resumeResponse).toMatchObject({
+				ok: true,
+				pausedTaskIds: [],
+				summary: {
+					taskId: "task-1",
+					paused: false,
+				},
+			});
+			expect(clineTaskSessionService.setCardPaused).toHaveBeenLastCalledWith("task-1", false);
+			expect(clineTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
+			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	it("rebinds a persisted paused cline session before card resume after runtime restart", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-card-pause-rebind-api-"));
+		try {
+			const reboundSummary = createSummary({
+				agentId: "cline",
+				taskId: "task-1",
+				state: "awaiting_review",
+			});
+			const resumedSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
+			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			clineTaskSessionService.getSummary.mockReturnValue(null);
+			clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
+			clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(resumedSummary);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(),
+				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+			const scope = { workspaceId: "workspace-1", workspacePath };
+			await setCardPaused({ workspacePath, taskId: "task-1", paused: true });
+
+			const resumeResponse = await api.resumeTask(scope, { taskId: "task-1" });
+
+			expect(resumeResponse).toMatchObject({
+				ok: true,
+				pausedTaskIds: [],
+				summary: {
+					taskId: "task-1",
+					paused: false,
+				},
+			});
+			expect(clineTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
+			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+				"task-1",
+				"Continue from the paused checkpoint.",
+			);
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
 		}

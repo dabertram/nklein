@@ -28,10 +28,10 @@
 
 ## Runtime pause/replay work still has unsolved surfaces
 
-- [ ] Finish per-card pause/resume as a complete API + UI feature, not just a service primitive.
-  - The board-level pause core now parks native Cline sessions as `state: "paused"` at the next turn checkpoint and drains those tasks when the board is resumed.
-  - Per-card pause still needs `.cline/nklein/paused-tasks.json`, `pauseTask` / `resumeTask` tRPC mutations, `BoardCard` Pause/Resume button states, board/column prop threading, and runtime-state refetch/update after mutation.
-  - Do not model card pause as only UI state. It must persist across runtime restarts and feed the same `ClinePauseController` gate used by board pause.
+- [x] Finish per-card pause/resume as a complete API + UI feature, not just a service primitive.
+  - Per-card pause now persists to `.cline/nklein/paused-tasks.json`, exposes `pauseTask` / `resumeTask` tRPC mutations, flips the shared `ClinePauseController`, and threads Pause/Resume controls through the board.
+  - Mutation responses update the parent session summary immediately, and the board overlays returned paused task ids so the card control flips without waiting for the next session event.
+  - Backend and UI coverage now exercise the persistence helper, runtime API pause/resume flow, card controls, and board-level Pause → Resume transition.
 
 - [ ] Gate sandbox/tool side effects on pause before claiming "processing goes into a queue."
   - `ClinePauseController.waitUntilResumed` exists for this purpose, but Docker-backed tool executors and acceptance-gate `runCommand` do not call it yet.

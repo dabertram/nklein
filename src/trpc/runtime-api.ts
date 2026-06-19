@@ -102,10 +102,12 @@ import {
 	parseTaskChatSendRequest,
 	parseTaskContextImportRequest,
 	parseTaskEvidenceRequest,
+	parseTaskPauseRequest,
 	parseTaskSessionInputRequest,
 	parseTaskSessionStartRequest,
 	parseTaskSessionStopRequest,
 } from "../core/api-validation";
+import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
@@ -147,6 +149,13 @@ interface AdvisorChatCompletionInput {
 
 function joinUrlPath(baseUrl: string, path: string): string {
 	return `${baseUrl.replace(/\/+$/u, "")}/${path.replace(/^\/+/u, "")}`;
+}
+
+function withTaskPausedState(
+	summary: RuntimeTaskSessionSummary | null,
+	pausedTaskIds: Set<string>,
+): RuntimeTaskSessionSummary | null {
+	return summary ? { ...summary, paused: pausedTaskIds.has(summary.taskId) } : null;
 }
 
 function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedClineLaunchConfig): string {
@@ -1330,23 +1339,104 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const body = parseTaskSessionStopRequest(input);
 				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
 				const clineSummary = await clineTaskSessionService.stopTaskSession(body.taskId);
+				const pausedTaskIds = await setCardPaused({
+					workspacePath: workspaceScope.workspacePath,
+					taskId: body.taskId,
+					paused: false,
+				});
 				if (clineSummary) {
 					return {
 						ok: true,
-						summary: clineSummary,
+						summary: withTaskPausedState(clineSummary, pausedTaskIds),
 					};
 				}
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				const summary = terminalManager.stopTaskSession(body.taskId);
 				return {
 					ok: Boolean(summary),
-					summary,
+					summary: withTaskPausedState(summary, pausedTaskIds),
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					ok: false,
 					summary: null,
+					error: message,
+				};
+			}
+		},
+		pauseTask: async (workspaceScope, input) => {
+			try {
+				const body = parseTaskPauseRequest(input);
+				const pausedTaskIds = await setCardPaused({
+					workspacePath: workspaceScope.workspacePath,
+					taskId: body.taskId,
+					paused: true,
+				});
+				const clineTaskSessionService = deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
+				clineTaskSessionService?.setCardPaused(body.taskId, true);
+				const summary = withTaskPausedState(
+					clineTaskSessionService?.getSummary(body.taskId) ?? null,
+					pausedTaskIds,
+				);
+				return {
+					ok: true,
+					summary,
+					pausedTaskIds: [...pausedTaskIds].sort(),
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				const pausedTaskIds = await readPausedTasks(workspaceScope.workspacePath);
+				return {
+					ok: false,
+					summary: null,
+					pausedTaskIds: [...pausedTaskIds].sort(),
+					error: message,
+				};
+			}
+		},
+		resumeTask: async (workspaceScope, input) => {
+			try {
+				const body = parseTaskPauseRequest(input);
+				const wasTaskPaused = (await readPausedTasks(workspaceScope.workspacePath)).has(body.taskId);
+				const pausedTaskIds = await setCardPaused({
+					workspacePath: workspaceScope.workspacePath,
+					taskId: body.taskId,
+					paused: false,
+				});
+				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+				clineTaskSessionService.setCardPaused(body.taskId, false);
+				const resumedSummaries = await clineTaskSessionService.resumePausedTasks();
+				let resumedSummary = resumedSummaries.find((summary) => summary.taskId === body.taskId) ?? null;
+				let fallbackSummary = clineTaskSessionService.getSummary(body.taskId);
+				if (!resumedSummary && !fallbackSummary && wasTaskPaused) {
+					fallbackSummary = await clineTaskSessionService
+						.rebindPersistedTaskSession(body.taskId)
+						.catch(() => null);
+				}
+				if (
+					!resumedSummary &&
+					wasTaskPaused &&
+					(fallbackSummary?.state === "paused" || fallbackSummary?.state === "awaiting_review")
+				) {
+					resumedSummary = await clineTaskSessionService.sendTaskSessionInput(
+						body.taskId,
+						"Continue from the paused checkpoint.",
+					);
+					fallbackSummary = resumedSummary ?? fallbackSummary;
+				}
+				return {
+					ok: true,
+					summary: withTaskPausedState(resumedSummary ?? fallbackSummary, pausedTaskIds),
+					pausedTaskIds: [...pausedTaskIds].sort(),
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				const pausedTaskIds = await readPausedTasks(workspaceScope.workspacePath);
+				return {
+					ok: false,
+					summary: null,
+					pausedTaskIds: [...pausedTaskIds].sort(),
 					error: message,
 				};
 			}

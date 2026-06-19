@@ -2,7 +2,18 @@ import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
-import { AlertCircle, AlertTriangle, Bot, Check, Clipboard, GitBranch, Pencil, Play, RotateCcw } from "lucide-react";
+import {
+	AlertCircle,
+	AlertTriangle,
+	Bot,
+	Check,
+	Clipboard,
+	GitBranch,
+	Pause,
+	Pencil,
+	Play,
+	RotateCcw,
+} from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -382,6 +393,8 @@ export function BoardCard({
 	selected = false,
 	onClick,
 	onStart,
+	onPauseTask,
+	onResumeTask,
 	onDecompose,
 	onMoveToTrash,
 	onRestoreFromTrash,
@@ -409,6 +422,8 @@ export function BoardCard({
 	selected?: boolean;
 	onClick?: () => void;
 	onStart?: (taskId: string) => void;
+	onPauseTask?: (taskId: string) => void;
+	onResumeTask?: (taskId: string) => void;
 	onDecompose?: (taskId: string) => void;
 	onMoveToTrash?: (taskId: string) => void;
 	onRestoreFromTrash?: (taskId: string) => void;
@@ -442,6 +457,7 @@ export function BoardCard({
 	const reviewWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(card.id);
 	const isTrashCard = columnId === "trash";
 	const isCompletedCard = columnId === "completed";
+	const isPausedSession = sessionSummary?.paused === true || sessionSummary?.state === "paused";
 	const isCardInteractive = !isTrashCard;
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
 	const rawSessionActivity = useMemo(() => getCardSessionActivity(sessionSummary), [sessionSummary]);
@@ -805,7 +821,31 @@ export function BoardCard({
 										/>
 									</Tooltip>
 								) : null}
-								{columnId === "backlog" || columnId === "planning" ? (
+								{isPausedSession ? (
+									<Button
+										icon={<Play size={14} />}
+										variant="ghost"
+										size="sm"
+										aria-label="Resume task"
+										onMouseDown={stopEvent}
+										onClick={(event) => {
+											stopEvent(event);
+											onResumeTask?.(card.id);
+										}}
+									/>
+								) : sessionSummary?.state === "running" ? (
+									<Button
+										icon={<Pause size={14} />}
+										variant="ghost"
+										size="sm"
+										aria-label="Pause task"
+										onMouseDown={stopEvent}
+										onClick={(event) => {
+											stopEvent(event);
+											onPauseTask?.(card.id);
+										}}
+									/>
+								) : columnId === "backlog" || columnId === "planning" ? (
 									<Button
 										icon={<Play size={14} />}
 										variant="ghost"

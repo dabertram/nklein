@@ -36,6 +36,7 @@
 - Added subtle per-message Cline chat timestamps with persisted collapse/expand controls and duration hover details.
 - Moved board pause stop-signal files from `.cline/kanban` to `.cline/nklein`, while reading and clearing the legacy path during the rename transition.
 - Made board pause park native Cline tasks at the next turn checkpoint with a distinct `paused` session state, aborting the SDK before another turn and automatically continuing paused tasks when the board is resumed.
+- Added per-card Pause/Resume controls backed by durable `.cline/nklein/paused-tasks.json` state, runtime API mutations, immediate board/session updates, and restart-aware Cline pause-controller hydration.
 
 - Made project registration explicit on startup, added self-source confirmation for loading !Klein as a project, and blocked implicit task-worktree project registration.
 - Added durable decomposition artifact manifests, provenance on generated Planning cards, and idempotent graph application so retrying a plan does not duplicate cards or links.

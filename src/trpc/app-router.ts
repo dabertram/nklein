@@ -114,6 +114,8 @@ import type {
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskEvidenceRequest,
 	RuntimeTaskEvidenceResponse,
+	RuntimeTaskPauseRequest,
+	RuntimeTaskPauseResponse,
 	RuntimeTaskSessionInputRequest,
 	RuntimeTaskSessionInputResponse,
 	RuntimeTaskSessionStartRequest,
@@ -247,6 +249,8 @@ import {
 	runtimeTaskDiagnosticsResponseSchema,
 	runtimeTaskEvidenceRequestSchema,
 	runtimeTaskEvidenceResponseSchema,
+	runtimeTaskPauseRequestSchema,
+	runtimeTaskPauseResponseSchema,
 	runtimeTaskSessionInputRequestSchema,
 	runtimeTaskSessionInputResponseSchema,
 	runtimeTaskSessionStartRequestSchema,
@@ -306,6 +310,14 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionStopRequest,
 		) => Promise<RuntimeTaskSessionStopResponse>;
+		pauseTask: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskPauseRequest,
+		) => Promise<RuntimeTaskPauseResponse>;
+		resumeTask: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeTaskPauseRequest,
+		) => Promise<RuntimeTaskPauseResponse>;
 		getSwarmStop: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeSwarmStopResponse>;
 		requestSwarmStop: (
 			scope: RuntimeTrpcWorkspaceScope,
@@ -638,6 +650,18 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeTaskSessionStopResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.stopTaskSession(ctx.workspaceScope, input);
+			}),
+		pauseTask: workspaceProcedure
+			.input(runtimeTaskPauseRequestSchema)
+			.output(runtimeTaskPauseResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.pauseTask(ctx.workspaceScope, input);
+			}),
+		resumeTask: workspaceProcedure
+			.input(runtimeTaskPauseRequestSchema)
+			.output(runtimeTaskPauseResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.resumeTask(ctx.workspaceScope, input);
 			}),
 		getSwarmStop: workspaceProcedure.output(runtimeSwarmStopResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getSwarmStop(ctx.workspaceScope);

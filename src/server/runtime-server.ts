@@ -17,6 +17,7 @@ import type {
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { readPausedTasks } from "../core/card-pause";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -25,6 +26,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
 	buildSessionCookieHeader,
@@ -231,6 +233,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				watcherRegistry: clineWatcherRegistry,
 				agentSandboxManager: new AgentSandboxManager(),
 			});
+			service.setBoardPaused((await readSwarmStopSignal(scope.workspacePath)) !== null);
+			for (const taskId of await readPausedTasks(scope.workspacePath)) {
+				service.setCardPaused(taskId, true);
+			}
 			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
 			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {

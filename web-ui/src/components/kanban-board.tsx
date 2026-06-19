@@ -21,6 +21,8 @@ import { Spinner } from "@/components/ui/spinner";
 import {
 	collectTaskEvidence,
 	fetchClineCodeIntelligenceStatus,
+	pauseTask,
+	resumeTask,
 	saveRuntimeConfig,
 } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
@@ -113,6 +115,7 @@ export function KanbanBoard({
 	currentProjectId,
 	runtimeConfig,
 	onRuntimeConfigChanged,
+	onTaskSessionSummary,
 	defaultClineModelId,
 }: {
 	data: BoardData;
@@ -144,6 +147,7 @@ export function KanbanBoard({
 	currentProjectId?: string | null;
 	runtimeConfig?: RuntimeConfigResponse | null;
 	onRuntimeConfigChanged?: () => void;
+	onTaskSessionSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	defaultClineModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
@@ -158,12 +162,26 @@ export function KanbanBoard({
 		useState<ProgrammaticCardMoveInFlight | null>(null);
 	const [swarmStopSignal, setSwarmStopSignal] = useState<RuntimeSwarmStopSignal | null>(null);
 	const [isSwarmStopLoading, setIsSwarmStopLoading] = useState(false);
+	const [pausedTaskIds, setPausedTaskIds] = useState<Set<string>>(() => new Set());
 	const [copyEvidenceTaskId, setCopyEvidenceTaskId] = useState<string | null>(null);
 	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
+	const displayTaskSessions = useMemo(() => {
+		if (pausedTaskIds.size === 0) {
+			return taskSessions;
+		}
+		const nextSessions: Record<string, RuntimeTaskSessionSummary> = { ...taskSessions };
+		for (const taskId of pausedTaskIds) {
+			const summary = nextSessions[taskId];
+			if (summary) {
+				nextSessions[taskId] = { ...summary, paused: true };
+			}
+		}
+		return nextSessions;
+	}, [pausedTaskIds, taskSessions]);
 	const dependencyLinking = useDependencyLinking({
 		canLinkTasks: (fromTaskId, toTaskId) => canCreateTaskDependency(data, fromTaskId, toTaskId),
 		onCreateDependency,
@@ -308,6 +326,60 @@ export function KanbanBoard({
 			setIsSwarmStopLoading(false);
 		}
 	}, [currentProjectId, isSwarmStopLoading, swarmStopSignal]);
+
+	const handlePauseTask = useCallback(
+		async (taskId: string) => {
+			if (!currentProjectId) {
+				return;
+			}
+			try {
+				const response = await pauseTask(currentProjectId, taskId);
+				if (!response.ok) {
+					throw new Error(response.error ?? "Could not pause task.");
+				}
+				setPausedTaskIds(new Set(response.pausedTaskIds));
+				if (response.summary) {
+					onTaskSessionSummary?.(response.summary);
+				}
+				showAppToast({
+					intent: "success",
+					message: "Task pause queued.",
+					timeout: 3000,
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			}
+		},
+		[currentProjectId, onTaskSessionSummary],
+	);
+
+	const handleResumeTask = useCallback(
+		async (taskId: string) => {
+			if (!currentProjectId) {
+				return;
+			}
+			try {
+				const response = await resumeTask(currentProjectId, taskId);
+				if (!response.ok) {
+					throw new Error(response.error ?? "Could not resume task.");
+				}
+				setPausedTaskIds(new Set(response.pausedTaskIds));
+				if (response.summary) {
+					onTaskSessionSummary?.(response.summary);
+				}
+				showAppToast({
+					intent: "success",
+					message: "Task resumed.",
+					timeout: 3000,
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+			}
+		},
+		[currentProjectId, onTaskSessionSummary],
+	);
 
 	const handleCopyTaskEvidence = useCallback(
 		async (taskId: string) => {
@@ -700,9 +772,11 @@ export function KanbanBoard({
 						<BoardColumn
 							key={column.id}
 							column={column}
-							taskSessions={taskSessions}
+							taskSessions={displayTaskSessions}
 							onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
 							onStartTask={column.id === "backlog" ? onStartTask : undefined}
+							onPauseTask={currentProjectId ? handlePauseTask : undefined}
+							onResumeTask={currentProjectId ? handleResumeTask : undefined}
 							onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
 							onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
 							onClearTrash={column.id === "trash" ? onClearTrash : undefined}

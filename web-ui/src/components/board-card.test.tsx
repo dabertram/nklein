@@ -250,6 +250,60 @@ describe("BoardCard", () => {
 		expect(completeButton?.querySelector("svg.animate-spin")).toBeTruthy();
 	});
 
+	it("shows a pause control for running task sessions", async () => {
+		const handlePauseTask = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running")}
+					onPauseTask={handlePauseTask}
+				/>,
+			);
+		});
+
+		const pauseButton = container.querySelector<HTMLButtonElement>('button[aria-label="Pause task"]');
+		expect(pauseButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			pauseButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			pauseButton?.click();
+		});
+
+		expect(handlePauseTask).toHaveBeenCalledWith("task-1");
+		expect(container.querySelector('button[aria-label="Resume task"]')).toBeNull();
+	});
+
+	it("shows a resume control for paused task sessions", async () => {
+		const handleResumeTask = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", { paused: true })}
+					onResumeTask={handleResumeTask}
+				/>,
+			);
+		});
+
+		const resumeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Resume task"]');
+		expect(resumeButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			resumeButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			resumeButton?.click();
+		});
+
+		expect(handleResumeTask).toHaveBeenCalledWith("task-1");
+		expect(container.querySelector('button[aria-label="Pause task"]')).toBeNull();
+	});
+
 	it("shows inline see more and less controls for long descriptions", async () => {
 		const description =
 			"Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau final hidden segment";

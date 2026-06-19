@@ -16,6 +16,8 @@ const dndMock = vi.hoisted(() => ({
 const runtimeConfigQueryMocks = vi.hoisted(() => ({
 	collectTaskEvidence: vi.fn(),
 	fetchClineCodeIntelligenceStatus: vi.fn(),
+	pauseTask: vi.fn(),
+	resumeTask: vi.fn(),
 	saveRuntimeConfig: vi.fn(),
 }));
 const runtimeTrpcMocks = vi.hoisted(() => ({
@@ -52,22 +54,42 @@ vi.mock("@hello-pangea/dnd", async () => {
 vi.mock("@/components/board-column", () => ({
 	BoardColumn: ({
 		column,
+		taskSessions,
 		onCopyTaskEvidence,
+		onPauseTask,
+		onResumeTask,
 	}: {
 		column: BoardData["columns"][number];
+		taskSessions?: Record<string, RuntimeTaskSessionSummary | undefined>;
 		onCopyTaskEvidence?: (taskId: string) => void;
+		onPauseTask?: (taskId: string) => void;
+		onResumeTask?: (taskId: string) => void;
 	}): React.ReactElement => (
 		<section data-column-id={column.id}>
 			<div className="kb-column-cards">
-				{column.cards.map((card) => (
-					<div key={card.id} data-task-id={card.id}>
-						{onCopyTaskEvidence ? (
-							<button type="button" onClick={() => onCopyTaskEvidence(card.id)}>
-								Copy evidence
-							</button>
-						) : null}
-					</div>
-				))}
+				{column.cards.map((card) => {
+					const sessionSummary = taskSessions?.[card.id];
+					const isPaused = sessionSummary?.paused === true || sessionSummary?.state === "paused";
+					return (
+						<div key={card.id} data-task-id={card.id}>
+							{sessionSummary?.state === "running" && !isPaused && onPauseTask ? (
+								<button type="button" aria-label="Pause task" onClick={() => onPauseTask(card.id)}>
+									Pause task
+								</button>
+							) : null}
+							{isPaused && onResumeTask ? (
+								<button type="button" aria-label="Resume task" onClick={() => onResumeTask(card.id)}>
+									Resume task
+								</button>
+							) : null}
+							{onCopyTaskEvidence ? (
+								<button type="button" onClick={() => onCopyTaskEvidence(card.id)}>
+									Copy evidence
+								</button>
+							) : null}
+						</div>
+					);
+				})}
 			</div>
 		</section>
 	),
@@ -88,6 +110,8 @@ vi.mock("@/components/dependencies/use-dependency-linking", () => ({
 vi.mock("@/runtime/runtime-config-query", () => ({
 	collectTaskEvidence: runtimeConfigQueryMocks.collectTaskEvidence,
 	fetchClineCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus,
+	pauseTask: runtimeConfigQueryMocks.pauseTask,
+	resumeTask: runtimeConfigQueryMocks.resumeTask,
 	saveRuntimeConfig: runtimeConfigQueryMocks.saveRuntimeConfig,
 }));
 
@@ -239,6 +263,18 @@ describe("KanbanBoard", () => {
 		});
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();
 		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockResolvedValue(null);
+		runtimeConfigQueryMocks.pauseTask.mockReset();
+		runtimeConfigQueryMocks.pauseTask.mockResolvedValue({
+			ok: true,
+			summary: null,
+			pausedTaskIds: ["task-1"],
+		});
+		runtimeConfigQueryMocks.resumeTask.mockReset();
+		runtimeConfigQueryMocks.resumeTask.mockResolvedValue({
+			ok: true,
+			summary: null,
+			pausedTaskIds: [],
+		});
 		runtimeConfigQueryMocks.saveRuntimeConfig.mockReset();
 		runtimeConfigQueryMocks.saveRuntimeConfig.mockImplementation(
 			async (_workspaceId: string | null, input: { maxConcurrentTasks?: number }) => ({
@@ -421,6 +457,95 @@ describe("KanbanBoard", () => {
 
 		expect(runtimeConfigQueryMocks.collectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
+	});
+
+	it("pauses and resumes an individual running card from board controls", async () => {
+		const pausedSummary = {
+			...createRunningSession("task-1", "lmstudio:default", "qwen3"),
+			paused: true,
+		};
+		const resumedSummary = {
+			...createRunningSession("task-1", "lmstudio:default", "qwen3"),
+			paused: false,
+		};
+		const handleTaskSessionSummary = vi.fn();
+		runtimeConfigQueryMocks.pauseTask.mockResolvedValueOnce({
+			ok: true,
+			summary: pausedSummary,
+			pausedTaskIds: ["task-1"],
+		});
+		runtimeConfigQueryMocks.resumeTask.mockResolvedValueOnce({
+			ok: true,
+			summary: resumedSummary,
+			pausedTaskIds: [],
+		});
+		const board: BoardData = {
+			columns: [
+				{
+					id: "in_progress",
+					title: "In Progress",
+					cards: [
+						{
+							id: "task-1",
+							title: "Running task",
+							prompt: "Keep working",
+							startInPlanMode: false,
+							agentId: "cline",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
+					],
+				},
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{
+						"task-1": createRunningSession("task-1", "lmstudio:default", "qwen3"),
+					}}
+					currentProjectId="workspace-1"
+					onTaskSessionSummary={handleTaskSessionSummary}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+
+		const pauseButton = container.querySelector<HTMLButtonElement>('button[aria-label="Pause task"]');
+		expect(pauseButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			pauseButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(runtimeConfigQueryMocks.pauseTask).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(handleTaskSessionSummary).toHaveBeenCalledWith(pausedSummary);
+		expect(container.querySelector('button[aria-label="Pause task"]')).toBeNull();
+		const resumeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Resume task"]');
+		expect(resumeButton).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			resumeButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(runtimeConfigQueryMocks.resumeTask).toHaveBeenCalledWith("workspace-1", "task-1");
+		expect(handleTaskSessionSummary).toHaveBeenLastCalledWith(resumedSummary);
+		expect(container.querySelector('button[aria-label="Resume task"]')).toBeNull();
+		expect(container.querySelector('button[aria-label="Pause task"]')).toBeInstanceOf(HTMLButtonElement);
 	});
 
 	it("saves the inline swarm concurrency cap", async () => {

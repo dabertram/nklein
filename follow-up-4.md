@@ -774,12 +774,12 @@ the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/c
   `abortTaskSession` to stop the SDK from issuing the next turn.
 
 **K1.4 Auto-resume on unpause (drain the queue).**
-- [ ] When the board is resumed (`clearSwarmStop`, [runtime-api.ts:825](src/trpc/runtime-api.ts#L825)) **or** a card
+- [x] When the board is resumed (`clearSwarmStop`, [runtime-api.ts:825](src/trpc/runtime-api.ts#L825)) **or** a card
   is resumed (K2), the session service must re-drive every task currently parked as `"paused"`. Re-continue via the
   existing continuation path `sendTaskSessionInput` ([cline-task-session-service.ts:1651](src/cline-sdk/cline-task-session-service.ts#L1651))
   with an empty/continue instruction (the same way a parked task is continued today), so the agent picks up from the
   last checkpoint. Resume only tasks that were paused by this controller — never silently restart guardrail-parked or
-  failed tasks. **Board resume is done; card resume remains under K2.**
+  failed tasks. **Done for board and per-card resume; queued tool-executor gating remains K1.5.**
 - [x] `clearSwarmStop`/`requestSwarmStop` handlers must call `pauseController.setBoardPaused(...)` so the in-memory
   gate flips immediately (not only on next poll).
 
@@ -797,9 +797,9 @@ park/resume and board API drain are covered; executor gate/card-stop coverage re
 
 ### K2. Per-card pause / resume, and a replay control for finished cards
 **K2.1 Card pause store + API.**
-- [ ] Persist per-task pause in `.cline/nklein/paused-tasks.json` (a `string[]` of taskIds) via `lockedFileSystem`,
+- [x] Persist per-task pause in `.cline/nklein/paused-tasks.json` (a `string[]` of taskIds) via `lockedFileSystem`,
   mirroring `swarm-guardrails.ts`. Add `src/core/card-pause.ts` with `readPausedTasks`, `setCardPaused(taskId,bool)`.
-- [ ] tRPC: `pauseTask` / `resumeTask` mutations (schema in [api-contract.ts](src/core/api-contract.ts), parsers in
+- [x] tRPC: `pauseTask` / `resumeTask` mutations (schema in [api-contract.ts](src/core/api-contract.ts), parsers in
   [api-validation.ts](src/core/api-validation.ts), wiring in [app-router.ts](src/trpc/app-router.ts) near
   `requestSwarmStop`, handlers in [runtime-api.ts](src/trpc/runtime-api.ts)). Both call
   `pauseController.setCardPaused(...)` and persist. Include `paused: boolean` on the task session summary
@@ -808,14 +808,15 @@ park/resume and board API drain are covered; executor gate/card-stop coverage re
 **K2.2 Toggle the card's start button → Pause → Resume (per user's exact ask).** Today the action button is
 column-scoped in [board-card.tsx:808-819](web-ui/src/components/board-card.tsx#L808): `backlog`/`planning` show
 "Start task" (`Play`, `onStart`), `review` shows "Move to completed". Extend:
-- [ ] **Not started** (`backlog`/`planning`): keep "Start task" (`Play`).
-- [ ] **Running** (in-progress, `summary.state === "running"` and not paused): show **Pause** (`Pause` icon,
+- [x] **Not started** (`backlog`/`planning`): keep "Start task" (`Play`).
+- [x] **Running** (in-progress, `summary.state === "running"` and not paused): show **Pause** (`Pause` icon,
   `aria-label="Pause task"`, `onPauseTask?.(card.id)`).
-- [ ] **Paused** (`summary.state === "paused"` or in `paused-tasks`): show **Resume** (`Play` icon,
+- [x] **Paused** (`summary.state === "paused"` or in `paused-tasks`): show **Resume** (`Play` icon,
   `aria-label="Resume task"`, `onResumeTask?.(card.id)`).
-- [ ] Thread `onPauseTask` / `onResumeTask` props through `BoardCard` (next to `onStart`,
+- [x] Thread `onPauseTask` / `onResumeTask` props through `BoardCard` (next to `onStart`,
   [board-card.tsx:384,411](web-ui/src/components/board-card.tsx#L384)) and wire them in the board/column parent to the
-  K2.1 mutations (refetch task state after).
+  K2.1 mutations. Mutation responses update the parent session store immediately, while `pausedTaskIds` overlays keep
+  the card control in sync before the next session event/poll.
 
 **K2.3 Finished cards: disabled by default, optional Replay (off by default in global settings).**
 - [ ] Add a global setting `replayCardsEnabled: boolean` (default **false**) — implement it exactly like the §E
@@ -834,7 +835,7 @@ column-scoped in [board-card.tsx:808-819](web-ui/src/components/board-card.tsx#L
 
 **K2.4 Tests.** Running card renders Pause; clicking pauses (state → paused) and the button becomes Resume; finished
 card shows no actionable button when `replayCardsEnabled` is false and a Replay button when true; Replay re-starts the
-session.
+session. **Per-card pause/resume is covered by card, board, persistence, and runtime API tests; Replay tests remain with K2.3.**
 
 ### K3. Timestamp every chat-log message (top-right, collapsible, with duration on hover)
 **K3.0 Data.** Each message already carries `createdAt` (`RuntimeTaskChatMessage`,
