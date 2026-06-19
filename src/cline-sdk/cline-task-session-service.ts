@@ -17,6 +17,7 @@ import { RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-cont
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { applyTaskPatchToResultBranch, type TaskResultBranch } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import {
 	type AgentSandboxManager,
@@ -531,6 +532,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly activeToolTaskIds = new Set<string>();
+	private readonly sandboxRepoPathByTaskId = new Map<string, string>();
+	private readonly sandboxBaseRefByTaskId = new Map<string, string>();
+	private readonly finalizingSandboxReviewTaskIds = new Set<string>();
+	private readonly taskResultBranchByTaskId = new Map<string, TaskResultBranch>();
 	private readonly sessionRuntime: ClineSessionRuntime;
 	private readonly messageRepository: ClineMessageRepository;
 	private readonly watcherRegistry: ClineWatcherRegistry;
@@ -580,6 +585,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			baseRef: request.baseRef ?? null,
 			onQueued: options?.onQueued,
 		});
+		this.sandboxRepoPathByTaskId.set(request.taskId, projectRepoPath);
+		this.sandboxBaseRefByTaskId.set(request.taskId, request.baseRef?.trim() || "HEAD");
 		return {
 			manager: this.agentSandboxManager,
 			workdir: workspace.workdir,
@@ -1703,6 +1710,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
+		this.forgetSandboxTask(taskId);
 		if (entry.summary.state === "idle") {
 			return cloneSummary(entry.summary);
 		}
@@ -1743,6 +1751,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
+		this.forgetSandboxTask(taskId);
 		const summary = updateSummary(entry, {
 			state: "interrupted",
 			reviewReason: "interrupted",
@@ -2036,6 +2045,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
+		this.forgetSandboxTask(taskId);
 		this.messageRepository.clearHydratedTaskMessages(taskId);
 		if (!existingEntry) {
 			return null;
@@ -2440,6 +2450,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.clear();
 		this.noDiffCheckpointByTaskId.clear();
 		this.repeatedToolCallByTaskId.clear();
+		this.sandboxRepoPathByTaskId.clear();
+		this.sandboxBaseRefByTaskId.clear();
+		this.finalizingSandboxReviewTaskIds.clear();
+		this.taskResultBranchByTaskId.clear();
 		this.teamProgressListeners.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
@@ -2457,6 +2471,12 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
 		const guardedSummary = this.enforceRepeatedToolCallGuard(summary) ?? summary;
 		this.messageRepository.emitSummary(guardedSummary);
+	}
+
+	private forgetSandboxTask(taskId: string): void {
+		this.sandboxRepoPathByTaskId.delete(taskId);
+		this.sandboxBaseRefByTaskId.delete(taskId);
+		this.finalizingSandboxReviewTaskIds.delete(taskId);
 	}
 
 	private emitMessage(taskId: string, message: ClineTaskMessage): void {
@@ -2488,6 +2508,138 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			return false;
 		}
 		return previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review";
+	}
+
+	private shouldFinalizeSandboxReview(
+		previousSummary: RuntimeTaskSessionSummary,
+		nextSummary: RuntimeTaskSessionSummary | null,
+	): nextSummary is RuntimeTaskSessionSummary {
+		if (!nextSummary || previousSummary.state === "awaiting_review" || nextSummary.state !== "awaiting_review") {
+			return false;
+		}
+		if (isHomeAgentSessionId(nextSummary.taskId) || this.finalizingSandboxReviewTaskIds.has(nextSummary.taskId)) {
+			return false;
+		}
+		return Boolean(
+			this.agentSandboxManager &&
+				this.sandboxRepoPathByTaskId.has(nextSummary.taskId) &&
+				this.sandboxBaseRefByTaskId.has(nextSummary.taskId),
+		);
+	}
+
+	private finalizeSandboxReview(taskId: string): void {
+		const manager = this.agentSandboxManager;
+		const repoPath = this.sandboxRepoPathByTaskId.get(taskId);
+		const baseRef = this.sandboxBaseRefByTaskId.get(taskId);
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (!manager || !repoPath || !baseRef || !entry || this.finalizingSandboxReviewTaskIds.has(taskId)) {
+			return;
+		}
+		this.finalizingSandboxReviewTaskIds.add(taskId);
+		void (async () => {
+			try {
+				const patch = await manager.captureWorkspacePatch(taskId);
+				const branch = await applyTaskPatchToResultBranch({
+					repoPath,
+					taskId,
+					baseRef,
+					patch,
+				});
+				if (branch) {
+					this.taskResultBranchByTaskId.set(taskId, branch);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Sandbox task result branch updated: ${branch.branchName}`,
+						taskId,
+						workspacePath: repoPath,
+						metadata: {
+							category: "agent_sandbox_result_patch",
+							branchName: branch.branchName,
+							headCommit: branch.headCommit,
+							baseCommit: branch.baseCommit,
+						},
+					});
+					const message = createMessage(
+						taskId,
+						"system",
+						`Captured sandbox changes to task result branch ${branch.branchName} (${branch.headCommit.slice(
+							0,
+							12,
+						)}).`,
+					);
+					entry.messages.push(message);
+					this.emitMessage(taskId, message);
+					this.emitSummary(
+						updateSummary(entry, {
+							workspacePath: repoPath,
+							lastOutputAt: now(),
+							lastHookAt: now(),
+							latestHookActivity: {
+								activityText: `Result patch captured: ${branch.branchName}`,
+								toolName: null,
+								toolInputSummary: null,
+								finalMessage: branch.headCommit,
+								hookEventName: "sandbox_patch_captured",
+								notificationType: null,
+								source: "nklein",
+							},
+						}),
+					);
+				} else {
+					this.emitSummary(
+						updateSummary(entry, {
+							workspacePath: repoPath,
+							lastOutputAt: now(),
+							lastHookAt: now(),
+							latestHookActivity: {
+								activityText: "Sandbox finished with no file changes",
+								toolName: null,
+								toolInputSummary: null,
+								finalMessage: null,
+								hookEventName: "sandbox_patch_empty",
+								notificationType: null,
+								source: "nklein",
+							},
+						}),
+					);
+				}
+				await manager.disposeWorkspace(taskId);
+				this.forgetSandboxTask(taskId);
+			} catch (error) {
+				this.finalizingSandboxReviewTaskIds.delete(taskId);
+				const errorMessage = toErrorMessage(error);
+				recordSelfObservation({
+					signal: "runtime_error",
+					severity: "error",
+					message: `Could not capture sandbox task result patch: ${errorMessage}`,
+					taskId,
+					workspacePath: repoPath,
+					metadata: {
+						category: "agent_sandbox_result_patch",
+					},
+				});
+				const latestEntry = this.messageRepository.getTaskEntry(taskId);
+				if (!latestEntry) {
+					return;
+				}
+				this.emitSummary(
+					updateSummary(latestEntry, {
+						warningMessage: `Could not capture sandbox task result patch: ${errorMessage}`,
+						lastHookAt: now(),
+						latestHookActivity: {
+							activityText: `Result patch capture failed: ${errorMessage}`,
+							toolName: null,
+							toolInputSummary: null,
+							finalMessage: errorMessage,
+							hookEventName: "sandbox_patch_capture_failed",
+							notificationType: null,
+							source: "nklein",
+						},
+					}),
+				);
+			}
+		})();
 	}
 
 	private captureReviewCheckpoint(taskId: string, summary: RuntimeTaskSessionSummary): void {
@@ -2555,7 +2707,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		const shouldAbortForCreditLimit =
 			entry.summary.latestHookActivity?.notificationType === "credit_limit" &&
 			previousSummary?.latestHookActivity?.notificationType !== "credit_limit";
-		if (this.shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
+		if (this.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
+			this.finalizeSandboxReview(taskId);
+		} else if (this.shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
 		}
 		const hookEventName = entry.summary.latestHookActivity?.hookEventName;

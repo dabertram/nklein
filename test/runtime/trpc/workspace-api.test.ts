@@ -23,6 +23,10 @@ const workspaceChangesMocks = vi.hoisted(() => ({
 	getWorkspaceChangesFromRef: vi.fn(),
 }));
 
+const taskResultBranchMocks = vi.hoisted(() => ({
+	resolveTaskResultBranchCommit: vi.fn(),
+}));
+
 vi.mock("../../../src/workspace/task-worktree.js", () => ({
 	deleteTaskWorktree: vi.fn(),
 	ensureTaskWorktreeIfDoesntExist: vi.fn(),
@@ -35,6 +39,10 @@ vi.mock("../../../src/workspace/get-workspace-changes.js", () => ({
 	getWorkspaceChanges: workspaceChangesMocks.getWorkspaceChanges,
 	getWorkspaceChangesBetweenRefs: workspaceChangesMocks.getWorkspaceChangesBetweenRefs,
 	getWorkspaceChangesFromRef: workspaceChangesMocks.getWorkspaceChangesFromRef,
+}));
+
+vi.mock("../../../src/workspace/task-result-branches.js", () => ({
+	resolveTaskResultBranchCommit: taskResultBranchMocks.resolveTaskResultBranchCommit,
 }));
 
 import { createWorkspaceApi } from "../../../src/trpc/workspace-api";
@@ -137,12 +145,14 @@ describe("createWorkspaceApi loadChanges", () => {
 		workspaceChangesMocks.getWorkspaceChanges.mockReset();
 		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockReset();
 		workspaceChangesMocks.getWorkspaceChangesFromRef.mockReset();
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockReset();
 
 		workspaceTaskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/worktree");
 		workspaceChangesMocks.createEmptyWorkspaceChangesResponse.mockResolvedValue(createChangesResponse());
 		workspaceChangesMocks.getWorkspaceChanges.mockResolvedValue(createChangesResponse());
 		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockResolvedValue(createChangesResponse());
 		workspaceChangesMocks.getWorkspaceChangesFromRef.mockResolvedValue(createChangesResponse());
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue(null);
 	});
 
 	it("shows the completed turn diff while awaiting review", async () => {
@@ -192,6 +202,45 @@ describe("createWorkspaceApi loadChanges", () => {
 			toRef: "2222222",
 		});
 		expect(workspaceChangesMocks.getWorkspaceChangesFromRef).not.toHaveBeenCalled();
+	});
+
+	it("loads sandbox task result branch changes without resolving a host worktree", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
+		const response = createChangesResponse();
+		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockResolvedValue(response);
+		const api = createWorkspaceApi({
+			ensureTerminalManagerForWorkspace: vi.fn(),
+			getScopedClineTaskSessionService: vi.fn(),
+			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
+			broadcastRuntimeProjectsUpdated: vi.fn(),
+			buildWorkspaceStateSnapshot: vi.fn(),
+		});
+
+		await expect(
+			api.loadChanges(
+				{
+					workspaceId: "workspace-1",
+					workspacePath: "/tmp/repo",
+				},
+				{
+					taskId: "task-1",
+					baseRef: "main",
+					mode: "working_copy",
+				},
+			),
+		).resolves.toBe(response);
+
+		expect(taskResultBranchMocks.resolveTaskResultBranchCommit).toHaveBeenCalledWith({
+			repoPath: "/tmp/repo",
+			taskId: "task-1",
+		});
+		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
+			cwd: "/tmp/repo",
+			fromRef: "main",
+			toRef: "result-commit",
+		});
+		expect(workspaceTaskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
+		expect(workspaceChangesMocks.getWorkspaceChanges).not.toHaveBeenCalled();
 	});
 
 	it("tracks the current turn from the latest checkpoint while running", async () => {

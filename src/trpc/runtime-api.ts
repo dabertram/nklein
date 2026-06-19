@@ -126,7 +126,8 @@ import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
+import { getWorkspaceChanges, getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
+import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { resolveTaskCwd } from "../workspace/task-worktree";
 import {
 	mergeTaskWorktreesInDependencyOrder,
@@ -1952,18 +1953,30 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: `Task ${body.taskId} was not found in this workspace.`,
 				});
 			}
-			const taskCwd = await resolveExistingTaskCwdOrEnsure({
-				cwd: workspaceScope.workspacePath,
+			const taskResultCommit = await resolveTaskResultBranchCommit({
+				repoPath: workspaceScope.workspacePath,
 				taskId: task.id,
-				baseRef: task.baseRef,
-			}).catch(() => workspaceScope.workspacePath);
+			});
+			const taskCwd = taskResultCommit
+				? workspaceScope.workspacePath
+				: await resolveExistingTaskCwdOrEnsure({
+						cwd: workspaceScope.workspacePath,
+						taskId: task.id,
+						baseRef: task.baseRef,
+					}).catch(() => workspaceScope.workspacePath);
 			const [clineTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
 				deps.getScopedClineTaskSessionService(workspaceScope),
 				deps.loadScopedRuntimeConfig(workspaceScope),
 				resolveGitCommit(workspaceScope.workspacePath, task.baseRef),
-				getWorkspaceChanges(taskCwd)
-					.then((changes) => changes)
-					.catch(() => null),
+				taskResultCommit
+					? getWorkspaceChangesBetweenRefs({
+							cwd: workspaceScope.workspacePath,
+							fromRef: task.baseRef,
+							toRef: taskResultCommit,
+						}).catch(() => null)
+					: getWorkspaceChanges(taskCwd)
+							.then((changes) => changes)
+							.catch(() => null),
 			]);
 			const messages = clineTaskSessionService.listMessages(task.id);
 			const diffPatch = renderWorkspaceChangesEvidence(changesResult);

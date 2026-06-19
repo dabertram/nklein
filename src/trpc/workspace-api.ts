@@ -27,6 +27,7 @@ import {
 import { getCommitDiff, getGitLog, getGitRefs } from "../workspace/git-history";
 import { discardGitChanges, getGitSyncSummary, runGitCheckoutAction, runGitSyncAction } from "../workspace/git-sync";
 import { searchWorkspaceFiles } from "../workspace/search-workspace-files";
+import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import {
 	deleteTaskWorktree,
 	ensureTaskWorktreeIfDoesntExist,
@@ -275,6 +276,17 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 		},
 		loadChanges: async (workspaceScope, input) => {
 			const normalizedInput = normalizeRequiredTaskWorkspaceScopeInput(input);
+			const taskResultCommit = await resolveTaskResultBranchCommit({
+				repoPath: workspaceScope.workspacePath,
+				taskId: normalizedInput.taskId,
+			});
+			if (taskResultCommit) {
+				return await getWorkspaceChangesBetweenRefs({
+					cwd: workspaceScope.workspacePath,
+					fromRef: normalizedInput.baseRef,
+					toRef: taskResultCommit,
+				});
+			}
 			let taskCwd: string;
 			try {
 				taskCwd = await resolveTaskCwd({

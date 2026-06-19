@@ -39,9 +39,17 @@ const selfObservationMocks = vi.hoisted(() => ({
 	recordSelfObservation: vi.fn(),
 }));
 
+const taskResultBranchMocks = vi.hoisted(() => ({
+	applyTaskPatchToResultBranch: vi.fn(),
+}));
+
 vi.mock("../../../src/workspace/turn-checkpoints.js", () => ({
 	captureTaskTurnCheckpoint: turnCheckpointMocks.captureTaskTurnCheckpoint,
 	deleteTaskTurnCheckpointRef: turnCheckpointMocks.deleteTaskTurnCheckpointRef,
+}));
+
+vi.mock("../../../src/workspace/task-result-branches.js", () => ({
+	applyTaskPatchToResultBranch: taskResultBranchMocks.applyTaskPatchToResultBranch,
 }));
 
 vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
@@ -114,6 +122,7 @@ interface FakeAgentSandboxManagerController {
 	manager: AgentSandboxManager;
 	assertAvailableMock: Mock<AgentSandboxManager["assertAvailable"]>;
 	prepareWorkspaceMock: Mock<AgentSandboxManager["prepareWorkspace"]>;
+	captureWorkspacePatchMock: Mock<AgentSandboxManager["captureWorkspacePatch"]>;
 	disposeWorkspaceMock: Mock<AgentSandboxManager["disposeWorkspace"]>;
 	stopNowMock: Mock<AgentSandboxManager["stopNow"]>;
 	updatePoolConfigMock: Mock<AgentSandboxManager["updatePoolConfig"]>;
@@ -403,12 +412,16 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		workdir: `/workspaces/${input.taskId}`,
 		uid: 70_001,
 	}));
+	const captureWorkspacePatchMock: FakeAgentSandboxManagerController["captureWorkspacePatchMock"] = vi.fn(
+		async () => "diff --git a/README.md b/README.md\n",
+	);
 	const disposeWorkspaceMock: FakeAgentSandboxManagerController["disposeWorkspaceMock"] = vi.fn(async () => {});
 	const stopNowMock: FakeAgentSandboxManagerController["stopNowMock"] = vi.fn(async () => {});
 	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(async () => {});
 	const manager = {
 		assertAvailable: assertAvailableMock,
 		prepareWorkspace: prepareWorkspaceMock,
+		captureWorkspacePatch: captureWorkspacePatchMock,
 		disposeWorkspace: disposeWorkspaceMock,
 		stopNow: stopNowMock,
 		updatePoolConfig: updatePoolConfigMock,
@@ -417,6 +430,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		manager,
 		assertAvailableMock,
 		prepareWorkspaceMock,
+		captureWorkspacePatchMock,
 		disposeWorkspaceMock,
 		stopNowMock,
 		updatePoolConfigMock,
@@ -463,6 +477,14 @@ describe("InMemoryClineTaskSessionService", () => {
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockReset();
 		turnCheckpointMocks.deleteTaskTurnCheckpointRef.mockReset();
 		selfObservationMocks.recordSelfObservation.mockReset();
+		taskResultBranchMocks.applyTaskPatchToResultBranch.mockReset();
+		taskResultBranchMocks.applyTaskPatchToResultBranch.mockImplementation(async (input: { taskId: string }) => ({
+			taskId: input.taskId,
+			branchName: `nklein/tasks/${input.taskId}`,
+			refName: `refs/heads/nklein/tasks/${input.taskId}`,
+			baseCommit: "base-commit",
+			headCommit: "result-commit",
+		}));
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockImplementation(
 			async (input: { taskId: string; turn: number }) => ({
 				turn: input.turn,
@@ -675,6 +697,63 @@ describe("InMemoryClineTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-1");
 		});
+	});
+
+	it("captures a sandbox patch to a task result branch on review and then disposes the workspace", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+		const messages: string[] = [];
+		service.onMessage((_taskId, message) => {
+			messages.push(message.content);
+		});
+
+		await service.startTaskSession({
+			taskId: "task-result",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-result");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(taskResultBranchMocks.applyTaskPatchToResultBranch).toHaveBeenCalledWith({
+				repoPath: "/tmp/project",
+				taskId: "task-result",
+				baseRef: "main",
+				patch: "diff --git a/README.md b/README.md\n",
+			});
+		});
+		await vi.waitFor(() => {
+			expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-result");
+		});
+		expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-result");
+		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
+		expect(service.getSummary("task-result")).toMatchObject({
+			state: "awaiting_review",
+			workspacePath: "/tmp/project",
+			latestHookActivity: expect.objectContaining({
+				hookEventName: "sandbox_patch_captured",
+			}),
+		});
+		expect(
+			messages.some((message) =>
+				message.includes("Captured sandbox changes to task result branch nklein/tasks/task-result"),
+			),
+		).toBe(true);
 	});
 
 	it("releases sandbox workspaces on stop, clear, and service disposal", async () => {

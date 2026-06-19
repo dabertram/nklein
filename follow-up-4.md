@@ -237,19 +237,27 @@ isolated from other tasks. This is the larger implementation effort and it is wo
   [src/workspace/task-worktree-path.ts](src/workspace/task-worktree-path.ts) and `src/workspace/`).
 - [x] **Run:** the J1 executors and the J5 acceptance gate exec with `-u <uid> -w /workspaces/<taskId>` via
   `manager.exec(taskId, …)`. The in-container tool-runner uses `cwd = /workspaces/<taskId>`.
-- [ ] **Extract results (patch out):** at review/completion, read the diff with
+- [x] **Extract results (patch out):** at review/completion, read the diff with
   `manager.exec(taskId, ["git","-C","/workspaces/<taskId>","add","-A"])` then
   `git -C /workspaces/<taskId> diff --staged --binary` (or `format-patch` vs `baseRef`); stream stdout to the host.
   !Klein (trusted runtime) applies that patch to the **user's host project repo** (`git apply` + commit on a task
   branch) — the only place results touch host git, and it is !Klein's code, not the agent's. Repoint the existing
   diff/merge UI + flow to read the diff from the container instead of a host worktree.
+  - Done with deterministic `nklein/tasks/<task>` result branches: review transitions capture the sandbox binary patch,
+    apply it through a temporary Git index + `commit-tree` without touching the user's checkout, dispose the sandbox
+    workspace after successful capture, and route review diff/evidence/merge flows to the result branch before falling
+    back to legacy host worktrees.
 - [ ] **Cleanup:** `manager.exec(taskId, ["rm","-rf","/workspaces/<taskId>"])` + drop the uid mapping on task
   end/trash; discard any saved patch on delete. Removing the container (J4 idle stop / `stopNow`) wipes the volume —
   **zero residue on the host filesystem**.
+  - Review completion, stop, abort, clear, start-failure, and service disposal now release sandbox workspaces. Task
+    trash/delete still needs task result branch/saved-patch cleanup before this box can close.
 - [ ] **Reconcile the existing worktree subsystem:** host-worktree assumptions in `src/workspace/` (worktree path,
   health checks for "accidental worktree projects", saved task patches, cleanup, and the related notes in AGENTS.md)
   must be updated to the container-workspace model or retired. Keep the diff/merge UX identical from the user's point
   of view (they still review diffs and merge from the board). This is the bulk of the effort — do it deliberately.
+  - Review diff, task evidence, and merge now prefer task result branches; legacy host worktree fallback remains for
+    older terminal/worktree-backed tasks and the remaining CLI/project-health/trash cleanup surfaces.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

@@ -24,9 +24,11 @@
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.
   - The Cline task-session service now prepares the Docker workspace before SDK start, passes the sandbox workdir and Docker-backed default tool executors into the SDK runtime, releases workspaces on start failure/stop/abort/clear, and calls `stopNow()` when the service is disposed.
-  - Completion/awaiting-review intentionally does not dispose the sandbox workspace yet: until patch-out exists, deleting `/workspaces/<taskId>` at completion would destroy the only Docker-side copy of the agent's changes before the review/diff flow can consume them.
+  - Completion/awaiting-review now captures `git add -A` + `git diff --staged --binary` through `AgentSandboxManager.captureWorkspacePatch()`, applies the patch into a deterministic `nklein/tasks/<task>` branch with a temporary Git index + `commit-tree`, and disposes the sandbox workspace only after the trusted host branch update succeeds.
+  - Review diff loading, task evidence, and task merge now prefer the result branch (`baseRef..resultCommit`) before falling back to legacy host worktrees. This preserves the existing UI shape while removing the host task-worktree dependency for sandboxed Cline completions.
+  - The result branch helper intentionally does not check out the branch or use a host worktree; tests prove the user's checked-out files remain clean/unchanged while the branch contains the sandbox patch, including newly added files.
   - The broader task-worktree subsystem is still used by terminal agents, merge/review flows, trash cleanup, evidence, UI copy, and several CLI commands.
-  - The correct next step is a deliberate workspace lifecycle refactor: produce diffs from `git -C /workspaces/<taskId> diff --staged --binary`, apply them to the host repo through trusted !Klein code, then retire/rename UI and CLI text that promises host task worktrees.
+  - Remaining cleanup before closing this item: delete/garbage-collect task result branches when a task is permanently deleted or trashed without review, retire saved host worktree patch semantics where they no longer apply, update project-health/CLI wording that still promises host task worktrees, and decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model.
 
 - [ ] Share one sandbox pool and expose its health/settings instead of creating ad hoc managers.
   - The first chunk creates a production `AgentSandboxManager` for Cline task-session services and one-shot managers for acceptance verification.

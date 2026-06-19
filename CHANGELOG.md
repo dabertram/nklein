@@ -44,6 +44,7 @@
 - Added Docker-gated agent-sandbox lifecycle integration coverage and fixed the real-image issues it exposed: workspace volume permissions, first-workspace bootstrap workdir, CJS tool-runner bundling, task-owned cleanup under `--cap-drop ALL`, binary patch capture, and Docker stderr in sandbox execution errors.
 - Added Docker-gated sandbox pool queue coverage for the real one-container/two-agent wait/release path.
 - Required Cline task-session service construction to pass an `AgentSandboxManager`, with only an explicit test-only unisolated mode for in-process unit harnesses.
+- Captured completed sandbox task changes as binary patches into deterministic `nklein/tasks/<task>` result branches via a temporary Git index, keeping the user's checkout clean while review diff, evidence, and merge flows prefer the branch over legacy host task worktrees.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

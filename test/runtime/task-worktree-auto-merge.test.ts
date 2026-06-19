@@ -121,6 +121,7 @@ describe("task worktree auto merge", () => {
 			columns: ["review"],
 			taskIds: ["storage"],
 			runGit,
+			resolveTaskResultBranchCommit: vi.fn(async () => null),
 			resolveTaskCwd: vi.fn(async () => "/worktrees/storage"),
 		});
 
@@ -130,5 +131,39 @@ describe("task worktree auto merge", () => {
 			conflictedPaths: ["src/storage.ts"],
 		});
 		expect(runGit).toHaveBeenCalledWith("/repo", ["merge", "--abort"]);
+	});
+
+	it("merges a task result branch without resolving a legacy worktree", async () => {
+		const runGit = vi.fn(async (cwd: string, args: string[]) => {
+			const key = `${cwd} ${args.join(" ")}`;
+			if (key === "/repo status --porcelain") {
+				return { ok: true, stdout: "", stderr: "", output: "", error: null, exitCode: 0 };
+			}
+			if (key === "/repo branch --show-current") {
+				return { ok: true, stdout: "main", stderr: "", output: "main", error: null, exitCode: 0 };
+			}
+			if (key === "/repo merge-base --is-ancestor result-head HEAD") {
+				return { ok: false, stdout: "", stderr: "", output: "", error: "not ancestor", exitCode: 1 };
+			}
+			if (key === "/repo merge --no-ff --no-edit result-head") {
+				return { ok: true, stdout: "merged", stderr: "", output: "merged", error: null, exitCode: 0 };
+			}
+			throw new Error(`Unexpected git call: ${key}`);
+		});
+		const resolveTaskCwd = vi.fn(async () => "/worktrees/storage");
+
+		const result = await mergeTaskWorktreesInDependencyOrder({
+			repoPath: "/repo",
+			board: createBoard(),
+			columns: ["review"],
+			taskIds: ["storage"],
+			runGit,
+			resolveTaskCwd,
+			resolveTaskResultBranchCommit: vi.fn(async () => "result-head"),
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.mergedTaskIds).toEqual(["storage"]);
+		expect(resolveTaskCwd).not.toHaveBeenCalled();
 	});
 });
