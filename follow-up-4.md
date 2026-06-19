@@ -406,7 +406,7 @@ agents in one container still cannot read each other's files.
   - Verified by `test/integration/agent-sandbox.integration.test.ts`; the real Docker run also fixed named-volume root
     permissions, first-workspace bootstrap workdir, CJS tool-runner bundling, task-owned cleanup under `--cap-drop ALL`,
     and Docker stderr propagation in `AgentSandboxExecutionError`.
-- [ ] **Pool + queue:** maxContainers=1 / agentsPerContainer=2 with 3 ready tasks → 2 run in the one container
+- [x] **Pool + queue:** maxContainers=1 / agentsPerContainer=2 with 3 ready tasks → 2 run in the one container
   (uid-isolated), the 3rd **queues** and starts when one frees; maxContainers=2 / agentsPerContainer=1 → 2 containers,
   1 agent each, with `--memory`/`--cpus` matching the settings; a finished container is **reused** (not destroyed) by
   the next task within the idle window; lowering `sandboxMaxContainers` reaps now-excess idle containers;
@@ -417,7 +417,8 @@ agents in one container still cannot read each other's files.
     blocks new placements into those excess containers, and retires them after their last task releases.
   - [x] Docker-gated lifecycle/integration coverage now exercises the real image, task workspaces, SDK tool runner,
     patch capture, cleanup, and idle teardown.
-  - [ ] Docker-gated queue-specific coverage is still open for the 3-ready-task wait/release scenario.
+  - [x] Docker-gated queue-specific coverage now verifies the 3-ready-task wait/release scenario against the real
+    sandbox image and Docker daemon.
 - [x] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 

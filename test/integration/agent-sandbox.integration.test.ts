@@ -68,6 +68,18 @@ function runGit(cwd: string, args: string[]): string {
 	return result.stdout.trim();
 }
 
+function createCommittedRepo(sandboxRoot: string): string {
+	const repoPath = join(sandboxRoot, "repo");
+	mkdirSync(repoPath, { recursive: true });
+	runGit(repoPath, ["init"]);
+	runGit(repoPath, ["config", "user.name", "!Klein Test"]);
+	runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
+	writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
+	runGit(repoPath, ["add", "README.md"]);
+	runGit(repoPath, ["commit", "-m", "init"]);
+	return repoPath;
+}
+
 function dockerOutput(args: string[]): string {
 	const result = spawnSync("docker", args, { encoding: "utf8" });
 	if (result.status !== 0) {
@@ -129,6 +141,12 @@ async function withTemporaryHome<T>(run: (homePath: string) => Promise<T>): Prom
 	}
 }
 
+async function delay(ms: number): Promise<void> {
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 const dockerGate = probeDockerGate();
 
 if (dockerGate.ready) {
@@ -145,15 +163,8 @@ if (dockerGate.ready) {
 					},
 				});
 				try {
-					const repoPath = join(sandboxRoot, "repo");
+					const repoPath = createCommittedRepo(sandboxRoot);
 					const clonePath = join(sandboxRoot, "patch-target");
-					mkdirSync(repoPath, { recursive: true });
-					runGit(repoPath, ["init"]);
-					runGit(repoPath, ["config", "user.name", "!Klein Test"]);
-					runGit(repoPath, ["config", "user.email", "kanban-test@example.com"]);
-					writeFileSync(join(repoPath, "README.md"), "hello\n", "utf8");
-					runGit(repoPath, ["add", "README.md"]);
-					runGit(repoPath, ["commit", "-m", "init"]);
 
 					await expect(manager.checkAvailability()).resolves.toMatchObject({
 						state: "ready",
@@ -226,6 +237,70 @@ if (dockerGate.ready) {
 					cleanup();
 				}
 			});
+		}, 60_000);
+
+		it("queues the third task when one real container allows two agents", async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-agent-sandbox-queue-");
+			const manager = new AgentSandboxManager({
+				image: dockerGate.image,
+				poolConfig: {
+					maxContainers: 1,
+					agentsPerContainer: 2,
+					idleTimeoutMs: 0,
+				},
+			});
+			try {
+				const repoPath = createCommittedRepo(sandboxRoot);
+				const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+				const taskA = `queue-a-${suffix}`;
+				const taskB = `queue-b-${suffix}`;
+				const taskC = `queue-c-${suffix}`;
+				const workspaceA = await manager.prepareWorkspace({
+					taskId: taskA,
+					projectRepoPath: repoPath,
+					baseRef: "HEAD",
+				});
+				const workspaceB = await manager.prepareWorkspace({
+					taskId: taskB,
+					projectRepoPath: repoPath,
+					baseRef: "HEAD",
+				});
+
+				expect(workspaceA.uid).not.toBe(workspaceB.uid);
+				const siblingRead = await manager.exec(taskA, ["cat", `${workspaceB.workdir}/README.md`]);
+				expect(siblingRead.exitCode).not.toBe(0);
+
+				let queued = false;
+				const thirdWorkspacePromise = manager.prepareWorkspace({
+					taskId: taskC,
+					projectRepoPath: repoPath,
+					baseRef: "HEAD",
+					onQueued: () => {
+						queued = true;
+					},
+				});
+				await vi.waitFor(() => {
+					expect(queued).toBe(true);
+				});
+				let thirdResolved = false;
+				void thirdWorkspacePromise.then(() => {
+					thirdResolved = true;
+				});
+				await delay(100);
+				expect(thirdResolved).toBe(false);
+				expect(sandboxContainerExists()).toBe(true);
+
+				await manager.disposeWorkspace(taskA);
+				const workspaceC = await thirdWorkspacePromise;
+
+				expect(workspaceC.workdir).toBe(`/workspaces/${taskC}`);
+				expect(workspaceC.uid).not.toBe(workspaceB.uid);
+				await manager.disposeWorkspace(taskB);
+				await manager.disposeWorkspace(taskC);
+			} finally {
+				await manager.stopNow();
+				cleanup();
+			}
 		}, 60_000);
 	});
 } else {

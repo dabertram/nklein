@@ -42,6 +42,7 @@
 - Prevented env-enabled web research from registering on sandboxed Cline tasks, preserving the no-host-network strict isolation boundary.
 - Omitted host-side decomposition tools from sandboxed Cline sessions and adjusted strict-isolation planning prompts so agents do not call unavailable host mutation workflows.
 - Added Docker-gated agent-sandbox lifecycle integration coverage and fixed the real-image issues it exposed: workspace volume permissions, first-workspace bootstrap workdir, CJS tool-runner bundling, task-owned cleanup under `--cap-drop ALL`, binary patch capture, and Docker stderr in sandbox execution errors.
+- Added Docker-gated sandbox pool queue coverage for the real one-container/two-agent wait/release path.
 - Required Cline task-session service construction to pass an `AgentSandboxManager`, with only an explicit test-only unisolated mode for in-process unit harnesses.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.

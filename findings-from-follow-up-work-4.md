@@ -57,8 +57,10 @@
     after mount, Docker cannot `exec -w /workspaces/<taskId>` until that directory exists, the bundled runner must be
     CJS with `import.meta.url` rewritten to a file URL for bundled dependencies, and with `--cap-drop ALL` cleanup must
     run as the task UID rather than container root.
-  - Queue-specific Docker integration remains useful future coverage: the current real-daemon test proves lifecycle and
-    same-pool placement, while Docker-free tests still own the 3-ready-task wait/release and resource-cap permutations.
+  - Queue-specific Docker integration now verifies that a real one-container/two-agent pool queues the third ready task,
+    keeps it unresolved until one active task releases, and starts it in the same sandbox pool. Docker-free tests still
+    own the resource-cap and setting-change permutations because they can assert exact Docker argv and fake-timer
+    behavior deterministically.
 
 ## Runtime pause/replay work still has unsolved surfaces
 
