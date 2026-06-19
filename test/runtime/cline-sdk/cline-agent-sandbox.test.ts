@@ -234,6 +234,76 @@ describe("AgentSandboxManager", () => {
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
 	});
 
+	it("queues the third task when one container allows two agents", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 1,
+				agentsPerContainer: 2,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		const first = await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		const thirdQueued = manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" });
+		let thirdResolved = false;
+		void thirdQueued.then(() => {
+			thirdResolved = true;
+		});
+		await Promise.resolve();
+
+		expect(first.slot).toBe(1);
+		expect(second.slot).toBe(1);
+		expect(thirdResolved).toBe(false);
+
+		await manager.disposeWorkspace("task-1");
+		await expect(thirdQueued).resolves.toMatchObject({ taskId: "task-3", slot: 1 });
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+	});
+
+	it("starts two dedicated containers with configured resource caps", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 2,
+				agentsPerContainer: 1,
+				memoryPerContainerMb: 8192,
+				cpusPerContainer: 1.5,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		const first = await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		const thirdQueued = manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" });
+		let thirdResolved = false;
+		void thirdQueued.then(() => {
+			thirdResolved = true;
+		});
+		await Promise.resolve();
+
+		expect(first.slot).toBe(1);
+		expect(second.slot).toBe(2);
+		expect(thirdResolved).toBe(false);
+		const runCalls = calls.filter((args) => args[0] === "run");
+		expect(runCalls).toHaveLength(2);
+		for (const runCall of runCalls) {
+			expect(runCall).toContain("--memory");
+			expect(runCall).toContain("8192m");
+			expect(runCall).toContain("--cpus");
+			expect(runCall).toContain("1.5");
+		}
+
+		await manager.disposeWorkspace("task-1");
+		await expect(thirdQueued).resolves.toMatchObject({ taskId: "task-3", slot: 1 });
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
+	});
+
 	it("does not arm idle teardown while a queued task takes the freed slot", async () => {
 		vi.useFakeTimers();
 		try {

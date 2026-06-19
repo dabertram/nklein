@@ -32,7 +32,9 @@
   - Containerizing local MCP servers remains out of scope for v1; the shipped behavior is default-deny for host subprocess MCP.
 
 - [ ] Add Docker-gated integration coverage after the lifecycle refactor.
-  - Unit tests cover Docker run lockdown flags, fail-closed availability checks, queueing, and stable task UIDs.
+  - Unit tests cover Docker run lockdown flags, fail-closed availability checks, queueing, stable task UIDs, one shared
+    container with two agents plus a queued third task, two dedicated containers with configured CPU/RAM caps, and the
+    no-host-execution guard for SDK default tools plus sandbox acceptance.
   - Integration tests that require a real Docker daemon/image are still open: build image, prepare workspace, prove sibling task UID isolation, run a real SDK tool through `/opt/nklein/tool-runner.mjs`, and confirm no host writes occur.
 
 ## Runtime pause/replay work still has unsolved surfaces

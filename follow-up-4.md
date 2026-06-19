@@ -399,6 +399,9 @@ agents in one container still cannot read each other's files.
   1 agent each, with `--memory`/`--cpus` matching the settings; a finished container is **reused** (not destroyed) by
   the next task within the idle window; lowering `sandboxMaxContainers` reaps now-excess idle containers;
   `sandboxIdleTimeoutMinutes` drives teardown (fake timers); setting changes affect only newly-started tasks.
+  - [x] Docker-free manager coverage now verifies the one-container/two-agent queue case and two dedicated containers
+    with configured CPU/RAM arguments.
+  - [ ] Docker-gated coverage and lowering-`sandboxMaxContainers` behavior still need the lifecycle/integration pass.
 - [x] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 
