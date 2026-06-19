@@ -25,3 +25,19 @@
 - [ ] Add Docker-gated integration coverage after the lifecycle refactor.
   - Unit tests cover Docker run lockdown flags, fail-closed availability checks, queueing, and stable task UIDs.
   - Integration tests that require a real Docker daemon/image are still open: build image, prepare workspace, prove sibling task UID isolation, run a real SDK tool through `/opt/nklein/tool-runner.mjs`, and confirm no host writes occur.
+
+## Runtime pause/replay work still has unsolved surfaces
+
+- [ ] Finish per-card pause/resume as a complete API + UI feature, not just a service primitive.
+  - The board-level pause core now parks native Cline sessions as `state: "paused"` at the next turn checkpoint and drains those tasks when the board is resumed.
+  - Per-card pause still needs `.cline/nklein/paused-tasks.json`, `pauseTask` / `resumeTask` tRPC mutations, `BoardCard` Pause/Resume button states, board/column prop threading, and runtime-state refetch/update after mutation.
+  - Do not model card pause as only UI state. It must persist across runtime restarts and feed the same `ClinePauseController` gate used by board pause.
+
+- [ ] Gate sandbox/tool side effects on pause before claiming "processing goes into a queue."
+  - `ClinePauseController.waitUntilResumed` exists for this purpose, but Docker-backed tool executors and acceptance-gate `runCommand` do not call it yet.
+  - Until those executor calls await the pause gate, a turn that already received tool calls may still run side effects before the checkpoint parks the next turn.
+  - This should be implemented with abort-signal handling so stopping or aborting a paused task rejects any queued tool waiters cleanly.
+
+- [ ] Add replay only after its destructive reset semantics are explicit and tested.
+  - The `replayCardsEnabled` setting, finished-card `Replay` affordance, confirmation prompt, and task worktree/session reset path are still open.
+  - Replay should not reuse the pause/resume continuation path; it must deliberately clear/recreate task execution state and start from the card prompt.
