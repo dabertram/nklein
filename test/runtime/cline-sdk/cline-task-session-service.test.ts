@@ -127,6 +127,7 @@ interface FakeAgentSandboxManagerController {
 	execMock: Mock<AgentSandboxManager["exec"]>;
 	captureWorkspacePatchMock: Mock<AgentSandboxManager["captureWorkspacePatch"]>;
 	disposeWorkspaceMock: Mock<AgentSandboxManager["disposeWorkspace"]>;
+	hasWorkspaceMock: Mock<AgentSandboxManager["hasWorkspace"]>;
 	stopNowMock: Mock<AgentSandboxManager["stopNow"]>;
 	updatePoolConfigMock: Mock<AgentSandboxManager["updatePoolConfig"]>;
 }
@@ -424,6 +425,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		async () => "diff --git a/README.md b/README.md\n",
 	);
 	const disposeWorkspaceMock: FakeAgentSandboxManagerController["disposeWorkspaceMock"] = vi.fn(async () => {});
+	const hasWorkspaceMock: FakeAgentSandboxManagerController["hasWorkspaceMock"] = vi.fn(() => true);
 	const stopNowMock: FakeAgentSandboxManagerController["stopNowMock"] = vi.fn(async () => {});
 	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(async () => {});
 	const manager = {
@@ -432,6 +434,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		exec: execMock,
 		captureWorkspacePatch: captureWorkspacePatchMock,
 		disposeWorkspace: disposeWorkspaceMock,
+		hasWorkspace: hasWorkspaceMock,
 		stopNow: stopNowMock,
 		updatePoolConfig: updatePoolConfigMock,
 	} as unknown as AgentSandboxManager;
@@ -442,6 +445,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		execMock,
 		captureWorkspacePatchMock,
 		disposeWorkspaceMock,
+		hasWorkspaceMock,
 		stopNowMock,
 		updatePoolConfigMock,
 	};
@@ -841,6 +845,119 @@ describe("InMemoryClineTaskSessionService", () => {
 				message.includes("Captured sandbox changes to task result branch nklein/tasks/task-result"),
 			),
 		).toBe(true);
+	});
+
+	it("treats sandbox patch capture failure as benign when the workspace was disposed concurrently", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		sandboxManager.captureWorkspacePatchMock.mockRejectedValueOnce(
+			new Error("No Docker sandbox workspace is prepared for task task-race."),
+		);
+		sandboxManager.hasWorkspaceMock.mockReturnValue(false);
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-race",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-race");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(sandboxManager.captureWorkspacePatchMock).toHaveBeenCalledWith("task-race", { baseRef: "main" });
+		});
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "custom",
+					severity: "info",
+					taskId: "task-race",
+					metadata: expect.objectContaining({
+						category: "agent_sandbox_result_patch",
+						reason: "workspace_disposed_before_capture",
+					}),
+				}),
+			);
+		});
+		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "task-race" }),
+		);
+		expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "runtime_error",
+				taskId: "task-race",
+				metadata: expect.objectContaining({
+					category: "agent_sandbox_result_patch",
+				}),
+			}),
+		);
+		const summary = service.getSummary("task-race");
+		expect(summary?.state).toBe("awaiting_review");
+		expect(summary?.warningMessage ?? null).toBeNull();
+	});
+
+	it("keeps sandbox patch capture failures visible while the workspace still exists", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		sandboxManager.captureWorkspacePatchMock.mockRejectedValueOnce(new Error("git add failed"));
+		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-capture-error",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-capture-error");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "runtime_error",
+					severity: "error",
+					taskId: "task-capture-error",
+					message: "Could not capture sandbox task result patch: git add failed",
+					metadata: expect.objectContaining({
+						category: "agent_sandbox_result_patch",
+					}),
+				}),
+			);
+		});
+		expect(service.getSummary("task-capture-error")).toMatchObject({
+			state: "awaiting_review",
+			warningMessage: "Could not capture sandbox task result patch: git add failed",
+			latestHookActivity: expect.objectContaining({
+				hookEventName: "sandbox_patch_capture_failed",
+			}),
+		});
 	});
 
 	it("releases sandbox workspaces on stop, clear, and service disposal", async () => {

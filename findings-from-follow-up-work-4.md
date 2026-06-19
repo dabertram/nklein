@@ -58,6 +58,9 @@
     staged diff would become empty after such a commit. The default git-action prompts now keep agents inside the
     isolated workspace/result-branch flow and no longer ask them to mutate the host checkout through `git worktree` or
     `cherry-pick`.
+  - Sandbox review finalization now distinguishes teardown races from real capture failures: if the workspace was
+    already disposed, it records an info observation and forgets the sandbox task; if the workspace still exists, it
+    keeps the runtime-error observation and card warning.
   - The broader task-worktree subsystem is still used by terminal agents and legacy fallback paths.
   - Remaining cleanup before closing this item: retire saved host worktree patch semantics where they no longer apply,
     decide how terminal-agent legacy worktrees fit into the strict Cline sandbox model, and only then consider any

@@ -2648,6 +2648,23 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			} catch (error) {
 				this.finalizingSandboxReviewTaskIds.delete(taskId);
 				const errorMessage = toErrorMessage(error);
+				// Benign teardown race: the sandbox workspace was disposed concurrently before the patch could
+				// be captured. Genuine capture failures while the workspace still exists fall through below.
+				if (!manager.hasWorkspace(taskId)) {
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Sandbox workspace for task ${taskId} was disposed before a result patch could be captured; nothing to capture.`,
+						taskId,
+						workspacePath: repoPath,
+						metadata: {
+							category: "agent_sandbox_result_patch",
+							reason: "workspace_disposed_before_capture",
+						},
+					});
+					this.forgetSandboxTask(taskId);
+					return;
+				}
 				recordSelfObservation({
 					signal: "runtime_error",
 					severity: "error",

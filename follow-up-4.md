@@ -291,6 +291,9 @@ isolated from other tasks. This is the larger implementation effort and it is wo
     preserving changes even when an agent creates a local commit inside the container before review. The default
     Commit/Open PR prompts were rewritten to keep agents inside the isolated task workspace/result-branch flow instead
     of asking them to find or mutate the user's base checkout with `git worktree`/`cherry-pick` operations.
+  - Sandbox review finalization now treats patch-capture failures as benign only when the task workspace was already
+    disposed concurrently, recording an info observation instead of a runtime-error warning while preserving visible
+    errors for real capture failures in still-live workspaces.
 
 ### J3c. The container pool, agents-per-container, and the wait queue
 Driven entirely by the J8 settings; the default (1 container, unlimited agents per container) reproduces "one container

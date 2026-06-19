@@ -734,6 +734,14 @@ export class AgentSandboxManager {
 		);
 	}
 
+	/**
+	 * Whether a sandbox workspace is currently prepared for the task. Used by callers to distinguish a
+	 * benign teardown race from a real error.
+	 */
+	hasWorkspace(taskId: string): boolean {
+		return this.placements.has(taskId);
+	}
+
 	private requirePlacement(taskId: string): TaskPlacement {
 		const placement = this.placements.get(taskId);
 		if (!placement) {
