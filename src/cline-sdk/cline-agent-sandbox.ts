@@ -91,6 +91,7 @@ interface ContainerState {
 	volumeName: string;
 	containerId: string | null;
 	starting: Promise<void> | null;
+	retiring: Promise<void> | null;
 	occupancy: Set<string>;
 	idleTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -255,8 +256,10 @@ export class AgentSandboxManager {
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
 	}
 
-	updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): void {
+	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
 		this.poolConfig = normalizeAgentSandboxPoolConfig(config);
+		await this.reconcileIdleContainersWithPoolConfig();
+		this.drainQueue();
 	}
 
 	async checkAvailability(now: () => number = Date.now): Promise<AgentSandboxAvailabilityStatus> {
@@ -525,6 +528,7 @@ export class AgentSandboxManager {
 			volumeName: createAgentSandboxVolumeName(slot),
 			containerId: null,
 			starting: null,
+			retiring: null,
 			occupancy: new Set<string>(),
 			idleTimer: null,
 		};
@@ -540,6 +544,9 @@ export class AgentSandboxManager {
 	}
 
 	private hasContainerCapacity(container: ContainerState): boolean {
+		if (container.retiring || this.isExcessContainer(container)) {
+			return false;
+		}
 		return this.poolConfig.agentsPerContainer === 0 || container.occupancy.size < this.poolConfig.agentsPerContainer;
 	}
 
@@ -573,7 +580,7 @@ export class AgentSandboxManager {
 		container.occupancy.delete(taskId);
 		this.drainQueue();
 		if (container.occupancy.size === 0) {
-			this.armIdleTimer(container);
+			this.handleEmptyContainer(container);
 		}
 	}
 
@@ -615,11 +622,48 @@ export class AgentSandboxManager {
 				if (container.occupancy.size > 0) {
 					return;
 				}
-				await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
-				await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
-				this.containers.delete(container.slot);
+				await this.retireContainer(container);
+				this.drainQueue();
 			})();
 		}, this.poolConfig.idleTimeoutMs);
+	}
+
+	private handleEmptyContainer(container: ContainerState): void {
+		if (this.isExcessContainer(container)) {
+			void this.retireContainer(container).then(() => {
+				this.drainQueue();
+			});
+			return;
+		}
+		this.armIdleTimer(container);
+	}
+
+	private async reconcileIdleContainersWithPoolConfig(): Promise<void> {
+		const retirements = [...this.containers.values()]
+			.filter((container) => container.occupancy.size === 0 && this.isExcessContainer(container))
+			.map((container) => this.retireContainer(container));
+		await Promise.all(retirements);
+	}
+
+	private isExcessContainer(container: ContainerState): boolean {
+		return container.slot > this.poolConfig.maxContainers;
+	}
+
+	private async retireContainer(container: ContainerState): Promise<void> {
+		if (container.retiring) {
+			await container.retiring;
+			return;
+		}
+		if (container.idleTimer) {
+			this.clearTimeoutImpl(container.idleTimer);
+			container.idleTimer = null;
+		}
+		container.retiring = (async () => {
+			await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
+			await this.runDocker(["volume", "rm", container.volumeName], { timeoutMs: 30_000 }).catch(() => null);
+			this.containers.delete(container.slot);
+		})();
+		await container.retiring;
 	}
 
 	private async execAsTaskUser(

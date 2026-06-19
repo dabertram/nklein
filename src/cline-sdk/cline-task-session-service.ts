@@ -353,7 +353,7 @@ export interface ClineTaskSessionService {
 	setBoardPaused(paused: boolean): void;
 	setCardPaused(taskId: string, paused: boolean): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
-	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): void;
+	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
@@ -2105,8 +2105,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		await this.pauseController.waitUntilResumed(taskId);
 	}
 
-	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): void {
-		this.agentSandboxManager?.updatePoolConfig(config);
+	async updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
+		await this.agentSandboxManager?.updatePoolConfig(config);
 	}
 
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {

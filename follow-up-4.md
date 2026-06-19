@@ -401,7 +401,9 @@ agents in one container still cannot read each other's files.
   `sandboxIdleTimeoutMinutes` drives teardown (fake timers); setting changes affect only newly-started tasks.
   - [x] Docker-free manager coverage now verifies the one-container/two-agent queue case and two dedicated containers
     with configured CPU/RAM arguments.
-  - [ ] Docker-gated coverage and lowering-`sandboxMaxContainers` behavior still need the lifecycle/integration pass.
+  - [x] Lowering `sandboxMaxContainers` now reaps idle excess containers, leaves occupied excess containers running,
+    blocks new placements into those excess containers, and retires them after their last task releases.
+  - [ ] Docker-gated coverage still needs the lifecycle/integration pass.
 - [x] **Fail-closed:** simulate docker-missing (point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image / stub
   `assertAvailable` to throw) and assert `startTaskSession` rejects with the guard message and starts **no** session.
 

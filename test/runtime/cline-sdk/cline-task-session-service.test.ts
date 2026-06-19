@@ -402,7 +402,7 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 	}));
 	const disposeWorkspaceMock: FakeAgentSandboxManagerController["disposeWorkspaceMock"] = vi.fn(async () => {});
 	const stopNowMock: FakeAgentSandboxManagerController["stopNowMock"] = vi.fn(async () => {});
-	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(() => {});
+	const updatePoolConfigMock: FakeAgentSandboxManagerController["updatePoolConfigMock"] = vi.fn(async () => {});
 	const manager = {
 		assertAvailable: assertAvailableMock,
 		prepareWorkspace: prepareWorkspaceMock,

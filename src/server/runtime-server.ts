@@ -296,7 +296,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 		} else {
-			service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
+			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 		}
 		return service;
 	};

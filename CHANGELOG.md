@@ -37,6 +37,7 @@
 - Added Docker agent-sandbox preflight status to Settings and made Cline task starts fail closed with the sandbox remediation message when Docker or the sandbox image is unavailable.
 - Fixed Docker agent-sandbox queue draining so freed slots are reserved before async startup waits, preventing queued tasks from overfilling a container or blocking later idle teardown.
 - Added a typed queued task-session state for sandbox-capacity waits, including card-visible "Queued — waiting for sandbox capacity" activity and active-task accounting.
+- Applied live sandbox pool setting changes to the active manager so lowering max containers retires only idle excess containers and lets occupied excess containers finish before cleanup.
 - Made acceptance-gate host execution explicit opt-in, so agent acceptance checks use the sandbox path instead of silently falling back to host shell execution.
 - Added a no-host-execution guard test for sandboxed SDK default tools and sandbox acceptance checks.
 - Reaped stale Docker agent-sandbox containers and generated workspace volumes on runtime startup, so crash leftovers are removed before new sandbox work begins.

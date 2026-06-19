@@ -432,6 +432,97 @@ describe("AgentSandboxManager", () => {
 		}
 	});
 
+	it("reaps idle containers that become excess after lowering maxContainers", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 2,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		await manager.disposeWorkspace("task-1");
+		await manager.disposeWorkspace("task-2");
+
+		const slotOneRmCountBeforeLowering = calls.filter(
+			(args) => args.join(" ") === "rm -f nklein-agent-sandbox-1",
+		).length;
+		const slotTwoRmCountBeforeLowering = calls.filter(
+			(args) => args.join(" ") === "rm -f nklein-agent-sandbox-2",
+		).length;
+
+		await manager.updatePoolConfig({
+			maxContainers: 1,
+			agentsPerContainer: 1,
+			idleTimeoutMs: 0,
+		});
+
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(
+			slotOneRmCountBeforeLowering,
+		);
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-2")).toHaveLength(
+			slotTwoRmCountBeforeLowering + 1,
+		);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-2"]);
+		expect(calls).not.toContainEqual(["volume", "rm", "nklein-agent-ws-1"]);
+	});
+
+	it("retires occupied excess containers only after their active task releases", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: {
+				maxContainers: 2,
+				agentsPerContainer: 1,
+				idleTimeoutMs: 0,
+			},
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		const slotTwoRmCountBeforeLowering = calls.filter(
+			(args) => args.join(" ") === "rm -f nklein-agent-sandbox-2",
+		).length;
+
+		await manager.updatePoolConfig({
+			maxContainers: 1,
+			agentsPerContainer: 1,
+			idleTimeoutMs: 0,
+		});
+
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-2")).toHaveLength(
+			slotTwoRmCountBeforeLowering,
+		);
+
+		const queued = manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" });
+		let queuedResolved = false;
+		void queued.then(() => {
+			queuedResolved = true;
+		});
+		await Promise.resolve();
+
+		expect(queuedResolved).toBe(false);
+
+		await manager.disposeWorkspace("task-2");
+		await vi.waitFor(() => {
+			expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-2")).toHaveLength(
+				slotTwoRmCountBeforeLowering + 1,
+			);
+		});
+		expect(queuedResolved).toBe(false);
+
+		await manager.disposeWorkspace("task-1");
+		await expect(queued).resolves.toMatchObject({ taskId: "task-3", slot: 1 });
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
+		expect(calls).toContainEqual(["volume", "rm", "nklein-agent-ws-2"]);
+	});
+
 	it("assigns stable unprivileged task uids", () => {
 		const first = createAgentSandboxTaskUid("task-1");
 		const second = createAgentSandboxTaskUid("task-1");
