@@ -23,9 +23,10 @@
   - J7 still needs the final no-host-fallback audit across custom !Klein tools/MCP and any non-Cline legacy start surfaces before strict isolation can be called complete.
   - Acceptance verification and command paths that create one-shot `AgentSandboxManager` instances still need to share the configured pool or be reconciled with the final pool lifecycle.
 
-- [ ] Reconcile MCP execution with the isolation policy.
-  - Locally executing MCP tools are still not audited or routed through Docker.
-  - This should be handled alongside the custom Cline tool audit because both are host-runtime tool execution surfaces.
+- [x] Reconcile MCP execution with the isolation policy.
+  - Locally executing stdio MCP servers are now skipped when building the Cline MCP tool bundle under strict isolation.
+  - The user-facing warning is `MCP local execution is disabled under strict isolation.`, and remote HTTP/SSE MCP servers keep their existing OAuth/auth flow.
+  - Containerizing local MCP servers remains out of scope for v1; the shipped behavior is default-deny for host subprocess MCP.
 
 - [ ] Add Docker-gated integration coverage after the lifecycle refactor.
   - Unit tests cover Docker run lockdown flags, fail-closed availability checks, queueing, and stable task UIDs.

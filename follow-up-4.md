@@ -318,7 +318,7 @@ agents in one container still cannot read each other's files.
   agent tool and reads/writes/execs, replace its host fs/child_process calls with `manager.exec(taskId, …)` (read via
   `docker exec cat/sed`, search via `docker exec rg`, large-file read via the in-container runner). If it is only used
   by trusted prebuild (indexing/embeddings), leave it (J0 out-of-scope) and add a comment saying so.
-- [ ] **MCP.** [cline-mcp-runtime-service.ts](src/cline-sdk/cline-mcp-runtime-service.ts): locally-executing MCP
+- [x] **MCP.** [cline-mcp-runtime-service.ts](src/cline-sdk/cline-mcp-runtime-service.ts): locally-executing MCP
   servers run subprocesses on the host. In strict mode, **disable local-exec MCP servers by default** (do not spawn
   them) and surface a one-line "MCP local execution is disabled under strict isolation" note. (Containerizing MCP is
   out of scope for v1; default-deny is the safe behavior.)

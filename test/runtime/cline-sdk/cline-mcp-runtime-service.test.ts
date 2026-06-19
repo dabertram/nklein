@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+	createClineMcpRuntimeService,
 	handleClineMcpOauthCallback,
 	startOauthCallbackListener,
 } from "../../../src/cline-sdk/cline-mcp-runtime-service";
@@ -78,5 +82,60 @@ describe("cline-mcp-runtime-service OAuth callback handling", () => {
 		} finally {
 			await session.close();
 		}
+	});
+});
+
+describe("createClineMcpRuntimeService", () => {
+	const originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+	const originalMcpOauthSettingsPath = process.env.CLINE_MCP_OAUTH_SETTINGS_PATH;
+	let tempDir: string | null = null;
+
+	beforeEach(async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "nklein-mcp-runtime-"));
+		process.env.CLINE_MCP_SETTINGS_PATH = join(tempDir, "mcp-settings.json");
+		process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = join(tempDir, "mcp-oauth-settings.json");
+	});
+
+	afterEach(async () => {
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
+		}
+		if (originalMcpOauthSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_OAUTH_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = originalMcpOauthSettingsPath;
+		}
+		if (tempDir) {
+			await rm(tempDir, { recursive: true, force: true });
+			tempDir = null;
+		}
+	});
+
+	it("does not spawn stdio MCP servers under strict isolation", async () => {
+		if (!process.env.CLINE_MCP_SETTINGS_PATH) {
+			throw new Error("Expected MCP settings path to be configured.");
+		}
+		await writeFile(
+			process.env.CLINE_MCP_SETTINGS_PATH,
+			JSON.stringify({
+				mcpServers: {
+					local: {
+						type: "stdio",
+						command: "definitely-not-a-real-mcp-command",
+					},
+				},
+			}),
+		);
+		const service = createClineMcpRuntimeService();
+
+		const bundle = await service.createToolBundle();
+
+		expect(bundle.tools).toEqual([]);
+		expect(bundle.warnings).toEqual([
+			'MCP local execution is disabled under strict isolation. Skipped stdio MCP server "local".',
+		]);
+		await bundle.dispose();
 	});
 });

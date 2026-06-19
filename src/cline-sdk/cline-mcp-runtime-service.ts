@@ -31,6 +31,7 @@ const DEFAULT_AUTH_TIMEOUT_MS = 3 * 60 * 1000;
 const COMPLETED_CALLBACK_RETENTION_MS = 5 * 60 * 1000;
 const OAUTH_CALLBACK_PATH = "/kanban-mcp/mcp-oauth-callback";
 const OAUTH_CALLBACK_REQUEST_ID_PARAM = "requestId";
+const MCP_LOCAL_EXECUTION_DISABLED_MESSAGE = "MCP local execution is disabled under strict isolation.";
 
 const CALLBACK_RESPONSE_HTML = {
 	success:
@@ -243,6 +244,10 @@ function toMcpRegistration(server: RuntimeClineMcpServer): SdkMcpServerRegistrat
 			headers: server.headers,
 		},
 	};
+}
+
+function formatLocalMcpExecutionDisabledWarning(serverName: string): string {
+	return `${MCP_LOCAL_EXECUTION_DISABLED_MESSAGE} Skipped stdio MCP server "${serverName}".`;
 }
 
 function createTransport(input: { server: RuntimeClineMcpServer; oauthProvider?: OAuthClientProvider }): SdkTransport {
@@ -740,15 +745,24 @@ export function createClineMcpRuntimeService(
 				clientFactory: createMcpClient,
 			});
 
+			const warnings: string[] = [];
 			for (const server of loadedSettings.servers) {
+				if (server.type === "stdio" && !server.disabled) {
+					warnings.push(formatLocalMcpExecutionDisabledWarning(server.name));
+				}
+			}
+
+			for (const server of loadedSettings.servers) {
+				if (server.type === "stdio") {
+					continue;
+				}
 				await manager.registerServer(toMcpRegistration(server));
 			}
 
 			const tools: SdkMcpTool[] = [];
-			const warnings: string[] = [];
 
 			for (const server of loadedSettings.servers) {
-				if (server.disabled) {
+				if (server.disabled || server.type === "stdio") {
 					continue;
 				}
 				try {
