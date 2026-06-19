@@ -360,14 +360,27 @@ export interface ClineTaskSessionService {
 	dispose(): Promise<void>;
 }
 
-export interface CreateInMemoryClineTaskSessionServiceOptions {
+interface BaseCreateInMemoryClineTaskSessionServiceOptions {
 	createSessionRuntime?: (options: CreateInMemoryClineSessionRuntimeOptions) => ClineSessionRuntime;
 	createMessageRepository?: () => ClineMessageRepository;
 	createRuntimeSetup?: (workspacePath: string) => Promise<ClineRuntimeSetup>;
 	watcherRegistry?: ClineWatcherRegistry;
-	agentSandboxManager?: AgentSandboxManager;
 	pauseController?: ClinePauseController;
 }
+
+export type CreateInMemoryClineTaskSessionServiceOptions =
+	| (BaseCreateInMemoryClineTaskSessionServiceOptions & {
+			agentSandboxManager: AgentSandboxManager;
+			allowUnisolatedTestRuntime?: never;
+	  })
+	| (BaseCreateInMemoryClineTaskSessionServiceOptions & {
+			agentSandboxManager?: null;
+			/**
+			 * Test-only escape hatch for unit suites that stub the SDK runtime in-process.
+			 * Runtime callers must pass an AgentSandboxManager so Cline tools cannot fall back to host execution.
+			 */
+			allowUnisolatedTestRuntime: true;
+	  });
 
 function toErrorMessage(error: unknown): string {
 	if (error instanceof Error) {
@@ -526,7 +539,12 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<ClineRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeClineTeamProgressEvent) => void>();
 
-	constructor(options: CreateInMemoryClineTaskSessionServiceOptions = {}) {
+	constructor(options: CreateInMemoryClineTaskSessionServiceOptions) {
+		if (!options.agentSandboxManager && options.allowUnisolatedTestRuntime !== true) {
+			throw new Error(
+				"Cline task sessions require an AgentSandboxManager. Unit tests that stub the SDK runtime must pass allowUnisolatedTestRuntime: true.",
+			);
+		}
 		const createSessionRuntime = options.createSessionRuntime ?? createInMemoryClineSessionRuntime;
 		const createMessageRepository = options.createMessageRepository ?? createInMemoryClineMessageRepository;
 		this.watcherRegistry =
@@ -2655,7 +2673,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 }
 
 export function createInMemoryClineTaskSessionService(
-	options: CreateInMemoryClineTaskSessionServiceOptions = {},
+	options: CreateInMemoryClineTaskSessionServiceOptions,
 ): ClineTaskSessionService {
 	return new InMemoryClineTaskSessionService(options);
 }

@@ -14,9 +14,12 @@
   - Strict-isolation planning prompts now tell the agent to produce a plan in chat instead of using `/kanban-decompose`, so the prompt does not advertise an unavailable host mutation workflow.
   - Web research is disabled by default, and sandboxed Cline starts now also omit it when `KANBAN_ENABLE_WEB_RESEARCH=1`, so that env var cannot create a host-network escape hatch for sandboxed Cline tasks.
 
-- [ ] Remove or quarantine the remaining no-sandbox Cline service construction path.
-  - `createInMemoryClineTaskSessionService` still accepts no `agentSandboxManager`, and many unit tests use that in-process path to avoid Docker and real SDK startup. Production runtime-server creates the service with an `AgentSandboxManager`, but the optional constructor path is still a structural host-fallback surface.
-  - Do not mark J7 complete until that path either throws before Cline task start, is moved behind a test-only helper, or is otherwise made impossible for production/runtime callers.
+- [x] Remove or quarantine the remaining no-sandbox Cline service construction path.
+  - `createInMemoryClineTaskSessionService` now requires either an `AgentSandboxManager` or the explicit
+    `allowUnisolatedTestRuntime: true` test-only option. The constructor also throws at runtime if JavaScript callers
+    omit both.
+  - Production runtime-server construction passes a real `AgentSandboxManager`; unit suites that stub the SDK runtime
+    opt into the unisolated path by name so host execution cannot be reintroduced accidentally as a silent default.
 
 - [ ] Replace the remaining host worktree/diff/merge lifecycle with container clone-in / patch-out.
   - Cline starts no longer call `resolveTaskCwd` and no longer create host task worktrees in `runtime-api.ts`.

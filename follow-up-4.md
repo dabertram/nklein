@@ -347,7 +347,7 @@ agents in one container still cannot read each other's files.
   - Done for the Cline runtime start path: `startTaskSession` refreshes the sandbox status before Cline launch and
     returns `agent_sandbox_unavailable` without creating a Cline session when Docker/image preflight fails.
 - [x] Run the same preflight once at runtime startup and expose the result for J8.
-- [ ] **Forbid host fallback structurally:** the host-side executor shims (J1) and the acceptance gate (J5) must throw
+- [x] **Forbid host fallback structurally:** the host-side executor shims (J1) and the acceptance gate (J5) must throw
   if no sandbox manager + bound `taskId` is present. There is no env var, setting, or code branch that runs an agent
   tool on the host.
   Grep after implementing: no agent tool path calls `child_process`/`fs` write/`/bin/sh` directly.
@@ -357,8 +357,9 @@ agents in one container still cannot read each other's files.
   - [x] Sandboxed Cline starts omit host `web_research` even when `KANBAN_ENABLE_WEB_RESEARCH=1`.
   - [x] Sandboxed Cline starts omit the host-side `decompose_project` / `expand_task` tools; strict-isolation planning
     prompts no longer point the agent at the unavailable host mutation workflow.
-  - [ ] The Cline task-session service still has an optional no-sandbox construction path used by tests/non-production
-    harnesses; remove or quarantine that path before checking the broader structural no-host-fallback item.
+  - [x] The Cline task-session service no longer has a silent optional no-sandbox construction path. Runtime callers
+    must pass an `AgentSandboxManager`; unit tests that stub the SDK runtime must explicitly pass
+    `allowUnisolatedTestRuntime: true`, and a regression test asserts construction throws without either.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
 - [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image

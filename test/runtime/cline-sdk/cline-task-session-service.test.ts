@@ -10,7 +10,10 @@ import type {
 	StartClineSessionRuntimeResult,
 } from "../../../src/cline-sdk/cline-session-runtime";
 import { createSessionId } from "../../../src/cline-sdk/cline-session-state";
-import type { ClineTaskSessionService } from "../../../src/cline-sdk/cline-task-session-service";
+import type {
+	ClineTaskSessionService,
+	CreateInMemoryClineTaskSessionServiceOptions,
+} from "../../../src/cline-sdk/cline-task-session-service";
 import {
 	buildKanbanEfficiencyRules,
 	createInMemoryClineTaskSessionService,
@@ -480,6 +483,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		const service = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			allowUnisolatedTestRuntime: true,
 		});
 		services.push(service);
 		return {
@@ -516,6 +520,17 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary.state).toBe("running");
 		expect(summary.workspacePath).toBe("/tmp/worktree");
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
+	});
+
+	it("requires an agent sandbox manager unless a unit test explicitly opts into the in-process runtime", () => {
+		const invalidOptions = {
+			createSessionRuntime: (options: CreateInMemoryClineSessionRuntimeOptions) =>
+				createFakeClineSessionRuntime().createRuntime(options),
+		} as unknown as CreateInMemoryClineTaskSessionServiceOptions;
+
+		expect(() => createInMemoryClineTaskSessionService(invalidOptions)).toThrow(
+			"Cline task sessions require an AgentSandboxManager",
+		);
 	});
 
 	it("prepares a sandbox workspace before starting the SDK session", async () => {
@@ -786,6 +801,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		const service = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
+			allowUnisolatedTestRuntime: true,
 		});
 		services.push(service);
 
@@ -821,10 +837,12 @@ describe("InMemoryClineTaskSessionService", () => {
 		const serviceA = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtimeA.createRuntime(options),
 			watcherRegistry,
+			allowUnisolatedTestRuntime: true,
 		});
 		const serviceB = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtimeB.createRuntime(options),
 			watcherRegistry,
+			allowUnisolatedTestRuntime: true,
 		});
 		services.push(serviceA, serviceB);
 
@@ -1416,6 +1434,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		const service = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
+			allowUnisolatedTestRuntime: true,
 		});
 		services.push(service);
 
@@ -1530,6 +1549,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		const service = createInMemoryClineTaskSessionService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
+			allowUnisolatedTestRuntime: true,
 		});
 		services.push(service);
 
