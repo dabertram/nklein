@@ -985,8 +985,14 @@ to `min-w-[220px]` and wraps awkwardly.
     - Recheck on 2026-06-19: `npx vitest run test/integration/agent-sandbox.integration.test.ts` passed against the
       real image, and read-only Docker cleanup checks found no remaining `nklein.kind=agent-sandbox` containers or
       volumes afterward.
-  - [ ] **Fail-closed:** stop the Docker daemon (or point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image) → creating /
+  - [x] **Fail-closed:** stop the Docker daemon (or point `NKLEIN_AGENT_SANDBOX_IMAGE` at a bogus image) → creating /
     starting a task is blocked with the remediation message, and **no** session or host shell starts.
+    - Recheck on 2026-06-19: launched an isolated runtime against temp project
+      `/private/tmp/nklein-failclosed-project-VgVlOq` with
+      `NKLEIN_AGENT_SANDBOX_IMAGE=nklein/agent-sandbox:missing-failclosed-check`. `nklein task start --task-id 7a727`
+      failed with `Docker agent sandbox image nklein/agent-sandbox:missing-failclosed-check is unavailable. Run npm run sandbox:build, then retry.`
+      Runtime state still had the task in Backlog with `sessions:{}`, and read-only Docker checks found no
+      `nklein.kind=agent-sandbox` containers or volumes.
   - [ ] With Docker running, start real tasks: `docker ps` shows **one** shared `nklein.kind=agent-sandbox` container
     for all of them; each agent's edits stay in its `/workspaces/<taskId>` volume dir (nothing written under
     `~/.cline/nklein/` worktrees or anywhere on the host); the result patch applies to your repo on review; the

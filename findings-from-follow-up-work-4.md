@@ -89,6 +89,10 @@
   - `npx vitest run test/integration/agent-sandbox.integration.test.ts` passed against the real image. Read-only
     cleanup checks (`docker ps -a --filter label=nklein.kind=agent-sandbox` and
     `docker volume ls --filter label=nklein.kind=agent-sandbox`) found no remaining containers or volumes afterward.
+  - Fail-closed real-runtime check passed with an isolated temp project and
+    `NKLEIN_AGENT_SANDBOX_IMAGE=nklein/agent-sandbox:missing-failclosed-check`: starting task `7a727` returned the
+    sandbox-image remediation, runtime state kept the card in Backlog with `sessions:{}`, and Docker showed no
+    `nklein.kind=agent-sandbox` containers or volumes.
   - Do not mark the remaining strict-isolation manual checks complete until real Cline task starts can be observed in
     Docker and the Settings isolation status/pool controls can be inspected in the UI.
 
