@@ -314,6 +314,36 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 	});
 
+	it("moves an applied decomposition source card out of Planning", () => {
+		const board = createBoard();
+		board.columns[1]?.cards.push({
+			id: "planning-card",
+			title: "Complex product decomposition",
+			prompt: "Break this product into implementation cards.",
+			startInPlanMode: true,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+		});
+
+		const result = applyClinePlanTaskGraphToBoard({
+			board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			sourceTaskId: "planning-card",
+			now: 100,
+		});
+
+		const planningCards = result.board.columns.find((column) => column.id === "planning")?.cards ?? [];
+		const completedCards = result.board.columns.find((column) => column.id === "completed")?.cards ?? [];
+		expect(new Set(planningCards.map((card) => card.id))).toEqual(
+			new Set(["habit-tracker-storage", "habit-tracker-ui"]),
+		);
+		expect(completedCards.map((card) => card.id)).toEqual(["planning-card"]);
+		expect(completedCards[0]?.updatedAt).toBe(100);
+	});
+
 	it("carries test-first decomposition instructions into created card prompts", () => {
 		const graph = createTaskGraph();
 		const storageTask = graph.tasks[0];
@@ -764,6 +794,8 @@ describe("cline decomposition tools", () => {
 			});
 			expect(result.instruction).toContain("created 2 Planning cards and 1 dependency");
 			expect(result.instruction).toContain("Dry-run preview:");
+			expect(result.instruction).toContain("sandboxed agents must not try to inspect them");
+			expect(result.instruction).toContain("Stop this planning card now");
 			expect(result.preview.taskCount).toBe(2);
 			expect(result.preview.summary).toContain("across 2 cards");
 			expect(result.instruction).toContain("connected local model fit will be enforced when each card starts");
@@ -863,7 +895,9 @@ describe("cline decomposition tools", () => {
 			expect(result.createdDependencyCount).toBe(9);
 			const parentState = await loadWorkspaceState(parentWorkspacePath);
 			const planningCards = parentState.board.columns.find((column) => column.id === "planning")?.cards ?? [];
+			const completedCards = parentState.board.columns.find((column) => column.id === "completed")?.cards ?? [];
 			expect(planningCards).toHaveLength(10);
+			expect(completedCards.map((card) => card.id)).toEqual(["source-card"]);
 			expect(planningCards.every((card) => card.generatedFromPlan?.sourceTaskId === "source-card")).toBe(true);
 			await expect(readClinePlanArtifacts(parentWorkspacePath, "complex-product")).resolves.toMatchObject({
 				metadata: {
@@ -1003,6 +1037,7 @@ describe("cline decomposition tools", () => {
 						prompt: "Implement the storage slice.",
 						complexity: 35,
 						filesLikelyTouched: ["src/storage.ts"],
+						acceptanceCommand: "grep -q storage src/storage.ts",
 					},
 					{
 						id: "ui",
@@ -1026,6 +1061,7 @@ describe("cline decomposition tools", () => {
 		const taskGraph = await readFile(result.taskGraphPath, "utf8");
 		expect(taskGraph).toContain('"schemaVersion": 1');
 		expect(taskGraph).toContain('"acceptanceCommand": "npm test"');
+		expect(taskGraph).not.toContain("grep -q");
 		expect(taskGraph).toContain('"dependsOn": [');
 	});
 

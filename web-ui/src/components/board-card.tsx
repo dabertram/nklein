@@ -810,19 +810,21 @@ export function BoardCard({
 									)}
 								</div>
 								{canCopyEvidence ? (
-									<Tooltip content="Copy evidence">
+									<Tooltip content="Create evidence bundle and copy agent prompt">
 										<Button
 											icon={isCopyEvidenceLoading ? <Spinner size={13} /> : <Clipboard size={13} />}
 											variant="ghost"
 											size="sm"
 											disabled={isCopyEvidenceLoading}
-											aria-label="Copy task evidence"
+											aria-label="Create task evidence"
 											onMouseDown={stopEvent}
 											onClick={(event) => {
 												stopEvent(event);
 												onCopyEvidence?.(card.id);
 											}}
-										/>
+										>
+											Evidence
+										</Button>
 									</Tooltip>
 								) : null}
 								{isPausedSession ? (

@@ -79,8 +79,8 @@ Checklist:
 
 Example:
 \`\`\`tsx
-<Button variant="ghost" size="sm" icon={<Clipboard size={14} />} aria-label="Copy evidence">
-  Copy evidence
+<Button variant="ghost" size="sm" icon={<Clipboard size={14} />} aria-label="Create evidence">
+  Create evidence
 </Button>
 \`\`\`
 

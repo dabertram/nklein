@@ -398,7 +398,7 @@ export function KanbanBoard({
 				await navigator.clipboard.writeText(response.promptBlock);
 				showAppToast({
 					intent: "success",
-					message: `Evidence copied. ${response.bundlePath}`,
+					message: `Evidence created and copied. ${response.bundlePath}`,
 					timeout: 5000,
 				});
 			} catch (error) {

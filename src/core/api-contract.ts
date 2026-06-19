@@ -412,6 +412,7 @@ export type RuntimeWorkspaceStateResponse = z.infer<typeof runtimeWorkspaceState
 
 export const runtimeWorkspaceStateSaveRequestSchema = z.object({
 	board: runtimeBoardDataSchema,
+	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema).optional(),
 	expectedRevision: z.number().int().nonnegative().optional(),
 });
 export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceStateSaveRequestSchema>;
@@ -1755,6 +1756,7 @@ export const runtimeTaskDiagnosticEventSchema = z.object({
 	providerId: z.string().nullable().optional(),
 	modelId: z.string().nullable().optional(),
 	workspacePath: z.string().nullable().optional(),
+	workspacePathHash: z.string().nullable().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 	createdAt: z.number(),
 });

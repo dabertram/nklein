@@ -615,6 +615,11 @@ async function resolveWorkspaceRepoPath(
 
 async function ensureRuntimeWorkspace(workspaceRepoPath: string): Promise<string> {
 	const runtimeClient = createRuntimeTrpcClient(null);
+	const projects = await runtimeClient.projects.list.query().catch(() => null);
+	const existingProject = projects?.projects.find((project) => project.path === workspaceRepoPath);
+	if (existingProject) {
+		return existingProject.id;
+	}
 	const added = await runtimeClient.projects.add.mutate({
 		path: workspaceRepoPath,
 	});
@@ -1272,9 +1277,9 @@ async function startTask(input: {
 		throw new Error(`Task "${input.taskId}" could not be resolved.`);
 	}
 	const activeColumnId: RuntimeBoardColumnId = task.startInPlanMode ? "planning" : "in_progress";
-	if (fromColumnId !== "backlog" && fromColumnId !== activeColumnId) {
+	if (fromColumnId !== "backlog" && fromColumnId !== "planning" && fromColumnId !== activeColumnId) {
 		throw new Error(
-			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog or ${activeColumnId}.`,
+			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog, planning, or ${activeColumnId}.`,
 		);
 	}
 

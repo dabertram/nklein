@@ -140,7 +140,30 @@ interface ClineTaskRepeatedToolState {
 	toolInputSummary: string | null;
 }
 
+interface ClineTaskRepeatedFailureTargetState {
+	fingerprint: string;
+	count: number;
+	targetSummary: string;
+	toolNames: string[];
+}
+
 const CLINE_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
+const CLINE_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD = 4;
+
+function normalizePlanArtifactFailureTarget(value: string | null | undefined): string | null {
+	const normalized = value?.trim();
+	if (!normalized) {
+		return null;
+	}
+	const pathMatch = normalized.match(
+		/(?:^|\s)(["']?)(\/[^"'\s]*\.cline\/nklein\/plans\/[^"'\s]+|\.cline\/nklein\/plans\/[^"'\s]+)\1/u,
+	);
+	const rawPath = pathMatch?.[2]?.trim();
+	if (!rawPath) {
+		return null;
+	}
+	return rawPath.replace(/[),.;:]+$/u, "").replace(/\/+$/u, "");
+}
 
 export interface StartClineTaskSessionRequest {
 	taskId: string;
@@ -555,6 +578,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
 	private readonly noDiffCheckpointByTaskId = new Map<string, ClineTaskNoDiffState>();
 	private readonly repeatedToolCallByTaskId = new Map<string, ClineTaskRepeatedToolState>();
+	private readonly repeatedFailureTargetByTaskId = new Map<string, ClineTaskRepeatedFailureTargetState>();
 	private readonly timeoutSettingsByTaskId = new Map<string, ClineTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<ClineTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly activeToolTaskIds = new Set<string>();
@@ -2424,6 +2448,53 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		});
 	}
 
+	private enforceRepeatedFailureTargetGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {
+		if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
+			return null;
+		}
+		const target = this.readRepeatedFailureTargetCandidate(summary);
+		if (!target) {
+			return null;
+		}
+		const previous = this.repeatedFailureTargetByTaskId.get(summary.taskId);
+		const toolNames = Array.from(new Set([...(previous?.toolNames ?? []), target.toolName]));
+		const nextState: ClineTaskRepeatedFailureTargetState =
+			previous?.fingerprint === target.fingerprint
+				? {
+						fingerprint: target.fingerprint,
+						count: previous.count + 1,
+						targetSummary: target.targetSummary,
+						toolNames,
+					}
+				: {
+						fingerprint: target.fingerprint,
+						count: 1,
+						targetSummary: target.targetSummary,
+						toolNames: [target.toolName],
+					};
+		this.repeatedFailureTargetByTaskId.set(summary.taskId, nextState);
+		if (nextState.count < CLINE_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD) {
+			return null;
+		}
+		const entry = this.messageRepository.getTaskEntry(summary.taskId);
+		if (!entry || entry.summary.reviewReason === "attention") {
+			return null;
+		}
+		const toolNamesText = nextState.toolNames.join(", ");
+		return this.parkTaskForAutonomyBudget({
+			taskId: summary.taskId,
+			entry,
+			message: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`,
+			metadata: {
+				guardrail: "repeated_plan_artifact_failures",
+				count: nextState.count,
+				limit: CLINE_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD,
+				targetSummary: nextState.targetSummary,
+				toolNames: nextState.toolNames,
+			},
+		});
+	}
+
 	private readRepeatedToolCallCandidate(
 		summary: RuntimeTaskSessionSummary,
 	): Omit<ClineTaskRepeatedToolState, "count"> | null {
@@ -2444,6 +2515,36 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			fingerprint: `${toolName.toLowerCase()}\n${toolInputSummary ?? ""}`,
 			toolName,
 			toolInputSummary,
+		};
+	}
+
+	private readRepeatedFailureTargetCandidate(summary: RuntimeTaskSessionSummary): {
+		fingerprint: string;
+		targetSummary: string;
+		toolName: string;
+	} | null {
+		const activity = summary.latestHookActivity;
+		if (activity?.source !== "cline-sdk") {
+			return null;
+		}
+		if (activity.hookEventName?.trim().toLowerCase() !== "tool_result") {
+			return null;
+		}
+		if (!activity.activityText?.toLowerCase().startsWith("failed ")) {
+			return null;
+		}
+		const toolName = activity.toolName?.trim();
+		if (!toolName || isClineUserAttentionTool(toolName)) {
+			return null;
+		}
+		const targetSummary = normalizePlanArtifactFailureTarget(activity.toolInputSummary);
+		if (!targetSummary) {
+			return null;
+		}
+		return {
+			fingerprint: `plan-artifact\n${targetSummary}`,
+			targetSummary,
+			toolName,
 		};
 	}
 
@@ -2544,6 +2645,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.modelRequestStartedAtByTaskId.clear();
 		this.noDiffCheckpointByTaskId.clear();
 		this.repeatedToolCallByTaskId.clear();
+		this.repeatedFailureTargetByTaskId.clear();
 		this.sandboxRepoPathByTaskId.clear();
 		this.sandboxBaseRefByTaskId.clear();
 		this.finalizingSandboxReviewTaskIds.clear();
@@ -2563,7 +2665,8 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	}
 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
-		const guardedSummary = this.enforceRepeatedToolCallGuard(summary) ?? summary;
+		const guardedSummary =
+			this.enforceRepeatedToolCallGuard(summary) ?? this.enforceRepeatedFailureTargetGuard(summary) ?? summary;
 		this.messageRepository.emitSummary(guardedSummary);
 	}
 

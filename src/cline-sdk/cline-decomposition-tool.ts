@@ -8,7 +8,7 @@ import type {
 	RuntimeBoardDependency,
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
-import { addTaskDependency, addTaskToColumn } from "../core/task-board-mutations";
+import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { resolveClineGuidanceSkillCommand, resolveClineGuidanceSkillTopic } from "./cline-guidance-skills";
@@ -242,9 +242,10 @@ function formatExpansionRevisionMarkdown(expansions: Record<string, ClinePlanTas
 }
 
 function normalizeTaskAcceptanceCommand(task: ClinePlanTask, defaultAcceptanceCommand: string | null): ClinePlanTask {
+	const normalizedDefaultAcceptanceCommand = defaultAcceptanceCommand?.trim() || null;
 	return {
 		...task,
-		acceptanceCommand: task.acceptanceCommand?.trim() || defaultAcceptanceCommand,
+		acceptanceCommand: normalizedDefaultAcceptanceCommand ?? task.acceptanceCommand?.trim() ?? null,
 		dependsOn: uniqStrings(task.dependsOn),
 	};
 }
@@ -843,6 +844,11 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 		}
 	}
 
+	const sourceTaskId = input.sourceTaskId?.trim() || null;
+	if (sourceTaskId && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
+		board = moveTaskToColumn(board, sourceTaskId, "completed", now).board;
+	}
+
 	return {
 		board,
 		createdTasks,
@@ -1096,7 +1102,7 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 				summaryPath: artifacts.summaryPath,
 				taskGraphPath: artifacts.taskGraphPath,
 				instruction: applied.applied
-					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. Continue by starting the newly created !Klein cards; do not implement this planning card directly.`
+					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. The artifact paths in this result are trusted control-plane references for !Klein/UI recovery; sandboxed agents must not try to inspect them with read_files, list_files, find_files, read_large_file, or run_commands. Stop this planning card now and continue by starting the newly created !Klein cards; do not implement this planning card directly.`
 					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through !Klein, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
 			};
 		},

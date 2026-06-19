@@ -12,7 +12,7 @@ Use !Klein's decomposition workflow instead of editing !Klein internals directly
 - If any proposed leaf is too broad, include a recursive \`expansions\` map in the same \`decompose_project\` call instead of calling \`expand_task\` and then trying again. Keys are oversized task ids; values are smaller replacement tasks. !Klein expands them before validation and rewrites dependencies to the terminal replacement leaves.
 - After the tool succeeds, apply the generated graph through the command it returns whenever the !Klein runtime can continue autonomously. Only tell the user the exact \`nklein task decompose --slug <slug> --project-path <workspace_path>\` command when automation is unavailable or the task has explicitly opted out of automatic review/continuation.
 
-Create reviewable !Klein tasks from the specification. For implementation leaves, use the workspace's provided acceptance command when one is available.
+Create reviewable !Klein tasks from the specification. For implementation leaves, use the workspace's provided acceptance command when one is available; pass it as defaultAcceptanceCommand and do not invent brittle per-card shell probes such as grep/tail wrappers around test output.
 
 Each task in the tool's \`tasks\` input must include:
 - id, title, prompt.

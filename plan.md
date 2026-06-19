@@ -470,11 +470,14 @@ L2 executor — fully autonomously, recursively splitting anything too big.
 ### L3.2 — Open gaps
 - [x] ~~Land cards in the Planning lane, not Backlog.~~ `applyClinePlanTaskGraphToBoard` now adds cards to
       `planning`, persisted runtime boards normalize the Planning column, dependency links treat Planning as a
-      waiting lane, and runnable Planning cards can flow into `in_progress`
+      waiting lane, runnable Planning cards can flow into `in_progress`, and successful auto-apply moves the
+      source decomposition card to Completed so repeated starts do not re-run the decomposer beside the DAG
       ([cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts),
       [workspace-state.ts](src/state/workspace-state.ts),
       [task-board-mutations.ts](src/core/task-board-mutations.ts),
-      [use-board-interactions.ts](web-ui/src/hooks/use-board-interactions.ts)).
+      [use-board-interactions.ts](web-ui/src/hooks/use-board-interactions.ts)). A 2026-06-19 complex dev-test
+      live run also caught and fixed the CLI/runtime start eligibility gap for generated `startInPlanMode:
+      false` Planning cards.
 - [x] ~~Ship the decomposition prompt as an overridable rule, not a hardcoded string.~~ Runtime setup now
       seeds `kanban-decompose.md` as a user-editable workflow, resolves `/kanban-decompose` through
       `userInstructionService`, preserves user edits, and plan-mode task starts reference the workflow
@@ -891,6 +894,8 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
    window with no hardcoded window/speed constants in routing/budget decisions.
 5. **Parallel local swarm works.** A multi-card DAG auto-starts unblocked cards up to the concurrency cap,
    serializes per local endpoint, runs distinct endpoints in parallel, and never thrashes the machine.
+   The 2026-06-19 complex dev-test run verified DAG creation and manual root-card start from Planning; automatic
+   root-card start after decomposition still needs a dedicated end-to-end verification/fix.
 6. **Decomposition is autonomous & local-feasible.** A project prompt yields a Planning-lane DAG where
    every leaf is guaranteed runnable by a connected local model (recursive expand), validated for fit at
    tool time, never started blind.
@@ -932,6 +937,29 @@ can see *that* it ran, *what* it decided, and *why*, both during work and afterw
   `"Insufficient balance"`, zero `>1M-token` overflows, and zero `"timeout after 1 seconds"`.
 - **CI guardrail:** `git diff --exit-code node_modules/@clinebot` stays clean; lint bans deep SDK imports
   outside `src/cline-sdk/`.
+
+---
+
+## Project portability — active baseline
+
+**Outcome:** Durable project state moves into the project directory so a !Klein board can be recovered from
+the repository checkout instead of depending only on one machine's `~/.cline/nklein` runtime cache.
+
+- [x] **Mirror core workspace state into the project.** Board state, session summaries, revision metadata,
+      and workspace identity are written to `<project>/.cline/nklein/workspace/` on normal state saves and
+      atomic board mutations, while `~/.cline/nklein/workspaces/<id>/` remains the fast runtime cache/index.
+- [x] **Recover from workspace-local state.** `loadWorkspaceState` falls back to the project-local mirror
+      when the runtime-home `board.json`, `sessions.json`, or `meta.json` files are missing, with integration
+      coverage that deletes the runtime cache and reloads from the project directory.
+- [ ] **Define the full portable schema.** Decide which state is durable and portable versus machine-local:
+      portable includes board/cards/DAG/provenance/spec/plan/decisions/revisions; machine-local includes
+      running SDK sessions, model speed telemetry, endpoint URLs, sandbox containers, result branches, and
+      raw telemetry.
+- [ ] **Conflict and sync semantics.** Add explicit import/reconcile UX for two machines advancing the same
+      board, instead of assuming last-writer-wins.
+- [ ] **Sandbox visibility.** Make newly written trusted control-plane artifacts visible to newly started
+      sandbox tasks through the workspace-local state while keeping active sandbox sessions from depending on
+      host-only paths.
 
 ---
 

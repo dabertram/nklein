@@ -367,7 +367,12 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 			} satisfies RuntimeWorkspaceFileSearchResponse;
 		},
 		loadState: async (workspaceScope) => {
-			return await deps.buildWorkspaceStateSnapshot(workspaceScope.workspaceId, workspaceScope.workspacePath);
+			const state = await deps.buildWorkspaceStateSnapshot(workspaceScope.workspaceId, workspaceScope.workspacePath);
+			const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+			for (const summary of clineTaskSessionService.listSummaries()) {
+				state.sessions[summary.taskId] = summary;
+			}
+			return state;
 		},
 		notifyStateUpdated: async (workspaceScope) => {
 			void deps.broadcastRuntimeWorkspaceStateUpdated(workspaceScope.workspaceId, workspaceScope.workspacePath);
@@ -380,6 +385,7 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 			try {
 				const response = await saveWorkspaceState(workspaceScope.workspacePath, {
 					board: input.board,
+					...(input.sessions ? { sessions: input.sessions } : {}),
 					expectedRevision: input.expectedRevision,
 				});
 				void deps.broadcastRuntimeWorkspaceStateUpdated(workspaceScope.workspaceId, workspaceScope.workspacePath);

@@ -132,6 +132,37 @@ describe("self observation sink", () => {
 		expect(events.every((event) => event.taskId === "task-1")).toBe(true);
 	});
 
+	it("filters telemetry reads by workspace path", async () => {
+		const rootDir = await createTelemetryRoot();
+		const sink = new LocalSelfObservationSink({ rootDir });
+
+		await sink.record({
+			signal: "runtime_error",
+			severity: "error",
+			message: "First workspace",
+			taskId: "shared-task",
+			workspacePath: "/tmp/workspace-a",
+			createdAt: Date.UTC(2026, 0, 4, 1, 0, 0),
+		});
+		await sink.record({
+			signal: "runtime_error",
+			severity: "error",
+			message: "Second workspace",
+			taskId: "shared-task",
+			workspacePath: "/tmp/workspace-b",
+			createdAt: Date.UTC(2026, 0, 4, 2, 0, 0),
+		});
+
+		const events = await readSelfObservationEvents({
+			rootDir,
+			taskId: "shared-task",
+			workspacePath: "/tmp/workspace-b",
+			limit: 5,
+		});
+
+		expect(events.map((event) => event.message)).toEqual(["Second workspace"]);
+	});
+
 	it("limits telemetry reads", async () => {
 		const rootDir = await createTelemetryRoot();
 		const sink = new LocalSelfObservationSink({ rootDir });

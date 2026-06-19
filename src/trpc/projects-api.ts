@@ -105,7 +105,11 @@ export function createDevTestBoard(input: {
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,
-		prompt: input.prompt,
+		prompt: [
+			input.prompt.trim(),
+			"",
+			`Use \`defaultAcceptanceCommand: "${input.acceptanceCommand}"\` when calling \`decompose_project\`, unless a generated leaf needs a narrower objective check.`,
+		].join("\n"),
 		startInPlanMode: true,
 		autoReviewEnabled: true,
 		agentId: "cline" as const,

@@ -74,7 +74,7 @@ describe("collectProjectWorktreeTaskIdsForRemoval", () => {
 });
 
 describe("createWorkspaceRegistry", () => {
-	it("does not auto-register the launch cwd when it is an unindexed git repository", async () => {
+	it("auto-registers the launch cwd when it is an unindexed git repository", async () => {
 		await withTemporaryHome(async () => {
 			const repoPath = join(
 				tmpdir(),
@@ -91,9 +91,11 @@ describe("createWorkspaceRegistry", () => {
 					pathIsDirectory: async () => true,
 				});
 
-				expect(registry.getActiveWorkspaceId()).toBeNull();
-				expect(registry.getActiveWorkspacePath()).toBeNull();
-				expect(await listWorkspaceIndexEntries()).toHaveLength(0);
+				const entries = await listWorkspaceIndexEntries();
+				expect(registry.getActiveWorkspaceId()).toBe(entries[0]?.workspaceId);
+				expect(entries).toHaveLength(1);
+				expect(realpathSync(registry.getActiveWorkspacePath() ?? "")).toBe(realpathSync(repoPath));
+				expect(realpathSync(entries[0]?.repoPath ?? "")).toBe(realpathSync(repoPath));
 			} finally {
 				rmSync(repoPath, { recursive: true, force: true });
 			}

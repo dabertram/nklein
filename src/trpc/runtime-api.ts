@@ -851,11 +851,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				signal: null,
 			};
 		},
-		getTaskDiagnostics: async (_workspaceScope, input) => {
+		getTaskDiagnostics: async (workspaceScope, input) => {
 			return {
 				ok: true,
 				events: await readSelfObservationEvents({
 					taskId: input.taskId,
+					workspacePath: workspaceScope.workspacePath,
 					limit: input.limit ?? 25,
 				}),
 			};

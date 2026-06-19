@@ -484,6 +484,43 @@ describe("createWorkspaceApi loadChanges", () => {
 	});
 });
 
+describe("createWorkspaceApi loadState", () => {
+	it("merges live Cline summaries into workspace state snapshots", async () => {
+		const snapshot = {
+			repoPath: "/tmp/project",
+			statePath: "/tmp/project/.cline/nklein/workspace/board.json",
+			board: createBoard("Run Cline task"),
+			sessions: {},
+			git: {
+				currentBranch: "main",
+				defaultBranch: "main",
+				branches: ["main"],
+			},
+			revision: 1,
+		};
+		const clineSummary = createSummary({
+			taskId: "task-1",
+			agentId: "cline",
+			state: "running",
+			workspacePath: "/tmp/project",
+		});
+		const api = createWorkspaceApi({
+			ensureTerminalManagerForWorkspace: vi.fn(),
+			getScopedClineTaskSessionService: vi.fn(async () => ({ listSummaries: vi.fn(() => [clineSummary]) }) as never),
+			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
+			broadcastRuntimeProjectsUpdated: vi.fn(),
+			buildWorkspaceStateSnapshot: vi.fn(async () => snapshot),
+		});
+
+		const loaded = await api.loadState({
+			workspaceId: "workspace-1",
+			workspacePath: "/tmp/project",
+		});
+
+		expect(loaded.sessions["task-1"]).toEqual(clineSummary);
+	});
+});
+
 describe("createWorkspaceApi saveState", () => {
 	it("preserves runtime-owned sessions when saving a board from stale UI state", async () => {
 		await withTemporaryHome(async () => {

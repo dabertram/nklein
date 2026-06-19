@@ -198,7 +198,7 @@ function toProjectSummary(project: {
 export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDependencies): Promise<WorkspaceRegistry> {
 	const launchedFromGitRepo = deps.hasGitRepository(deps.cwd);
 	const initialWorkspace = launchedFromGitRepo
-		? await loadWorkspaceContext(deps.cwd, { autoCreateIfMissing: false }).catch(() => null)
+		? await loadWorkspaceContext(deps.cwd, { autoCreateIfMissing: true }).catch(() => null)
 		: null;
 	let indexedWorkspace: RuntimeWorkspaceIndexEntry | null = null;
 	if (!initialWorkspace) {

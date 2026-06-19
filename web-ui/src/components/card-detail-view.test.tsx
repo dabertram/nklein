@@ -908,7 +908,7 @@ describe("CardDetailView", () => {
 		});
 
 		const evidenceButton = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent?.trim() === "Copy evidence",
+			(button) => button.textContent?.trim() === "Create evidence",
 		);
 		expect(evidenceButton).toBeInstanceOf(HTMLButtonElement);
 
@@ -919,7 +919,7 @@ describe("CardDetailView", () => {
 
 		expect(mockCollectTaskEvidence).toHaveBeenCalledWith("workspace-1", "task-1");
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Here is evidence from a !Klein task.");
-		expect(container.textContent).toContain("Evidence copied. /tmp/evidence/task-1");
+		expect(container.textContent).toContain("Evidence created and copied. /tmp/evidence/task-1");
 		expect(container.textContent).toContain("Evidence and diff");
 		expect(container.textContent).toContain("/tmp/evidence/task-1/diff.patch");
 		expect(container.textContent).toContain("/tmp/evidence/task-1/transcript/01-task-1.json");

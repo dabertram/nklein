@@ -34,6 +34,8 @@ const INDEX_FILENAME = "index.json";
 const BOARD_FILENAME = "board.json";
 const SESSIONS_FILENAME = "sessions.json";
 const META_FILENAME = "meta.json";
+const WORKSPACE_LOCAL_STATE_DIR = "workspace";
+const WORKSPACE_IDENTITY_FILENAME = "identity.json";
 const INDEX_VERSION = 1;
 const WORKSPACE_ID_COLLISION_SUFFIX_LENGTH = 4;
 
@@ -68,6 +70,20 @@ interface WorkspaceStateMeta {
 	revision: number;
 	updatedAt: number;
 }
+
+interface WorkspaceLocalIdentity {
+	version: 1;
+	workspaceId: string;
+	repoPath: string;
+	updatedAt: number;
+}
+
+const workspaceLocalIdentitySchema = z.object({
+	version: z.literal(1),
+	workspaceId: z.string().min(1, "Workspace ID cannot be empty."),
+	repoPath: z.string().min(1, "Workspace repository path cannot be empty."),
+	updatedAt: z.number(),
+});
 
 const workspaceStateMetaSchema = z.object({
 	revision: z.number().int().nonnegative(),
@@ -170,6 +186,13 @@ function recordWorkspaceResolutionDecision(input: {
 	source: string;
 	metadata?: Record<string, unknown>;
 }): void {
+	if (
+		input.severity === "debug" &&
+		input.metadata?.autoRegistered !== true &&
+		(input.source === "existing_index" || input.source === "explicit_id" || input.source === "explicit_path")
+	) {
+		return;
+	}
 	recordSelfObservation({
 		signal: "custom",
 		severity: input.severity,
@@ -261,6 +284,26 @@ function getWorkspaceSessionsPath(workspaceId: string): string {
 
 function getWorkspaceMetaPath(workspaceId: string): string {
 	return join(getWorkspaceDirectoryPath(workspaceId), META_FILENAME);
+}
+
+function getWorkspaceLocalStateDirectoryPath(repoPath: string): string {
+	return join(repoPath, ".cline", RUNTIME_HOME_DIR, WORKSPACE_LOCAL_STATE_DIR);
+}
+
+function getWorkspaceLocalBoardPath(repoPath: string): string {
+	return join(getWorkspaceLocalStateDirectoryPath(repoPath), BOARD_FILENAME);
+}
+
+function getWorkspaceLocalSessionsPath(repoPath: string): string {
+	return join(getWorkspaceLocalStateDirectoryPath(repoPath), SESSIONS_FILENAME);
+}
+
+function getWorkspaceLocalMetaPath(repoPath: string): string {
+	return join(getWorkspaceLocalStateDirectoryPath(repoPath), META_FILENAME);
+}
+
+function getWorkspaceLocalIdentityPath(repoPath: string): string {
+	return join(getWorkspaceLocalStateDirectoryPath(repoPath), WORKSPACE_IDENTITY_FILENAME);
 }
 
 function getWorkspaceIndexLockRequest(): LockRequest {
@@ -375,6 +418,31 @@ async function readWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData
 	);
 }
 
+async function readWorkspaceBoardForContext(context: RuntimeWorkspaceContext): Promise<RuntimeBoardData> {
+	const boardPath = getWorkspaceBoardPath(context.workspaceId);
+	const rawBoard = await readJsonFile(boardPath);
+	if (rawBoard !== null) {
+		return updateTaskDependencies(
+			normalizeRuntimeBoardData(
+				parsePersistedStateFile(boardPath, BOARD_FILENAME, rawBoard, runtimeBoardDataSchema, createEmptyBoard()),
+			),
+		);
+	}
+	const localBoardPath = getWorkspaceLocalBoardPath(context.repoPath);
+	const rawLocalBoard = await readJsonFile(localBoardPath);
+	return updateTaskDependencies(
+		normalizeRuntimeBoardData(
+			parsePersistedStateFile(
+				localBoardPath,
+				`${WORKSPACE_LOCAL_STATE_DIR}/${BOARD_FILENAME}`,
+				rawLocalBoard,
+				runtimeBoardDataSchema,
+				createEmptyBoard(),
+			),
+		),
+	);
+}
+
 export async function loadWorkspaceBoardById(workspaceId: string): Promise<RuntimeBoardData> {
 	return await readWorkspaceBoard(workspaceId);
 }
@@ -385,12 +453,101 @@ async function readWorkspaceSessions(workspaceId: string): Promise<Record<string
 	return parsePersistedStateFile(sessionsPath, SESSIONS_FILENAME, rawSessions, workspaceSessionsSchema, {});
 }
 
-async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceStateMeta> {
-	const metaPath = getWorkspaceMetaPath(workspaceId);
+async function readWorkspaceSessionsForContext(
+	context: RuntimeWorkspaceContext,
+): Promise<Record<string, RuntimeTaskSessionSummary>> {
+	const sessionsPath = getWorkspaceSessionsPath(context.workspaceId);
+	const rawSessions = await readJsonFile(sessionsPath);
+	if (rawSessions !== null) {
+		return parsePersistedStateFile(sessionsPath, SESSIONS_FILENAME, rawSessions, workspaceSessionsSchema, {});
+	}
+	const localSessionsPath = getWorkspaceLocalSessionsPath(context.repoPath);
+	const rawLocalSessions = await readJsonFile(localSessionsPath);
+	return parsePersistedStateFile(
+		localSessionsPath,
+		`${WORKSPACE_LOCAL_STATE_DIR}/${SESSIONS_FILENAME}`,
+		rawLocalSessions,
+		workspaceSessionsSchema,
+		{},
+	);
+}
+
+async function readWorkspaceMetaForContext(context: RuntimeWorkspaceContext): Promise<WorkspaceStateMeta> {
+	const metaPath = getWorkspaceMetaPath(context.workspaceId);
 	const rawMeta = await readJsonFile(metaPath);
-	return parsePersistedStateFile(metaPath, META_FILENAME, rawMeta, workspaceStateMetaSchema, {
-		revision: 0,
-		updatedAt: 0,
+	if (rawMeta !== null) {
+		return parsePersistedStateFile(metaPath, META_FILENAME, rawMeta, workspaceStateMetaSchema, {
+			revision: 0,
+			updatedAt: 0,
+		});
+	}
+	const localMetaPath = getWorkspaceLocalMetaPath(context.repoPath);
+	const rawLocalMeta = await readJsonFile(localMetaPath);
+	return parsePersistedStateFile(
+		localMetaPath,
+		`${WORKSPACE_LOCAL_STATE_DIR}/${META_FILENAME}`,
+		rawLocalMeta,
+		workspaceStateMetaSchema,
+		{
+			revision: 0,
+			updatedAt: 0,
+		},
+	);
+}
+
+async function readWorkspaceLocalIdentity(repoPath: string): Promise<WorkspaceLocalIdentity | null> {
+	const identityPath = getWorkspaceLocalIdentityPath(repoPath);
+	const rawIdentity = await readJsonFile(identityPath);
+	if (rawIdentity === null) {
+		return null;
+	}
+	return parsePersistedStateFile(
+		identityPath,
+		`${WORKSPACE_LOCAL_STATE_DIR}/${WORKSPACE_IDENTITY_FILENAME}`,
+		rawIdentity,
+		workspaceLocalIdentitySchema,
+		{
+			version: 1,
+			workspaceId: "",
+			repoPath,
+			updatedAt: 0,
+		},
+	);
+}
+
+async function writeWorkspaceStateFiles(
+	context: RuntimeWorkspaceContext,
+	board: RuntimeBoardData,
+	sessions: Record<string, RuntimeTaskSessionSummary>,
+	meta: WorkspaceStateMeta,
+): Promise<void> {
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceBoardPath(context.workspaceId), board, {
+		lock: null,
+	});
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceSessionsPath(context.workspaceId), sessions, {
+		lock: null,
+	});
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceMetaPath(context.workspaceId), meta, {
+		lock: null,
+	});
+
+	const identity: WorkspaceLocalIdentity = {
+		version: 1,
+		workspaceId: context.workspaceId,
+		repoPath: context.repoPath,
+		updatedAt: meta.updatedAt,
+	};
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceLocalIdentityPath(context.repoPath), identity, {
+		lock: null,
+	});
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceLocalBoardPath(context.repoPath), board, {
+		lock: null,
+	});
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceLocalSessionsPath(context.repoPath), sessions, {
+		lock: null,
+	});
+	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceLocalMetaPath(context.repoPath), meta, {
+		lock: null,
 	});
 }
 
@@ -431,7 +588,13 @@ function createWorkspaceIdCollisionSuffix(length: number): string {
 	return suffix;
 }
 
-function createWorkspaceId(index: WorkspaceIndexFile, repoPath: string): string {
+function createWorkspaceId(index: WorkspaceIndexFile, repoPath: string, preferredWorkspaceId?: string): string {
+	if (preferredWorkspaceId) {
+		const existingPreferredEntry = index.entries[preferredWorkspaceId];
+		if (!existingPreferredEntry || existingPreferredEntry.repoPath === repoPath) {
+			return preferredWorkspaceId;
+		}
+	}
 	const baseId = toWorkspaceIdBase(repoPath);
 	if (!index.entries[baseId] || index.entries[baseId]?.repoPath === repoPath) {
 		return baseId;
@@ -451,6 +614,7 @@ function ensureWorkspaceEntry(
 	index: WorkspaceIndexFile,
 	repoPath: string,
 	gitRepositoryCreatedByKanban: boolean,
+	preferredWorkspaceId?: string,
 ): { index: WorkspaceIndexFile; entry: WorkspaceIndexEntry; changed: boolean } {
 	const existingWorkspaceId = index.repoPathToId[repoPath];
 	if (existingWorkspaceId) {
@@ -481,7 +645,7 @@ function ensureWorkspaceEntry(
 		}
 	}
 
-	const workspaceId = createWorkspaceId(index, repoPath);
+	const workspaceId = createWorkspaceId(index, repoPath, preferredWorkspaceId);
 
 	const entry: WorkspaceIndexEntry = {
 		workspaceId,
@@ -705,7 +869,13 @@ export async function loadWorkspaceContext(
 
 	return await lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
 		let index = await readWorkspaceIndex();
-		const ensured = ensureWorkspaceEntry(index, repoPath, options.gitRepositoryCreatedByKanban === true);
+		const localIdentity = await readWorkspaceLocalIdentity(repoPath);
+		const ensured = ensureWorkspaceEntry(
+			index,
+			repoPath,
+			options.gitRepositoryCreatedByKanban === true,
+			localIdentity?.workspaceId,
+		);
 		index = ensured.index;
 		if (ensured.changed) {
 			await writeWorkspaceIndex(index);
@@ -723,6 +893,7 @@ export async function loadWorkspaceContext(
 				autoCreateIfMissing,
 				allowTaskWorktreeProject: options.allowTaskWorktreeProject === true,
 				gitRepositoryCreatedByKanban: options.gitRepositoryCreatedByKanban === true,
+				...(localIdentity ? { localIdentityWorkspaceId: localIdentity.workspaceId } : {}),
 				...(options.resolutionMetadata ?? {}),
 			},
 		});
@@ -801,9 +972,9 @@ export async function removeWorkspaceStateFiles(workspaceId: string): Promise<vo
 
 export async function loadWorkspaceState(cwd: string): Promise<RuntimeWorkspaceStateResponse> {
 	const context = await loadWorkspaceContext(cwd);
-	const board = await readWorkspaceBoard(context.workspaceId);
-	const sessions = await readWorkspaceSessions(context.workspaceId);
-	const meta = await readWorkspaceMeta(context.workspaceId);
+	const board = await readWorkspaceBoardForContext(context);
+	const sessions = await readWorkspaceSessionsForContext(context);
+	const meta = await readWorkspaceMetaForContext(context);
 	return toWorkspaceStateResponse(context, board, sessions, meta.revision);
 }
 
@@ -814,8 +985,7 @@ export async function saveWorkspaceState(
 	const parsedPayload = parseWorkspaceStateSavePayload(payload);
 	const context = await loadWorkspaceContext(cwd);
 	return await lockedFileSystem.withLock(getWorkspaceDirectoryLockRequest(context.workspaceId), async () => {
-		const metaPath = getWorkspaceMetaPath(context.workspaceId);
-		const currentMeta = await readWorkspaceMeta(context.workspaceId);
+		const currentMeta = await readWorkspaceMetaForContext(context);
 		const expectedRevision = parsedPayload.expectedRevision;
 		if (
 			typeof expectedRevision === "number" &&
@@ -833,15 +1003,7 @@ export async function saveWorkspaceState(
 			updatedAt: Date.now(),
 		};
 
-		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceBoardPath(context.workspaceId), board, {
-			lock: null,
-		});
-		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceSessionsPath(context.workspaceId), sessions, {
-			lock: null,
-		});
-		await lockedFileSystem.writeJsonFileAtomic(metaPath, nextMeta, {
-			lock: null,
-		});
+		await writeWorkspaceStateFiles(context, board, sessions, nextMeta);
 
 		return toWorkspaceStateResponse(context, board, sessions, nextRevision);
 	});
@@ -866,9 +1028,9 @@ export async function mutateWorkspaceState<T>(
 ): Promise<RuntimeWorkspaceAtomicMutationResponse<T>> {
 	const context = await loadWorkspaceContext(cwd);
 	return await lockedFileSystem.withLock(getWorkspaceDirectoryLockRequest(context.workspaceId), async () => {
-		const currentBoard = await readWorkspaceBoard(context.workspaceId);
-		const currentSessions = await readWorkspaceSessions(context.workspaceId);
-		const currentMeta = await readWorkspaceMeta(context.workspaceId);
+		const currentBoard = await readWorkspaceBoardForContext(context);
+		const currentSessions = await readWorkspaceSessionsForContext(context);
+		const currentMeta = await readWorkspaceMetaForContext(context);
 		const currentState = toWorkspaceStateResponse(context, currentBoard, currentSessions, currentMeta.revision);
 
 		const mutation = mutate(currentState);
@@ -888,15 +1050,7 @@ export async function mutateWorkspaceState<T>(
 			updatedAt: Date.now(),
 		};
 
-		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceBoardPath(context.workspaceId), nextBoard, {
-			lock: null,
-		});
-		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceSessionsPath(context.workspaceId), nextSessions, {
-			lock: null,
-		});
-		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceMetaPath(context.workspaceId), nextMeta, {
-			lock: null,
-		});
+		await writeWorkspaceStateFiles(context, nextBoard, nextSessions, nextMeta);
 
 		return {
 			value: mutation.value,

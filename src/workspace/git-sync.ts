@@ -110,6 +110,11 @@ function parseStatusPath(line: string): string | null {
 	return tokens[tokens.length - 1] ?? null;
 }
 
+function isPortableWorkspaceStatePath(path: string): boolean {
+	const normalized = path.replaceAll("\\", "/");
+	return normalized === ".cline/nklein/workspace" || normalized.startsWith(".cline/nklein/workspace/");
+}
+
 export async function probeGitWorkspaceState(cwd: string): Promise<GitWorkspaceProbe> {
 	const repoRoot = await resolveRepoRoot(cwd);
 	const [statusResult, headCommitResult] = await Promise.all([
@@ -151,7 +156,7 @@ export async function probeGitWorkspaceState(cwd: string): Promise<GitWorkspaceP
 		}
 		if (line.startsWith("? ")) {
 			const path = line.slice(2).trim();
-			if (!path) {
+			if (!path || isPortableWorkspaceStatePath(path)) {
 				continue;
 			}
 			changedFiles += 1;
@@ -161,7 +166,7 @@ export async function probeGitWorkspaceState(cwd: string): Promise<GitWorkspaceP
 		}
 		if (line.startsWith("1 ") || line.startsWith("2 ") || line.startsWith("u ")) {
 			const path = parseStatusPath(line);
-			if (!path) {
+			if (!path || isPortableWorkspaceStatePath(path)) {
 				continue;
 			}
 			changedFiles += 1;

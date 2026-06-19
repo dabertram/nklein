@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { appendFile, mkdir, readdir, readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +39,7 @@ export interface SelfObservationEventInput {
 export interface SelfObservationEventRecord extends SelfObservationEventInput {
 	schemaVersion: 1;
 	createdAt: number;
+	workspacePathHash?: string | null;
 }
 
 export interface SelfObservationSinkOptions {
@@ -54,6 +56,7 @@ export interface SelfObservationSink {
 export interface ReadSelfObservationEventsOptions {
 	rootDir?: string;
 	taskId?: string | null;
+	workspacePath?: string | null;
 	limit?: number;
 	now?: number;
 }
@@ -81,6 +84,18 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
 	}
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? redactText(trimmed) : null;
+}
+
+function normalizeRawOptionalString(value: string | null | undefined): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function hashWorkspacePath(value: string | null): string | null {
+	return value ? createHash("sha256").update(value).digest("hex") : null;
 }
 
 function redactPaths(value: string): string {
@@ -127,6 +142,7 @@ async function pruneOldLogs(rootDir: string, now: number, retentionDays: number)
 }
 
 function normalizeEvent(input: SelfObservationEventInput, now: number): SelfObservationEventRecord {
+	const rawWorkspacePath = normalizeRawOptionalString(input.workspacePath);
 	return {
 		schemaVersion: 1,
 		signal: input.signal,
@@ -136,7 +152,8 @@ function normalizeEvent(input: SelfObservationEventInput, now: number): SelfObse
 		runId: normalizeOptionalString(input.runId),
 		providerId: normalizeOptionalString(input.providerId),
 		modelId: normalizeOptionalString(input.modelId),
-		workspacePath: normalizeOptionalString(input.workspacePath),
+		workspacePath: normalizeOptionalString(rawWorkspacePath),
+		workspacePathHash: hashWorkspacePath(rawWorkspacePath),
 		metadata: input.metadata ? (redactValue(input.metadata) as Record<string, unknown>) : undefined,
 		createdAt: input.createdAt ?? now,
 	};
@@ -200,6 +217,7 @@ function parseSelfObservationEventRecord(line: string): SelfObservationEventReco
 		providerId: typeof record.providerId === "string" ? record.providerId : null,
 		modelId: typeof record.modelId === "string" ? record.modelId : null,
 		workspacePath: typeof record.workspacePath === "string" ? record.workspacePath : null,
+		workspacePathHash: typeof record.workspacePathHash === "string" ? record.workspacePathHash : null,
 		metadata:
 			record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
 				? (record.metadata as Record<string, unknown>)
@@ -214,6 +232,7 @@ export async function readSelfObservationEvents(
 	const rootDir = resolveRootDir(options.rootDir);
 	const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 50)));
 	const normalizedTaskId = normalizeOptionalString(options.taskId);
+	const workspacePathHash = hashWorkspacePath(normalizeRawOptionalString(options.workspacePath));
 	const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
 	const logFiles = entries
 		.filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name))
@@ -229,6 +248,7 @@ export async function readSelfObservationEvents(
 			.map(parseSelfObservationEventRecord)
 			.filter((record): record is SelfObservationEventRecord => record !== null)
 			.filter((record) => !normalizedTaskId || record.taskId === normalizedTaskId)
+			.filter((record) => !workspacePathHash || record.workspacePathHash === workspacePathHash)
 			.sort((left, right) => right.createdAt - left.createdAt);
 		events.push(...records);
 		if (events.length >= limit) {

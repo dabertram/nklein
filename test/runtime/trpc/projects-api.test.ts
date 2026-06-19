@@ -175,8 +175,8 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
+		expect(backlog[0]?.prompt).toContain('defaultAcceptanceCommand: "npm test"');
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable !Klein tasks");
-		expect(backlog[0]?.prompt).not.toContain("Acceptance command for implementation leaves");
 		expect(board.dependencies).toHaveLength(0);
 	});
 });

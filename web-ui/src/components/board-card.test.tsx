@@ -778,7 +778,7 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("Freshly created task description");
 	});
 
-	it("exposes a copy evidence action without opening the card", async () => {
+	it("exposes a create evidence action without opening the card", async () => {
 		const onCopyEvidence = vi.fn();
 		const onClick = vi.fn();
 
@@ -796,8 +796,9 @@ describe("BoardCard", () => {
 			);
 		});
 
-		const button = container.querySelector<HTMLButtonElement>('button[aria-label="Copy task evidence"]');
+		const button = container.querySelector<HTMLButtonElement>('button[aria-label="Create task evidence"]');
 		expect(button).toBeInstanceOf(HTMLButtonElement);
+		expect(button?.textContent).toContain("Evidence");
 
 		await act(async () => {
 			button?.click();

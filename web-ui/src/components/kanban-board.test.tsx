@@ -84,7 +84,7 @@ vi.mock("@/components/board-column", () => ({
 							) : null}
 							{onCopyTaskEvidence ? (
 								<button type="button" onClick={() => onCopyTaskEvidence(card.id)}>
-									Copy evidence
+									Create evidence
 								</button>
 							) : null}
 						</div>
@@ -459,7 +459,7 @@ describe("KanbanBoard", () => {
 		});
 
 		const evidenceButton = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent?.trim() === "Copy evidence",
+			(button) => button.textContent?.trim() === "Create evidence",
 		);
 		expect(evidenceButton).toBeInstanceOf(HTMLButtonElement);
 

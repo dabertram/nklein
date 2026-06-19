@@ -107,11 +107,14 @@
   files, acceptance command required) and graph/reference validation.
 - [x] Recursive expand loop (bounded depth) with dependency rewriting to terminal leaves; final leaves pass
   the connected-local-model fit guard before artifacts are accepted.
-- [x] Plan artifacts under `~/.cline/nklein/plans/<slug>/`: `spec.md`, `plan.md`, `tasks.json`,
+- [x] Plan artifacts under `<project>/.cline/nklein/plans/<slug>/`: `spec.md`, `plan.md`, `tasks.json`,
   `questions.md` (clarifying Q&A / assumptions), `summary.md` (plain-language), `decisions.md`,
   `revisions.md` (audit trail). Workspace-owned artifacts with id/provenance; idempotent apply.
 - [x] Cards land in the **Planning** lane; runnable Planning cards flow into execution. Overridable
-  `nklein-decompose` workflow rule (not a hardcoded prompt).
+  `nklein-decompose` workflow rule (not a hardcoded prompt). Successful auto-apply consumes the source
+  decomposition card into Completed so it is not re-run alongside the generated DAG. Live complex-dev
+  verification on 2026-06-19 confirmed generated Planning cards can be started into execution; automatic
+  root-card start after decomposition remains a separate swarm-pipeline verification target.
 - [x] Naive-idea intake → clarifying questions (option chips in chat) → reviewable plan with plain-language
   summary.
 - [x] Adaptive re-planning: `plan-gap` events (missing decision, contradiction, missing dependency, oversized
@@ -192,7 +195,7 @@
 
 - [x] Local self-observation telemetry sink (errors/overflows/retries/inefficiencies/plan-gaps) with path
   redaction, broadened secret patterns, and retention rotation.
-- [x] Evidence bundle + one-click "Copy evidence for agent" (prompt block + bundle path); gated
+- [x] Evidence bundle + one-click "Create evidence" for agent handoff (prompt block + bundle path); gated
   "Create !Klein self-improvement project" (dev checkout, evidence-pinned base commit, protected-guard on).
 - [x] Dogfood improvement-backlog engine (clamped to the sizing contract); smoke-eval harness (local roster
   only); evidence/diff viewer drawer; command palette (⌘K); developer surfaces gated behind a persistent
@@ -214,6 +217,11 @@
   requires confirmation and survives removal, task-worktree → owning-workspace resolution, accidental-project
   detection/repair, persistence-ownership split (board vs runtime session state), board-save conflict
   rebase/retry.
+- [~] **Project portability baseline** *(started 2026-06-19)*: runtime-home remains the fast local index/cache,
+  but board state, session summaries, revision metadata, and workspace identity are mirrored into
+  `<project>/.cline/nklein/workspace/`; project loads can recover from that workspace-local mirror if the
+  runtime-home workspace cache is missing. Running sessions, model telemetry/speed, endpoint config,
+  sandbox containers, task result branches, and local telemetry remain machine-local.
 - [x] Guidance skills (`security`/`ui`/`ts`) seeded as on-demand `/nklein-*` workflows, routed by card topic.
 
 ## 13. Known degradations / parked features  *(tracked)*
@@ -239,18 +247,18 @@
 - [ ] Retire/quarantine the host worktree subsystem; single legacy predicate; result-branch-only diff/merge.
 - [ ] Scripted strict-isolation + dev-build verification runbook.
 
-### 14.2 — LATER: Portable "project state in the repository" (cross-machine continuation)
-> **This is a high-level, deferred feature. When work on it starts, EXTENSIVE clarification with the user is
-> MANDATORY before any implementation — the data model, sync semantics, and conflict story all need explicit
-> sign-off.**
-- **LATER:** !Klein shall store **all** information about a project's tasks, task cards, task graph (DAG),
+### 14.2 — Portable "project state in the repository" (cross-machine continuation) *(active baseline)*
+- [~] **Started 2026-06-19:** !Klein now mirrors core workspace state into
+  `<project>/.cline/nklein/workspace/` and can recover board/session/meta from that mirror when the
+  runtime-home cache is missing. This is the base for portability, not the full collaborative sync story.
+- [ ] !Klein shall store **all durable, non-machine-local** information about a project's tasks, task cards, task graph (DAG),
   progress, spec, plans, decisions, and revision history **inside the repository itself** (e.g. a committed
   `.nklein/` project-state directory), so the full "project state" can be:
   1. pushed to the repository server,
   2. fetched onto another machine, and
   3. loaded there into a fresh !Klein install, and
   4. **work continued** with whatever local LLM models are available on that machine.
-- **Why:** today project state lives in `~/.cline/nklein/` (per-machine, outside the repo). Moving the durable
+- **Why:** today part of project state still lives in `~/.cline/nklein/` (per-machine, outside the repo). Moving the durable
   project state into the repo makes a !Klein project portable and collaboratable, and decouples "the plan and
   its progress" from the machine that produced it.
 - **Open clarification topics to resolve WITH THE USER before building (non-exhaustive):**
@@ -300,8 +308,9 @@
 5. A multi-card DAG auto-starts unblocked cards under the cap, serializes per endpoint, parallelizes across
    endpoints, and never thrashes the machine.
 6. **A single high-level prompt yields a Planning-lane DAG of local-feasible cards that actually get created
-   and flow into execution — with strict isolation ON.** *(Met 2026-06-19 — §6; live end-to-end verification
-   still owed under §2.C.)*
+   and flow into execution — with strict isolation ON.** *(Partially re-verified 2026-06-19: complex dev-test
+   decomposition created the DAG under Docker isolation and a generated Planning card started into execution;
+   automatic unblocked-card swarm start remains the remaining end-to-end target.)*
 7. Context is visible as a segmented green→red bar against the real effective window.
 8. Parallel cards never collide on shared files; worktrees/result-branches merge in dependency order;
    autonomous runs are budgeted, stoppable in one click, and stalled tasks auto-park.

@@ -799,6 +799,35 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
+	it("loads task diagnostics scoped to the active workspace", async () => {
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		await api.getTaskDiagnostics(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/project-a",
+			},
+			{
+				taskId: "shared-task",
+				limit: 7,
+			},
+		);
+
+		expect(selfObservationMocks.readSelfObservationEvents).toHaveBeenCalledWith({
+			taskId: "shared-task",
+			workspacePath: "/tmp/project-a",
+			limit: 7,
+		});
+	});
+
 	it("verifies task acceptance through the scoped Cline sandbox service", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-acceptance-workspace-"));
 		try {

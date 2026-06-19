@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -150,6 +150,49 @@ describe.sequential("workspace-state integration", () => {
 				const loadedAfterConflict = await loadWorkspaceState(workspacePath);
 				expect(loadedAfterConflict.revision).toBe(2);
 				expect(loadedAfterConflict.board.columns[0]?.cards[0]?.prompt).toBe("Task Two");
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("mirrors workspace state into the project for portable recovery", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-portable-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-a");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const context = await loadWorkspaceContext(workspacePath);
+				const saved = await saveWorkspaceState(workspacePath, {
+					board: createBoard("Portable Task"),
+					sessions: {
+						"task-1": createSessionSummary("task-1"),
+					},
+				});
+				const localStatePath = join(workspacePath, ".cline", "nklein", "workspace");
+				expect(existsSync(join(localStatePath, "identity.json"))).toBe(true);
+				expect(JSON.parse(readFileSync(join(localStatePath, "identity.json"), "utf8"))).toMatchObject({
+					version: 1,
+					workspaceId: context.workspaceId,
+					repoPath: realpathSync(workspacePath),
+				});
+				expect(JSON.parse(readFileSync(join(localStatePath, "board.json"), "utf8"))).toEqual(saved.board);
+				expect(JSON.parse(readFileSync(join(localStatePath, "sessions.json"), "utf8"))).toEqual(saved.sessions);
+				expect(JSON.parse(readFileSync(join(localStatePath, "meta.json"), "utf8"))).toMatchObject({
+					revision: saved.revision,
+				});
+
+				rmSync(join(getWorkspacesRootPath(), context.workspaceId), { recursive: true, force: true });
+				rmSync(join(getWorkspacesRootPath(), "index.json"), { force: true });
+				const recoveredContext = await loadWorkspaceContext(workspacePath);
+				expect(recoveredContext.workspaceId).toBe(context.workspaceId);
+
+				const recovered = await loadWorkspaceState(workspacePath);
+				expect(recovered.revision).toBe(saved.revision);
+				expect(recovered.board.columns[0]?.cards[0]?.prompt).toBe("Portable Task");
+				expect(recovered.sessions["task-1"]?.taskId).toBe("task-1");
 			} finally {
 				cleanup();
 			}
@@ -317,15 +360,7 @@ describe.sequential("workspace-state integration", () => {
 					autoCreateIfMissing: false,
 				});
 				expect(existing.workspaceId).toBe(created.workspaceId);
-				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
-					expect.objectContaining({
-						signal: "custom",
-						metadata: expect.objectContaining({
-							operation: "workspace_resolution",
-							source: "existing_index",
-						}),
-					}),
-				);
+				expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalled();
 			} finally {
 				cleanup();
 			}
@@ -385,6 +420,7 @@ describe.sequential("workspace-state integration", () => {
 							operation: "workspace_resolution",
 							source: "explicit_path",
 							workspaceId: context.workspaceId,
+							autoRegistered: true,
 							providedProjectPath: "./project-a",
 						}),
 					}),
@@ -410,16 +446,7 @@ describe.sequential("workspace-state integration", () => {
 					resolutionSource: "explicit_id",
 				});
 				expect(resolved?.workspaceId).toBe(context.workspaceId);
-				expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
-					expect.objectContaining({
-						metadata: expect.objectContaining({
-							operation: "workspace_resolution",
-							source: "explicit_id",
-							workspaceId: context.workspaceId,
-							requestedWorkspaceId: context.workspaceId,
-						}),
-					}),
-				);
+				expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalled();
 			} finally {
 				cleanup();
 			}

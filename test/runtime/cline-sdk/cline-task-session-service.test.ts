@@ -2656,6 +2656,84 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
 	});
 
+	it("parks a task after repeated failed plan artifact inspections across different tools", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose the project.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		const planPath = ".cline/nklein/plans/habit-product/tasks.json";
+		const toolCalls = [
+			{
+				toolName: "run_commands",
+				input: { commands: [`ls -la ${planPath}`] },
+			},
+			{
+				toolName: "find_files",
+				input: { path: planPath, pattern: "*" },
+			},
+			{
+				toolName: "list_files",
+				input: { path: planPath, recursive: true },
+			},
+			{
+				toolName: "read_files",
+				input: { files: [{ path: planPath }] },
+			},
+		];
+
+		for (const [index, call] of toolCalls.entries()) {
+			const toolCallId = `tool-${index + 1}`;
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId,
+				toolName: call.toolName,
+				input: call.input,
+			});
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_end",
+				contentType: "tool",
+				toolCallId,
+				toolName: call.toolName,
+				error: "Sandbox tool failed.",
+				output: { error: "Sandbox tool failed." },
+			});
+		}
+
+		const summary = service.getSummary("task-1");
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("failed attempts to inspect the same plan artifact path"),
+			latestHookActivity: {
+				hookEventName: "guardrail",
+				source: "kanban",
+			},
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				signal: "budget_wall",
+				severity: "warning",
+				taskId: "task-1",
+				providerId: "lmstudio",
+				modelId: "qwen3",
+				metadata: expect.objectContaining({
+					guardrail: "repeated_plan_artifact_failures",
+					count: 4,
+					limit: 4,
+					targetSummary: planPath,
+					toolNames: ["run_commands", "find_files", "list_files", "read_files"],
+				}),
+			}),
+		);
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartClineSessionRuntimeResult>();

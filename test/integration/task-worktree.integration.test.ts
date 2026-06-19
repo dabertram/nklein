@@ -427,7 +427,7 @@ describe.sequential("task-worktree integration", () => {
 				expect(deleted.ok).toBe(true);
 				expect(deleted.removed).toBe(true);
 
-				const patchesDir = join(process.env.HOME ?? sandboxRoot, ".cline", "kanban", "trashed-task-patches");
+				const patchesDir = join(process.env.HOME ?? sandboxRoot, ".cline", "nklein", "trashed-task-patches");
 				const patchFilename = readdirSync(patchesDir).find(
 					(filename) => filename.startsWith(`${taskId}.`) && filename.endsWith(`.${createdCommit}.patch`),
 				);
@@ -549,7 +549,7 @@ describe.sequential("task-worktree integration", () => {
 				});
 				expect(deleted.ok).toBe(true);
 
-				const patchesDir = join(process.env.HOME ?? sandboxRoot, ".cline", "kanban", "trashed-task-patches");
+				const patchesDir = join(process.env.HOME ?? sandboxRoot, ".cline", "nklein", "trashed-task-patches");
 				mkdirSync(patchesDir, { recursive: true });
 				const patchPath = join(patchesDir, `${taskId}.${createdCommit}.patch`);
 				writeFileSync(
