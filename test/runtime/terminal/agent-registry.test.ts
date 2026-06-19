@@ -123,6 +123,11 @@ describe("buildRuntimeConfigResponse", () => {
 		expect(response.sandboxMemoryPerContainerMb).toBe(4096);
 		expect(response.sandboxCpusPerContainer).toBe(2);
 		expect(response.sandboxIdleTimeoutMinutes).toBe(10);
+		expect(response.agentSandboxStatus).toMatchObject({
+			state: "checking",
+			dockerAvailable: null,
+			imageAvailable: null,
+		});
 		expect(response.modelRoles).toEqual({
 			worker: {
 				providerId: "ollama",

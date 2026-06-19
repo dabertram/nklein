@@ -48,7 +48,8 @@ interface StartTaskSessionResult {
 		| "routing_escalation"
 		| "cloud_provider_disabled"
 		| "endpoint_busy"
-		| "swarm_stopped";
+		| "swarm_stopped"
+		| "agent_sandbox_unavailable";
 	retryAfterMs?: number | null;
 }
 

@@ -86,6 +86,20 @@ describe("AgentSandboxManager", () => {
 		await expect(manager.assertAvailable()).rejects.toThrow("sandbox image test-image is unavailable");
 	});
 
+	it("reports structured sandbox availability status", async () => {
+		const { execFile: execFileStub } = createExecFileStub({ failImageInspect: true });
+		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
+
+		await expect(manager.checkAvailability(() => 123)).resolves.toEqual({
+			state: "blocked",
+			dockerAvailable: true,
+			imageAvailable: false,
+			image: "test-image",
+			message: "Docker agent sandbox image test-image is unavailable. Run npm run sandbox:build, then retry.",
+			checkedAt: 123,
+		});
+	});
+
 	it("queues tasks when the pool is full and reuses the freed container", async () => {
 		const { execFile: execFileStub, calls } = createExecFileStub();
 		const manager = new AgentSandboxManager({

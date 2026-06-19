@@ -4,7 +4,11 @@ import { createServer as createHttpsServer } from "node:https";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import { AgentSandboxManager, type AgentSandboxPoolConfig } from "../cline-sdk/cline-agent-sandbox";
+import {
+	AgentSandboxManager,
+	type AgentSandboxPoolConfig,
+	resolveAgentSandboxImageName,
+} from "../cline-sdk/cline-agent-sandbox";
 import { handleClineMcpOauthCallback } from "../cline-sdk/cline-mcp-runtime-service";
 import {
 	type ClineTaskSessionService,
@@ -13,6 +17,7 @@ import {
 import { createClineWatcherRegistry } from "../cline-sdk/cline-watcher-registry";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import type {
+	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeUpdateStatusResponse,
@@ -119,8 +124,36 @@ function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSa
 	};
 }
 
+function createCheckingAgentSandboxStatus(): RuntimeAgentSandboxStatus {
+	return {
+		state: "checking",
+		dockerAvailable: null,
+		imageAvailable: null,
+		image: resolveAgentSandboxImageName(),
+		message: null,
+		checkedAt: null,
+	};
+}
+
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
 	const webUiDir = getWebUiDir();
+	let agentSandboxStatus = createCheckingAgentSandboxStatus();
+	const refreshAgentSandboxStatus = async (): Promise<RuntimeAgentSandboxStatus> => {
+		agentSandboxStatus = createCheckingAgentSandboxStatus();
+		agentSandboxStatus = await new AgentSandboxManager().checkAvailability();
+		return agentSandboxStatus;
+	};
+	void refreshAgentSandboxStatus().catch((error) => {
+		const message = error instanceof Error ? error.message : String(error);
+		agentSandboxStatus = {
+			state: "blocked",
+			dockerAvailable: false,
+			imageAvailable: false,
+			image: resolveAgentSandboxImageName(),
+			message,
+			checkedAt: Date.now(),
+		};
+	});
 
 	try {
 		await readFile(join(webUiDir, "index.html"));
@@ -321,6 +354,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		taskStartQueue: scheduledTaskStartQueue,
 		getUpdateStatus: deps.getUpdateStatus,
 		runUpdateNow: deps.runUpdateNow,
+		getAgentSandboxStatus: () => agentSandboxStatus,
+		refreshAgentSandboxStatus,
 	});
 
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {

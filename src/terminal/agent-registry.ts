@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_SANDBOX_IMAGE } from "../cline-sdk/cline-agent-sandbox";
 import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import { isDebugOverrideEnvEnabled } from "../config/debug-override";
 import type { RuntimeConfigState } from "../config/runtime-config";
@@ -5,6 +6,7 @@ import { getRuntimeLaunchSupportedAgentCatalog, RUNTIME_AGENT_CATALOG } from "..
 import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
+	RuntimeAgentSandboxStatus,
 	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
 } from "../core/api-contract";
@@ -109,6 +111,14 @@ export function resolveAgentCommand(runtimeConfig: RuntimeConfigState): Resolved
 export function buildRuntimeConfigResponse(
 	runtimeConfig: RuntimeConfigState,
 	clineProviderSettings: RuntimeClineProviderSettings,
+	agentSandboxStatus: RuntimeAgentSandboxStatus = {
+		state: "checking",
+		dockerAvailable: null,
+		imageAvailable: null,
+		image: DEFAULT_AGENT_SANDBOX_IMAGE,
+		message: null,
+		checkedAt: null,
+	},
 ): RuntimeConfigResponse {
 	const detectedCommands = detectInstalledCommands();
 	const agents = getCuratedDefinitions(runtimeConfig, detectedCommands);
@@ -148,6 +158,7 @@ export function buildRuntimeConfigResponse(
 		readyForReviewNotificationsEnabled: runtimeConfig.readyForReviewNotificationsEnabled,
 		detectedCommands,
 		agents,
+		agentSandboxStatus,
 		shortcuts: runtimeConfig.shortcuts,
 		clineProviderSettings,
 		modelRoles: runtimeConfig.modelRoles,

@@ -839,6 +839,50 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
+	it("blocks Cline starts when the agent sandbox preflight is unavailable", async () => {
+		const terminalManager = {
+			listSummaries: vi.fn(() => []),
+		};
+		const getScopedClineTaskSessionService = vi.fn(async () => createClineTaskSessionServiceMock() as never);
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedClineTaskSessionService,
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+			refreshAgentSandboxStatus: vi.fn(async () => ({
+				state: "blocked" as const,
+				dockerAvailable: false,
+				imageAvailable: false,
+				image: "test-image",
+				message: "Docker is required for !Klein agent isolation, but it is unavailable.",
+				checkedAt: 123,
+			})),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Investigate startup freeze",
+			},
+		);
+
+		expect(response).toEqual({
+			ok: false,
+			summary: null,
+			error: "Docker is required for !Klein agent isolation, but it is unavailable.",
+			errorCode: "agent_sandbox_unavailable",
+		});
+		expect(getScopedClineTaskSessionService).not.toHaveBeenCalled();
+	});
+
 	it("still avoids host worktree creation for Cline when no existing task cwd is available", async () => {
 		taskWorktreeMocks.resolveTaskCwd
 			.mockRejectedValueOnce(new Error("missing"))

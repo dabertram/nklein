@@ -1435,6 +1435,16 @@ export const runtimeAgentDefinitionSchema = z.object({
 });
 export type RuntimeAgentDefinition = z.infer<typeof runtimeAgentDefinitionSchema>;
 
+export const runtimeAgentSandboxStatusSchema = z.object({
+	state: z.enum(["checking", "ready", "blocked"]),
+	dockerAvailable: z.boolean().nullable(),
+	imageAvailable: z.boolean().nullable(),
+	image: z.string(),
+	message: z.string().nullable(),
+	checkedAt: z.number().nullable(),
+});
+export type RuntimeAgentSandboxStatus = z.infer<typeof runtimeAgentSandboxStatusSchema>;
+
 export const runtimeConfigResponseSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema,
 	selectedShortcutLabel: z.string().nullable(),
@@ -1467,6 +1477,7 @@ export const runtimeConfigResponseSchema = z.object({
 	readyForReviewNotificationsEnabled: z.boolean(),
 	detectedCommands: z.array(z.string()),
 	agents: z.array(runtimeAgentDefinitionSchema),
+	agentSandboxStatus: runtimeAgentSandboxStatusSchema,
 	shortcuts: z.array(runtimeProjectShortcutSchema),
 	clineProviderSettings: runtimeClineProviderSettingsSchema,
 	modelRoles: runtimeModelRolesSchema,
@@ -1652,7 +1663,14 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 	summary: runtimeTaskSessionSummarySchema.nullable(),
 	error: z.string().optional(),
 	errorCode: z
-		.enum(["needs_decomposition", "routing_escalation", "cloud_provider_disabled", "endpoint_busy", "swarm_stopped"])
+		.enum([
+			"needs_decomposition",
+			"routing_escalation",
+			"cloud_provider_disabled",
+			"endpoint_busy",
+			"swarm_stopped",
+			"agent_sandbox_unavailable",
+		])
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
 	queued: z.boolean().optional(),

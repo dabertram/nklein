@@ -63,6 +63,7 @@ import { applyMcsrAwareLocalTimeoutScaling } from "../cline-sdk/cline-timeout-sc
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
+	RuntimeAgentSandboxStatus,
 	RuntimeBoardCard,
 	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
@@ -368,6 +369,8 @@ export interface CreateRuntimeApiDependencies {
 	getEvidenceBundleRoot?: () => string;
 	getUpdateStatus: () => RuntimeUpdateStatusResponse;
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
+	getAgentSandboxStatus?: () => RuntimeAgentSandboxStatus;
+	refreshAgentSandboxStatus?: () => Promise<RuntimeAgentSandboxStatus>;
 }
 
 async function resolveExistingTaskCwdOrEnsure(options: {
@@ -774,7 +777,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 	] as const;
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
-		buildRuntimeConfigResponse(runtimeConfig, clineProviderService.getProviderSettingsSummary());
+		buildRuntimeConfigResponse(
+			runtimeConfig,
+			clineProviderService.getProviderSettingsSummary(),
+			deps.getAgentSandboxStatus?.(),
+		);
 
 	return {
 		loadConfig: async (workspaceScope) => {
@@ -1094,6 +1101,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				}
 
 				if (useClinePath) {
+					const sandboxStatus = deps.refreshAgentSandboxStatus
+						? await deps.refreshAgentSandboxStatus()
+						: deps.getAgentSandboxStatus?.();
+					if (sandboxStatus && sandboxStatus.state !== "ready") {
+						return {
+							ok: false,
+							summary: null,
+							error:
+								sandboxStatus.message ??
+								"Docker is required for !Klein agent isolation, but the sandbox is unavailable.",
+							errorCode: "agent_sandbox_unavailable",
+						};
+					}
 					const hasTaskLevelClineSettingsOverride = body.clineSettings !== undefined;
 					let clineLaunchConfig = await clineProviderService.resolveLaunchConfig({
 						providerIdOverride: body.clineSettings?.providerId ?? undefined,

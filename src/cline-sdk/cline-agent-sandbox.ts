@@ -62,6 +62,15 @@ export interface AgentSandboxExecResult {
 	stderr: string;
 }
 
+export interface AgentSandboxAvailabilityStatus {
+	state: "ready" | "blocked";
+	dockerAvailable: boolean;
+	imageAvailable: boolean;
+	image: string;
+	message: string | null;
+	checkedAt: number;
+}
+
 export interface AgentSandboxManagerOptions {
 	image?: string;
 	poolConfig?: Partial<AgentSandboxPoolConfig>;
@@ -244,18 +253,56 @@ export class AgentSandboxManager {
 		this.poolConfig = normalizeAgentSandboxPoolConfig(config);
 	}
 
-	async assertAvailable(): Promise<void> {
+	async checkAvailability(now: () => number = Date.now): Promise<AgentSandboxAvailabilityStatus> {
 		try {
 			const version = await this.runDocker(["version"], { timeoutMs: 10_000 });
 			if (version.exitCode !== 0) {
-				throw version;
+				return {
+					state: "blocked",
+					dockerAvailable: false,
+					imageAvailable: false,
+					image: this.image,
+					message: toSandboxUnavailableError(version, this.image).message,
+					checkedAt: now(),
+				};
 			}
 			const image = await this.runDocker(["image", "inspect", this.image], { timeoutMs: 10_000 });
 			if (image.exitCode !== 0) {
-				throw image;
+				return {
+					state: "blocked",
+					dockerAvailable: true,
+					imageAvailable: false,
+					image: this.image,
+					message: toSandboxUnavailableError(image, this.image).message,
+					checkedAt: now(),
+				};
 			}
 		} catch (error) {
-			throw toSandboxUnavailableError(error, this.image);
+			return {
+				state: "blocked",
+				dockerAvailable: false,
+				imageAvailable: false,
+				image: this.image,
+				message: toSandboxUnavailableError(error, this.image).message,
+				checkedAt: now(),
+			};
+		}
+		return {
+			state: "ready",
+			dockerAvailable: true,
+			imageAvailable: true,
+			image: this.image,
+			message: null,
+			checkedAt: now(),
+		};
+	}
+
+	async assertAvailable(): Promise<void> {
+		const status = await this.checkAvailability();
+		if (status.state !== "ready") {
+			throw new AgentSandboxUnavailableError(
+				status.message ?? "Docker is required for !Klein agent isolation, but the sandbox is unavailable.",
+			);
 		}
 	}
 

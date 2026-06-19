@@ -338,14 +338,16 @@ agents in one container still cannot read each other's files.
   starts, `await AgentSandbox.assertAvailable(image)`; on failure, block the start and return the
   `AgentSandboxUnavailableError` message ("Docker is required for strict agent isolation and is unavailable: <reason>.
   Install/start Docker and run `npm run sandbox:build`.") so it surfaces in the UI start flow.
-- [ ] Run the same preflight once at runtime startup and expose the result for J8.
+  - Done for the Cline runtime start path: `startTaskSession` refreshes the sandbox status before Cline launch and
+    returns `agent_sandbox_unavailable` without creating a Cline session when Docker/image preflight fails.
+- [x] Run the same preflight once at runtime startup and expose the result for J8.
 - [ ] **Forbid host fallback structurally:** the host-side executor shims (J1) and the acceptance gate (J5) must throw
   if no sandbox manager + bound `taskId` is present. There is no env var, setting, or code branch that runs an agent
   tool on the host.
   Grep after implementing: no agent tool path calls `child_process`/`fs` write/`/bin/sh` directly.
 
 ### J8. Settings/UI — isolation status (read-only) + the sandbox pool settings
-- [ ] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image
+- [x] Read-only **"Agent isolation" status** row in the General settings section: Docker daemon ✓/✗, sandbox image
   present ✓/✗, plus remediation text when missing ("Install Docker, start the daemon, run `npm run sandbox:build`").
   There is **no control to disable isolation** — it is mandatory.
 - [x] **Sandbox pool settings (global).** Add these fields, each implemented like §E `developerModeEnabled` (config

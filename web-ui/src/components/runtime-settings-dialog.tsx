@@ -1739,6 +1739,14 @@ export function RuntimeSettingsDialog({
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
 	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(config);
+	const agentSandboxStatus = config?.agentSandboxStatus ?? {
+		state: "checking" as const,
+		dockerAvailable: null,
+		imageAvailable: null,
+		image: "nklein/agent-sandbox:0.0.1",
+		message: null,
+		checkedAt: null,
+	};
 
 	const supportedAgents = useMemo<RuntimeSettingsAgentRowModel[]>(() => {
 		const agents =
@@ -2834,6 +2842,47 @@ export function RuntimeSettingsDialog({
 						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
 							Show a Replay button on finished cards to re-run them from scratch.
 						</p>
+						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+							Agent isolation
+						</h6>
+						<div className="rounded-md border border-border bg-surface-1 p-3">
+							<div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+								<ShieldCheck size={14} className="text-text-secondary" />
+								<span>
+									{agentSandboxStatus.state === "ready"
+										? "Docker sandbox ready"
+										: agentSandboxStatus.state === "blocked"
+											? "Docker sandbox unavailable"
+											: "Checking Docker sandbox"}
+								</span>
+							</div>
+							<div className="mt-2 grid gap-2 sm:grid-cols-2">
+								<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+									<div className="text-[11px] text-text-tertiary">Docker daemon</div>
+									<div className="text-[13px] font-medium text-text-primary">
+										{agentSandboxStatus.dockerAvailable === null
+											? "Checking"
+											: agentSandboxStatus.dockerAvailable
+												? "Available"
+												: "Unavailable"}
+									</div>
+								</div>
+								<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+									<div className="text-[11px] text-text-tertiary">Sandbox image</div>
+									<div className="text-[13px] font-medium text-text-primary">
+										{agentSandboxStatus.imageAvailable === null
+											? "Checking"
+											: agentSandboxStatus.imageAvailable
+												? "Available"
+												: "Unavailable"}
+									</div>
+									<div className="mt-1 text-[11px] text-text-secondary">{agentSandboxStatus.image}</div>
+								</div>
+							</div>
+							{agentSandboxStatus.message ? (
+								<p className="text-status-orange text-[12px] mt-2 mb-0">{agentSandboxStatus.message}</p>
+							) : null}
+						</div>
 						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
 							Agent
 						</h6>

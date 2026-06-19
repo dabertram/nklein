@@ -327,6 +327,14 @@ const savedClineOauthConfig = {
 	sandboxMemoryPerContainerMb: 4096,
 	sandboxCpusPerContainer: 2,
 	sandboxIdleTimeoutMinutes: 10,
+	agentSandboxStatus: {
+		state: "ready",
+		dockerAvailable: true,
+		imageAvailable: true,
+		image: "nklein/agent-sandbox:0.0.1",
+		message: null,
+		checkedAt: 1,
+	},
 	effectiveCommand: "cline",
 	detectedCommands: [],
 	shortcuts: [],
@@ -674,6 +682,10 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(document.body.textContent).toContain("Local swarm guardrails");
+		expect(document.body.textContent).toContain("Agent isolation");
+		expect(document.body.textContent).toContain("Docker sandbox ready");
+		expect(document.body.textContent).toContain("Docker daemon");
+		expect(document.body.textContent).toContain("Sandbox image");
 		expect(document.body.textContent).toContain("5 running max");
 		expect(document.body.textContent).toContain("Sandbox pool");
 		expect(document.body.textContent).toContain("4 effective parallel");

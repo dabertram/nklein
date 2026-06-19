@@ -85,6 +85,14 @@ function createRuntimeConfigResponse(
 		sandboxMemoryPerContainerMb: 4096,
 		sandboxCpusPerContainer: 2,
 		sandboxIdleTimeoutMinutes: 10,
+		agentSandboxStatus: {
+			state: "ready",
+			dockerAvailable: true,
+			imageAvailable: true,
+			image: "nklein/agent-sandbox:0.0.1",
+			message: null,
+			checkedAt: 1,
+		},
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
 		codeEmbeddingDefaults: {
