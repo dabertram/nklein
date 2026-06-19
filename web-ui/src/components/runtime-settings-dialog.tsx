@@ -67,6 +67,7 @@ import {
 	getClineModelContextWindowWarning,
 	isLmStudioProviderId,
 } from "@/runtime/cline-context-window-policy";
+import { buildSuggestedCodeEmbeddingBaseUrl, isLocalEmbeddingEndpointUrl } from "@/runtime/code-embedding-endpoint";
 import {
 	filterVisibleClineProviderCatalog,
 	isCloudProviderSupportEnabled,
@@ -115,7 +116,7 @@ import {
 	requestBrowserNotificationPermission,
 } from "@/utils/notification-permission";
 import { formatPathForDisplay } from "@/utils/path-display";
-import { useUnmount, useWindowEvent } from "@/utils/react-use";
+import { useDebouncedEffect, useUnmount, useWindowEvent } from "@/utils/react-use";
 
 interface RuntimeSettingsAgentRowModel {
 	id: RuntimeAgentId;
@@ -272,6 +273,7 @@ function EmbeddingEndpointFields({
 	provider,
 	baseUrl,
 	model,
+	suggestedBaseUrl,
 	endpointPlaceholder,
 	modelPlaceholder,
 	onBaseUrlChange,
@@ -284,6 +286,7 @@ function EmbeddingEndpointFields({
 	provider: RuntimeCodeEmbeddingSettings["provider"];
 	baseUrl: string;
 	model: string;
+	suggestedBaseUrl?: string | null;
 	endpointPlaceholder: string;
 	modelPlaceholder: string;
 	onBaseUrlChange: (value: string) => void;
@@ -294,11 +297,29 @@ function EmbeddingEndpointFields({
 	const [isTestingEndpoint, setIsTestingEndpoint] = useState(false);
 	const [discoveredModels, setDiscoveredModels] = useState<RuntimeClineProviderModel[]>([]);
 	const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+	const baseUrlRef = useRef(baseUrl);
+	const discoveryRequestIdRef = useRef(0);
+	const lastDiscoveredBaseUrlRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		baseUrlRef.current = baseUrl;
+	}, [baseUrl]);
+
+	useEffect(() => {
+		if (disabled || provider !== "openai_compatible" || baseUrl.trim().length > 0) {
+			return;
+		}
+		const normalizedSuggestedBaseUrl = suggestedBaseUrl?.trim() ?? "";
+		if (normalizedSuggestedBaseUrl.length > 0) {
+			onBaseUrlChange(normalizedSuggestedBaseUrl);
+		}
+	}, [baseUrl, disabled, onBaseUrlChange, provider, suggestedBaseUrl]);
 
 	useEffect(() => {
 		if (provider !== "openai_compatible") {
 			setDiscoveredModels([]);
 			setDiscoveryMessage(null);
+			lastDiscoveredBaseUrlRef.current = null;
 		}
 	}, [provider]);
 
@@ -307,38 +328,84 @@ function EmbeddingEndpointFields({
 		[discoveredModels, model],
 	);
 
-	const handleDiscoverModels = useCallback(async () => {
-		const normalizedBaseUrl = baseUrl.trim();
-		if (!normalizedBaseUrl) {
-			onError(`Enter a ${labelPrefix.toLowerCase()} endpoint URL before discovering models.`);
-			return;
-		}
-		setIsDiscovering(true);
-		setDiscoveryMessage(null);
-		onError(null);
-		try {
-			const response: RuntimeClineEndpointModelDiscoveryResponse = await discoverClineEndpointModels(workspaceId, {
-				baseUrl: normalizedBaseUrl,
-			});
-			setDiscoveredModels(response.models);
-			if (response.models.length > 0) {
-				const nextModelId =
-					response.models.some((entry) => entry.id === model) && model.trim().length > 0
-						? model
-						: (response.models[0]?.id ?? "");
-				onModelChange(nextModelId);
+	const runModelDiscovery = useCallback(
+		async ({ quiet }: { quiet: boolean }) => {
+			const normalizedBaseUrl = baseUrlRef.current.trim();
+			if (!normalizedBaseUrl) {
+				if (!quiet) {
+					onError(`Enter a ${labelPrefix.toLowerCase()} endpoint URL before discovering models.`);
+				}
+				return;
 			}
-			setDiscoveryMessage(
-				response.models.length > 0
-					? `Loaded ${response.models.length} model${response.models.length === 1 ? "" : "s"} from ${response.modelSourceUrl}.`
-					: `No models returned from ${response.modelSourceUrl}.`,
-			);
-		} catch (error) {
-			onError(error instanceof Error ? error.message : "Could not discover embedding models.");
-		} finally {
-			setIsDiscovering(false);
-		}
-	}, [baseUrl, labelPrefix, model, onError, onModelChange, workspaceId]);
+			const requestId = discoveryRequestIdRef.current + 1;
+			discoveryRequestIdRef.current = requestId;
+			setIsDiscovering(true);
+			setDiscoveryMessage(null);
+			if (!quiet) {
+				onError(null);
+			}
+			try {
+				const response: RuntimeClineEndpointModelDiscoveryResponse = await discoverClineEndpointModels(
+					workspaceId,
+					{
+						baseUrl: normalizedBaseUrl,
+					},
+				);
+				if (discoveryRequestIdRef.current !== requestId || baseUrlRef.current.trim() !== normalizedBaseUrl) {
+					return;
+				}
+				setDiscoveredModels(response.models);
+				lastDiscoveredBaseUrlRef.current = normalizedBaseUrl;
+				if (response.models.length > 0) {
+					const nextModelId =
+						response.models.some((entry) => entry.id === model) && model.trim().length > 0
+							? model
+							: (response.models[0]?.id ?? "");
+					onModelChange(nextModelId);
+				}
+				setDiscoveryMessage(
+					response.models.length > 0
+						? `Loaded ${response.models.length} model${response.models.length === 1 ? "" : "s"} from ${response.modelSourceUrl}.`
+						: `No models returned from ${response.modelSourceUrl}.`,
+				);
+			} catch (error) {
+				if (discoveryRequestIdRef.current !== requestId || baseUrlRef.current.trim() !== normalizedBaseUrl) {
+					return;
+				}
+				if (quiet) {
+					setDiscoveryMessage("Could not automatically discover models from the local embedding endpoint.");
+				} else {
+					onError(error instanceof Error ? error.message : "Could not discover embedding models.");
+				}
+			} finally {
+				if (discoveryRequestIdRef.current === requestId) {
+					setIsDiscovering(false);
+				}
+			}
+		},
+		[labelPrefix, model, onError, onModelChange, workspaceId],
+	);
+
+	useDebouncedEffect(
+		() => {
+			const normalizedBaseUrl = baseUrl.trim();
+			if (
+				disabled ||
+				provider !== "openai_compatible" ||
+				!isLocalEmbeddingEndpointUrl(normalizedBaseUrl) ||
+				(lastDiscoveredBaseUrlRef.current === normalizedBaseUrl && discoveredModels.length > 0)
+			) {
+				return;
+			}
+			void runModelDiscovery({ quiet: true });
+		},
+		500,
+		[baseUrl, disabled, discoveredModels.length, provider, runModelDiscovery],
+	);
+
+	const handleDiscoverModels = useCallback(async () => {
+		await runModelDiscovery({ quiet: false });
+	}, [runModelDiscovery]);
 
 	const handleTestEndpoint = useCallback(async () => {
 		const normalizedBaseUrl = baseUrl.trim();
@@ -1755,6 +1822,15 @@ export function RuntimeSettingsDialog({
 		() => filterVisibleClineProviderCatalog(clineSettings.providerCatalog, cloudProviderSupportEnabled),
 		[clineSettings.providerCatalog, cloudProviderSupportEnabled],
 	);
+	const suggestedCodeEmbeddingBaseUrl = useMemo(
+		() =>
+			buildSuggestedCodeEmbeddingBaseUrl({
+				providerId: clineSettings.providerId,
+				baseUrl: clineSettings.baseUrl,
+				providerCatalog: clineSettings.providerCatalog,
+			}),
+		[clineSettings.baseUrl, clineSettings.providerCatalog, clineSettings.providerId],
+	);
 	const clineProviderId = clineSettings.providerId.trim();
 	const selectedModelRoleProviderIds = useMemo(() => {
 		const providerIds = new Set<string>();
@@ -3025,6 +3101,7 @@ export function RuntimeSettingsDialog({
 												provider={codeEmbeddingDefaultsProvider}
 												baseUrl={codeEmbeddingDefaultsBaseUrl}
 												model={codeEmbeddingDefaultsModel}
+												suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
 												endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
 												modelPlaceholder="nomic-embed-text"
 												onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
@@ -3079,6 +3156,7 @@ export function RuntimeSettingsDialog({
 														provider={codeEmbeddingOverrideProvider}
 														baseUrl={codeEmbeddingOverrideBaseUrl}
 														model={codeEmbeddingOverrideModel}
+														suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
 														endpointPlaceholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
 														modelPlaceholder={codeEmbeddingDefaultsModel || "Inherited model"}
 														onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}

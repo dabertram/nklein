@@ -393,6 +393,39 @@ describe("loadProviderModelsWithFallback", () => {
 		expect(globalThis.fetch).toHaveBeenCalledWith("http://linked-host.local:1234/api/v0/models", expect.any(Object));
 	});
 
+	it("sorts discovered LM Studio embedding models before other model types", async () => {
+		globalThis.fetch = vi.fn(async (input) => {
+			if (!input.toString().endsWith("/api/v0/models")) {
+				return {
+					ok: false,
+					json: async () => ({}),
+				};
+			}
+			return {
+				ok: true,
+				json: async () => ({
+					data: [
+						{ id: "qwen-chat", name: "Qwen Chat", type: "llm" },
+						{ id: "bge-large", name: "BGE Large", type: "embeddings" },
+						{ id: "all-minilm", name: "All MiniLM", type: "embeddings" },
+					],
+				}),
+			};
+		}) as unknown as typeof globalThis.fetch;
+		const service = createClineProviderService();
+
+		const response = await service.discoverEndpointModels({
+			baseUrl: "http://localhost:1234/v1/embeddings",
+		});
+
+		expect(response.modelSourceUrl).toBe("http://localhost:1234/api/v0/models");
+		expect(response.models.map((model) => `${model.id}:${model.type ?? "unknown"}`)).toEqual([
+			"all-minilm:embeddings",
+			"bge-large:embeddings",
+			"qwen-chat:llm",
+		]);
+	});
+
 	it("uses LM Studio v1 loaded instance context windows", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([
 			{

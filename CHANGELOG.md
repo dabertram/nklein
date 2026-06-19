@@ -42,7 +42,7 @@
 - Added durable auto-review notices on cards, so failed/no-op auto-commit and auto-PR attempts explain the recovery path instead of only surfacing transient UI feedback.
 - Preserved full per-task Cline context/timeout overrides when changing detail-panel model settings, and clarified context/timeout labels in settings surfaces.
 - Added an Advisor send flow in settings that sends generated prompts to a selected local Cline model and shows response output with sent/received timestamps.
-- Added runtime-configured code intelligence embeddings with global defaults, project overrides, OpenAI-compatible local endpoint support, and project sidebar status that shows the effective provider/model.
+- Added runtime-configured code intelligence embeddings with global defaults, project overrides, OpenAI-compatible local endpoint support, automatic LM Studio endpoint/model discovery, embedding-model-first sorting, and project sidebar status that shows the effective provider/model.
 - Added `/models` discovery and endpoint tests for custom OpenAI-compatible providers and code-intelligence embedding endpoints, including one-click model loading in the setup/settings UI plus LM Studio and Ollama helper examples to reduce local endpoint guesswork.
 - Added project health detection for accidental task-worktree projects, with sidebar inspect/remove/migrate choices and explicit plan-artifact migration back to the detected parent project.
 - Added project health diagnostics for pending generated plan artifacts that have not yet been applied or rejected.

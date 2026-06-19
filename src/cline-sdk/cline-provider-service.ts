@@ -290,11 +290,23 @@ function toRuntimeProviderModel(model: RuntimeClineProviderModel): RuntimeClineP
 	return {
 		id: model.id,
 		name: model.name?.trim() || model.id,
+		...(model.type?.trim() ? { type: model.type.trim() } : {}),
 		contextWindow: model.contextWindow,
 		supportsVision: model.supportsVision || undefined,
 		supportsAttachments: model.supportsAttachments || undefined,
 		supportsReasoningEffort: model.supportsReasoningEffort || undefined,
 	};
+}
+
+function getDiscoveredModelSortRank(model: RuntimeClineProviderModel): number {
+	return model.type?.trim().toLowerCase() === "embeddings" ? 0 : 1;
+}
+
+function sortDiscoveredProviderModels(models: RuntimeClineProviderModel[]): RuntimeClineProviderModel[] {
+	return [...models].sort((left, right) => {
+		const rankComparison = getDiscoveredModelSortRank(left) - getDiscoveredModelSortRank(right);
+		return rankComparison !== 0 ? rankComparison : left.name.localeCompare(right.name);
+	});
 }
 
 function logLiteLlmModelListWarning(message: string, metadata?: Record<string, unknown>): void {
@@ -440,9 +452,11 @@ function toLmStudioModel(item: unknown, pathname: LmStudioModelListPathname): Ru
 					"max_input_tokens",
 				])
 			: null);
+	const type = readStringField(record, ["type"]);
 	return {
 		id,
 		name: readStringField(record, ["name", "display_name"]) ?? id,
+		...(type ? { type } : {}),
 		...(contextWindow ? { contextWindow } : {}),
 	};
 }
@@ -479,11 +493,13 @@ function toLmStudioModels(item: unknown, pathname: LmStudioModelListPathname): R
 						"max_input_tokens",
 					])
 				: null) ?? model.contextWindow;
+		const type = readStringField(loadedRecord, ["type"]) ?? model.type;
 		return [
 			{
 				...model,
 				id,
 				name: model.name,
+				...(type ? { type } : {}),
 				...(contextWindow ? { contextWindow } : {}),
 			},
 		];
@@ -515,9 +531,11 @@ function toGenericProviderModel(item: unknown): RuntimeClineProviderModel | null
 		"loadedContextLength",
 		"loaded_context_window",
 	]);
+	const type = readStringField(record, ["type"]);
 	return {
 		id,
 		name: readStringField(record, ["name", "display_name", "model_name"]) ?? id,
+		...(type ? { type } : {}),
 		...(contextWindow ? { contextWindow } : {}),
 	};
 }
@@ -653,9 +671,9 @@ async function discoverModelsFromEndpoint(input: {
 				continue;
 			}
 			const payload = (await response.json()) as unknown;
-			const models = extractDiscoveredModelsFromPayload(payload, sourceUrl)
-				.map((model) => toRuntimeProviderModel(model))
-				.sort((left, right) => left.name.localeCompare(right.name));
+			const models = sortDiscoveredProviderModels(
+				extractDiscoveredModelsFromPayload(payload, sourceUrl).map((model) => toRuntimeProviderModel(model)),
+			);
 			if (models.length > 0) {
 				return {
 					modelSourceUrl: sourceUrl,

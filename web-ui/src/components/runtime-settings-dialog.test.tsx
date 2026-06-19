@@ -119,10 +119,17 @@ const discoverClineEndpointModelsMock = vi.hoisted(() => vi.fn());
 const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 const fetchClineModelRegistryMock = vi.hoisted(() => vi.fn());
 const saveClineModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
+const removeClineModelRegistryEntryMock = vi.hoisted(() => vi.fn());
+const pruneClineModelRegistryMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const addMcpServerMock = vi.hoisted(() => vi.fn());
 const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
+}));
+const clineControllerState = vi.hoisted(() => ({
+	providerId: "anthropic",
+	modelId: "claude-3-7-sonnet",
+	baseUrl: "",
 }));
 
 vi.mock("@runtime-agent-catalog", () => ({
@@ -151,9 +158,9 @@ vi.mock("@/components/shared/cline-setup-section", () => ({
 vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 	useRuntimeSettingsClineController: () => ({
 		currentProviderSettings: {
-			providerId: "anthropic",
-			modelId: "claude-3-7-sonnet",
-			baseUrl: null,
+			providerId: clineControllerState.providerId,
+			modelId: clineControllerState.modelId,
+			baseUrl: clineControllerState.baseUrl.trim() || null,
 			reasoningEffort: null,
 			apiKeyConfigured: true,
 			oauthProvider: null,
@@ -163,9 +170,9 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 			oauthExpiresAt: null,
 		},
 		hasUnsavedChanges: false,
-		providerId: "anthropic",
-		modelId: "claude-3-7-sonnet",
-		baseUrl: "",
+		providerId: clineControllerState.providerId,
+		modelId: clineControllerState.modelId,
+		baseUrl: clineControllerState.baseUrl,
 		reasoningEffort: "",
 		providerCatalog: [
 			{
@@ -239,6 +246,8 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 	fetchClineModelRegistry: fetchClineModelRegistryMock,
 	fetchClineProviderModels: fetchClineProviderModelsMock,
 	openFileOnHost: openFileOnHostMock,
+	pruneClineModelRegistry: pruneClineModelRegistryMock,
+	removeClineModelRegistryEntry: removeClineModelRegistryEntryMock,
 	runClineSmokeEval: runClineSmokeEvalMock,
 	saveClineModelContextWindowOverride: saveClineModelContextWindowOverrideMock,
 	sendClineAdvisorRequest: sendClineAdvisorRequestMock,
@@ -295,6 +304,13 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 		await flushAsyncWork();
 	}
 	throw new Error("Condition was not met before timeout.");
+}
+
+async function waitForEmbeddingDiscoveryDebounce(): Promise<void> {
+	await act(async () => {
+		await new Promise((resolve) => window.setTimeout(resolve, 550));
+	});
+	await flushAsyncWork();
 }
 
 const savedClineOauthConfig = {
@@ -506,6 +522,10 @@ describe("RuntimeSettingsDialog", () => {
 				key: "ollama:qwen:http://127.0.0.1:11434",
 			},
 		});
+		removeClineModelRegistryEntryMock.mockReset();
+		removeClineModelRegistryEntryMock.mockResolvedValue({ removed: true });
+		pruneClineModelRegistryMock.mockReset();
+		pruneClineModelRegistryMock.mockResolvedValue({ removed: 1 });
 		fetchClineProviderModelsMock.mockReset();
 		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "openrouter") {
@@ -534,6 +554,9 @@ describe("RuntimeSettingsDialog", () => {
 		openFileOnHostMock.mockClear();
 		saveRuntimeConfigMock.mockClear();
 		saveRuntimeConfigMock.mockResolvedValue(true);
+		clineControllerState.providerId = "anthropic";
+		clineControllerState.modelId = "claude-3-7-sonnet";
+		clineControllerState.baseUrl = "";
 		clineSetupSectionOnSavedRef.onSaved = null;
 		window.localStorage.clear();
 		document.documentElement.removeAttribute("data-theme");
@@ -1083,6 +1106,168 @@ describe("RuntimeSettingsDialog", () => {
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("auto-discovers embedding models for local OpenAI-compatible endpoints", async () => {
+		discoverClineEndpointModelsMock.mockResolvedValue({
+			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
+			models: [
+				{ id: "nomic-embed-text", name: "nomic-embed-text" },
+				{ id: "bge-m3", name: "bge-m3" },
+			],
+		});
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const embeddingsHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Code intelligence embeddings",
+		);
+		const embeddingsSection = embeddingsHeading?.parentElement ?? null;
+		const selects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const defaultProviderSelect = selects[0];
+		if (!(defaultProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected default embedding provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(defaultProviderSelect, "openai_compatible");
+		});
+		const endpointInput = Array.from(embeddingsSection?.querySelectorAll<HTMLInputElement>("input") ?? []).find(
+			(input) => input.placeholder === "http://127.0.0.1:11434/v1/embeddings",
+		);
+		if (!(endpointInput instanceof HTMLInputElement)) {
+			throw new Error("Expected embedding endpoint input.");
+		}
+
+		await act(async () => {
+			setInputValue(endpointInput, "http://127.0.0.1:11434/v1/embeddings");
+		});
+		await waitForEmbeddingDiscoveryDebounce();
+
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledTimes(1);
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
+		});
+		await waitForCondition(
+			() => document.body.textContent?.includes("Loaded 2 models from http://127.0.0.1:11434/v1/models.") === true,
+		);
+		const refreshedSelects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const discoveredModelSelect = refreshedSelects.find((select) =>
+			Array.from(select.options).some((option) => option.value === "bge-m3"),
+		);
+		expect(discoveredModelSelect).toBeInstanceOf(HTMLSelectElement);
+	});
+
+	it("does not auto-discover non-local embedding endpoints and keeps automatic failures quiet", async () => {
+		discoverClineEndpointModelsMock.mockRejectedValue(new Error("offline endpoint"));
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const embeddingsHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Code intelligence embeddings",
+		);
+		const embeddingsSection = embeddingsHeading?.parentElement ?? null;
+		const selects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const defaultProviderSelect = selects[0];
+		if (!(defaultProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected default embedding provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(defaultProviderSelect, "openai_compatible");
+		});
+		const endpointInput = Array.from(embeddingsSection?.querySelectorAll<HTMLInputElement>("input") ?? []).find(
+			(input) => input.placeholder === "http://127.0.0.1:11434/v1/embeddings",
+		);
+		if (!(endpointInput instanceof HTMLInputElement)) {
+			throw new Error("Expected embedding endpoint input.");
+		}
+
+		await act(async () => {
+			setInputValue(endpointInput, "https://example.com/v1/embeddings");
+		});
+		await waitForEmbeddingDiscoveryDebounce();
+		expect(discoverClineEndpointModelsMock).not.toHaveBeenCalled();
+
+		await act(async () => {
+			setInputValue(endpointInput, "http://127.0.0.1:11434/v1/embeddings");
+		});
+		await waitForEmbeddingDiscoveryDebounce();
+
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledTimes(1);
+		await waitForCondition(
+			() =>
+				document.body.textContent?.includes(
+					"Could not automatically discover models from the local embedding endpoint.",
+				) === true,
+		);
+		expect(document.body.textContent).not.toContain("offline endpoint");
+	});
+
+	it("prefills OpenAI-compatible embedding endpoints from the selected LM Studio provider", async () => {
+		clineControllerState.providerId = "lmstudio";
+		clineControllerState.modelId = "loaded-qwen";
+		clineControllerState.baseUrl = "http://127.0.0.1:1234/v1";
+		discoverClineEndpointModelsMock.mockResolvedValue({
+			modelSourceUrl: "http://127.0.0.1:1234/api/v0/models",
+			models: [{ id: "bge-large", name: "BGE Large" }],
+		});
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedClineOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const embeddingsHeading = Array.from(document.querySelectorAll("h6")).find(
+			(element) => element.textContent?.trim() === "Code intelligence embeddings",
+		);
+		const embeddingsSection = embeddingsHeading?.parentElement ?? null;
+		const selects = Array.from(embeddingsSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
+		const defaultProviderSelect = selects[0];
+		if (!(defaultProviderSelect instanceof HTMLSelectElement)) {
+			throw new Error("Expected default embedding provider select.");
+		}
+
+		await act(async () => {
+			setSelectValue(defaultProviderSelect, "openai_compatible");
+		});
+		await flushAsyncWork();
+		const endpointInput = Array.from(embeddingsSection?.querySelectorAll<HTMLInputElement>("input") ?? []).find(
+			(input) => input.placeholder === "http://127.0.0.1:11434/v1/embeddings",
+		);
+		if (!(endpointInput instanceof HTMLInputElement)) {
+			throw new Error("Expected embedding endpoint input.");
+		}
+		expect(endpointInput.value).toBe("http://127.0.0.1:1234/v1/embeddings");
+
+		await waitForEmbeddingDiscoveryDebounce();
+		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+			baseUrl: "http://127.0.0.1:1234/v1/embeddings",
+		});
 	});
 
 	it("tests embedding endpoints without populating the model dropdown", async () => {

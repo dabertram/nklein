@@ -694,35 +694,35 @@ Discovery exists (`handleDiscoverModels` → `discoverClineEndpointModels` → b
 renders a `<NativeSelect>` of `discoveredModels` — but only after a manual button click and a manually-typed endpoint.
 
 ### F1. Auto-discover when the provider is openai_compatible and the endpoint is a reachable local URL
-- [ ] In `CodeEmbeddingProviderFields`, add a debounced `useEffect` (use `useDebounce` from
+- [x] In `CodeEmbeddingProviderFields`, add a debounced `useEffect` (use `useDebounce` from
   `@/kanban/utils/react-use`, ~500ms) that runs the discovery logic automatically when
   `provider === "openai_compatible"` **and** `baseUrl.trim()` is a non-empty local URL **and** the baseUrl changed (or
   `discoveredModels` is empty). Keep the manual "Discover models" / "Test endpoint" buttons as explicit refresh.
-- [ ] Auto attempts fail **quietly**: on error set the muted `discoveryMessage`, do **not** call `onError` (no red
+- [x] Auto attempts fail **quietly**: on error set the muted `discoveryMessage`, do **not** call `onError` (no red
   toast). Track the in-flight baseUrl and ignore stale responses if it changed mid-flight.
 
 ### F2. Prefill the endpoint from the configured LM Studio provider
-- [ ] When the embedding provider is `openai_compatible` and the endpoint is blank, prefill it from the selected local
+- [x] When the embedding provider is `openai_compatible` and the endpoint is blank, prefill it from the selected local
   chat provider's base URL (available via `clineSettings` provider id/baseUrl / `clineSettings.providerCatalog`).
   Derive the embeddings path (e.g. `http://127.0.0.1:1234/v1` → `http://127.0.0.1:1234/v1/embeddings`). Pass it as a
   new `suggestedBaseUrl` prop to both `CodeEmbeddingProviderFields` instances; initialize
   `codeEmbeddingDefaultsBaseUrl` ([L1576](web-ui/src/components/runtime-settings-dialog.tsx#L1576)) from it when the
   stored value is empty. If LM Studio is not the selected provider, fall back to the existing placeholder.
-- [ ] `local_lexical` stays the zero-config default provider; auto-fill/auto-discover apply only to
+- [x] `local_lexical` stays the zero-config default provider; auto-fill/auto-discover apply only to
   `openai_compatible`.
 
 ### F3. Prefer embedding-type models for LM Studio
-- [ ] When discovering for embeddings, prefer the `/api/v0/models` candidate in `discoverModelsFromEndpoint`
+- [x] When discovering for embeddings, prefer the `/api/v0/models` candidate in `discoverModelsFromEndpoint`
   ([cline-provider-service.ts:600-621,656](src/cline-sdk/cline-provider-service.ts#L600)) and, when LM Studio reports
   a `type` field, sort `type === "embeddings"` models first. Do not hard-filter (a user may run an embedding model LM
   Studio mislabels) — sort/flag only. Carry the `type` through `toLmStudioModel` /
   `extractDiscoveredModelsFromPayload` if it is not already present.
 
 ### F4. Tests
-- [ ] Mock `discoverClineEndpointModels`: selecting `openai_compatible` with a local baseUrl populates the
+- [x] Mock `discoverClineEndpointModels`: selecting `openai_compatible` with a local baseUrl populates the
   `<NativeSelect>` with no click; a blank/non-local baseUrl does not fire; a failed auto-attempt raises no error toast.
-- [ ] Test the endpoint derivation (LM Studio base → `/v1/embeddings`).
-- [ ] Test that embedding-type models sort first when a `type` field is present.
+- [x] Test the endpoint derivation (LM Studio base → `/v1/embeddings`).
+- [x] Test that embedding-type models sort first when a `type` field is present.
 
 ---
 
