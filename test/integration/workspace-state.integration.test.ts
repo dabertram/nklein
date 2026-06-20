@@ -200,6 +200,45 @@ describe.sequential("workspace-state integration", () => {
 		});
 	});
 
+	it("exports a committed portable board CRDT and recovers from it when the mirror board is gone", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-crdt-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-crdt");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const context = await loadWorkspaceContext(workspacePath);
+				const board = createBoard("CRDT Task");
+				const card = board.columns[0]?.cards[0];
+				if (card) {
+					(card as { clineSettings?: unknown }).clineSettings = { providerId: "lmstudio", modelId: "qwen" };
+				}
+				await saveWorkspaceState(workspacePath, { board });
+
+				const crdtPath = join(workspacePath, ".cline", "nklein", "workspace", "board-crdt.json");
+				expect(existsSync(crdtPath)).toBe(true);
+
+				// Simulate a fresh machine: drop the runtime cache and the project board mirror, keep the CRDT
+				// (and the identity mirror so the workspace still resolves).
+				rmSync(join(getWorkspacesRootPath(), context.workspaceId), { recursive: true, force: true });
+				rmSync(join(getWorkspacesRootPath(), "index.json"), { force: true });
+				rmSync(join(workspacePath, ".cline", "nklein", "workspace", "board.json"), { force: true });
+
+				await loadWorkspaceContext(workspacePath);
+				const recovered = await loadWorkspaceState(workspacePath);
+				const recoveredCard = recovered.board.columns
+					.flatMap((column) => column.cards)
+					.find((entry) => entry.id === "task-1");
+				expect(recoveredCard?.prompt).toBe("CRDT Task");
+				// Machine-local model assignment is dropped so it re-resolves against this machine.
+				expect(recoveredCard && "clineSettings" in recoveredCard).toBe(false);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
 	it("preserves existing sessions when saving board-only state", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-board-only-");

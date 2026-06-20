@@ -170,6 +170,37 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	// follow-up-6 §2.1: a generated DAG can look correct yet be operationally dead if cards land mis-laned or
+	// mis-flagged so they cannot be started from Planning. Guard the startability preconditions directly.
+	it("lands every generated card in Planning with start preconditions met (regression: startable from Planning)", () => {
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+
+		const planningColumn = result.board.columns.find((column) => column.id === "planning");
+		const planningIds = new Set((planningColumn?.cards ?? []).map((card) => card.id));
+		// Every created card is in the Planning lane.
+		for (const card of result.createdTasks) {
+			expect(planningIds.has(card.id)).toBe(true);
+			// Generated implementation cards must be runnable, not gated behind plan mode, and auto-reviewable.
+			expect(card.startInPlanMode).toBe(false);
+			expect(card.autoReviewEnabled).toBe(true);
+			expect(card.agentId).toBe("cline");
+			expect(card.baseRef).toBe("main");
+		}
+		// Root cards are exactly the dependency-free generated cards and are immediately startable.
+		const rootCards = result.createdTasks.filter((card) => result.rootTaskIds.includes(card.id));
+		expect(result.rootTaskIds).toEqual(["habit-tracker-storage"]);
+		for (const rootCard of rootCards) {
+			const dependents = result.board.dependencies.filter((dependency) => dependency.fromTaskId === rootCard.id);
+			expect(dependents).toHaveLength(0);
+		}
+	});
+
 	it("links generated Planning cards so dependents become ready after their prerequisite completes", () => {
 		const applied = applyClinePlanTaskGraphToBoard({
 			board: createBoard(),

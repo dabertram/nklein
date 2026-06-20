@@ -119,6 +119,7 @@ import {
 } from "../core/task-context-import";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
+import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
@@ -864,13 +865,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			};
 		},
 		getTaskDiagnostics: async (workspaceScope, input) => {
-			return {
-				ok: true,
-				events: await readSelfObservationEvents({
+			const [events, runSummaries] = await Promise.all([
+				readSelfObservationEvents({
 					taskId: input.taskId,
 					workspacePath: workspaceScope.workspacePath,
 					limit: input.limit ?? 25,
 				}),
+				readTaskRunSummaries({
+					taskId: input.taskId,
+					workspacePath: workspaceScope.workspacePath,
+					limit: input.limit ?? 25,
+				}),
+			]);
+			return {
+				ok: true,
+				events,
+				runSummaries,
 			};
 		},
 		listClinePlanArtifacts: async (workspaceScope, input) => {

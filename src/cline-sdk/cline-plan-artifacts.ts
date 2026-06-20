@@ -19,6 +19,7 @@ export const clinePlanTaskSchema = z.object({
 	acceptanceCommand: z.string().nullable().default(null),
 	testFirst: z.boolean().default(false),
 	acceptanceTestPrompt: z.string().nullable().default(null),
+	knowledgeDebt: z.string().nullable().optional(),
 });
 export type ClinePlanTask = z.infer<typeof clinePlanTaskSchema>;
 

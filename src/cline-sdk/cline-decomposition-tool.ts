@@ -12,6 +12,10 @@ import { withAutonomousClineTimeoutSettings } from "../core/autonomous-timeout-d
 import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import {
+	assessClinePlanTaskGraphQuality,
+	type ClinePlanTaskGraphQualityAssessment,
+} from "./cline-decomposition-graph-quality";
 import { resolveClineGuidanceSkillCommand, resolveClineGuidanceSkillTopic } from "./cline-guidance-skills";
 import {
 	appendClinePlanRevision,
@@ -70,6 +74,7 @@ export interface ValidateClinePlanTaskGraphResult {
 	taskGraph: ClinePlanTaskGraph;
 	taskCount: number;
 	dependencyCount: number;
+	quality: ClinePlanTaskGraphQualityAssessment;
 }
 
 export interface ReplaceClinePlanTaskInGraphResult {
@@ -202,6 +207,11 @@ const decomposeProjectTaskJsonSchema = {
 		acceptanceCommand: { type: ["string", "null"] },
 		testFirst: { type: "boolean" },
 		acceptanceTestPrompt: { type: ["string", "null"] },
+		knowledgeDebt: {
+			type: ["string", "null"],
+			description:
+				"What this card still does not know about its domain and what a later card should verify. Use for domain-heavy work (e.g. DSP/audio, crypto, hardware) where assumptions are risky.",
+		},
 	},
 	required: ["id", "title", "prompt"],
 	additionalProperties: false,
@@ -236,7 +246,7 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		slug: clinePlanTaskGraphSchema.shape.slug,
 		spec: clinePlanTaskSchema.shape.prompt.describe("Concise requirements markdown."),
 		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
-		summary: clinePlanTaskSchema.shape.prompt.optional().describe("Plain-language plan summary markdown."),
+		summary: clinePlanTaskSchema.shape.prompt.nullable().optional().describe("Plain-language plan summary markdown."),
 		questions: z.array(clinePlanQuestionSchema).optional(),
 		tasks: z.preprocess(parseJsonStringValue, z.array(clinePlanTaskSchema)),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
@@ -331,6 +341,11 @@ function buildTaskPrompt(
 		sections.push(testInstructions.join("\n"));
 	}
 	sections.push(`Complexity: ${Math.round(task.complexity)}/100`);
+	if (task.knowledgeDebt?.trim()) {
+		sections.push(
+			`Knowledge debt (what this card may not fully know yet — verify before relying on it): ${task.knowledgeDebt.trim()}`,
+		);
+	}
 	if (task.suggestedRole) {
 		sections.push(`Suggested role: ${task.suggestedRole}`);
 	}
@@ -375,6 +390,7 @@ function normalizeTaskAcceptanceCommand(task: ClinePlanTask, defaultAcceptanceCo
 		acceptanceCommand: normalizedDefaultAcceptanceCommand ?? task.acceptanceCommand?.trim() ?? null,
 		testFirst: task.testFirst && acceptanceTestPrompt !== null,
 		acceptanceTestPrompt,
+		knowledgeDebt: task.knowledgeDebt?.trim() || null,
 		dependsOn: uniqStrings(task.dependsOn),
 	};
 }
@@ -686,6 +702,12 @@ function selectTaskRoutingCandidate(
 export function validateClinePlanTaskGraph(input: {
 	taskGraph: ClinePlanTaskGraph;
 	routingCandidates?: readonly ClineTaskRoutingCandidate[];
+	/**
+	 * When true, graph-coherence violations (test/docs cards floating free of the work they verify/document)
+	 * reject the graph. Defaults to false so applying an already-persisted graph or validating a partial
+	 * replacement graph does not retroactively throw; the creation gate (`decompose_project`) opts in.
+	 */
+	enforceGraphQuality?: boolean;
 }): ValidateClinePlanTaskGraphResult {
 	const parsedTaskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
 	const taskGraph: ClinePlanTaskGraph = {
@@ -696,10 +718,20 @@ export function validateClinePlanTaskGraph(input: {
 		validateTaskSizingContract(task);
 		selectTaskRoutingCandidate(task, buildTaskPrompt(task), input.routingCandidates);
 	}
+	const dependencyCount = validateTaskGraphReferences(taskGraph);
+	const quality = assessClinePlanTaskGraphQuality(taskGraph);
+	if (input.enforceGraphQuality && quality.violations.length > 0) {
+		throw new Error(
+			`Task graph failed dependency-coherence validation:\n- ${quality.violations.join(
+				"\n- ",
+			)}\nAdd the missing dependency edges (or split/merge cards) and resubmit.`,
+		);
+	}
 	return {
 		taskGraph,
 		taskCount: taskGraph.tasks.length,
-		dependencyCount: validateTaskGraphReferences(taskGraph),
+		dependencyCount,
+		quality,
 	};
 }
 
@@ -1176,7 +1208,24 @@ function createDecomposeProjectTool(
 		async execute(input) {
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(input);
-			const validation = validateClinePlanTaskGraph({ taskGraph });
+			const validation = validateClinePlanTaskGraph({ taskGraph, enforceGraphQuality: true });
+			if (validation.quality.warnings.length > 0) {
+				await recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `decompose_project graph-quality warnings for plan ${slug}`,
+					taskId: sourceTaskId ?? null,
+					workspacePath,
+					metadata: {
+						operation: "decompose_project_graph_quality",
+						planSlug: slug,
+						taskCount: validation.quality.taskCount,
+						dependencyCount: validation.quality.dependencyCount,
+						dependencyDensity: validation.quality.dependencyDensity,
+						warnings: validation.quality.warnings,
+					},
+				});
+			}
 			const artifacts = await writeClinePlanArtifacts({
 				workspacePath,
 				slug,
@@ -1218,6 +1267,7 @@ function createDecomposeProjectTool(
 				slug: artifacts.taskGraph.slug,
 				taskCount: validation.taskCount,
 				dependencyCount: validation.dependencyCount,
+				graphQualityWarnings: validation.quality.warnings,
 				applied: applied.applied,
 				createdTaskCount: applied.createdTaskCount,
 				createdDependencyCount: applied.createdDependencyCount,

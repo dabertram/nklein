@@ -17,7 +17,9 @@ import type {
 import { RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
+import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import {
 	applyTaskPatchToResultBranch,
 	resolveTaskResultBranchCommit,
@@ -582,6 +584,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly launchConfigByTaskId = new Map<string, ClineTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
 	private readonly failureBackoffByTaskId = new Map<string, ClineTaskFailureBackoffState>();
+	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
+	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
+	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
+	private readonly pendingTimeoutReasonByTaskId = new Map<string, string>();
 	private readonly noDiffCheckpointByTaskId = new Map<string, ClineTaskNoDiffState>();
 	private readonly repeatedToolCallByTaskId = new Map<string, ClineTaskRepeatedToolState>();
 	private readonly repeatedFailureTargetByTaskId = new Map<string, ClineTaskRepeatedFailureTargetState>();
@@ -1004,11 +1010,44 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
 		const timeoutLabel =
 			kind === "stream" ? "stream inactivity" : kind === "tool" ? "tool execution" : "conversation";
+		this.pendingTimeoutReasonByTaskId.set(taskId, `${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)}s`);
+		// follow-up-6 §3.5: a stream/tool inactivity timeout should leave a structured note on the card —
+		// what the model was last doing, the last tool, whether any work was captured, and whether resuming is
+		// safe — so a review caused by a stall is diagnosable instead of just "timeout after N seconds".
+		const lastActivity = entry.summary.latestHookActivity?.activityText ?? null;
+		const lastTool = entry.summary.latestHookActivity?.toolName ?? null;
+		const changesCaptured = Boolean(entry.summary.latestTurnCheckpoint);
+		const restartSafe = this.sessionRuntime.canRestartTaskSession(taskId);
+		recordSelfObservation({
+			signal: "budget_wall",
+			severity: "warning",
+			message: `Cline ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`,
+			taskId,
+			workspacePath: entry.summary.workspacePath ?? null,
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				category: "stream_inactivity_timeout",
+				timeoutKind: kind,
+				timeoutMs,
+				lastActivity,
+				lastTool,
+				lastOutputAt: entry.summary.lastOutputAt ?? null,
+				lastTokenAt: entry.summary.lastTokenAt ?? null,
+				changesCaptured,
+				restartSafe,
+			},
+		});
 		this.emitTaskFailure(
 			taskId,
 			entry,
 			"send",
-			new Error(`Cline ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`),
+			new Error(
+				`Cline ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds` +
+					` (last activity: ${lastActivity ?? "unknown"}${lastTool ? `, last tool: ${lastTool}` : ""};` +
+					` workspace changes captured: ${changesCaptured ? "yes" : "no"};` +
+					` resume safe: ${restartSafe ? "yes" : "no"})`,
+			),
 		);
 	}
 
@@ -2730,7 +2769,50 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
 		const guardedSummary =
 			this.enforceRepeatedToolCallGuard(summary) ?? this.enforceRepeatedFailureTargetGuard(summary) ?? summary;
+		this.captureTerminalRunSummary(guardedSummary);
 		this.messageRepository.emitSummary(guardedSummary);
+	}
+
+	/**
+	 * follow-up-6 §3.6: persist a terminal run summary to the durable store the first time a task transitions
+	 * into a terminal session state, so the last-run outcome survives runtime shutdown (when `sessions.json` is
+	 * reset to `{}`) and unfinished cards stay diagnosable.
+	 */
+	private captureTerminalRunSummary(summary: RuntimeTaskSessionSummary): void {
+		const state = summary.state;
+		if (state !== "awaiting_review" && state !== "failed" && state !== "interrupted") {
+			return;
+		}
+		const taskId = summary.taskId;
+		if (this.lastRecordedRunStateByTaskId.get(taskId) === state) {
+			return;
+		}
+		this.lastRecordedRunStateByTaskId.set(taskId, state);
+		const usage = summary.latestUsage ?? null;
+		const promptTokens = usage?.inputTokens ?? null;
+		const completionTokens = usage?.outputTokens ?? null;
+		const timeoutReason = this.pendingTimeoutReasonByTaskId.get(taskId) ?? null;
+		this.pendingTimeoutReasonByTaskId.delete(taskId);
+		void recordTaskRunSummary({
+			taskId,
+			workspacePath: summary.workspacePath ?? null,
+			state,
+			reviewReason: summary.reviewReason ?? null,
+			providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
+			modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
+			endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+			lastActivity: summary.latestHookActivity?.activityText ?? null,
+			warningMessage: summary.warningMessage ?? null,
+			exitCode: summary.exitCode ?? null,
+			startedAt: summary.startedAt ?? null,
+			endedAt: summary.updatedAt,
+			promptTokens,
+			completionTokens,
+			totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null,
+			timeoutReason,
+			timeoutSource: null,
+			patchCaptureStatus: null,
+		});
 	}
 
 	private forgetSandboxTask(taskId: string): void {
@@ -2895,14 +2977,38 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 					this.forgetSandboxTask(taskId);
 					return;
 				}
+				const captureError: TaskPatchCaptureError | null = isTaskPatchCaptureError(error) ? error : null;
+				// follow-up-6 §3.5: distinguish a corrupt/garbled captured diff (an infrastructure capture
+				// problem) from an agent failure, and keep the failing file/hunk + preserved artifact on the card.
+				const classification = captureError?.classification ?? null;
+				const cardNote = captureError
+					? `Could not capture sandbox task result patch (${captureError.classification})${
+							captureError.firstFailingFile ? ` in ${captureError.firstFailingFile}` : ""
+						}${
+							captureError.firstFailingHunkHeader ? ` ${captureError.firstFailingHunkHeader}` : ""
+						}: ${captureError.gitError.trim()}${
+							captureError.preservedPatchPath
+								? ` Preserved failing patch: ${captureError.preservedPatchPath}`
+								: ""
+						}`
+					: `Could not capture sandbox task result patch: ${errorMessage}`;
 				recordSelfObservation({
 					signal: "runtime_error",
 					severity: "error",
-					message: `Could not capture sandbox task result patch: ${errorMessage}`,
+					message: cardNote,
 					taskId,
 					workspacePath: repoPath,
 					metadata: {
 						category: "agent_sandbox_result_patch",
+						...(classification ? { patchCaptureClassification: classification } : {}),
+						...(captureError?.firstFailingFile ? { firstFailingFile: captureError.firstFailingFile } : {}),
+						...(captureError?.firstFailingHunkHeader
+							? { firstFailingHunkHeader: captureError.firstFailingHunkHeader }
+							: {}),
+						...(captureError?.failingLine !== null && captureError?.failingLine !== undefined
+							? { failingLine: captureError.failingLine }
+							: {}),
+						...(captureError?.preservedPatchPath ? { preservedPatchPath: captureError.preservedPatchPath } : {}),
 					},
 				});
 				const latestEntry = this.messageRepository.getTaskEntry(taskId);
@@ -2911,10 +3017,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				}
 				this.emitSummary(
 					updateSummary(latestEntry, {
-						warningMessage: `Could not capture sandbox task result patch: ${errorMessage}`,
+						warningMessage: cardNote,
 						lastHookAt: now(),
 						latestHookActivity: {
-							activityText: `Result patch capture failed: ${errorMessage}`,
+							activityText: `Result patch capture failed${classification ? ` (${classification})` : ""}: ${errorMessage}`,
 							toolName: null,
 							toolInputSummary: null,
 							finalMessage: errorMessage,

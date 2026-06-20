@@ -672,10 +672,20 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 			? async (approvalRequest: ClineSdkToolApprovalRequest): Promise<ClineSdkToolApprovalResult> => {
 					const turnKey = approvalTurnKey(approvalRequest);
 					const claimedFileReadTool = fileReadToolByTurn.get(turnKey);
-					if (claimedFileReadTool && claimedFileReadTool.toolCallId !== approvalRequest.toolCallId) {
+					// follow-up-6 §2.6: only serialize additional *content-read* tools within a turn (so a batch
+					// read cannot fan out into another big read). Harmless discovery (list_files / find_files /
+					// get_file_size) and edits/commands after a read are allowed, and the rejection text tells the
+					// model to proceed with the already-shown result rather than "wait" (which it misread as a stall).
+					const isContentReadTool =
+						approvalRequest.toolName === "read_files" || approvalRequest.toolName === "read_large_file";
+					if (
+						claimedFileReadTool &&
+						claimedFileReadTool.toolCallId !== approvalRequest.toolCallId &&
+						isContentReadTool
+					) {
 						return {
 							approved: false,
-							reason: `Blocked ${approvalRequest.toolName}: this assistant turn already started ${claimedFileReadTool.toolName}. Wait for that tool result, analyze it, then start the next tool call in a later model request. No tool content was read.`,
+							reason: `Blocked ${approvalRequest.toolName}: this assistant turn already started ${claimedFileReadTool.toolName}. This tool call was rejected and read nothing; continue with the ${claimedFileReadTool.toolName} result already shown, or start another read in a later model request.`,
 						};
 					}
 					if (approvalRequest.toolName === "read_large_file") {

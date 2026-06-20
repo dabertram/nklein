@@ -105,6 +105,11 @@
 
 - [x] `decompose_project` / `expand_task` tools with sizing-contract validation (complexity ≤75, ≤3 likely
   files, acceptance command required) and graph/reference validation.
+- [x] **Dependency-coherence validation + deep-domain decomposition aids** *(2026-06-21)*: graph-quality
+  checks reject incoherent DAGs (test/docs cards floating free of the work they verify/document) and warn on
+  sparse/isolated/reversed graphs; generated cards carry a `knowledgeDebt` field; the `kanban-decompose`
+  workflow requires a knowledge-acquisition phase and a "under-decomposed by 10x/100x?" scope-pressure pass
+  for domain-heavy work.
 - [x] Recursive expand loop (bounded depth) with dependency rewriting to terminal leaves; final leaves pass
   the connected-local-model fit guard before artifacts are accepted.
 - [x] Plan artifacts under `<project>/.cline/nklein/plans/<slug>/`: `spec.md`, `plan.md`, `tasks.json`,
@@ -142,9 +147,12 @@
   JSONL telemetry and aggregated by project, !Klein version, model, role, tool, category, and outcome. The
   Settings statistics view exposes this beside model performance so weak/small-model knowledge gaps can be
   measured instead of guessed.
-- [ ] Knowledge-expansion loop: agents should explicitly identify task-domain knowledge limits, use local
+- [~] Knowledge-expansion loop: agents should explicitly identify task-domain knowledge limits, use local
   code/index/architecture knowledge first, request/fetch sanctioned external information only through
   auditable tools, and iterate longer when the task domain is outside ordinary software CRUD knowledge.
+  *(Started 2026-06-21: the decomposition workflow now mandates a knowledge-acquisition + scope-pressure
+  phase and generated cards record `knowledgeDebt`. Still open: correlating actual knowledge-tool use into a
+  decomposition-quality signal in the stats view — see plan.md F6.1.)*
 
 ## 8. Operator UI & observability — the swarm cockpit  *(shipped; live-verify open)*
 
@@ -187,6 +195,10 @@
   status/pool UI inspection.
 - [x] Sandbox result-patch finalization treats early teardown/no-workspace staging races as benign "no changes
   to capture" observations, while preserving warnings for real capture failures.
+- [x] **Classified patch-capture & stall diagnostics** *(2026-06-21)*: result-patch capture failures are typed
+  and classified (corrupt diff vs non-applying patch), the failing file/hunk is extracted, the failing patch is
+  preserved under runtime-home `patch-failures/`, and stream/tool inactivity timeouts leave a structured card
+  note (last activity/tool, whether changes were captured, resume safety).
 - [ ] **LATER:** Add a purpose-built in-sandbox operator for "real" command execution. Because !Klein owns
   the Docker image, the image can ship a small command operator that runs shell commands directly with
   structured stdout/stderr/exit-code/error metadata, typed next-step guidance, and clearer UI status than the
@@ -286,8 +298,12 @@
   - [ ] Security/privacy: ensure no secrets, absolute host paths, or telemetry leak into committed state.
   - [ ] Interaction with the local-only invariant (the target machine may have entirely different local models;
         re-resolve roles/fit on load rather than trusting the source machine's assignments).
-- [ ] Only after the above are signed off: design the committed schema, the export/import, the load-time
-      re-resolution against local models, and the conflict UX; add to `plan.md` as a phased workstream.
+- [~] **Started 2026-06-21 (conflict model chosen: CRDT):** the committed schema, export/import, and load-time
+      re-resolution against local models are implemented as a per-field LWW-register board CRDT
+      ([portable-board-crdt.ts](src/state/portable-board-crdt.ts)) plus a committed store
+      ([portable-board-store.ts](src/state/portable-board-store.ts)) that drops machine-local `clineSettings` on
+      import. The CRDT merge is automatic, so no manual rebase UX is needed. Remaining: wire export/import into
+      the workspace load/save path and record card-trash tombstones (see plan.md F6.6).
 
 ### 14.3 — LATER: Linux and Windows runtime support
 - [ ] !Klein should run as a first-class local runtime on Linux desktops/servers, while keeping Docker

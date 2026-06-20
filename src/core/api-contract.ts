@@ -1915,9 +1915,33 @@ export const runtimeTaskDiagnosticEventSchema = z.object({
 });
 export type RuntimeTaskDiagnosticEvent = z.infer<typeof runtimeTaskDiagnosticEventSchema>;
 
+export const runtimeTaskRunSummarySchema = z.object({
+	schemaVersion: z.literal(1),
+	taskId: z.string(),
+	workspacePath: z.string().nullable(),
+	state: z.enum(["awaiting_review", "failed", "interrupted"]),
+	reviewReason: z.string().nullable(),
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	endpoint: z.string().nullable(),
+	lastActivity: z.string().nullable(),
+	warningMessage: z.string().nullable(),
+	exitCode: z.number().nullable(),
+	startedAt: z.number().nullable(),
+	endedAt: z.number(),
+	promptTokens: z.number().nullable(),
+	completionTokens: z.number().nullable(),
+	totalTokens: z.number().nullable(),
+	timeoutReason: z.string().nullable(),
+	timeoutSource: z.enum(["global_config", "role_override", "autonomous_default"]).nullable(),
+	patchCaptureStatus: z.string().nullable(),
+});
+export type RuntimeTaskRunSummary = z.infer<typeof runtimeTaskRunSummarySchema>;
+
 export const runtimeTaskDiagnosticsResponseSchema = z.object({
 	ok: z.boolean(),
 	events: z.array(runtimeTaskDiagnosticEventSchema),
+	runSummaries: z.array(runtimeTaskRunSummarySchema).optional(),
 	error: z.string().optional(),
 });
 export type RuntimeTaskDiagnosticsResponse = z.infer<typeof runtimeTaskDiagnosticsResponseSchema>;

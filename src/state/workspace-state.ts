@@ -25,6 +25,7 @@ import { updateTaskDependencies } from "../core/task-board-mutations";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
+import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 
 const RUNTIME_HOME_PARENT_DIR = CLINE_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
@@ -430,17 +431,33 @@ async function readWorkspaceBoardForContext(context: RuntimeWorkspaceContext): P
 	}
 	const localBoardPath = getWorkspaceLocalBoardPath(context.repoPath);
 	const rawLocalBoard = await readJsonFile(localBoardPath);
-	return updateTaskDependencies(
-		normalizeRuntimeBoardData(
-			parsePersistedStateFile(
-				localBoardPath,
-				`${WORKSPACE_LOCAL_STATE_DIR}/${BOARD_FILENAME}`,
-				rawLocalBoard,
-				runtimeBoardDataSchema,
-				createEmptyBoard(),
+	if (rawLocalBoard !== null) {
+		return updateTaskDependencies(
+			normalizeRuntimeBoardData(
+				parsePersistedStateFile(
+					localBoardPath,
+					`${WORKSPACE_LOCAL_STATE_DIR}/${BOARD_FILENAME}`,
+					rawLocalBoard,
+					runtimeBoardDataSchema,
+					createEmptyBoard(),
+				),
 			),
-		),
-	);
+		);
+	}
+	// Cross-machine recovery (specsheet §14.2): with no runtime cache and no board mirror, recover from the
+	// committed portable CRDT if present, re-resolving machine-local model assignments against this machine.
+	try {
+		const imported = await importPortableBoard({
+			repoPath: context.repoPath,
+			replicaId: await resolveMachineReplicaId(),
+		});
+		if (imported) {
+			return updateTaskDependencies(normalizeRuntimeBoardData(imported.board));
+		}
+	} catch {
+		// Portability recovery is best-effort; fall back to an empty board below.
+	}
+	return updateTaskDependencies(normalizeRuntimeBoardData(createEmptyBoard()));
 }
 
 export async function loadWorkspaceBoardById(workspaceId: string): Promise<RuntimeBoardData> {
@@ -549,6 +566,15 @@ async function writeWorkspaceStateFiles(
 	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceLocalMetaPath(context.repoPath), meta, {
 		lock: null,
 	});
+
+	// Export the durable board into the committed, portable CRDT (specsheet §14.2). Best-effort: a portability
+	// write must never break the primary state save.
+	try {
+		const replicaId = await resolveMachineReplicaId();
+		await exportLocalBoardToPortableCrdt({ repoPath: context.repoPath, board, replicaId });
+	} catch {
+		// Portability mirror is non-critical; ignore failures.
+	}
 }
 
 async function readWorkspaceIndex(): Promise<WorkspaceIndexFile> {

@@ -267,15 +267,25 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(readFilesApproval.approved).toBe(false);
 		expect(readFilesApproval.reason).toContain("already started read_large_file");
 
-		const applyPatchApproval = await requestToolApproval({
+		// follow-up-6 §2.6: only additional *content-read* tools are serialized within a turn. Harmless
+		// discovery and edits after a read are allowed, so the model can act on what it just read.
+		const listFilesApproval = await requestToolApproval({
 			...commonRequest,
 			toolCallId: "tool-3",
+			toolName: "list_files",
+			input: { path: "." },
+		});
+		expect(listFilesApproval.approved).toBe(true);
+
+		const applyPatchApproval = await requestToolApproval({
+			...commonRequest,
+			toolCallId: "tool-4",
 			toolName: "apply_patch",
 			input: "*** Begin Patch\n*** End Patch",
 		});
-		expect(applyPatchApproval.approved).toBe(false);
-		expect(applyPatchApproval.reason).toContain("already started read_large_file");
-		expect(baseApproval).toHaveBeenCalledTimes(1);
+		expect(applyPatchApproval.approved).toBe(true);
+		// read_large_file + list_files + apply_patch were approved; only the second content read was blocked.
+		expect(baseApproval).toHaveBeenCalledTimes(3);
 	});
 
 	it("blocks read_large_file after read_files is requested in the same turn", async () => {

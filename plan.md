@@ -966,6 +966,108 @@ the repository checkout instead of depending only on one machine's `~/.cline/nkl
 
 ---
 
+## Follow-up-6 implementation pass — dev-test reliability, deep-domain decomposition, portability
+
+> Source: `follow-up-6.md` (the June 2026 habit + audio-VST autonomous dev-test runs), specsheet §14.2
+> (portable project state) and §7's open knowledge-expansion loop, plus the deep-complex-domain capability
+> goal (stop massively underestimating hard domains). Sequenced so each item is independently landable.
+
+### F6.1 — Decomposition quality: graph coherence, scope pressure, knowledge debt  *(deep-domain)*
+- [x] **Dependency-coherence validation after `decompose_project`.** New
+      [cline-decomposition-graph-quality.ts](src/cline-sdk/cline-decomposition-graph-quality.ts) classifies
+      cards (test / docs / UI / domain-core) and rejects graphs where a test/acceptance card does not depend on
+      the implementation it verifies or a docs card does not depend on the work it documents; sparsity,
+      isolated cards, likely-reversed test edges, and UI-without-domain are surfaced as warnings in the tool
+      result + self-observation telemetry (the creation gate opts in via `enforceGraphQuality`; applying a
+      persisted/partial graph does not retroactively throw). Unit-tested. *(follow-up-6 §3.3)*
+- [x] **`knowledgeDebt` field on generated cards + knowledge-acquisition / scope-pressure workflow.** Added a
+      `knowledgeDebt` field to the plan-task schema and card prompt, and a mandatory knowledge-acquisition +
+      "is this under-decomposed by 10x/100x?" scope-pressure pass to the `kanban-decompose` workflow for
+      domain-heavy work. *(follow-up-6 §3.1, §3.2; specsheet §7 knowledge-expansion loop)*
+- [ ] **Knowledge-tool usage as a decomposition quality signal.** Correlate whether retrieval / code-index /
+      architecture-knowledge tools were actually used in a planning session before `decompose_project`, and
+      surface "decomposition used / did not use knowledge tools" in the stats view, not just a usage count.
+      *(follow-up-6 §3.2 — deferred; needs session-runtime correlation + Settings UI.)*
+- [ ] **Audio dev-test rubric.** Score the audio-VST fixture as under-decomposed/shallow against a domain
+      rubric (DSP correctness, measured phase alignment, groove invariants, effect guardrail sweeps, full UI
+      control coverage, prototype-vs-real-VST docs). *(follow-up-6 §3.8)*
+
+### F6.2 — Sandbox patch capture & timeout diagnostics
+- [x] **Classified patch-capture failures.** New
+      [task-patch-capture-diagnostics.ts](src/workspace/task-patch-capture-diagnostics.ts) distinguishes a
+      corrupt/garbled diff from a non-applying patch, extracts the first failing file/hunk, preserves the
+      failing patch under runtime-home `patch-failures/`, and attaches all of it (typed `TaskPatchCaptureError`)
+      to the review card + telemetry. Unit-tested. *(follow-up-6 §3.5)*
+- [x] **Structured stream/tool inactivity-timeout note.** `handleTaskTimeout` now records last activity, last
+      tool, whether workspace changes were captured, and resume safety on the card and in telemetry.
+      *(follow-up-6 §3.5)*
+
+### F6.3 — Persisted run summaries & last-run card metadata
+- [x] **Persist terminal task-run summaries separately from live `sessions.json`.**
+      [task-run-summary-store.ts](src/state/task-run-summary-store.ts) appends a durable per-task run record
+      (provider/model, endpoint, exit/review reason, last activity, token usage, timing) on each terminal
+      transition (via the `emitSummary` chokepoint), to a runtime-home `task-runs/` JSONL that survives
+      runtime shutdown; recent records are exposed through `getTaskDiagnostics`. Unit-tested. The record
+      reserves `timeoutReason`/`timeoutSource`/`patchCaptureStatus` fields for the next item. *(§3.6, §4.2)*
+- [~] **Timeout reason on the run record.** Terminal run summaries now carry a structured `timeoutReason`
+      (e.g. "stream inactivity timeout after 360s") populated when a task is aborted on timeout. Remaining:
+      `timeoutSource` provenance (global config vs role override vs autonomous default) from the launch config,
+      and stats for timeout-triggered review outcomes by model/role/scenario. *(follow-up-6 §4.2)*
+
+### F6.4 — Dev-test harness, outcome classification, observer & cleanup
+- [x] **Shared run-outcome classifier.** [dev-test-outcome.ts](src/core/dev-test-outcome.ts) classifies a run
+      from board counts + acceptance result + runtime reachability into `completed` /
+      `acceptance_green_workflow_incomplete` / `blocked_by_review_cards` / `stagnant` / `runtime_down` /
+      `failed` (success only when every non-trash card is Completed), with a `countDevTestBoardColumns` helper
+      for the persisted-state path. Unit-tested. This is the shared core for the harness and observer below.
+      *(follow-up-6 §3.4, §3.7, §5)*
+- [x] **Official `runDevTestProject` harness** ([cline-dev-test-harness.ts](src/cline-sdk/cline-dev-test-harness.ts)):
+      `buildDevTestSeedStartPayload` produces the exact UI-equivalent start payload (`taskTitle`,
+      `startInPlanMode`, `baseRef`, `agentId`, `clineSettings`), and `runDevTestProject` runs the monitor loop
+      over injected deps (start/readState/runAcceptance/sleep/now) — bounded by `maxWaitMs`, settles on stable
+      polls, degrades when the runtime vanishes, and returns the classified outcome. Unit-tested with fakes.
+      Remaining: thin real wiring (tRPC client + persisted-state fallback reader) + a `dev` CLI command.
+      *(follow-up-6 §4.1)*
+- [x] **Observer persisted-state fallback** is satisfied by the same harness `readState` contract +
+      `countDevTestBoardColumns` (the reader returns `runtimeReachable: false` with the last persisted board);
+      the loop then emits `runtime_down`. *(follow-up-6 §3.7, §2.3)*
+- [x] **Dev-test cleanup report summarizer** ([dev-test-cleanup.ts](src/core/dev-test-cleanup.ts)): classifies
+      entries into dev-test workspaces / sandbox volumes / editor caches, never reclaims the active run, and
+      reports reclaimable vs retained bytes per category. Unit-tested. Remaining: filesystem/`docker`/`du`
+      discovery wrapper + CLI surface. *(follow-up-6 §4.3)*
+
+### F6.5 — Guards, regressions & fuzz coverage
+- [x] **Narrowed the same-turn read guard** to content reads only (discovery/edits after a read are allowed)
+      with an explicit next-step rejection message. *(follow-up-6 §2.6)*
+- [x] **Near-valid tool-payload fuzz suite** for `decompose_project`
+      ([cline-decomposition-tool-fuzz.test.ts](test/runtime/cline-sdk/cline-decomposition-tool-fuzz.test.ts));
+      also made `summary` accept `null`. *(follow-up-6 §2.4 — `expand_task`/`write_file(s)`/discovery/command
+      fuzz coverage still to extend.)*
+- [x] **Regression test** proving generated cards land in Planning with start preconditions met. *(§2.1)*
+- [ ] **Audit telemetry/session caches for task-id-only keys** (dev-test ids repeat across projects). The
+      self-observation sink + task-diagnostics + run-summary store are workspace-scoped; sweep the remaining
+      model-performance / knowledge-tool-usage caches. *(follow-up-6 §2.2)*
+
+### F6.6 — Full portable project-state schema  *(specsheet §14.2; conflict model: CRDT)*
+- [x] **CRDT board state.** [portable-board-crdt.ts](src/state/portable-board-crdt.ts) — per-field LWW-register
+      CRDT with tombstones (cards + placement) and per-edge presence registers (DAG), with a merge proven
+      commutative/associative/idempotent and deterministic LWW/delete conflict resolution. Unit-tested.
+- [x] **Committed store + export/import + local re-resolution.**
+      [portable-board-store.ts](src/state/portable-board-store.ts) writes the CRDT to the committed
+      `<repo>/.cline/nklein/workspace/board-crdt.json`, merges committed⊕local on export, and
+      `prepareImportedBoardForLocalModels` strips machine-local `clineSettings` so the importing machine
+      re-resolves roles/fit against its own local models (§14.2 invariant). Unit-tested. Because the merge is a
+      true CRDT, reconciliation is automatic (no manual rebase UI required). Plan artifacts
+      (spec/plan/decisions/revisions) are already workspace-committed under `.cline/nklein/plans/`.
+- [x] **Live wiring.** `writeWorkspaceStateFiles` now exports the durable board into the committed CRDT on
+      every save (best-effort), and `readWorkspaceBoardForContext` recovers from the committed CRDT (with local
+      re-resolution) when neither the runtime cache nor the project board mirror exists. Permanent card removal
+      is tombstoned automatically on export (cards absent from a non-empty local board). A stable per-machine
+      `replica-id` lives under the runtime home. Covered by a new cross-machine-recovery integration test.
+      Remaining: schema migration when `schemaVersion` advances + browser verification of the reconcile UX.
+
+---
+
 ## Changelog — maintain a running `## [Upcoming]` section
 
 `CHANGELOG.md` now has a running `## [Upcoming]` section, but the full diff-grounded reconciliation still

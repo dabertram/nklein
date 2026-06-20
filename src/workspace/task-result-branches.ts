@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { createGitProcessEnv } from "../core/git-process-env";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
+import { classifyTaskPatchCaptureFailure, TaskPatchCaptureError } from "./task-patch-capture-diagnostics";
 
 const TASK_RESULT_BRANCH_PREFIX = "nklein/tasks";
 
@@ -103,6 +105,24 @@ export async function deleteTaskResultBranchesForRepo(input: { repoPath: string;
 	return deletedCount;
 }
 
+/**
+ * Persists a failed sandbox task patch to a durable runtime-home location so a corrupt/non-applying diff can
+ * be inspected after the temp working dir is cleaned up (follow-up-6 §3.5). Best-effort: a preservation
+ * failure must not mask the original capture failure, so this returns null instead of throwing.
+ */
+async function preserveFailedTaskPatch(taskId: string, patch: string): Promise<string | null> {
+	try {
+		const dir = join(resolveNkleinRuntimeHomePath(homedir()), "patch-failures");
+		await mkdir(dir, { recursive: true });
+		const safeTaskId = taskId.replace(/[^A-Za-z0-9._-]+/gu, "-").slice(0, 80) || "task";
+		const patchPath = join(dir, `${safeTaskId}-${Date.now()}.patch`);
+		await writeFile(patchPath, `${patch.trimEnd()}\n`, "utf8");
+		return patchPath;
+	} catch {
+		return null;
+	}
+}
+
 export async function applyTaskPatchToResultBranch(
 	input: ApplyTaskPatchToResultBranchInput,
 ): Promise<TaskResultBranch | null> {
@@ -138,7 +158,10 @@ export async function applyTaskPatchToResultBranch(
 			env,
 		});
 		if (!apply.ok) {
-			throw new Error(apply.error ?? "Could not apply sandbox task patch.");
+			const gitError = apply.error ?? "Could not apply sandbox task patch.";
+			const details = classifyTaskPatchCaptureFailure(gitError, normalizedPatch);
+			const preservedPatchPath = await preserveFailedTaskPatch(input.taskId, normalizedPatch);
+			throw new TaskPatchCaptureError({ taskId: input.taskId, preservedPatchPath, ...details });
 		}
 		const tree = await runGit(input.repoPath, ["write-tree"], { env });
 		if (!tree.ok || !tree.stdout.trim()) {
