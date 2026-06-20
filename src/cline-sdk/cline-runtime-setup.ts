@@ -12,6 +12,7 @@ import {
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./cline-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./cline-decomposition-workflow";
+import { parseEditFileRequest } from "./cline-edit-file-tool";
 import { CLINE_GUIDANCE_SKILL_DEFAULTS } from "./cline-guidance-skills";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./cline-large-file-workflow";
 import { parseWriteFilesRequests } from "./cline-write-files-tool";
@@ -219,6 +220,10 @@ function extractScopedWriteTargetPaths(request: ClineSdkToolApprovalRequest): st
 	}
 	if (request.toolName === "apply_patch") {
 		return parseApplyPatchTargets(request.input).map((target) => target.path);
+	}
+	if (request.toolName === "edit_file") {
+		const parsed = parseEditFileRequest(request.input);
+		return parsed ? [parsed.path] : [];
 	}
 	if (request.toolName !== "editor" || !request.input || typeof request.input !== "object") {
 		return [];

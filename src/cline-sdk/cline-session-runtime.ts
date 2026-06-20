@@ -22,6 +22,7 @@ import { type ClineCodeEmbeddingProvider, createClineCodeEmbeddingProvider } fro
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
 import { type ClineDecompositionAppliedHandler, createClineDecompositionTools } from "./cline-decomposition-tool";
+import { createEditFileTool } from "./cline-edit-file-tool";
 import { extractClineSessionId } from "./cline-event-adapter";
 import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
 import {
@@ -70,6 +71,7 @@ const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
 const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
 	"apply_patch",
 	"bash",
+	"edit_file",
 	"editor",
 	"execute_command",
 	"replace_in_file",
@@ -784,6 +786,10 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),
 				createWriteFileTool({
+					workspacePath: request.cwd,
+					maxFileLines: request.maxAgentWritableFileLines,
+				}),
+				createEditFileTool({
 					workspacePath: request.cwd,
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),

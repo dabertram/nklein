@@ -313,7 +313,7 @@ function buildTaskPrompt(
 		"Leaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.",
 	);
 	sections.push(
-		"Execution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.",
+		"Execution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.",
 	);
 	const guidanceTopic = resolveClineGuidanceSkillTopic({
 		title: task.title,

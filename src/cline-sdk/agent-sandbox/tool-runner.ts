@@ -1,6 +1,7 @@
 import { createDefaultExecutors, type ToolExecutors } from "@clinebot/core";
 import type { AgentToolContext } from "@clinebot/shared";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "../cline-agent-sandbox-extra-tools";
+import { createEditFileTool } from "../cline-edit-file-tool";
 import { createFileDiscoveryTools } from "../cline-file-discovery-tools";
 import { createReadLargeFileTool } from "../cline-large-file-workflow";
 import { createClineRetrievalTools } from "../cline-retrieval-tools";
@@ -92,6 +93,7 @@ async function runKanbanExtraTool(input: unknown, cwd: string): Promise<unknown>
 		}),
 		createWriteFilesTool({ workspacePath: cwd, maxFileLines: request.maxFileLines }),
 		createWriteFileTool({ workspacePath: cwd, maxFileLines: request.maxFileLines }),
+		createEditFileTool({ workspacePath: cwd, maxFileLines: request.maxFileLines }),
 	];
 	const selectedTool = tools.find((candidate) => candidate.name === request.toolName);
 	if (!selectedTool) {

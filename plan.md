@@ -1154,3 +1154,41 @@ carried-forward correctness items (MCSR decay + local-window resolution, router 
 gates, dogfood contract/safety) as capacity allows. Advisor/model-freshness stay parked until cloud is
 revisited. (L4 surfaces can land incrementally alongside the phases that produce their data — e.g. the
 context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
+
+---
+
+## Competitive feature research (aider / Cline / Roo Code / OpenHands / Open Interpreter / continue.dev)
+
+> Goal: make !Klein the most capable local-only agentic tool, with special focus on keeping small/quantized
+> models with small context windows productive on hard tasks. Each row notes the technique, who does it, and
+> !Klein's status. Items already covered are recorded so we don't re-mine them.
+
+### Implemented this pass
+- [x] **Lenient fuzzy search/replace editing (aider `editblock`).** New
+      [cline-fuzzy-edit.ts](src/cline-sdk/cline-fuzzy-edit.ts) + [`edit_file` tool](src/cline-sdk/cline-edit-file-tool.ts):
+      exact → whitespace-flexible (re-indent) → leading-blank → `...` elision → fuzzy ≥0.8 ladder. Token-efficient
+      (vs whole-file) and tolerant of near-miss search blocks — the #1 failure mode for weak models. Registered in
+      the sandbox tool runner + scope/secret/line guards; small-model nudge added to leaf-task prompts.
+
+### Already in !Klein (verified during research — do not rebuild)
+- Reflection / retry on failed acceptance with error feedback → `cline-acceptance-repair.ts` + plan-gap loop.
+- Context compaction / focus on latest reads → `cline-context-compression.ts` + `cline-context-focus-policy.ts`.
+- Token-budgeted large-file chunk/stitch reads → `cline-large-file-workflow.ts`.
+- Repo map + hybrid lexical+semantic code index/search → `cline-repo-map.ts` / `cline-code-index.ts` / `cline-code-search.ts`.
+- Per-model tool routing (trim fragile tools for small models) + sequential tool calls → `cline-model-tool-routing.ts`.
+- Plan/Act modes + per-turn checkpoints → planning lane + `turn-checkpoints.ts`.
+- Repeated-read / repeated-tool loop guards → `cline-session-runtime.ts` / session service guardrails.
+
+### Candidate techniques to evaluate next (not yet implemented)
+- [ ] **Tree-sitter + PageRank repo map (aider).** !Klein's repo map is a documented bounded lexical heuristic;
+      upgrading ranking quality would sharpen which symbols small-context models see first. (plan2.md M4.)
+- [ ] **LLM-summarizing condenser (OpenHands).** Add an opt-in "summarize older turns into a compact memory"
+      condenser alongside the existing deterministic compaction, for very long autonomous runs on small windows.
+- [ ] **Edit-format auto-selection per model capability (aider).** Now that `edit_file` exists, route small
+      models to it by default and reserve whole-file writes for new files / strong models.
+- [ ] **Line-number-anchored edits (Roo Code).** Optionally include line numbers in read output and accept a
+      line hint in `edit_file` to disambiguate repeated search blocks.
+- [ ] **Microagents / domain knowledge packs (OpenHands).** Extend guidance skills + `knowledgeDebt` into
+      reusable per-domain knowledge injected when a card's topic matches.
+- [ ] **Anti-lazy-edit prompting (aider udiff lesson).** Detect and reject `// ... unchanged ...` placeholder
+      edits that drop real code.

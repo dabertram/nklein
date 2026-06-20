@@ -1,5 +1,6 @@
 import type { AgentTool } from "@clinebot/shared";
 import type { AgentSandboxManager } from "./cline-agent-sandbox";
+import { createEditFileTool } from "./cline-edit-file-tool";
 import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
 import { createReadLargeFileTool, releaseClineLargeFileWorkflow } from "./cline-large-file-workflow";
 import { createClineRetrievalTools } from "./cline-retrieval-tools";
@@ -66,6 +67,10 @@ export function createAgentSandboxExtraTools(
 			maxFileLines: options.maxFileLines,
 		}),
 		createWriteFileTool({
+			workspacePath: definitionWorkspacePath,
+			maxFileLines: options.maxFileLines,
+		}),
+		createEditFileTool({
 			workspacePath: definitionWorkspacePath,
 			maxFileLines: options.maxFileLines,
 		}),
