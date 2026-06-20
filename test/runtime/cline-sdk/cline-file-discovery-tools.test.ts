@@ -96,6 +96,37 @@ describe("createFileDiscoveryTools", () => {
 		]);
 	});
 
+	it("maps host workspace absolute paths to the sandbox workspace for discovery tools", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		const hostWorkspacePath = await mkdtemp(join(tmpdir(), "kanban-file-discovery-host-"));
+		tempDirs.push(workspacePath, hostWorkspacePath);
+		await mkdir(join(workspacePath, "src"));
+		await writeFile(join(workspacePath, "src", "habit-score.ts"), "export const score = 1;\n", "utf8");
+
+		const tools = createFileDiscoveryTools({ workspacePath, hostWorkspacePath });
+		const listFiles = getTool(tools, "list_files");
+		const findFiles = getTool(tools, "find_files");
+		const getFileSize = getTool(tools, "get_file_size");
+
+		const listed = (await listFiles.execute(
+			{ path: join(hostWorkspacePath, "src"), recursive: true },
+			TOOL_CONTEXT,
+		)) as ListFilesResult;
+		const found = (await findFiles.execute(
+			{ path: hostWorkspacePath, query: "habit" },
+			TOOL_CONTEXT,
+		)) as FindFilesResult;
+		const size = (await getFileSize.execute(
+			{ path: join(hostWorkspacePath, "src", "habit-score.ts") },
+			TOOL_CONTEXT,
+		)) as GetFileSizeResult;
+
+		expect(listed.path).toBe("src");
+		expect(listed.entries).toEqual([expect.objectContaining({ path: "src/habit-score.ts", type: "file" })]);
+		expect(found.files).toEqual([expect.objectContaining({ path: "src/habit-score.ts", type: "file" })]);
+		expect(size.path).toBe("src/habit-score.ts");
+	});
+
 	it("returns file size metadata and read tool recommendation", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

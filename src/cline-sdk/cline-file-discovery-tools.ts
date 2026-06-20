@@ -31,12 +31,36 @@ function asBoundedInteger(value: unknown, fallback: number, min: number, max: nu
 	return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
-function resolveWorkspacePath(workspacePath: string, rawPath: string | null): string {
+function normalizeHostWorkspacePath(rawPath: string | null, hostWorkspacePath?: string | null): string | null {
+	if (!rawPath || !isAbsolute(rawPath)) {
+		return rawPath;
+	}
+	const normalizedHostWorkspacePath = hostWorkspacePath ? resolve(hostWorkspacePath) : null;
+	if (!normalizedHostWorkspacePath) {
+		return rawPath;
+	}
+	const resolvedRawPath = resolve(rawPath);
+	if (resolvedRawPath === normalizedHostWorkspacePath) {
+		return ".";
+	}
+	const relativePath = relative(normalizedHostWorkspacePath, resolvedRawPath);
+	if (relativePath && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
+		return relativePath;
+	}
+	return rawPath;
+}
+
+function resolveWorkspacePath(
+	workspacePath: string,
+	rawPath: string | null,
+	hostWorkspacePath?: string | null,
+): string {
 	const resolvedWorkspacePath = resolve(workspacePath);
-	const resolvedPath = rawPath
-		? isAbsolute(rawPath)
-			? resolve(rawPath)
-			: resolve(resolvedWorkspacePath, rawPath)
+	const normalizedRawPath = normalizeHostWorkspacePath(rawPath, hostWorkspacePath);
+	const resolvedPath = normalizedRawPath
+		? isAbsolute(normalizedRawPath)
+			? resolve(normalizedRawPath)
+			: resolve(resolvedWorkspacePath, normalizedRawPath)
 		: resolvedWorkspacePath;
 	const relativePath = relative(resolvedWorkspacePath, resolvedPath);
 	if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
@@ -159,7 +183,7 @@ async function walkEntries(options: {
 	return { entries, truncated };
 }
 
-function createListFilesTool(workspacePath: string): AgentTool {
+function createListFilesTool(workspacePath: string, hostWorkspacePath?: string | null): AgentTool {
 	return {
 		name: "list_files",
 		description:
@@ -180,7 +204,7 @@ function createListFilesTool(workspacePath: string): AgentTool {
 		},
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const rootPath = resolveWorkspacePath(workspacePath, asString(record.path));
+			const rootPath = resolveWorkspacePath(workspacePath, asString(record.path), hostWorkspacePath);
 			const result = await walkEntries({
 				workspacePath,
 				rootPath,
@@ -201,7 +225,7 @@ function createListFilesTool(workspacePath: string): AgentTool {
 	};
 }
 
-function createFindFilesTool(workspacePath: string): AgentTool {
+function createFindFilesTool(workspacePath: string, hostWorkspacePath?: string | null): AgentTool {
 	return {
 		name: "find_files",
 		description:
@@ -224,7 +248,7 @@ function createFindFilesTool(workspacePath: string): AgentTool {
 		},
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const rootPath = resolveWorkspacePath(workspacePath, asString(record.path));
+			const rootPath = resolveWorkspacePath(workspacePath, asString(record.path), hostWorkspacePath);
 			const fileFilter = createNameMatcher(
 				asString(record.pattern),
 				asString(record.query),
@@ -251,7 +275,11 @@ function createFindFilesTool(workspacePath: string): AgentTool {
 	};
 }
 
-function createGetFileSizeTool(workspacePath: string, contextWindow?: number | null): AgentTool {
+function createGetFileSizeTool(
+	workspacePath: string,
+	contextWindow?: number | null,
+	hostWorkspacePath?: string | null,
+): AgentTool {
 	return {
 		name: "get_file_size",
 		description:
@@ -270,7 +298,7 @@ function createGetFileSizeTool(workspacePath: string, contextWindow?: number | n
 			if (!rawPath) {
 				throw new Error("get_file_size requires a non-empty path.");
 			}
-			const absolutePath = resolveWorkspacePath(workspacePath, rawPath);
+			const absolutePath = resolveWorkspacePath(workspacePath, rawPath, hostWorkspacePath);
 			const info = await lstat(absolutePath);
 			if (!info.isFile()) {
 				throw new Error(`get_file_size requires a file path, got ${rawPath}.`);
@@ -297,11 +325,12 @@ function createGetFileSizeTool(workspacePath: string, contextWindow?: number | n
 
 export function createFileDiscoveryTools(options: {
 	workspacePath: string;
+	hostWorkspacePath?: string | null;
 	contextWindow?: number | null;
 }): AgentTool[] {
 	return [
-		createListFilesTool(options.workspacePath),
-		createFindFilesTool(options.workspacePath),
-		createGetFileSizeTool(options.workspacePath, options.contextWindow),
+		createListFilesTool(options.workspacePath, options.hostWorkspacePath),
+		createFindFilesTool(options.workspacePath, options.hostWorkspacePath),
+		createGetFileSizeTool(options.workspacePath, options.contextWindow, options.hostWorkspacePath),
 	];
 }

@@ -140,7 +140,11 @@ async function runKanbanExtraTool(input: unknown, cwd: string): Promise<unknown>
 	};
 	const tools = [
 		...createClineRetrievalTools({ workspacePath: cwd }),
-		...createFileDiscoveryTools({ workspacePath: cwd, contextWindow: request.contextWindow }),
+		...createFileDiscoveryTools({
+			workspacePath: cwd,
+			hostWorkspacePath: hostProjectPath,
+			contextWindow: request.contextWindow,
+		}),
 		createReadLargeFileTool({
 			sessionId: request.sessionId,
 			workspacePath: cwd,

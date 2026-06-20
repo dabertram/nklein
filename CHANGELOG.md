@@ -6,6 +6,7 @@
 - Made `decompose_project` tolerate stringified task arrays and expansion maps from small local models at both the advertised tool schema and execution parser layers while still validating the parsed graph with the normal strict decomposition contract.
 - Lowered the default Docker agent sandbox memory cap from 4096 MB to 2048 MB per container to reduce Docker VM swap pressure on constrained developer machines; saved runtime settings can still raise it.
 - Completed successful auto-review cards that finish with an explicit empty sandbox patch, so analysis/no-change generated cards unblock their dependent Planning cards instead of getting stuck in Review.
+- Normalized host workspace absolute paths inside sandboxed `list_files`, `find_files`, and `get_file_size`, matching the existing `read_files` recovery path and preventing repeated discovery-tool loops on temp project paths.
 - Preserved workspace lock contention during scoped runtime requests so transient state writes retry instead of being misreported as an unknown workspace.
 - Treated sandbox result-patch staging failures from already-invalid/non-Git teardown workspaces as benign cleanup, avoiding misleading capture warnings when an interrupted task had no result to preserve.
 - Enforced generated-card write scopes in Cline tool approval so cards with `filesLikelyTouched` can only edit their declared files.
