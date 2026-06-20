@@ -133,8 +133,59 @@ function parseJsonStringValue(value: unknown): unknown {
 	try {
 		return JSON.parse(trimmed);
 	} catch {
-		return value;
+		const recovered = parseJsonPrefixWithTrailingClosers(trimmed);
+		return recovered.success ? recovered.value : value;
 	}
+}
+
+function parseJsonPrefixWithTrailingClosers(value: string): { success: true; value: unknown } | { success: false } {
+	const first = value[0];
+	if (first !== "[" && first !== "{") {
+		return { success: false };
+	}
+	const stack: string[] = [];
+	let inString = false;
+	let escaping = false;
+	for (let index = 0; index < value.length; index += 1) {
+		const char = value[index];
+		if (inString) {
+			if (escaping) {
+				escaping = false;
+			} else if (char === "\\") {
+				escaping = true;
+			} else if (char === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (char === '"') {
+			inString = true;
+			continue;
+		}
+		if (char === "[" || char === "{") {
+			stack.push(char === "[" ? "]" : "}");
+			continue;
+		}
+		if (char !== "]" && char !== "}") {
+			continue;
+		}
+		const expected = stack.pop();
+		if (expected !== char) {
+			return { success: false };
+		}
+		if (stack.length === 0) {
+			const trailing = value.slice(index + 1).trim();
+			if (!/^[\]}]*$/.test(trailing)) {
+				return { success: false };
+			}
+			try {
+				return { success: true, value: JSON.parse(value.slice(0, index + 1)) };
+			} catch {
+				return { success: false };
+			}
+		}
+	}
+	return { success: false };
 }
 
 const decomposeProjectTaskJsonSchema = {

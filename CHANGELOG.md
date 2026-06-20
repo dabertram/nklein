@@ -6,6 +6,7 @@
 - Added knowledge-tool usage statistics for Cline retrieval, code-index, file discovery/read, planning-control, architecture-knowledge, and external-fetch tool events, with project/global aggregates in the Settings statistics view.
 - Added a domain-knowledge-heavy audio VST/psytrance dev-test preset with a dedicated DSP fixture for kick/bass synthesis, phase-aligned sequencing, UI state, and clean-effect guardrails.
 - Made `decompose_project` tolerate stringified task arrays and expansion maps from small local models at both the advertised tool schema and execution parser layers while still validating the parsed graph with the normal strict decomposition contract.
+- Made `decompose_project` recover JSON-stringified task arrays with stray trailing closing braces, matching a malformed local-model tool call observed in the complex dev-test seed card.
 - Matched `decompose_project`'s advertised nullable fields to its runtime parser, so answered questions and optional task hints that use `null` are not rejected before execution.
 - Made `write_files` tolerate JSON-stringified batch file arrays from small local models at both the advertised tool schema and execution parser layers.
 - Made `write_files` tolerate harmless extra keys on batch file entries, such as range fields copied from read tools, while still validating the actual `path` and `content` fields before writing.

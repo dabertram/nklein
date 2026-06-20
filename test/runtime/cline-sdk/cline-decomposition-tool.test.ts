@@ -774,6 +774,31 @@ describe("cline decomposition tools", () => {
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
 	});
 
+	it("recovers stringified task arrays with stray trailing closing braces", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-string-tasks-trailing-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				summary: "Build the habit tracker in two cards.",
+				tasks: `${JSON.stringify(createTaskGraph().tasks)}}`,
+			},
+			undefined as never,
+		)) as {
+			ok: boolean;
+			taskCount: number;
+			taskGraphPath: string;
+		};
+
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(2);
+		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
+	});
+
 	it("advertises stringified decomposition payloads in the tool schema", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-string-schema-"));
 		const tool = getTool("decompose_project", workspacePath);
