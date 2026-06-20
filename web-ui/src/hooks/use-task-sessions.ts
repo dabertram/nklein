@@ -180,6 +180,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					prompt: kickoffPrompt,
 					taskTitle: task.title,
 					images: options?.resumeFromTrash ? undefined : task.images,
+					filesLikelyTouched: options?.resumeFromTrash ? undefined : task.filesLikelyTouched,
 					startInPlanMode: options?.resumeFromTrash
 						? undefined
 						: (options?.startInPlanMode ?? task.startInPlanMode),

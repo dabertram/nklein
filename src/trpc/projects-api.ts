@@ -63,7 +63,15 @@ interface DisposeWorkspaceOptions {
 	stopTerminalSessions?: boolean;
 }
 
-const DEV_TEST_TASK_ID = "dev-habit-insights-mid";
+export function buildDevTestTaskId(scenarioId: string): string {
+	const normalizedScenarioId = scenarioId
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return `dev-${normalizedScenarioId || "test"}-decompose`;
+}
+
 async function isMarkedDevTestWorkspaceEntry(entry: {
 	workspaceId: string;
 	repoPath: string;
@@ -431,7 +439,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				const now = Date.now();
 				const runtimeConfig = await loadRuntimeConfig(context.repoPath);
 				const board = createDevTestBoard({
-					taskId: DEV_TEST_TASK_ID,
+					taskId: buildDevTestTaskId(scenario.id),
 					title: scenario.title,
 					prompt: scenario.prompt,
 					acceptanceCommand: scenario.acceptanceCommand,

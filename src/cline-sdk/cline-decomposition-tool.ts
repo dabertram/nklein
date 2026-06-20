@@ -61,6 +61,7 @@ export interface ApplyClinePlanTaskGraphResult {
 	createdTasks: RuntimeBoardCard[];
 	createdDependencies: RuntimeBoardDependency[];
 	taskIdByPlanTaskId: Record<string, string>;
+	rootTaskIds: string[];
 	preview: ClinePlanTaskGraphPreview;
 }
 
@@ -87,10 +88,21 @@ export interface ApplyDecomposeProjectArtifactsResult {
 	createdTaskCount: number;
 	createdDependencyCount: number;
 	taskIdByPlanTaskId: Record<string, string>;
+	rootTaskIds: string[];
 	baseRef: string | null;
 	message: string;
 	preview: ClinePlanTaskGraphPreview;
 }
+
+export interface ClineDecompositionAppliedEvent {
+	workspacePath: string;
+	sourceTaskId: string | null;
+	planSlug: string;
+	rootTaskIds: string[];
+	taskIdByPlanTaskId: Record<string, string>;
+}
+
+export type ClineDecompositionAppliedHandler = (event: ClineDecompositionAppliedEvent) => Promise<void> | void;
 
 export interface ClinePlanTaskEstimate {
 	planTaskId: string;
@@ -122,6 +134,7 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		summary: clinePlanTaskSchema.shape.prompt.optional().describe("Plain-language plan summary markdown."),
 		questions: z.array(clinePlanQuestionSchema).optional(),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
+		minimumTaskCount: z.number().int().min(1).max(100).optional(),
 		expansions: z.record(z.string(), z.array(clinePlanTaskSchema)).optional(),
 	});
 type DecomposeProjectToolInput = {
@@ -134,6 +147,7 @@ type DecomposeProjectToolInput = {
 	tasks: ClinePlanTask[];
 	taskGraph: ClinePlanTaskGraph;
 	defaultAcceptanceCommand?: string | null;
+	minimumTaskCount: number | null;
 	expansions: Record<string, ClinePlanTask[]>;
 };
 
@@ -179,6 +193,12 @@ function buildTaskPrompt(
 	modelFitEvidence?: string | null,
 ): string {
 	const sections = [task.prompt.trim()];
+	sections.push(
+		"Leaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.",
+	);
+	sections.push(
+		"Execution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.",
+	);
 	const guidanceTopic = resolveClineGuidanceSkillTopic({
 		title: task.title,
 		prompt: task.prompt,
@@ -243,9 +263,12 @@ function formatExpansionRevisionMarkdown(expansions: Record<string, ClinePlanTas
 
 function normalizeTaskAcceptanceCommand(task: ClinePlanTask, defaultAcceptanceCommand: string | null): ClinePlanTask {
 	const normalizedDefaultAcceptanceCommand = defaultAcceptanceCommand?.trim() || null;
+	const acceptanceTestPrompt = task.acceptanceTestPrompt?.trim() || null;
 	return {
 		...task,
 		acceptanceCommand: normalizedDefaultAcceptanceCommand ?? task.acceptanceCommand?.trim() ?? null,
+		testFirst: task.testFirst && acceptanceTestPrompt !== null,
+		acceptanceTestPrompt,
 		dependsOn: uniqStrings(task.dependsOn),
 	};
 }
@@ -558,7 +581,11 @@ export function validateClinePlanTaskGraph(input: {
 	taskGraph: ClinePlanTaskGraph;
 	routingCandidates?: readonly ClineTaskRoutingCandidate[];
 }): ValidateClinePlanTaskGraphResult {
-	const taskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
+	const parsedTaskGraph = clinePlanTaskGraphSchema.parse(input.taskGraph);
+	const taskGraph: ClinePlanTaskGraph = {
+		...parsedTaskGraph,
+		tasks: parsedTaskGraph.tasks.map((task) => normalizeTaskAcceptanceCommand(task, null)),
+	};
 	for (const task of taskGraph.tasks) {
 		validateTaskSizingContract(task);
 		selectTaskRoutingCandidate(task, buildTaskPrompt(task), input.routingCandidates);
@@ -584,6 +611,12 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 		expansions,
 		defaultAcceptanceCommand,
 	});
+	const minimumTaskCount = parsed.minimumTaskCount ?? null;
+	if (minimumTaskCount !== null && tasks.length < minimumTaskCount) {
+		throw new Error(
+			`decompose_project requires at least ${minimumTaskCount} task leaves; received ${tasks.length}. Split the plan into more independently reviewable tasks.`,
+		);
+	}
 	const taskGraph = {
 		schemaVersion: 1 as const,
 		slug: parsed.slug,
@@ -600,6 +633,7 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 		tasks,
 		taskGraph,
 		defaultAcceptanceCommand,
+		minimumTaskCount,
 		expansions,
 	};
 }
@@ -848,12 +882,17 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 	if (sourceTaskId && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
 		board = moveTaskToColumn(board, sourceTaskId, "completed", now).board;
 	}
+	const rootTaskIds = taskGraph.tasks
+		.filter((task) => task.dependsOn.length === 0)
+		.map((task) => taskIdByPlanTaskId[task.id])
+		.filter((taskId): taskId is string => Boolean(taskId));
 
 	return {
 		board,
 		createdTasks,
 		createdDependencies,
 		taskIdByPlanTaskId,
+		rootTaskIds,
 		preview,
 	};
 }
@@ -875,6 +914,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 			createdTaskCount: 0,
 			createdDependencyCount: 0,
 			taskIdByPlanTaskId: {},
+			rootTaskIds: [],
 			baseRef: null,
 			message: "Automatic card creation is disabled, so the task graph was kept pending for review.",
 			preview: fallbackPreview,
@@ -892,6 +932,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 						createdTaskCount: 0,
 						createdDependencyCount: 0,
 						taskIdByPlanTaskId: {},
+						rootTaskIds: [],
 						baseRef: null,
 						message: "Could not determine a base branch, so the task graph was persisted but not applied.",
 						preview: fallbackPreview,
@@ -914,6 +955,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					createdTaskCount: applied.createdTasks.length,
 					createdDependencyCount: applied.createdDependencies.length,
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+					rootTaskIds: applied.rootTaskIds,
 					baseRef,
 					message: `Applied task graph to !Klein: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
 					preview: applied.preview,
@@ -940,6 +982,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 			createdTaskCount: 0,
 			createdDependencyCount: 0,
 			taskIdByPlanTaskId: {},
+			rootTaskIds: [],
 			baseRef: null,
 			message: `Could not apply the task graph automatically: ${message}`,
 			preview: fallbackPreview,
@@ -947,7 +990,11 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	}
 }
 
-function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string | null): AgentTool {
+function createDecomposeProjectTool(
+	workspacePath: string,
+	sourceTaskId?: string | null,
+	onApplied?: ClineDecompositionAppliedHandler,
+): AgentTool {
 	return {
 		name: "decompose_project",
 		description:
@@ -1021,6 +1068,11 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 					type: "string",
 					description: "Optional acceptance command applied to tasks that omit acceptanceCommand.",
 				},
+				minimumTaskCount: {
+					type: "number",
+					description:
+						"Optional minimum number of terminal task leaves required after recursive expansions are applied. Use this when the request specifies a minimum such as at least ten tasks.",
+				},
 				expansions: {
 					type: "object",
 					description:
@@ -1081,6 +1133,13 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 					applicationStatus: "applied",
 					sourceTaskId,
 				});
+				await onApplied?.({
+					workspacePath,
+					sourceTaskId: sourceTaskId ?? null,
+					planSlug: artifacts.taskGraph.slug,
+					rootTaskIds: applied.rootTaskIds,
+					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+				});
 			}
 			return {
 				ok: true,
@@ -1092,6 +1151,7 @@ function createDecomposeProjectTool(workspacePath: string, sourceTaskId?: string
 				createdTaskCount: applied.createdTaskCount,
 				createdDependencyCount: applied.createdDependencyCount,
 				taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
+				rootTaskIds: applied.rootTaskIds,
 				preview: applied.preview,
 				modelFitValidated: false,
 				specPath: artifacts.specPath,
@@ -1142,9 +1202,14 @@ export function createClineDecompositionTools(options: {
 	workspacePath: string;
 	artifactWorkspacePath?: string | null;
 	sourceTaskId?: string | null;
+	onApplied?: ClineDecompositionAppliedHandler;
 }): AgentTool[] {
 	return [
-		createDecomposeProjectTool(options.artifactWorkspacePath?.trim() || options.workspacePath, options.sourceTaskId),
+		createDecomposeProjectTool(
+			options.artifactWorkspacePath?.trim() || options.workspacePath,
+			options.sourceTaskId,
+			options.onApplied,
+		),
 		createExpandTaskTool(),
 	];
 }

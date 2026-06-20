@@ -9,6 +9,7 @@ import {
 	type AgentSandboxPoolConfig,
 	resolveAgentSandboxImageName,
 } from "../cline-sdk/cline-agent-sandbox";
+import type { ClineDecompositionAppliedEvent } from "../cline-sdk/cline-decomposition-tool";
 import { handleClineMcpOauthCallback } from "../cline-sdk/cline-mcp-runtime-service";
 import {
 	type ClineTaskSessionService,
@@ -20,6 +21,7 @@ import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
@@ -33,6 +35,8 @@ import {
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
+import { completeTaskAndGetReadyLinkedTaskIds, getTaskColumnId, moveTaskToColumn } from "../core/task-board-mutations";
+import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
 	buildSessionCookieHeader,
@@ -47,7 +51,7 @@ import {
 	validatePasscode,
 	validateSession,
 } from "../security/passcode-manager";
-import { loadWorkspaceContextById } from "../state/workspace-state";
+import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
@@ -56,6 +60,8 @@ import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
 import { createRuntimeTaskStartQueue, type RuntimeTaskStartQueue } from "../trpc/runtime-task-start-queue";
 import { createWorkspaceApi } from "../trpc/workspace-api";
+import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
+import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -204,6 +210,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const clineWatcherRegistry = createClineWatcherRegistry();
 	const taskStartQueue = createRuntimeTaskStartQueue();
 	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
+	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
 		{
@@ -212,6 +219,229 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 	>();
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
+	const autoStartTaskIds = async (scope: RuntimeTrpcWorkspaceScope, taskIds: readonly string[]): Promise<void> => {
+		for (const taskId of taskIds) {
+			try {
+				const state = await loadWorkspaceState(scope.workspacePath);
+				const sourceColumnId = getTaskColumnId(state.board, taskId);
+				if (sourceColumnId !== "backlog" && sourceColumnId !== "planning") {
+					continue;
+				}
+				const task = state.board.columns
+					.flatMap((column) => column.cards)
+					.find((candidate) => candidate.id === taskId);
+				if (!task) {
+					continue;
+				}
+				const liveClineSessions =
+					clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId)?.listSummaries() ?? [];
+				const sessions = {
+					...state.sessions,
+					...Object.fromEntries(liveClineSessions.map((summary) => [summary.taskId, summary])),
+				};
+				const overlappingTask = findActiveTaskLikelyTouchedFileOverlap({
+					board: state.board,
+					sessions,
+					task,
+				});
+				if (overlappingTask) {
+					deps.warn(
+						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id}.`,
+					);
+					continue;
+				}
+				const targetColumnId = task.startInPlanMode ? "planning" : "in_progress";
+				const started = await runtimeApi.startTaskSession(scope, {
+					taskId: task.id,
+					prompt: task.prompt,
+					taskTitle: task.title,
+					images: task.images,
+					filesLikelyTouched: task.filesLikelyTouched,
+					startInPlanMode: task.startInPlanMode,
+					baseRef: task.baseRef,
+					agentId: task.agentId,
+					clineSettings: task.clineSettings,
+					queueOnEndpointBusy: true,
+				});
+				if (!started.ok && !started.queued) {
+					deps.warn(
+						`Could not auto-start linked task ${task.id} for ${scope.workspacePath}: ${
+							started.error ?? "unknown error"
+						}`,
+					);
+					continue;
+				}
+				if (started.queued) {
+					continue;
+				}
+				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+					const movement = moveTaskToColumn(latestState.board, task.id, targetColumnId);
+					return {
+						board: movement.board,
+						save: movement.moved,
+						value: null,
+					};
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Could not auto-start linked task ${taskId} for ${scope.workspacePath}: ${message}`);
+			}
+		}
+	};
+	const autoStartDecompositionRootTasks = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		event: ClineDecompositionAppliedEvent,
+	): Promise<void> => {
+		await autoStartTaskIds(scope, event.rootTaskIds);
+	};
+	const moveStartedQueuedTask = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		input: { taskId: string; startInPlanMode?: boolean },
+	): Promise<void> => {
+		const targetColumnId = input.startInPlanMode ? "planning" : "in_progress";
+		await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+			const movement = moveTaskToColumn(latestState.board, input.taskId, targetColumnId);
+			return {
+				board: movement.board,
+				save: movement.moved,
+				value: null,
+			};
+		});
+	};
+	const completeDecompositionSourceTask = (
+		scope: RuntimeTrpcWorkspaceScope,
+		event: ClineDecompositionAppliedEvent,
+	): void => {
+		const sourceTaskId = event.sourceTaskId?.trim();
+		if (!sourceTaskId) {
+			return;
+		}
+		setTimeout(() => {
+			void (async () => {
+				const service = clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+				await service?.completeTaskSessionAfterDecomposition(sourceTaskId);
+				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+					const movement = moveTaskToColumn(latestState.board, sourceTaskId, "completed");
+					return {
+						board: movement.board,
+						save: movement.moved,
+						value: null,
+					};
+				});
+				drainQueuedTaskStarts(scope, { force: true });
+			})().catch((error) => {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(
+					`Could not complete decomposition source task ${sourceTaskId} for ${scope.workspacePath}: ${message}`,
+				);
+			});
+		}, 250);
+	};
+	const isReviewableClineSummary = (summary: RuntimeTaskSessionSummary): boolean =>
+		summary.state === "awaiting_review" &&
+		(summary.reviewReason === "hook" ||
+			summary.reviewReason === "exit" ||
+			summary.reviewReason === "attention" ||
+			summary.reviewReason === "error");
+	const finalizeHeadlessAutoReviewTask = (
+		scope: RuntimeTrpcWorkspaceScope,
+		service: ClineTaskSessionService,
+		taskId: string,
+	): void => {
+		const inFlightKey = `${scope.workspaceId}:${taskId}`;
+		if (autoReviewFinalizationInFlightTaskIds.has(inFlightKey)) {
+			return;
+		}
+		autoReviewFinalizationInFlightTaskIds.add(inFlightKey);
+		void (async () => {
+			try {
+				let shouldAutoComplete = false;
+				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+					const record = latestState.board.columns
+						.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
+						.find((candidate) => candidate.card.id === taskId);
+					if (!record) {
+						return { board: latestState.board, save: false, value: null };
+					}
+					if (record.columnId === "completed") {
+						return { board: latestState.board, save: false, value: null };
+					}
+					if (record.card.startInPlanMode) {
+						return { board: latestState.board, save: false, value: null };
+					}
+					shouldAutoComplete =
+						record.card.autoReviewEnabled === true && (record.card.autoReviewMode ?? "commit") === "commit";
+					if (record.columnId === "review") {
+						return { board: latestState.board, save: false, value: null };
+					}
+					const movement = moveTaskToColumn(latestState.board, taskId, "review");
+					return {
+						board: movement.board,
+						save: movement.moved,
+						value: null,
+					};
+				});
+				if (!shouldAutoComplete) {
+					return;
+				}
+				const reviewState = await loadWorkspaceState(scope.workspacePath);
+				const mergeResult = await mergeTaskWorktreesInDependencyOrder({
+					repoPath: scope.workspacePath,
+					board: reviewState.board,
+					columns: ["review"],
+					taskIds: [taskId],
+				});
+				if (!mergeResult.ok) {
+					const reason =
+						mergeResult.blocked?.reason ?? mergeResult.conflict?.message ?? "unknown task result merge failure";
+					deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
+					return;
+				}
+				let readyTaskIds: string[] = [];
+				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+					const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
+					readyTaskIds = completed.readyTaskIds;
+					return {
+						board: completed.board,
+						save: completed.moved,
+						value: null,
+					};
+				});
+				await service.stopTaskSession(taskId).catch(() => null);
+				drainQueuedTaskStarts(scope, { force: true });
+				await autoStartTaskIds(scope, readyTaskIds);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Could not finalize auto-review task ${taskId} for ${scope.workspacePath}: ${message}`);
+			} finally {
+				autoReviewFinalizationInFlightTaskIds.delete(inFlightKey);
+			}
+		})();
+	};
+	const reconcileCapturedHeadlessAutoReviewTasks = (
+		scope: RuntimeTrpcWorkspaceScope,
+		service: ClineTaskSessionService,
+	): void => {
+		void (async () => {
+			const state = await loadWorkspaceState(scope.workspacePath);
+			const candidates = state.board.columns
+				.filter((column) => column.id === "in_progress" || column.id === "review")
+				.flatMap((column) => column.cards)
+				.filter((card) => card.autoReviewEnabled === true && (card.autoReviewMode ?? "commit") === "commit");
+			for (const card of candidates) {
+				const resultCommit = await resolveTaskResultBranchCommit({
+					repoPath: scope.workspacePath,
+					taskId: card.id,
+				});
+				if (resultCommit) {
+					finalizeHeadlessAutoReviewTask(scope, service, card.id);
+				}
+			}
+		})().catch((error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.warn(`Could not reconcile captured auto-review tasks for ${scope.workspacePath}: ${message}`);
+		});
+	};
 	const drainQueuedTaskStarts = (scope: RuntimeTrpcWorkspaceScope, options?: { force?: boolean }): void => {
 		const scheduledDrain = queuedStartDrainTimersByWorkspaceId.get(scope.workspaceId);
 		if (scheduledDrain) {
@@ -228,7 +458,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const queuedStarts = taskStartQueue.takeReady(scope.workspaceId, { force: options?.force });
 					for (const queuedStart of queuedStarts) {
 						try {
-							await runtimeApi.startTaskSession(queuedStart.workspaceScope, queuedStart.input);
+							const started = await runtimeApi.startTaskSession(queuedStart.workspaceScope, queuedStart.input);
+							if (started.ok) {
+								await moveStartedQueuedTask(queuedStart.workspaceScope, queuedStart.input);
+							}
 						} catch (error) {
 							const message = error instanceof Error ? error.message : String(error);
 							deps.warn(
@@ -282,19 +515,31 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service = createInMemoryClineTaskSessionService({
 				watcherRegistry: clineWatcherRegistry,
 				agentSandboxManager: new AgentSandboxManager({ poolConfig: sandboxPoolConfig }),
+				onDecompositionApplied: async (event) => {
+					if (event.workspacePath !== scope.workspacePath) {
+						return;
+					}
+					await autoStartDecompositionRootTasks(scope, event);
+					completeDecompositionSourceTask(scope, event);
+				},
 			});
 			service.setBoardPaused((await readSwarmStopSignal(scope.workspacePath)) !== null);
 			for (const taskId of await readPausedTasks(scope.workspacePath)) {
 				service.setCardPaused(taskId, true);
 			}
+			const trackedService = service;
 			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
 			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
+				if (isReviewableClineSummary(summary)) {
+					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);
+				}
 				if (summary.state !== "queued" && summary.state !== "running") {
 					drainQueuedTaskStarts(scope, { force: true });
 				}
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
+			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 		}

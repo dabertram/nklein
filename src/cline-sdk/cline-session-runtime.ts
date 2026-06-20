@@ -21,12 +21,13 @@ import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { type ClineCodeEmbeddingProvider, createClineCodeEmbeddingProvider } from "./cline-code-embeddings";
 import { buildKanbanContextPressurePolicy } from "./cline-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./cline-context-focus-policy";
-import { createClineDecompositionTools } from "./cline-decomposition-tool";
+import { type ClineDecompositionAppliedHandler, createClineDecompositionTools } from "./cline-decomposition-tool";
 import { extractClineSessionId } from "./cline-event-adapter";
 import { createFileDiscoveryTools } from "./cline-file-discovery-tools";
 import {
 	createReadLargeFileTool,
 	getClineLargeFileWorkflow,
+	parseReadFileRequests,
 	releaseAllClineLargeFileWorkflows,
 	releaseClineLargeFileWorkflow,
 } from "./cline-large-file-workflow";
@@ -60,7 +61,7 @@ import {
 
 export { CLINE_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
-const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 6;
+const DEFAULT_CLINE_MAX_CONSECUTIVE_MISTAKES = 3;
 const DEFAULT_CLINE_CONTEXT_WINDOW_TOKENS = 80_000;
 const CLINE_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
 const CLINE_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
@@ -77,6 +78,31 @@ const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
 	"write_files",
 	"write_to_file",
 ]);
+
+interface ReadFilesTargetKey {
+	path: string;
+	rangeKey: string;
+	fullFile: boolean;
+}
+
+function buildReadFilesTargetKeys(input: unknown): ReadFilesTargetKey[] {
+	return parseReadFileRequests(input)
+		.map((request) => {
+			const path = request.path.trim();
+			if (!path) {
+				return null;
+			}
+			const startLine = typeof request.startLine === "number" ? request.startLine : null;
+			const endLine = typeof request.endLine === "number" ? request.endLine : null;
+			const fullFile = startLine === null && endLine === null;
+			return {
+				path,
+				rangeKey: `${path}:${startLine ?? ""}:${endLine ?? ""}`,
+				fullFile,
+			};
+		})
+		.filter((key): key is ReadFilesTargetKey => key !== null);
+}
 
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
@@ -227,7 +253,7 @@ export function doesClineToolInvalidateRepoMap(context: AgentAfterToolContext): 
 
 async function appendRepoMapBeforeModel(
 	context: AgentBeforeModelContext,
-	workspacePath: string,
+	_workspacePath: string,
 	contextWindow: number | null | undefined,
 	baseResult: AgentBeforeModelResult | null | undefined,
 	getCachedRepoMap: (personalizationText: string) => Promise<string | null>,
@@ -250,7 +276,8 @@ async function appendRepoMapBeforeModel(
 			createRepoMapRailMessage(
 				[
 					"[!Klein repo map: compact codebase orientation]",
-					`Workspace: ${workspacePath}`,
+					"Workspace root: .",
+					"Use workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.",
 					`Context window: ${contextWindow ?? "unknown"} tokens`,
 					repoMap,
 					"Use this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.",
@@ -452,6 +479,7 @@ export interface StartClineSessionRuntimeRequest {
 	requestToolApproval?: (request: ClineSdkToolApprovalRequest) => Promise<ClineSdkToolApprovalResult>;
 	toolExecutors?: Partial<ToolExecutors>;
 	extraTools?: AgentTool[];
+	onDecompositionApplied?: ClineDecompositionAppliedHandler;
 	onTeamEvent?: (event: ClineSdkTeamEvent, teamName: string | null) => void;
 }
 
@@ -620,6 +648,8 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const artifactWorkspacePath = request.workspaceRoot?.trim() || request.cwd;
 		const baseRequestToolApproval = request.requestToolApproval;
 		const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
+		const successfulReadFilesTargetKeys = new Set<string>();
+		const successfulFullReadFilesPaths = new Set<string>();
 		const approvalTurnKey = (approvalRequest: ClineSdkToolApprovalRequest): string =>
 			[
 				approvalRequest.sessionId,
@@ -662,16 +692,41 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 								reason: blockedReason,
 							};
 						}
+						const readTargetKeys = buildReadFilesTargetKeys(approvalRequest.input);
+						const repeatedReadTargetKeys = readTargetKeys.filter(
+							(key) =>
+								successfulReadFilesTargetKeys.has(key.rangeKey) ||
+								(key.fullFile && successfulFullReadFilesPaths.has(key.path)),
+						);
+						if (readTargetKeys.length > 0 && repeatedReadTargetKeys.length === readTargetKeys.length) {
+							return {
+								approved: false,
+								reason: `Blocked read_files: this exact file content was already read successfully in this task. Use the file content already in context, read only a focused line range if verbatim text was compacted away, make the needed edit, or run the acceptance command. No duplicate file content was read.`,
+							};
+						}
 						const approval = await baseRequestToolApproval(approvalRequest);
 						if (approval.approved) {
 							fileReadToolByTurn.set(turnKey, {
 								toolName: approvalRequest.toolName,
 								toolCallId: approvalRequest.toolCallId,
 							});
+							if (readTargetKeys.length === 1) {
+								for (const key of readTargetKeys) {
+									successfulReadFilesTargetKeys.add(key.rangeKey);
+									if (key.fullFile) {
+										successfulFullReadFilesPaths.add(key.path);
+									}
+								}
+							}
 						}
 						return approval;
 					}
-					return await baseRequestToolApproval(approvalRequest);
+					const approval = await baseRequestToolApproval(approvalRequest);
+					if (approval.approved && REPO_MAP_INVALIDATING_TOOL_NAMES.has(approvalRequest.toolName)) {
+						successfulReadFilesTargetKeys.clear();
+						successfulFullReadFilesPaths.clear();
+					}
+					return approval;
 				}
 			: undefined;
 		const hasMcpExtraTools = Boolean(mcpToolBundle && mcpToolBundle.tools.length > 0);
@@ -712,6 +767,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 				workspacePath: request.cwd,
 				artifactWorkspacePath,
 				sourceTaskId: request.taskId,
+				onApplied: request.onDecompositionApplied,
 			}),
 			...workspaceExtraTools,
 			...createWebResearchTool({

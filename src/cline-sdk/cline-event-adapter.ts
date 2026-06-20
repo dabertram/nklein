@@ -461,7 +461,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				source: "cline-sdk",
 			},
 		};
-		if (status === "aborted") {
+		if (status === "aborted" && !finalText) {
 			summaryPatch.state = "interrupted";
 			summaryPatch.reviewReason = "interrupted";
 		} else if (status === "failed") {
@@ -512,7 +512,7 @@ export function applyClineSessionEvent(input: ApplyClineSessionEventInput): void
 				source: "cline-sdk",
 			},
 		};
-		if (doneReason === "aborted") {
+		if (doneReason === "aborted" && !finalText) {
 			summaryPatch.state = "interrupted";
 			summaryPatch.reviewReason = "interrupted";
 		} else if (doneReason === "error") {

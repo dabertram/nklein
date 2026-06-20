@@ -534,6 +534,7 @@ export function ProjectNavigationPanel({
 												taskId: created.task.id,
 												prompt: created.task.prompt,
 												taskTitle: created.task.title,
+												filesLikelyTouched: created.task.filesLikelyTouched,
 												startInPlanMode: created.task.startInPlanMode,
 												baseRef: created.task.baseRef,
 												agentId: created.task.agentId,

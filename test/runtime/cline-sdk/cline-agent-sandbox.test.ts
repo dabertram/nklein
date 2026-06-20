@@ -625,13 +625,14 @@ describe("AgentSandboxManager", () => {
 			"/opt/nklein/tool-runner.cjs",
 			"editor",
 			JSON.stringify({ command: "replace" }),
+			"/repo",
 		]);
 	});
 
 	it("adds next-step guidance when sandbox tool execution fails", async () => {
 		const input = "npm test";
 		const { execFile: execFileStub } = createExecFileStub({
-			failExecCommand: ["node", "/opt/nklein/tool-runner.cjs", "bash", JSON.stringify(input)],
+			failExecCommand: ["node", "/opt/nklein/tool-runner.cjs", "bash", JSON.stringify(input), "/repo"],
 		});
 		const manager = new AgentSandboxManager({ image: "test-image", execFile: execFileStub });
 		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });

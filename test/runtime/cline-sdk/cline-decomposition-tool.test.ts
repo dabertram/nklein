@@ -18,6 +18,11 @@ import {
 } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
+import {
+	completeTaskAndGetReadyLinkedTaskIds,
+	moveTaskToColumn,
+	updateTaskDependencies,
+} from "../../../src/core/task-board-mutations";
 import { loadWorkspaceContext, loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 
 const execFileAsync = promisify(execFile);
@@ -145,6 +150,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 
 		expect(result.createdTasks.map((task) => task.id)).toEqual(["habit-tracker-storage", "habit-tracker-ui"]);
+		expect(result.rootTaskIds).toEqual(["habit-tracker-storage"]);
 		expect(result.createdTasks[0]?.prompt).toContain("Likely files:");
 		expect(result.createdTasks[0]?.prompt).toContain("Acceptance check: npm test");
 		expect(result.createdTasks[0]?.filesLikelyTouched).toEqual(["src/storage.ts"]);
@@ -163,6 +169,27 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
 	});
 
+	it("links generated Planning cards so dependents become ready after their prerequisite completes", () => {
+		const applied = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+		const startedRoot = moveTaskToColumn(applied.board, "habit-tracker-storage", "in_progress", 200);
+		const rootInReview = moveTaskToColumn(startedRoot.board, "habit-tracker-storage", "review", 300);
+		const completedRoot = completeTaskAndGetReadyLinkedTaskIds(rootInReview.board, "habit-tracker-storage", 400);
+
+		expect(updateTaskDependencies(startedRoot.board).dependencies).toEqual([
+			expect.objectContaining({
+				fromTaskId: "habit-tracker-ui",
+				toTaskId: "habit-tracker-storage",
+			}),
+		]);
+		expect(completedRoot.readyTaskIds).toEqual(["habit-tracker-ui"]);
+	});
+
 	it("includes shared plan spec and decisions in created card prompts", () => {
 		const result = applyClinePlanTaskGraphToBoard({
 			board: createBoard(),
@@ -176,6 +203,10 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 
 		expect(result.createdTasks[0]?.prompt).toContain("Shared spec:");
+		expect(result.createdTasks[0]?.prompt).toContain("Leaf scope:");
+		expect(result.createdTasks[0]?.prompt).toContain(
+			"not permission to implement dependent or downstream cards early",
+		);
 		expect(result.createdTasks[0]?.prompt).toContain("Keep reminders out of the first release.");
 		expect(result.createdTasks[0]?.prompt).toContain("Shared decisions:");
 		expect(result.createdTasks[0]?.prompt).toContain("Assumption: Sync is out of scope.");
@@ -527,7 +558,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		).toThrow("missing an acceptanceCommand");
 	});
 
-	it("rejects test-first tasks without acceptance test instructions", () => {
+	it("normalizes test-first tasks without acceptance test instructions back to normal execution", () => {
 		const graph = createTaskGraph();
 		const storageTask = graph.tasks[0];
 		if (!storageTask) {
@@ -539,14 +570,14 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			acceptanceTestPrompt: "",
 		};
 
-		expect(() =>
-			applyClinePlanTaskGraphToBoard({
-				board: createBoard(),
-				taskGraph: graph,
-				baseRef: "main",
-				randomUuid: () => "unused",
-			}),
-		).toThrow("missing an acceptanceTestPrompt");
+		const result = applyClinePlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: graph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+		});
+
+		expect(result.createdTasks[0]?.prompt).not.toContain("Test-first acceptance:");
 	});
 
 	it("rejects oversized task leaves by complexity and likely file count", () => {
@@ -642,10 +673,14 @@ describe("cline decomposition tools", () => {
 		workspacePath: string,
 		sourceTaskId?: string | null,
 		artifactWorkspacePath?: string | null,
+		onApplied?: Parameters<typeof createClineDecompositionTools>[0]["onApplied"],
 	) {
-		const tool = createClineDecompositionTools({ workspacePath, sourceTaskId, artifactWorkspacePath }).find(
-			(candidate) => candidate.name === name,
-		);
+		const tool = createClineDecompositionTools({
+			workspacePath,
+			sourceTaskId,
+			artifactWorkspacePath,
+			onApplied,
+		}).find((candidate) => candidate.name === name);
 		if (!tool) {
 			throw new Error(`Missing tool ${name}`);
 		}
@@ -714,6 +749,25 @@ describe("cline decomposition tools", () => {
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});
 
+	it("rejects decompose_project plans below the requested minimum task count", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-minimum-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		await expect(
+			tool.execute(
+				{
+					slug: "Habit Tracker",
+					title: "Habit Tracker",
+					spec: "Track habits.",
+					plan: "Build storage before UI.",
+					minimumTaskCount: 3,
+					tasks: createTaskGraph().tasks,
+				},
+				undefined as never,
+			),
+		).rejects.toThrow("requires at least 3 task leaves; received 2");
+	});
+
 	it("rejects decompose_project artifacts while clarifying questions remain open", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-open-questions-"));
 		const tool = getTool("decompose_project", workspacePath);
@@ -756,7 +810,8 @@ describe("cline decomposition tools", () => {
 					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
 				},
 			});
-			const tool = getTool("decompose_project", workspacePath);
+			const onApplied = vi.fn(async () => {});
+			const tool = getTool("decompose_project", workspacePath, undefined, undefined, onApplied);
 
 			const result = (await tool.execute(
 				{
@@ -774,6 +829,7 @@ describe("cline decomposition tools", () => {
 				createdTaskCount: number;
 				createdDependencyCount: number;
 				taskIdByPlanTaskId: Record<string, string>;
+				rootTaskIds: string[];
 				modelFitValidated: boolean;
 				instruction: string;
 				preview: {
@@ -791,6 +847,17 @@ describe("cline decomposition tools", () => {
 			expect(result.taskIdByPlanTaskId).toMatchObject({
 				storage: "habit-tracker-storage",
 				ui: "habit-tracker-ui",
+			});
+			expect(result.rootTaskIds).toEqual(["habit-tracker-storage"]);
+			expect(onApplied).toHaveBeenCalledWith({
+				workspacePath,
+				sourceTaskId: null,
+				planSlug: "habit-tracker",
+				rootTaskIds: ["habit-tracker-storage"],
+				taskIdByPlanTaskId: {
+					storage: "habit-tracker-storage",
+					ui: "habit-tracker-ui",
+				},
 			});
 			expect(result.instruction).toContain("created 2 Planning cards and 1 dependency");
 			expect(result.instruction).toContain("Dry-run preview:");
@@ -812,6 +879,7 @@ describe("cline decomposition tools", () => {
 				planTaskId: "storage",
 				sourceTaskId: null,
 			});
+			expect(planningCards.find((card) => card.id === "habit-tracker-storage")?.prompt).toContain("Execution pace");
 			expect(state.board.dependencies).toHaveLength(1);
 			const artifacts = await readClinePlanArtifacts(workspacePath, "habit-tracker");
 			expect(artifacts.metadata.applicationStatus).toBe("applied");

@@ -113,6 +113,62 @@ describe("createKanbanToolApprovalPolicy", () => {
 		expect(result.reason).toContain("potential GitHub token");
 	});
 
+	it("allows scoped writes when the tool path resolves to a declared likely file", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			filesLikelyTouched: ["src/index.ts"],
+		});
+
+		const result = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_file",
+				input: {
+					path: "/workspaces/task-2/src/index.ts",
+					content: "export const ok = true;\n",
+				},
+			}),
+		);
+
+		expect(result.approved).toBe(true);
+	});
+
+	it("blocks scoped write tools from editing files outside declared likely files", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const policy = createKanbanToolApprovalPolicy(workspacePath, {
+			taskId: "task-2",
+			filesLikelyTouched: ["src/index.ts"],
+		});
+
+		const writeResult = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "write_files",
+				input: {
+					files: [
+						{
+							path: "/workspaces/task-2/src/habit-score.ts",
+							content: "export const drift = true;\n",
+						},
+					],
+				},
+			}),
+		);
+		const patchResult = await policy.requestToolApproval(
+			createApprovalRequest({
+				toolName: "apply_patch",
+				input: "*** Begin Patch\n*** Update File: /src/habit-score.ts\n@@\n+export const drift = true;\n*** End Patch\n",
+			}),
+		);
+
+		expect(writeResult.approved).toBe(false);
+		expect(writeResult.reason).toContain("outside this card's declared file scope");
+		expect(writeResult.reason).toContain("src/index.ts");
+		expect(patchResult.approved).toBe(false);
+		expect(patchResult.reason).toContain("outside this card's declared file scope");
+	});
+
 	it("blocks editor writes to the protected test suite", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);

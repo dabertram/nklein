@@ -42,6 +42,7 @@ import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
 } from "./cline-context-overflow-compaction";
+import type { ClineDecompositionAppliedHandler } from "./cline-decomposition-tool";
 import { applyClineSessionEvent } from "./cline-event-adapter";
 import { assertLocalProviderAllowed, isLocalProvider } from "./cline-local-only-policy";
 import {
@@ -176,6 +177,7 @@ export interface StartClineTaskSessionRequest {
 	taskTitle?: string;
 	initialMessages?: ClineSdkPersistedMessage[];
 	images?: RuntimeTaskImage[];
+	filesLikelyTouched?: readonly string[] | null;
 	resumeFromTrash?: boolean;
 	resumeFromPersistence?: boolean;
 	providerId?: string | null;
@@ -201,6 +203,7 @@ export interface ClineTaskLaunchConfigOverrides {
 	providerId: string;
 	modelId: string;
 	workspaceRoot?: string | null;
+	filesLikelyTouched?: readonly string[] | null;
 	apiKey?: string | null;
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeClineReasoningEffort | null;
@@ -357,6 +360,7 @@ export interface ClineTaskSessionService {
 	onTeamProgress(listener: (taskId: string, event: RuntimeClineTeamProgressEvent) => void): () => void;
 	startTaskSession(request: StartClineTaskSessionRequest): Promise<RuntimeTaskSessionSummary>;
 	stopTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
+	completeTaskSessionAfterDecomposition(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	abortTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	cancelTaskTurn(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	sendTaskSessionInput(
@@ -404,6 +408,7 @@ interface BaseCreateInMemoryClineTaskSessionServiceOptions {
 	createRuntimeSetup?: (workspacePath: string) => Promise<ClineRuntimeSetup>;
 	watcherRegistry?: ClineWatcherRegistry;
 	pauseController?: ClinePauseController;
+	onDecompositionApplied?: ClineDecompositionAppliedHandler;
 }
 
 export type CreateInMemoryClineTaskSessionServiceOptions =
@@ -591,6 +596,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 	private readonly watcherRegistry: ClineWatcherRegistry;
 	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly pauseController: ClinePauseController;
+	private readonly onDecompositionApplied: ClineDecompositionAppliedHandler | undefined;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<ClineRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeClineTeamProgressEvent) => void>();
 
@@ -615,6 +621,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		this.messageRepository = createMessageRepository();
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
 		this.pauseController = options.pauseController ?? new ClinePauseController();
+		this.onDecompositionApplied = options.onDecompositionApplied;
 	}
 
 	private async prepareSandboxWorkspace(
@@ -685,6 +692,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			modelId: launchConfig.modelId.trim(),
 			...(Object.hasOwn(launchConfig, "workspaceRoot")
 				? { workspaceRoot: launchConfig.workspaceRoot?.trim() || null }
+				: {}),
+			...(Object.hasOwn(launchConfig, "filesLikelyTouched")
+				? { filesLikelyTouched: launchConfig.filesLikelyTouched ?? null }
 				: {}),
 			...(Object.hasOwn(launchConfig, "apiKey") ? { apiKey: launchConfig.apiKey } : {}),
 			...(Object.hasOwn(launchConfig, "baseUrl") ? { baseUrl: launchConfig.baseUrl?.trim() || null } : {}),
@@ -788,8 +798,10 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				taskId: input.taskId,
 				contextWindow: requestContextWindow,
 				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+				filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
 			}),
 			toolPolicies: runtimeSetup.toolPolicies,
+			onDecompositionApplied: this.onDecompositionApplied,
 			onTeamEvent: (event, teamName) => {
 				this.emitTeamProgress(input.taskId, event, teamName);
 			},
@@ -1482,6 +1494,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			providerId,
 			modelId,
 			workspaceRoot: request.workspaceRoot,
+			filesLikelyTouched: request.filesLikelyTouched ?? null,
 			apiKey: request.apiKey,
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
@@ -1696,6 +1709,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 						taskId: request.taskId,
 						contextWindow: requestContextWindow,
 						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+						filesLikelyTouched: request.filesLikelyTouched ?? null,
 					}),
 					toolExecutors: sandboxWorkspace
 						? createAgentSandboxToolExecutors(sandboxWorkspace.manager, request.taskId, {
@@ -1710,6 +1724,7 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 							})
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
+					onDecompositionApplied: this.onDecompositionApplied,
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);
 					},
@@ -1792,6 +1807,51 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 				workspacePath: summary.workspacePath,
 			});
 		}
+		this.emitSummary(summary);
+		return summary;
+	}
+
+	async completeTaskSessionAfterDecomposition(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (!entry) {
+			return null;
+		}
+		this.pendingTurnCancelTaskIds.delete(taskId);
+		this.contextWindowByTaskId.delete(taskId);
+		this.modelIdByTaskId.delete(taskId);
+		this.endpointByTaskId.delete(taskId);
+		this.launchConfigByTaskId.delete(taskId);
+		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.failureBackoffByTaskId.delete(taskId);
+		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.repeatedToolCallByTaskId.delete(taskId);
+		this.pauseController.abortTaskWaiters(taskId);
+		this.pauseController.clearTaskParked(taskId);
+		this.pauseController.setCardPaused(taskId, false);
+		this.clearTaskTimeouts(taskId);
+		this.timeoutSettingsByTaskId.delete(taskId);
+		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
+		this.forgetSandboxTask(taskId);
+		const message = "Decomposition applied; source task completed.";
+		const summary = updateSummary(entry, {
+			state: "idle",
+			reviewReason: null,
+			exitCode: 0,
+			lastOutputAt: now(),
+			lastHookAt: now(),
+			lastHeartbeatAt: now(),
+			heartbeatStatus: "healthy",
+			latestHookActivity: {
+				activityText: message,
+				toolName: "decompose_project",
+				toolInputSummary: null,
+				finalMessage: message,
+				hookEventName: "decomposition_applied",
+				notificationType: null,
+				source: "nklein",
+			},
+		});
 		this.emitSummary(summary);
 		return summary;
 	}
@@ -1933,7 +1993,9 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 			this.scheduleStreamTimeout(taskId);
 			this.scheduleConversationTimeout(taskId);
 			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
-			void this.ensureRuntimeSetup(entry.summary.workspacePath ?? "")
+			const runtimeSetupWorkspacePath =
+				this.sandboxRepoPathByTaskId.get(taskId) ?? entry.summary.workspacePath ?? "";
+			void this.ensureRuntimeSetup(runtimeSetupWorkspacePath)
 				.then(async (runtimeSetup) => {
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
 					const resolvedContextWindow = this.resolveKnownContextWindowForTask(

@@ -102,6 +102,7 @@ interface TaskPlacement {
 	workdir: string;
 	uid: number;
 	projectKey: string;
+	projectRepoPath: string;
 }
 
 interface QueueEntry {
@@ -405,9 +406,14 @@ export class AgentSandboxManager {
 	}
 
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {
-		const result = await this.exec(taskId, ["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input)], {
-			timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
-		});
+		const placement = this.requirePlacement(taskId);
+		const result = await this.execAsTaskUser(
+			placement,
+			["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input), placement.projectRepoPath],
+			{
+				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
+			},
+		);
 		if (result.exitCode !== 0) {
 			throw new AgentSandboxExecutionError(formatSandboxToolFailure(tool, joinDockerOutput(result)), result);
 		}
@@ -504,6 +510,7 @@ export class AgentSandboxManager {
 			workdir: `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`,
 			uid: createAgentSandboxTaskUid(taskId),
 			projectKey,
+			projectRepoPath,
 		};
 		container.occupancy.add(taskId);
 		this.placements.set(taskId, placement);

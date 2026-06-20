@@ -117,6 +117,7 @@ interface FakeRuntimeSetupController {
 	resolvePromptMock: Mock<(prompt: string) => string>;
 	loadRulesMock: Mock<() => string>;
 	requestToolApprovalMock: Mock<(request: ToolApprovalRequest) => Promise<ToolApprovalResult>>;
+	createToolApprovalMock: Mock<ClineRuntimeSetup["createToolApproval"]>;
 	disposeMock: Mock<() => Promise<void>>;
 }
 
@@ -193,6 +194,7 @@ function createFakeClineSessionRuntime(): FakeClineSessionRuntimeController {
 					userInstructionService: request.userInstructionService,
 					toolPolicies: request.toolPolicies,
 					requestToolApproval: request.requestToolApproval,
+					onDecompositionApplied: request.onDecompositionApplied,
 				});
 				bindTaskSession(request.taskId, requestedSessionId);
 
@@ -406,6 +408,7 @@ function createFakeRuntimeSetup(): FakeRuntimeSetupController {
 		resolvePromptMock,
 		loadRulesMock,
 		requestToolApprovalMock,
+		createToolApprovalMock,
 		disposeMock,
 	};
 }
@@ -558,6 +561,60 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary.state).toBe("running");
 		expect(summary.workspacePath).toBe("/tmp/worktree");
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
+	});
+
+	it("passes the decomposition-applied callback into Cline session runtime starts", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const onDecompositionApplied = vi.fn(async () => {});
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			allowUnisolatedTestRuntime: true,
+			onDecompositionApplied,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose this project.",
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(Object.keys(startRequest ?? {})).toContain("onDecompositionApplied");
+		expect(startRequest?.onDecompositionApplied).toBe(onDecompositionApplied);
+	});
+
+	it("passes card likely touched files into Cline tool approval setup", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Update the CLI flag parser.",
+			filesLikelyTouched: ["src/index.ts"],
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		expect(runtimeSetup.createToolApprovalMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task-1",
+				filesLikelyTouched: ["src/index.ts"],
+			}),
+		);
 	});
 
 	it("requires an agent sandbox manager unless a unit test explicitly opts into the in-process runtime", () => {
@@ -1563,6 +1620,49 @@ describe("InMemoryClineTaskSessionService", () => {
 		);
 	});
 
+	it("resolves sandboxed follow-up input against the host project path", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const createRuntimeSetupMock = vi.fn(async (_workspacePath: string) => runtimeSetup.setup);
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: createRuntimeSetupMock,
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate startup",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		expect(service.getSummary("task-1")?.workspacePath).toBe("/workspaces/task-1");
+		createRuntimeSetupMock.mockClear();
+
+		await service.sendTaskSessionInput("task-1", "One more thing");
+
+		await vi.waitFor(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				"resolved:One more thing",
+				"act",
+				undefined,
+				"queue",
+			);
+		});
+		expect(createRuntimeSetupMock).toHaveBeenCalledWith("/tmp/project");
+		expect(createRuntimeSetupMock).not.toHaveBeenCalledWith("/workspaces/task-1");
+		expect(service.listMessages("task-1").some((message) => message.content.includes("Cline SDK send failed"))).toBe(
+			false,
+		);
+	});
+
 	it("reuses the current task mode when follow-up input does not provide a mode override", async () => {
 		const { service, runtime } = createTrackedService();
 
@@ -2286,6 +2386,29 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(service.getSummary("task-1")?.latestTurnCheckpoint?.commit).toBe("commit-2");
 	});
 
+	it("moves to awaiting_review when SDK emits aborted done with a final message and no user cancel", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "",
+		});
+
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			reason: "aborted",
+			text: "I completed the requested file.",
+		});
+
+		const summary = service.getSummary("task-1");
+		expect(summary?.state).toBe("awaiting_review");
+		expect(summary?.reviewReason).toBe("hook");
+		expect(summary?.latestHookActivity?.hookEventName).toBe("agent_end");
+		expect(summary?.latestHookActivity?.finalMessage).toBe("I completed the requested file.");
+	});
+
 	it("parks a task when the autonomous turn budget is reached", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
@@ -2577,7 +2700,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-1");
 
-		for (let index = 1; index <= 4; index += 1) {
+		for (let index = 1; index <= 2; index += 1) {
 			runtime.emitAgentEvent(sessionId, {
 				type: "content_start",
 				contentType: "tool",
@@ -2591,7 +2714,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		runtime.emitAgentEvent(sessionId, {
 			type: "content_start",
 			contentType: "tool",
-			toolCallId: "tool-5",
+			toolCallId: "tool-3",
 			toolName: "Read",
 			input: { file: "a.ts" },
 		});
@@ -2616,8 +2739,8 @@ describe("InMemoryClineTaskSessionService", () => {
 				modelId: "qwen3",
 				metadata: expect.objectContaining({
 					guardrail: "repeated_tool_calls",
-					count: 5,
-					limit: 5,
+					count: 3,
+					limit: 3,
 					toolName: "Read",
 					toolInputSummary: expect.stringContaining("a.ts"),
 				}),
@@ -2635,7 +2758,7 @@ describe("InMemoryClineTaskSessionService", () => {
 		});
 		const sessionId = await waitForTaskSessionId(runtime, "task-1");
 
-		for (let index = 1; index <= 4; index += 1) {
+		for (let index = 1; index <= 2; index += 1) {
 			runtime.emitAgentEvent(sessionId, {
 				type: "content_start",
 				contentType: "tool",

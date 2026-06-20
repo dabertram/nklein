@@ -31,6 +31,7 @@ export interface KanbanToolApprovalOptions {
 	contextWindow?: number | null;
 	maxAgentWritableFileLines?: number | null;
 	taskId?: string | null;
+	filesLikelyTouched?: readonly string[] | null;
 	protectedTestApprovals?: ProtectedTestApprovalStore;
 }
 
@@ -160,6 +161,95 @@ function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
 	flushCurrent();
 
 	return targets;
+}
+
+function trimMatchingQuotes(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.length < 2) {
+		return trimmed;
+	}
+	const first = trimmed.at(0);
+	const last = trimmed.at(-1);
+	if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+		return trimmed.slice(1, -1).trim();
+	}
+	return trimmed;
+}
+
+function normalizeScopePath(rawPath: string, workspacePath: string, taskId?: string | null): string {
+	let path = trimMatchingQuotes(rawPath).replaceAll("\\", "/").replace(/\/+/gu, "/");
+	const workspacePrefix = workspacePath.replaceAll("\\", "/").replace(/\/+/gu, "/").replace(/\/+$/u, "");
+	if (workspacePrefix && path.startsWith(`${workspacePrefix}/`)) {
+		path = path.slice(workspacePrefix.length + 1);
+	}
+	const normalizedTaskId = taskId?.trim();
+	if (normalizedTaskId) {
+		const sandboxPrefix = `/workspaces/${normalizedTaskId}/`;
+		if (path.startsWith(sandboxPrefix)) {
+			path = path.slice(sandboxPrefix.length);
+		}
+	}
+	while (path.startsWith("./")) {
+		path = path.slice(2);
+	}
+	while (path.startsWith("/")) {
+		path = path.slice(1);
+	}
+	return path.replace(/\/+$/u, "");
+}
+
+function normalizeWriteScope(
+	workspacePath: string,
+	taskId: string | null | undefined,
+	filesLikelyTouched: readonly string[] | null | undefined,
+): Set<string> {
+	const scope = new Set<string>();
+	for (const filePath of filesLikelyTouched ?? []) {
+		const normalized = normalizeScopePath(filePath, workspacePath, taskId);
+		if (normalized && normalized !== ".." && !normalized.startsWith("../")) {
+			scope.add(normalized);
+		}
+	}
+	return scope;
+}
+
+function extractScopedWriteTargetPaths(request: ClineSdkToolApprovalRequest): string[] {
+	if (request.toolName === "write_file" || request.toolName === "write_files") {
+		return parseWriteFilesRequests(request.input).map((writeRequest) => writeRequest.path);
+	}
+	if (request.toolName === "apply_patch") {
+		return parseApplyPatchTargets(request.input).map((target) => target.path);
+	}
+	if (request.toolName !== "editor" || !request.input || typeof request.input !== "object") {
+		return [];
+	}
+	const rawPath = (request.input as Record<string, unknown>).path;
+	return typeof rawPath === "string" && rawPath.trim() ? [rawPath] : [];
+}
+
+function approveScopedWriteTargets(
+	workspacePath: string,
+	request: ClineSdkToolApprovalRequest,
+	options: KanbanToolApprovalOptions,
+): ClineSdkToolApprovalResult | null {
+	const allowedPaths = normalizeWriteScope(workspacePath, options.taskId, options.filesLikelyTouched);
+	if (allowedPaths.size === 0) {
+		return null;
+	}
+	const targetPaths = extractScopedWriteTargetPaths(request);
+	if (targetPaths.length === 0) {
+		return null;
+	}
+	for (const targetPath of targetPaths) {
+		const normalizedTarget = normalizeScopePath(targetPath, workspacePath, options.taskId);
+		if (!allowedPaths.has(normalizedTarget)) {
+			return {
+				approved: false,
+				reason: `Blocked ${request.toolName}: ${targetPath} is outside this card's declared file scope (${Array.from(allowedPaths).join(", ")}). Update only the scoped files for this card, or revise the card's likely touched files before starting it.`,
+			};
+		}
+	}
+	return null;
 }
 
 async function approveReadFilesTool(
@@ -491,6 +581,10 @@ export function createKanbanToolApprovalPolicy(
 				...options,
 				protectedTestApprovals: options.protectedTestApprovals ?? protectedTestApprovalStore,
 			};
+			const scopedWriteApproval = approveScopedWriteTargets(workspacePath, request, approvalOptions);
+			if (scopedWriteApproval) {
+				return scopedWriteApproval;
+			}
 			switch (request.toolName) {
 				case "read_files":
 					return await approveReadFilesTool(workspacePath, request, options);

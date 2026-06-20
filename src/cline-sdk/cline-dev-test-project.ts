@@ -44,11 +44,13 @@ export interface ClineDevTestProjectMarker {
 	createdAt: number;
 }
 
+const DECOMPOSE_PROMPT_SUFFIX =
+	"Use workspace-relative paths such as `specification.md` and treat that file as the authoritative product specification. Do not invent replacement requirements or alternate input fields that are not in the specification or existing code. If a generated leaf uses `testFirst: true`, include a concrete `acceptanceTestPrompt`; otherwise set `testFirst: false`.";
+
 export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "small-model-smoke",
 	title: "Small model smoke task",
-	prompt:
-		"Task: Read specification.md, decompose the requested change into !Klein task leaves, and apply the generated task graph.",
+	prompt: `Task: Read specification.md, decompose the requested change into !Klein task leaves, and apply the generated task graph. ${DECOMPOSE_PROMPT_SUFFIX}`,
 	specification:
 		"Update the habit score logic so perfect completion is capped at 100 even with a long streak, and add or update the acceptance test.",
 	acceptanceCommand: "npm test",
@@ -59,8 +61,7 @@ export const DEFAULT_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "habit-insights-mid",
 	title: "Add habit insight summaries",
-	prompt:
-		"Task: Read specification.md, decompose the habit insight summary work into !Klein task leaves, and apply the generated task graph.",
+	prompt: `Task: Read specification.md, decompose the habit insight summary work into !Klein task leaves, and apply the generated task graph. ${DECOMPOSE_PROMPT_SUFFIX}`,
 	specification: [
 		"Implement a mid-complexity habit insights feature in this TypeScript CLI project.",
 		"",
@@ -82,8 +83,6 @@ export const MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario
 export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
 	id: "habit-product-cline-complex",
 	title: "Habit product Cline buildout",
-	prompt:
-		"Task: Read specification.md, decompose the product buildout into at least ten !Klein task leaves with dependencies, and apply the generated task graph.",
 	specification: [
 		"Turn the tiny habit scoring CLI into a more complete habit-insights product slice.",
 		"",
@@ -98,6 +97,23 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 		"- Add README usage notes for text and JSON output.",
 		"- Keep each generated task independently reviewable and machine-checkable.",
 	].join("\n"),
+	prompt: [
+		"Task: Read specification.md, decompose the product buildout into at least ten !Klein task leaves with dependencies, and apply the generated task graph.",
+		"When calling decompose_project, pass `minimumTaskCount: 10`.",
+		"After one focused pass over specification.md and the small source/test/package files, call decompose_project immediately; do not write a markdown implementation plan in chat before the tool call.",
+		"The required capabilities are exactly:",
+		"- Document the current habit score domain model and extension points.",
+		"- Add configurable weekly goal settings with validation.",
+		"- Extract reusable trend classification with improving, declining, steady, and insufficient-data outcomes.",
+		"- Make recommendations depend on score band, trend, and goal configuration.",
+		"- Update the CLI text output to print score, trend, and recommendation.",
+		"- Add a --json output mode without adding dependencies.",
+		"- Expand tests for improving, declining, steady, invalid-input, and perfect-score capped scenarios.",
+		"- Add README usage notes for text and JSON output.",
+		"Use this 12-leaf outline unless the files prove it impossible: 1 document domain model, 2 parse --goal, 3 validate goal settings, 4 classify trends, 5 integrate goals into insights, 6 classify score bands, 7 define recommendation inputs, 8 implement recommendations, 9 update text output, 10 add --json output, 11 expand tests, 12 update README.",
+		"If decompose_project rejects the graph for count or sizing, retry decompose_project immediately with smaller leaves. After a successful apply, stop the planning card; do not inspect .cline/nklein plan artifact paths.",
+		DECOMPOSE_PROMPT_SUFFIX,
+	].join(" "),
 	acceptanceCommand: "npm test",
 	complexity: 74,
 	filesLikelyTouched: ["src/habit-score.ts", "src/habit-insights.ts", "src/index.ts"],

@@ -409,6 +409,13 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			});
 	};
 
+	const isReviewableClineSummary = (summary: RuntimeTaskSessionSummary): boolean =>
+		summary.state === "awaiting_review" &&
+		(summary.reviewReason === "hook" ||
+			summary.reviewReason === "exit" ||
+			summary.reviewReason === "attention" ||
+			summary.reviewReason === "error");
+
 	runtimeStateWebSocketServer.on("connection", async (client: WebSocket, context: unknown) => {
 		client.on("close", () => {
 			cleanupRuntimeStateClient(client);
@@ -582,6 +589,9 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			for (const summary of service.listSummaries()) {
 				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
+				if (isReviewableClineSummary(summary)) {
+					verifyClineTaskBeforeReady(workspaceId, workspacePath, service, summary);
+				}
 			}
 			const unsubscribe = service.onSummary((summary) => {
 				const previousSummary = previousSummariesByTaskId.get(summary.taskId);
@@ -593,14 +603,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				if (didCheckpointChange) {
 					void broadcastRuntimeWorkspaceStateUpdated(workspaceId, workspacePath);
 				}
-				if (
-					previousSummary &&
-					previousSummary.state !== "awaiting_review" &&
-					summary.state === "awaiting_review" &&
-					(summary.reviewReason === "hook" ||
-						summary.reviewReason === "attention" ||
-						summary.reviewReason === "error")
-				) {
+				if (previousSummary && previousSummary.state !== "awaiting_review" && isReviewableClineSummary(summary)) {
 					verifyClineTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
 			});

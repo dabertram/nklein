@@ -18,6 +18,7 @@ import {
 } from "../../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../../src/terminal/session-manager";
 import {
+	buildDevTestTaskId,
 	type CreateProjectsApiDependencies,
 	createDevTestBoard,
 	createProjectsApi,
@@ -159,6 +160,13 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 }
 
 describe("createDevTestBoard", () => {
+	it("builds scenario-specific seed task ids", () => {
+		expect(buildDevTestTaskId(COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.id)).toBe(
+			"dev-habit-product-cline-complex-decompose",
+		);
+		expect(buildDevTestTaskId("  Weird Scenario! ")).toBe("dev-weird-scenario-decompose");
+	});
+
 	it("seeds one Cline-only decomposition task without prebuilt dependencies", () => {
 		const board = createDevTestBoard({
 			taskId: "dev-initial-decompose",
@@ -175,6 +183,14 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
+		expect(backlog[0]?.prompt).toContain("workspace-relative paths");
+		expect(backlog[0]?.prompt).toContain("authoritative product specification");
+		expect(backlog[0]?.prompt).toContain("acceptanceTestPrompt");
+		expect(backlog[0]?.prompt).toContain("minimumTaskCount: 10");
+		expect(backlog[0]?.prompt).toContain("call decompose_project immediately");
+		expect(backlog[0]?.prompt).toContain("Add configurable weekly goal settings with validation");
+		expect(backlog[0]?.prompt).toContain("12-leaf outline");
+		expect(backlog[0]?.prompt).toContain("do not inspect .cline/nklein plan artifact paths");
 		expect(backlog[0]?.prompt).toContain('defaultAcceptanceCommand: "npm test"');
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable !Klein tasks");
 		expect(board.dependencies).toHaveLength(0);

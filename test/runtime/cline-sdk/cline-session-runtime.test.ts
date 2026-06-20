@@ -353,6 +353,174 @@ describe("InMemoryClineSessionRuntime", () => {
 		expect(baseApproval).toHaveBeenCalledTimes(1);
 	});
 
+	it("blocks exact repeat read_files requests across turns until a mutating tool is approved", async () => {
+		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+			requestToolApproval: baseApproval,
+		});
+
+		const requestToolApproval = fakeHost.start.mock.calls[0]?.[0].capabilities?.requestToolApproval;
+		expect(requestToolApproval).toBeTruthy();
+		if (!requestToolApproval) {
+			throw new Error("Expected requestToolApproval to be wired");
+		}
+
+		const commonRequest = {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			policy: { autoApprove: false },
+		};
+		const firstRead = await requestToolApproval({
+			...commonRequest,
+			iteration: 1,
+			toolCallId: "tool-1",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }] },
+		});
+		expect(firstRead.approved).toBe(true);
+
+		const repeatedRead = await requestToolApproval({
+			...commonRequest,
+			iteration: 2,
+			toolCallId: "tool-2",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }] },
+		});
+		expect(repeatedRead.approved).toBe(false);
+		expect(repeatedRead.reason).toContain("already read successfully");
+
+		const focusedRangeRead = await requestToolApproval({
+			...commonRequest,
+			iteration: 3,
+			toolCallId: "tool-3",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts", start_line: 1, end_line: 20 }] },
+		});
+		expect(focusedRangeRead.approved).toBe(true);
+
+		const repeatedRangeRead = await requestToolApproval({
+			...commonRequest,
+			iteration: 4,
+			toolCallId: "tool-4",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts", start_line: 1, end_line: 20 }] },
+		});
+		expect(repeatedRangeRead.approved).toBe(false);
+		expect(repeatedRangeRead.reason).toContain("already read successfully");
+
+		const editApproval = await requestToolApproval({
+			...commonRequest,
+			iteration: 5,
+			toolCallId: "tool-5",
+			toolName: "apply_patch",
+			input: "*** Begin Patch\n*** End Patch",
+		});
+		expect(editApproval.approved).toBe(true);
+
+		const rereadAfterEdit = await requestToolApproval({
+			...commonRequest,
+			iteration: 6,
+			toolCallId: "tool-6",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }] },
+		});
+		expect(rereadAfterEdit.approved).toBe(true);
+		expect(baseApproval).toHaveBeenCalledTimes(4);
+	});
+
+	it("does not mark batch read_files requests as covered at approval time", async () => {
+		const baseApproval = vi.fn(async () => ({ approved: true, reason: "ok" }));
+		const fakeHost = {
+			start: vi.fn(async (input: ClineSdkStartSessionInput) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+
+		const runtime = createInMemoryClineSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			systemPrompt: "You are a helpful coding assistant.",
+			requestToolApproval: baseApproval,
+		});
+
+		const requestToolApproval = fakeHost.start.mock.calls[0]?.[0].capabilities?.requestToolApproval;
+		expect(requestToolApproval).toBeTruthy();
+		if (!requestToolApproval) {
+			throw new Error("Expected requestToolApproval to be wired");
+		}
+
+		const commonRequest = {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			policy: { autoApprove: false },
+		};
+		const batchRead = await requestToolApproval({
+			...commonRequest,
+			iteration: 1,
+			toolCallId: "tool-1",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }, { path: "src/score.ts" }] },
+		});
+		expect(batchRead.approved).toBe(true);
+
+		const singleReadAfterBatch = await requestToolApproval({
+			...commonRequest,
+			iteration: 2,
+			toolCallId: "tool-2",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }] },
+		});
+		expect(singleReadAfterBatch.approved).toBe(true);
+		expect(baseApproval).toHaveBeenCalledTimes(2);
+	});
+
 	it("records and stops when Cline reaches the consecutive mistake guardrail", async () => {
 		selfObservationMocks.recordSelfObservation.mockReset();
 		const fakeHost = {
@@ -671,6 +839,9 @@ describe("InMemoryClineSessionRuntime", () => {
 		const initialResult = await beforeModel(createModelContext(workspacePath));
 		const initialText = readInjectedRepoMapText(initialResult);
 		expect(readInjectedRepoMapIndex(initialResult)).toBe(0);
+		expect(initialText).toContain("Workspace root: .");
+		expect(initialText).toContain("workspace-relative paths");
+		expect(initialText).not.toContain(workspacePath);
 		expect(initialText).toContain("oldFeature");
 
 		await writeFile(sourcePath, "export function newFeature() { return true; }\n", "utf8");
