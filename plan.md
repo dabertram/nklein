@@ -1221,3 +1221,29 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
       attention, context size, min_p/repeat_penalty) in onboarding.
 - [ ] **Upstream proposal** — ask `@clinebot` to forward `response_format`/grammar + top_p/top_k/min_p/
       repetition_penalty in its provider layer so the main agent loop benefits too.
+
+### Small-model capability pass — implemented (2026-06-21, second batch)
+- [x] **Per-model/role sampling policy** ([cline-sampling-policy.ts](src/cline-sdk/cline-sampling-policy.ts)) —
+      deterministic low temperature + min_p + repetition penalty, tightened for small/quantized families.
+- [x] **Unified tool-argument JSON repair** ([cline-tool-argument-repair.ts](src/cline-sdk/cline-tool-argument-repair.ts))
+      — shared near-valid JSON recovery; decompose_project/write_files/edit_file now use it.
+- [x] **Best-of-N decomposition selection** ([cline-decomposition-selection.ts](src/cline-sdk/cline-decomposition-selection.ts))
+      — self-consistency scored by the sizing + graph-coherence validators; injectable generator.
+- [x] **LLMLingua-2-style selective compression** ([cline-prompt-compression.ts](src/cline-sdk/cline-prompt-compression.ts))
+      + **runtime ONNX model download/update manager**
+      ([cline-compression-model-manager.ts](src/cline-sdk/cline-compression-model-manager.ts)); wired as the
+      opt-in `selective` mode in `cline-context-compression.ts`. Heuristic scorer is the batteries-included
+      default; ONNX scorer is opt-in.
+
+### Remaining seams / follow-ups
+- [ ] **ONNX inference adapter** that runs the downloaded LLMLingua-2 model and provides a
+      `TokenImportanceScorer` (the heavy native/WASM dep is deliberately not forced into committed code; the
+      heuristic scorer ships as the default). Wire `ensureCompressionModel` → adapter → `selectiveScorer`.
+- [ ] **Wire the consumers into live flows**: pass `resolveLocalSamplingOptions` through `LocalLlmClient` calls;
+      route decomposition through best-of-N when `decompositionCandidates > 1`; expose `selective` compression +
+      the model opt-in as settings.
+- [ ] **Setup guidance (web-ui)**: recommend quant level (e.g. Q4_K_M), KV-cache, flash attention, context
+      size vs the ≥32k floor, and server-side min_p/repeat_penalty in onboarding (browser-verify).
+- [ ] **Upstream `@clinebot` proposal**: forward `response_format`/grammar + top_p/top_k/min_p/repetition_penalty
+      in the SDK provider layer so the main agent loop gets constrained decoding too (until then, the
+      `LocalLlmClient` path carries it for structured operations).

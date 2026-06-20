@@ -1,6 +1,7 @@
 import { countKanbanTextTokens } from "./cline-context-budgets";
+import { compressByTokenImportance, type TokenImportanceScorer } from "./cline-prompt-compression";
 
-export type ClineContextCompressionMode = "prose_caveman" | "code_minify" | "model_assisted";
+export type ClineContextCompressionMode = "prose_caveman" | "code_minify" | "model_assisted" | "selective";
 
 export interface ClineContextCompressionResult {
 	mode: ClineContextCompressionMode;
@@ -186,9 +187,28 @@ export function compressKanbanContextText(
 	options: {
 		maxTokens: number;
 		allowModelAssisted?: boolean;
+		/** Opt-in LLMLingua-2-style token-importance compression before trimming (better retention). */
+		selective?: boolean;
+		/** Optional importance scorer (e.g. an ONNX model); defaults to the heuristic scorer. */
+		selectiveScorer?: TokenImportanceScorer;
 	} = { maxTokens: 200 },
 ): ClineContextCompressionResult {
 	const originalTokens = countKanbanTextTokens(text);
+	if (options.selective && originalTokens > options.maxTokens && originalTokens > 0) {
+		// Keep the most informative tokens first (so trimming discards less meaning), then enforce the budget.
+		const targetRatio = Math.min(1, Math.max(0.1, options.maxTokens / originalTokens));
+		const selective = compressByTokenImportance(text, { targetRatio, scorer: options.selectiveScorer });
+		const compressed = trimToTokenBudget(
+			selective.compressed.length > 0 ? selective.compressed : text,
+			options.maxTokens,
+		);
+		return {
+			mode: "selective",
+			originalTokens,
+			compressedTokens: countKanbanTextTokens(compressed),
+			text: compressed,
+		};
+	}
 	const mode: ClineContextCompressionMode = looksLikeCode(text) ? "code_minify" : "prose_caveman";
 	const candidate = mode === "code_minify" ? compressCodeMinify(text) : compressProseCaveman(text);
 	const compressed = trimToTokenBudget(candidate.length > 0 ? candidate : text, options.maxTokens);
