@@ -12,6 +12,7 @@ import {
 } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
 import {
+	BarChart3,
 	Bell,
 	Bot,
 	Check,
@@ -39,6 +40,7 @@ import {
 	ClineModelRegistryPanel,
 	filterRegistryEntriesToLoadedModels,
 } from "@/components/detail-panels/cline-model-registry-panel";
+import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import {
@@ -1695,6 +1697,7 @@ export function RuntimeSettingsDialog({
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
+	const [modelPerformanceStatsOpen, setModelPerformanceStatsOpen] = useState(false);
 	const [modelRoleModelsByProviderId, setModelRoleModelsByProviderId] = useState<
 		Record<string, RuntimeClineProviderModel[]>
 	>({});
@@ -2793,1199 +2796,1235 @@ export function RuntimeSettingsDialog({
 	const currentThemeDef = THEMES.find((t) => t.id === draftThemeId);
 
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={handleDialogOpenChange}
-			contentClassName="!w-[min(1240px,calc(100vw-24px))] !max-w-none !max-h-[calc(100vh-24px)]"
-		>
-			<DialogHeader title="Settings" icon={<Settings size={16} />} />
-			<div className="flex h-[min(760px,calc(100vh-120px))]">
-				<SettingsNav items={navItems} activeId={activeSection} onSelect={handleNavSelect} />
-				<div
-					ref={bodyRef}
-					onScroll={handleBodyScroll}
-					className="px-5 pb-5 overflow-y-auto overscroll-contain flex-1 min-h-0 bg-surface-1"
-				>
-					{/* ---- General ---- */}
-					<div data-settings-section="general" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<SlidersHorizontal size={16} className="text-text-secondary" />
-							General
-						</h2>
-					</div>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
-							Developer Mode
-						</h6>
-						<label
-							htmlFor={developerModeCheckboxId}
-							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
-						>
-							<RadixSwitch.Root
-								id={developerModeCheckboxId}
-								checked={developerModeEnabled}
-								disabled={controlsDisabled}
-								onCheckedChange={setDeveloperModeEnabled}
-								className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
-							>
-								<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-							</RadixSwitch.Root>
-							<span>Enable developer mode</span>
-						</label>
-						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
-							Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
-							state.
-						</p>
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
-							Replay
-						</h6>
-						<label
-							htmlFor={replayCardsCheckboxId}
-							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
-						>
-							<RadixSwitch.Root
-								id={replayCardsCheckboxId}
-								checked={replayCardsEnabled}
-								disabled={controlsDisabled}
-								onCheckedChange={setReplayCardsEnabled}
-								className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
-							>
-								<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-							</RadixSwitch.Root>
-							<span>Show Replay on finished cards</span>
-						</label>
-						<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
-							Show a Replay button on finished cards to re-run them from scratch.
-						</p>
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
-							Agent isolation
-						</h6>
-						<div className="rounded-md border border-border bg-surface-1 p-3">
-							<div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
-								<ShieldCheck size={14} className="text-text-secondary" />
-								<span>
-									{agentSandboxStatus.state === "ready"
-										? "Docker sandbox ready"
-										: agentSandboxStatus.state === "blocked"
-											? "Docker sandbox unavailable"
-											: "Checking Docker sandbox"}
-								</span>
-							</div>
-							<div className="mt-2 grid gap-2 sm:grid-cols-2">
-								<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-									<div className="text-[11px] text-text-tertiary">Docker daemon</div>
-									<div className="text-[13px] font-medium text-text-primary">
-										{agentSandboxStatus.dockerAvailable === null
-											? "Checking"
-											: agentSandboxStatus.dockerAvailable
-												? "Available"
-												: "Unavailable"}
-									</div>
-								</div>
-								<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-									<div className="text-[11px] text-text-tertiary">Sandbox image</div>
-									<div className="text-[13px] font-medium text-text-primary">
-										{agentSandboxStatus.imageAvailable === null
-											? "Checking"
-											: agentSandboxStatus.imageAvailable
-												? "Available"
-												: "Unavailable"}
-									</div>
-									<div className="mt-1 text-[11px] text-text-secondary">{agentSandboxStatus.image}</div>
-								</div>
-							</div>
-							{agentSandboxStatus.message ? (
-								<p className="text-status-orange text-[12px] mt-2 mb-0">{agentSandboxStatus.message}</p>
-							) : null}
+		<>
+			<Dialog
+				open={open}
+				onOpenChange={handleDialogOpenChange}
+				contentClassName="!w-[min(1240px,calc(100vw-24px))] !max-w-none !max-h-[calc(100vh-24px)]"
+			>
+				<DialogHeader title="Settings" icon={<Settings size={16} />} />
+				<div className="flex h-[min(760px,calc(100vh-120px))]">
+					<SettingsNav items={navItems} activeId={activeSection} onSelect={handleNavSelect} />
+					<div
+						ref={bodyRef}
+						onScroll={handleBodyScroll}
+						className="px-5 pb-5 overflow-y-auto overscroll-contain flex-1 min-h-0 bg-surface-1"
+					>
+						{/* ---- General ---- */}
+						<div data-settings-section="general" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<SlidersHorizontal size={16} className="text-text-secondary" />
+								General
+							</h2>
 						</div>
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
-							Agent
-						</h6>
-						{cloudProviderSupportEnabled ? (
-							<>
-								{displayedAgents.map((agent) => (
-									<AgentRow
-										key={agent.id}
-										agent={agent}
-										isSelected={agent.id === selectedAgentId}
-										onSelect={() => setSelectedAgentId(agent.id)}
-										disabled={controlsDisabled}
-									/>
-								))}
-								{config === null ? (
-									<p className="text-text-secondary py-2">
-										Checking which CLIs are installed for this project...
-									</p>
-								) : null}
-							</>
-						) : (
-							<p className="text-[13px] text-text-secondary mt-0 mb-3">Local Cline agent (cloud disabled).</p>
-						)}
-						<label
-							htmlFor={bypassPermissionsCheckboxId}
-							className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
-						>
-							<RadixCheckbox.Root
-								id={bypassPermissionsCheckboxId}
-								aria-label="Enable bypass permissions flag"
-								checked={agentAutonomousModeEnabled}
-								disabled={controlsDisabled}
-								onCheckedChange={(checked) => setAgentAutonomousModeEnabled(checked === true)}
-								className="flex h-4 w-4 cursor-pointer items-center justify-center rounded border border-border bg-surface-2 data-[state=checked]:bg-accent data-[state=checked]:border-accent disabled:cursor-default disabled:opacity-40"
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+								Developer Mode
+							</h6>
+							<label
+								htmlFor={developerModeCheckboxId}
+								className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
 							>
-								<RadixCheckbox.Indicator>
-									<Check size={12} className="text-white" />
-								</RadixCheckbox.Indicator>
-							</RadixCheckbox.Root>
-							<span>Enable bypass permissions flag</span>
-						</label>
-						<p className="text-text-secondary text-[13px] ml-6 mt-0 mb-0">
-							Allows agents to use tools without stopping for permission. Use at your own risk.
-						</p>
-						<div className="mt-2 ml-6 max-w-[220px]">
-							<p className="text-text-secondary text-[12px] mt-0 mb-1">Agent timeout</p>
-							<NativeSelect
-								fill
-								value={agentTimeoutMode}
-								onChange={(event) =>
-									setAgentTimeoutMode(event.target.value as "normal" | "long" | "extended" | "unlimited")
-								}
-								disabled={controlsDisabled}
-							>
-								<option value="normal">Normal (1x)</option>
-								<option value="long">Long (3x)</option>
-								<option value="extended">Extended (6x)</option>
-								<option value="unlimited">Unlimited</option>
-							</NativeSelect>
-						</div>
-						<div className="mt-2 ml-6 max-w-[260px]">
-							<p className="text-text-secondary text-[12px] mt-0 mb-1">Timeout profile</p>
-							<NativeSelect
-								fill
-								value={agentTimeoutProfile}
-								onChange={(event) => setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")}
-								disabled={controlsDisabled}
-							>
-								{cloudProviderSupportEnabled ? <option value="cloud">Cloud</option> : null}
-								<option value="local">Local</option>
-								<option value="custom">Custom</option>
-							</NativeSelect>
-							<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-								Unlimited timeout: requests may run indefinitely until manually cancelled.
+								<RadixSwitch.Root
+									id={developerModeCheckboxId}
+									checked={developerModeEnabled}
+									disabled={controlsDisabled}
+									onCheckedChange={setDeveloperModeEnabled}
+									className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+								>
+									<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+								</RadixSwitch.Root>
+								<span>Enable developer mode</span>
+							</label>
+							<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
+								Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
+								state.
 							</p>
-						</div>
-						<div className="mt-2 ml-6 grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">Request timeout (ms)</p>
-								<input
-									value={requestTimeoutMs}
-									onChange={(event) => setRequestTimeoutMs(event.target.value)}
-									placeholder="3600000"
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+								Replay
+							</h6>
+							<label
+								htmlFor={replayCardsCheckboxId}
+								className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
+							>
+								<RadixSwitch.Root
+									id={replayCardsCheckboxId}
+									checked={replayCardsEnabled}
 									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-							</div>
-							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">Stream timeout (ms)</p>
-								<input
-									value={streamTimeoutMs}
-									onChange={(event) => setStreamTimeoutMs(event.target.value)}
-									placeholder="86400000"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-							</div>
-							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">Tool timeout (ms)</p>
-								<input
-									value={toolTimeoutMs}
-									onChange={(event) => setToolTimeoutMs(event.target.value)}
-									placeholder="86400000"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-							</div>
-							<div>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">agentTimeoutMs</p>
-								<input
-									value={agentTimeoutMs}
-									onChange={(event) => setAgentTimeoutMs(event.target.value)}
-									placeholder="86400000"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-							</div>
-							<div style={{ gridColumn: "1 / span 2" }}>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">conversationTimeoutMs</p>
-								<input
-									value={conversationTimeoutMs}
-									onChange={(event) => setConversationTimeoutMs(event.target.value)}
-									placeholder="604800000"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-							</div>
-							<div style={{ gridColumn: "1 / span 2" }}>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">maxAgentWritableFileLines</p>
-								<input
-									value={maxAgentWritableFileLines}
-									onChange={(event) => setMaxAgentWritableFileLines(event.target.value)}
-									placeholder="1000"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Maximum lines any agent write tool may create in a single file.
-								</p>
-							</div>
-							<div style={{ gridColumn: "1 / span 2" }}>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">maxConcurrentTasks</p>
-								<input
-									value={maxConcurrentTasks}
-									onChange={(event) => setMaxConcurrentTasks(event.target.value)}
-									placeholder="3"
-									disabled={controlsDisabled}
-									className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-								/>
-								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Maximum dependency-unblocked tasks !Klein may start at once.
-								</p>
-							</div>
-							<div style={{ gridColumn: "1 / span 2" }} className="border-t border-border pt-3">
-								<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-									<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
-										<ShieldCheck size={14} />
-										<span>Agent isolation pool</span>
+									onCheckedChange={setReplayCardsEnabled}
+									className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+								>
+									<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+								</RadixSwitch.Root>
+								<span>Show Replay on finished cards</span>
+							</label>
+							<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
+								Show a Replay button on finished cards to re-run them from scratch.
+							</p>
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+								Agent isolation
+							</h6>
+							<div className="rounded-md border border-border bg-surface-1 p-3">
+								<div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+									<ShieldCheck size={14} className="text-text-secondary" />
+									<span>
+										{agentSandboxStatus.state === "ready"
+											? "Docker sandbox ready"
+											: agentSandboxStatus.state === "blocked"
+												? "Docker sandbox unavailable"
+												: "Checking Docker sandbox"}
+									</span>
+								</div>
+								<div className="mt-2 grid gap-2 sm:grid-cols-2">
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Docker daemon</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{agentSandboxStatus.dockerAvailable === null
+												? "Checking"
+												: agentSandboxStatus.dockerAvailable
+													? "Available"
+													: "Unavailable"}
+										</div>
 									</div>
-									<div className="flex items-center gap-1">
-										<Button
-											size="sm"
-											variant={sandboxPoolPreset === "shared" ? "primary" : "default"}
-											aria-pressed={sandboxPoolPreset === "shared"}
-											disabled={controlsDisabled}
-											onClick={applySharedSandboxPreset}
-										>
-											Shared
-										</Button>
-										<Button
-											size="sm"
-											variant={sandboxPoolPreset === "dedicated" ? "primary" : "default"}
-											aria-pressed={sandboxPoolPreset === "dedicated"}
-											disabled={controlsDisabled}
-											onClick={applyDedicatedSandboxPreset}
-										>
-											Dedicated
-										</Button>
+									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+										<div className="text-[11px] text-text-tertiary">Sandbox image</div>
+										<div className="text-[13px] font-medium text-text-primary">
+											{agentSandboxStatus.imageAvailable === null
+												? "Checking"
+												: agentSandboxStatus.imageAvailable
+													? "Available"
+													: "Unavailable"}
+										</div>
+										<div className="mt-1 text-[11px] text-text-secondary">{agentSandboxStatus.image}</div>
 									</div>
 								</div>
-								<div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-									<div>
-										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMaxContainers</p>
-										<input
-											value={sandboxMaxContainers}
-											onChange={(event) => setSandboxMaxContainers(event.target.value)}
-											placeholder="1"
+								{agentSandboxStatus.message ? (
+									<p className="text-status-orange text-[12px] mt-2 mb-0">{agentSandboxStatus.message}</p>
+								) : null}
+							</div>
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+								Agent
+							</h6>
+							{cloudProviderSupportEnabled ? (
+								<>
+									{displayedAgents.map((agent) => (
+										<AgentRow
+											key={agent.id}
+											agent={agent}
+											isSelected={agent.id === selectedAgentId}
+											onSelect={() => setSelectedAgentId(agent.id)}
 											disabled={controlsDisabled}
-											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
 										/>
-									</div>
-									<div>
-										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxAgentsPerContainer</p>
-										<input
-											value={sandboxAgentsPerContainer}
-											onChange={(event) => setSandboxAgentsPerContainer(event.target.value)}
-											placeholder="0"
-											disabled={controlsDisabled}
-											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-										/>
-									</div>
-									<div>
-										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMemoryPerContainerMb</p>
-										<input
-											value={sandboxMemoryPerContainerMb}
-											onChange={(event) => setSandboxMemoryPerContainerMb(event.target.value)}
-											placeholder="4096"
-											disabled={controlsDisabled}
-											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-										/>
-									</div>
-									<div>
-										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxCpusPerContainer</p>
-										<input
-											value={sandboxCpusPerContainer}
-											onChange={(event) => setSandboxCpusPerContainer(event.target.value)}
-											placeholder="2"
-											disabled={controlsDisabled}
-											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-										/>
-									</div>
-									<div style={{ gridColumn: "1 / span 2" }}>
-										<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxIdleTimeoutMinutes</p>
-										<input
-											value={sandboxIdleTimeoutMinutes}
-											onChange={(event) => setSandboxIdleTimeoutMinutes(event.target.value)}
-											placeholder="10"
-											disabled={controlsDisabled}
-											className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-										/>
-										<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-											Agents per container accepts 0 for unlimited sharing; maxConcurrentTasks remains the
-											outer parallelism cap.
+									))}
+									{config === null ? (
+										<p className="text-text-secondary py-2">
+											Checking which CLIs are installed for this project...
 										</p>
-									</div>
-								</div>
-							</div>
-							<div style={{ gridColumn: "1 / span 2" }}>
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">Lost heartbeat policy</p>
+									) : null}
+								</>
+							) : (
+								<p className="text-[13px] text-text-secondary mt-0 mb-3">Local Cline agent (cloud disabled).</p>
+							)}
+							<label
+								htmlFor={bypassPermissionsCheckboxId}
+								className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
+							>
+								<RadixCheckbox.Root
+									id={bypassPermissionsCheckboxId}
+									aria-label="Enable bypass permissions flag"
+									checked={agentAutonomousModeEnabled}
+									disabled={controlsDisabled}
+									onCheckedChange={(checked) => setAgentAutonomousModeEnabled(checked === true)}
+									className="flex h-4 w-4 cursor-pointer items-center justify-center rounded border border-border bg-surface-2 data-[state=checked]:bg-accent data-[state=checked]:border-accent disabled:cursor-default disabled:opacity-40"
+								>
+									<RadixCheckbox.Indicator>
+										<Check size={12} className="text-white" />
+									</RadixCheckbox.Indicator>
+								</RadixCheckbox.Root>
+								<span>Enable bypass permissions flag</span>
+							</label>
+							<p className="text-text-secondary text-[13px] ml-6 mt-0 mb-0">
+								Allows agents to use tools without stopping for permission. Use at your own risk.
+							</p>
+							<div className="mt-2 ml-6 max-w-[220px]">
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Agent timeout</p>
 								<NativeSelect
 									fill
-									value={lostHeartbeatPolicy}
+									value={agentTimeoutMode}
 									onChange={(event) =>
-										setLostHeartbeatPolicy(event.target.value as RuntimeLostHeartbeatPolicy)
+										setAgentTimeoutMode(event.target.value as "normal" | "long" | "extended" | "unlimited")
 									}
 									disabled={controlsDisabled}
 								>
-									<option value="park">Park + actions</option>
-									<option value="keep_running">Keep running</option>
+									<option value="normal">Normal (1x)</option>
+									<option value="long">Long (3x)</option>
+									<option value="extended">Extended (6x)</option>
+									<option value="unlimited">Unlimited</option>
+								</NativeSelect>
+							</div>
+							<div className="mt-2 ml-6 max-w-[260px]">
+								<p className="text-text-secondary text-[12px] mt-0 mb-1">Timeout profile</p>
+								<NativeSelect
+									fill
+									value={agentTimeoutProfile}
+									onChange={(event) =>
+										setAgentTimeoutProfile(event.target.value as "cloud" | "local" | "custom")
+									}
+									disabled={controlsDisabled}
+								>
+									{cloudProviderSupportEnabled ? <option value="cloud">Cloud</option> : null}
+									<option value="local">Local</option>
+									<option value="custom">Custom</option>
 								</NativeSelect>
 								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									Park lost Cline sessions for review, or keep them running with the lost status visible.
+									Unlimited timeout: requests may run indefinitely until manually cancelled.
 								</p>
 							</div>
-							<div style={{ gridColumn: "1 / span 2" }}>
-								<div className="flex items-center gap-2 text-[13px] text-text-primary">
-									<RadixSwitch.Root
-										checked={decompositionAutoApplyEnabled}
+							<div className="mt-2 ml-6 grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+								<div>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">Request timeout (ms)</p>
+									<input
+										value={requestTimeoutMs}
+										onChange={(event) => setRequestTimeoutMs(event.target.value)}
+										placeholder="3600000"
 										disabled={controlsDisabled}
-										onCheckedChange={setDecompositionAutoApplyEnabled}
-										aria-labelledby={decompositionAutoApplyLabelId}
-										className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+								</div>
+								<div>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">Stream timeout (ms)</p>
+									<input
+										value={streamTimeoutMs}
+										onChange={(event) => setStreamTimeoutMs(event.target.value)}
+										placeholder="86400000"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+								</div>
+								<div>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">Tool timeout (ms)</p>
+									<input
+										value={toolTimeoutMs}
+										onChange={(event) => setToolTimeoutMs(event.target.value)}
+										placeholder="86400000"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+								</div>
+								<div>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">agentTimeoutMs</p>
+									<input
+										value={agentTimeoutMs}
+										onChange={(event) => setAgentTimeoutMs(event.target.value)}
+										placeholder="86400000"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">conversationTimeoutMs</p>
+									<input
+										value={conversationTimeoutMs}
+										onChange={(event) => setConversationTimeoutMs(event.target.value)}
+										placeholder="604800000"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">maxAgentWritableFileLines</p>
+									<input
+										value={maxAgentWritableFileLines}
+										onChange={(event) => setMaxAgentWritableFileLines(event.target.value)}
+										placeholder="1000"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										Maximum lines any agent write tool may create in a single file.
+									</p>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">maxConcurrentTasks</p>
+									<input
+										value={maxConcurrentTasks}
+										onChange={(event) => setMaxConcurrentTasks(event.target.value)}
+										placeholder="3"
+										disabled={controlsDisabled}
+										className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+									/>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										Maximum dependency-unblocked tasks !Klein may start at once.
+									</p>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }} className="border-t border-border pt-3">
+									<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+										<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+											<ShieldCheck size={14} />
+											<span>Agent isolation pool</span>
+										</div>
+										<div className="flex items-center gap-1">
+											<Button
+												size="sm"
+												variant={sandboxPoolPreset === "shared" ? "primary" : "default"}
+												aria-pressed={sandboxPoolPreset === "shared"}
+												disabled={controlsDisabled}
+												onClick={applySharedSandboxPreset}
+											>
+												Shared
+											</Button>
+											<Button
+												size="sm"
+												variant={sandboxPoolPreset === "dedicated" ? "primary" : "default"}
+												aria-pressed={sandboxPoolPreset === "dedicated"}
+												disabled={controlsDisabled}
+												onClick={applyDedicatedSandboxPreset}
+											>
+												Dedicated
+											</Button>
+										</div>
+									</div>
+									<div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+										<div>
+											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxMaxContainers</p>
+											<input
+												value={sandboxMaxContainers}
+												onChange={(event) => setSandboxMaxContainers(event.target.value)}
+												placeholder="1"
+												disabled={controlsDisabled}
+												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+											/>
+										</div>
+										<div>
+											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxAgentsPerContainer</p>
+											<input
+												value={sandboxAgentsPerContainer}
+												onChange={(event) => setSandboxAgentsPerContainer(event.target.value)}
+												placeholder="0"
+												disabled={controlsDisabled}
+												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+											/>
+										</div>
+										<div>
+											<p className="text-text-secondary text-[12px] mt-0 mb-1">
+												sandboxMemoryPerContainerMb
+											</p>
+											<input
+												value={sandboxMemoryPerContainerMb}
+												onChange={(event) => setSandboxMemoryPerContainerMb(event.target.value)}
+												placeholder="4096"
+												disabled={controlsDisabled}
+												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+											/>
+										</div>
+										<div>
+											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxCpusPerContainer</p>
+											<input
+												value={sandboxCpusPerContainer}
+												onChange={(event) => setSandboxCpusPerContainer(event.target.value)}
+												placeholder="2"
+												disabled={controlsDisabled}
+												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+											/>
+										</div>
+										<div style={{ gridColumn: "1 / span 2" }}>
+											<p className="text-text-secondary text-[12px] mt-0 mb-1">sandboxIdleTimeoutMinutes</p>
+											<input
+												value={sandboxIdleTimeoutMinutes}
+												onChange={(event) => setSandboxIdleTimeoutMinutes(event.target.value)}
+												placeholder="10"
+												disabled={controlsDisabled}
+												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
+											/>
+											<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+												Agents per container accepts 0 for unlimited sharing; maxConcurrentTasks remains the
+												outer parallelism cap.
+											</p>
+										</div>
+									</div>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">Lost heartbeat policy</p>
+									<NativeSelect
+										fill
+										value={lostHeartbeatPolicy}
+										onChange={(event) =>
+											setLostHeartbeatPolicy(event.target.value as RuntimeLostHeartbeatPolicy)
+										}
+										disabled={controlsDisabled}
 									>
-										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-									</RadixSwitch.Root>
-									<span id={decompositionAutoApplyLabelId}>Auto-apply valid decomposition artifacts</span>
+										<option value="park">Park + actions</option>
+										<option value="keep_running">Keep running</option>
+									</NativeSelect>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										Park lost Cline sessions for review, or keep them running with the lost status visible.
+									</p>
 								</div>
-								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									When disabled, valid task graphs stay pending on the source card for manual review.
-								</p>
-							</div>
-							<div
-								style={{ gridColumn: "1 / span 2" }}
-								className="rounded-md border border-border bg-surface-1 p-3"
-							>
-								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
-									<ShieldCheck size={14} />
-									<span>Local swarm guardrails</span>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<div className="flex items-center gap-2 text-[13px] text-text-primary">
+										<RadixSwitch.Root
+											checked={decompositionAutoApplyEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setDecompositionAutoApplyEnabled}
+											aria-labelledby={decompositionAutoApplyLabelId}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span id={decompositionAutoApplyLabelId}>Auto-apply valid decomposition artifacts</span>
+									</div>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										When disabled, valid task graphs stay pending on the source card for manual review.
+									</p>
 								</div>
-								<div className="grid gap-2 sm:grid-cols-2">
-									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-										<div className="text-[11px] text-text-tertiary">Concurrent cards</div>
-										<div className="text-[13px] font-medium text-text-primary">
-											{maxConcurrentTasks.trim() || "3"} running max
-										</div>
-										<div className="mt-1 text-[11px] text-text-secondary">Saved by maxConcurrentTasks.</div>
+								<div
+									style={{ gridColumn: "1 / span 2" }}
+									className="rounded-md border border-border bg-surface-1 p-3"
+								>
+									<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+										<ShieldCheck size={14} />
+										<span>Local swarm guardrails</span>
 									</div>
-									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-										<div className="text-[11px] text-text-tertiary">Sandbox pool</div>
-										<div className="text-[13px] font-medium text-text-primary">
-											{sandboxPoolSummary.effectiveParallelism} effective parallel
+									<div className="grid gap-2 sm:grid-cols-2">
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">Concurrent cards</div>
+											<div className="text-[13px] font-medium text-text-primary">
+												{maxConcurrentTasks.trim() || "3"} running max
+											</div>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												Saved by maxConcurrentTasks.
+											</div>
 										</div>
-										<div className="mt-1 text-[11px] text-text-secondary">
-											{sandboxMaxContainers.trim() || "1"} containers, {sandboxPoolSummary.poolCapacityLabel}
-											, {sandboxPoolSummary.memoryGbLabel} each.
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">Sandbox pool</div>
+											<div className="text-[13px] font-medium text-text-primary">
+												{sandboxPoolSummary.effectiveParallelism} effective parallel
+											</div>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												{sandboxMaxContainers.trim() || "1"} containers,{" "}
+												{sandboxPoolSummary.poolCapacityLabel}, {sandboxPoolSummary.memoryGbLabel} each.
+											</div>
 										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">Lost heartbeat</div>
+											<div className="text-[13px] font-medium text-text-primary">
+												{lostHeartbeatPolicy === "park" ? "Park + actions" : "Keep running"}
+											</div>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												{lostHeartbeatPolicy === "park"
+													? "Moves Cline sessions to review."
+													: "Leaves Cline running."}
+											</div>
+										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<div className="text-[11px] text-text-tertiary">Plan artifacts</div>
+											<div className="text-[13px] font-medium text-text-primary">
+												{decompositionAutoApplyEnabled ? "Auto-apply" : "Manual review"}
+											</div>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												{decompositionAutoApplyEnabled
+													? "Creates Planning cards immediately."
+													: "Shows Apply/Reject."}
+											</div>
+										</div>
+										{LOCAL_SWARM_GUARDRAIL_ROWS.map((row) => (
+											<div
+												key={row.label}
+												className="rounded-md border border-border bg-surface-2 px-2 py-1.5"
+											>
+												<div className="text-[11px] text-text-tertiary">{row.label}</div>
+												<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
+												<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
+											</div>
+										))}
 									</div>
-									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-										<div className="text-[11px] text-text-tertiary">Lost heartbeat</div>
-										<div className="text-[13px] font-medium text-text-primary">
-											{lostHeartbeatPolicy === "park" ? "Park + actions" : "Keep running"}
-										</div>
-										<div className="mt-1 text-[11px] text-text-secondary">
-											{lostHeartbeatPolicy === "park"
-												? "Moves Cline sessions to review."
-												: "Leaves Cline running."}
-										</div>
-									</div>
-									<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-										<div className="text-[11px] text-text-tertiary">Plan artifacts</div>
-										<div className="text-[13px] font-medium text-text-primary">
-											{decompositionAutoApplyEnabled ? "Auto-apply" : "Manual review"}
-										</div>
-										<div className="mt-1 text-[11px] text-text-secondary">
-											{decompositionAutoApplyEnabled
-												? "Creates Planning cards immediately."
-												: "Shows Apply/Reject."}
-										</div>
-									</div>
-									{LOCAL_SWARM_GUARDRAIL_ROWS.map((row) => (
-										<div key={row.label} className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-											<div className="text-[11px] text-text-tertiary">{row.label}</div>
-											<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
-											<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
-										</div>
-									))}
 								</div>
-							</div>
-							<div
-								style={{ gridColumn: "1 / span 2" }}
-								className="rounded-md border border-border bg-surface-1 p-3"
-							>
-								<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
-									<SlidersHorizontal size={14} />
-									<span>Advanced policy visibility</span>
-								</div>
-								<div className="grid gap-2 sm:grid-cols-2">
-									{ADVANCED_POLICY_ROWS.map((row) => (
-										<div key={row.label} className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
-											<div className="text-[11px] text-text-tertiary">{row.label}</div>
-											<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
-											<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
-											<div className="mt-1 font-mono text-[10px] text-text-tertiary">{row.raw}</div>
-										</div>
-									))}
+								<div
+									style={{ gridColumn: "1 / span 2" }}
+									className="rounded-md border border-border bg-surface-1 p-3"
+								>
+									<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+										<SlidersHorizontal size={14} />
+										<span>Advanced policy visibility</span>
+									</div>
+									<div className="grid gap-2 sm:grid-cols-2">
+										{ADVANCED_POLICY_ROWS.map((row) => (
+											<div
+												key={row.label}
+												className="rounded-md border border-border bg-surface-2 px-2 py-1.5"
+											>
+												<div className="text-[11px] text-text-tertiary">{row.label}</div>
+												<div className="text-[13px] font-medium text-text-primary">{row.value}</div>
+												<div className="mt-1 text-[11px] text-text-secondary">{row.detail}</div>
+												<div className="mt-1 font-mono text-[10px] text-text-tertiary">{row.raw}</div>
+											</div>
+										))}
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
 
-					{/* ---- Tasks ---- */}
-					<div data-settings-section="tasks" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<Check size={16} className="text-text-secondary" />
-							Tasks
-						</h2>
-					</div>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
-							New Task Defaults
-						</h6>
-						<div className="grid gap-3">
-							<label
-								htmlFor={taskDefaultStartInPlanModeId}
-								className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
-							>
-								<RadixSwitch.Root
-									id={taskDefaultStartInPlanModeId}
-									checked={taskDefaultStartInPlanMode}
-									disabled={controlsDisabled}
-									onCheckedChange={setTaskDefaultStartInPlanMode}
-									className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+						{/* ---- Tasks ---- */}
+						<div data-settings-section="tasks" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Check size={16} className="text-text-secondary" />
+								Tasks
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+								New Task Defaults
+							</h6>
+							<div className="grid gap-3">
+								<label
+									htmlFor={taskDefaultStartInPlanModeId}
+									className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
 								>
-									<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
-								</RadixSwitch.Root>
-								<span>Start new tasks in Planning</span>
-							</label>
-							<label
-								htmlFor={taskDefaultAutoReviewEnabledId}
-								className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
-							>
-								<RadixSwitch.Root
-									id={taskDefaultAutoReviewEnabledId}
-									checked={taskDefaultAutoReviewEnabled}
-									disabled={controlsDisabled}
-									onCheckedChange={setTaskDefaultAutoReviewEnabled}
-									className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+									<RadixSwitch.Root
+										id={taskDefaultStartInPlanModeId}
+										checked={taskDefaultStartInPlanMode}
+										disabled={controlsDisabled}
+										onCheckedChange={setTaskDefaultStartInPlanMode}
+										className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Start new tasks in Planning</span>
+								</label>
+								<label
+									htmlFor={taskDefaultAutoReviewEnabledId}
+									className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
 								>
-									<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
-								</RadixSwitch.Root>
-								<span>Run review action automatically</span>
-							</label>
-							<div className="max-w-[220px]">
-								<p className="text-text-secondary text-[12px] mt-0 mb-1">Automatic review action</p>
+									<RadixSwitch.Root
+										id={taskDefaultAutoReviewEnabledId}
+										checked={taskDefaultAutoReviewEnabled}
+										disabled={controlsDisabled}
+										onCheckedChange={setTaskDefaultAutoReviewEnabled}
+										className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Run review action automatically</span>
+								</label>
+								<div className="max-w-[220px]">
+									<p className="text-text-secondary text-[12px] mt-0 mb-1">Automatic review action</p>
+									<NativeSelect
+										fill
+										value={taskDefaultAutoReviewMode}
+										onChange={(event) =>
+											setTaskDefaultAutoReviewMode(event.target.value as RuntimeTaskAutoReviewMode)
+										}
+										disabled={controlsDisabled || !taskDefaultAutoReviewEnabled}
+									>
+										{TASK_AUTO_REVIEW_MODE_OPTIONS.map((option) => (
+											<option key={option.value} value={option.value}>
+												{option.label}
+											</option>
+										))}
+									</NativeSelect>
+								</div>
+							</div>
+						</div>
+
+						{/* ---- Cline ---- */}
+						{selectedAgentId === "cline" ? (
+							<>
+								<div data-settings-section="cline" />
+								<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+									<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+										<Bot size={16} className="text-text-secondary" />
+										Cline
+									</h2>
+								</div>
+								<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+									<ClineSetupSection
+										controller={clineSettings}
+										mcpController={clineMcpSettings}
+										controlsDisabled={controlsDisabled}
+										workspaceId={workspaceId}
+										cloudProviderSupportEnabled={cloudProviderSupportEnabled}
+										accountSection={
+											cloudProviderSupportEnabled && clineSettings.providerId.trim() === "cline" ? (
+												<AccountOrganizationSection
+													workspaceId={workspaceId}
+													open={open}
+													onAccountSwitched={onAccountSwitched}
+												/>
+											) : null
+										}
+										onError={setSaveError}
+										onSaved={handleClineSetupSaved}
+									/>
+									<ClineModelContextWindowSettingsPanel
+										workspaceId={workspaceId}
+										open={open}
+										disabled={controlsDisabled}
+										selectedProviderId={clineSettings.providerId}
+										selectedModelId={clineSettings.modelId}
+										selectedProviderModels={clineSettings.providerModels}
+										onRefreshProviderModels={handleRefreshClineProviderModels}
+										onError={setSaveError}
+									/>
+									{cloudProviderSupportEnabled ? (
+										<ClineAdvisorActions
+											workspaceId={workspaceId}
+											disabled={controlsDisabled}
+											mcpController={clineMcpSettings}
+											runtimeConfigSummary={advisorRuntimeConfigSummary}
+											advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
+											advisorModelId={config?.clineProviderSettings.modelId ?? ""}
+											onError={setSaveError}
+										/>
+									) : null}
+									{/* informational dev surface -> developer mode only (works in packaged builds) */}
+									{developerModeEnabled ? (
+										<div className="mt-4 border-t border-border pt-4">
+											<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+												Developer Tools
+											</h6>
+											<ClineSmokeEvalTrial
+												workspaceId={workspaceId}
+												disabled={controlsDisabled}
+												onError={setSaveError}
+											/>
+											<ClineDogfoodSuggestion
+												workspaceId={workspaceId}
+												disabled={controlsDisabled}
+												onError={setSaveError}
+											/>
+										</div>
+									) : null}
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Code intelligence embeddings
+										</h6>
+										<div className="grid gap-3">
+											<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
+												<div className="min-w-0">
+													<span className="mb-1 block text-[12px] text-text-secondary">
+														Global default provider
+													</span>
+													<NativeSelect
+														value={codeEmbeddingDefaultsProvider}
+														onChange={(event) =>
+															setCodeEmbeddingDefaultsProvider(
+																event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+															)
+														}
+														disabled={controlsDisabled}
+														fill
+													>
+														{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+															<option key={option.value} value={option.value}>
+																{option.label}
+															</option>
+														))}
+													</NativeSelect>
+												</div>
+												<EmbeddingEndpointFields
+													workspaceId={workspaceId}
+													labelPrefix="Default"
+													disabled={controlsDisabled}
+													provider={codeEmbeddingDefaultsProvider}
+													baseUrl={codeEmbeddingDefaultsBaseUrl}
+													model={codeEmbeddingDefaultsModel}
+													suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
+													endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
+													modelPlaceholder="nomic-embed-text"
+													onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
+													onModelChange={setCodeEmbeddingDefaultsModel}
+													onError={setSaveError}
+												/>
+											</div>
+											{workspaceId ? (
+												<div className="rounded-md border border-border bg-surface-1 p-3">
+													<div className="mb-3 flex items-center justify-between gap-3">
+														<div className="flex items-center gap-2 text-[13px] text-text-primary">
+															<RadixSwitch.Root
+																checked={codeEmbeddingOverrideEnabled}
+																disabled={controlsDisabled}
+																onCheckedChange={setCodeEmbeddingOverrideEnabled}
+																className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+															>
+																<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+															</RadixSwitch.Root>
+															<span>Override for this project</span>
+														</div>
+														<div className="text-right text-[11px] text-text-secondary">
+															Effective:{" "}
+															{formatCodeEmbeddingSettings(draftEffectiveCodeEmbeddingSettings)}
+														</div>
+													</div>
+													<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
+														<div className="min-w-0">
+															<span className="mb-1 block text-[12px] text-text-secondary">
+																Project provider
+															</span>
+															<NativeSelect
+																value={codeEmbeddingOverrideProvider}
+																onChange={(event) =>
+																	setCodeEmbeddingOverrideProvider(
+																		event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+																	)
+																}
+																disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
+																fill
+															>
+																{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+																	<option key={option.value} value={option.value}>
+																		{option.label}
+																	</option>
+																))}
+															</NativeSelect>
+														</div>
+														<EmbeddingEndpointFields
+															workspaceId={workspaceId}
+															labelPrefix="Project"
+															disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
+															provider={codeEmbeddingOverrideProvider}
+															baseUrl={codeEmbeddingOverrideBaseUrl}
+															model={codeEmbeddingOverrideModel}
+															suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
+															endpointPlaceholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
+															modelPlaceholder={codeEmbeddingDefaultsModel || "Inherited model"}
+															onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}
+															onModelChange={setCodeEmbeddingOverrideModel}
+															onError={setSaveError}
+														/>
+													</div>
+												</div>
+											) : (
+												<p className="m-0 text-[12px] text-text-secondary">
+													Open project settings to set a project-specific override.
+												</p>
+											)}
+										</div>
+									</div>
+									<div className="mt-4 border-t border-border pt-4">
+										<div className="mb-2 flex items-center justify-between gap-3">
+											<h6 className="m-0 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+												Model roles
+											</h6>
+											<Button
+												variant="ghost"
+												size="sm"
+												icon={<BarChart3 size={14} />}
+												onClick={() => setModelPerformanceStatsOpen(true)}
+											>
+												Model Performance
+											</Button>
+										</div>
+										<div className="grid gap-3">
+											{MODEL_ROLE_IDS.map((roleId) => {
+												const roleSettings = modelRoles[roleId] ?? {};
+												const roleProviderId = roleSettings.providerId ?? "";
+												const effectiveProviderId = roleProviderId || clineProviderId;
+												const roleProvider = roleProviderId
+													? findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)
+													: null;
+												const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
+												const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
+												const roleModels = getModelRoleProviderModels(effectiveProviderId);
+												const selectedRoleModelId = roleSettings.modelId ?? "";
+												const selectedRoleModel =
+													roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
+												const selectedRoleModelLabel = selectedRoleModel
+													? formatModelOptionLabel(selectedRoleModel)
+													: selectedRoleModelId || undefined;
+												const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
+												const hasSelectedRoleModel =
+													selectedRoleModelId.length > 0 &&
+													!isLmStudioRoleProvider &&
+													!roleModels.some((model) => model.id === selectedRoleModelId);
+												const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
+												const hasRoleOverride = Object.keys(roleSettings).length > 0;
+												const shouldHideLegacyCloudRoleProvider =
+													!cloudProviderSupportEnabled &&
+													!roleProvider &&
+													isKnownCloudProviderId(roleProviderId);
+												const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider
+													? ""
+													: roleProviderId;
+												const roleAvailabilityWarning = getModelRoleAvailabilityWarning(roleId);
+												const roleContextWarning = getModelRoleContextWarning(roleId);
+												return (
+													<div key={roleId} className="grid gap-1">
+														<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
+															<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
+																{MODEL_ROLE_LABELS[roleId]}
+															</div>
+															<label className="min-w-0" htmlFor={providerSelectId}>
+																<span className="mb-1 block text-[12px] text-text-secondary">
+																	Provider
+																</span>
+																<NativeSelect
+																	id={providerSelectId}
+																	fill
+																	value={displayedRoleProviderId}
+																	onChange={(event) =>
+																		handleModelRoleProviderChange(roleId, event.target.value)
+																	}
+																	disabled={controlsDisabled}
+																>
+																	<option value="">Default</option>
+																	{roleProvider &&
+																	!shouldHideLegacyCloudRoleProvider &&
+																	!visibleClineProviderCatalog.some(
+																		(provider) => provider.id === roleProviderId,
+																	) ? (
+																		<option value={roleProviderId}>{roleProviderId}</option>
+																	) : null}
+																	{visibleClineProviderCatalog.map((provider) => (
+																		<option key={provider.id} value={provider.id}>
+																			{formatProviderOptionLabel(provider)}
+																		</option>
+																	))}
+																	{roleProviderId &&
+																	!shouldHideLegacyCloudRoleProvider &&
+																	!roleProvider &&
+																	!visibleClineProviderCatalog.some(
+																		(provider) => provider.id === roleProviderId,
+																	) ? (
+																		<option value={roleProviderId}>{roleProviderId}</option>
+																	) : null}
+																</NativeSelect>
+															</label>
+															<label className="min-w-0" htmlFor={modelSelectId}>
+																<span className="mb-1 block text-[12px] text-text-secondary">
+																	Model
+																</span>
+																<NativeSelect
+																	id={modelSelectId}
+																	fill
+																	value={selectedRoleModelId}
+																	title={selectedRoleModelLabel}
+																	onChange={(event) =>
+																		handleModelRoleModelChange(roleId, event.target.value)
+																	}
+																	disabled={controlsDisabled || isRoleProviderLoading}
+																>
+																	<option value="">
+																		{isRoleProviderLoading
+																			? "Loading models..."
+																			: isLmStudioRoleProvider && roleModels.length === 0
+																				? "No loaded LM Studio models"
+																				: "Default"}
+																	</option>
+																	{hasSelectedRoleModel ? (
+																		<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
+																	) : null}
+																	{roleModels.map((model) => (
+																		<option key={model.id} value={model.id}>
+																			{formatModelOptionLabel(model)}
+																		</option>
+																	))}
+																</NativeSelect>
+															</label>
+															<div className="min-w-0">
+																<span className="mb-1 block text-[12px] text-text-secondary">
+																	Reasoning
+																</span>
+																<NativeSelect
+																	fill
+																	value={roleSettings.reasoningEffort ?? "inherit"}
+																	onChange={(event) =>
+																		handleModelRoleReasoningChange(
+																			roleId,
+																			event.target.value as RuntimeClineReasoningEffort | "inherit",
+																		)
+																	}
+																	disabled={controlsDisabled}
+																>
+																	{REASONING_EFFORT_OPTIONS.map((option) => (
+																		<option key={option} value={option}>
+																			{option === "inherit" ? "Default" : option}
+																		</option>
+																	))}
+																</NativeSelect>
+															</div>
+															<Button
+																variant="ghost"
+																size="sm"
+																icon={<X size={14} />}
+																aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
+																disabled={controlsDisabled || !hasRoleOverride}
+																onClick={() => {
+																	handleResetModelRole(roleId);
+																}}
+															/>
+														</div>
+														{roleAvailabilityWarning ? (
+															<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
+																{roleAvailabilityWarning}
+															</p>
+														) : null}
+														{!roleAvailabilityWarning && roleContextWarning ? (
+															<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
+																{roleContextWarning}
+															</p>
+														) : null}
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								</div>
+							</>
+						) : null}
+
+						{/* ---- Git Prompts ---- */}
+						<div data-settings-section="git-prompts" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<GitCommit size={16} className="text-text-secondary" />
+								Git Prompts
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<p className="text-text-secondary text-[13px] mt-0 mb-2">
+								Modify the prompts sent to the agent when using Commit or Make PR on tasks in Review.
+							</p>
+							<div className="flex items-center justify-between gap-2 mb-2">
 								<NativeSelect
-									fill
-									value={taskDefaultAutoReviewMode}
-									onChange={(event) =>
-										setTaskDefaultAutoReviewMode(event.target.value as RuntimeTaskAutoReviewMode)
-									}
-									disabled={controlsDisabled || !taskDefaultAutoReviewEnabled}
+									value={selectedPromptVariant}
+									onChange={(event) => setSelectedPromptVariant(event.target.value as TaskGitAction)}
+									disabled={controlsDisabled}
+									style={{ minWidth: 220 }}
 								>
-									{TASK_AUTO_REVIEW_MODE_OPTIONS.map((option) => (
+									{GIT_PROMPT_VARIANT_OPTIONS.map((option) => (
 										<option key={option.value} value={option.value}>
 											{option.label}
 										</option>
 									))}
 								</NativeSelect>
-							</div>
-						</div>
-					</div>
-
-					{/* ---- Cline ---- */}
-					{selectedAgentId === "cline" ? (
-						<>
-							<div data-settings-section="cline" />
-							<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-									<Bot size={16} className="text-text-secondary" />
-									Cline
-								</h2>
-							</div>
-							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-								<ClineSetupSection
-									controller={clineSettings}
-									mcpController={clineMcpSettings}
-									controlsDisabled={controlsDisabled}
-									workspaceId={workspaceId}
-									cloudProviderSupportEnabled={cloudProviderSupportEnabled}
-									accountSection={
-										cloudProviderSupportEnabled && clineSettings.providerId.trim() === "cline" ? (
-											<AccountOrganizationSection
-												workspaceId={workspaceId}
-												open={open}
-												onAccountSwitched={onAccountSwitched}
-											/>
-										) : null
-									}
-									onError={setSaveError}
-									onSaved={handleClineSetupSaved}
-								/>
-								<ClineModelContextWindowSettingsPanel
-									workspaceId={workspaceId}
-									open={open}
-									disabled={controlsDisabled}
-									selectedProviderId={clineSettings.providerId}
-									selectedModelId={clineSettings.modelId}
-									selectedProviderModels={clineSettings.providerModels}
-									onRefreshProviderModels={handleRefreshClineProviderModels}
-									onError={setSaveError}
-								/>
-								{cloudProviderSupportEnabled ? (
-									<ClineAdvisorActions
-										workspaceId={workspaceId}
-										disabled={controlsDisabled}
-										mcpController={clineMcpSettings}
-										runtimeConfigSummary={advisorRuntimeConfigSummary}
-										advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
-										advisorModelId={config?.clineProviderSettings.modelId ?? ""}
-										onError={setSaveError}
-									/>
-								) : null}
-								{/* informational dev surface -> developer mode only (works in packaged builds) */}
-								{developerModeEnabled ? (
-									<div className="mt-4 border-t border-border pt-4">
-										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-											Developer Tools
-										</h6>
-										<ClineSmokeEvalTrial
-											workspaceId={workspaceId}
-											disabled={controlsDisabled}
-											onError={setSaveError}
-										/>
-										<ClineDogfoodSuggestion
-											workspaceId={workspaceId}
-											disabled={controlsDisabled}
-											onError={setSaveError}
-										/>
-									</div>
-								) : null}
-								<div className="mt-4 border-t border-border pt-4">
-									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-										Code intelligence embeddings
-									</h6>
-									<div className="grid gap-3">
-										<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
-											<div className="min-w-0">
-												<span className="mb-1 block text-[12px] text-text-secondary">
-													Global default provider
-												</span>
-												<NativeSelect
-													value={codeEmbeddingDefaultsProvider}
-													onChange={(event) =>
-														setCodeEmbeddingDefaultsProvider(
-															event.target.value as RuntimeCodeEmbeddingSettings["provider"],
-														)
-													}
-													disabled={controlsDisabled}
-													fill
-												>
-													{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
-														<option key={option.value} value={option.value}>
-															{option.label}
-														</option>
-													))}
-												</NativeSelect>
-											</div>
-											<EmbeddingEndpointFields
-												workspaceId={workspaceId}
-												labelPrefix="Default"
-												disabled={controlsDisabled}
-												provider={codeEmbeddingDefaultsProvider}
-												baseUrl={codeEmbeddingDefaultsBaseUrl}
-												model={codeEmbeddingDefaultsModel}
-												suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
-												endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
-												modelPlaceholder="nomic-embed-text"
-												onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
-												onModelChange={setCodeEmbeddingDefaultsModel}
-												onError={setSaveError}
-											/>
-										</div>
-										{workspaceId ? (
-											<div className="rounded-md border border-border bg-surface-1 p-3">
-												<div className="mb-3 flex items-center justify-between gap-3">
-													<div className="flex items-center gap-2 text-[13px] text-text-primary">
-														<RadixSwitch.Root
-															checked={codeEmbeddingOverrideEnabled}
-															disabled={controlsDisabled}
-															onCheckedChange={setCodeEmbeddingOverrideEnabled}
-															className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
-														>
-															<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
-														</RadixSwitch.Root>
-														<span>Override for this project</span>
-													</div>
-													<div className="text-right text-[11px] text-text-secondary">
-														Effective: {formatCodeEmbeddingSettings(draftEffectiveCodeEmbeddingSettings)}
-													</div>
-												</div>
-												<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
-													<div className="min-w-0">
-														<span className="mb-1 block text-[12px] text-text-secondary">
-															Project provider
-														</span>
-														<NativeSelect
-															value={codeEmbeddingOverrideProvider}
-															onChange={(event) =>
-																setCodeEmbeddingOverrideProvider(
-																	event.target.value as RuntimeCodeEmbeddingSettings["provider"],
-																)
-															}
-															disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
-															fill
-														>
-															{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
-																<option key={option.value} value={option.value}>
-																	{option.label}
-																</option>
-															))}
-														</NativeSelect>
-													</div>
-													<EmbeddingEndpointFields
-														workspaceId={workspaceId}
-														labelPrefix="Project"
-														disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
-														provider={codeEmbeddingOverrideProvider}
-														baseUrl={codeEmbeddingOverrideBaseUrl}
-														model={codeEmbeddingOverrideModel}
-														suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
-														endpointPlaceholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
-														modelPlaceholder={codeEmbeddingDefaultsModel || "Inherited model"}
-														onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}
-														onModelChange={setCodeEmbeddingOverrideModel}
-														onError={setSaveError}
-													/>
-												</div>
-											</div>
-										) : (
-											<p className="m-0 text-[12px] text-text-secondary">
-												Open project settings to set a project-specific override.
-											</p>
-										)}
-									</div>
-								</div>
-								<div className="mt-4 border-t border-border pt-4">
-									<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-										Model roles
-									</h6>
-									<div className="grid gap-3">
-										{MODEL_ROLE_IDS.map((roleId) => {
-											const roleSettings = modelRoles[roleId] ?? {};
-											const roleProviderId = roleSettings.providerId ?? "";
-											const effectiveProviderId = roleProviderId || clineProviderId;
-											const roleProvider = roleProviderId
-												? findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)
-												: null;
-											const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
-											const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
-											const roleModels = getModelRoleProviderModels(effectiveProviderId);
-											const selectedRoleModelId = roleSettings.modelId ?? "";
-											const selectedRoleModel =
-												roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
-											const selectedRoleModelLabel = selectedRoleModel
-												? formatModelOptionLabel(selectedRoleModel)
-												: selectedRoleModelId || undefined;
-											const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
-											const hasSelectedRoleModel =
-												selectedRoleModelId.length > 0 &&
-												!isLmStudioRoleProvider &&
-												!roleModels.some((model) => model.id === selectedRoleModelId);
-											const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
-											const hasRoleOverride = Object.keys(roleSettings).length > 0;
-											const shouldHideLegacyCloudRoleProvider =
-												!cloudProviderSupportEnabled &&
-												!roleProvider &&
-												isKnownCloudProviderId(roleProviderId);
-											const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider
-												? ""
-												: roleProviderId;
-											const roleAvailabilityWarning = getModelRoleAvailabilityWarning(roleId);
-											const roleContextWarning = getModelRoleContextWarning(roleId);
-											return (
-												<div key={roleId} className="grid gap-1">
-													<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
-														<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
-															{MODEL_ROLE_LABELS[roleId]}
-														</div>
-														<label className="min-w-0" htmlFor={providerSelectId}>
-															<span className="mb-1 block text-[12px] text-text-secondary">
-																Provider
-															</span>
-															<NativeSelect
-																id={providerSelectId}
-																fill
-																value={displayedRoleProviderId}
-																onChange={(event) =>
-																	handleModelRoleProviderChange(roleId, event.target.value)
-																}
-																disabled={controlsDisabled}
-															>
-																<option value="">Default</option>
-																{roleProvider &&
-																!shouldHideLegacyCloudRoleProvider &&
-																!visibleClineProviderCatalog.some(
-																	(provider) => provider.id === roleProviderId,
-																) ? (
-																	<option value={roleProviderId}>{roleProviderId}</option>
-																) : null}
-																{visibleClineProviderCatalog.map((provider) => (
-																	<option key={provider.id} value={provider.id}>
-																		{formatProviderOptionLabel(provider)}
-																	</option>
-																))}
-																{roleProviderId &&
-																!shouldHideLegacyCloudRoleProvider &&
-																!roleProvider &&
-																!visibleClineProviderCatalog.some(
-																	(provider) => provider.id === roleProviderId,
-																) ? (
-																	<option value={roleProviderId}>{roleProviderId}</option>
-																) : null}
-															</NativeSelect>
-														</label>
-														<label className="min-w-0" htmlFor={modelSelectId}>
-															<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
-															<NativeSelect
-																id={modelSelectId}
-																fill
-																value={selectedRoleModelId}
-																title={selectedRoleModelLabel}
-																onChange={(event) =>
-																	handleModelRoleModelChange(roleId, event.target.value)
-																}
-																disabled={controlsDisabled || isRoleProviderLoading}
-															>
-																<option value="">
-																	{isRoleProviderLoading
-																		? "Loading models..."
-																		: isLmStudioRoleProvider && roleModels.length === 0
-																			? "No loaded LM Studio models"
-																			: "Default"}
-																</option>
-																{hasSelectedRoleModel ? (
-																	<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
-																) : null}
-																{roleModels.map((model) => (
-																	<option key={model.id} value={model.id}>
-																		{formatModelOptionLabel(model)}
-																	</option>
-																))}
-															</NativeSelect>
-														</label>
-														<div className="min-w-0">
-															<span className="mb-1 block text-[12px] text-text-secondary">
-																Reasoning
-															</span>
-															<NativeSelect
-																fill
-																value={roleSettings.reasoningEffort ?? "inherit"}
-																onChange={(event) =>
-																	handleModelRoleReasoningChange(
-																		roleId,
-																		event.target.value as RuntimeClineReasoningEffort | "inherit",
-																	)
-																}
-																disabled={controlsDisabled}
-															>
-																{REASONING_EFFORT_OPTIONS.map((option) => (
-																	<option key={option} value={option}>
-																		{option === "inherit" ? "Default" : option}
-																	</option>
-																))}
-															</NativeSelect>
-														</div>
-														<Button
-															variant="ghost"
-															size="sm"
-															icon={<X size={14} />}
-															aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
-															disabled={controlsDisabled || !hasRoleOverride}
-															onClick={() => {
-																handleResetModelRole(roleId);
-															}}
-														/>
-													</div>
-													{roleAvailabilityWarning ? (
-														<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
-															{roleAvailabilityWarning}
-														</p>
-													) : null}
-													{!roleAvailabilityWarning && roleContextWarning ? (
-														<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
-															{roleContextWarning}
-														</p>
-													) : null}
-												</div>
-											);
-										})}
-									</div>
-								</div>
-							</div>
-						</>
-					) : null}
-
-					{/* ---- Git Prompts ---- */}
-					<div data-settings-section="git-prompts" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<GitCommit size={16} className="text-text-secondary" />
-							Git Prompts
-						</h2>
-					</div>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<p className="text-text-secondary text-[13px] mt-0 mb-2">
-							Modify the prompts sent to the agent when using Commit or Make PR on tasks in Review.
-						</p>
-						<div className="flex items-center justify-between gap-2 mb-2">
-							<NativeSelect
-								value={selectedPromptVariant}
-								onChange={(event) => setSelectedPromptVariant(event.target.value as TaskGitAction)}
-								disabled={controlsDisabled}
-								style={{ minWidth: 220 }}
-							>
-								{GIT_PROMPT_VARIANT_OPTIONS.map((option) => (
-									<option key={option.value} value={option.value}>
-										{option.label}
-									</option>
-								))}
-							</NativeSelect>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={handleResetSelectedPrompt}
-								disabled={controlsDisabled || isSelectedPromptAtDefault}
-							>
-								Reset
-							</Button>
-						</div>
-						<textarea
-							rows={5}
-							value={selectedPromptValue}
-							onChange={(event) => handleSelectedPromptChange(event.target.value)}
-							placeholder={selectedPromptPlaceholder}
-							disabled={controlsDisabled}
-							className="w-full rounded-md border border-border bg-surface-2 p-3 text-[13px] text-text-primary font-mono placeholder:text-text-tertiary focus:border-border-focus focus:outline-none resize-none disabled:opacity-40"
-						/>
-						<p className="text-text-secondary text-[13px] mt-2 mb-0">
-							Use{" "}
-							<InlineUtilityButton
-								text={
-									copiedVariableToken === TASK_GIT_BASE_REF_PROMPT_VARIABLE.token
-										? "Copied!"
-										: TASK_GIT_BASE_REF_PROMPT_VARIABLE.token
-								}
-								monospace
-								widthCh={Math.max(TASK_GIT_BASE_REF_PROMPT_VARIABLE.token.length, "Copied!".length) + 2}
-								onClick={() => {
-									handleCopyVariableToken(TASK_GIT_BASE_REF_PROMPT_VARIABLE.token);
-								}}
-								disabled={controlsDisabled}
-							/>{" "}
-							to reference {TASK_GIT_BASE_REF_PROMPT_VARIABLE.description}
-						</p>
-					</div>
-
-					{/* ---- Notifications ---- */}
-					<div data-settings-section="notifications" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<Bell size={16} className="text-text-secondary" />
-							Notifications
-						</h2>
-					</div>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<div className="flex items-center gap-2">
-							<RadixSwitch.Root
-								checked={readyForReviewNotificationsEnabled}
-								disabled={controlsDisabled}
-								onCheckedChange={setReadyForReviewNotificationsEnabled}
-								className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
-							>
-								<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
-							</RadixSwitch.Root>
-							<span className="text-[13px] text-text-primary">Notify when a task is ready for review</span>
-						</div>
-						<div className="flex items-center gap-2 mt-2">
-							<p className="text-text-secondary text-[13px] m-0">
-								Browser permission: {formatNotificationPermissionStatus(notificationPermission)}
-							</p>
-							{notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
-								<InlineUtilityButton
-									text="Request permission"
-									onClick={handleRequestPermission}
-									disabled={controlsDisabled}
-								/>
-							) : null}
-						</div>
-					</div>
-
-					{/* ---- Appearance ---- */}
-					<div data-settings-section="appearance" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<Palette size={16} className="text-text-secondary" />
-							Appearance
-						</h2>
-					</div>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-							Theme
-						</h6>
-						<div className="min-w-0 w-1/2 max-w-full">
-							<RadixSelect.Root
-								value={draftThemeId}
-								onValueChange={(value) => {
-									setDraftThemeId(value as ThemeId);
-									previewThemeId(value as ThemeId);
-								}}
-								onOpenChange={(selectOpen) => {
-									if (!selectOpen) {
-										previewThemeId(draftThemeId);
-									}
-								}}
-							>
-								<RadixSelect.Trigger
-									className="flex h-9 w-full cursor-pointer items-center justify-between rounded-md border border-border-bright bg-surface-2 px-3 text-[13px] text-text-primary outline-none hover:bg-surface-3 hover:border-border-bright focus:border-border-focus focus:outline-none"
-									aria-label="Theme"
-								>
-									<span className="flex items-center gap-2.5">
-										<span className="flex shrink-0 h-5 w-10 rounded overflow-hidden border border-border">
-											<span
-												className="flex-1"
-												style={{ background: currentThemeDef?.surface ?? "#1F2428" }}
-											/>
-											<span
-												className="flex-1"
-												style={{ background: currentThemeDef?.accent ?? "#0084FF" }}
-											/>
-											<span
-												className="flex-1"
-												style={{ background: currentThemeDef?.accent2 ?? "#7C5CFF" }}
-											/>
-										</span>
-										<RadixSelect.Value />
-									</span>
-									<RadixSelect.Icon>
-										<ChevronDown size={14} className="text-text-tertiary" />
-									</RadixSelect.Icon>
-								</RadixSelect.Trigger>
-								<RadixSelect.Portal>
-									<RadixSelect.Content
-										className="z-50 max-h-72 w-(--radix-select-trigger-width) overflow-auto rounded-lg border border-border bg-surface-1 p-1 shadow-xl"
-										position="popper"
-										sideOffset={4}
-										align="start"
-									>
-										<RadixSelect.Viewport>
-											{THEME_GROUPS.map((group) => {
-												const groupThemes = THEMES.filter((t) => t.group === group.key);
-												if (groupThemes.length === 0) return null;
-												return (
-													<RadixSelect.Group key={group.key}>
-														<RadixSelect.Label className="px-2 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
-															{group.label}
-														</RadixSelect.Label>
-														{groupThemes.map((theme) => (
-															<RadixSelect.Item
-																key={theme.id}
-																value={theme.id}
-																className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-text-secondary outline-none data-highlighted:bg-surface-3 data-highlighted:text-text-primary data-[state=checked]:text-text-primary"
-																onMouseEnter={() => previewThemeId(theme.id)}
-																onFocus={() => previewThemeId(theme.id)}
-															>
-																<span className="flex shrink-0 h-5 w-10 rounded overflow-hidden border border-border">
-																	<span className="flex-1" style={{ background: theme.surface }} />
-																	<span className="flex-1" style={{ background: theme.accent }} />
-																	<span className="flex-1" style={{ background: theme.accent2 }} />
-																</span>
-																<RadixSelect.ItemText>{theme.label}</RadixSelect.ItemText>
-																<RadixSelect.ItemIndicator className="ml-auto">
-																	<Check size={14} className="text-accent-2" />
-																</RadixSelect.ItemIndicator>
-															</RadixSelect.Item>
-														))}
-													</RadixSelect.Group>
-												);
-											})}
-										</RadixSelect.Viewport>
-									</RadixSelect.Content>
-								</RadixSelect.Portal>
-							</RadixSelect.Root>
-						</div>
-
-						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary mt-5 mb-2">
-							Layout
-						</h6>
-						<Button size="sm" onClick={resetLayoutCustomizations}>
-							Reset layout
-						</Button>
-						<p className="text-text-secondary text-[13px] mt-2 mb-0">
-							Reset sidebar, split pane, and terminal resize customizations back to their defaults.
-						</p>
-					</div>
-					<div data-settings-section="project" />
-					<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-						<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-							<FolderOpen size={16} className="text-text-secondary" />
-							Project
-						</h2>
-					</div>
-					<p
-						className="text-text-secondary font-mono text-xs m-0 mb-3 break-all"
-						style={{ cursor: config?.projectConfigPath ? "pointer" : undefined }}
-						onClick={() => {
-							if (config?.projectConfigPath) {
-								handleOpenFilePath(config.projectConfigPath);
-							}
-						}}
-					>
-						{config?.projectConfigPath
-							? formatPathForDisplay(config.projectConfigPath)
-							: "<project>/.cline/nklein/config.json"}
-						{config?.projectConfigPath ? <ExternalLink size={12} className="inline ml-1.5 align-middle" /> : null}
-					</p>
-					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-						<div className="flex items-center justify-between mb-2">
-							<h6
-								ref={shortcutsSectionRef}
-								className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0"
-							>
-								Script shortcuts
-							</h6>
-							<Button
-								variant="ghost"
-								size="sm"
-								icon={<Plus size={14} />}
-								onClick={() => {
-									setShortcuts((current) => {
-										const nextLabel = getNextShortcutLabel(current, "Run");
-										setPendingShortcutScrollIndex(current.length);
-										return [
-											...current,
-											{
-												label: nextLabel,
-												command: "",
-												icon: "play",
-											},
-										];
-									});
-								}}
-								disabled={controlsDisabled}
-							>
-								Add
-							</Button>
-						</div>
-
-						{shortcuts.map((shortcut, shortcutIndex) => (
-							<div
-								key={shortcutIndex}
-								ref={(node) => {
-									shortcutRowRefs.current[shortcutIndex] = node;
-								}}
-								className="grid gap-2 mb-1"
-								style={{
-									gridTemplateColumns: "max-content 1fr 2fr auto",
-								}}
-							>
-								<ShortcutIconPicker
-									value={shortcut.icon}
-									onSelect={(icon) =>
-										setShortcuts((current) =>
-											current.map((item, itemIndex) =>
-												itemIndex === shortcutIndex ? { ...item, icon } : item,
-											),
-										)
-									}
-								/>
-								<input
-									value={shortcut.label}
-									onChange={(event) =>
-										setShortcuts((current) =>
-											current.map((item, itemIndex) =>
-												itemIndex === shortcutIndex ? { ...item, label: event.target.value } : item,
-											),
-										)
-									}
-									placeholder="Label"
-									className="h-7 w-full rounded-md border border-border bg-surface-2 px-2 text-xs text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
-								/>
-								<input
-									value={shortcut.command}
-									onChange={(event) =>
-										setShortcuts((current) =>
-											current.map((item, itemIndex) =>
-												itemIndex === shortcutIndex ? { ...item, command: event.target.value } : item,
-											),
-										)
-									}
-									placeholder="Command"
-									className="h-7 w-full rounded-md border border-border bg-surface-2 px-2 text-xs text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
-								/>
 								<Button
 									variant="ghost"
 									size="sm"
-									icon={<X size={14} />}
-									aria-label={`Remove shortcut ${shortcut.label}`}
-									onClick={() =>
-										setShortcuts((current) => current.filter((_, itemIndex) => itemIndex !== shortcutIndex))
-									}
-								/>
+									onClick={handleResetSelectedPrompt}
+									disabled={controlsDisabled || isSelectedPromptAtDefault}
+								>
+									Reset
+								</Button>
 							</div>
-						))}
-						{shortcuts.length === 0 ? (
-							<p className="text-text-secondary text-[13px]">No shortcuts configured.</p>
+							<textarea
+								rows={5}
+								value={selectedPromptValue}
+								onChange={(event) => handleSelectedPromptChange(event.target.value)}
+								placeholder={selectedPromptPlaceholder}
+								disabled={controlsDisabled}
+								className="w-full rounded-md border border-border bg-surface-2 p-3 text-[13px] text-text-primary font-mono placeholder:text-text-tertiary focus:border-border-focus focus:outline-none resize-none disabled:opacity-40"
+							/>
+							<p className="text-text-secondary text-[13px] mt-2 mb-0">
+								Use{" "}
+								<InlineUtilityButton
+									text={
+										copiedVariableToken === TASK_GIT_BASE_REF_PROMPT_VARIABLE.token
+											? "Copied!"
+											: TASK_GIT_BASE_REF_PROMPT_VARIABLE.token
+									}
+									monospace
+									widthCh={Math.max(TASK_GIT_BASE_REF_PROMPT_VARIABLE.token.length, "Copied!".length) + 2}
+									onClick={() => {
+										handleCopyVariableToken(TASK_GIT_BASE_REF_PROMPT_VARIABLE.token);
+									}}
+									disabled={controlsDisabled}
+								/>{" "}
+								to reference {TASK_GIT_BASE_REF_PROMPT_VARIABLE.description}
+							</p>
+						</div>
+
+						{/* ---- Notifications ---- */}
+						<div data-settings-section="notifications" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Bell size={16} className="text-text-secondary" />
+								Notifications
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<div className="flex items-center gap-2">
+								<RadixSwitch.Root
+									checked={readyForReviewNotificationsEnabled}
+									disabled={controlsDisabled}
+									onCheckedChange={setReadyForReviewNotificationsEnabled}
+									className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
+								>
+									<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+								</RadixSwitch.Root>
+								<span className="text-[13px] text-text-primary">Notify when a task is ready for review</span>
+							</div>
+							<div className="flex items-center gap-2 mt-2">
+								<p className="text-text-secondary text-[13px] m-0">
+									Browser permission: {formatNotificationPermissionStatus(notificationPermission)}
+								</p>
+								{notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
+									<InlineUtilityButton
+										text="Request permission"
+										onClick={handleRequestPermission}
+										disabled={controlsDisabled}
+									/>
+								) : null}
+							</div>
+						</div>
+
+						{/* ---- Appearance ---- */}
+						<div data-settings-section="appearance" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Palette size={16} className="text-text-secondary" />
+								Appearance
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+								Theme
+							</h6>
+							<div className="min-w-0 w-1/2 max-w-full">
+								<RadixSelect.Root
+									value={draftThemeId}
+									onValueChange={(value) => {
+										setDraftThemeId(value as ThemeId);
+										previewThemeId(value as ThemeId);
+									}}
+									onOpenChange={(selectOpen) => {
+										if (!selectOpen) {
+											previewThemeId(draftThemeId);
+										}
+									}}
+								>
+									<RadixSelect.Trigger
+										className="flex h-9 w-full cursor-pointer items-center justify-between rounded-md border border-border-bright bg-surface-2 px-3 text-[13px] text-text-primary outline-none hover:bg-surface-3 hover:border-border-bright focus:border-border-focus focus:outline-none"
+										aria-label="Theme"
+									>
+										<span className="flex items-center gap-2.5">
+											<span className="flex shrink-0 h-5 w-10 rounded overflow-hidden border border-border">
+												<span
+													className="flex-1"
+													style={{ background: currentThemeDef?.surface ?? "#1F2428" }}
+												/>
+												<span
+													className="flex-1"
+													style={{ background: currentThemeDef?.accent ?? "#0084FF" }}
+												/>
+												<span
+													className="flex-1"
+													style={{ background: currentThemeDef?.accent2 ?? "#7C5CFF" }}
+												/>
+											</span>
+											<RadixSelect.Value />
+										</span>
+										<RadixSelect.Icon>
+											<ChevronDown size={14} className="text-text-tertiary" />
+										</RadixSelect.Icon>
+									</RadixSelect.Trigger>
+									<RadixSelect.Portal>
+										<RadixSelect.Content
+											className="z-50 max-h-72 w-(--radix-select-trigger-width) overflow-auto rounded-lg border border-border bg-surface-1 p-1 shadow-xl"
+											position="popper"
+											sideOffset={4}
+											align="start"
+										>
+											<RadixSelect.Viewport>
+												{THEME_GROUPS.map((group) => {
+													const groupThemes = THEMES.filter((t) => t.group === group.key);
+													if (groupThemes.length === 0) return null;
+													return (
+														<RadixSelect.Group key={group.key}>
+															<RadixSelect.Label className="px-2 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+																{group.label}
+															</RadixSelect.Label>
+															{groupThemes.map((theme) => (
+																<RadixSelect.Item
+																	key={theme.id}
+																	value={theme.id}
+																	className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-text-secondary outline-none data-highlighted:bg-surface-3 data-highlighted:text-text-primary data-[state=checked]:text-text-primary"
+																	onMouseEnter={() => previewThemeId(theme.id)}
+																	onFocus={() => previewThemeId(theme.id)}
+																>
+																	<span className="flex shrink-0 h-5 w-10 rounded overflow-hidden border border-border">
+																		<span className="flex-1" style={{ background: theme.surface }} />
+																		<span className="flex-1" style={{ background: theme.accent }} />
+																		<span className="flex-1" style={{ background: theme.accent2 }} />
+																	</span>
+																	<RadixSelect.ItemText>{theme.label}</RadixSelect.ItemText>
+																	<RadixSelect.ItemIndicator className="ml-auto">
+																		<Check size={14} className="text-accent-2" />
+																	</RadixSelect.ItemIndicator>
+																</RadixSelect.Item>
+															))}
+														</RadixSelect.Group>
+													);
+												})}
+											</RadixSelect.Viewport>
+										</RadixSelect.Content>
+									</RadixSelect.Portal>
+								</RadixSelect.Root>
+							</div>
+
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary mt-5 mb-2">
+								Layout
+							</h6>
+							<Button size="sm" onClick={resetLayoutCustomizations}>
+								Reset layout
+							</Button>
+							<p className="text-text-secondary text-[13px] mt-2 mb-0">
+								Reset sidebar, split pane, and terminal resize customizations back to their defaults.
+							</p>
+						</div>
+						<div data-settings-section="project" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<FolderOpen size={16} className="text-text-secondary" />
+								Project
+							</h2>
+						</div>
+						<p
+							className="text-text-secondary font-mono text-xs m-0 mb-3 break-all"
+							style={{ cursor: config?.projectConfigPath ? "pointer" : undefined }}
+							onClick={() => {
+								if (config?.projectConfigPath) {
+									handleOpenFilePath(config.projectConfigPath);
+								}
+							}}
+						>
+							{config?.projectConfigPath
+								? formatPathForDisplay(config.projectConfigPath)
+								: "<project>/.cline/nklein/config.json"}
+							{config?.projectConfigPath ? (
+								<ExternalLink size={12} className="inline ml-1.5 align-middle" />
+							) : null}
+						</p>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<div className="flex items-center justify-between mb-2">
+								<h6
+									ref={shortcutsSectionRef}
+									className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0"
+								>
+									Script shortcuts
+								</h6>
+								<Button
+									variant="ghost"
+									size="sm"
+									icon={<Plus size={14} />}
+									onClick={() => {
+										setShortcuts((current) => {
+											const nextLabel = getNextShortcutLabel(current, "Run");
+											setPendingShortcutScrollIndex(current.length);
+											return [
+												...current,
+												{
+													label: nextLabel,
+													command: "",
+													icon: "play",
+												},
+											];
+										});
+									}}
+									disabled={controlsDisabled}
+								>
+									Add
+								</Button>
+							</div>
+
+							{shortcuts.map((shortcut, shortcutIndex) => (
+								<div
+									key={shortcutIndex}
+									ref={(node) => {
+										shortcutRowRefs.current[shortcutIndex] = node;
+									}}
+									className="grid gap-2 mb-1"
+									style={{
+										gridTemplateColumns: "max-content 1fr 2fr auto",
+									}}
+								>
+									<ShortcutIconPicker
+										value={shortcut.icon}
+										onSelect={(icon) =>
+											setShortcuts((current) =>
+												current.map((item, itemIndex) =>
+													itemIndex === shortcutIndex ? { ...item, icon } : item,
+												),
+											)
+										}
+									/>
+									<input
+										value={shortcut.label}
+										onChange={(event) =>
+											setShortcuts((current) =>
+												current.map((item, itemIndex) =>
+													itemIndex === shortcutIndex ? { ...item, label: event.target.value } : item,
+												),
+											)
+										}
+										placeholder="Label"
+										className="h-7 w-full rounded-md border border-border bg-surface-2 px-2 text-xs text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+									/>
+									<input
+										value={shortcut.command}
+										onChange={(event) =>
+											setShortcuts((current) =>
+												current.map((item, itemIndex) =>
+													itemIndex === shortcutIndex ? { ...item, command: event.target.value } : item,
+												),
+											)
+										}
+										placeholder="Command"
+										className="h-7 w-full rounded-md border border-border bg-surface-2 px-2 text-xs text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+									/>
+									<Button
+										variant="ghost"
+										size="sm"
+										icon={<X size={14} />}
+										aria-label={`Remove shortcut ${shortcut.label}`}
+										onClick={() =>
+											setShortcuts((current) =>
+												current.filter((_, itemIndex) => itemIndex !== shortcutIndex),
+											)
+										}
+									/>
+								</div>
+							))}
+							{shortcuts.length === 0 ? (
+								<p className="text-text-secondary text-[13px]">No shortcuts configured.</p>
+							) : null}
+						</div>
+
+						{saveError ? (
+							<div className="flex gap-2 rounded-md border border-status-red/30 bg-status-red/5 p-3 text-[13px]">
+								<span className="text-text-primary">{saveError}</span>
+							</div>
 						) : null}
 					</div>
-
-					{saveError ? (
-						<div className="flex gap-2 rounded-md border border-status-red/30 bg-status-red/5 p-3 text-[13px]">
-							<span className="text-text-primary">{saveError}</span>
-						</div>
-					) : null}
 				</div>
-			</div>
-			<DialogFooter>
-				<Button
-					size="sm"
-					variant="ghost"
-					className="mr-auto mt-[3px]"
-					icon={<ExternalLink size={14} />}
-					onClick={() => window.open("https://docs.cline.bot/kanban/overview", "_blank")}
-				>
-					Read the docs
-				</Button>
-				<Button onClick={() => handleDialogOpenChange(false)} disabled={controlsDisabled}>
-					Cancel
-				</Button>
-				<Button
-					variant="primary"
-					onClick={() => void handleSave()}
-					disabled={controlsDisabled || !hasUnsavedChanges}
-				>
-					Save
-				</Button>
-			</DialogFooter>
-		</Dialog>
+				<DialogFooter>
+					<Button
+						size="sm"
+						variant="ghost"
+						className="mr-auto mt-[3px]"
+						icon={<ExternalLink size={14} />}
+						onClick={() => window.open("https://docs.cline.bot/kanban/overview", "_blank")}
+					>
+						Read the docs
+					</Button>
+					<Button onClick={() => handleDialogOpenChange(false)} disabled={controlsDisabled}>
+						Cancel
+					</Button>
+					<Button
+						variant="primary"
+						onClick={() => void handleSave()}
+						disabled={controlsDisabled || !hasUnsavedChanges}
+					>
+						Save
+					</Button>
+				</DialogFooter>
+			</Dialog>
+			<ModelPerformanceStatsDialog
+				open={modelPerformanceStatsOpen}
+				onOpenChange={setModelPerformanceStatsOpen}
+				workspaceId={workspaceId}
+			/>
+		</>
 	);
 }

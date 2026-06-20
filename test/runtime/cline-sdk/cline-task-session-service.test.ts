@@ -1033,6 +1033,61 @@ describe("InMemoryClineTaskSessionService", () => {
 		expect(summary?.warningMessage ?? null).toBeNull();
 	});
 
+	it("treats sandbox patch staging without a git workspace as benign", async () => {
+		const runtime = createFakeClineSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		sandboxManager.captureWorkspacePatchMock.mockRejectedValueOnce(
+			new AgentSandboxExecutionError("Could not stage sandbox workspace changes.", {
+				exitCode: 128,
+				stdout: "",
+				stderr:
+					"fatal: not a git repository (or any parent up to mount point /)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
+			}),
+		);
+		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
+		const service = createInMemoryClineTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: "task-not-git",
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			baseRef: "main",
+			prompt: "Investigate result branch",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-not-git");
+
+		runtime.emitAgentEvent(sessionId, {
+			type: "done",
+			text: "ready for review",
+			reason: "completed",
+		});
+
+		await vi.waitFor(() => {
+			expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					signal: "custom",
+					severity: "info",
+					taskId: "task-not-git",
+					metadata: expect.objectContaining({
+						category: "agent_sandbox_result_patch",
+						reason: "workspace_missing_before_capture",
+					}),
+				}),
+			);
+		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-not-git");
+		expect(taskResultBranchMocks.applyTaskPatchToResultBranch).not.toHaveBeenCalledWith(
+			expect.objectContaining({ taskId: "task-not-git" }),
+		);
+		expect(service.getSummary("task-not-git")?.warningMessage ?? null).toBeNull();
+	});
+
 	it("keeps sandbox patch capture failures visible while the workspace still exists", async () => {
 		const runtime = createFakeClineSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();

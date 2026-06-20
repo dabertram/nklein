@@ -2,6 +2,9 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Added local model performance statistics for Cline task runs, aggregating observed outcomes, timing, token usage, context pressure, model, role, project, and !Klein version with a detailed Settings view next to model roles.
+- Made `decompose_project` tolerate stringified task arrays from small local models while still validating the parsed graph with the normal strict decomposition contract.
+- Treated sandbox result-patch staging failures from already-invalid/non-Git teardown workspaces as benign cleanup, avoiding misleading capture warnings when an interrupted task had no result to preserve.
 - Enforced generated-card write scopes in Cline tool approval so cards with `filesLikelyTouched` can only edit their declared files.
 - Forced successful decomposition source cards back to Completed after stopping their Cline session, closing a race where a late SDK completion event could leave the source card in Review.
 - Skipped headless auto-review finalization for cards already in Completed, preventing late Cline summaries from moving completed decomposition source cards back to Review.

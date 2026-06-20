@@ -45,6 +45,7 @@ import type {
 	RuntimeDevTestProjectPreset,
 	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeModelPerformanceStatsResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectResponse,
@@ -67,6 +68,13 @@ export async function saveRuntimeConfig(
 ): Promise<RuntimeConfigResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.saveConfig.mutate(nextConfig);
+}
+
+export async function fetchModelPerformanceStats(
+	workspaceId: string | null,
+): Promise<RuntimeModelPerformanceStatsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getModelPerformanceStats.query();
 }
 
 export async function saveClineProviderSettings(

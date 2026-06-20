@@ -452,7 +452,8 @@ function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
 	return (
 		output.includes("chdir to cwd") ||
 		output.includes("unable to get current working directory") ||
-		output.includes("no such file or directory")
+		output.includes("no such file or directory") ||
+		output.includes("not a git repository")
 	);
 }
 

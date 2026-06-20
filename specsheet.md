@@ -112,9 +112,11 @@
   `revisions.md` (audit trail). Workspace-owned artifacts with id/provenance; idempotent apply.
 - [x] Cards land in the **Planning** lane; runnable Planning cards flow into execution. Overridable
   `nklein-decompose` workflow rule (not a hardcoded prompt). Successful auto-apply consumes the source
-  decomposition card into Completed so it is not re-run alongside the generated DAG. Live complex-dev
-  verification on 2026-06-19 confirmed generated Planning cards can be started into execution; automatic
-  root-card start after decomposition remains a separate swarm-pipeline verification target.
+  decomposition card into Completed so it is not re-run alongside the generated DAG. Generated leaf cards
+  prefer the workspace default acceptance command over brittle output-shape probes. Decomposition roots are
+  requested for automatic start through the runtime queue; linked dependents remain in Planning until their
+  prerequisites complete. Live complex-dev verification on 2026-06-19 confirmed generated Planning cards can
+  be started into execution.
 - [x] Naive-idea intake → clarifying questions (option chips in chat) → reviewable plan with plain-language
   summary.
 - [x] Adaptive re-planning: `plan-gap` events (missing decision, contradiction, missing dependency, oversized

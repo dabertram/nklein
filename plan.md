@@ -471,7 +471,10 @@ L2 executor — fully autonomously, recursively splitting anything too big.
 - [x] ~~Land cards in the Planning lane, not Backlog.~~ `applyClinePlanTaskGraphToBoard` now adds cards to
       `planning`, persisted runtime boards normalize the Planning column, dependency links treat Planning as a
       waiting lane, runnable Planning cards can flow into `in_progress`, and successful auto-apply moves the
-      source decomposition card to Completed so repeated starts do not re-run the decomposer beside the DAG
+      source decomposition card to Completed so repeated starts do not re-run the decomposer beside the DAG.
+      Decomposition roots are requested for automatic start through the runtime queue, linked dependents stay
+      gated until prerequisites complete, and generated cards prefer the workspace default acceptance command
+      over brittle output-shape probes
       ([cline-decomposition-tool.ts](src/cline-sdk/cline-decomposition-tool.ts),
       [workspace-state.ts](src/state/workspace-state.ts),
       [task-board-mutations.ts](src/core/task-board-mutations.ts),

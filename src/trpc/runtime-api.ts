@@ -121,6 +121,7 @@ import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
+import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -823,6 +824,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}
 			setClineLostHeartbeatPolicy(nextRuntimeConfig.lostHeartbeatPolicy);
 			return buildConfigResponse(nextRuntimeConfig);
+		},
+		getModelPerformanceStats: async (workspaceScope) => {
+			return await readModelPerformanceStats({
+				workspacePath: workspaceScope?.workspacePath ?? null,
+			});
 		},
 		getSwarmStop: async (workspaceScope) => {
 			return {

@@ -400,6 +400,91 @@ export const runtimeTaskSessionSummarySchema = z.object({
 });
 export type RuntimeTaskSessionSummary = z.infer<typeof runtimeTaskSessionSummarySchema>;
 
+export const runtimeModelPerformanceRoleSchema = z.enum(["architect", "worker", "reviewer", "unknown"]);
+export type RuntimeModelPerformanceRole = z.infer<typeof runtimeModelPerformanceRoleSchema>;
+
+export const runtimeModelPerformanceOutcomeSchema = z.enum([
+	"completed",
+	"awaiting_review",
+	"failed",
+	"interrupted",
+	"queued",
+	"running",
+	"idle",
+	"unknown",
+]);
+export type RuntimeModelPerformanceOutcome = z.infer<typeof runtimeModelPerformanceOutcomeSchema>;
+
+export const runtimeModelPerformanceObservationSchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	recordedAt: z.number().int().nonnegative(),
+	appVersion: z.string(),
+	workspaceId: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	workspacePath: z.string().nullable(),
+	projectName: z.string().nullable(),
+	taskId: z.string(),
+	taskTitle: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	roleSource: z.enum(["card", "model_roles", "default", "unknown"]),
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	endpoint: z.string().nullable(),
+	sharedEndpointId: z.string().nullable(),
+	outcome: runtimeModelPerformanceOutcomeSchema,
+	sessionState: runtimeTaskSessionStateSchema,
+	reviewReason: runtimeTaskSessionReviewReasonSchema,
+	exitCode: z.number().nullable(),
+	warningMessage: z.string().nullable(),
+	startedAt: z.number().nullable(),
+	updatedAt: z.number().int().nonnegative(),
+	lastOutputAt: z.number().nullable(),
+	lastTokenAt: z.number().nullable(),
+	lastHeartbeatAt: z.number().nullable(),
+	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable(),
+	wallTimeMs: z.number().int().nonnegative().nullable(),
+	timeToFirstTokenMs: z.number().int().nonnegative().nullable(),
+	timeToLastOutputMs: z.number().int().nonnegative().nullable(),
+	usage: runtimeTaskSessionUsageSchema.nullable(),
+	contextBudgetBreakdown: runtimeContextBudgetBreakdownSchema.nullable(),
+	contextPressure: z.number().nonnegative().nullable(),
+	latestHookEvent: z.string().nullable(),
+	latestHookToolName: z.string().nullable(),
+});
+export type RuntimeModelPerformanceObservation = z.infer<typeof runtimeModelPerformanceObservationSchema>;
+
+export const runtimeModelPerformanceAggregateSchema = z.object({
+	key: z.string(),
+	scope: z.enum(["overall", "project", "version"]),
+	appVersion: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	projectName: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	runs: z.number().int().nonnegative(),
+	completedRuns: z.number().int().nonnegative(),
+	failedRuns: z.number().int().nonnegative(),
+	interruptedRuns: z.number().int().nonnegative(),
+	awaitingReviewRuns: z.number().int().nonnegative(),
+	successRate: z.number().nonnegative(),
+	averageWallTimeMs: z.number().nonnegative().nullable(),
+	averageTimeToFirstTokenMs: z.number().nonnegative().nullable(),
+	averageInputTokens: z.number().nonnegative().nullable(),
+	averageOutputTokens: z.number().nonnegative().nullable(),
+	averageContextPressure: z.number().nonnegative().nullable(),
+	lastObservedAt: z.number().int().nonnegative(),
+});
+export type RuntimeModelPerformanceAggregate = z.infer<typeof runtimeModelPerformanceAggregateSchema>;
+
+export const runtimeModelPerformanceStatsResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	observations: z.array(runtimeModelPerformanceObservationSchema),
+	aggregates: z.array(runtimeModelPerformanceAggregateSchema),
+});
+export type RuntimeModelPerformanceStatsResponse = z.infer<typeof runtimeModelPerformanceStatsResponseSchema>;
+
 export const runtimeWorkspaceStateResponseSchema = z.object({
 	repoPath: z.string(),
 	statePath: z.string(),

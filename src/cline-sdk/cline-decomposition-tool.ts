@@ -122,10 +122,24 @@ function pluralizeCount(count: number, singular: string, plural = `${singular}s`
 	return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function parseJsonStringValue(value: unknown): unknown {
+	if (typeof value !== "string") {
+		return value;
+	}
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return value;
+	}
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		return value;
+	}
+}
+
 const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 	.pick({
 		title: true,
-		tasks: true,
 	})
 	.extend({
 		slug: clinePlanTaskGraphSchema.shape.slug,
@@ -133,9 +147,10 @@ const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 		plan: clinePlanTaskSchema.shape.prompt.describe("Implementation plan markdown."),
 		summary: clinePlanTaskSchema.shape.prompt.optional().describe("Plain-language plan summary markdown."),
 		questions: z.array(clinePlanQuestionSchema).optional(),
+		tasks: z.preprocess(parseJsonStringValue, z.array(clinePlanTaskSchema)),
 		defaultAcceptanceCommand: clinePlanTaskSchema.shape.acceptanceCommand.optional(),
 		minimumTaskCount: z.number().int().min(1).max(100).optional(),
-		expansions: z.record(z.string(), z.array(clinePlanTaskSchema)).optional(),
+		expansions: z.preprocess(parseJsonStringValue, z.record(z.string(), z.array(clinePlanTaskSchema))).optional(),
 	});
 type DecomposeProjectToolInput = {
 	slug: string;

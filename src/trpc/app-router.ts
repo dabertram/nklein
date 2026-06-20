@@ -76,6 +76,7 @@ import type {
 	RuntimeGitSyncResponse,
 	RuntimeHookIngestRequest,
 	RuntimeHookIngestResponse,
+	RuntimeModelPerformanceStatsResponse,
 	RuntimeOpenFileRequest,
 	RuntimeOpenFileResponse,
 	RuntimeProjectAddRequest,
@@ -211,6 +212,7 @@ import {
 	runtimeGitSyncResponseSchema,
 	runtimeHookIngestRequestSchema,
 	runtimeHookIngestResponseSchema,
+	runtimeModelPerformanceStatsResponseSchema,
 	runtimeOpenFileRequestSchema,
 	runtimeOpenFileResponseSchema,
 	runtimeProjectAddRequestSchema,
@@ -290,6 +292,9 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeConfigSaveRequest,
 		) => Promise<RuntimeConfigResponse>;
+		getModelPerformanceStats: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+		) => Promise<RuntimeModelPerformanceStatsResponse>;
 		saveClineProviderSettings: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineProviderSettingsSaveRequest,
@@ -620,6 +625,11 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeConfigResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.saveConfig(ctx.workspaceScope, input);
+			}),
+		getModelPerformanceStats: t.procedure
+			.output(runtimeModelPerformanceStatsResponseSchema)
+			.query(async ({ ctx }) => {
+				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
 			}),
 		saveClineProviderSettings: t.procedure
 			.input(runtimeClineProviderSettingsSaveRequestSchema)

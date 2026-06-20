@@ -749,6 +749,31 @@ describe("cline decomposition tools", () => {
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
 	});
 
+	it("accepts stringified task arrays from small-model decompose_project calls", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-string-tasks-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				summary: "Build the habit tracker in two cards.",
+				tasks: JSON.stringify(createTaskGraph().tasks),
+			},
+			undefined as never,
+		)) as {
+			ok: boolean;
+			taskCount: number;
+			taskGraphPath: string;
+		};
+
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(2);
+		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
+	});
+
 	it("rejects decompose_project plans below the requested minimum task count", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-minimum-"));
 		const tool = getTool("decompose_project", workspacePath);
