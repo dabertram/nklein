@@ -1661,7 +1661,7 @@ export function RuntimeSettingsDialog({
 	const [maxConcurrentTasks, setMaxConcurrentTasks] = useState("3");
 	const [sandboxMaxContainers, setSandboxMaxContainers] = useState("1");
 	const [sandboxAgentsPerContainer, setSandboxAgentsPerContainer] = useState("0");
-	const [sandboxMemoryPerContainerMb, setSandboxMemoryPerContainerMb] = useState("4096");
+	const [sandboxMemoryPerContainerMb, setSandboxMemoryPerContainerMb] = useState("2048");
 	const [sandboxCpusPerContainer, setSandboxCpusPerContainer] = useState("2");
 	const [sandboxIdleTimeoutMinutes, setSandboxIdleTimeoutMinutes] = useState("10");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
@@ -1812,7 +1812,7 @@ export function RuntimeSettingsDialog({
 	const initialMaxConcurrentTasks = String(config?.maxConcurrentTasks ?? 3);
 	const initialSandboxMaxContainers = String(config?.sandboxMaxContainers ?? 1);
 	const initialSandboxAgentsPerContainer = String(config?.sandboxAgentsPerContainer ?? 0);
-	const initialSandboxMemoryPerContainerMb = String(config?.sandboxMemoryPerContainerMb ?? 4096);
+	const initialSandboxMemoryPerContainerMb = String(config?.sandboxMemoryPerContainerMb ?? 2048);
 	const initialSandboxCpusPerContainer = String(config?.sandboxCpusPerContainer ?? 2);
 	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
@@ -1943,7 +1943,7 @@ export function RuntimeSettingsDialog({
 		const maxConcurrent = parsePositiveInteger(maxConcurrentTasks, 3);
 		const maxContainers = parsePositiveInteger(sandboxMaxContainers, 1);
 		const agentsPerContainer = parseNonNegativeInteger(sandboxAgentsPerContainer, 0);
-		const memoryMb = parsePositiveInteger(sandboxMemoryPerContainerMb, 4096);
+		const memoryMb = parsePositiveInteger(sandboxMemoryPerContainerMb, 2048);
 		const poolCapacity = agentsPerContainer === 0 ? Number.POSITIVE_INFINITY : maxContainers * agentsPerContainer;
 		const effectiveParallelism =
 			poolCapacity === Number.POSITIVE_INFINITY ? maxConcurrent : Math.min(maxConcurrent, poolCapacity);
@@ -2160,7 +2160,7 @@ export function RuntimeSettingsDialog({
 		setMaxConcurrentTasks(String(config?.maxConcurrentTasks ?? 3));
 		setSandboxMaxContainers(String(config?.sandboxMaxContainers ?? 1));
 		setSandboxAgentsPerContainer(String(config?.sandboxAgentsPerContainer ?? 0));
-		setSandboxMemoryPerContainerMb(String(config?.sandboxMemoryPerContainerMb ?? 4096));
+		setSandboxMemoryPerContainerMb(String(config?.sandboxMemoryPerContainerMb ?? 2048));
 		setSandboxCpusPerContainer(String(config?.sandboxCpusPerContainer ?? 2));
 		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
@@ -3113,7 +3113,7 @@ export function RuntimeSettingsDialog({
 											<input
 												value={sandboxMemoryPerContainerMb}
 												onChange={(event) => setSandboxMemoryPerContainerMb(event.target.value)}
-												placeholder="4096"
+												placeholder="2048"
 												disabled={controlsDisabled}
 												className="h-8 w-full rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
 											/>

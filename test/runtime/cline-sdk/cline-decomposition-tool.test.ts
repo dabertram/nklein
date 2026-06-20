@@ -774,6 +774,27 @@ describe("cline decomposition tools", () => {
 		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
 	});
 
+	it("advertises stringified decomposition payloads in the tool schema", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-string-schema-"));
+		const tool = getTool("decompose_project", workspacePath);
+		const inputProperties = tool.inputSchema.properties as Record<string, unknown>;
+		const tasksSchema = inputProperties.tasks as { anyOf?: readonly Record<string, unknown>[] };
+		const expansionsSchema = inputProperties.expansions as { anyOf?: readonly Record<string, unknown>[] };
+
+		expect(tasksSchema.anyOf).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "array" }),
+				expect.objectContaining({ type: "string" }),
+			]),
+		);
+		expect(expansionsSchema.anyOf).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "object" }),
+				expect.objectContaining({ type: "string" }),
+			]),
+		);
+	});
+
 	it("rejects decompose_project plans below the requested minimum task count", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-minimum-"));
 		const tool = getTool("decompose_project", workspacePath);

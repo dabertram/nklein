@@ -137,6 +137,45 @@ function parseJsonStringValue(value: unknown): unknown {
 	}
 }
 
+const decomposeProjectTaskJsonSchema = {
+	type: "object",
+	properties: {
+		id: { type: "string" },
+		title: { type: "string" },
+		prompt: { type: "string" },
+		dependsOn: { type: "array", items: { type: "string" } },
+		complexity: { type: "number" },
+		suggestedRole: { type: "string" },
+		filesLikelyTouched: { type: "array", items: { type: "string" } },
+		acceptanceCommand: { type: "string" },
+		testFirst: { type: "boolean" },
+		acceptanceTestPrompt: { type: "string" },
+	},
+	required: ["id", "title", "prompt"],
+	additionalProperties: false,
+} as const;
+
+const decomposeProjectTaskArrayJsonSchema = {
+	type: "array",
+	items: decomposeProjectTaskJsonSchema,
+} as const;
+
+const decomposeProjectStringifiedTaskArrayJsonSchema = {
+	type: "string",
+	description: "JSON-stringified array of task leaves; accepted for small models that stringify nested arrays.",
+} as const;
+
+const decomposeProjectExpansionsJsonSchema = {
+	type: "object",
+	additionalProperties: decomposeProjectTaskArrayJsonSchema,
+} as const;
+
+const decomposeProjectStringifiedExpansionsJsonSchema = {
+	type: "string",
+	description:
+		"JSON-stringified recursive replacement map; accepted for small models that stringify nested expansion objects.",
+} as const;
+
 const decomposeProjectToolInputSchema = clinePlanTaskGraphSchema
 	.pick({
 		title: true,
@@ -1058,26 +1097,9 @@ function createDecomposeProjectTool(
 				},
 				title: { type: "string", description: "Project/task graph title." },
 				tasks: {
-					type: "array",
+					anyOf: [decomposeProjectTaskArrayJsonSchema, decomposeProjectStringifiedTaskArrayJsonSchema],
 					description:
-						"Task leaves. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
-					items: {
-						type: "object",
-						properties: {
-							id: { type: "string" },
-							title: { type: "string" },
-							prompt: { type: "string" },
-							dependsOn: { type: "array", items: { type: "string" } },
-							complexity: { type: "number" },
-							suggestedRole: { type: "string" },
-							filesLikelyTouched: { type: "array", items: { type: "string" } },
-							acceptanceCommand: { type: "string" },
-							testFirst: { type: "boolean" },
-							acceptanceTestPrompt: { type: "string" },
-						},
-						required: ["id", "title", "prompt"],
-						additionalProperties: false,
-					},
+						"Task leaves. May be an array or a JSON-stringified array. !Klein adds schemaVersion, slug, title, validates dependencies, and writes artifacts.",
 				},
 				defaultAcceptanceCommand: {
 					type: "string",
@@ -1089,29 +1111,9 @@ function createDecomposeProjectTool(
 						"Optional minimum number of terminal task leaves required after recursive expansions are applied. Use this when the request specifies a minimum such as at least ten tasks.",
 				},
 				expansions: {
-					type: "object",
+					anyOf: [decomposeProjectExpansionsJsonSchema, decomposeProjectStringifiedExpansionsJsonSchema],
 					description:
-						"Optional recursive replacement map. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. !Klein expands these before validation and rewrites dependencies to terminal replacement leaves.",
-					additionalProperties: {
-						type: "array",
-						items: {
-							type: "object",
-							properties: {
-								id: { type: "string" },
-								title: { type: "string" },
-								prompt: { type: "string" },
-								dependsOn: { type: "array", items: { type: "string" } },
-								complexity: { type: "number" },
-								suggestedRole: { type: "string" },
-								filesLikelyTouched: { type: "array", items: { type: "string" } },
-								acceptanceCommand: { type: "string" },
-								testFirst: { type: "boolean" },
-								acceptanceTestPrompt: { type: "string" },
-							},
-							required: ["id", "title", "prompt"],
-							additionalProperties: false,
-						},
-					},
+						"Optional recursive replacement map. May be an object or a JSON-stringified object. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. !Klein expands these before validation and rewrites dependencies to terminal replacement leaves.",
 				},
 			},
 			required: ["slug", "spec", "plan", "title", "tasks"],

@@ -313,6 +313,20 @@ async function waitForEmbeddingDiscoveryDebounce(): Promise<void> {
 	await flushAsyncWork();
 }
 
+function findSectionByHeading(headingText: string, containedText: string): HTMLElement | null {
+	const heading = Array.from(document.querySelectorAll("h6")).find(
+		(element) => element.textContent?.trim() === headingText,
+	);
+	let section = heading?.parentElement ?? null;
+	while (section && section !== document.body) {
+		if (section.textContent?.includes(containedText)) {
+			return section;
+		}
+		section = section.parentElement;
+	}
+	return null;
+}
+
 const savedClineOauthConfig = {
 	selectedAgentId: "cline",
 	selectedShortcutLabel: null,
@@ -704,7 +718,7 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("No-diff checkpoints");
 		expect(document.body.textContent).toContain("4 repeats");
 		expect(document.body.textContent).toContain("Repeated tool calls");
-		expect(document.body.textContent).toContain("5 repeats");
+		expect(document.body.textContent).toContain("3 repeats");
 		expect(document.body.textContent).toContain("Advanced policy visibility");
 		expect(document.body.textContent).toContain("Routing policy");
 		expect(document.body.textContent).toContain("Context budget policy");
@@ -736,7 +750,7 @@ describe("RuntimeSettingsDialog", () => {
 		await act(async () => {
 			setInputValue(inputByPlaceholder("1"), "2");
 			setInputValue(inputByPlaceholder("0"), "1");
-			setInputValue(inputByPlaceholder("4096"), "8192");
+			setInputValue(inputByPlaceholder("2048"), "8192");
 			setInputValue(inputByPlaceholder("2"), "1.5");
 			setInputValue(inputByPlaceholder("10"), "15");
 		});
@@ -1123,10 +1137,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		let saveButton = findButtonByText(document.body, "Save");
-		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
-			(element) => element.textContent?.trim() === "Model roles",
-		);
-		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectProviderSelect = selects[0];
 		const architectModelSelect = selects[1];
@@ -1523,10 +1534,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		const saveButton = findButtonByText(document.body, "Save");
-		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
-			(element) => element.textContent?.trim() === "Model roles",
-		);
-		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectProviderSelect = selects[0];
 		const architectModelSelect = selects[1];
@@ -1585,10 +1593,7 @@ describe("RuntimeSettingsDialog", () => {
 		);
 		await waitForCondition(() => document.body.textContent?.includes("Loaded Qwen") === true);
 
-		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
-			(element) => element.textContent?.trim() === "Model roles",
-		);
-		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectModelSelect = selects[1];
 		if (!(architectModelSelect instanceof HTMLSelectElement)) {
@@ -1614,10 +1619,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		let saveButton = findButtonByText(document.body, "Save");
-		const modelRolesHeading = Array.from(document.querySelectorAll("h6")).find(
-			(element) => element.textContent?.trim() === "Model roles",
-		);
-		const modelRolesSection = modelRolesHeading?.parentElement ?? null;
+		const modelRolesSection = findSectionByHeading("Model roles", "Architect");
 		const selects = Array.from(modelRolesSection?.querySelectorAll<HTMLSelectElement>("select") ?? []);
 		const architectProviderSelect = selects[0];
 		const architectModelSelect = selects[1];

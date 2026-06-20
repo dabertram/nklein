@@ -723,7 +723,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const initial = await loadRuntimeConfig(tempProject);
 				expect(initial.sandboxMaxContainers).toBe(1);
 				expect(initial.sandboxAgentsPerContainer).toBe(0);
-				expect(initial.sandboxMemoryPerContainerMb).toBe(4096);
+				expect(initial.sandboxMemoryPerContainerMb).toBe(2048);
 				expect(initial.sandboxCpusPerContainer).toBe(2);
 				expect(initial.sandboxIdleTimeoutMinutes).toBe(10);
 

@@ -35,7 +35,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		maxConcurrentTasks: 3,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
-		sandboxMemoryPerContainerMb: 4096,
+		sandboxMemoryPerContainerMb: 2048,
 		sandboxCpusPerContainer: 2,
 		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
@@ -120,7 +120,7 @@ describe("buildRuntimeConfigResponse", () => {
 		expect(response.decompositionAutoApplyEnabled).toBe(true);
 		expect(response.sandboxMaxContainers).toBe(1);
 		expect(response.sandboxAgentsPerContainer).toBe(0);
-		expect(response.sandboxMemoryPerContainerMb).toBe(4096);
+		expect(response.sandboxMemoryPerContainerMb).toBe(2048);
 		expect(response.sandboxCpusPerContainer).toBe(2);
 		expect(response.sandboxIdleTimeoutMinutes).toBe(10);
 		expect(response.agentSandboxStatus).toMatchObject({
