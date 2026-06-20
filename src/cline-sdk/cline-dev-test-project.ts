@@ -111,6 +111,7 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 		"- Expand tests for improving, declining, steady, invalid-input, and perfect-score capped scenarios.",
 		"- Add README usage notes for text and JSON output.",
 		"Use this 12-leaf outline unless the files prove it impossible: 1 document domain model, 2 parse --goal, 3 validate goal settings, 4 classify trends, 5 integrate goals into insights, 6 classify score bands, 7 define recommendation inputs, 8 implement recommendations, 9 update text output, 10 add --json output, 11 expand tests, 12 update README.",
+		"Dependency requirements: task 11 (expand tests) must depend on every implementation leaf it validates: tasks 2, 3, 4, 5, 6, 7, 8, 9, and 10. Task 12 (README) must depend on the user-facing CLI output leaves: tasks 9 and 10. Do not make broad test or documentation cards runnable before the implementation cards they verify or describe.",
 		"If decompose_project rejects the graph for count or sizing, retry decompose_project immediately with smaller leaves. After a successful apply, stop the planning card; do not inspect .cline/nklein plan artifact paths.",
 		DECOMPOSE_PROMPT_SUFFIX,
 	].join(" "),
