@@ -104,6 +104,16 @@ function buildReadFilesTargetKeys(input: unknown): ReadFilesTargetKey[] {
 		.filter((key): key is ReadFilesTargetKey => key !== null);
 }
 
+function buildReadFilesRequestFingerprint(keys: ReadFilesTargetKey[]): string | null {
+	if (keys.length === 0) {
+		return null;
+	}
+	return [...keys]
+		.map((key) => key.rangeKey)
+		.sort((left, right) => left.localeCompare(right))
+		.join("\n");
+}
+
 type ClineSdkContextCompactionConfig = NonNullable<ClineSdkStartSessionInput["config"]["compaction"]>;
 type ClineSdkLocalRuntimeOptions = NonNullable<ClineSdkStartSessionInput["localRuntime"]>;
 type ClineSdkRuntimeExtension = NonNullable<ClineSdkLocalRuntimeOptions["extensions"]>[number];
@@ -648,6 +658,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 		const artifactWorkspacePath = request.workspaceRoot?.trim() || request.cwd;
 		const baseRequestToolApproval = request.requestToolApproval;
 		const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
+		const approvedReadFilesRequestFingerprints = new Set<string>();
 		const successfulReadFilesTargetKeys = new Set<string>();
 		const successfulFullReadFilesPaths = new Set<string>();
 		const approvalTurnKey = (approvalRequest: ClineSdkToolApprovalRequest): string =>
@@ -693,6 +704,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 							};
 						}
 						const readTargetKeys = buildReadFilesTargetKeys(approvalRequest.input);
+						const readRequestFingerprint = buildReadFilesRequestFingerprint(readTargetKeys);
 						const repeatedReadTargetKeys = readTargetKeys.filter(
 							(key) =>
 								successfulReadFilesTargetKeys.has(key.rangeKey) ||
@@ -704,12 +716,21 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 								reason: `Blocked read_files: this exact file content was already read successfully in this task. Use the file content already in context, read only a focused line range if verbatim text was compacted away, make the needed edit, or run the acceptance command. No duplicate file content was read.`,
 							};
 						}
+						if (readRequestFingerprint && approvedReadFilesRequestFingerprints.has(readRequestFingerprint)) {
+							return {
+								approved: false,
+								reason: `Blocked read_files: this exact read_files request was already approved in this task. Use the file content already in context if the read succeeded, adjust the paths or line ranges if it failed, make the needed edit, or run the acceptance command. No duplicate file content was read.`,
+							};
+						}
 						const approval = await baseRequestToolApproval(approvalRequest);
 						if (approval.approved) {
 							fileReadToolByTurn.set(turnKey, {
 								toolName: approvalRequest.toolName,
 								toolCallId: approvalRequest.toolCallId,
 							});
+							if (readRequestFingerprint) {
+								approvedReadFilesRequestFingerprints.add(readRequestFingerprint);
+							}
 							if (readTargetKeys.length === 1) {
 								for (const key of readTargetKeys) {
 									successfulReadFilesTargetKeys.add(key.rangeKey);
@@ -723,6 +744,7 @@ export class InMemoryClineSessionRuntime implements ClineSessionRuntime {
 					}
 					const approval = await baseRequestToolApproval(approvalRequest);
 					if (approval.approved && REPO_MAP_INVALIDATING_TOOL_NAMES.has(approvalRequest.toolName)) {
+						approvedReadFilesRequestFingerprints.clear();
 						successfulReadFilesTargetKeys.clear();
 						successfulFullReadFilesPaths.clear();
 					}

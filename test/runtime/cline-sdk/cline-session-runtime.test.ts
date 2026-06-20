@@ -510,15 +510,43 @@ describe("InMemoryClineSessionRuntime", () => {
 		});
 		expect(batchRead.approved).toBe(true);
 
-		const singleReadAfterBatch = await requestToolApproval({
+		const repeatedBatchRead = await requestToolApproval({
 			...commonRequest,
 			iteration: 2,
 			toolCallId: "tool-2",
 			toolName: "read_files",
+			input: { files: [{ path: "src/score.ts" }, { path: "src/index.ts" }] },
+		});
+		expect(repeatedBatchRead.approved).toBe(false);
+		expect(repeatedBatchRead.reason).toContain("exact read_files request was already approved");
+
+		const singleReadAfterBatch = await requestToolApproval({
+			...commonRequest,
+			iteration: 3,
+			toolCallId: "tool-3",
+			toolName: "read_files",
 			input: { files: [{ path: "src/index.ts" }] },
 		});
 		expect(singleReadAfterBatch.approved).toBe(true);
-		expect(baseApproval).toHaveBeenCalledTimes(2);
+
+		const editApproval = await requestToolApproval({
+			...commonRequest,
+			iteration: 4,
+			toolCallId: "tool-4",
+			toolName: "write_file",
+			input: { path: "src/index.ts", content: "export {};\n" },
+		});
+		expect(editApproval.approved).toBe(true);
+
+		const rereadBatchAfterEdit = await requestToolApproval({
+			...commonRequest,
+			iteration: 5,
+			toolCallId: "tool-5",
+			toolName: "read_files",
+			input: { files: [{ path: "src/index.ts" }, { path: "src/score.ts" }] },
+		});
+		expect(rereadBatchAfterEdit.approved).toBe(true);
+		expect(baseApproval).toHaveBeenCalledTimes(4);
 	});
 
 	it("records and stops when Cline reaches the consecutive mistake guardrail", async () => {
