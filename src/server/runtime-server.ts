@@ -101,6 +101,7 @@ export interface RuntimeServer {
 }
 
 const WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
+const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as const;
 
 function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): string | null {
 	for (const headerName of [WORKSPACE_ID_HEADER, LEGACY_WORKSPACE_ID_HEADER]) {
@@ -143,6 +144,33 @@ async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<
 		}
 	}
 	throw lastError;
+}
+
+function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
+	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_empty";
+}
+
+async function resolveReviewSandboxResult(options: {
+	repoPath: string;
+	service: ClineTaskSessionService;
+	taskId: string;
+}): Promise<"result_branch" | "empty_patch" | "unknown"> {
+	for (const delayMs of [0, ...SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS]) {
+		if (delayMs > 0) {
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+		if (isEmptySandboxPatchSummary(options.service.getSummary(options.taskId))) {
+			return "empty_patch";
+		}
+		const resultCommit = await resolveTaskResultBranchCommit({
+			repoPath: options.repoPath,
+			taskId: options.taskId,
+		});
+		if (resultCommit) {
+			return "result_branch";
+		}
+	}
+	return "unknown";
 }
 
 function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
@@ -433,19 +461,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 					const reviewState = await loadWorkspaceState(scope.workspacePath);
-					const mergeResult = await mergeTaskWorktreesInDependencyOrder({
+					const sandboxResult = await resolveReviewSandboxResult({
 						repoPath: scope.workspacePath,
-						board: reviewState.board,
-						columns: ["review"],
-						taskIds: [taskId],
+						service,
+						taskId,
 					});
-					if (!mergeResult.ok) {
-						const reason =
-							mergeResult.blocked?.reason ??
-							mergeResult.conflict?.message ??
-							"unknown task result merge failure";
-						deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
-						return;
+					if (sandboxResult !== "empty_patch") {
+						const mergeResult = await mergeTaskWorktreesInDependencyOrder({
+							repoPath: scope.workspacePath,
+							board: reviewState.board,
+							columns: ["review"],
+							taskIds: [taskId],
+						});
+						if (!mergeResult.ok) {
+							const reason =
+								mergeResult.blocked?.reason ??
+								mergeResult.conflict?.message ??
+								"unknown task result merge failure";
+							deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
+							return;
+						}
 					}
 					let readyTaskIds: string[] = [];
 					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
