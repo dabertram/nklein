@@ -780,6 +780,12 @@ describe("cline decomposition tools", () => {
 		const inputProperties = tool.inputSchema.properties as Record<string, unknown>;
 		const tasksSchema = inputProperties.tasks as { anyOf?: readonly Record<string, unknown>[] };
 		const expansionsSchema = inputProperties.expansions as { anyOf?: readonly Record<string, unknown>[] };
+		const questionsSchema = inputProperties.questions as {
+			items?: { properties?: Record<string, { type?: unknown }> };
+		};
+		const taskArraySchema = tasksSchema.anyOf?.find((schema) => schema.type === "array") as
+			| { items?: { properties?: Record<string, { type?: unknown }> } }
+			| undefined;
 
 		expect(tasksSchema.anyOf).toEqual(
 			expect.arrayContaining([
@@ -793,6 +799,11 @@ describe("cline decomposition tools", () => {
 				expect.objectContaining({ type: "string" }),
 			]),
 		);
+		expect(questionsSchema.items?.properties?.answer?.type).toEqual(["string", "null"]);
+		expect(questionsSchema.items?.properties?.assumption?.type).toEqual(["string", "null"]);
+		expect(taskArraySchema?.items?.properties?.suggestedRole?.type).toEqual(["string", "null"]);
+		expect(taskArraySchema?.items?.properties?.acceptanceCommand?.type).toEqual(["string", "null"]);
+		expect(taskArraySchema?.items?.properties?.acceptanceTestPrompt?.type).toEqual(["string", "null"]);
 	});
 
 	it("rejects decompose_project plans below the requested minimum task count", async () => {
