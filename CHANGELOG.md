@@ -11,6 +11,7 @@
 - Made `write_files` tolerate JSON-stringified batch file arrays from small local models at both the advertised tool schema and execution parser layers.
 - Made `write_files` tolerate harmless extra keys on batch file entries, such as range fields copied from read tools, while still validating the actual `path` and `content` fields before writing.
 - Blocked exact repeated batch `read_files` requests across Cline turns, so agents that reread the same file group are steered to use existing context, narrow the requested range, edit, or run acceptance instead of looping.
+- Normalized host project paths embedded inside sandboxed bash command strings, preventing agents from misdiagnosing the sandbox as unavailable after running `cd <host temp project> && ...` inside `/workspaces/<task>`.
 - Lowered the default Docker agent sandbox memory cap from 4096 MB to 2048 MB per container to reduce Docker VM swap pressure on constrained developer machines; saved runtime settings can still raise it.
 - Completed successful auto-review cards that finish with an explicit empty sandbox patch, so analysis/no-change generated cards unblock their dependent Planning cards instead of getting stuck in Review.
 - Normalized host workspace absolute paths inside sandboxed `list_files`, `find_files`, and `get_file_size`, matching the existing `read_files` recovery path and preventing repeated discovery-tool loops on temp project paths.

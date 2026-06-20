@@ -1,6 +1,3 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { createDefaultExecutors, type ToolExecutors } from "@clinebot/core";
 import type { AgentToolContext } from "@clinebot/shared";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "../cline-agent-sandbox-extra-tools";
@@ -8,6 +5,7 @@ import { createFileDiscoveryTools } from "../cline-file-discovery-tools";
 import { createReadLargeFileTool } from "../cline-large-file-workflow";
 import { createClineRetrievalTools } from "../cline-retrieval-tools";
 import { createWriteFilesTool, createWriteFileTool } from "../cline-write-files-tool";
+import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
 
 type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];
 type SandboxReadFileInput = Parameters<NonNullable<ToolExecutors["readFile"]>>[0];
@@ -44,65 +42,6 @@ function parseInput(): unknown {
 	} catch (error) {
 		throw new Error(`Invalid sandbox tool input JSON: ${error instanceof Error ? error.message : String(error)}`);
 	}
-}
-
-function isPathInputKey(key: string): boolean {
-	const normalizedKey = key.trim().toLowerCase();
-	return (
-		normalizedKey === "path" ||
-		normalizedKey === "filepath" ||
-		normalizedKey === "file_path" ||
-		normalizedKey === "targetpath" ||
-		normalizedKey === "target_path" ||
-		normalizedKey === "oldpath" ||
-		normalizedKey === "old_path" ||
-		normalizedKey === "newpath" ||
-		normalizedKey === "new_path"
-	);
-}
-
-function rewriteHostProjectPath(rawPath: string): string {
-	if (!rawPath.startsWith("/")) {
-		return rawPath;
-	}
-	if (hostProjectPath) {
-		const normalizedHostProjectPath = hostProjectPath.replace(/\/+$/u, "");
-		if (normalizedHostProjectPath) {
-			if (rawPath === normalizedHostProjectPath) {
-				return ".";
-			}
-			const hostPrefix = `${normalizedHostProjectPath}/`;
-			if (rawPath.startsWith(hostPrefix)) {
-				return rawPath.slice(hostPrefix.length) || ".";
-			}
-		}
-	}
-	const workspaceRelativeCandidate = rawPath.replace(/^\/+/u, "");
-	if (
-		workspaceRelativeCandidate &&
-		!workspaceRelativeCandidate.startsWith("..") &&
-		existsSync(resolve(process.cwd(), workspaceRelativeCandidate))
-	) {
-		return workspaceRelativeCandidate;
-	}
-	return rawPath;
-}
-
-function normalizeHostPathInputs(input: unknown, key: string | null = null): unknown {
-	if (typeof input === "string") {
-		return key && isPathInputKey(key) ? rewriteHostProjectPath(input) : input;
-	}
-	if (Array.isArray(input)) {
-		return input.map((item) => normalizeHostPathInputs(item));
-	}
-	if (!input || typeof input !== "object") {
-		return input;
-	}
-	const normalized: Record<string, unknown> = {};
-	for (const [entryKey, entryValue] of Object.entries(input)) {
-		normalized[entryKey] = normalizeHostPathInputs(entryValue, entryKey);
-	}
-	return normalized;
 }
 
 function parseKanbanExtraToolInput(input: unknown): SandboxKanbanExtraToolInput {
@@ -165,9 +104,13 @@ async function runTool(): Promise<ToolRunnerResult> {
 	if (!tool) {
 		return { ok: false, error: "Missing sandbox tool name." };
 	}
-	const input = normalizeHostPathInputs(parseInput());
+	const rawParsedInput = parseInput();
 	const executors = createDefaultExecutors();
 	const cwd = process.cwd();
+	const input =
+		tool === "bash"
+			? normalizeSandboxBashInput(rawParsedInput, hostProjectPath, cwd)
+			: normalizeHostPathInputs(rawParsedInput, hostProjectPath, cwd);
 	const context: AgentToolContext = {
 		agentId: "nklein-sandbox-tool-runner",
 		iteration: 0,
