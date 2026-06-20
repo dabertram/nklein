@@ -485,6 +485,73 @@ export const runtimeModelPerformanceStatsResponseSchema = z.object({
 });
 export type RuntimeModelPerformanceStatsResponse = z.infer<typeof runtimeModelPerformanceStatsResponseSchema>;
 
+export const runtimeKnowledgeToolCategorySchema = z.enum([
+	"architecture_knowledge",
+	"external_fetch",
+	"code_index",
+	"codebase_retrieval",
+	"file_discovery",
+	"file_read",
+	"planning_control",
+	"other",
+]);
+export type RuntimeKnowledgeToolCategory = z.infer<typeof runtimeKnowledgeToolCategorySchema>;
+
+export const runtimeKnowledgeToolOutcomeSchema = z.enum(["started", "succeeded", "failed"]);
+export type RuntimeKnowledgeToolOutcome = z.infer<typeof runtimeKnowledgeToolOutcomeSchema>;
+
+export const runtimeKnowledgeToolUsageObservationSchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	recordedAt: z.number().int().nonnegative(),
+	appVersion: z.string(),
+	workspaceId: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	workspacePath: z.string().nullable(),
+	projectName: z.string().nullable(),
+	taskId: z.string(),
+	taskTitle: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	roleSource: z.enum(["card", "model_roles", "default", "unknown"]),
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	toolName: z.string(),
+	toolCategory: runtimeKnowledgeToolCategorySchema,
+	outcome: runtimeKnowledgeToolOutcomeSchema,
+	hookEventName: z.string(),
+	toolInputSummary: z.string().nullable(),
+	activityText: z.string().nullable(),
+	lastHookAt: z.number().int().nonnegative().nullable(),
+});
+export type RuntimeKnowledgeToolUsageObservation = z.infer<typeof runtimeKnowledgeToolUsageObservationSchema>;
+
+export const runtimeKnowledgeToolUsageAggregateSchema = z.object({
+	key: z.string(),
+	scope: z.enum(["overall", "project", "version"]),
+	appVersion: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	projectName: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	toolName: z.string(),
+	toolCategory: runtimeKnowledgeToolCategorySchema,
+	calls: z.number().int().nonnegative(),
+	startedCalls: z.number().int().nonnegative(),
+	succeededCalls: z.number().int().nonnegative(),
+	failedCalls: z.number().int().nonnegative(),
+	successRate: z.number().nonnegative(),
+	lastObservedAt: z.number().int().nonnegative(),
+});
+export type RuntimeKnowledgeToolUsageAggregate = z.infer<typeof runtimeKnowledgeToolUsageAggregateSchema>;
+
+export const runtimeKnowledgeToolUsageStatsResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	observations: z.array(runtimeKnowledgeToolUsageObservationSchema),
+	aggregates: z.array(runtimeKnowledgeToolUsageAggregateSchema),
+});
+export type RuntimeKnowledgeToolUsageStatsResponse = z.infer<typeof runtimeKnowledgeToolUsageStatsResponseSchema>;
+
 export const runtimeWorkspaceStateResponseSchema = z.object({
 	repoPath: z.string(),
 	statePath: z.string(),
@@ -745,7 +812,7 @@ export const runtimeDevTestProjectScenarioSchema = z.object({
 });
 export type RuntimeDevTestProjectScenario = z.infer<typeof runtimeDevTestProjectScenarioSchema>;
 
-export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag"]);
+export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag", "audio_vst"]);
 export type RuntimeDevTestProjectPreset = z.infer<typeof runtimeDevTestProjectPresetSchema>;
 
 export const runtimeDevTestProjectRequestSchema = z

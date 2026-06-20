@@ -137,6 +137,14 @@
   ranked search; cache GC keyed to current chunks.
 - [x] Settings Code-intelligence panel (repo-map availability, index coverage, embedding provider/model,
   staleness, live indexing progress) + a board status chip; global + per-project embedding overrides.
+- [x] Knowledge/tool usage statistics: every Cline tool start/result for retrieval, code index, file
+  discovery/read, planning-control, architecture-knowledge, and external-fetch tools is recorded as local
+  JSONL telemetry and aggregated by project, !Klein version, model, role, tool, category, and outcome. The
+  Settings statistics view exposes this beside model performance so weak/small-model knowledge gaps can be
+  measured instead of guessed.
+- [ ] Knowledge-expansion loop: agents should explicitly identify task-domain knowledge limits, use local
+  code/index/architecture knowledge first, request/fetch sanctioned external information only through
+  auditable tools, and iterate longer when the task domain is outside ordinary software CRUD knowledge.
 
 ## 8. Operator UI & observability — the swarm cockpit  *(shipped; live-verify open)*
 
@@ -150,6 +158,9 @@
   roles, endpoint start guidance).
 - [x] Progressive disclosure (plain summary for non-technical, raw detail one expand away) and a
   feature-visibility coverage matrix; settings cover every pillar.
+- [x] Statistics view covers both model performance and knowledge-tool usage so users can compare how often
+  roles/models rely on repo maps, code search, file discovery, large reads, architecture knowledge, and
+  external fetches per project and globally.
 - [ ] **Live verification of the cockpit + isolation status/pool UI is still owed** (env-blocked) — see
   `follow-up-5.md` §2.C.
 
@@ -295,6 +306,13 @@
       unavailable.
 
 ### 14.4 — Backlog of smaller enhancements (promote to plan.md when picked up)
+- [ ] Audio-synthesis autonomous dev-test preset: scaffold a VST/audio-plugin-oriented fixture that asks
+      !Klein to decompose and implement, in order, clean kick and bass synthesis for modern psytrance grooves,
+      a four-beat phase-aligned kick/bass sequence, a simple modern UI for exposed controls, and effects with
+      guardrails that preserve transient clarity, low-end phase alignment, and the characteristic psytrance
+      groove feel. This scenario is intentionally domain-knowledge-heavy and should be run repeatedly to
+      measure whether agents use code index, architecture knowledge, audio synthesis/music-theory lookup, and
+      sanctioned external information enough to compensate for small local model knowledge gaps.
 - [ ] Scripted/automated end-to-end smoke that exercises a full 1-shot → decomposition → parallel execution →
       merge cycle on a tiny local model, as a CI-able dogfood gate.
 - [ ] Explicit in-UI sandbox queue list (currently only a per-card "queued" state).

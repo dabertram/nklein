@@ -17,9 +17,10 @@ export interface ClineDevTestProjectScenario {
 	acceptanceCommand: string;
 	complexity?: number;
 	filesLikelyTouched?: string[];
+	templateName?: string;
 }
 
-export type ClineDevTestProjectPreset = "mid_task" | "complex_dag";
+export type ClineDevTestProjectPreset = "mid_task" | "complex_dag" | "audio_vst";
 
 export interface ScaffoldClineDevTestProjectOptions {
 	scenario?: ClineDevTestProjectScenario;
@@ -120,10 +121,46 @@ export const COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = 
 	filesLikelyTouched: ["src/habit-score.ts", "src/habit-insights.ts", "src/index.ts"],
 };
 
+export const AUDIO_VST_CLINE_DEV_TEST_SCENARIO: ClineDevTestProjectScenario = {
+	id: "audio-vst-psytrance",
+	title: "Psytrance audio VST buildout",
+	templateName: "audio-vst-synth",
+	specification: [
+		"Turn the tiny TypeScript DSP prototype into a VST-style audio plugin core for modern psytrance grooves.",
+		"",
+		"Expected product capabilities:",
+		"- Generate clean kick and bass sounds suitable for modern psytrance, with clear transients and controlled low end.",
+		"- Generate a four-beat sequence with a clean, phase-aligned kick/bass pattern.",
+		"- Add a simple, intuitive, modern UI-state model for every exposed feature/control.",
+		"- Add effects only with guardrails that preserve psytrance groove clarity, transient definition, and low-end phase alignment.",
+		"- Include tests that check bounded output, deterministic rendering, phase alignment, clean low-end behavior, sequence timing, UI control metadata, and effect guardrails.",
+		"- Do not add dependencies or require an actual DAW/VST host; implement a portable VST-style DSP/plugin core with testable TypeScript APIs.",
+	].join("\n"),
+	prompt: [
+		"Task: Read specification.md, decompose the audio plugin buildout into at least ten !Klein task leaves with dependencies, and apply the generated task graph.",
+		"When calling decompose_project, pass `minimumTaskCount: 10`.",
+		"This is a domain-knowledge-heavy task. Before decomposing, make one focused pass over specification.md and the small source/test/package files, then explicitly reason about missing knowledge in audio synthesis, psytrance kick/bass design, phase alignment, four-beat groove timing, music theory, and effect guardrails.",
+		"Use local code/index knowledge tools for codebase orientation. If sanctioned knowledge or web-fetch tools are available, use them only for concise domain lookup and cite the lookup in the plan; if they are unavailable, record explicit assumptions instead of pretending certainty.",
+		"Use this 12-leaf outline unless the files prove it impossible: 1 document DSP/plugin domain model and knowledge assumptions, 2 define kick synthesis controls, 3 implement clean kick rendering, 4 define bass synthesis controls, 5 implement clean bass rendering, 6 implement phase-aligned four-beat sequence timing, 7 add sequence rendering tests, 8 define modern UI control metadata/state, 9 implement UI-state API, 10 add clean effects with guardrails, 11 expand audio quality/phase/effect tests, 12 update README usage notes.",
+		"Dependency requirements: sequence work must depend on kick and bass rendering; UI work must depend on exposed controls; effect work must depend on the dry kick/bass/sequence APIs; broad tests and README must depend on the implementation leaves they validate or describe.",
+		"If decompose_project rejects the graph for count or sizing, retry decompose_project immediately with smaller leaves. After a successful apply, stop the planning card; do not inspect .cline/nklein plan artifact paths.",
+		DECOMPOSE_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 75,
+	filesLikelyTouched: ["src/plugin.ts", "src/index.ts", "test/plugin.test.js"],
+};
+
 export function resolveClineDevTestProjectScenario(
 	preset: ClineDevTestProjectPreset = "mid_task",
 ): ClineDevTestProjectScenario {
-	return preset === "complex_dag" ? COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO : MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO;
+	if (preset === "complex_dag") {
+		return COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO;
+	}
+	if (preset === "audio_vst") {
+		return AUDIO_VST_CLINE_DEV_TEST_SCENARIO;
+	}
+	return MID_COMPLEXITY_CLINE_DEV_TEST_SCENARIO;
 }
 
 function getRepoRootFromCurrentModule(): string {
@@ -167,7 +204,7 @@ export async function scaffoldClineDevTestProject(
 	const now = options.now ?? Date.now;
 	const createdAt = now();
 	const workspacePath = await mkdtemp(join(parentDir, `nklein-${slugify(scenario.id)}-${createdAt}-`));
-	const templatePath = resolveClineDevTestTemplatePath(options.templateName);
+	const templatePath = resolveClineDevTestTemplatePath(options.templateName ?? scenario.templateName);
 	await cp(templatePath, workspacePath, {
 		recursive: true,
 		errorOnExist: false,

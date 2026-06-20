@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO } from "../../../src/cline-sdk/cline-dev-test-project";
+import {
+	AUDIO_VST_CLINE_DEV_TEST_SCENARIO,
+	COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO,
+} from "../../../src/cline-sdk/cline-dev-test-project";
 import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
 import {
@@ -164,6 +167,7 @@ describe("createDevTestBoard", () => {
 		expect(buildDevTestTaskId(COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.id)).toBe(
 			"dev-habit-product-cline-complex-decompose",
 		);
+		expect(buildDevTestTaskId(AUDIO_VST_CLINE_DEV_TEST_SCENARIO.id)).toBe("dev-audio-vst-psytrance-decompose");
 		expect(buildDevTestTaskId("  Weird Scenario! ")).toBe("dev-weird-scenario-decompose");
 	});
 

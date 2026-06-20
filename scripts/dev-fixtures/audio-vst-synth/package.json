@@ -1,0 +1,10 @@
+{
+  "name": "nklein-audio-vst-synth-fixture",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {}
+}

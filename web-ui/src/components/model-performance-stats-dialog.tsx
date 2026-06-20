@@ -3,8 +3,11 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchModelPerformanceStats } from "@/runtime/runtime-config-query";
+import { fetchKnowledgeToolUsageStats, fetchModelPerformanceStats } from "@/runtime/runtime-config-query";
 import type {
+	RuntimeKnowledgeToolUsageAggregate,
+	RuntimeKnowledgeToolUsageObservation,
+	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceAggregate,
 	RuntimeModelPerformanceObservation,
 	RuntimeModelPerformanceStatsResponse,
@@ -63,7 +66,7 @@ function formatModel(record: Pick<RuntimeModelPerformanceAggregate, "providerId"
 	return `${provider} / ${model}`;
 }
 
-function aggregateSortValue(aggregate: RuntimeModelPerformanceAggregate): number {
+function aggregateSortValue(aggregate: { scope: "overall" | "project" | "version" }): number {
 	if (aggregate.scope === "project") {
 		return 3;
 	}
@@ -91,12 +94,30 @@ function summarizeObservations(observations: RuntimeModelPerformanceObservation[
 	);
 }
 
+function summarizeKnowledgeToolObservations(observations: RuntimeKnowledgeToolUsageObservation[]): {
+	totalCalls: number;
+	startedCalls: number;
+	succeededCalls: number;
+	failedCalls: number;
+} {
+	return observations.reduce(
+		(summary, observation) => ({
+			totalCalls: summary.totalCalls + 1,
+			startedCalls: summary.startedCalls + (observation.outcome === "started" ? 1 : 0),
+			succeededCalls: summary.succeededCalls + (observation.outcome === "succeeded" ? 1 : 0),
+			failedCalls: summary.failedCalls + (observation.outcome === "failed" ? 1 : 0),
+		}),
+		{ totalCalls: 0, startedCalls: 0, succeededCalls: 0, failedCalls: 0 },
+	);
+}
+
 export function ModelPerformanceStatsDialog({
 	open,
 	onOpenChange,
 	workspaceId,
 }: ModelPerformanceStatsDialogProps): JSX.Element {
 	const [stats, setStats] = useState<RuntimeModelPerformanceStatsResponse | null>(null);
+	const [knowledgeStats, setKnowledgeStats] = useState<RuntimeKnowledgeToolUsageStatsResponse | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 
@@ -104,7 +125,12 @@ export function ModelPerformanceStatsDialog({
 		setLoading(true);
 		setError(null);
 		try {
-			setStats(await fetchModelPerformanceStats(workspaceId));
+			const [nextModelStats, nextKnowledgeStats] = await Promise.all([
+				fetchModelPerformanceStats(workspaceId),
+				fetchKnowledgeToolUsageStats(workspaceId),
+			]);
+			setStats(nextModelStats);
+			setKnowledgeStats(nextKnowledgeStats);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -132,6 +158,20 @@ export function ModelPerformanceStatsDialog({
 	);
 	const recentObservations = stats?.observations.slice(0, 20) ?? [];
 	const totals = summarizeObservations(stats?.observations ?? []);
+	const topKnowledgeAggregates = useMemo(
+		() =>
+			[...(knowledgeStats?.aggregates ?? [])]
+				.sort(
+					(left, right) =>
+						aggregateSortValue(right) - aggregateSortValue(left) ||
+						right.calls - left.calls ||
+						right.lastObservedAt - left.lastObservedAt,
+				)
+				.slice(0, 24),
+		[knowledgeStats?.aggregates],
+	);
+	const recentKnowledgeObservations = knowledgeStats?.observations.slice(0, 20) ?? [];
+	const knowledgeTotals = summarizeKnowledgeToolObservations(knowledgeStats?.observations ?? []);
 
 	return (
 		<Dialog
@@ -143,7 +183,7 @@ export function ModelPerformanceStatsDialog({
 			<div className="max-h-[min(720px,calc(100vh-120px))] overflow-y-auto bg-surface-1 px-5 pb-5">
 				<div className="sticky top-0 z-10 -mx-5 flex items-center justify-between gap-3 bg-surface-1 px-5 py-3">
 					<div className="text-[13px] text-text-secondary">
-						Observed runs by role, model, project, and !Klein version.
+						Observed runs and knowledge-tool usage by role, model, project, and !Klein version.
 					</div>
 					<Button
 						variant="ghost"
@@ -166,7 +206,7 @@ export function ModelPerformanceStatsDialog({
 					<Metric label="Interrupted" value={formatNumber(totals.interruptedRuns)} />
 					<Metric label="Failed" value={formatNumber(totals.failedRuns)} />
 				</div>
-				<SectionTitle title="Aggregates" />
+				<SectionTitle title="Model Aggregates" />
 				<div className="overflow-x-auto rounded-md border border-border">
 					<table className="w-full min-w-[940px] border-collapse text-left text-[12px]">
 						<thead className="bg-surface-0 text-text-secondary">
@@ -212,7 +252,7 @@ export function ModelPerformanceStatsDialog({
 						</tbody>
 					</table>
 				</div>
-				<SectionTitle title="Recent Observations" />
+				<SectionTitle title="Recent Model Observations" />
 				<div className="overflow-x-auto rounded-md border border-border">
 					<table className="w-full min-w-[860px] border-collapse text-left text-[12px]">
 						<thead className="bg-surface-0 text-text-secondary">
@@ -255,8 +295,117 @@ export function ModelPerformanceStatsDialog({
 						</tbody>
 					</table>
 				</div>
+				<SectionTitle title="Knowledge Tool Usage" />
+				<div className="grid gap-3 md:grid-cols-4">
+					<Metric label="Tool Events" value={formatNumber(knowledgeTotals.totalCalls)} />
+					<Metric label="Started" value={formatNumber(knowledgeTotals.startedCalls)} />
+					<Metric label="Succeeded" value={formatNumber(knowledgeTotals.succeededCalls)} />
+					<Metric label="Failed" value={formatNumber(knowledgeTotals.failedCalls)} />
+				</div>
+				<KnowledgeToolAggregateTable aggregates={topKnowledgeAggregates} />
+				<KnowledgeToolObservationTable observations={recentKnowledgeObservations} />
 			</div>
 		</Dialog>
+	);
+}
+
+function KnowledgeToolAggregateTable({
+	aggregates,
+}: {
+	aggregates: RuntimeKnowledgeToolUsageAggregate[];
+}): JSX.Element {
+	return (
+		<div className="mt-3 overflow-x-auto rounded-md border border-border">
+			<table className="w-full min-w-[980px] border-collapse text-left text-[12px]">
+				<thead className="bg-surface-0 text-text-secondary">
+					<tr>
+						<TableHead>Scope</TableHead>
+						<TableHead>Category</TableHead>
+						<TableHead>Tool</TableHead>
+						<TableHead>Role</TableHead>
+						<TableHead>Model</TableHead>
+						<TableHead>Project</TableHead>
+						<TableHead>Calls</TableHead>
+						<TableHead>Started</TableHead>
+						<TableHead>Succeeded</TableHead>
+						<TableHead>Failed</TableHead>
+						<TableHead>Success</TableHead>
+						<TableHead>Last Seen</TableHead>
+					</tr>
+				</thead>
+				<tbody>
+					{aggregates.map((aggregate) => (
+						<tr key={aggregate.key} className="border-t border-border bg-surface-2 text-text-primary">
+							<TableCell>{aggregate.scope}</TableCell>
+							<TableCell>{aggregate.toolCategory}</TableCell>
+							<TableCell>{aggregate.toolName}</TableCell>
+							<TableCell>{aggregate.role}</TableCell>
+							<TableCell>{formatModel(aggregate)}</TableCell>
+							<TableCell>{aggregate.projectName ?? "All projects"}</TableCell>
+							<TableCell>{aggregate.calls}</TableCell>
+							<TableCell>{aggregate.startedCalls}</TableCell>
+							<TableCell>{aggregate.succeededCalls}</TableCell>
+							<TableCell>{aggregate.failedCalls}</TableCell>
+							<TableCell>{formatPercent(aggregate.successRate)}</TableCell>
+							<TableCell>{formatTimestamp(aggregate.lastObservedAt)}</TableCell>
+						</tr>
+					))}
+					{aggregates.length === 0 ? (
+						<tr className="border-t border-border bg-surface-2">
+							<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={12}>
+								No knowledge-tool usage observations have been recorded yet.
+							</td>
+						</tr>
+					) : null}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+function KnowledgeToolObservationTable({
+	observations,
+}: {
+	observations: RuntimeKnowledgeToolUsageObservation[];
+}): JSX.Element {
+	return (
+		<div className="mt-3 overflow-x-auto rounded-md border border-border">
+			<table className="w-full min-w-[920px] border-collapse text-left text-[12px]">
+				<thead className="bg-surface-0 text-text-secondary">
+					<tr>
+						<TableHead>Observed</TableHead>
+						<TableHead>Task</TableHead>
+						<TableHead>Category</TableHead>
+						<TableHead>Tool</TableHead>
+						<TableHead>Outcome</TableHead>
+						<TableHead>Role</TableHead>
+						<TableHead>Model</TableHead>
+						<TableHead>Input</TableHead>
+					</tr>
+				</thead>
+				<tbody>
+					{observations.map((observation) => (
+						<tr key={observation.id} className="border-t border-border bg-surface-2 text-text-primary">
+							<TableCell>{formatTimestamp(observation.recordedAt)}</TableCell>
+							<TableCell>{observation.taskTitle ?? observation.taskId}</TableCell>
+							<TableCell>{observation.toolCategory}</TableCell>
+							<TableCell>{observation.toolName}</TableCell>
+							<TableCell>{observation.outcome}</TableCell>
+							<TableCell>{observation.role}</TableCell>
+							<TableCell>{formatModel(observation)}</TableCell>
+							<TableCell>{observation.toolInputSummary ?? observation.activityText ?? ""}</TableCell>
+						</tr>
+					))}
+					{observations.length === 0 ? (
+						<tr className="border-t border-border bg-surface-2">
+							<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={8}>
+								Start Cline cards that use retrieval, file, search, or knowledge tools to populate this view.
+							</td>
+						</tr>
+					) : null}
+				</tbody>
+			</table>
+		</div>
 	);
 }
 

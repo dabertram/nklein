@@ -121,6 +121,7 @@ import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
+import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
@@ -827,6 +828,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await readModelPerformanceStats({
+				workspacePath: workspaceScope?.workspacePath ?? null,
+			});
+		},
+		getKnowledgeToolUsageStats: async (workspaceScope) => {
+			return await readKnowledgeToolUsageStats({
 				workspacePath: workspaceScope?.workspacePath ?? null,
 			});
 		},

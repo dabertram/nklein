@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+	AUDIO_VST_CLINE_DEV_TEST_SCENARIO,
 	CLINE_DEV_TEST_PROJECT_MARKER_PATH,
 	DEFAULT_CLINE_DEV_TEST_SCENARIO,
+	resolveClineDevTestProjectScenario,
 	resolveClineDevTestTemplatePath,
 	scaffoldClineDevTestProject,
 } from "../../../src/cline-sdk/cline-dev-test-project";
@@ -70,5 +72,22 @@ describe("cline dev test project", () => {
 			cwd: project.workspacePath,
 		});
 		expect(head.stdout.trim()).toMatch(/^[a-f0-9]{40}$/);
+	});
+
+	it("scaffolds the audio VST fixture for the audio preset", async () => {
+		const parentDir = await createParentDir();
+		const scenario = resolveClineDevTestProjectScenario("audio_vst");
+		const project = await scaffoldClineDevTestProject({
+			parentDir,
+			scenario,
+			initializeGit: false,
+		});
+
+		expect(project.scenario).toEqual(AUDIO_VST_CLINE_DEV_TEST_SCENARIO);
+		await expect(readFile(join(project.workspacePath, "src", "plugin.ts"), "utf8")).resolves.toContain("renderKick");
+		const packageJson = await readFile(join(project.workspacePath, "package.json"), "utf8");
+		expect(packageJson).toContain("nklein-audio-vst-synth-fixture");
+		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(specification).toContain("phase-aligned kick/bass pattern");
 	});
 });

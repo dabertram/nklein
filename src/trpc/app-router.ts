@@ -76,6 +76,7 @@ import type {
 	RuntimeGitSyncResponse,
 	RuntimeHookIngestRequest,
 	RuntimeHookIngestResponse,
+	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeOpenFileRequest,
 	RuntimeOpenFileResponse,
@@ -212,6 +213,7 @@ import {
 	runtimeGitSyncResponseSchema,
 	runtimeHookIngestRequestSchema,
 	runtimeHookIngestResponseSchema,
+	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
 	runtimeOpenFileRequestSchema,
 	runtimeOpenFileResponseSchema,
@@ -295,6 +297,9 @@ export interface RuntimeTrpcContext {
 		getModelPerformanceStats: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
+		getKnowledgeToolUsageStats: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+		) => Promise<RuntimeKnowledgeToolUsageStatsResponse>;
 		saveClineProviderSettings: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeClineProviderSettingsSaveRequest,
@@ -630,6 +635,11 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeModelPerformanceStatsResponseSchema)
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
+			}),
+		getKnowledgeToolUsageStats: t.procedure
+			.output(runtimeKnowledgeToolUsageStatsResponseSchema)
+			.query(async ({ ctx }) => {
+				return await ctx.runtimeApi.getKnowledgeToolUsageStats(ctx.workspaceScope);
 			}),
 		saveClineProviderSettings: t.procedure
 			.input(runtimeClineProviderSettingsSaveRequestSchema)

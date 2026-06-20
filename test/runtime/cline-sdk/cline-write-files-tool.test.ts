@@ -42,6 +42,36 @@ describe("createWriteFilesTool", () => {
 		await expect(readFile(join(workspacePath, "plans", "new_plan.md"), "utf8")).resolves.toBe("# Plan\n\nDetails\n");
 	});
 
+	it("accepts JSON-stringified batch files from small models", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 10 });
+
+		const result = await tool.execute(
+			{
+				files: JSON.stringify([{ path: "plans/stringified.md", content: "Details\n" }]),
+			},
+			TOOL_CONTEXT,
+		);
+
+		expect(result).toMatchObject({
+			written: [{ path: "plans/stringified.md", lines: 2 }],
+		});
+		await expect(readFile(join(workspacePath, "plans", "stringified.md"), "utf8")).resolves.toBe("Details\n");
+	});
+
+	it("advertises stringified batch files in the write_files schema", () => {
+		const tool = createWriteFilesTool({ workspacePath: "/tmp/workspace", maxFileLines: 10 });
+		const properties = tool.inputSchema.properties as Record<string, { anyOf?: readonly Record<string, unknown>[] }>;
+
+		expect(properties.files?.anyOf).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: "array" }),
+				expect.objectContaining({ type: "string" }),
+			]),
+		);
+	});
+
 	it("blocks files above the configured line limit before writing", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
@@ -218,5 +248,13 @@ describe("parseWriteFilesRequests", () => {
 		expect(parseWriteFilesRequests({ path: "/tmp/empty.md", content: "" })).toEqual([
 			{ path: "/tmp/empty.md", content: "" },
 		]);
+	});
+
+	it("parses JSON-stringified files arrays", () => {
+		expect(
+			parseWriteFilesRequests({
+				files: JSON.stringify([{ path: "/tmp/stringified.md", content: "text\n" }]),
+			}),
+		).toEqual([{ path: "/tmp/stringified.md", content: "text\n" }]);
 	});
 });

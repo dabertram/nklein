@@ -52,6 +52,7 @@ import {
 	validateSession,
 } from "../security/passcode-manager";
 import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
@@ -418,6 +419,29 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			deps.warn(`Could not record model performance for ${summary.taskId}: ${message}`);
 		});
 	};
+	const recordClineKnowledgeToolUsage = (
+		scope: RuntimeTrpcWorkspaceScope,
+		summary: RuntimeTaskSessionSummary,
+	): void => {
+		void (async () => {
+			const [workspaceState, runtimeConfig] = await Promise.all([
+				loadWorkspaceState(scope.workspacePath).catch(() => null),
+				loadRuntimeConfig(scope.workspacePath).catch(() => null),
+			]);
+			const cards = workspaceState?.board.columns.flatMap((column) => column.cards) ?? [];
+			const card = cards.find((candidate) => candidate.id === summary.taskId) ?? null;
+			await recordKnowledgeToolUsageObservation({
+				workspaceId: scope.workspaceId,
+				workspacePath: scope.workspacePath,
+				card,
+				runtimeConfig,
+				summary,
+			});
+		})().catch((error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.warn(`Could not record knowledge tool usage for ${summary.taskId}: ${message}`);
+		});
+	};
 	const finalizeHeadlessAutoReviewTask = (
 		scope: RuntimeTrpcWorkspaceScope,
 		service: ClineTaskSessionService,
@@ -617,6 +641,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
 			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
+				recordClineKnowledgeToolUsage(scope, summary);
 				recordClineModelPerformance(scope, summary);
 				if (isReviewableClineSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);

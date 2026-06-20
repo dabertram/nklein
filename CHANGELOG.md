@@ -3,8 +3,11 @@
 ## [Upcoming !Klein 0.0.1]
 
 - Added local model performance statistics for Cline task runs, aggregating observed outcomes, timing, token usage, context pressure, model, role, project, and !Klein version with a detailed Settings view next to model roles.
+- Added knowledge-tool usage statistics for Cline retrieval, code-index, file discovery/read, planning-control, architecture-knowledge, and external-fetch tool events, with project/global aggregates in the Settings statistics view.
+- Added a domain-knowledge-heavy audio VST/psytrance dev-test preset with a dedicated DSP fixture for kick/bass synthesis, phase-aligned sequencing, UI state, and clean-effect guardrails.
 - Made `decompose_project` tolerate stringified task arrays and expansion maps from small local models at both the advertised tool schema and execution parser layers while still validating the parsed graph with the normal strict decomposition contract.
 - Matched `decompose_project`'s advertised nullable fields to its runtime parser, so answered questions and optional task hints that use `null` are not rejected before execution.
+- Made `write_files` tolerate JSON-stringified batch file arrays from small local models at both the advertised tool schema and execution parser layers.
 - Lowered the default Docker agent sandbox memory cap from 4096 MB to 2048 MB per container to reduce Docker VM swap pressure on constrained developer machines; saved runtime settings can still raise it.
 - Completed successful auto-review cards that finish with an explicit empty sandbox patch, so analysis/no-change generated cards unblock their dependent Planning cards instead of getting stuck in Review.
 - Normalized host workspace absolute paths inside sandboxed `list_files`, `find_files`, and `get_file_size`, matching the existing `read_files` recovery path and preventing repeated discovery-tool loops on temp project paths.

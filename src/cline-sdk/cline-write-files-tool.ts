@@ -16,6 +16,21 @@ export interface WriteFilesRequest {
 
 type WriteToolName = "write_file" | "write_files";
 
+function parseJsonStringValue(value: unknown): unknown {
+	if (typeof value !== "string") {
+		return value;
+	}
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return value;
+	}
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		return value;
+	}
+}
+
 export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 	const toRequest = (value: unknown): WriteFilesRequest | null => {
 		if (!value || typeof value !== "object") {
@@ -33,7 +48,7 @@ export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 		return [];
 	}
 	const record = input as Record<string, unknown>;
-	const files = record.files;
+	const files = parseJsonStringValue(record.files);
 	if (Array.isArray(files)) {
 		const requests = files.map(toRequest);
 		return requests.every((request): request is WriteFilesRequest => request !== null) ? requests : [];
@@ -63,23 +78,32 @@ function createWriteTool(options: {
 			properties: isBatchTool
 				? {
 						files: {
-							type: "array",
-							items: {
-								type: "object",
-								properties: {
-									path: {
-										type: "string",
-										description: "Absolute path or workspace-relative path to create or replace.",
+							anyOf: [
+								{
+									type: "array",
+									items: {
+										type: "object",
+										properties: {
+											path: {
+												type: "string",
+												description: "Absolute path or workspace-relative path to create or replace.",
+											},
+											content: {
+												type: "string",
+												description: "Complete UTF-8 text content to write.",
+											},
+										},
+										required: ["path", "content"],
+										additionalProperties: false,
 									},
-									content: {
-										type: "string",
-										description: "Complete UTF-8 text content to write.",
-									},
+									minItems: 1,
 								},
-								required: ["path", "content"],
-								additionalProperties: false,
-							},
-							minItems: 1,
+								{
+									type: "string",
+									description:
+										"JSON-stringified array of file writes; accepted for small models that stringify nested arrays.",
+								},
+							],
 						},
 					}
 				: {

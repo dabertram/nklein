@@ -45,6 +45,7 @@ import type {
 	RuntimeDevTestProjectPreset,
 	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeRunUpdateResponse,
@@ -75,6 +76,13 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+export async function fetchKnowledgeToolUsageStats(
+	workspaceId: string | null,
+): Promise<RuntimeKnowledgeToolUsageStatsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getKnowledgeToolUsageStats.query();
 }
 
 export async function saveClineProviderSettings(
