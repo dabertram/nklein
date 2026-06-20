@@ -18,6 +18,7 @@ import {
 } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { ClineTaskRoutingCandidate } from "../../../src/cline-sdk/cline-task-router";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
+import { AUTONOMOUS_CLINE_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
 	moveTaskToColumn,
@@ -417,11 +418,13 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 
 		expect(result.createdTasks[0]?.clineSettings).toEqual({
+			...AUTONOMOUS_CLINE_TIMEOUT_SETTINGS,
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
 			reasoningEffort: "medium",
 		});
 		expect(result.createdTasks[1]?.clineSettings).toEqual({
+			...AUTONOMOUS_CLINE_TIMEOUT_SETTINGS,
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
 			reasoningEffort: "medium",
@@ -467,6 +470,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 		});
 
 		expect(result.createdTasks[0]?.clineSettings).toEqual({
+			...AUTONOMOUS_CLINE_TIMEOUT_SETTINGS,
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
 			reasoningEffort: "low",
@@ -475,6 +479,7 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			"Model fit: validated by !Klein routing guard (ollama / qwen3.5-9b, role worker, context 64,000, capability 35)",
 		);
 		expect(result.createdTasks[1]?.clineSettings).toEqual({
+			...AUTONOMOUS_CLINE_TIMEOUT_SETTINGS,
 			providerId: "lmstudio",
 			modelId: "deepseek-coder-33b",
 			reasoningEffort: "high",
@@ -512,8 +517,8 @@ describe("applyClinePlanTaskGraphToBoard", () => {
 			],
 		});
 
-		expect(result.createdTasks[0]?.clineSettings).toBeUndefined();
-		expect(result.createdTasks[1]?.clineSettings).toBeUndefined();
+		expect(result.createdTasks[0]?.clineSettings).toEqual(AUTONOMOUS_CLINE_TIMEOUT_SETTINGS);
+		expect(result.createdTasks[1]?.clineSettings).toEqual(AUTONOMOUS_CLINE_TIMEOUT_SETTINGS);
 	});
 
 	it("rejects unknown dependency references", () => {

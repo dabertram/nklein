@@ -8,6 +8,7 @@ import type {
 	RuntimeBoardDependency,
 	RuntimeTaskClineSettings,
 } from "../core/api-contract";
+import { withAutonomousClineTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -944,7 +945,9 @@ export function applyClinePlanTaskGraphToBoard(input: ApplyClinePlanTaskGraphInp
 				autoReviewMode: "commit",
 				agentId: "cline",
 				baseRef: input.baseRef,
-				clineSettings: resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
+				clineSettings: withAutonomousClineTimeoutSettings(
+					resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
+				),
 				filesLikelyTouched: task.filesLikelyTouched,
 				generatedFromPlan: {
 					artifactKind: "decomposition",

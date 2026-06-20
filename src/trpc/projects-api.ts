@@ -30,6 +30,7 @@ import {
 	parseProjectRemoveRequest,
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
+import { withAutonomousClineTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import {
@@ -109,7 +110,7 @@ export function createDevTestBoard(input: {
 	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
 		(settings): settings is RuntimeTaskClineSettings => Boolean(settings.providerId || settings.modelId),
 	);
-	const clineSettings = workerSettings ?? firstRoleSettings;
+	const clineSettings = withAutonomousClineTimeoutSettings(workerSettings ?? firstRoleSettings);
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,
@@ -121,7 +122,7 @@ export function createDevTestBoard(input: {
 		startInPlanMode: true,
 		autoReviewEnabled: true,
 		agentId: "cline" as const,
-		...(clineSettings ? { clineSettings } : {}),
+		clineSettings,
 		baseRef: "main",
 		createdAt: input.now,
 		updatedAt: input.now,

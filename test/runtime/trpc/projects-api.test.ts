@@ -11,6 +11,7 @@ import {
 } from "../../../src/cline-sdk/cline-dev-test-project";
 import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
+import { AUTONOMOUS_CLINE_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
 import {
 	getTaskWorktreesHomePath,
 	getWorkspaceDirectoryPath,
@@ -182,7 +183,7 @@ describe("createDevTestBoard", () => {
 		const backlog = board.columns.find((column) => column.id === "backlog")?.cards ?? [];
 		expect(backlog).toHaveLength(1);
 		expect(new Set(backlog.map((card) => card.agentId))).toEqual(new Set(["cline"]));
-		expect(backlog[0]?.clineSettings).toBeUndefined();
+		expect(backlog[0]?.clineSettings).toEqual(AUTONOMOUS_CLINE_TIMEOUT_SETTINGS);
 		expect(backlog[0]?.startInPlanMode).toBe(true);
 		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
