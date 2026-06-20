@@ -94,7 +94,7 @@ function createWriteTool(options: {
 											},
 										},
 										required: ["path", "content"],
-										additionalProperties: false,
+										additionalProperties: true,
 									},
 									minItems: 1,
 								},

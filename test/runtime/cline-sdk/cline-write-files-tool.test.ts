@@ -60,6 +60,38 @@ describe("createWriteFilesTool", () => {
 		await expect(readFile(join(workspacePath, "plans", "stringified.md"), "utf8")).resolves.toBe("Details\n");
 	});
 
+	it("ignores harmless extra file-entry keys from confused write retries", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 10 });
+
+		await tool.execute(
+			{
+				files: [
+					{
+						path: "plans/extra-keys.md",
+						content: "Details\n",
+						start_line: 1,
+						end_line: null,
+					},
+				],
+			},
+			TOOL_CONTEXT,
+		);
+
+		await expect(readFile(join(workspacePath, "plans", "extra-keys.md"), "utf8")).resolves.toBe("Details\n");
+	});
+
+	it("advertises tolerant file-entry objects in the write_files schema", () => {
+		const tool = createWriteFilesTool({ workspacePath: "/tmp/workspace", maxFileLines: 10 });
+		const properties = tool.inputSchema.properties as Record<string, { anyOf?: readonly Record<string, unknown>[] }>;
+		const arraySchema = properties.files?.anyOf?.find((schema) => schema.type === "array") as
+			| { items?: { additionalProperties?: unknown } }
+			| undefined;
+
+		expect(arraySchema?.items?.additionalProperties).toBe(true);
+	});
+
 	it("advertises stringified batch files in the write_files schema", () => {
 		const tool = createWriteFilesTool({ workspacePath: "/tmp/workspace", maxFileLines: 10 });
 		const properties = tool.inputSchema.properties as Record<string, { anyOf?: readonly Record<string, unknown>[] }>;
