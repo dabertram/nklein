@@ -100,6 +100,8 @@ export interface RuntimeServer {
 	close: () => Promise<void>;
 }
 
+const WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
+
 function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): string | null {
 	for (const headerName of [WORKSPACE_ID_HEADER, LEGACY_WORKSPACE_ID_HEADER]) {
 		const headerValue = request.headers[headerName];
@@ -119,6 +121,28 @@ function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): 
 		}
 	}
 	return null;
+}
+
+function isWorkspaceStateLockError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("Lock file is already being held");
+}
+
+async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
+	let lastError: unknown = null;
+	for (let attempt = 0; attempt <= WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS.length; attempt += 1) {
+		try {
+			return await operation();
+		} catch (error) {
+			lastError = error;
+			const delayMs = WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS[attempt];
+			if (!isWorkspaceStateLockError(error) || delayMs === undefined) {
+				throw error;
+			}
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+	}
+	throw lastError;
 }
 
 function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
@@ -376,61 +400,65 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		autoReviewFinalizationInFlightTaskIds.add(inFlightKey);
 		void (async () => {
 			try {
-				let shouldAutoComplete = false;
-				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-					const record = latestState.board.columns
-						.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
-						.find((candidate) => candidate.card.id === taskId);
-					if (!record) {
-						return { board: latestState.board, save: false, value: null };
+				await retryWorkspaceStateLock(async () => {
+					let shouldAutoComplete = false;
+					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+						const record = latestState.board.columns
+							.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
+							.find((candidate) => candidate.card.id === taskId);
+						if (!record) {
+							return { board: latestState.board, save: false, value: null };
+						}
+						if (record.columnId === "completed") {
+							return { board: latestState.board, save: false, value: null };
+						}
+						if (record.card.startInPlanMode) {
+							return { board: latestState.board, save: false, value: null };
+						}
+						shouldAutoComplete =
+							record.card.autoReviewEnabled === true && (record.card.autoReviewMode ?? "commit") === "commit";
+						if (record.columnId === "review") {
+							return { board: latestState.board, save: false, value: null };
+						}
+						const movement = moveTaskToColumn(latestState.board, taskId, "review");
+						return {
+							board: movement.board,
+							save: movement.moved,
+							value: null,
+						};
+					});
+					if (!shouldAutoComplete) {
+						return;
 					}
-					if (record.columnId === "completed") {
-						return { board: latestState.board, save: false, value: null };
+					const reviewState = await loadWorkspaceState(scope.workspacePath);
+					const mergeResult = await mergeTaskWorktreesInDependencyOrder({
+						repoPath: scope.workspacePath,
+						board: reviewState.board,
+						columns: ["review"],
+						taskIds: [taskId],
+					});
+					if (!mergeResult.ok) {
+						const reason =
+							mergeResult.blocked?.reason ??
+							mergeResult.conflict?.message ??
+							"unknown task result merge failure";
+						deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
+						return;
 					}
-					if (record.card.startInPlanMode) {
-						return { board: latestState.board, save: false, value: null };
-					}
-					shouldAutoComplete =
-						record.card.autoReviewEnabled === true && (record.card.autoReviewMode ?? "commit") === "commit";
-					if (record.columnId === "review") {
-						return { board: latestState.board, save: false, value: null };
-					}
-					const movement = moveTaskToColumn(latestState.board, taskId, "review");
-					return {
-						board: movement.board,
-						save: movement.moved,
-						value: null,
-					};
+					let readyTaskIds: string[] = [];
+					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+						const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
+						readyTaskIds = completed.readyTaskIds;
+						return {
+							board: completed.board,
+							save: completed.moved,
+							value: null,
+						};
+					});
+					await service.stopTaskSession(taskId).catch(() => null);
+					drainQueuedTaskStarts(scope, { force: true });
+					await autoStartTaskIds(scope, readyTaskIds);
 				});
-				if (!shouldAutoComplete) {
-					return;
-				}
-				const reviewState = await loadWorkspaceState(scope.workspacePath);
-				const mergeResult = await mergeTaskWorktreesInDependencyOrder({
-					repoPath: scope.workspacePath,
-					board: reviewState.board,
-					columns: ["review"],
-					taskIds: [taskId],
-				});
-				if (!mergeResult.ok) {
-					const reason =
-						mergeResult.blocked?.reason ?? mergeResult.conflict?.message ?? "unknown task result merge failure";
-					deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
-					return;
-				}
-				let readyTaskIds: string[] = [];
-				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-					const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
-					readyTaskIds = completed.readyTaskIds;
-					return {
-						board: completed.board,
-						save: completed.moved,
-						value: null,
-					};
-				});
-				await service.stopTaskSession(taskId).catch(() => null);
-				drainQueuedTaskStarts(scope, { force: true });
-				await autoStartTaskIds(scope, readyTaskIds);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Could not finalize auto-review task ${taskId} for ${scope.workspacePath}: ${message}`);
