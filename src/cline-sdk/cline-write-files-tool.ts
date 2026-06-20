@@ -8,6 +8,7 @@ import {
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { repairJsonStringValue } from "./cline-tool-argument-repair";
 
 export interface WriteFilesRequest {
 	path: string;
@@ -15,21 +16,6 @@ export interface WriteFilesRequest {
 }
 
 type WriteToolName = "write_file" | "write_files";
-
-function parseJsonStringValue(value: unknown): unknown {
-	if (typeof value !== "string") {
-		return value;
-	}
-	const trimmed = value.trim();
-	if (!trimmed) {
-		return value;
-	}
-	try {
-		return JSON.parse(trimmed);
-	} catch {
-		return value;
-	}
-}
 
 export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 	const toRequest = (value: unknown): WriteFilesRequest | null => {
@@ -48,7 +34,7 @@ export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 		return [];
 	}
 	const record = input as Record<string, unknown>;
-	const files = parseJsonStringValue(record.files);
+	const files = repairJsonStringValue(record.files);
 	if (Array.isArray(files)) {
 		const requests = files.map(toRequest);
 		return requests.every((request): request is WriteFilesRequest => request !== null) ? requests : [];

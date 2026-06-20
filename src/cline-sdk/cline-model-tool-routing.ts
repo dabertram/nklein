@@ -2,7 +2,7 @@ import type { ClineSdkStartSessionInput } from "./sdk-runtime-boundary";
 
 type ToolRoutingRule = NonNullable<ClineSdkStartSessionInput["config"]["toolRoutingRules"]>[number];
 
-const SMALL_LOCAL_MODEL_MARKERS = [
+export const SMALL_LOCAL_MODEL_MARKERS = [
 	"qwen",
 	"llama",
 	"mistral",
@@ -12,6 +12,15 @@ const SMALL_LOCAL_MODEL_MARKERS = [
 	"deepseek-coder",
 	"codellama",
 ];
+
+/** True when the model id matches a known small/local family, used to apply conservative defaults. */
+export function isSmallLocalModelId(modelId: string | null | undefined): boolean {
+	const id = modelId?.trim().toLowerCase();
+	if (!id) {
+		return false;
+	}
+	return SMALL_LOCAL_MODEL_MARKERS.some((marker) => id.includes(marker));
+}
 
 const SMALL_LOCAL_MODEL_DISABLED_TOOLS: NonNullable<ToolRoutingRule["disableTools"]> = [
 	"fetch_web_content",

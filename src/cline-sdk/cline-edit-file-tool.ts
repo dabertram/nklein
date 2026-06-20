@@ -10,6 +10,7 @@ import {
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./cline-fuzzy-edit";
+import { repairJsonStringValue } from "./cline-tool-argument-repair";
 
 /**
  * `edit_file` — a token-efficient, lenient search/replace edit tool for small/quantized local models.
@@ -26,21 +27,6 @@ interface EditFileBlockInput extends SearchReplaceBlock {}
 export interface EditFileRequest {
 	path: string;
 	edits: EditFileBlockInput[];
-}
-
-function parseJsonStringValue(value: unknown): unknown {
-	if (typeof value !== "string") {
-		return value;
-	}
-	const trimmed = value.trim();
-	if (!trimmed) {
-		return value;
-	}
-	try {
-		return JSON.parse(trimmed);
-	} catch {
-		return value;
-	}
 }
 
 function toEditBlock(value: unknown): SearchReplaceBlock | null {
@@ -87,7 +73,7 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 		return null;
 	}
 	// Allow a single {search,replace} at the top level or an `edits` array.
-	const rawEdits = parseJsonStringValue(record.edits);
+	const rawEdits = repairJsonStringValue(record.edits);
 	const editValues = Array.isArray(rawEdits) ? rawEdits : [record];
 	const edits = editValues.map(toEditBlock);
 	if (edits.length === 0 || edits.some((edit) => edit === null)) {
