@@ -210,9 +210,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				workspaceScope: null,
 			};
 		}
-		const requestedWorkspaceContext = await loadWorkspaceContextById(requestedWorkspaceId, {
-			resolutionSource: "explicit_id",
-		});
+		const requestedWorkspaceContext = await retryWorkspaceStateLock(async () =>
+			loadWorkspaceContextById(requestedWorkspaceId, {
+				resolutionSource: "explicit_id",
+			}),
+		);
 		if (!requestedWorkspaceContext) {
 			return {
 				requestedWorkspaceId,

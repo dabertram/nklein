@@ -13,6 +13,7 @@ vi.mock("../../src/telemetry/self-observation-sink.js", () => ({
 }));
 
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
+import { lockedFileSystem } from "../../src/fs/locked-file-system";
 import type { WorkspaceStateConflictError } from "../../src/state/workspace-state";
 import {
 	getTaskWorktreesHomePath,
@@ -447,6 +448,30 @@ describe.sequential("workspace-state integration", () => {
 				});
 				expect(resolved?.workspaceId).toBe(context.workspaceId);
 				expect(selfObservationMocks.recordSelfObservation).not.toHaveBeenCalled();
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("preserves lock contention when loading a workspace by workspace id", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-explicit-id-lock-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-a");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const context = await loadWorkspaceContext(workspacePath);
+				await expect(
+					lockedFileSystem.withLock(
+						{
+							path: join(getWorkspacesRootPath(), "index.json"),
+							type: "file",
+						},
+						async () => await loadWorkspaceContextById(context.workspaceId),
+					),
+				).rejects.toThrow("Lock file is already being held");
 			} finally {
 				cleanup();
 			}

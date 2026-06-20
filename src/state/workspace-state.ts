@@ -806,6 +806,11 @@ export class WorkspaceStateConflictError extends Error {
 	}
 }
 
+function isWorkspaceStateLockError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("Lock file is already being held");
+}
+
 export async function loadWorkspaceContext(
 	cwd: string,
 	options: LoadWorkspaceContextOptions = {},
@@ -928,7 +933,10 @@ export async function loadWorkspaceContextById(
 				...(options.resolutionMetadata ?? {}),
 			},
 		});
-	} catch {
+	} catch (error) {
+		if (isWorkspaceStateLockError(error)) {
+			throw error;
+		}
 		return null;
 	}
 }
