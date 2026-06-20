@@ -1192,3 +1192,32 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
       reusable per-domain knowledge injected when a card's topic matches.
 - [ ] **Anti-lazy-edit prompting (aider udiff lesson).** Detect and reject `// ... unchanged ...` placeholder
       edits that drop real code.
+
+---
+
+## Small-model / limited-hardware capability pass (academic + competitive, 2026-06-21)
+
+> Direction (user): do not rely solely on the Cline SDK — give !Klein its own local-model path so it can use
+> the levers the SDK cannot forward (grammar/JSON-schema constrained decoding, min_p, repetition_penalty), and
+> batteries-included ONNX prompt compression with opt-out. Academic grounding: min-p (arXiv:2407.01082),
+> LLMLingua-2 (arXiv:2403.12968), self-consistency (arXiv:2203.11171), grammar-constrained decoding
+> (arXiv:2403.06988).
+
+- [x] **Keystone: `LocalLlmClient`** ([cline-local-llm-client.ts](src/cline-sdk/cline-local-llm-client.ts)) —
+      direct local-only OpenAI-compatible client with full sampling + grammar/JSON-schema constrained decoding
+      and a `generateStructured` helper (schema-valid JSON, prose/fence recovery, corrective retry). Unit-tested.
+      Unblocks the constrained-decoding technique the SDK cannot forward, without forking the SDK.
+- [ ] **Consumer: per-model sampling policy** — choose temperature/min_p/repeat_penalty per model/role
+      (low/deterministic for coding + quantized) and use `LocalLlmClient` for structured sub-tasks.
+- [ ] **Consumer: constrained decomposition + best-of-N selection** — generate plans via `generateStructured`
+      against the plan-task-graph JSON schema; sample N and select with `assessClinePlanTaskGraphQuality`
+      (self-consistency). Plumb provider/baseUrl resolution into the decomposition flow.
+- [ ] **Consumer: constrained tool-argument generation/repair** — unify the ad-hoc JSON parsers behind a
+      shared repair helper; optionally regenerate malformed tool args via `generateStructured`.
+- [ ] **Batteries-included ONNX LLMLingua-2 compression** — runtime model download/update, run via llama.cpp /
+      onnxruntime, opt-out to the existing caveman/minify fallback; new compression mode in
+      `cline-context-compression.ts`.
+- [ ] **Setup guidance** — recommend hardware-appropriate server settings (quant e.g. Q4_K_M, KV-cache, flash
+      attention, context size, min_p/repeat_penalty) in onboarding.
+- [ ] **Upstream proposal** — ask `@clinebot` to forward `response_format`/grammar + top_p/top_k/min_p/
+      repetition_penalty in its provider layer so the main agent loop benefits too.
