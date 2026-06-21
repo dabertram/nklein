@@ -69,6 +69,15 @@ These are implemented from published research, independent of the projects above
 - **LLMLingua-2** prompt compression (arXiv:2403.12968) — `cline-prompt-compression.ts`.
 - **ReAct** tool-use loop (arXiv:2210.03629) — `src/agent-core/agent-loop.ts`.
 
+## Polyglot architecture (2026-06-21)
+
+!Klein is moving to a polyglot split: a local-only **Python core sidecar** (`core-py/`, Apache-2.0) owns ML +
+the native agent core; the **TypeScript runtime** keeps the server/tRPC/state/terminal and serves the React UI.
+This lets !Klein use Python's ML ecosystem (constrained decoding via `outlines`/`xgrammar`, LLMLingua-2,
+`sentence-transformers`, `tree-sitter`, `llama-cpp-python`) and adopt the Apache/MIT **Python** agents (aider,
+OpenHands) directly in the sidecar — while AGPL Open Interpreter remains concepts-only. The Python core is
+opt-in (`NKLEIN_CORE_PY`) with automatic fallback to the TS path until parity is proven.
+
 ## Maintenance rule
 
 When adopting another technique or any code from an external project, add it here with the project, its

@@ -1268,3 +1268,23 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
       native core into the task-session service alongside the Cline path.
 - [ ] **Port remaining adopted techniques** as needed (OpenHands condenser pipeline, Continue context
       providers, Roo multi-file diff) — each recorded in THIRD_PARTY_NOTICES.md when added.
+
+---
+
+## Python core migration — Phase 0/1 landed (2026-06-21)
+
+> Strangler-fig pivot to a polyglot split (Python core sidecar + TS server/UI). See the approved migration
+> plan and THIRD_PARTY_NOTICES.md.
+
+- [x] **core-py scaffold** (`core-py/`): FastAPI app (`/health`, `/v1/generate`, `/v1/generate_structured`),
+      pydantic versioned contract + JSON-Schema export, local-only guard, sampling policy, generation backends
+      (proxy + `llama-cpp-python` seam), structured-generation recovery+retry, pytest suite, pyproject (`uv`).
+      Pure helpers verified under system python3; full suite runs via `uv run pytest`.
+- [x] **TS `KleinCoreClient` + flag** (`src/cline-sdk/klein-core-client.ts`, `src/config/klein-core-config.ts`):
+      drop-in `generateStructured` to the sidecar with automatic `LocalLlmClient` fallback; `createStructuredGenerator`
+      routing seam; opt-in via `NKLEIN_CORE_PY` (default off). Unit-tested; full TS suite green (1140).
+- [ ] **Wire `createStructuredGenerator` into live callers** (agent-core decider, decomposition) — the seam is
+      ready; flip the construction sites when Phase 3 wiring lands.
+- [ ] **Contract parity CI** (zod ↔ exported JSON-Schema ↔ pydantic).
+- [ ] **Phases 2–5** per the approved plan (ML services, native agent core in Python adopting aider/OpenHands,
+      decomposition/tools, Electron bundling).

@@ -32,6 +32,7 @@
 			"web-ui/playwright.config.ts",
 			"!dist/**/*",
 			"!node_modules/**/*",
+			"!core-py/**/*",
 			"!!**/node_modules",
 			"!.worktrees/**/*"
 		]
