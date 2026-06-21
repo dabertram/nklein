@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Added an OpenHands-inspired "watch the agent's hands" view: a per-card **Watch** tab that shows, in one place, the agent's live state/model/elapsed/current-tool, an accumulated **activity timeline** (every tool/step it takes, streamed from the data the runtime already broadcasts), and the **files it is changing this run** — plus a jump to its interactive terminal. Built on a new client-side activity-timeline accumulator (unit-tested) with no backend changes.
+
 - Python core Phase 4 — decomposition quality: ported the dependency-coherence validator and best-of-N graph selection (self-consistency) to the Python core (`/v1/decompose/select`), so weak local models can sample several plans and keep the most coherent one — directly targeting the decomposition under-scoping that the audio-VST dev-test run exposed. Unit-tested.
 
 - Python core Phase 3 — native agent core: a ReAct tool-calling loop (`/v1/agent/run`) that runs entirely in the Python core on the local model with constrained-JSON action selection, workspace-scoped tools (`read_file`/`write_file`/`edit_file`/`list_files` with path containment), and the aider-style fuzzy search/replace editor ported from the TS implementation (exact → whitespace → leading-blank → `...` elision → fuzzy ≥0.8). Loop guards: repeated-action stall, unknown-tool feedback, max-turn budget. Unit-tested.

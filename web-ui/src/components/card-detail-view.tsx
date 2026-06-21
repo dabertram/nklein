@@ -3,6 +3,7 @@ import {
 	Activity,
 	Check,
 	Clipboard,
+	Eye,
 	Files,
 	GitBranch,
 	GitCompareArrows,
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { showAppToast } from "@/components/app-toaster";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
+import { AgentWatchPanel } from "@/components/detail-panels/agent-watch-panel";
 import { ClineAgentChatPanel, type ClineAgentChatPanelHandle } from "@/components/detail-panels/cline-agent-chat-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
 import { type DiffLineComment, DiffViewerPanel } from "@/components/detail-panels/diff-viewer-panel";
@@ -1282,10 +1284,11 @@ function TaskDiagnosticsPanel({
 	);
 }
 
-type MobileTab = "chat" | "diff" | "files";
+type MobileTab = "chat" | "watch" | "diff" | "files";
 
 const MOBILE_TABS: { id: MobileTab; label: string; icon: React.ReactElement }[] = [
 	{ id: "chat", label: "Chat", icon: <MessageSquare size={14} /> },
+	{ id: "watch", label: "Watch", icon: <Eye size={14} /> },
 	{ id: "diff", label: "Diff", icon: <GitCompareArrows size={14} /> },
 	{ id: "files", label: "Files", icon: <Files size={14} /> },
 ];
@@ -1830,6 +1833,20 @@ export function CardDetailView({
 							style={{ display: mobileTab === "chat" ? "flex" : "none" }}
 						>
 							{agentChatPanel}
+						</div>
+						{/* Watch panel — "watch the agent's hands" */}
+						<div
+							className="min-h-0 min-w-0 flex-1 flex-col"
+							style={{ display: mobileTab === "watch" ? "flex" : "none" }}
+						>
+							<AgentWatchPanel
+								taskId={selection.card.id}
+								workspaceId={currentProjectId}
+								baseRef={selection.card.baseRef ?? null}
+								summary={sessionSummary}
+								stateVersion={taskWorkspaceStateVersion}
+								onOpenTerminal={() => setMobileTab("chat")}
+							/>
 						</div>
 						{/* Diff panel */}
 						<div
