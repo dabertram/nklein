@@ -15,6 +15,12 @@ from typing import Any
 
 from .fuzzy_edit import apply_blocks
 
+_MAX_COMMAND_OUTPUT_CHARS = 4000
+
+
+def _tail(text: str) -> str:
+    return text if len(text) <= _MAX_COMMAND_OUTPUT_CHARS else f"...[truncated]\n{text[-_MAX_COMMAND_OUTPUT_CHARS:]}"
+
 
 @dataclass
 class AgentTool:
@@ -24,11 +30,24 @@ class AgentTool:
 
 
 class WorkspaceTools:
-    """Builds the default toolset rooted at ``workspace_root`` with path containment."""
+    """Builds the default toolset rooted at ``workspace_root`` with path containment.
 
-    def __init__(self, workspace_root: str, max_file_bytes: int = 2_000_000) -> None:
+    ``allow_commands`` enables a ``run_command`` tool (build/test execution) needed for a real
+    implement->build->test loop. It runs host-side in the workspace, so it is opt-in; under !Klein's isolation
+    invariant this must move into the Docker sandbox tool-runner before production use (tracked in plan.md).
+    """
+
+    def __init__(
+        self,
+        workspace_root: str,
+        max_file_bytes: int = 2_000_000,
+        allow_commands: bool = False,
+        command_timeout_s: float = 600.0,
+    ) -> None:
         self._root = Path(workspace_root).resolve()
         self._max_file_bytes = max_file_bytes
+        self._allow_commands = allow_commands
+        self._command_timeout_s = command_timeout_s
 
     def _resolve(self, rel_path: str) -> Path:
         candidate = (self._root / rel_path).resolve()
@@ -83,8 +102,32 @@ class WorkspaceTools:
                     return {"files": sorted(out), "truncated": True}
         return {"files": sorted(out), "truncated": False}
 
+    def run_command(self, args: dict[str, Any]) -> Any:
+        import subprocess  # noqa: S404 - controlled build/test execution in the throwaway benchmark workspace
+
+        command = str(args.get("command", "")).strip()
+        if not command:
+            return {"error": "command is required"}
+        try:
+            proc = subprocess.run(  # noqa: S602 - shell needed for build/test pipelines; workspace-scoped, opt-in
+                command,
+                shell=True,
+                cwd=str(self._root),
+                capture_output=True,
+                text=True,
+                timeout=self._command_timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            return {"error": f"command timed out after {self._command_timeout_s}s", "command": command}
+        return {
+            "command": command,
+            "exit_code": proc.returncode,
+            "stdout": _tail(proc.stdout),
+            "stderr": _tail(proc.stderr),
+        }
+
     def build(self) -> list[AgentTool]:
-        return [
+        tools = [
             AgentTool("read_file", "Read a workspace file: {path}.", self.read_file),
             AgentTool("write_file", "Create/replace a file: {path, content}.", self.write_file),
             AgentTool(
@@ -94,3 +137,12 @@ class WorkspaceTools:
             ),
             AgentTool("list_files", "List workspace files: {path?}.", self.list_files),
         ]
+        if self._allow_commands:
+            tools.append(
+                AgentTool(
+                    "run_command",
+                    "Run a shell command in the workspace (build/test): {command}. Returns exit_code/stdout/stderr.",
+                    self.run_command,
+                )
+            )
+        return tools

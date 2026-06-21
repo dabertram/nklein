@@ -87,3 +87,20 @@ async def test_agent_loop_parks_on_repeated_action() -> None:
     result = await run_agent_loop("t", tools, decide, repeated_action_limit=3)
     assert result.status == "stalled"
     assert result.turns == 3
+
+
+def test_run_command_tool(tmp_path: Path) -> None:
+    from klein_core.agent_tools import WorkspaceTools
+
+    tools = {t.name: t for t in WorkspaceTools(str(tmp_path), allow_commands=True).build()}
+    assert "run_command" in tools
+    result = tools["run_command"].run({"command": "echo hello-klein"})
+    assert result["exit_code"] == 0
+    assert "hello-klein" in result["stdout"]
+
+
+def test_run_command_absent_without_opt_in(tmp_path: Path) -> None:
+    from klein_core.agent_tools import WorkspaceTools
+
+    tools = {t.name: t for t in WorkspaceTools(str(tmp_path)).build()}
+    assert "run_command" not in tools

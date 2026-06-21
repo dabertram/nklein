@@ -139,6 +139,7 @@ class AgentRunRequest(BaseModel):
     task: str
     workspace_root: str
     max_turns: int = 20
+    allow_commands: bool = False
 
 
 class AgentTranscriptEntryPayload(BaseModel):

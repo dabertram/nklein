@@ -165,7 +165,7 @@ async def agent_run(request: AgentRunRequest) -> AgentRunResponse:
         backend = _resolve_backend(request.target)
     except CloudProviderDisabledError as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
-    tools = WorkspaceTools(request.workspace_root).build()
+    tools = WorkspaceTools(request.workspace_root, allow_commands=request.allow_commands).build()
     decider = make_model_decider(backend, request.target.model_id)
     result = await run_agent_loop(request.task, tools, decider, max_turns=request.max_turns)
     return AgentRunResponse(
