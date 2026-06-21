@@ -15,6 +15,7 @@ from .contract import (
     AgentRunRequest,
     AgentRunResponse,
     AgentTranscriptEntryPayload,
+    CandidateScorePayload,
     CompressRequest,
     CompressResponse,
     EmbedRequest,
@@ -27,7 +28,10 @@ from .contract import (
     RankedSymbolPayload,
     RepoMapRequest,
     RepoMapResponse,
+    SelectGraphRequest,
+    SelectGraphResponse,
 )
+from .decomposition import PlanTask, select_best_graph
 from .embeddings import embed_texts
 from .generation import ChatMessage, GenerationBackend, ProxyBackend, StructuredFormat
 from .local_only import CloudProviderDisabledError
@@ -171,5 +175,41 @@ async def agent_run(request: AgentRunRequest) -> AgentRunResponse:
         transcript=[
             AgentTranscriptEntryPayload(turn=e.turn, action=e.action, observation=e.observation, error=e.error)
             for e in result.transcript
+        ],
+    )
+
+
+@app.post("/v1/decompose/select", response_model=SelectGraphResponse)
+async def decompose_select(request: SelectGraphRequest) -> SelectGraphResponse:
+    candidates = [
+        [
+            PlanTask(
+                id=t.id,
+                title=t.title,
+                prompt=t.prompt,
+                depends_on=t.depends_on,
+                complexity=t.complexity,
+                files_likely_touched=t.files_likely_touched,
+                acceptance_command=t.acceptance_command,
+            )
+            for t in graph
+        ]
+        for graph in request.candidates
+    ]
+    result = select_best_graph(candidates)
+    return SelectGraphResponse(
+        best_index=result.best_index,
+        scores=[
+            CandidateScorePayload(
+                index=s.index,
+                parseable=s.parseable,
+                violations=s.violations,
+                warnings=s.warnings,
+                task_count=s.task_count,
+                dependency_density=s.dependency_density,
+                score=s.score,
+                error=s.error,
+            )
+            for s in result.scores
         ],
     )

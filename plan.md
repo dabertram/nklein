@@ -1329,3 +1329,27 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
       acquisition + best-of-N + constrained decoding + stronger repo map) is intended to raise.
 - [ ] Wire best-of-N + knowledge-acquisition through the Python core once Phases 2–4 land, then re-run the
       audio-VST benchmark and score with both acceptance AND board-completion.
+
+---
+
+## Python core migration — Phases 2–4 landed (2026-06-21, real toolchain)
+
+> Dev toolchain provisioned for real: `uv` + Python 3.12 + pytest/ruff/mypy; `llama-cpp-python` built &
+> importable. Python core: 38 pytest passing, ruff + mypy clean.
+
+- [x] **Toolchain** — `uv` installed; Python 3.12; `uv sync --extra dev`; `llama-cpp-python 0.3.31` built.
+- [x] **Phase 2 ML services** — `/v1/compress` (LLMLingua-2-style; heuristic default + real LLMLingua-2 `ml`
+      extra), `/v1/embed` (lexical default + sentence-transformers opt-in), `/v1/repomap` (PageRank symbols).
+- [x] **Phase 3 native agent core** — `/v1/agent/run` ReAct loop + workspace tools + aider-style fuzzy edit;
+      constrained-JSON action selection; loop guards.
+- [x] **Phase 4 decomposition quality** — `/v1/decompose/select` graph-coherence validator + best-of-N
+      self-consistency selection (the #1 decomposition under-scoping gap).
+
+### Remaining (environment-gated; not implementable/verifiable headless here)
+- [ ] **Phase 4 in-container Python tool-runner** — needs the Docker sandbox image rebuild.
+- [ ] **Phase 5 Electron bundling** — bundle the Python runtime (PyInstaller/uv), spawn + health-probe from
+      `packages/desktop/src/runtime-orchestrator.ts`, default the flag on; needs the desktop build env.
+- [ ] **Live TS wiring** — construct `createStructuredGenerator` / `KleinCoreClient` at the agent-decider and
+      decomposition call sites; add the zod↔pydantic contract-parity CI check (export script exists).
+- [ ] **End-to-end benchmark** — re-run the audio-VST scenario through the Python core (constrained decoding +
+      best-of-N + knowledge acquisition) and score with acceptance AND board-completion.

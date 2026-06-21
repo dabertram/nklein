@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Python core Phase 4 — decomposition quality: ported the dependency-coherence validator and best-of-N graph selection (self-consistency) to the Python core (`/v1/decompose/select`), so weak local models can sample several plans and keep the most coherent one — directly targeting the decomposition under-scoping that the audio-VST dev-test run exposed. Unit-tested.
+
 - Python core Phase 3 — native agent core: a ReAct tool-calling loop (`/v1/agent/run`) that runs entirely in the Python core on the local model with constrained-JSON action selection, workspace-scoped tools (`read_file`/`write_file`/`edit_file`/`list_files` with path containment), and the aider-style fuzzy search/replace editor ported from the TS implementation (exact → whitespace → leading-blank → `...` elision → fuzzy ≥0.8). Loop guards: repeated-action stall, unknown-tool feedback, max-turn budget. Unit-tested.
 
 - Python core Phase 2 — ML services: `/v1/compress` (LLMLingua-2-style token-importance compression; dependency-free heuristic default, real LLMLingua-2 as an opt-in `ml` extra), `/v1/embed` (deterministic lexical embedding default, sentence-transformers opt-in), and `/v1/repomap` (PageRank-ranked symbol map). All local-only and unit-tested (FastAPI TestClient); the `llama-cpp-python` own-GGUF generation backend is verified installed.

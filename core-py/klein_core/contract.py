@@ -154,3 +154,35 @@ class AgentRunResponse(BaseModel):
     final_message: str | None = None
     turns: int
     transcript: list[AgentTranscriptEntryPayload]
+
+
+class PlanTaskPayload(BaseModel):
+    id: str
+    title: str
+    prompt: str = ""
+    depends_on: list[str] = Field(default_factory=list)
+    complexity: float = 50.0
+    files_likely_touched: list[str] = Field(default_factory=list)
+    acceptance_command: str | None = None
+
+
+class SelectGraphRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    candidates: list[list[PlanTaskPayload]]
+
+
+class CandidateScorePayload(BaseModel):
+    index: int
+    parseable: bool
+    violations: int
+    warnings: int
+    task_count: int
+    dependency_density: float
+    score: float
+    error: str | None = None
+
+
+class SelectGraphResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    best_index: int | None
+    scores: list[CandidateScorePayload]
