@@ -1380,3 +1380,38 @@ Verified end-to-end against the running environment (Docker 29.4.3 + LM Studio s
 - [ ] **Desktop multi-pane placement** of the Watch panel (mobile Watch tab shipped; desktop needs visual review).
 - [ ] **Full TS-runtime audio-VST run** (decomposition→cards→parallel execution→merge to all-cards-Completed)
       routed through the Python core — the remaining "hands-off complex completion" target.
+
+---
+
+## Audio-VST DSP benchmark — first successful autonomous run (2026-06-21, qwen3.5)
+
+Ran `core-py/scripts/audio_benchmark.py` against qwen3.5 via LM Studio. The harness scaffolds a real,
+buildable C++ project (cmake + clang) with a kick-synth stub + a DSP acceptance test; the native Python agent
+core (read/write/edit/list/**run_command**) must implement the DSP until `cmake build && ./kick_test` passes.
+
+**Result: SUCCESS.** status=completed, **acceptance_passed=true**, 5 turns, 92s. Transcript:
+1. `read_file` header (the renderKick contract) → 2. `read_file` stub → 3. `edit_file` implementing a pitch
+sweep + exponential-decay envelope (fuzzy **whitespace** strategy recovered the model's indentation mismatch)
+→ 4. `run_command` cmake build + test → exit 0, `PASS peak=0.98 head=0.56 tail=0.016` → 5. `final`.
+
+**What made it work (vs. the old TS/Cline audio run that under-scoped and stalled):**
+- Constrained action selection (valid tool calls every turn) + the reasoning-model `reasoning_content` fallback.
+- `run_command` gives a real implement→build→test feedback loop.
+- The aider-ported fuzzy `edit_file` tolerated the model's indentation (used in turn 3).
+- Harness scaffolding: the agent implements the *DSP* (the hard part), not build boilerplate.
+
+### Conclusions / needed improvements for full "appropriate depth" (JUCE VST, all cards Completed)
+1. **Target JUCE C++, retire the TS toy.** A credible VST is JUCE; it is buildable here via CMake
+   `FetchContent` (no system install). The fixture should scaffold a JUCE plugin (CMakeLists + PluginProcessor
+   /PluginEditor stubs) so the agent fills DSP processors + parameters + UI, not framework boilerplate.
+2. **Multi-card depth.** Combine the proven pieces: best-of-N decomposition (already gives ~14 coherent cards
+   for this prompt) → run each card through the agent core → integrate. Budgets > 5 turns/card.
+3. **Docker isolation for `run_command`.** It currently runs host-side (opt-in, throwaway workspace); move it
+   into the sandbox tool-runner before production (the remaining Phase-4 infra item).
+4. **Runtime wiring.** Dispatch !Klein cards to the Python agent core (`/v1/agent/run`) so the full
+   board→execution flow uses it, then re-run the audio benchmark as a multi-card project and require
+   all-non-trash-cards-Completed (the `dev-test-outcome` gate).
+
+### Status of "make it finish successfully with appropriate depth"
+- [x] Single real DSP module (C++): autonomous implement→build→test→pass, verified against qwen3.5.
+- [ ] Full JUCE plugin, multi-card, all cards Completed — the clearly-scoped next build (items 1–4 above).
