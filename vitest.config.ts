@@ -1,8 +1,12 @@
 import { defineConfig } from "vitest/config";
+import { nkleinSdkViteAlias } from "./scripts/nklein-sdk-alias.mjs";
 
 process.env.NODE_ENV = "production";
 
 export default defineConfig({
+	resolve: {
+		alias: nkleinSdkViteAlias,
+	},
 	test: {
 		globals: true,
 		environment: "node",

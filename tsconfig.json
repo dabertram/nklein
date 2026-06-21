@@ -2,7 +2,17 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@nklein/core": ["./vendor/nklein-sdk/core/dist"],
+      "@nklein/core/telemetry": ["./vendor/nklein-sdk/core/dist/services/telemetry"],
+      "@nklein/agents": ["./vendor/nklein-sdk/agents/dist"],
+      "@nklein/llms": ["./vendor/nklein-sdk/llms/dist"],
+      "@nklein/shared": ["./vendor/nklein-sdk/shared/dist"],
+      "@nklein/shared/db": ["./vendor/nklein-sdk/shared/dist/db"],
+      "@nklein/shared/storage": ["./vendor/nklein-sdk/shared/dist/storage"]
+    }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
   "exclude": ["dist", "node_modules"]

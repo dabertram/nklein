@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild";
+import { nkleinSdkEsbuildAlias } from "./nklein-sdk-alias.mjs";
 
 /**
  * Runtime externals. `node-pty` is a native addon with a compiled binding
@@ -36,6 +37,7 @@ const shared = {
 	target: "node20",
 	external,
 	define,
+	alias: nkleinSdkEsbuildAlias,
 	sourcemap: true,
 	packages: "bundle",
 	banner: { js: cjsShimBanner },
