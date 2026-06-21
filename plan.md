@@ -1247,3 +1247,24 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
 - [ ] **Upstream `@clinebot` proposal**: forward `response_format`/grammar + top_p/top_k/min_p/repetition_penalty
       in the SDK provider layer so the main agent loop gets constrained decoding too (until then, the
       `LocalLlmClient` path carries it for structured operations).
+
+---
+
+## Own agent core — going beyond Cline-only (2026-06-21)
+
+> Decision: !Klein grows its own native backend rather than staying a Cline-SDK-only runtime, and adopts the
+> best implementations from the local-agent ecosystem into its own codebase (attribution + license posture in
+> THIRD_PARTY_NOTICES.md). Cline remains one supported runtime.
+
+- [x] **Native agent loop** ([src/agent-core/agent-loop.ts](src/agent-core/agent-loop.ts)) — ReAct
+      tool-calling loop with stall/loop + max-turn guards, decoupled from the SDK and unit-tested.
+- [x] **Constrained action decider** ([src/agent-core/agent-action-decider.ts](src/agent-core/agent-action-decider.ts))
+      — selects the next tool via JSON-schema constrained decoding on `LocalLlmClient`, using the sampling policy.
+- [x] **Attribution & licensing** ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)) — per-project license +
+      what was adopted; AGPL (Open Interpreter) excluded from code.
+- [ ] **Tool registry for the native core** — expose !Klein's existing tools (edit_file, write_files, read,
+      search, repo_map, decompose) as `AgentCoreTool`s and a `runNativeAgentTask` entrypoint.
+- [ ] **Runtime selection** — let a task choose the native core vs the Cline runtime (config/role); wire the
+      native core into the task-session service alongside the Cline path.
+- [ ] **Port remaining adopted techniques** as needed (OpenHands condenser pipeline, Continue context
+      providers, Roo multi-file diff) — each recorded in THIRD_PARTY_NOTICES.md when added.

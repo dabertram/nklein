@@ -2,6 +2,9 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Began !Klein's own native agent core (`src/agent-core/`): a constrained tool-calling (ReAct) loop that runs on the !Klein-owned local model client instead of the Cline SDK, with stall/loop and max-turn guards and a `LocalLlmClient` action decider that selects the next tool via JSON-schema-constrained decoding (reliable for small/quantized models). The Cline SDK remains one supported runtime; it is no longer the only one.
+- Added `THIRD_PARTY_NOTICES.md` documenting the decision to adopt implementations from the wider local-agent ecosystem (aider, Roo Code, Continue — Apache-2.0; OpenHands — MIT) by re-implementing them in our own codebase with attribution, and explicitly excluding AGPL-3.0 code (Open Interpreter) to keep !Klein Apache-2.0.
+
 - Added a per-model/per-role sampling policy (`resolveLocalSamplingOptions`) for the local model path: deterministic low temperature for coding, near-greedy for structured output, slightly higher for planning, with tighter temperature + repetition penalty and `min_p` for small/quantized model families to prevent loops and incoherent output.
 - Added a shared, well-tested tool-argument JSON repair (`repairJsonValue`) that recovers near-valid JSON from small models (code fences, surrounding prose, trailing commas, unquoted keys, single quotes, truncated brackets) and unified the previously duplicated parsers in `decompose_project`, `write_files`, and `edit_file` behind it.
 - Added best-of-N decomposition selection (self-consistency): sample several candidate task graphs and pick the best by the existing sizing + dependency-coherence validators, so weak local models produce better plans without a stronger model.
