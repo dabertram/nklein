@@ -1,0 +1,472 @@
+# !Klein — todo.md (single source of truth for development)
+
+> **This is the one durable dev artifact.** It replaces `specsheet.md`, `plan.md`,
+> `iteration-instructions.md`, `follow-up-1.md … follow-up-6.md`, and
+> `findings-from-follow-up-work-4.md` (all consolidated here and deleted).
+>
+> **An agent is told only one of two things:** *"work on `todo.md`"* or *"add to `todo.md`"* — and must
+> get everything it needs from this file. So: the rules of engagement, what already exists, what's left,
+> and why the project is shaped the way it is all live here.
+>
+> **Status legend:** `[x]` shipped & verified · `[~]` partial / shipped-but-degraded · `[ ]` open ·
+> `LATER:` deferred by decision · `BLOCKED:` needs the user or an environment we don't have.
+>
+> **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain).
+
+---
+
+## 1. Prime directives — never violate
+
+1. **LOCAL MODELS ONLY.** `CLOUD_ENABLED = false`
+   ([src/nklein-sdk/nklein-local-only-policy.ts](src/nklein-sdk/nklein-local-only-policy.ts)). No path, default,
+   setting, or UI may reach a paid/cloud LLM. Cloud providers don't render, can't be selected, and cloud-pinned
+   cards hard-stop. Re-enabling cloud is a single deliberate reviewed code change — never a feature you add.
+2. **STRICT DOCKER AGENT ISOLATION IS MANDATORY, UNCONDITIONAL, FAIL-CLOSED.** Every agent shell command and
+   filesystem read/write runs inside a Docker container; the host runtime never executes shell/FS on the LLM's
+   behalf. No host fallback, no "disable isolation" toggle, no degraded mode. If Docker/the image is
+   unavailable, agent tasks refuse to start. **Bright line:** board / plan / !Klein-state mutation is *trusted
+   control-plane* and may run host-side; the user's-repo file/shell/edit/patch/search is *data-plane* and must be
+   sandboxed.
+3. **≥32k context minimum.** `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`, enforced at every entry. No oversized
+   prompt is ever sent — over-budget turns compact or the task stops. No hardcoded window/speed constants in
+   routing/budget decisions.
+4. **UPSTREAM-CLEAN SDK BOUNDARY.** Every feature is a `src/nklein-sdk/` plug-in on an official SDK socket.
+   `npm run check:nklein-boundary` must stay green. (See §11 for the note that the SDK itself is now vendored
+   in-repo under `vendor/nklein-sdk/` — that is repo-owned and editable; the boundary rule is about not forking
+   the SDK's *internal* contracts gratuitously.)
+5. **PROTECTED TESTS ARE HUMAN-GATED.** You may not weaken or change anything in `test/protected/**`,
+   `vitest.protected.config.ts`, or `test/protected/protected-tests.json` without **explicit user approval** via
+   a structured `{intent, diff, reason, expectedEffects}` proposal. Default is deny.
+6. **Follow `AGENTS.md` / `CLAUDE.md`:** no `any`, no inline/dynamic imports, prefer SDK types, `react-use`
+   hooks in web-ui, Tailwind over inline styles, small single-responsibility files, and keep `CHANGELOG.md`
+   `## [Upcoming]` current **in the same change** as the code.
+
+### Product identity
+!Klein is a local-autonomous, multi-LLM **kanban swarm** for software work. A user drops a high-level idea on
+the board; !Klein decomposes it into a dependency-linked DAG of right-sized cards and runs them with local LLM
+agents — in parallel where safe — entirely on the user's own hardware. Branding: in-app `!Klein`,
+OS/packaging `nKlein`, identifiers `nklein`. The repo name and the `kanban.repositoryCreatedByKanban` git
+marker are intentional keeps.
+
+---
+
+## 2. The iteration loop (how to work)
+
+Repeat until the stop condition (§3) is met:
+
+1. **Sync context.** Read this file (§1 directives, §5 open work). Run `git log --oneline -10` and `git status`.
+2. **Pick the highest-value open item** from §5, in this priority order:
+   1. Anything that unblocks the headline goal: a single high-level prompt → Planning-lane DAG → cards that
+      auto-start and run, **with strict isolation ON**.
+   2. Safety/correctness (isolation invariants, guardrails, protected-test coverage gaps).
+   3. Enumerated open items (§5.A–§5.G).
+   4. Backlog / newly-raised items (§5.H–§5.I) that are ready (no unresolved user clarification).
+   If comparable, prefer the smallest safe step that ships value.
+3. **Deep analysis before coding.** Read the actual implementation, not just this doc. Re-grep quoted
+   symbols — line numbers drift. Confirm the gap is real. If the right approach is genuinely ambiguous in a
+   way the codebase can't resolve (architecture-shaping decisions, anything touching the invariants), **ask the
+   user** — don't guess.
+4. **Implement** to production quality. Add **well-selected** tests (§4). Stay within the SDK boundary.
+5. **Verify** (the gates below). Everything green before an item is "done".
+6. **Update docs in the same change:** flip the checkbox here, and add a user-facing `CHANGELOG.md`
+   `## [Upcoming]` bullet. If you're adding a genuinely new capability, write its spec in §5 **first**.
+7. **Commit cadence:** collect ~10–15 completed items (or a coherent themed batch), then commit and push —
+   keep the remote current without micro-commits. Commit sooner if you hit a milestone, are about to do
+   something risky, the tree is getting large, or a handoff is imminent. Work on the feature branch
+   (`feat/kanban-reliability-context-upgrade`), never `main`. End every commit message with
+   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+
+### Verification gates — run before marking ANY item `[x]`
+- `npm run typecheck` · `npm run web:typecheck` — 0 errors.
+- `npm run lint` — clean · `npm run check:nklein-boundary` — passes.
+- `npm run test:fast` plus the specific `npx vitest run test/runtime/...` suites for what you touched — green.
+- `npm run test:protected` — green (and you did not modify it without approval).
+- web-ui changes: `npm --prefix web-ui run test` for the affected components.
+- isolation/Docker changes: run the Docker-gated integration tests if a daemon is available; they must skip
+  cleanly when not.
+- If a user-relevant UI/flow can't be unit-verified, either run the dev build and observe, or **record the
+  manual-verification debt** under §5.A — never silently mark it done.
+
+Never mark `[x]` until its gate passes. Report failures honestly, with output.
+
+---
+
+## 3. Stop condition — when "nothing is left to do"
+
+When every §5 item is done or blocked on the user/an environment, and no correctness/safety/UX gap survives
+deep analysis:
+1. Final verification pass; make sure this file is in sync.
+2. **Do not invent low-value churn to look busy. Stop.**
+3. Report: what was accomplished this run, the verification status, and what's now blocked on the user (e.g.
+   the portable-state clarifications in §5.F, the manual isolation/UI verification in §5.A that needs a
+   Docker-enabled interactive browser session).
+4. **Ask the user for new feature ideas.** Offer 2–4 concrete, invariant-respecting proposals of your own as a
+   starting point. New ideas get written into §5 first, then worked.
+
+---
+
+## 4. Test selection philosophy (well-selected, not exhaustive)
+- Lock **product behavior and invariants**, not implementation trivia. A focused regression for each bug fixed
+  and each invariant a small model could plausibly weaken.
+- The **protected suite** is the floor that lets small/weak LLMs work on !Klein safely. It must cover the
+  load-bearing invariants (local-only policy, context/overflow, timeout scaling, swarm guardrails, workspace
+  identity, decomposition apply, the strict-isolation no-host-execution + fail-closed-start guards). Add to the
+  protected manifest **only via the human-approval path** (§1.5).
+- Keep suites fast and non-hanging. If CI hangs on Node 22, suspect a live subprocess / real SDK-host boot
+  before a slow test body (see `.plan/docs/node22-ci-hanging-tests-investigation.md`).
+
+---
+
+## 5. OPEN WORK (the actual todo)
+
+> Everything in §6 is already shipped — listed there so an agent knows what exists and doesn't rebuild it.
+> The items below are what's left. Each is independently landable.
+
+### 5.A — Finish strict-isolation reconciliation & live verification
+- [ ] **Retire the host worktree subsystem** *(direction decided: retire — terminal/CLI agents stay
+      permanently disabled under local-only).* The single boundary predicate is
+      `usesLegacyHostTaskWorkspace(agentId)` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts)) — keep it
+      as THE source of truth (invariant-tested). **Deletion is BLOCKED on two UI-verifiable changes:**
+      (1) remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` / launch-support and the web-ui legacy path;
+      (2) decide the shell-terminal-on-task story (it still legitimately ensures a host checkout via
+      `startShellSession` → `resolveTaskCwd({ ensure: true })`). The saved-host-patch retirement and the
+      project-health "accidental worktree" re-validation ride along with (1). Do this where the review/diff/merge
+      + shell UI can be visually verified. Files: `src/workspace/task-worktree*.ts`,
+      `src/workspace/task-result-branches.ts`.
+- [ ] **BLOCKED (needs a Docker-enabled interactive browser session): UI live-verification debts.** The
+      headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
+      sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
+      telemetry). **Still owed in-browser:** Settings isolation status + pool-control inspection; and dev-build
+      UX (no cloud default, model-registry prune, live loaded-model line, Developer Mode persistence, embedding
+      auto-discovery). Also verify the swarm concurrency cap and sandbox-pool queue compose visibly in the
+      card/header UI.
+- [ ] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
+      consider extracting sandbox-lifecycle/pause out of the large
+      [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
+      docs so the planning ("L3") story isn't overstated.
+
+### 5.B — Decomposition quality & the knowledge-expansion loop
+- [ ] **Knowledge-tool usage as a decomposition-quality signal.** Correlate whether retrieval / code-index /
+      architecture-knowledge tools were actually used in a planning session *before* `decompose_project`, and
+      surface "decomposition used / did not use knowledge tools" in the Settings stats view — not just a usage
+      count. Needs session-runtime correlation + a Settings UI column. (Graph-coherence validation,
+      `knowledgeDebt` on cards, and the mandatory knowledge-acquisition + scope-pressure workflow are already
+      shipped — see §6.)
+- [ ] **Audio dev-test rubric.** Score the audio-VST fixture as under-decomposed/shallow against a domain
+      rubric: DSP correctness, measured phase alignment, groove invariants, effect-guardrail sweeps, full UI
+      control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)
+
+### 5.C — Run summaries & timeout diagnostics
+- [ ] **Timeout provenance + stats.** Terminal run summaries already carry a structured `timeoutReason`. Add
+      `timeoutSource` provenance (global config vs role override vs autonomous default) from the launch config,
+      and stats for timeout-triggered review outcomes by model/role/scenario.
+      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts) reserves the fields.)
+
+### 5.D — Dev-test harness real wiring
+- [ ] **Thin real wiring for `runDevTestProject`.** The harness + outcome classifier + observer fallback +
+      cleanup summarizer are built and unit-tested ([src/nklein-sdk/nklein-dev-test-harness.ts](src/nklein-sdk/nklein-dev-test-harness.ts),
+      [src/core/dev-test-outcome.ts](src/core/dev-test-outcome.ts), [src/core/dev-test-cleanup.ts](src/core/dev-test-cleanup.ts)).
+      Remaining: a real tRPC-client + persisted-state-fallback reader behind the injected `readState` contract,
+      and the filesystem/`docker`/`du` discovery wrapper behind the cleanup summarizer. (The `nklein dev` CLI
+      command already exists — [src/commands/dev.ts](src/commands/dev.ts).)
+
+### 5.E — Cache-key hygiene & fuzz coverage
+- [ ] **Audit telemetry/session caches for task-id-only keys.** Dev-test task ids repeat across projects. The
+      self-observation sink, task-diagnostics, and run-summary store are workspace-scoped; sweep the remaining
+      **model-performance** and **knowledge-tool-usage** caches for the same workspace scoping.
+- [ ] **Extend the near-valid tool-payload fuzz suite** beyond `decompose_project` to `expand_task`,
+      `write_file(s)`, the discovery tools, and `run_command`.
+
+### 5.F — Portable "project state in the repository" (cross-machine continuation)
+> Conflict model chosen: **CRDT** (automatic merge, no manual rebase UI). Board CRDT, committed store,
+> export/import with local model re-resolution, and live wiring into save/load are shipped (see §6). What's left:
+- [ ] **Schema migration** when `schemaVersion` advances on the committed
+      `<repo>/.nklein/nklein/workspace/board-crdt.json`.
+- [ ] **BLOCKED (browser): verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI.
+- [ ] **Confirm WITH THE USER before extending** (open clarifications): exactly which state is repo-committed vs
+      machine-local (machine-local must stay: model registry/measured speeds, endpoint URLs, container/sandbox
+      state, telemetry, secrets); human-readable vs compact on-disk schema; how worktree/result-branch artifacts
+      and in-flight sandbox work map across machines (they don't — only plan/graph/progress moves); card
+      provenance/link survival across a different checkout; that no secrets/absolute host paths leak into
+      committed state; and re-resolving roles/fit against the *target* machine's local models on load.
+
+### 5.G — Backlog (promote into a worked item when picked up)
+- [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
+      execution → merge cycle on a tiny local model, as a CI gate.
+- [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
+- [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
+- [ ] **Richer acceptance-failure classification taxonomy** in the diagnostics drawer.
+
+### 5.H — Polyglot / native-agent-core workstream *(active; postdates the predecessor planning chain)*
+> Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a
+> local-only Python core sidecar (`core-py/`, FastAPI) and a TS-native agent core (`src/agent-core/`). Shipped so
+> far (see §6.10); the open edges:
+- [ ] **Decide the embedding story end-to-end (ties to §5.I-1).** Today code embeddings are only `local_lexical`
+      (in-process lexical hashing) or `openai_compatible` (external endpoint). The Python core's `/v1/embed` is
+      lexical-or-`sentence-transformers`, and is **not** wired as the app's code-embedding provider. There is no
+      llama.cpp embedding and no GGUF embedding auto-download. Pick the target (see §5.I-1) and wire it through
+      `runtimeCodeEmbeddingProviderSchema` ([src/core/api-contract.ts](src/core/api-contract.ts)).
+- [ ] **Promote the native agent core path** (`src/agent-core/`) from "one supported runtime" toward a
+      first-class local option, keeping strict isolation for its data-plane tools. Define when the runtime picks
+      native-core vs the vendored SDK host.
+- [ ] **Python core production wiring & gating.** It's opt-in via `NKLEIN_CORE_PY` (default off) and falls back
+      automatically when unreachable. Decide the default-on criteria, packaging of the sidecar, and how its
+      health surfaces in Settings.
+
+### 5.I — Newly raised in chat (2026-06-22) — spec'd, not yet built
+- [ ] **#1 — llama.cpp embedding model, fully integrated (auto-download + direct connect, no external runtime).**
+      *Investigated 2026-06-22: NOT implemented.* The user wants an embedding model served via llama.cpp that
+      !Klein auto-downloads (a GGUF) and connects to directly — no LM Studio/Ollama/openai-compatible endpoint
+      required. Current state: `embeddings.py` does lexical (default) or `sentence-transformers` (optional);
+      `llama_backend.py` (llama-cpp-python) is **generation-only** (`complete()`), no `embedding=True`, no
+      download; the app exposes only `local_lexical` + `openai_compatible`. **To build:** add a llama.cpp
+      embedding backend (llama-cpp-python supports `embedding=True`) with a model-download/cache manager (mirror
+      the existing ONNX compression-scorer download manager pattern,
+      [src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts)),
+      expose it via `/v1/embed`, route the app's code-embedding path through the Python core, and add a
+      `local_llama`/`local_gguf` option to the embedding provider enum + Settings picker. **Confirm the model
+      choice with the user** (e.g. nomic-embed/bge/e5 GGUF) and the local-only + no-egress implications of the
+      download.
+- [ ] **#3 — Move per-project overrides out of Global Settings.** Today the global runtime-settings dialog shows
+      an "Override for this project" affordance ([web-ui/src/components/runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx)
+      ~line 3466), which is poor UX (project-scoped state polluting global settings). Move all per-project
+      overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
+      **project settings modal reachable from the project selector** (a button that opens a modal listing every
+      project-specific override/setting). Keep global settings strictly global.
+
+### 5.J — LATER (deferred by decision)
+- LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
+  operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed
+  next-step guidance, and clearer UI status than the generic SDK `bash` bridge.
+- LATER: **Linux & Windows first-class runtime.** Keep Docker mandatory for every agent shell/FS action. Linux:
+  verify Docker availability, sandbox image build/run, endpoint discovery, browser/runtime launch, headless
+  file-picker fallback, path handling. Windows (Docker Desktop/WSL): verify path translation, shell/PTY, Git,
+  Docker volume/mount semantics, endpoint discovery, browser/runtime launch, packaged app. Must not weaken the
+  strict-isolation invariant. *(A dev-only `start.bat` Windows launcher exists.)*
+- **PARKED (cloud-dependent; re-enable only when cloud is revisited or a strong local model is proven):**
+  `nklein-advisor.ts` (config/log/MCP advisor buttons), `nklein-model-research.ts` (model-freshness research),
+  `nklein-team-delegation.ts`/`nklein-team-progress.ts` (native team delegation UI), `nklein-trusted-auto-merge.ts`
+  (self-merge — stays off; `null` regression delta blocks), `nklein-web-research-tool.ts` (host web research —
+  also incompatible with `--network none`). These compile as parked helpers and render no local-only UI.
+
+---
+
+## 6. SHIPPED — already implemented (do not rebuild)
+
+> Crossed off. Grouped by area; file pointers in §1.4 / §5 / `AGENTS.md`.
+
+### 6.1 Local-only platform & cloud lockdown
+- [x] Single default-deny policy (`LOCAL_PROVIDER_IDS = {ollama, lmstudio, lm-studio}`, `isLocalProvider`/
+      `isLocalBaseUrl` for localhost/RFC-1918/CGNAT/`*.local`, managed-OAuth denied, typed
+      `CloudProviderDisabledError`), gated at `resolveLaunchConfig`, re-asserted at task start and router/role
+      resolution; cloud-pinned cards hard-stop. Catalog/picker/roles/onboarding/settings filter cloud out;
+      `normalizeAgentId` clamps persisted cloud ids → `nklein`. Boundary scan test guards the policy file.
+
+### 6.2 Reliability core
+- [x] Never-overflow pre-send guard (same source as the context bar; compacts, or a specific "your message is
+      larger than the working budget" message). Real effective window = `min(advertised, override, sanity
+      ceiling)` (old 200k clamp removed). Local-appropriate timeouts (no 1s bug; generous floors; `unlimited`
+      honored; positive timeouts scale up from measured MCSR speed; cold-start pessimistic prior). Error back-off
+      / park instead of telemetry storms. Session restart/resume via persisted launch config (no host
+      session-map casting). Acceptance gate uses non-login shell / direct exec with streamed buffer.
+
+### 6.3 Context budget visualization
+- [x] Per-task `ContextBudgetBreakdown` (system · tool schemas · prompt · file content · history · reserved
+      working · reserved output) against the real window; segmented green→gold→orange→red full-width bar in chat
+      + compact form on cards; graceful degrade.
+
+### 6.4 Model Capability & Speed Registry (MCSR)
+- [x] Per-model capability + measured prefill/decode/TTFT speed (EWMA, fractional, debounced), capability prior
+      weighted `1/(1+samples)`, 30-day half-life decay. Effective context-window resolution (advertised/observed/
+      override, ≥32k). Chat Model Telemetry panel + Settings with per-model context Save/Clear, zero-sample
+      prompt, stale-row prune + per-row delete, shared loaded-model filter.
+- [x] *(2026-06-22)* **Loopback endpoint canonicalization** — `localhost`/`127.0.0.1`/`0.0.0.0`/`::1` and
+      trailing slashes are normalized in the registry key, so the same local model isn't registered/displayed
+      twice (once selected-but-blank, once with telemetry); persisted duplicates merge on load.
+
+### 6.5 Parallel local swarm executor
+- [x] `maxConcurrentTasks` enforced across single/batch/dependency/runtime starts; auto-start unblocked cards on
+      completion/commit under the cap; per-endpoint serialization with typed `endpoint_busy` + `retryAfterMs` +
+      opt-in queued admission; file-overlap-aware scheduling (`filesLikelyTouched`); dependency-ordered
+      auto-merge of reviewed worktrees (conflicts spawn a Planning integration card); shared decision blackboard
+      (`decisions.md`); per-model tool routing; swarm guardrails (turn/wall-time budgets, no-diff + repeated-tool
+      watchdogs, 12-card batch budget, workspace Pause/Resume stop signal) — surfaced in Settings.
+
+### 6.6 Autonomous decomposition & planning
+- [x] `decompose_project` / `expand_task` with sizing-contract + graph/reference validation; recursive bounded
+      expand to terminal leaves with connected-local-model fit guard; plan artifacts under
+      `<project>/.nklein/nklein/plans/<slug>/` (`spec.md`, `plan.md`, `tasks.json`, `questions.md`, `summary.md`,
+      `decisions.md`, `revisions.md`, idempotent apply); cards land in Planning and flow into execution;
+      naive-idea → clarifying questions (option chips) → reviewable plain-language plan; adaptive re-planning on
+      `plan-gap` events.
+- [x] **Dependency-coherence validation + deep-domain aids** *(2026-06-21)*: graph-quality checks reject
+      incoherent DAGs (free-floating test/docs cards), warn on sparse/isolated/reversed/UI-without-domain graphs;
+      generated cards carry `knowledgeDebt`; the `kanban-decompose` workflow mandates a knowledge-acquisition +
+      "under-decomposed by 10x/100x?" scope-pressure pass. ([src/nklein-sdk/nklein-decomposition-graph-quality.ts](src/nklein-sdk/nklein-decomposition-graph-quality.ts))
+- [x] **Works under strict isolation** *(restored 2026-06-19)*: decomposition tools are trusted control-plane
+      (mutate only `~/.nklein/nklein/` artifacts + the board, never the working tree), stay host-side during
+      sandboxed planning, with the host workspace root forwarded so artifacts/board resolve to the owning
+      workspace. Live-verified: a 1-shot prompt → Planning DAG → started card with isolation ON.
+- [x] *(2026-06-22)* **Planning-card start fixes** — the Start (play) button now works on Planning cards, a
+      plan-mode card starts in place without dropping the kickoff, dragging Planning→In Progress launches an
+      approved act-mode card, and "Approve for execution" launches the task when none is running.
+
+### 6.7 Codebase intelligence
+- [x] TypeScript-AST + PageRank repo map (lexical fallback), personalization boosts, invalidated after mutating
+      tools. Code index with provider/model-separated dense vectors, `local_lexical` honest fallback,
+      OpenAI-compatible local embedding endpoints, hybrid lexical+semantic+repo-map search, cache GC. Settings
+      Code-intelligence panel + board chip; global + per-project embedding overrides. Knowledge/tool-usage JSONL
+      telemetry aggregated by project/version/model/role/tool/category/outcome, shown in the stats view.
+- [~] Knowledge-expansion loop *(started 2026-06-21)*: decomposition mandates knowledge-acquisition +
+      scope-pressure and cards record `knowledgeDebt`. **Open:** correlate actual knowledge-tool use into a
+      decomposition-quality signal — see §5.B.
+
+### 6.8 Operator UI & observability (swarm cockpit)
+- [x] Running cards show role/model, token bar, tok/s, elapsed, current tool, turn count; global swarm header
+      (running/waiting/blocked, per-endpoint grouping, concurrency slider, Pause/Resume, code-intel chip); MCSR
+      panel; Planning DAG review with fit badges + "Approve for execution" + revised-plan flags; per-card
+      diagnostics drawer (telemetry, no LLM); "what !Klein is doing right now" activity surface; first-run
+      local-model setup wizard; progressive disclosure + feature-visibility coverage matrix; statistics view
+      (model performance + knowledge-tool usage).
+- [x] *(2026-06-21)* **OpenHands-style "watch the agent's hands"** per-card **Watch** tab: live
+      state/model/elapsed/current-tool, an accumulated activity timeline, the files it is changing this run, and
+      a jump to its terminal.
+- [ ] **Open:** browser-only live verification of the cockpit + isolation status/pool UI — see §5.A.
+
+### 6.9 Strict Docker agent isolation
+- [x] Pinned `nklein/agent-sandbox` image, in-container tool-runner (`/opt/nklein/tool-runner.cjs`),
+      `AgentSandboxManager` boundary (docker CLI). Configurable container **pool** (max containers,
+      agents-per-container, CPU/RAM, idle timeout, FIFO queue; Shared/Dedicated presets; `--network none`,
+      `--cap-drop ALL`, `no-new-privileges`, `--read-only`, tmpfs, per-container named volume, ro project mount).
+      Per-task uid + `/workspaces/<taskId>`; clone-in / patch-out via `nklein/tasks/<task>` result branches
+      applied host-side with a temp index (`commit-tree`, no host checkout mutation). All host-touching agent
+      surfaces routed through the container (default executors, acceptance gate, repo_map/search/file-discovery/
+      read_large_file/write_file(s) proxies); local-exec MCP default-denied; `webFetch` disabled under no-egress.
+      Fail-closed preflight at start + startup; no-host-execution guard tests; Docker-gated integration tests;
+      orphan reaping; killswitch; Settings isolation status + pool controls.
+- [x] Live-verified end-to-end (2026-06-19, real LM Studio task in Docker, clean teardown, fail-closed).
+- [x] **Classified patch-capture & stall diagnostics** *(2026-06-21)*: typed corrupt-vs-non-applying patch
+      classification, failing file/hunk extraction, failing patch preserved under `patch-failures/`, structured
+      stream/tool inactivity-timeout card note (last activity/tool, captured?, resume safety).
+      ([src/workspace/task-patch-capture-diagnostics.ts](src/workspace/task-patch-capture-diagnostics.ts))
+- [ ] **Open:** retire the host worktree subsystem — see §5.A.
+
+### 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*
+- [x] **Python core sidecar** (`core-py/`, FastAPI, local-only): constrained generation (`/v1/generate`,
+      `/v1/generate_structured` — full sampling + grammar/JSON-schema decoding via own `llama-cpp-python` or a
+      proxied local OpenAI server), ML services (`/v1/compress` LLMLingua-2-style, `/v1/embed` lexical/
+      sentence-transformers, `/v1/repomap` PageRank), native ReAct agent loop (`/v1/agent/run` with
+      path-contained tools + aider-style fuzzy edit), decomposition quality (`/v1/decompose/select`
+      coherence + best-of-N), reasoning-model fallback (verified vs qwen3.5). Opt-in via `NKLEIN_CORE_PY`
+      (default off), auto-fallback when unreachable. `KleinCoreClient` is a drop-in for the local client.
+- [x] **TS native agent core** (`src/agent-core/`): constrained tool-calling (ReAct) loop on the !Klein-owned
+      local client with stall/loop + max-turn guards and a JSON-schema-constrained action decider.
+- [x] **Local-model SOTA helpers:** per-model/role sampling policy (`resolveLocalSamplingOptions`), shared
+      JSON-repair (`repairJsonValue`), best-of-N decomposition self-consistency, LLMLingua-2-style selective
+      compression (+ ONNX scorer download/update manager), `LocalLlmClient` with full sampling + grammar
+      constrained decoding, aider-style `edit_file` fuzzy ladder, `run_command` tool.
+- [x] **LM Studio live-only selection fix:** discover loaded models from the live endpoint, fall back to the
+      catalog localhost base URL when none saved, auto-select the first loaded model (don't trust stale catalog
+      defaults like `openai/gpt-oss-20b`).
+- [x] **Audio-VST / psytrance autonomous dev-test preset** (left-sidebar Dev Test Scenarios, same
+      create-and-start flow) + DSP benchmark harness (first successful autonomous run recorded). *(Rubric scoring
+      still open — §5.B.)*
+- [x] **`THIRD_PARTY_NOTICES.md`** documenting re-implementation-with-attribution of ecosystem techniques
+      (aider, Roo Code, Continue — Apache-2.0; OpenHands — MIT), excluding AGPL-3.0 to keep !Klein Apache-2.0.
+
+### 6.11 Runtime control, chat UX, self-improvement, security, portability baseline
+- [x] Board pause halts the agent loop at the per-turn checkpoint (`"paused"` park state; auto-resume; gates
+      sandbox executors + acceptance gate); per-card pause/resume (`paused-tasks.json`, tRPC, board toggle);
+      finished-card Replay (`replayCardsEnabled`, default off, confirm-gated, destructive reset); per-message
+      chat timestamps + full-width context bar.
+- [x] Self-observation telemetry sink (path-redacted, secret-pattern-broadened, rotation); evidence bundle +
+      one-click "Create evidence"; gated "Create !Klein self-improvement project"; dogfood backlog engine
+      (sizing-clamped); smoke-eval harness (local roster); evidence/diff drawer; ⌘K palette; developer surfaces
+      behind a persistent **Developer Mode** toggle. **Protected test suite** (`test/protected/`, 9 files / 79
+      tests, `npm run test:protected`) + `agent-write-guard` (protected-path + secret-write block, structured
+      approval surfaced in chat, audited) — strict-isolation guards included in the manifest (human-approved).
+- [x] Electron hardening (contextIsolation, no nodeIntegration, sandbox, webSecurity, deny-by-default popups,
+      same-origin nav, CSP fallback, packaged devtools off; runtime bound to `127.0.0.1`; hardened
+      Set-Cookie/session token; secret scanning in the agent-write path). Workspace-identity hardening
+      (explicit-only registration, self-project confirmation surviving removal, task-worktree→owning-workspace
+      resolution, accidental-project repair, board-vs-runtime persistence split, board-save conflict
+      rebase/retry). Add-Project UX (one controlled dialog; Existing-Folder + New-Folder flows). Guidance skills
+      (`security`/`ui`/`ts`) as on-demand `/nklein-*` workflows.
+- [~] **Project portability baseline:** runtime-home stays the fast local index/cache, but board state, session
+      summaries, revision metadata, and workspace identity mirror into `<project>/.nklein/nklein/workspace/` and
+      can recover from that mirror. **Full portable CRDT state** (per-field LWW board CRDT
+      [src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts), committed store
+      [src/state/portable-board-store.ts](src/state/portable-board-store.ts), export/import with machine-local
+      `nkleinSettings` stripped on import, live wiring into save/load, card-trash tombstones, per-machine
+      `replica-id`, cross-machine-recovery integration test) is shipped. **Open:** schema migration + browser
+      verify — see §5.F.
+
+### 6.12 SDK vendoring & repo integration *(2026-06-22)*
+- [x] The agent SDK is vendored fully in-repo under `vendor/nklein-sdk/{core,agents,llms,shared}` (committed
+      dist), the daemon/branding rebrand applied, and the `@nklein/*` external-package wrapper removed in favor
+      of in-repo path aliases (`scripts/nklein-sdk-alias.mjs` for vitest/esbuild, `tsconfig` paths for tsc/tsx),
+      with the SDK's runtime deps hoisted to the root manifest. The SDK is now repo-owned and editable.
+- [x] **Hub-daemon crash fix:** the SDK session host runs on the in-process `local` backend, so the SDK's broken
+      cron/automation hub daemon (an upstream defect) is never spawned. !Klein doesn't use scheduled-agent
+      features.
+
+---
+
+## 7. Success criteria (the bar for "done")
+1. Cloud is unreachable; a cloud-pinned card hard-stops; re-enabling is one reviewed code change.
+2. No oversized prompt ever leaves; over-budget turns compact or stop.
+3. The loop is stable: no 1s timeouts, no restart-config failures, no retry storms.
+4. ≥32k enforced everywhere; budgets/compression scale to the local window with no hardcoded constants.
+5. A multi-card DAG auto-starts unblocked cards under the cap, serializes per endpoint, parallelizes across
+   endpoints, never thrashes the machine.
+6. **A single high-level prompt yields a Planning-lane DAG of local-feasible cards that get created and flow
+   into execution — with strict isolation ON.** *(DAG-under-isolation + a started card verified; fully-automatic
+   unblocked-card swarm start is the remaining end-to-end target.)*
+7. Context is a segmented green→red bar against the real effective window.
+8. Parallel cards never collide on shared files; result-branches merge in dependency order; runs are budgeted,
+   one-click stoppable, stalled tasks auto-park.
+9. The board is a live cockpit (per-agent status, MCSR, DAG + fit badges, diagnostics, first-run wizard) — all
+   cloud-free.
+10. A loose idea triggers clarifying questions, yields a reviewable plain-language plan, adapts on
+    execution-discovered gaps.
+11. Nothing built since branching from `main` is invisible in the UI (coverage matrix has no unmapped entry).
+12. **Every agent shell/FS action runs in Docker; no host fallback; Docker-down fails closed.**
+13. Upstream-clean: re-pulling the SDK contracts needs no reverts.
+
+---
+
+## 8. Superseded decisions & direction changes (history — so nothing is lost or re-litigated)
+
+- **Cloud went from "normal option" → banned.** The original `plan.md` targeted 8–16k small models and treated
+  cloud as always-available. One day of telemetry showed cloud defaulting to `anthropic/claude-sonnet-4.6` and
+  causing 678× "Insufficient balance", 227× "1.1M-token prompt exceeds 1M limit", 227× "1s timeout", 453×
+  "No previous session config". Result: **LOCAL ONLY + ≥32k minimum** invariants (§1). All cloud paths are
+  hidden/parked, not deleted, so a future single-file re-enable is possible.
+- **Host worktrees → Docker clone-in/patch-out.** The early model ran agent tools on host task worktrees. That
+  was replaced by **strict Docker isolation** with `nklein/tasks/<task>` result branches applied host-side. The
+  worktree subsystem is now legacy and slated for retirement (§5.A); it is NOT dead yet (terminal/CLI agents +
+  shell-on-task still reach it), which is why deletion is gated on UI-verifiable changes.
+- **Decomposition under isolation was briefly dark, then restored.** For a period, sandboxed planning omitted
+  `decompose_project`/`expand_task`. Decision reversed 2026-06-19: they are *trusted control-plane* and stay
+  host-side (they touch only plan artifacts + the board). The earlier "produce a plan in chat instead of
+  /kanban-decompose" guidance is superseded.
+- **Portable-state conflict model = CRDT** (not last-writer-wins-with-manual-rebase). Chosen 2026-06-21; merge
+  is automatic, so no manual rebase UI is needed.
+- **New direction (postdates the planning chain): grow !Klein's own core.** A local-only Python core sidecar
+  (`core-py/`) and a TS native agent core (`src/agent-core/`) now provide ML + native-agent capabilities the
+  vendored SDK can't (constrained/grammar decoding, own embeddings/compression/repomap, native ReAct loop). The
+  vendored SDK remains one supported runtime, no longer the only one (§5.H, §6.10).
+- **SDK is now vendored & de-packaged in-repo** (§6.12) — the `@nkleinbot/*` "never patch node_modules" framing
+  from the predecessor docs is updated: the SDK lives under `vendor/nklein-sdk/` and is ours to edit; the
+  boundary discipline (`check:nklein-boundary`, `src/nklein-sdk/` plug-ins) still holds for *integration*.
+- **Archival sources (folded in, then deleted):** `follow-up-1..4.md` + `findings-from-follow-up-work-4.md` were
+  already declared archival by the iteration playbook — their open items live on as §5.A (isolation/worktree)
+  and §5.A (UI verification); their shipped items are in §6. `follow-up-5.md`/`follow-up-6.md` open threads are
+  §5.A–§5.F. `specsheet.md`/`plan.md` status is reconciled into §6 (shipped) and §5 (open). All are superseded
+  by **this file**.
+
+---
+
+## 9. Changelog discipline
+`CHANGELOG.md` keeps a running `## [Upcoming]` section, updated **within** the same change as the code (derive
+entries from the real diff, not commit subjects). Only open a PR / cut a release when the user asks.
