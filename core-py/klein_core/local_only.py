@@ -28,7 +28,7 @@ def _is_private_ip(host: str) -> bool:
     # RFC-1918 / loopback / link-local / unique-local / CGNAT.
     if ip.is_loopback or ip.is_private or ip.is_link_local:
         return True
-    if ip.version == 4 and ipaddress.ip_address("100.64.0.0") <= ip <= ipaddress.ip_address("100.127.255.255"):
+    if isinstance(ip, ipaddress.IPv4Address) and ip in ipaddress.ip_network("100.64.0.0/10"):
         return True
     return False
 

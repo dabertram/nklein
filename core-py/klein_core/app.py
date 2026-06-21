@@ -10,15 +10,25 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 
+from .compression import compress_by_token_importance
 from .contract import (
+    CompressRequest,
+    CompressResponse,
+    EmbedRequest,
+    EmbedResponse,
     GenerateRequest,
     GenerateResponse,
     GenerateStructuredRequest,
     GenerateStructuredResponse,
     HealthResponse,
+    RankedSymbolPayload,
+    RepoMapRequest,
+    RepoMapResponse,
 )
+from .embeddings import embed_texts
 from .generation import ChatMessage, GenerationBackend, ProxyBackend, StructuredFormat
 from .local_only import CloudProviderDisabledError
+from .repomap import RepoFile, rank_symbols, render_repo_map
 from .sampling import SamplingOptions, resolve_sampling
 from .structured import StructuredGenerationError, generate_structured
 
@@ -95,3 +105,45 @@ async def generate_structured_endpoint(request: GenerateStructuredRequest) -> Ge
     except StructuredGenerationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return GenerateStructuredResponse(value=value, backend=backend.name)
+
+
+@app.post("/v1/compress", response_model=CompressResponse)
+async def compress(request: CompressRequest) -> CompressResponse:
+    if request.model:
+        try:
+            from .llmlingua_backend import llmlingua_compress  # lazy ``ml`` extra
+
+            result = llmlingua_compress(request.text, request.target_ratio, request.model)
+            return CompressResponse(
+                compressed=result.compressed,
+                original_token_count=result.original_token_count,
+                kept_token_count=result.kept_token_count,
+                kept_ratio=result.kept_ratio,
+                backend=f"llmlingua:{request.model}",
+            )
+        except Exception:  # noqa: BLE001 - never fail compression; fall back to the heuristic below
+            pass
+    result = compress_by_token_importance(request.text, request.target_ratio)
+    return CompressResponse(
+        compressed=result.compressed,
+        original_token_count=result.original_token_count,
+        kept_token_count=result.kept_token_count,
+        kept_ratio=result.kept_ratio,
+        backend="heuristic",
+    )
+
+
+@app.post("/v1/embed", response_model=EmbedResponse)
+async def embed(request: EmbedRequest) -> EmbedResponse:
+    embeddings = embed_texts(request.texts, dim=request.dim, model=request.model)
+    return EmbedResponse(embeddings=embeddings, backend=request.model or "lexical")
+
+
+@app.post("/v1/repomap", response_model=RepoMapResponse)
+async def repomap(request: RepoMapRequest) -> RepoMapResponse:
+    files = [RepoFile(path=f.path, content=f.content) for f in request.files]
+    ranked = rank_symbols(files)[: request.max_symbols]
+    return RepoMapResponse(
+        symbols=[RankedSymbolPayload(name=s.name, path=s.path, rank=s.rank) for s in ranked],
+        rendered=render_repo_map(files, max_symbols=request.max_symbols),
+    )

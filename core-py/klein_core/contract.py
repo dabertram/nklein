@@ -10,7 +10,7 @@ without it.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -18,13 +18,13 @@ CONTRACT_VERSION = 1
 
 
 class SamplingPayload(BaseModel):
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    top_k: Optional[int] = None
-    min_p: Optional[float] = None
-    repetition_penalty: Optional[float] = None
-    max_tokens: Optional[int] = None
-    stop: Optional[list[str]] = None
+    temperature: float | None = None
+    top_p: float | None = None
+    top_k: int | None = None
+    min_p: float | None = None
+    repetition_penalty: float | None = None
+    max_tokens: int | None = None
+    stop: list[str] | None = None
 
 
 class ChatMessagePayload(BaseModel):
@@ -36,9 +36,9 @@ class ModelTarget(BaseModel):
     """Which model/backend to use. When ``base_url`` is set the proxy backend is used; otherwise llama.cpp."""
 
     model_id: str
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
-    gguf_path: Optional[str] = None
+    base_url: str | None = None
+    api_key: str | None = None
+    gguf_path: str | None = None
 
 
 class JsonSchemaPayload(BaseModel):
@@ -53,15 +53,15 @@ class GenerateRequest(BaseModel):
     contract_version: int = CONTRACT_VERSION
     target: ModelTarget
     messages: list[ChatMessagePayload]
-    sampling: Optional[SamplingPayload] = None
+    sampling: SamplingPayload | None = None
     role: str = "unknown"
-    grammar: Optional[str] = None
+    grammar: str | None = None
 
 
 class GenerateResponse(BaseModel):
     contract_version: int = CONTRACT_VERSION
     content: str
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
     backend: str
 
 
@@ -79,3 +79,55 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     contract_version: int = CONTRACT_VERSION
     service: str = "klein-core"
+
+
+class CompressRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    text: str
+    target_ratio: float = 0.5
+    model: str | None = None  # opt-in LLMLingua-2 model id; None = heuristic
+
+
+class CompressResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    compressed: str
+    original_token_count: int
+    kept_token_count: int
+    kept_ratio: float
+    backend: str
+
+
+class EmbedRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    texts: list[str]
+    dim: int = 256
+    model: str | None = None  # opt-in sentence-transformers model id; None = lexical
+
+
+class EmbedResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    embeddings: list[list[float]]
+    backend: str
+
+
+class RepoFilePayload(BaseModel):
+    path: str
+    content: str
+
+
+class RepoMapRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    files: list[RepoFilePayload]
+    max_symbols: int = 40
+
+
+class RankedSymbolPayload(BaseModel):
+    name: str
+    path: str
+    rank: float
+
+
+class RepoMapResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    symbols: list[RankedSymbolPayload]
+    rendered: str

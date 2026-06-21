@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Python core Phase 2 — ML services: `/v1/compress` (LLMLingua-2-style token-importance compression; dependency-free heuristic default, real LLMLingua-2 as an opt-in `ml` extra), `/v1/embed` (deterministic lexical embedding default, sentence-transformers opt-in), and `/v1/repomap` (PageRank-ranked symbol map). All local-only and unit-tested (FastAPI TestClient); the `llama-cpp-python` own-GGUF generation backend is verified installed.
+
 - Started the polyglot migration: added a local-only Python core sidecar (`core-py/`, FastAPI) that will own !Klein's ML + native-agent capabilities, beginning with **constrained generation** (`/v1/generate`, `/v1/generate_structured`) that the Cline SDK can't provide — full sampling (`min_p`/`top_k`/`repeat_penalty`) plus grammar / JSON-schema decoding, via either its own `llama-cpp-python` backend or by proxying a local OpenAI server. The TS runtime calls it through a new `KleinCoreClient` that is a drop-in for the existing local client and **falls back automatically** when the sidecar is disabled/unreachable; it is opt-in via `NKLEIN_CORE_PY` (default off), so behavior is unchanged until enabled. The React UI/Electron and the Cline runtime are untouched.
 
 - Began !Klein's own native agent core (`src/agent-core/`): a constrained tool-calling (ReAct) loop that runs on the !Klein-owned local model client instead of the Cline SDK, with stall/loop and max-turn guards and a `LocalLlmClient` action decider that selects the next tool via JSON-schema-constrained decoding (reliable for small/quantized models). The Cline SDK remains one supported runtime; it is no longer the only one.

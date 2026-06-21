@@ -1288,3 +1288,44 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
 - [ ] **Contract parity CI** (zod ↔ exported JSON-Schema ↔ pydantic).
 - [ ] **Phases 2–5** per the approved plan (ML services, native agent core in Python adopting aider/OpenHands,
       decomposition/tools, Electron bundling).
+
+---
+
+## State-report reconciliation (habit + audio-VST dev-test runs)
+
+> Maps the dev-test state report's concluded todos and remaining gaps to their current status. Most "remaining
+> gaps" were addressed during this session; the rest are tracked above (Python migration phases) or below.
+
+### Concluded (shipped earlier this branch / session) — verified
+- [x] Generated decomposition cards start from Planning — regression test in `cline-decomposition-tool.test.ts`.
+- [x] Diagnostics workspace-scoped (path hash, not task-id only) — self-observation sink + task-run store.
+- [x] Workspace lock contention retried — scoped runtime requests + auto-review.
+- [x] Near-valid model tool payloads repaired — `cline-tool-argument-repair.ts` (shared) + fuzz suite.
+- [x] Host paths normalized inside sandbox tools/commands — agent-sandbox path normalization.
+- [x] Empty clean patch can complete review; runaway/stalled generated tasks get bounded timeouts.
+- [x] Model performance + knowledge/tool usage stats exist.
+
+### Remaining big gaps from the report → status this session
+- [x] **Decomposition domain-knowledge phase before graph finalization** — `kanban-decompose` workflow now
+      mandates a knowledge-acquisition phase; cards carry `knowledgeDebt`. (`cline-decomposition-workflow.ts`,
+      `cline-plan-artifacts.ts`.)
+- [x] **"Scope pressure" pass to detect 10x/100x under-decomposition** — added to the decompose workflow.
+- [x] **Dependency-graph validation (missing/weak/reversed edges)** — `cline-decomposition-graph-quality.ts`
+      (hard violations + warnings), enforced at the creation gate.
+- [x] **Dev-test success = all non-trash cards Completed, not just passing tests** —
+      `dev-test-outcome.ts` (`acceptance_green_workflow_incomplete` vs `completed`).
+- [x] **Better persisted review diagnostics (corrupt patch capture, stream inactivity timeouts)** —
+      `task-patch-capture-diagnostics.ts` (classified + preserved artifact) + structured timeout note in
+      `cline-task-session-service.ts`.
+- [x] **Runtime shutdown preserves task-run summaries (sessions.json empties on shutdown)** —
+      `task-run-summary-store.ts` (durable `task-runs/`), surfaced via `getTaskDiagnostics`.
+- [x] **Observers get clean final summaries when the runtime disappears** — `dev-test-outcome.ts`
+      `runtime_down` classification + `countDevTestBoardColumns` persisted-state path.
+
+### Still open (quality, beyond what shipped)
+- [ ] Prove "hands-off complex project completion" end-to-end: drive every generated card to Completed on the
+      audio-VST benchmark (needs the live runtime + a capable local model). The mechanisms exist; the
+      remaining work is decomposition *quality* on hard domains — which the **Python core** (real knowledge
+      acquisition + best-of-N + constrained decoding + stronger repo map) is intended to raise.
+- [ ] Wire best-of-N + knowledge-acquisition through the Python core once Phases 2–4 land, then re-run the
+      audio-VST benchmark and score with both acceptance AND board-completion.

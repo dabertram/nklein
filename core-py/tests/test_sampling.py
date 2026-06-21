@@ -29,7 +29,9 @@ def test_override_wins() -> None:
 
 def test_sampling_to_body_maps_snake_case() -> None:
     body = sampling_to_body(
-        SamplingOptions(temperature=0.1, top_p=0.9, top_k=40, min_p=0.05, repetition_penalty=1.1, max_tokens=128, stop=("</s>",))
+        SamplingOptions(
+            temperature=0.1, top_p=0.9, top_k=40, min_p=0.05, repetition_penalty=1.1, max_tokens=128, stop=("</s>",)
+        )
     )
     assert body == {
         "temperature": 0.1,
