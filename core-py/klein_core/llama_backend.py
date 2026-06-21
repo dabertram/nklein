@@ -70,7 +70,8 @@ class LlamaCppBackend:
             }
         payload = model.create_chat_completion(**kwargs)
         choice = payload["choices"][0]
-        content = choice.get("message", {}).get("content", "") or ""
+        message = choice.get("message", {})
+        content = message.get("content") or message.get("reasoning_content") or message.get("reasoning") or ""
         return GenerationResult(
             content=content,
             finish_reason=choice.get("finish_reason"),

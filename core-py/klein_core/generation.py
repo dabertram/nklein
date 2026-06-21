@@ -81,14 +81,24 @@ class GenerationBackend(Protocol):
 
 
 def parse_openai_choice(payload: Any) -> tuple[str, str | None]:
-    """Extract (content, finish_reason) from an OpenAI-compatible chat completion payload."""
+    """Extract (content, finish_reason) from an OpenAI-compatible chat completion payload.
+
+    Reasoning models served by LM Studio / llama.cpp frequently put their entire output — including a
+    constrained-JSON answer — in ``message.reasoning_content`` and leave ``content`` empty. When content is
+    empty we fall back to ``reasoning_content`` so structured generation still works with reasoning models
+    (verified against qwen3.5 in LM Studio).
+    """
     choices = payload.get("choices") if isinstance(payload, dict) else None
     if not choices:
         return "", None
     choice = choices[0]
     message = choice.get("message") if isinstance(choice, dict) else None
-    content = message.get("content") if isinstance(message, dict) else None
     finish = choice.get("finish_reason") if isinstance(choice, dict) else None
+    if not isinstance(message, dict):
+        return "", finish
+    content = message.get("content")
+    if not content:
+        content = message.get("reasoning_content") or message.get("reasoning")
     return (content or ""), finish
 
 

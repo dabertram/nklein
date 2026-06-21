@@ -53,6 +53,9 @@ async def generate_structured(
 ) -> Any:
     """Generate a JSON value constrained to ``json_schema``; recover + retry once on parse failure."""
     fmt = StructuredFormat(json_schema=json_schema, grammar=grammar)
+    # Reasoning models spend tokens thinking before emitting JSON; give them room if the caller didn't set one.
+    if sampling.max_tokens is None:
+        sampling.max_tokens = 2048
     first = await backend.complete(model_id, messages, sampling, fmt)
     ok, value = try_parse_json(first.content)
     if ok:
