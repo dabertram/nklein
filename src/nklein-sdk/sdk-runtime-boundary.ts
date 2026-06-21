@@ -50,8 +50,13 @@ export type NKleinSdkToolApprovalRequest = ToolApprovalRequest;
 export type NKleinSdkToolApprovalResult = ToolApprovalResult;
 
 export async function createNKleinSdkSessionHost(): Promise<NKleinSdkSessionHost> {
+	// !Klein is a single, local-only desktop app, so the SDK session host runs in-process
+	// ("local") rather than via the shared "hub" backend. "auto" selects the shared hub
+	// daemon, whose cron/automation entrypoint is broken in the pinned SDK build
+	// (its bundled daemon entry throws on load), so it crash-loops in the background.
+	// We do not use the hub's scheduled-agent features, so force the local backend.
 	return await NKleinCore.create({
-		backendMode: "auto",
+		backendMode: "local",
 		telemetry: getCliTelemetryService(),
 	});
 }
