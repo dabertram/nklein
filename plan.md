@@ -1353,3 +1353,30 @@ context bar with L1, the model panel with the MCSR fix, the DAG view with L3.)
       decomposition call sites; add the zod↔pydantic contract-parity CI check (export script exists).
 - [ ] **End-to-end benchmark** — re-run the audio-VST scenario through the Python core (constrained decoding +
       best-of-N + knowledge acquisition) and score with acceptance AND board-completion.
+
+---
+
+## Live validation against the real stack (2026-06-21) — Docker + LM Studio (qwen3.5)
+
+Verified end-to-end against the running environment (Docker 29.4.3 + LM Studio serving
+`qwen3.5-9b-mlx-8bit-m4-32kctx`):
+
+- **Reasoning-model fix:** qwen3.5 returns its whole output (incl. constrained JSON) in
+  `reasoning_content` with `content` empty; `parse_openai_choice` now falls back to it. Verified structured
+  generation returns valid JSON.
+- **Native agent core, end-to-end:** the Python ReAct loop completed a real file-creation task in 2 turns
+  (constrained action selection → `write_file` → exact content → `final`) against qwen3.5.
+- **Live TS→Python→model wiring:** the TS `KleinCoreClient` → Python sidecar (`:3585`) → LM Studio produced
+  valid constrained JSON parsed back in TS.
+- **Decomposition-quality benchmark (the #1 gap):** the audio-VST prompt — which previously decomposed to
+  **13 cards / 3 edges (sparse, incoherent)** — now produces, via constrained decoding + best-of-N (N=3)
+  against qwen3.5, **14 cards / 20–24 edges, 0 coherence violations**; best-of-N selected the densest, cleanest
+  graph (density 1.71). Direct, quantified improvement on the reported under-scoping.
+
+### Still genuinely remaining (larger infra, not blockers to the above)
+- [ ] In-container **Python tool-runner** + sandbox image rebuild so the native agent core's tools run in
+      Docker isolation (currently host-scoped in the sidecar).
+- [ ] **Electron bundling** of the Python runtime + orchestrator spawn/health-probe (needs the desktop build).
+- [ ] **Desktop multi-pane placement** of the Watch panel (mobile Watch tab shipped; desktop needs visual review).
+- [ ] **Full TS-runtime audio-VST run** (decomposition→cards→parallel execution→merge to all-cards-Completed)
+      routed through the Python core — the remaining "hands-off complex completion" target.
