@@ -131,3 +131,26 @@ class RepoMapResponse(BaseModel):
     contract_version: int = CONTRACT_VERSION
     symbols: list[RankedSymbolPayload]
     rendered: str
+
+
+class AgentRunRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    target: ModelTarget
+    task: str
+    workspace_root: str
+    max_turns: int = 20
+
+
+class AgentTranscriptEntryPayload(BaseModel):
+    turn: int
+    action: dict[str, Any]
+    observation: str | None = None
+    error: str | None = None
+
+
+class AgentRunResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    status: str
+    final_message: str | None = None
+    turns: int
+    transcript: list[AgentTranscriptEntryPayload]

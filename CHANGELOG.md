@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Python core Phase 3 — native agent core: a ReAct tool-calling loop (`/v1/agent/run`) that runs entirely in the Python core on the local model with constrained-JSON action selection, workspace-scoped tools (`read_file`/`write_file`/`edit_file`/`list_files` with path containment), and the aider-style fuzzy search/replace editor ported from the TS implementation (exact → whitespace → leading-blank → `...` elision → fuzzy ≥0.8). Loop guards: repeated-action stall, unknown-tool feedback, max-turn budget. Unit-tested.
+
 - Python core Phase 2 — ML services: `/v1/compress` (LLMLingua-2-style token-importance compression; dependency-free heuristic default, real LLMLingua-2 as an opt-in `ml` extra), `/v1/embed` (deterministic lexical embedding default, sentence-transformers opt-in), and `/v1/repomap` (PageRank-ranked symbol map). All local-only and unit-tested (FastAPI TestClient); the `llama-cpp-python` own-GGUF generation backend is verified installed.
 
 - Started the polyglot migration: added a local-only Python core sidecar (`core-py/`, FastAPI) that will own !Klein's ML + native-agent capabilities, beginning with **constrained generation** (`/v1/generate`, `/v1/generate_structured`) that the Cline SDK can't provide — full sampling (`min_p`/`top_k`/`repeat_penalty`) plus grammar / JSON-schema decoding, via either its own `llama-cpp-python` backend or by proxying a local OpenAI server. The TS runtime calls it through a new `KleinCoreClient` that is a drop-in for the existing local client and **falls back automatically** when the sidecar is disabled/unreachable; it is opt-in via `NKLEIN_CORE_PY` (default off), so behavior is unchanged until enabled. The React UI/Electron and the Cline runtime are untouched.

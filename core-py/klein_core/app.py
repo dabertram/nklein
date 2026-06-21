@@ -12,6 +12,9 @@ from fastapi import FastAPI, HTTPException
 
 from .compression import compress_by_token_importance
 from .contract import (
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentTranscriptEntryPayload,
     CompressRequest,
     CompressResponse,
     EmbedRequest,
@@ -146,4 +149,27 @@ async def repomap(request: RepoMapRequest) -> RepoMapResponse:
     return RepoMapResponse(
         symbols=[RankedSymbolPayload(name=s.name, path=s.path, rank=s.rank) for s in ranked],
         rendered=render_repo_map(files, max_symbols=request.max_symbols),
+    )
+
+
+@app.post("/v1/agent/run", response_model=AgentRunResponse)
+async def agent_run(request: AgentRunRequest) -> AgentRunResponse:
+    from .agent_loop import make_model_decider, run_agent_loop
+    from .agent_tools import WorkspaceTools
+
+    try:
+        backend = _resolve_backend(request.target)
+    except CloudProviderDisabledError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    tools = WorkspaceTools(request.workspace_root).build()
+    decider = make_model_decider(backend, request.target.model_id)
+    result = await run_agent_loop(request.task, tools, decider, max_turns=request.max_turns)
+    return AgentRunResponse(
+        status=result.status,
+        final_message=result.final_message,
+        turns=result.turns,
+        transcript=[
+            AgentTranscriptEntryPayload(turn=e.turn, action=e.action, observation=e.observation, error=e.error)
+            for e in result.transcript
+        ],
     )
