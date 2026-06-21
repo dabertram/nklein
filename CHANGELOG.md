@@ -2,6 +2,7 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Fixed Planning-column cards never starting from their buttons: the Start (play) button shown on Planning cards was wired only for Backlog, so clicking it did nothing; it now launches the task. Starting a card that is already in its active column (a plan-mode card started in place in Planning) no longer drops the kickoff through a degenerate same-column move. And **Approve for execution** now actually launches the task when nothing is running yet, instead of only flipping the card out of plan mode and leaving it parked as "Execution approved".
 - Fixed approved act-mode planning cards never running: a card sitting in **Planning** with `startInPlanMode: false` (a seeded or decomposition-generated implementation card, which has no Start button) is only startable by dragging it into **In Progress**, but that drag moved the card without launching an agent session, so the task silently never ran. The `planning → in_progress` drag now kicks off the session for such cards, while plan-mode cards and cards that already own a live session keep their existing approve/continue flow.
 
 - Separated hidden !Klein planning/decomposition guidance from visible task prompts: dev-test seed cards now show product-focused user requests, runtime decomposition guardrails are delivered as system guidance, and chat transcripts collapse those system prompts behind an explicit “Show system prompt” control.

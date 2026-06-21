@@ -837,12 +837,21 @@ export default function App(): ReactElement {
 		[defaultTaskNKleinProviderId, runtimeProjectConfig, selectedCard, setBoard],
 	);
 
-	const handleApprovePlanningCard = useCallback((taskId: string) => {
-		setBoard((currentBoard) => {
-			const result = approvePlanningTaskForExecution(currentBoard, taskId);
-			return result.updated ? result.board : currentBoard;
-		});
-	}, []);
+	const handleApprovePlanningCard = useCallback(
+		(taskId: string) => {
+			setBoard((currentBoard) => {
+				const result = approvePlanningTaskForExecution(currentBoard, taskId);
+				return result.updated ? result.board : currentBoard;
+			});
+			// Approving for execution must actually launch the task when nothing is running
+			// yet, instead of leaving it parked in planning as "Execution approved". If a
+			// session is already active, leave it running rather than restarting it.
+			if (!sessions[taskId]) {
+				handleStartTask(taskId);
+			}
+		},
+		[handleStartTask, sessions, setBoard],
+	);
 
 	const handleCreateDialogOpenChange = useCallback(
 		(open: boolean) => {

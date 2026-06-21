@@ -548,6 +548,17 @@ export function useBoardInteractions({
 				return startWaitingTaskImmediately(task, fromColumnId);
 			}
 
+			if (getTaskActiveColumnId(task) === fromColumnId) {
+				// The card already sits in its active column (e.g. a plan-mode card started in
+				// place in `planning`). There is no column transition to animate, and a
+				// same-column programmatic move produces no move event — which would drop the
+				// kickoff — so launch the session directly.
+				return kickoffTaskInProgress(task, task.id, fromColumnId, {
+					optimisticMove: false,
+					queueOnEndpointBusy: true,
+				});
+			}
+
 			if (fromColumnId === "backlog") {
 				await waitForBacklogCardHeightToSettle(task.id);
 			}

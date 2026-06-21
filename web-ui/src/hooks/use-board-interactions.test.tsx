@@ -503,6 +503,53 @@ describe("useBoardInteractions", () => {
 		expect(startTaskSession).not.toHaveBeenCalled();
 	});
 
+	it("starts a plan-mode card in place when started from the planning column", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		const { board } = createBoardWithPlanningCard({ startInPlanMode: true });
+		let currentBoard = board;
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
+		}));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-plan");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// The Start (play) button on a planning card must launch its plan session in place,
+		// without needing a column transition to animate.
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-plan" }), {
+			queueOnEndpointBusy: true,
+		});
+		expect(currentBoard.columns.find((column) => column.id === "planning")?.cards.map((card) => card.id)).toEqual([
+			"task-plan",
+		]);
+	});
+
 	it("marks backlog tasks as needing decomposition when the start guard blocks them", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		let currentBoard = createBoard();
