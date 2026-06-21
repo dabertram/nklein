@@ -5,24 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UseTaskAgentModelPickerResult } from "@/components/task-agent-model-picker";
 import type {
 	RuntimeAgentId,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderModel,
-	RuntimeTaskClineSettings,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderModel,
+	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
 
-const fetchClineProviderCatalogMock = vi.hoisted(() => vi.fn());
-const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
+const fetchNKleinProviderCatalogMock = vi.hoisted(() => vi.fn());
+const fetchNKleinProviderModelsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@runtime-agent-catalog", () => ({
 	getRuntimeLaunchSupportedAgentCatalog: vi.fn(() => [
-		{ id: "cline", label: "Cline", binary: "cline" },
+		{ id: "nklein", label: "!Klein", binary: "nklein" },
 		{ id: "claude", label: "Claude Code", binary: "claude" },
 	]),
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
-	fetchClineProviderCatalog: fetchClineProviderCatalogMock,
-	fetchClineProviderModels: fetchClineProviderModelsMock,
+	fetchNKleinProviderCatalog: fetchNKleinProviderCatalogMock,
+	fetchNKleinProviderModels: fetchNKleinProviderModelsMock,
 }));
 
 function createProvider(
@@ -30,11 +30,12 @@ function createProvider(
 	name: string,
 	enabled: boolean,
 	defaultModelId: string | null = null,
-): RuntimeClineProviderCatalogItem {
-	return { id, name, oauthSupported: false, enabled, defaultModelId, baseUrl: null, supportsBaseUrl: false };
+	baseUrl: string | null = null,
+): RuntimeNKleinProviderCatalogItem {
+	return { id, name, oauthSupported: false, enabled, defaultModelId, baseUrl, supportsBaseUrl: baseUrl !== null };
 }
 
-function createTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTaskClineSettings | undefined {
+function createTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings | undefined {
 	return settings;
 }
 
@@ -42,6 +43,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -53,15 +55,15 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe("useTaskAgentModelPicker – clineProviderOptions", () => {
-	it("shows all providers except the default, regardless of enabled flag", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("cline", "Cline", true),
-			createProvider("openrouter", "OpenRouter", false),
-			createProvider("anthropic", "Anthropic", false),
+describe("useTaskAgentModelPicker – nkleinProviderOptions", () => {
+	it("shows local providers except the default, regardless of enabled flag", async () => {
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("lmstudio", "LM Studio", true),
+			createProvider("ollama", "Ollama", false),
+			createProvider("custom-local", "Custom Local", false, null, "http://127.0.0.1:4000/v1"),
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -70,10 +72,10 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
-				defaultProviderId: "cline",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
+				defaultProviderId: "lmstudio",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: true,
 			});
@@ -89,21 +91,21 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		const options = snapshot!.clineProviderOptions;
-		expect(options[0]).toEqual({ value: "", label: "Cline" });
+		const options = snapshot!.nkleinProviderOptions;
+		expect(options[0]).toEqual({ value: "", label: "LM Studio" });
 		const nonDefault = options.slice(1);
 		expect(nonDefault).toEqual([
-			{ value: "openrouter", label: "OpenRouter" },
-			{ value: "anthropic", label: "Anthropic" },
+			{ value: "ollama", label: "Ollama" },
+			{ value: "custom-local", label: "Custom Local" },
 		]);
 	});
 	it("excludes the default provider from the explicit list", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("cline", "Cline", true),
-			createProvider("anthropic", "Anthropic", true),
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true),
+			createProvider("lmstudio", "LM Studio", true),
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -112,10 +114,10 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
-				defaultProviderId: "anthropic",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
+				defaultProviderId: "ollama",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: true,
 			});
@@ -131,16 +133,16 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		const options = snapshot!.clineProviderOptions;
-		expect(options[0]).toEqual({ value: "", label: "Anthropic" });
+		const options = snapshot!.nkleinProviderOptions;
+		expect(options[0]).toEqual({ value: "", label: "Ollama" });
 		const values = options.slice(1).map((o) => o.value);
-		expect(values).toContain("cline");
-		expect(values).not.toContain("anthropic");
+		expect(values).toContain("lmstudio");
+		expect(values).not.toContain("ollama");
 	});
 
 	it("returns only the default option when catalog is empty", async () => {
-		fetchClineProviderCatalogMock.mockResolvedValue([]);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue([]);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -149,10 +151,10 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
-				defaultProviderId: "cline",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
+				defaultProviderId: "nklein",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: true,
 			});
@@ -168,16 +170,16 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		expect(snapshot!.clineProviderOptions).toEqual([{ value: "", label: "Default" }]);
+		expect(snapshot!.nkleinProviderOptions).toEqual([{ value: "", label: "Default" }]);
 	});
 
 	it("does not surface a legacy cloud provider label as the default option when only local providers are available", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
 			createProvider("ollama", "Ollama", true),
 			createProvider("lmstudio", "LM Studio", true),
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -186,9 +188,9 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
 				defaultProviderId: "openrouter",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: false,
@@ -205,18 +207,21 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		expect(snapshot!.clineProviderOptions[0]).toEqual({ value: "", label: "Default" });
+		expect(snapshot!.nkleinProviderOptions[0]).toEqual({ value: "", label: "Default" });
 	});
 
 	it("filters cloud providers out of the explicit provider list in local-only mode", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
 			createProvider("openrouter", "OpenRouter", true),
 			createProvider("anthropic", "Anthropic", true),
+			createProvider("groq", "Groq", true),
+			createProvider("custom-cloud", "Custom Cloud", true, null, "https://models.example.com/v1"),
+			createProvider("custom-local", "Custom Local", true, null, "http://localhost:4000/v1"),
 			createProvider("ollama", "Ollama", true),
 			createProvider("lmstudio", "LM Studio", true),
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -225,9 +230,9 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
 				defaultProviderId: "openrouter",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: false,
@@ -244,8 +249,9 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 		});
 
 		expect(snapshot).not.toBeNull();
-		expect(snapshot!.clineProviderOptions).toEqual([
+		expect(snapshot!.nkleinProviderOptions).toEqual([
 			{ value: "", label: "Default" },
+			{ value: "custom-local", label: "Custom Local" },
 			{ value: "ollama", label: "Ollama" },
 			{ value: "lmstudio", label: "LM Studio" },
 		]);
@@ -254,13 +260,13 @@ describe("useTaskAgentModelPicker – clineProviderOptions", () => {
 
 describe("useTaskAgentModelPicker – providerDefaultModels", () => {
 	it("returns a map of provider ID → default model ID", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("anthropic", "Anthropic", true, "claude-opus-4-20250514"),
-			createProvider("groq", "Groq", true, "llama-3.3-70b-versatile"),
-			createProvider("openrouter", "OpenRouter", true), // no default model
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true, "qwen3.5-9b"),
+			createProvider("custom-local", "Custom Local", true, "local-model", "http://127.0.0.1:4000/v1"),
+			createProvider("lmstudio", "LM Studio", true), // no default model
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue([]);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -269,11 +275,11 @@ describe("useTaskAgentModelPicker – providerDefaultModels", () => {
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
-				defaultProviderId: "anthropic",
-				defaultModelId: "claude-opus-4-20250514",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
+				defaultProviderId: "ollama",
+				defaultModelId: "qwen3.5-9b",
 				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
@@ -289,24 +295,23 @@ describe("useTaskAgentModelPicker – providerDefaultModels", () => {
 
 		expect(snapshot).not.toBeNull();
 		expect(snapshot!.providerDefaultModels).toEqual({
-			anthropic: "claude-opus-4-20250514",
-			groq: "llama-3.3-70b-versatile",
+			ollama: "qwen3.5-9b",
+			"custom-local": "local-model",
 		});
 	});
 });
 
 describe("useTaskAgentModelPicker – provider-aware model default label", () => {
-	it("loads inherited models for managed OAuth providers and derives their catalog default model", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("cline", "Cline", true, "cline-sonnet"),
+	it("does not load inherited cloud provider models even when stale config enables cloud support", async () => {
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("nklein", "NKlein", true, "nklein-sonnet"),
 			createProvider("anthropic", "Anthropic", true, "claude-opus-4-20250514"),
 		];
-		const clineModels = [
-			{ id: "cline-sonnet", name: "Cline Sonnet" },
-			{ id: "cline-opus", name: "Cline Opus" },
-		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue(clineModels);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue([
+			{ id: "nklein-sonnet", name: "NKlein Sonnet" },
+			{ id: "nklein-opus", name: "NKlein Opus" },
+		]);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -315,10 +320,10 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined,
-				defaultAgentId: "cline",
-				defaultProviderId: "cline",
+				agentId: "nklein",
+				nkleinSettings: undefined,
+				defaultAgentId: "nklein",
+				defaultProviderId: "nklein",
 				defaultModelId: null,
 				cloudProviderSupportEnabled: true,
 			});
@@ -333,20 +338,20 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 			await new Promise((r) => setTimeout(r, 0));
 		});
 
-		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith(null, "cline");
+		expect(fetchNKleinProviderModelsMock).not.toHaveBeenCalled();
 		expect(snapshot).not.toBeNull();
-		expect(snapshot!.providerModels).toEqual(clineModels);
-		expect(snapshot!.effectiveDefaultModelId).toBe("cline-sonnet");
+		expect(snapshot!.providerModels).toEqual([]);
+		expect(snapshot!.effectiveDefaultModelId).toBeNull();
 	});
 
 	it("does not borrow the global default model for an overridden provider without a catalog default", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("anthropic", "Anthropic", true, "claude-opus-4-20250514"),
-			createProvider("custom", "Custom Provider", true),
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true, "qwen3.5-9b"),
+			createProvider("custom", "Custom Provider", true, null, "http://127.0.0.1:4000/v1"),
 		];
 		const customModels = [{ id: "custom/model-a", name: "Model A" }];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue(customModels);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue(customModels);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -355,11 +360,11 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: createTaskClineSettings({ providerId: "custom" }),
-				defaultAgentId: "cline",
-				defaultProviderId: "anthropic",
-				defaultModelId: "claude-opus-4-20250514",
+				agentId: "nklein",
+				nkleinSettings: createTaskNKleinSettings({ providerId: "custom" }),
+				defaultAgentId: "nklein",
+				defaultProviderId: "ollama",
+				defaultModelId: "qwen3.5-9b",
 				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
@@ -375,20 +380,20 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 
 		expect(snapshot).not.toBeNull();
 		expect(snapshot!.effectiveDefaultModelId).toBeNull();
-		expect(snapshot!.clineModelOptions[0]).toEqual({ value: "", label: "Default" });
+		expect(snapshot!.nkleinModelOptions[0]).toEqual({ value: "", label: "Default" });
 	});
 
 	it("shows the selected provider's default model name when provider is overridden", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("anthropic", "Anthropic", true, "claude-opus-4-20250514"),
-			createProvider("groq", "Groq", true, "llama-3.3-70b-versatile"),
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true, "qwen3.5-9b"),
+			createProvider("custom-local", "Custom Local", true, "local-default", "http://127.0.0.1:4000/v1"),
 		];
-		const groqModels = [
-			{ id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
-			{ id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+		const localModels = [
+			{ id: "local-default", name: "Local Default" },
+			{ id: "local-alt", name: "Local Alt" },
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue(groqModels);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue(localModels);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -397,11 +402,11 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: createTaskClineSettings({ providerId: "groq" }), // explicit provider override to groq
-				defaultAgentId: "cline",
-				defaultProviderId: "anthropic",
-				defaultModelId: "claude-opus-4-20250514", // global default is Anthropic's model
+				agentId: "nklein",
+				nkleinSettings: createTaskNKleinSettings({ providerId: "custom-local" }),
+				defaultAgentId: "nklein",
+				defaultProviderId: "ollama",
+				defaultModelId: "qwen3.5-9b",
 				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
@@ -416,23 +421,22 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 		});
 
 		expect(snapshot).not.toBeNull();
-		// The first model option should show groq's default model, not the global Anthropic model
-		const defaultOption = snapshot!.clineModelOptions[0]!;
+		const defaultOption = snapshot!.nkleinModelOptions[0]!;
 		expect(defaultOption.value).toBe("");
-		expect(defaultOption.label).toBe("Llama 3.3 70B");
+		expect(defaultOption.label).toBe("Local Default");
 	});
 
 	it("shows the global default model when no provider override is set", async () => {
-		const catalog: RuntimeClineProviderCatalogItem[] = [
-			createProvider("anthropic", "Anthropic", true, "claude-opus-4-20250514"),
-			createProvider("groq", "Groq", true, "llama-3.3-70b-versatile"),
+		const catalog: RuntimeNKleinProviderCatalogItem[] = [
+			createProvider("ollama", "Ollama", true, "qwen3.5-9b"),
+			createProvider("custom-local", "Custom Local", true, "local-default", "http://127.0.0.1:4000/v1"),
 		];
-		const anthropicModels = [
-			{ id: "claude-opus-4-20250514", name: "Claude Opus 4" },
-			{ id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+		const ollamaModels = [
+			{ id: "qwen3.5-9b", name: "Qwen 3.5 9B" },
+			{ id: "qwen3.5-32b", name: "Qwen 3.5 32B" },
 		];
-		fetchClineProviderCatalogMock.mockResolvedValue(catalog);
-		fetchClineProviderModelsMock.mockResolvedValue(anthropicModels);
+		fetchNKleinProviderCatalogMock.mockResolvedValue(catalog);
+		fetchNKleinProviderModelsMock.mockResolvedValue(ollamaModels);
 
 		let snapshot: UseTaskAgentModelPickerResult | null = null;
 		const { useTaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -441,11 +445,11 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 			const result = useTaskAgentModelPicker({
 				active: true,
 				workspaceId: null,
-				agentId: "cline",
-				clineSettings: undefined, // no provider override
-				defaultAgentId: "cline",
-				defaultProviderId: "anthropic",
-				defaultModelId: "claude-opus-4-20250514",
+				agentId: "nklein",
+				nkleinSettings: undefined, // no provider override
+				defaultAgentId: "nklein",
+				defaultProviderId: "ollama",
+				defaultModelId: "qwen3.5-9b",
 				cloudProviderSupportEnabled: true,
 			});
 			useEffect(() => {
@@ -460,15 +464,15 @@ describe("useTaskAgentModelPicker – provider-aware model default label", () =>
 		});
 
 		expect(snapshot).not.toBeNull();
-		const defaultOption = snapshot!.clineModelOptions[0]!;
+		const defaultOption = snapshot!.nkleinModelOptions[0]!;
 		expect(defaultOption.value).toBe("");
-		expect(defaultOption.label).toBe("Claude Opus 4");
+		expect(defaultOption.label).toBe("Qwen 3.5 9B");
 	});
 });
 
 describe("TaskAgentModelPicker – auto-reset invalid model selection", () => {
-	it("resets clineModelId to the first real model when the selected model is not in the options list", async () => {
-		const onClineSettingsChange = vi.fn();
+	it("resets nkleinModelId to the first real model when the selected model is not in the options list", async () => {
+		const onNKleinSettingsChange = vi.fn();
 		const modelOptions = [
 			{ value: "", label: "Llama 3.3 70B" },
 			{ value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
@@ -480,33 +484,33 @@ describe("TaskAgentModelPicker – auto-reset invalid model selection", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={createTaskClineSettings({
+					nkleinSettings={createTaskNKleinSettings({
 						providerId: "groq",
 						modelId: "claude-opus-4-20250514",
 					})}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Anthropic" }]}
-					clineModelOptions={modelOptions}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "Anthropic" }]}
+					nkleinModelOptions={modelOptions}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
+					defaultAgentId={"nklein" as RuntimeAgentId}
 					defaultProviderId="anthropic"
 				/>,
 			),
 		);
 
 		// The effect should have fired and selected the first real model
-		expect(onClineSettingsChange).toHaveBeenCalledWith({
+		expect(onNKleinSettingsChange).toHaveBeenCalledWith({
 			providerId: "groq",
 			modelId: "llama-3.3-70b-versatile",
 		});
 	});
 
 	it("does not reset when the selected model exists in the options list", async () => {
-		const onClineSettingsChange = vi.fn();
+		const onNKleinSettingsChange = vi.fn();
 		const modelOptions = [
 			{ value: "", label: "Llama 3.3 70B" },
 			{ value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
@@ -518,29 +522,29 @@ describe("TaskAgentModelPicker – auto-reset invalid model selection", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={createTaskClineSettings({
+					nkleinSettings={createTaskNKleinSettings({
 						providerId: "groq",
 						modelId: "llama-3.3-70b-versatile",
 					})}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Groq" }]}
-					clineModelOptions={modelOptions}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "Groq" }]}
+					nkleinModelOptions={modelOptions}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
+					defaultAgentId={"nklein" as RuntimeAgentId}
 					defaultProviderId="anthropic"
 				/>,
 			),
 		);
 
-		expect(onClineSettingsChange).not.toHaveBeenCalled();
+		expect(onNKleinSettingsChange).not.toHaveBeenCalled();
 	});
 
 	it("does not reset while models are still loading", async () => {
-		const onClineSettingsChange = vi.fn();
+		const onNKleinSettingsChange = vi.fn();
 		const modelOptions = [{ value: "", label: "Default" }];
 
 		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
@@ -548,29 +552,29 @@ describe("TaskAgentModelPicker – auto-reset invalid model selection", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={createTaskClineSettings({
+					nkleinSettings={createTaskNKleinSettings({
 						providerId: "groq",
 						modelId: "claude-opus-4-20250514",
 					})}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Anthropic" }]}
-					clineModelOptions={modelOptions}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "Anthropic" }]}
+					nkleinModelOptions={modelOptions}
 					isLoadingProviders={false}
 					isLoadingModels={true} // <-- still loading
-					defaultAgentId={"cline" as RuntimeAgentId}
+					defaultAgentId={"nklein" as RuntimeAgentId}
 					defaultProviderId="anthropic"
 				/>,
 			),
 		);
 
-		expect(onClineSettingsChange).not.toHaveBeenCalled();
+		expect(onNKleinSettingsChange).not.toHaveBeenCalled();
 	});
 
 	it("does not reset when model options only contain the default placeholder (race condition guard)", async () => {
-		const onClineSettingsChange = vi.fn();
+		const onNKleinSettingsChange = vi.fn();
 		// Only the "Default" placeholder — real models haven't loaded yet
 		const modelOptions = [{ value: "", label: "Default" }];
 
@@ -579,26 +583,26 @@ describe("TaskAgentModelPicker – auto-reset invalid model selection", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={createTaskClineSettings({
+					nkleinSettings={createTaskNKleinSettings({
 						providerId: "groq",
 						modelId: "mixtral-8x7b-32768",
 					})}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Groq" }]}
-					clineModelOptions={modelOptions}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "Groq" }]}
+					nkleinModelOptions={modelOptions}
 					isLoadingProviders={false}
 					isLoadingModels={false} // <-- false (initial state before fetch sets it to true)
-					defaultAgentId={"cline" as RuntimeAgentId}
+					defaultAgentId={"nklein" as RuntimeAgentId}
 					defaultProviderId="anthropic"
 				/>,
 			),
 		);
 
 		// Should NOT clear the model — the stale/empty options list should not trigger auto-correct
-		expect(onClineSettingsChange).not.toHaveBeenCalled();
+		expect(onNKleinSettingsChange).not.toHaveBeenCalled();
 	});
 });
 
@@ -609,13 +613,13 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={undefined}
-					onClineSettingsChange={() => {}}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Cline" }]}
-					clineModelOptions={[
+					nkleinSettings={undefined}
+					onNKleinSettingsChange={() => {}}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "!Klein" }]}
+					nkleinModelOptions={[
 						{ value: "", label: "GPT-5.4" },
 						{ value: "openai/gpt-5.3-codex", label: "GPT-5.3 Codex" },
 					]}
@@ -626,8 +630,8 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 					]}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
-					defaultProviderId="cline"
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="nklein"
 					defaultReasoningEffort="high"
 				/>,
 			),
@@ -643,7 +647,7 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 
 		expect(container.textContent).toContain("GPT-5.4 (High)");
 
-		const trigger = document.getElementById("cline-chat-model-picker");
+		const trigger = document.getElementById("nklein-chat-model-picker");
 		expect(trigger).not.toBeNull();
 		await act(async () => {
 			(trigger as HTMLElement).click();
@@ -655,17 +659,17 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 	it("retains inherited reasoning effort until model capability data is available", async () => {
 		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
 
-		const renderPicker = async (providerModels: RuntimeClineProviderModel[]) => {
+		const renderPicker = async (providerModels: RuntimeNKleinProviderModel[]) => {
 			await act(async () =>
 				root.render(
 					<TaskAgentModelPicker
-						agentId={"cline" as RuntimeAgentId}
+						agentId={"nklein" as RuntimeAgentId}
 						onAgentIdChange={() => {}}
-						clineSettings={undefined}
-						onClineSettingsChange={() => {}}
-						agentOptions={[{ value: "", label: "Cline" }]}
-						clineProviderOptions={[{ value: "", label: "Cline" }]}
-						clineModelOptions={[
+						nkleinSettings={undefined}
+						onNKleinSettingsChange={() => {}}
+						agentOptions={[{ value: "", label: "!Klein" }]}
+						nkleinProviderOptions={[{ value: "", label: "!Klein" }]}
+						nkleinModelOptions={[
 							{ value: "", label: "GPT-5.4" },
 							{ value: "openai/gpt-5.3-codex", label: "GPT-5.3 Codex" },
 						]}
@@ -673,8 +677,8 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 						providerModels={providerModels}
 						isLoadingProviders={false}
 						isLoadingModels={false}
-						defaultAgentId={"cline" as RuntimeAgentId}
-						defaultProviderId="cline"
+						defaultAgentId={"nklein" as RuntimeAgentId}
+						defaultProviderId="nklein"
 						defaultReasoningEffort="high"
 					/>,
 				),
@@ -701,18 +705,18 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 
 	it("persists a reasoning-only override when model stays on default", async () => {
 		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
-		const onClineSettingsChange = vi.fn();
+		const onNKleinSettingsChange = vi.fn();
 
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={undefined}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Cline" }]}
-					clineModelOptions={[
+					nkleinSettings={undefined}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "!Klein" }]}
+					nkleinModelOptions={[
 						{ value: "", label: "GPT-5.4" },
 						{ value: "openai/gpt-5.3-codex", label: "GPT-5.3 Codex" },
 					]}
@@ -723,8 +727,8 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 					]}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
-					defaultProviderId="cline"
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="nklein"
 					defaultReasoningEffort="high"
 				/>,
 			),
@@ -738,7 +742,7 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 			(settingsTrigger as HTMLButtonElement).click();
 		});
 
-		const modelTrigger = document.getElementById("cline-chat-model-picker");
+		const modelTrigger = document.getElementById("nklein-chat-model-picker");
 		expect(modelTrigger).not.toBeNull();
 		await act(async () => {
 			(modelTrigger as HTMLElement).click();
@@ -752,31 +756,31 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 			(lowReasoningButton as HTMLButtonElement).click();
 		});
 
-		expect(onClineSettingsChange).toHaveBeenLastCalledWith({
+		expect(onNKleinSettingsChange).toHaveBeenLastCalledWith({
 			reasoningEffort: "low",
 		});
 	});
 
 	it("persists an explicit default reasoning override when the task inherits a global reasoning effort", async () => {
 		const { TaskAgentModelPicker } = await import("@/components/task-agent-model-picker");
-		const onClineSettingsChange = vi.fn();
+		const onNKleinSettingsChange = vi.fn();
 
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={undefined}
-					onClineSettingsChange={onClineSettingsChange}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Cline" }]}
-					clineModelOptions={[{ value: "", label: "GPT-5.4" }]}
+					nkleinSettings={undefined}
+					onNKleinSettingsChange={onNKleinSettingsChange}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "!Klein" }]}
+					nkleinModelOptions={[{ value: "", label: "GPT-5.4" }]}
 					effectiveDefaultModelId="openai/gpt-5.4"
 					providerModels={[{ id: "openai/gpt-5.4", name: "GPT-5.4", supportsReasoningEffort: true }]}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
-					defaultProviderId="cline"
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="nklein"
 					defaultReasoningEffort="high"
 				/>,
 			),
@@ -790,7 +794,7 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 			(settingsTrigger as HTMLButtonElement).click();
 		});
 
-		const modelTrigger = document.getElementById("cline-chat-model-picker");
+		const modelTrigger = document.getElementById("nklein-chat-model-picker");
 		expect(modelTrigger).not.toBeNull();
 		await act(async () => {
 			(modelTrigger as HTMLElement).click();
@@ -804,7 +808,7 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 			(defaultReasoningButton as HTMLButtonElement).click();
 		});
 
-		expect(onClineSettingsChange).toHaveBeenLastCalledWith({});
+		expect(onNKleinSettingsChange).toHaveBeenLastCalledWith({});
 	});
 
 	it("does not inherit the global reasoning effort for explicit task model overrides", async () => {
@@ -813,15 +817,15 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 		await act(async () =>
 			root.render(
 				<TaskAgentModelPicker
-					agentId={"cline" as RuntimeAgentId}
+					agentId={"nklein" as RuntimeAgentId}
 					onAgentIdChange={() => {}}
-					clineSettings={createTaskClineSettings({
+					nkleinSettings={createTaskNKleinSettings({
 						modelId: "openai/gpt-5.3-codex",
 					})}
-					onClineSettingsChange={() => {}}
-					agentOptions={[{ value: "", label: "Cline" }]}
-					clineProviderOptions={[{ value: "", label: "Cline" }]}
-					clineModelOptions={[
+					onNKleinSettingsChange={() => {}}
+					agentOptions={[{ value: "", label: "!Klein" }]}
+					nkleinProviderOptions={[{ value: "", label: "!Klein" }]}
+					nkleinModelOptions={[
 						{ value: "", label: "GPT-5.4" },
 						{ value: "openai/gpt-5.3-codex", label: "GPT-5.3 Codex" },
 					]}
@@ -832,8 +836,8 @@ describe("TaskAgentModelPicker – inherited default reasoning effort", () => {
 					]}
 					isLoadingProviders={false}
 					isLoadingModels={false}
-					defaultAgentId={"cline" as RuntimeAgentId}
-					defaultProviderId="cline"
+					defaultAgentId={"nklein" as RuntimeAgentId}
+					defaultProviderId="nklein"
 					defaultReasoningEffort="high"
 				/>,
 			),

@@ -80,16 +80,16 @@ function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
 	return columnId === "backlog" || columnId === "planning";
 }
 
-function getExplicitClineModelKey(card: BoardCard): string | null {
-	const providerId = card.clineSettings?.providerId?.trim();
-	const modelId = card.clineSettings?.modelId?.trim();
+function getExplicitNKleinModelKey(card: BoardCard): string | null {
+	const providerId = card.nkleinSettings?.providerId?.trim();
+	const modelId = card.nkleinSettings?.modelId?.trim();
 	if (!modelId) {
 		return null;
 	}
 	return `${providerId ?? ""}:${modelId}`;
 }
 
-function getRunningClineModelKeys(sessions: Record<string, RuntimeTaskSessionSummary>): Set<string> {
+function getRunningNKleinModelKeys(sessions: Record<string, RuntimeTaskSessionSummary>): Set<string> {
 	const keys = new Set<string>();
 	for (const summary of Object.values(sessions)) {
 		if (summary.state !== "running") {
@@ -105,19 +105,19 @@ function getRunningClineModelKeys(sessions: Record<string, RuntimeTaskSessionSum
 	return keys;
 }
 
-function sortTaskIdsByLoadedClineModel(
+function sortTaskIdsByLoadedNKleinModel(
 	taskIds: readonly string[],
 	board: BoardData,
 	sessions: Record<string, RuntimeTaskSessionSummary>,
 ): string[] {
-	const runningModelKeys = getRunningClineModelKeys(sessions);
+	const runningModelKeys = getRunningNKleinModelKeys(sessions);
 	if (runningModelKeys.size === 0) {
 		return [...taskIds];
 	}
 	return taskIds
 		.map((taskId, index) => {
 			const card = findCardSelection(board, taskId)?.card ?? null;
-			const modelKey = card ? getExplicitClineModelKey(card) : null;
+			const modelKey = card ? getExplicitNKleinModelKey(card) : null;
 			return {
 				taskId,
 				index,
@@ -817,7 +817,7 @@ export function useBoardInteractions({
 		(taskIds?: string[]) => {
 			const requestedTaskIds =
 				taskIds ?? board.columns.find((column) => column.id === "backlog")?.cards.map((card) => card.id) ?? [];
-			const orderedTaskIds = sortTaskIdsByLoadedClineModel(requestedTaskIds, board, sessions);
+			const orderedTaskIds = sortTaskIdsByLoadedNKleinModel(requestedTaskIds, board, sessions);
 			if (orderedTaskIds.length === 0) {
 				return;
 			}
@@ -1114,7 +1114,7 @@ export function useBoardInteractions({
 					autoReviewMode: resolveTaskAutoReviewMode(selection.card.autoReviewMode),
 					images: selection.card.images,
 					agentId: selection.card.agentId,
-					clineSettings: selection.card.clineSettings,
+					nkleinSettings: selection.card.nkleinSettings,
 					baseRef: selection.card.baseRef,
 				});
 				return updated.updated ? updated.board : currentBoard;

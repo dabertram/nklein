@@ -1,13 +1,13 @@
 // Settings dialog composition for !Klein.
-// Generic app settings live here, while Cline-specific provider state and
-// side effects should stay in use-runtime-settings-cline-controller.ts.
+// Generic app settings live here, while NKlein-specific provider state and
+// side effects should stay in use-runtime-settings-nklein-controller.ts.
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import * as RadixPopover from "@radix-ui/react-popover";
 import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
 import {
-	RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
@@ -37,12 +37,12 @@ import {
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showAppToast } from "@/components/app-toaster";
 import {
-	ClineModelRegistryPanel,
 	filterRegistryEntriesToLoadedModels,
-} from "@/components/detail-panels/cline-model-registry-panel";
+	NKleinModelRegistryPanel,
+} from "@/components/detail-panels/nklein-model-registry-panel";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
-import { ClineSetupSection } from "@/components/shared/cline-setup-section";
+import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import {
 	getRuntimeShortcutIconComponent,
 	getRuntimeShortcutPickerOption,
@@ -56,59 +56,60 @@ import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
-import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
+import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import {
-	type UseRuntimeSettingsClineMcpControllerResult,
-	useRuntimeSettingsClineMcpController,
-} from "@/hooks/use-runtime-settings-cline-mcp-controller";
+	type UseRuntimeSettingsNKleinMcpControllerResult,
+	useRuntimeSettingsNKleinMcpController,
+} from "@/hooks/use-runtime-settings-nklein-mcp-controller";
 import { previewThemeId, readStoredThemeId, saveThemeId, THEME_GROUPS, THEMES, type ThemeId } from "@/hooks/use-theme";
 import { useLayoutCustomizations } from "@/resize/layout-customizations";
-import {
-	findClineProviderModel,
-	formatClineModelContextWindowLabel,
-	getClineModelContextWindowWarning,
-	isLmStudioProviderId,
-} from "@/runtime/cline-context-window-policy";
 import { buildSuggestedCodeEmbeddingBaseUrl, isLocalEmbeddingEndpointUrl } from "@/runtime/code-embedding-endpoint";
 import {
-	filterVisibleClineProviderCatalog,
+	filterVisibleNKleinProviderCatalog,
 	isCloudProviderSupportEnabled,
 	isKnownCloudProviderId,
+	isVisibleLocalNKleinProvider,
 } from "@/runtime/native-agent";
 import {
-	buildClineAdvisorRequest,
-	discoverClineEndpointModels,
-	fetchClineModelRegistry,
-	fetchClineProviderModels,
+	findNKleinProviderModel,
+	formatNKleinModelContextWindowLabel,
+	getNKleinModelContextWindowWarning,
+	isLmStudioProviderId,
+} from "@/runtime/nklein-context-window-policy";
+import {
+	buildNKleinAdvisorRequest,
+	discoverNKleinEndpointModels,
+	fetchNKleinModelRegistry,
+	fetchNKleinProviderModels,
 	openFileOnHost,
-	pruneClineModelRegistry,
-	removeClineModelRegistryEntry,
-	runClineSmokeEval,
-	saveClineModelContextWindowOverride,
-	sendClineAdvisorRequest,
-	writeClineDogfoodBacklog,
+	pruneNKleinModelRegistry,
+	removeNKleinModelRegistryEntry,
+	runNKleinSmokeEval,
+	saveNKleinModelContextWindowOverride,
+	sendNKleinAdvisorRequest,
+	writeNKleinDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
-	RuntimeClineAdvisorKind,
-	RuntimeClineAdvisorRequest,
-	RuntimeClineAdvisorSendResponse,
-	RuntimeClineDogfoodBacklogResponse,
-	RuntimeClineEndpointModelDiscoveryResponse,
-	RuntimeClineMcpServer,
-	RuntimeClineMcpServerAuthStatus,
-	RuntimeClineModelRegistryEntry,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderModel,
-	RuntimeClineReasoningEffort,
-	RuntimeClineSmokeEvalResponse,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
+	RuntimeNKleinAdvisorKind,
+	RuntimeNKleinAdvisorRequest,
+	RuntimeNKleinAdvisorSendResponse,
+	RuntimeNKleinDogfoodBacklogResponse,
+	RuntimeNKleinEndpointModelDiscoveryResponse,
+	RuntimeNKleinMcpServer,
+	RuntimeNKleinMcpServerAuthStatus,
+	RuntimeNKleinModelRegistryEntry,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderModel,
+	RuntimeNKleinReasoningEffort,
+	RuntimeNKleinSmokeEvalResponse,
 	RuntimeProjectShortcut,
 	RuntimeTaskAutoReviewMode,
-	RuntimeTaskClineSettings,
+	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
@@ -136,7 +137,7 @@ function quoteCommandPartForDisplay(part: string): string {
 }
 
 function buildDisplayedAgentCommand(agentId: RuntimeAgentId, binary: string, autonomousModeEnabled: boolean): string {
-	if (agentId === "cline") {
+	if (agentId === "nklein") {
 		return "";
 	}
 	const args = autonomousModeEnabled ? (getRuntimeAgentCatalogEntry(agentId)?.autonomousArgs ?? []) : [];
@@ -147,7 +148,7 @@ function normalizeTemplateForComparison(value: string): string {
 	return value.replaceAll("\r\n", "\n").trim();
 }
 
-function normalizeModelRoleSettings(settings: RuntimeTaskClineSettings | undefined): RuntimeTaskClineSettings {
+function normalizeModelRoleSettings(settings: RuntimeTaskNKleinSettings | undefined): RuntimeTaskNKleinSettings {
 	const providerId = settings?.providerId?.trim();
 	const modelId = settings?.modelId?.trim();
 	return {
@@ -177,9 +178,9 @@ function normalizeProviderId(value: string | null | undefined): string {
 }
 
 function findProviderCatalogItem(
-	providers: RuntimeClineProviderCatalogItem[],
+	providers: RuntimeNKleinProviderCatalogItem[],
 	providerId: string,
-): RuntimeClineProviderCatalogItem | null {
+): RuntimeNKleinProviderCatalogItem | null {
 	const normalizedProviderId = normalizeProviderId(providerId);
 	return providers.find((provider) => normalizeProviderId(provider.id) === normalizedProviderId) ?? null;
 }
@@ -193,8 +194,8 @@ function formatProviderOptionLabel(provider: { id: string; name: string }): stri
 	return `${name} (${id})`;
 }
 
-function formatModelOptionLabel(model: RuntimeClineProviderModel): string {
-	const name = formatClineModelContextWindowLabel(model);
+function formatModelOptionLabel(model: RuntimeNKleinProviderModel): string {
+	const name = formatNKleinModelContextWindowLabel(model);
 	const id = model.id.trim();
 	if (!name || name.toLowerCase() === id.toLowerCase()) {
 		return id;
@@ -209,7 +210,7 @@ const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }>
 
 export type RuntimeSettingsSection = "shortcuts";
 
-const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
+const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
 const LOCAL_SWARM_GUARDRAIL_ROWS = [
 	{
@@ -217,8 +218,8 @@ const LOCAL_SWARM_GUARDRAIL_ROWS = [
 		value: `${RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH} cards`,
 		detail: "Caps one swarm start-all or auto-start batch before the next operator or dependency event.",
 	},
-	{ label: "Autonomous turns", value: "12 turns", detail: "Parks Cline tasks at the turn checkpoint limit." },
-	{ label: "Wall time", value: "2 hours", detail: "Parks Cline tasks after the autonomous wall-time limit." },
+	{ label: "Autonomous turns", value: "12 turns", detail: "Parks !Klein tasks at the turn checkpoint limit." },
+	{ label: "Wall time", value: "2 hours", detail: "Parks !Klein tasks after the autonomous wall-time limit." },
 	{
 		label: "No-diff checkpoints",
 		value: "4 repeats",
@@ -226,13 +227,13 @@ const LOCAL_SWARM_GUARDRAIL_ROWS = [
 	},
 	{
 		label: "Repeated tool calls",
-		value: `${RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK} repeats`,
+		value: `${RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK} repeats`,
 		detail: "Parks tasks that keep starting the same tool with the same input.",
 	},
 	{
 		label: "Repeated tool/API mistakes",
 		value: "SDK limit",
-		detail: "Stops tasks that hit Cline's mistake guardrail.",
+		detail: "Stops tasks that hit !Klein's mistake guardrail.",
 	},
 ] as const;
 const ADVANCED_POLICY_ROWS = [
@@ -258,7 +259,7 @@ const ADVANCED_POLICY_ROWS = [
 		label: "Telemetry",
 		value: "Local JSONL",
 		detail: "Task diagnostics read recent local telemetry events; no LLM is used for the diagnostics drawer.",
-		raw: ".cline/nklein/telemetry, limit 20",
+		raw: ".nklein/nklein/telemetry, limit 20",
 	},
 ] as const;
 type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
@@ -297,7 +298,7 @@ function EmbeddingEndpointFields({
 }): ReactElement {
 	const [isDiscovering, setIsDiscovering] = useState(false);
 	const [isTestingEndpoint, setIsTestingEndpoint] = useState(false);
-	const [discoveredModels, setDiscoveredModels] = useState<RuntimeClineProviderModel[]>([]);
+	const [discoveredModels, setDiscoveredModels] = useState<RuntimeNKleinProviderModel[]>([]);
 	const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
 	const baseUrlRef = useRef(baseUrl);
 	const discoveryRequestIdRef = useRef(0);
@@ -347,7 +348,7 @@ function EmbeddingEndpointFields({
 				onError(null);
 			}
 			try {
-				const response: RuntimeClineEndpointModelDiscoveryResponse = await discoverClineEndpointModels(
+				const response: RuntimeNKleinEndpointModelDiscoveryResponse = await discoverNKleinEndpointModels(
 					workspaceId,
 					{
 						baseUrl: normalizedBaseUrl,
@@ -419,7 +420,7 @@ function EmbeddingEndpointFields({
 		setDiscoveryMessage(null);
 		onError(null);
 		try {
-			const response = await discoverClineEndpointModels(workspaceId, {
+			const response = await discoverNKleinEndpointModels(workspaceId, {
 				baseUrl: normalizedBaseUrl,
 			});
 			setDiscoveryMessage(
@@ -513,7 +514,7 @@ function EmbeddingEndpointFields({
 		</div>
 	);
 }
-const REASONING_EFFORT_OPTIONS: Array<RuntimeClineReasoningEffort | "inherit"> = [
+const REASONING_EFFORT_OPTIONS: Array<RuntimeNKleinReasoningEffort | "inherit"> = [
 	"inherit",
 	"low",
 	"medium",
@@ -539,17 +540,17 @@ const CODE_EMBEDDING_PROVIDER_OPTIONS: Array<{ value: RuntimeCodeEmbeddingSettin
 	{ value: "openai_compatible", label: "OpenAI-compatible endpoint" },
 ];
 
-type SettingsNavId = "general" | "tasks" | "cline" | "git-prompts" | "notifications" | "appearance" | "project";
+type SettingsNavId = "general" | "tasks" | "nklein" | "git-prompts" | "notifications" | "appearance" | "project";
 
 const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	id: SettingsNavId;
 	label: string;
 	icon: React.ReactNode;
-	clineOnly?: boolean;
+	nkleinOnly?: boolean;
 }> = [
 	{ id: "general", label: "General", icon: <SlidersHorizontal size={16} /> },
 	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
-	{ id: "cline", label: "Cline", icon: <Bot size={16} />, clineOnly: true },
+	{ id: "nklein", label: "!Klein", icon: <Bot size={16} />, nkleinOnly: true },
 	{ id: "git-prompts", label: "Git Prompts", icon: <GitCommit size={16} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
@@ -654,9 +655,9 @@ function AgentRow({
 	disabled: boolean;
 }): React.ReactElement {
 	const installUrl = getRuntimeAgentCatalogEntry(agent.id)?.installUrl;
-	const isNativeCline = agent.id === "cline";
+	const isNativeNKlein = agent.id === "nklein";
 	const isInstalled = agent.installed === true;
-	const isInstallStatusPending = !isNativeCline && agent.installed === null;
+	const isInstallStatusPending = !isNativeNKlein && agent.installed === null;
 
 	return (
 		<div
@@ -687,7 +688,7 @@ function AgentRow({
 				<div className="min-w-0">
 					<div className="flex items-center gap-2">
 						<span className="text-[13px] text-text-primary">{agent.label}</span>
-						{!isNativeCline && isInstalled ? (
+						{!isNativeNKlein && isInstalled ? (
 							<span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-status-green/10 text-status-green">
 								Installed
 							</span>
@@ -702,7 +703,7 @@ function AgentRow({
 					) : null}
 				</div>
 			</div>
-			{!isNativeCline && agent.installed === false && installUrl ? (
+			{!isNativeNKlein && agent.installed === false && installUrl ? (
 				<a
 					href={installUrl}
 					target="_blank"
@@ -712,7 +713,7 @@ function AgentRow({
 				>
 					Install
 				</a>
-			) : !isNativeCline && agent.installed === false ? (
+			) : !isNativeNKlein && agent.installed === false ? (
 				<Button size="sm" disabled>
 					Install
 				</Button>
@@ -845,8 +846,8 @@ function SettingsNav({
 	);
 }
 
-const CLINE_ADVISOR_ACTIONS: ReadonlyArray<{
-	kind: RuntimeClineAdvisorKind;
+const NKLEIN_ADVISOR_ACTIONS: ReadonlyArray<{
+	kind: RuntimeNKleinAdvisorKind;
 	label: string;
 	icon: React.ReactNode;
 }> = [
@@ -857,7 +858,7 @@ const CLINE_ADVISOR_ACTIONS: ReadonlyArray<{
 ];
 
 interface ParsedMcpSuggestion {
-	server: RuntimeClineMcpServer;
+	server: RuntimeNKleinMcpServer;
 	label: string;
 }
 
@@ -929,7 +930,7 @@ function parseMcpSuggestionText(text: string): ParsedMcpSuggestion[] {
 	});
 }
 
-function ClineAdvisorActions({
+function NKleinAdvisorActions({
 	workspaceId,
 	disabled,
 	mcpController,
@@ -940,19 +941,19 @@ function ClineAdvisorActions({
 }: {
 	workspaceId: string | null;
 	disabled: boolean;
-	mcpController: UseRuntimeSettingsClineMcpControllerResult;
+	mcpController: UseRuntimeSettingsNKleinMcpControllerResult;
 	runtimeConfigSummary: string;
 	advisorProviderId: string;
 	advisorModelId: string;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
-	const [activeKind, setActiveKind] = useState<RuntimeClineAdvisorKind | null>(null);
-	const [advisorRequest, setAdvisorRequest] = useState<RuntimeClineAdvisorRequest | null>(null);
-	const [advisorModels, setAdvisorModels] = useState<RuntimeClineProviderModel[]>([]);
+	const [activeKind, setActiveKind] = useState<RuntimeNKleinAdvisorKind | null>(null);
+	const [advisorRequest, setAdvisorRequest] = useState<RuntimeNKleinAdvisorRequest | null>(null);
+	const [advisorModels, setAdvisorModels] = useState<RuntimeNKleinProviderModel[]>([]);
 	const [selectedAdvisorModelId, setSelectedAdvisorModelId] = useState("");
 	const [isLoadingAdvisorModels, setIsLoadingAdvisorModels] = useState(false);
 	const [isSendingAdvisor, setIsSendingAdvisor] = useState(false);
-	const [advisorResponse, setAdvisorResponse] = useState<RuntimeClineAdvisorSendResponse | null>(null);
+	const [advisorResponse, setAdvisorResponse] = useState<RuntimeNKleinAdvisorSendResponse | null>(null);
 	const [advisorSendError, setAdvisorSendError] = useState<string | null>(null);
 	const [mcpSuggestionText, setMcpSuggestionText] = useState("");
 	const [parsedMcpSuggestions, setParsedMcpSuggestions] = useState<ParsedMcpSuggestion[]>([]);
@@ -976,7 +977,7 @@ function ClineAdvisorActions({
 			return;
 		}
 		setIsLoadingAdvisorModels(true);
-		void fetchClineProviderModels(workspaceId, configuredAdvisorProviderId)
+		void fetchNKleinProviderModels(workspaceId, configuredAdvisorProviderId)
 			.then((models) => {
 				if (cancelled) {
 					return;
@@ -1004,10 +1005,10 @@ function ClineAdvisorActions({
 	}, [configuredAdvisorProviderId, configuredAdvisorModelId, onError, workspaceId]);
 
 	const handleBuildAdvisor = useCallback(
-		(kind: RuntimeClineAdvisorKind) => {
+		(kind: RuntimeNKleinAdvisorKind) => {
 			onError(null);
 			setActiveKind(kind);
-			void buildClineAdvisorRequest(workspaceId, {
+			void buildNKleinAdvisorRequest(workspaceId, {
 				kind,
 				...(kind === "config_explainer" ? { runtimeConfigSummary } : {}),
 			})
@@ -1096,13 +1097,13 @@ function ClineAdvisorActions({
 		}
 		const modelId = selectedAdvisorModelId.trim();
 		if (!configuredAdvisorProviderId || !modelId) {
-			setAdvisorSendError("Choose a local Cline model before sending the advisor prompt.");
+			setAdvisorSendError("Choose a local !Klein model before sending the advisor prompt.");
 			return;
 		}
 		setIsSendingAdvisor(true);
 		setAdvisorSendError(null);
 		setAdvisorResponse(null);
-		void sendClineAdvisorRequest(workspaceId, {
+		void sendNKleinAdvisorRequest(workspaceId, {
 			prompt: advisorRequest.prompt,
 			providerId: configuredAdvisorProviderId,
 			modelId,
@@ -1124,7 +1125,7 @@ function ClineAdvisorActions({
 			<div className="flex items-center justify-between gap-3 mb-2">
 				<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0">Advisor</h6>
 				<div className="flex flex-wrap items-center justify-end gap-2">
-					{CLINE_ADVISOR_ACTIONS.map((action) => (
+					{NKLEIN_ADVISOR_ACTIONS.map((action) => (
 						<Button
 							key={action.kind}
 							size="sm"
@@ -1302,7 +1303,7 @@ function ClineAdvisorActions({
 	);
 }
 
-function ClineDogfoodSuggestion({
+function NKleinDogfoodSuggestion({
 	workspaceId,
 	disabled,
 	onError,
@@ -1313,13 +1314,13 @@ function ClineDogfoodSuggestion({
 }): React.ReactElement {
 	const [suggestion, setSuggestion] = useState("");
 	const [isWriting, setIsWriting] = useState(false);
-	const [result, setResult] = useState<RuntimeClineDogfoodBacklogResponse | null>(null);
+	const [result, setResult] = useState<RuntimeNKleinDogfoodBacklogResponse | null>(null);
 
 	const handleWriteBacklog = useCallback(() => {
 		const trimmed = suggestion.trim();
 		onError(null);
 		setIsWriting(true);
-		void writeClineDogfoodBacklog(workspaceId, trimmed ? { suggestion: trimmed } : {})
+		void writeNKleinDogfoodBacklog(workspaceId, trimmed ? { suggestion: trimmed } : {})
 			.then((response) => {
 				setResult(response);
 			})
@@ -1397,7 +1398,7 @@ function ClineDogfoodSuggestion({
 	);
 }
 
-function ClineModelContextWindowSettingsPanel({
+function NKleinModelContextWindowSettingsPanel({
 	workspaceId,
 	open,
 	disabled,
@@ -1412,19 +1413,19 @@ function ClineModelContextWindowSettingsPanel({
 	disabled: boolean;
 	selectedProviderId: string;
 	selectedModelId: string;
-	selectedProviderModels: RuntimeClineProviderModel[];
+	selectedProviderModels: RuntimeNKleinProviderModel[];
 	onRefreshProviderModels: () => Promise<void>;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [isLoading, setIsLoading] = useState(false);
-	const [registryEntries, setRegistryEntries] = useState<RuntimeClineModelRegistryEntry[]>([]);
+	const [registryEntries, setRegistryEntries] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const visibleRegistryEntries = useMemo(
 		() => filterRegistryEntriesToLoadedModels(registryEntries, selectedProviderId, selectedProviderModels),
 		[registryEntries, selectedProviderId, selectedProviderModels],
 	);
 	const selectedLoadedProviderModel = useMemo(
-		() => findClineProviderModel(selectedProviderModels, selectedModelId),
+		() => findNKleinProviderModel(selectedProviderModels, selectedModelId),
 		[selectedModelId, selectedProviderModels],
 	);
 
@@ -1436,7 +1437,7 @@ function ClineModelContextWindowSettingsPanel({
 		setIsLoading(true);
 		try {
 			await onRefreshProviderModels();
-			const response = await fetchClineModelRegistry(workspaceId);
+			const response = await fetchNKleinModelRegistry(workspaceId);
 			setRegistryEntries(response.models);
 			setNowMs(Date.now());
 		} catch (error) {
@@ -1452,11 +1453,11 @@ function ClineModelContextWindowSettingsPanel({
 	}, [refreshRegistry]);
 
 	const saveOverride = useCallback(
-		async (entry: RuntimeClineModelRegistryEntry, contextWindow: number | null) => {
+		async (entry: RuntimeNKleinModelRegistryEntry, contextWindow: number | null) => {
 			if (disabled) {
 				return;
 			}
-			await saveClineModelContextWindowOverride(workspaceId, {
+			await saveNKleinModelContextWindowOverride(workspaceId, {
 				providerId: entry.providerId,
 				modelId: entry.modelId,
 				endpoint: entry.endpoint,
@@ -1468,11 +1469,11 @@ function ClineModelContextWindowSettingsPanel({
 	);
 
 	const removeEntry = useCallback(
-		async (entry: RuntimeClineModelRegistryEntry) => {
+		async (entry: RuntimeNKleinModelRegistryEntry) => {
 			if (disabled) {
 				return;
 			}
-			const response = await removeClineModelRegistryEntry(workspaceId, { key: entry.key });
+			const response = await removeNKleinModelRegistryEntry(workspaceId, { key: entry.key });
 			await refreshRegistry();
 			showAppToast({
 				intent: response.removed ? "success" : "none",
@@ -1488,7 +1489,7 @@ function ClineModelContextWindowSettingsPanel({
 		if (disabled) {
 			return;
 		}
-		const response = await pruneClineModelRegistry(workspaceId);
+		const response = await pruneNKleinModelRegistry(workspaceId);
 		await refreshRegistry();
 		showAppToast({
 			intent: "success",
@@ -1511,7 +1512,7 @@ function ClineModelContextWindowSettingsPanel({
 					</p>
 					{selectedLoadedProviderModel ? (
 						<p className="text-[12px] text-text-secondary mt-1 mb-0">
-							Selected loaded model (live): {formatClineModelContextWindowLabel(selectedLoadedProviderModel)}
+							Selected loaded model (live): {formatNKleinModelContextWindowLabel(selectedLoadedProviderModel)}
 						</p>
 					) : (
 						<p className="text-[12px] text-text-tertiary mt-1 mb-0">
@@ -1531,7 +1532,7 @@ function ClineModelContextWindowSettingsPanel({
 					{isLoading ? "Refreshing..." : "Refresh"}
 				</Button>
 			</div>
-			<ClineModelRegistryPanel
+			<NKleinModelRegistryPanel
 				entries={visibleRegistryEntries}
 				selectedProviderId={selectedProviderId}
 				selectedModelId={selectedModelId}
@@ -1545,7 +1546,7 @@ function ClineModelContextWindowSettingsPanel({
 	);
 }
 
-function ClineSmokeEvalTrial({
+function NKleinSmokeEvalTrial({
 	workspaceId,
 	disabled,
 	onError,
@@ -1555,18 +1556,18 @@ function ClineSmokeEvalTrial({
 	onError: (message: string | null) => void;
 }): React.ReactElement {
 	const [isRunning, setIsRunning] = useState(false);
-	const [result, setResult] = useState<RuntimeClineSmokeEvalResponse | null>(null);
+	const [result, setResult] = useState<RuntimeNKleinSmokeEvalResponse | null>(null);
 
 	const handleRunEval = useCallback(() => {
 		onError(null);
 		setIsRunning(true);
-		void runClineSmokeEval(workspaceId)
+		void runNKleinSmokeEval(workspaceId)
 			.then((response) => {
 				setResult(response);
 			})
 			.catch((error) => {
 				const message = error instanceof Error ? error.message : String(error);
-				onError(`Could not run Cline smoke eval: ${message}`);
+				onError(`Could not run !Klein smoke eval: ${message}`);
 			})
 			.finally(() => {
 				setIsRunning(false);
@@ -1640,7 +1641,7 @@ export function RuntimeSettingsDialog({
 	open: boolean;
 	workspaceId: string | null;
 	initialConfig?: RuntimeConfigResponse | null;
-	liveMcpAuthStatuses?: RuntimeClineMcpServerAuthStatus[] | null;
+	liveMcpAuthStatuses?: RuntimeNKleinMcpServerAuthStatus[] | null;
 	onOpenChange: (open: boolean) => void;
 	onSaved?: () => void;
 	onAccountSwitched?: () => void;
@@ -1648,7 +1649,7 @@ export function RuntimeSettingsDialog({
 }): React.ReactElement {
 	const { config, isLoading, isSaving, save, refresh } = useRuntimeConfig(open, workspaceId, initialConfig);
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
-	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("cline");
+	const [selectedAgentId, setSelectedAgentId] = useState<RuntimeAgentId>("nklein");
 	const [agentAutonomousModeEnabled, setAgentAutonomousModeEnabled] = useState(true);
 	const [agentTimeoutMode, setAgentTimeoutMode] = useState<"normal" | "long" | "extended" | "unlimited">("normal");
 	const [agentTimeoutProfile, setAgentTimeoutProfile] = useState<"cloud" | "local" | "custom">("local");
@@ -1699,10 +1700,10 @@ export function RuntimeSettingsDialog({
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
 	const [modelPerformanceStatsOpen, setModelPerformanceStatsOpen] = useState(false);
 	const [modelRoleModelsByProviderId, setModelRoleModelsByProviderId] = useState<
-		Record<string, RuntimeClineProviderModel[]>
+		Record<string, RuntimeNKleinProviderModel[]>
 	>({});
 	const [loadingModelRoleProviderIds, setLoadingModelRoleProviderIds] = useState<Record<string, boolean>>({});
-	const modelRoleModelsByProviderIdRef = useRef<Record<string, RuntimeClineProviderModel[]>>({});
+	const modelRoleModelsByProviderIdRef = useRef<Record<string, RuntimeNKleinProviderModel[]>>({});
 	const loadingModelRoleProviderIdsRef = useRef<Record<string, boolean>>({});
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
@@ -1757,13 +1758,13 @@ export function RuntimeSettingsDialog({
 				id: agent.id,
 				label: agent.label,
 				binary: agent.binary,
-				installed: agent.id === "cline" ? true : agent.installed,
+				installed: agent.id === "nklein" ? true : agent.installed,
 			})) ??
 			getRuntimeLaunchSupportedAgentCatalog().map((agent) => ({
 				id: agent.id,
 				label: agent.label,
 				binary: agent.binary,
-				installed: agent.id === "cline" ? true : null,
+				installed: agent.id === "nklein" ? true : null,
 			}));
 		const orderIndexByAgentId = new Map(SETTINGS_AGENT_ORDER.map((agentId, index) => [agentId, index] as const));
 		const orderedAgents = [...agents].sort((left, right) => {
@@ -1777,11 +1778,11 @@ export function RuntimeSettingsDialog({
 		}));
 	}, [agentAutonomousModeEnabled, config?.agents]);
 	const displayedAgents = useMemo(
-		() => (cloudProviderSupportEnabled ? supportedAgents : supportedAgents.filter((agent) => agent.id === "cline")),
+		() => (cloudProviderSupportEnabled ? supportedAgents : supportedAgents.filter((agent) => agent.id === "nklein")),
 		[cloudProviderSupportEnabled, supportedAgents],
 	);
 	const navItems = useMemo(
-		() => SETTINGS_NAV_ITEMS.filter((item) => !item.clineOnly || selectedAgentId === "cline"),
+		() => SETTINGS_NAV_ITEMS.filter((item) => !item.nkleinOnly || selectedAgentId === "nklein"),
 		[selectedAgentId],
 	);
 
@@ -1794,8 +1795,8 @@ export function RuntimeSettingsDialog({
 	}, [loadingModelRoleProviderIds]);
 
 	const configuredAgentId = config?.selectedAgentId ?? null;
-	const fallbackAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? "cline") : "cline";
-	const initialSelectedAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? fallbackAgentId) : "cline";
+	const fallbackAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? "nklein") : "nklein";
+	const initialSelectedAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? fallbackAgentId) : "nklein";
 	const initialAgentAutonomousModeEnabled = config?.agentAutonomousModeEnabled ?? true;
 	const initialAgentTimeoutMode = config?.agentTimeoutMode ?? "normal";
 	const initialAgentTimeoutProfile = normalizeAgentTimeoutProfile(
@@ -1830,32 +1831,32 @@ export function RuntimeSettingsDialog({
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
 	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
-	const clineSettings = useRuntimeSettingsClineController({
+	const nkleinSettings = useRuntimeSettingsNKleinController({
 		open,
 		workspaceId,
 		selectedAgentId,
 		config,
 	});
-	const clineMcpSettings = useRuntimeSettingsClineMcpController({
+	const nkleinMcpSettings = useRuntimeSettingsNKleinMcpController({
 		open,
 		workspaceId,
 		selectedAgentId,
 		liveAuthStatuses: liveMcpAuthStatuses,
 	});
-	const visibleClineProviderCatalog = useMemo(
-		() => filterVisibleClineProviderCatalog(clineSettings.providerCatalog, cloudProviderSupportEnabled),
-		[clineSettings.providerCatalog, cloudProviderSupportEnabled],
+	const visibleNKleinProviderCatalog = useMemo(
+		() => filterVisibleNKleinProviderCatalog(nkleinSettings.providerCatalog, cloudProviderSupportEnabled),
+		[nkleinSettings.providerCatalog, cloudProviderSupportEnabled],
 	);
 	const suggestedCodeEmbeddingBaseUrl = useMemo(
 		() =>
 			buildSuggestedCodeEmbeddingBaseUrl({
-				providerId: clineSettings.providerId,
-				baseUrl: clineSettings.baseUrl,
-				providerCatalog: clineSettings.providerCatalog,
+				providerId: nkleinSettings.providerId,
+				baseUrl: nkleinSettings.baseUrl,
+				providerCatalog: nkleinSettings.providerCatalog,
 			}),
-		[clineSettings.baseUrl, clineSettings.providerCatalog, clineSettings.providerId],
+		[nkleinSettings.baseUrl, nkleinSettings.providerCatalog, nkleinSettings.providerId],
 	);
-	const clineProviderId = clineSettings.providerId.trim();
+	const nkleinProviderId = nkleinSettings.providerId.trim();
 	const selectedModelRoleProviderIds = useMemo(() => {
 		const providerIds = new Set<string>();
 		for (const roleId of MODEL_ROLE_IDS) {
@@ -1882,17 +1883,17 @@ export function RuntimeSettingsDialog({
 				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
 				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
-				`clineProvider=${clineSettings.providerId || "default"}`,
-				`clineModel=${clineSettings.modelId || "default"}`,
-				`clineBaseUrl=${clineSettings.baseUrl || "default"}`,
+				`nkleinProvider=${nkleinSettings.providerId || "default"}`,
+				`nkleinModel=${nkleinSettings.modelId || "default"}`,
+				`nkleinBaseUrl=${nkleinSettings.baseUrl || "default"}`,
 			].join("\n"),
 		[
 			agentAutonomousModeEnabled,
 			agentTimeoutMode,
 			agentTimeoutProfile,
-			clineSettings.baseUrl,
-			clineSettings.modelId,
-			clineSettings.providerId,
+			nkleinSettings.baseUrl,
+			nkleinSettings.modelId,
+			nkleinSettings.providerId,
 			decompositionAutoApplyEnabled,
 			lostHeartbeatPolicy,
 			maxConcurrentTasks,
@@ -2050,10 +2051,10 @@ export function RuntimeSettingsDialog({
 		) {
 			return true;
 		}
-		if (clineSettings.hasUnsavedChanges) {
+		if (nkleinSettings.hasUnsavedChanges) {
 			return true;
 		}
-		if (clineMcpSettings.hasUnsavedChanges) {
+		if (nkleinMcpSettings.hasUnsavedChanges) {
 			return true;
 		}
 		if (serializeModelRoles(modelRoles) !== serializeModelRoles(initialModelRoles)) {
@@ -2080,8 +2081,8 @@ export function RuntimeSettingsDialog({
 		agentTimeoutMode,
 		agentTimeoutMs,
 		agentTimeoutProfile,
-		clineMcpSettings.hasUnsavedChanges,
-		clineSettings.hasUnsavedChanges,
+		nkleinMcpSettings.hasUnsavedChanges,
+		nkleinSettings.hasUnsavedChanges,
 		commitPromptTemplate,
 		conversationTimeoutMs,
 		config,
@@ -2258,7 +2259,7 @@ export function RuntimeSettingsDialog({
 	}, [initialSection, open]);
 
 	useEffect(() => {
-		if (!open || selectedAgentId !== "cline") {
+		if (!open || selectedAgentId !== "nklein") {
 			setModelRoleModelsByProviderId({});
 			setLoadingModelRoleProviderIds({});
 			return;
@@ -2268,7 +2269,7 @@ export function RuntimeSettingsDialog({
 			if (!normalizedProviderId) {
 				return false;
 			}
-			if (normalizedProviderId === normalizeProviderId(clineProviderId)) {
+			if (normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
 				return false;
 			}
 			return (
@@ -2289,7 +2290,7 @@ export function RuntimeSettingsDialog({
 		});
 		for (const providerId of providerIdsToLoad) {
 			const normalizedProviderId = normalizeProviderId(providerId);
-			void fetchClineProviderModels(workspaceId, providerId)
+			void fetchNKleinProviderModels(workspaceId, providerId)
 				.then((models) => {
 					if (cancelled) {
 						return;
@@ -2322,7 +2323,7 @@ export function RuntimeSettingsDialog({
 		return () => {
 			cancelled = true;
 		};
-	}, [clineProviderId, open, selectedAgentId, selectedModelRoleProviderIds, workspaceId]);
+	}, [nkleinProviderId, open, selectedAgentId, selectedModelRoleProviderIds, workspaceId]);
 
 	useEffect(() => {
 		if (pendingShortcutScrollIndex === null) {
@@ -2350,7 +2351,7 @@ export function RuntimeSettingsDialog({
 	});
 
 	useEffect(() => {
-		if (activeSection === "cline" && selectedAgentId !== "cline") {
+		if (activeSection === "nklein" && selectedAgentId !== "nklein") {
 			setActiveSection("general");
 		}
 	}, [activeSection, selectedAgentId]);
@@ -2424,54 +2425,54 @@ export function RuntimeSettingsDialog({
 	};
 
 	const getModelRoleProviderModels = useCallback(
-		(providerId: string): RuntimeClineProviderModel[] => {
-			const normalizedProviderId = normalizeProviderId(providerId || clineProviderId);
-			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(clineProviderId)) {
-				return clineSettings.providerModels;
+		(providerId: string): RuntimeNKleinProviderModel[] => {
+			const normalizedProviderId = normalizeProviderId(providerId || nkleinProviderId);
+			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
+				return nkleinSettings.providerModels;
 			}
 			return modelRoleModelsByProviderId[normalizedProviderId] ?? [];
 		},
-		[clineProviderId, clineSettings.providerModels, modelRoleModelsByProviderId],
+		[nkleinProviderId, nkleinSettings.providerModels, modelRoleModelsByProviderId],
 	);
 
 	const isModelRoleProviderLoading = useCallback(
 		(providerId: string): boolean => {
-			const normalizedProviderId = normalizeProviderId(providerId || clineProviderId);
-			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(clineProviderId)) {
-				return clineSettings.isLoadingProviderModels;
+			const normalizedProviderId = normalizeProviderId(providerId || nkleinProviderId);
+			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
+				return nkleinSettings.isLoadingProviderModels;
 			}
 			return loadingModelRoleProviderIds[normalizedProviderId] === true;
 		},
-		[clineProviderId, clineSettings.isLoadingProviderModels, loadingModelRoleProviderIds],
+		[nkleinProviderId, nkleinSettings.isLoadingProviderModels, loadingModelRoleProviderIds],
 	);
 
 	const getModelRoleContextWarning = useCallback(
 		(roleId: ModelRoleId): string | null => {
 			const roleSettings = modelRoles[roleId] ?? {};
 			const roleProviderId = roleSettings.providerId ?? "";
-			const effectiveProviderId = roleProviderId || clineProviderId;
+			const effectiveProviderId = roleProviderId || nkleinProviderId;
 			const providerDefaultModelId = roleProviderId
-				? (findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)?.defaultModelId?.trim() ?? "")
+				? (findProviderCatalogItem(nkleinSettings.providerCatalog, roleProviderId)?.defaultModelId?.trim() ?? "")
 				: "";
 			const effectiveModelId = roleSettings.modelId?.trim() || providerDefaultModelId;
 			if (!effectiveModelId) {
 				return null;
 			}
 			const roleModels = getModelRoleProviderModels(effectiveProviderId);
-			return getClineModelContextWindowWarning({
-				model: findClineProviderModel(roleModels, effectiveModelId),
+			return getNKleinModelContextWindowWarning({
+				model: findNKleinProviderModel(roleModels, effectiveModelId),
 				modelId: effectiveModelId,
 				label: `${MODEL_ROLE_LABELS[roleId]} model`,
 			});
 		},
-		[clineProviderId, clineSettings.providerCatalog, getModelRoleProviderModels, modelRoles],
+		[nkleinProviderId, nkleinSettings.providerCatalog, getModelRoleProviderModels, modelRoles],
 	);
 
 	const getModelRoleAvailabilityWarning = useCallback(
 		(roleId: ModelRoleId): string | null => {
 			const roleSettings = modelRoles[roleId] ?? {};
 			const roleProviderId = roleSettings.providerId ?? "";
-			const effectiveProviderId = roleProviderId || clineProviderId;
+			const effectiveProviderId = roleProviderId || nkleinProviderId;
 			if (!isLmStudioProviderId(effectiveProviderId)) {
 				return null;
 			}
@@ -2483,13 +2484,23 @@ export function RuntimeSettingsDialog({
 				return null;
 			}
 			const roleModels = getModelRoleProviderModels(effectiveProviderId);
-			if (findClineProviderModel(roleModels, roleModelId)) {
+			if (findNKleinProviderModel(roleModels, roleModelId)) {
 				return null;
 			}
 			return `${MODEL_ROLE_LABELS[roleId]} model "${roleModelId}" is not loaded in LM Studio. Load it, refresh models, then choose it before saving.`;
 		},
-		[clineProviderId, getModelRoleProviderModels, modelRoles],
+		[nkleinProviderId, getModelRoleProviderModels, modelRoles],
 	);
+
+	useEffect(() => {
+		if (!saveError?.includes("Selected LM Studio model")) {
+			return;
+		}
+		if (!findNKleinProviderModel(nkleinSettings.providerModels, nkleinSettings.modelId)) {
+			return;
+		}
+		setSaveError(null);
+	}, [nkleinSettings.modelId, nkleinSettings.providerModels, saveError]);
 
 	const handleModelRoleProviderChange = (roleId: ModelRoleId, value: string) => {
 		setModelRoles((current) => {
@@ -2505,7 +2516,7 @@ export function RuntimeSettingsDialog({
 				return next;
 			}
 			const defaultModelId = findProviderCatalogItem(
-				clineSettings.providerCatalog,
+				nkleinSettings.providerCatalog,
 				trimmedProviderId,
 			)?.defaultModelId?.trim();
 			next[roleId] = {
@@ -2536,7 +2547,7 @@ export function RuntimeSettingsDialog({
 		});
 	};
 
-	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeClineReasoningEffort | "inherit") => {
+	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeNKleinReasoningEffort | "inherit") => {
 		setModelRoles((current) => {
 			const nextRole = { ...current[roleId] };
 			if (value === "inherit") {
@@ -2671,11 +2682,11 @@ export function RuntimeSettingsDialog({
 			const nextPermission = await requestBrowserNotificationPermission();
 			setNotificationPermission(nextPermission);
 		}
-		if (selectedAgentId === "cline" && clineSettings.providerId.trim().length === 0) {
-			setSaveError("Choose a Cline provider before saving.");
+		if (selectedAgentId === "nklein" && nkleinSettings.providerId.trim().length === 0) {
+			setSaveError("Choose a !Klein provider before saving.");
 			return;
 		}
-		if (selectedAgentId === "cline") {
+		if (selectedAgentId === "nklein") {
 			const modelRoleAvailabilityWarning = MODEL_ROLE_IDS.map((roleId) =>
 				getModelRoleAvailabilityWarning(roleId),
 			).find((warning): warning is string => warning !== null);
@@ -2690,14 +2701,14 @@ export function RuntimeSettingsDialog({
 				setSaveError(modelRoleContextWarning);
 				return;
 			}
-			const clineProviderSaveResult = await clineSettings.saveProviderSettings();
-			if (!clineProviderSaveResult.ok) {
-				setSaveError(clineProviderSaveResult.message ?? "Could not save Cline provider settings.");
+			const nkleinProviderSaveResult = await nkleinSettings.saveProviderSettings();
+			if (!nkleinProviderSaveResult.ok) {
+				setSaveError(nkleinProviderSaveResult.message ?? "Could not save !Klein provider settings.");
 				return;
 			}
-			const clineMcpSaveResult = await clineMcpSettings.saveMcpSettings();
-			if (!clineMcpSaveResult.ok) {
-				setSaveError(clineMcpSaveResult.message ?? "Could not save Cline MCP settings.");
+			const nkleinMcpSaveResult = await nkleinMcpSettings.saveMcpSettings();
+			if (!nkleinMcpSaveResult.ok) {
+				setSaveError(nkleinMcpSaveResult.message ?? "Could not save !Klein MCP settings.");
 				return;
 			}
 		}
@@ -2766,17 +2777,17 @@ export function RuntimeSettingsDialog({
 		[workspaceId],
 	);
 
-	const handleClineSetupSaved = useCallback(() => {
+	const handleNKleinSetupSaved = useCallback(() => {
 		refresh();
 		onSaved?.();
 	}, [onSaved, refresh]);
 
-	const handleRefreshClineProviderModels = useCallback(async () => {
-		const result = await clineSettings.refreshProviderModels();
+	const handleRefreshNKleinProviderModels = useCallback(async () => {
+		const result = await nkleinSettings.refreshProviderModels();
 		if (!result.ok && result.message) {
 			throw new Error(result.message);
 		}
-	}, [clineSettings.refreshProviderModels]);
+	}, [nkleinSettings.refreshProviderModels]);
 
 	const handleDialogOpenChange = useCallback(
 		(nextOpen: boolean) => {
@@ -2924,7 +2935,9 @@ export function RuntimeSettingsDialog({
 									) : null}
 								</>
 							) : (
-								<p className="text-[13px] text-text-secondary mt-0 mb-3">Local Cline agent (cloud disabled).</p>
+								<p className="text-[13px] text-text-secondary mt-0 mb-3">
+									Local !Klein agent (cloud disabled).
+								</p>
 							)}
 							<label
 								htmlFor={bypassPermissionsCheckboxId}
@@ -3158,7 +3171,7 @@ export function RuntimeSettingsDialog({
 										<option value="keep_running">Keep running</option>
 									</NativeSelect>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-										Park lost Cline sessions for review, or keep them running with the lost status visible.
+										Park lost !Klein sessions for review, or keep them running with the lost status visible.
 									</p>
 								</div>
 								<div style={{ gridColumn: "1 / span 2" }}>
@@ -3213,8 +3226,8 @@ export function RuntimeSettingsDialog({
 											</div>
 											<div className="mt-1 text-[11px] text-text-secondary">
 												{lostHeartbeatPolicy === "park"
-													? "Moves Cline sessions to review."
-													: "Leaves Cline running."}
+													? "Moves !Klein sessions to review."
+													: "Leaves !Klein running."}
 											</div>
 										</div>
 										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
@@ -3328,25 +3341,25 @@ export function RuntimeSettingsDialog({
 							</div>
 						</div>
 
-						{/* ---- Cline ---- */}
-						{selectedAgentId === "cline" ? (
+						{/* ---- NKlein ---- */}
+						{selectedAgentId === "nklein" ? (
 							<>
-								<div data-settings-section="cline" />
+								<div data-settings-section="nklein" />
 								<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
 									<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
 										<Bot size={16} className="text-text-secondary" />
-										Cline
+										NKlein
 									</h2>
 								</div>
 								<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-									<ClineSetupSection
-										controller={clineSettings}
-										mcpController={clineMcpSettings}
+									<NKleinSetupSection
+										controller={nkleinSettings}
+										mcpController={nkleinMcpSettings}
 										controlsDisabled={controlsDisabled}
 										workspaceId={workspaceId}
 										cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 										accountSection={
-											cloudProviderSupportEnabled && clineSettings.providerId.trim() === "cline" ? (
+											cloudProviderSupportEnabled && nkleinSettings.providerId.trim() === "nklein" ? (
 												<AccountOrganizationSection
 													workspaceId={workspaceId}
 													open={open}
@@ -3355,26 +3368,26 @@ export function RuntimeSettingsDialog({
 											) : null
 										}
 										onError={setSaveError}
-										onSaved={handleClineSetupSaved}
+										onSaved={handleNKleinSetupSaved}
 									/>
-									<ClineModelContextWindowSettingsPanel
+									<NKleinModelContextWindowSettingsPanel
 										workspaceId={workspaceId}
 										open={open}
 										disabled={controlsDisabled}
-										selectedProviderId={clineSettings.providerId}
-										selectedModelId={clineSettings.modelId}
-										selectedProviderModels={clineSettings.providerModels}
-										onRefreshProviderModels={handleRefreshClineProviderModels}
+										selectedProviderId={nkleinSettings.providerId}
+										selectedModelId={nkleinSettings.modelId}
+										selectedProviderModels={nkleinSettings.providerModels}
+										onRefreshProviderModels={handleRefreshNKleinProviderModels}
 										onError={setSaveError}
 									/>
 									{cloudProviderSupportEnabled ? (
-										<ClineAdvisorActions
+										<NKleinAdvisorActions
 											workspaceId={workspaceId}
 											disabled={controlsDisabled}
-											mcpController={clineMcpSettings}
+											mcpController={nkleinMcpSettings}
 											runtimeConfigSummary={advisorRuntimeConfigSummary}
-											advisorProviderId={config?.clineProviderSettings.providerId ?? ""}
-											advisorModelId={config?.clineProviderSettings.modelId ?? ""}
+											advisorProviderId={config?.nkleinProviderSettings.providerId ?? ""}
+											advisorModelId={config?.nkleinProviderSettings.modelId ?? ""}
 											onError={setSaveError}
 										/>
 									) : null}
@@ -3384,12 +3397,12 @@ export function RuntimeSettingsDialog({
 											<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
 												Developer Tools
 											</h6>
-											<ClineSmokeEvalTrial
+											<NKleinSmokeEvalTrial
 												workspaceId={workspaceId}
 												disabled={controlsDisabled}
 												onError={setSaveError}
 											/>
-											<ClineDogfoodSuggestion
+											<NKleinDogfoodSuggestion
 												workspaceId={workspaceId}
 												disabled={controlsDisabled}
 												onError={setSaveError}
@@ -3520,10 +3533,12 @@ export function RuntimeSettingsDialog({
 											{MODEL_ROLE_IDS.map((roleId) => {
 												const roleSettings = modelRoles[roleId] ?? {};
 												const roleProviderId = roleSettings.providerId ?? "";
-												const effectiveProviderId = roleProviderId || clineProviderId;
+												const effectiveProviderId = roleProviderId || nkleinProviderId;
 												const roleProvider = roleProviderId
-													? findProviderCatalogItem(clineSettings.providerCatalog, roleProviderId)
+													? findProviderCatalogItem(nkleinSettings.providerCatalog, roleProviderId)
 													: null;
+												const roleProviderIsVisibleLocal =
+													roleProvider !== null && isVisibleLocalNKleinProvider(roleProvider);
 												const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
 												const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
 												const roleModels = getModelRoleProviderModels(effectiveProviderId);
@@ -3542,8 +3557,7 @@ export function RuntimeSettingsDialog({
 												const hasRoleOverride = Object.keys(roleSettings).length > 0;
 												const shouldHideLegacyCloudRoleProvider =
 													!cloudProviderSupportEnabled &&
-													!roleProvider &&
-													isKnownCloudProviderId(roleProviderId);
+													(!roleProviderIsVisibleLocal || isKnownCloudProviderId(roleProviderId));
 												const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider
 													? ""
 													: roleProviderId;
@@ -3570,13 +3584,14 @@ export function RuntimeSettingsDialog({
 																>
 																	<option value="">Default</option>
 																	{roleProvider &&
+																	roleProviderIsVisibleLocal &&
 																	!shouldHideLegacyCloudRoleProvider &&
-																	!visibleClineProviderCatalog.some(
+																	!visibleNKleinProviderCatalog.some(
 																		(provider) => provider.id === roleProviderId,
 																	) ? (
 																		<option value={roleProviderId}>{roleProviderId}</option>
 																	) : null}
-																	{visibleClineProviderCatalog.map((provider) => (
+																	{visibleNKleinProviderCatalog.map((provider) => (
 																		<option key={provider.id} value={provider.id}>
 																			{formatProviderOptionLabel(provider)}
 																		</option>
@@ -3584,7 +3599,7 @@ export function RuntimeSettingsDialog({
 																	{roleProviderId &&
 																	!shouldHideLegacyCloudRoleProvider &&
 																	!roleProvider &&
-																	!visibleClineProviderCatalog.some(
+																	!visibleNKleinProviderCatalog.some(
 																		(provider) => provider.id === roleProviderId,
 																	) ? (
 																		<option value={roleProviderId}>{roleProviderId}</option>
@@ -3632,7 +3647,7 @@ export function RuntimeSettingsDialog({
 																	onChange={(event) =>
 																		handleModelRoleReasoningChange(
 																			roleId,
-																			event.target.value as RuntimeClineReasoningEffort | "inherit",
+																			event.target.value as RuntimeNKleinReasoningEffort | "inherit",
 																		)
 																	}
 																	disabled={controlsDisabled}
@@ -3891,7 +3906,7 @@ export function RuntimeSettingsDialog({
 						>
 							{config?.projectConfigPath
 								? formatPathForDisplay(config.projectConfigPath)
-								: "<project>/.cline/nklein/config.json"}
+								: "<project>/.nklein/nklein/config.json"}
 							{config?.projectConfigPath ? (
 								<ExternalLink size={12} className="inline ml-1.5 align-middle" />
 							) : null}
@@ -4004,7 +4019,7 @@ export function RuntimeSettingsDialog({
 						variant="ghost"
 						className="mr-auto mt-[3px]"
 						icon={<ExternalLink size={14} />}
-						onClick={() => window.open("https://docs.cline.bot/kanban/overview", "_blank")}
+						onClick={() => window.open("https://docs.nklein.bot/kanban/overview", "_blank")}
 					>
 						Read the docs
 					</Button>

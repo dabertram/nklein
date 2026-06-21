@@ -114,15 +114,15 @@ describe.sequential("runtime-config auto agent selection", () => {
 		expect(pickBestInstalledAgentIdFromDetected(["codex", "opencode", "gemini"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["opencode", "droid", "gemini"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["kiro-cli", "gemini"])).toBeNull();
-		expect(pickBestInstalledAgentIdFromDetected(["droid", "gemini", "cline"])).toBeNull();
-		expect(pickBestInstalledAgentIdFromDetected(["gemini", "cline"])).toBeNull();
-		expect(pickBestInstalledAgentIdFromDetected(["claude", "codex", "cline"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["droid", "gemini", "nklein"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["gemini", "nklein"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["claude", "codex", "nklein"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["claude", "droid"])).toBeNull();
-		expect(pickBestInstalledAgentIdFromDetected(["cline"])).toBeNull();
+		expect(pickBestInstalledAgentIdFromDetected(["nklein"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected([])).toBeNull();
 	});
 
-	it("keeps fresh config on local Cline even when external CLIs are installed", async () => {
+	it("keeps fresh config on local NKlein even when external CLIs are installed", async () => {
 		if (process.platform === "win32") {
 			return;
 		}
@@ -141,11 +141,11 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const isolatedPath = `${tempBin}${delimiter}/usr/bin${delimiter}/bin`;
 				await withTemporaryEnv({ home: tempHome, pathPrefix: isolatedPath, replacePath: true }, async () => {
 					const state = await loadRuntimeConfig(tempProject);
-					expect(state.selectedAgentId).toBe("cline");
-					expect(existsSync(join(tempHome, ".cline", "nklein", "config.json"))).toBe(false);
+					expect(state.selectedAgentId).toBe("nklein");
+					expect(existsSync(join(tempHome, ".nklein", "nklein", "config.json"))).toBe(false);
 
 					const reloadedState = await loadRuntimeConfig(tempProject);
-					expect(reloadedState.selectedAgentId).toBe("cline");
+					expect(reloadedState.selectedAgentId).toBe("nklein");
 				});
 			} finally {
 				if (previousShell === undefined) {
@@ -175,8 +175,8 @@ describe.sequential("runtime-config auto agent selection", () => {
 				process.env.SHELL = "/definitely-not-a-shell";
 				await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin, replacePath: true }, async () => {
 					const state = await loadRuntimeConfig(tempProject);
-					expect(state.selectedAgentId).toBe("cline");
-					expect(existsSync(join(tempHome, ".cline", "nklein", "config.json"))).toBe(false);
+					expect(state.selectedAgentId).toBe("nklein");
+					expect(existsSync(join(tempHome, ".nklein", "nklein", "config.json"))).toBe(false);
 				});
 			} finally {
 				if (previousShell === undefined) {
@@ -198,7 +198,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const state = await loadRuntimeConfig(tempHome);
-				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "nklein", "config.json"));
+				expect(state.globalConfigPath).toBe(join(tempHome, ".nklein", "nklein", "config.json"));
 				expect(state.projectConfigPath).toBeNull();
 				expect(state.shortcuts).toEqual([]);
 
@@ -209,7 +209,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.projectConfigPath).toBeNull();
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					agentAutonomousModeEnabled?: boolean;
 					shortcuts?: unknown;
@@ -228,7 +228,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const state = await loadGlobalRuntimeConfig();
-				expect(state.globalConfigPath).toBe(join(tempHome, ".cline", "nklein", "config.json"));
+				expect(state.globalConfigPath).toBe(join(tempHome, ".nklein", "nklein", "config.json"));
 				expect(state.projectConfigPath).toBeNull();
 				expect(state.shortcuts).toEqual([]);
 			});
@@ -247,7 +247,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					const state = await loadRuntimeConfig(tempProject);
 					expect(state.developerModeEnabled).toBe(true);
 
-					const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+					const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 					mkdirSync(runtimeConfigDir, { recursive: true });
 					writeFileSync(
 						join(runtimeConfigDir, "config.json"),
@@ -272,7 +272,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -314,7 +314,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -343,7 +343,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			writeFakeCommand(tempBin, "claude");
 			writeFakeCommand(tempBin, "codex");
 
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -359,7 +359,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 			await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin }, async () => {
 				const state = await loadRuntimeConfig(tempProject);
-				expect(state.selectedAgentId).toBe("cline");
+				expect(state.selectedAgentId).toBe("nklein");
 			});
 		} finally {
 			cleanupBin();
@@ -376,7 +376,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		try {
 			writeFakeCommand(tempBin, "codex");
 
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -392,7 +392,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 			await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin }, async () => {
 				const state = await loadRuntimeConfig(tempProject);
-				expect(state.selectedAgentId).toBe("cline");
+				expect(state.selectedAgentId).toBe("nklein");
 			});
 		} finally {
 			cleanupBin();
@@ -406,7 +406,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-roles-");
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(
 				join(runtimeConfigDir, "config.json"),
@@ -454,7 +454,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(join(runtimeConfigDir, "config.json"), "{}", "utf8");
 
@@ -475,7 +475,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 				expect(updated.modelRoles.worker?.modelId).toBe("qwen3.5-9b");
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					modelRoles?: Record<string, unknown>;
 				};
@@ -504,14 +504,14 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeConfigDir = join(tempHome, ".cline", "nklein");
+			const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
 			mkdirSync(runtimeConfigDir, { recursive: true });
 			writeFileSync(join(runtimeConfigDir, "config.json"), "{}", "utf8");
 
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const current = await loadRuntimeConfig(tempProject);
 				await saveRuntimeConfig(tempProject, {
-					selectedAgentId: "cline",
+					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
@@ -528,7 +528,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				});
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					selectedAgentId?: string;
 					agentAutonomousModeEnabled?: boolean;
@@ -543,7 +543,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(globalPayload.readyForReviewNotificationsEnabled).toBeUndefined();
 				expect(globalPayload.commitPromptTemplate).toBeUndefined();
 				expect(globalPayload.openPrPromptTemplate).toBeUndefined();
-				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".nklein", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -582,14 +582,14 @@ describe.sequential("runtime-config auto agent selection", () => {
 		);
 
 		try {
-			const runtimeProjectConfigDir = join(tempProject, ".cline", "nklein");
+			const runtimeProjectConfigDir = join(tempProject, ".nklein", "nklein");
 			mkdirSync(runtimeProjectConfigDir, { recursive: true });
 			writeFileSync(join(runtimeProjectConfigDir, "config.json"), "{}", "utf8");
 
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const current = await loadRuntimeConfig(tempProject);
 				await saveRuntimeConfig(tempProject, {
-					selectedAgentId: "cline",
+					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
@@ -605,7 +605,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
 
-				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".nklein", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -623,7 +623,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			await withTemporaryEnv({ home: tempHome }, async () => {
 				const current = await loadRuntimeConfig(tempProject);
 				await saveRuntimeConfig(tempProject, {
-					selectedAgentId: "cline",
+					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
@@ -638,13 +638,13 @@ describe.sequential("runtime-config auto agent selection", () => {
 					commitPromptTemplate: current.commitPromptTemplateDefault,
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
-				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(true);
+				expect(existsSync(join(tempProject, ".nklein", "nklein", "config.json"))).toBe(true);
 
 				await updateRuntimeConfig(tempProject, {
 					shortcuts: [],
 				});
 
-				expect(existsSync(join(tempProject, ".cline", "nklein", "config.json"))).toBe(false);
+				expect(existsSync(join(tempProject, ".nklein", "nklein", "config.json"))).toBe(false);
 			});
 		} finally {
 			cleanupProject();
@@ -666,7 +666,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.readyForReviewNotificationsEnabled).toBe(false);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					selectedAgentId?: string;
 					selectedShortcutLabel?: string;
@@ -699,7 +699,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.replayCardsEnabled).toBe(true);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					replayCardsEnabled?: boolean;
 				};
@@ -741,7 +741,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.sandboxIdleTimeoutMinutes).toBe(15);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					sandboxMaxContainers?: number;
 					sandboxAgentsPerContainer?: number;
@@ -859,7 +859,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 				expect(updated.lostHeartbeatPolicy).toBe("keep_running");
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					lostHeartbeatPolicy?: string;
 				};
@@ -888,7 +888,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 				expect(updated.decompositionAutoApplyEnabled).toBe(false);
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					decompositionAutoApplyEnabled?: boolean;
 				};
@@ -916,7 +916,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.agentAutonomousModeEnabled).toBe(false);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					agentAutonomousModeEnabled?: boolean;
 				};
@@ -945,7 +945,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(updated.maxAgentWritableFileLines).toBe(2500);
 
 				const globalPayload = JSON.parse(
-					readFileSync(join(tempHome, ".cline", "nklein", "config.json"), "utf8"),
+					readFileSync(join(tempHome, ".nklein", "nklein", "config.json"), "utf8"),
 				) as {
 					maxAgentWritableFileLines?: number;
 				};

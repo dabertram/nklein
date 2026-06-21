@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { showAppToast } from "@/components/app-toaster";
 import { type UseGitHistoryDataResult, useGitHistoryData } from "@/components/git-history/use-git-history-data";
 import { buildTaskGitActionPrompt, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
-import { isNativeClineAgentSelected } from "@/runtime/native-agent";
+import { isNativeNKleinAgentSelected } from "@/runtime/native-agent";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type { RuntimeConfigResponse, RuntimeGitSyncAction } from "@/runtime/types";
 import { findCardSelection } from "@/state/board-state";
@@ -199,7 +199,7 @@ export function useGitActions({
 		return next;
 	}, [taskGitActionLoadingByTaskId]);
 
-	const shouldUseClineChatForTaskGitActions = isNativeClineAgentSelected(
+	const shouldUseNKleinChatForTaskGitActions = isNativeNKleinAgentSelected(
 		runtimeProjectConfig?.selectedAgentId ?? null,
 	);
 
@@ -246,7 +246,7 @@ export function useGitActions({
 							}
 						: null,
 				});
-				if (shouldUseClineChatForTaskGitActions) {
+				if (shouldUseNKleinChatForTaskGitActions) {
 					const sent = await sendTaskChatMessage(taskId, prompt, { mode: "act" });
 					if (!sent.ok) {
 						showAppToast({
@@ -293,7 +293,7 @@ export function useGitActions({
 			sendTaskChatMessage,
 			sendTaskSessionInput,
 			setTaskGitActionLoading,
-			shouldUseClineChatForTaskGitActions,
+			shouldUseNKleinChatForTaskGitActions,
 			taskGitActionLoadingByTaskId,
 		],
 	);

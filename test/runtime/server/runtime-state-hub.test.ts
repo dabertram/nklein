@@ -1,16 +1,16 @@
 import { EventEmitter } from "node:events";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runClineAcceptanceAutoRepair } from "../../../src/cline-sdk/cline-acceptance-auto-repair";
-import type { ClineTaskSessionService } from "../../../src/cline-sdk/cline-task-session-service";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-sdk/nklein-acceptance-auto-repair";
+import type { NKleinTaskSessionService } from "../../../src/nklein-sdk/nklein-task-session-service";
 import { createRuntimeStateHub } from "../../../src/server/runtime-state-hub";
 
-vi.mock("../../../src/cline-sdk/cline-acceptance-auto-repair", () => ({
-	runClineAcceptanceAutoRepair: vi.fn(async () => ({ type: "ready", reason: "human_review" })),
+vi.mock("../../../src/nklein-sdk/nklein-acceptance-auto-repair", () => ({
+	runNKleinAcceptanceAutoRepair: vi.fn(async () => ({ type: "ready", reason: "human_review" })),
 }));
 
-const runClineAcceptanceAutoRepairMock = vi.mocked(runClineAcceptanceAutoRepair);
+const runNKleinAcceptanceAutoRepairMock = vi.mocked(runNKleinAcceptanceAutoRepair);
 
 function createAwaitingReviewSummary(taskId: string): RuntimeTaskSessionSummary {
 	const timestamp = Date.now();
@@ -18,7 +18,7 @@ function createAwaitingReviewSummary(taskId: string): RuntimeTaskSessionSummary 
 		taskId,
 		state: "awaiting_review",
 		mode: "act",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/workspaces/task-1",
 		pid: null,
 		startedAt: timestamp,
@@ -42,7 +42,7 @@ function createAwaitingReviewSummary(taskId: string): RuntimeTaskSessionSummary 
 	};
 }
 
-function createTrackedService(summary: RuntimeTaskSessionSummary): ClineTaskSessionService {
+function createTrackedService(summary: RuntimeTaskSessionSummary): NKleinTaskSessionService {
 	const emitter = new EventEmitter();
 	const service = {
 		listSummaries: () => [summary],
@@ -54,18 +54,18 @@ function createTrackedService(summary: RuntimeTaskSessionSummary): ClineTaskSess
 		onTeamProgress: () => () => {},
 		sendTaskSessionInput: vi.fn(async () => null),
 	} satisfies Pick<
-		ClineTaskSessionService,
+		NKleinTaskSessionService,
 		"listSummaries" | "onSummary" | "onMessage" | "onTeamProgress" | "sendTaskSessionInput"
 	>;
-	return service as unknown as ClineTaskSessionService;
+	return service as unknown as NKleinTaskSessionService;
 }
 
 describe("createRuntimeStateHub", () => {
 	beforeEach(() => {
-		runClineAcceptanceAutoRepairMock.mockClear();
+		runNKleinAcceptanceAutoRepairMock.mockClear();
 	});
 
-	it("verifies cline summaries that are already awaiting review when tracked", async () => {
+	it("verifies nklein summaries that are already awaiting review when tracked", async () => {
 		const summary = createAwaitingReviewSummary("task-1");
 		const service = createTrackedService(summary);
 		const hub = createRuntimeStateHub({
@@ -84,10 +84,10 @@ describe("createRuntimeStateHub", () => {
 		});
 
 		try {
-			hub.trackClineTaskSessionService("workspace-1", "/tmp/project", service);
+			hub.trackNKleinTaskSessionService("workspace-1", "/tmp/project", service);
 
 			await vi.waitFor(() => {
-				expect(runClineAcceptanceAutoRepairMock).toHaveBeenCalledWith(
+				expect(runNKleinAcceptanceAutoRepairMock).toHaveBeenCalledWith(
 					expect.objectContaining({
 						workspacePath: "/tmp/project",
 						taskId: "task-1",

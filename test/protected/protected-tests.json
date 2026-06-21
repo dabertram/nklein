@@ -1,15 +1,15 @@
 {
   "tests": [
     {
-      "path": "test/runtime/cline-sdk/cline-local-only-policy.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-local-only-policy.test.ts",
       "rationale": "Guards the local-only provider policy and cloud-provider hiding boundary."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-context-window-policy.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-context-window-policy.test.ts",
       "rationale": "Guards effective context-window and overflow policy behavior for local models."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-timeout-scaling.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-timeout-scaling.test.ts",
       "rationale": "Guards timeout scaling for slow local models and body-timeout recovery behavior."
     },
     {
@@ -21,19 +21,19 @@
       "rationale": "Guards workspace identity, project health diagnostics, and ownership-sensitive project state."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-decomposition-tool.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-decomposition-tool.test.ts",
       "rationale": "Guards decomposition graph application, plan artifacts, and Planning-lane behavior."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-agent-sandbox-host-guard.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-agent-sandbox-host-guard.test.ts",
       "rationale": "Guards the strict-isolation invariant that agent tools and the acceptance gate never execute on the host filesystem/shell (no host fallback)."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-agent-sandbox.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-agent-sandbox.test.ts",
       "rationale": "Guards Docker sandbox lockdown flags, fail-closed availability checks, per-task uid isolation, and pool/queue admission."
     },
     {
-      "path": "test/runtime/cline-sdk/cline-task-start-guard.test.ts",
+      "path": "test/runtime/nklein-sdk/nklein-task-start-guard.test.ts",
       "rationale": "Guards the fail-closed task-start preflight (sandbox-unavailable refusal) and candidate-window fit budget."
     }
   ]

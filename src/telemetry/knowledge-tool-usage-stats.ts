@@ -13,7 +13,7 @@ import type {
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceRole,
-	RuntimeTaskClineSettings,
+	RuntimeTaskNKleinSettings,
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
 import { runtimeKnowledgeToolUsageObservationSchema } from "../core/api-contract";
@@ -92,7 +92,7 @@ function buildObservationId(input: {
 		.digest("hex");
 }
 
-function matchesSettings(summary: RuntimeTaskSessionSummary, settings: RuntimeTaskClineSettings | undefined): boolean {
+function matchesSettings(summary: RuntimeTaskSessionSummary, settings: RuntimeTaskNKleinSettings | undefined): boolean {
 	if (!settings) {
 		return false;
 	}
@@ -119,7 +119,7 @@ function resolveObservationRole(input: {
 	runtimeConfig: RuntimeConfigState | null;
 	summary: RuntimeTaskSessionSummary;
 }): Pick<RuntimeKnowledgeToolUsageObservation, "role" | "roleSource"> {
-	const cardSettings = input.card?.clineSettings;
+	const cardSettings = input.card?.nkleinSettings;
 	const cardRole = normalizeRole(input.card?.generatedFromPlan?.artifactKind === "decomposition" ? "architect" : null);
 	if (cardRole && matchesSettings(input.summary, cardSettings)) {
 		return { role: cardRole, roleSource: "card" };

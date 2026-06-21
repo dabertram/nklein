@@ -13,7 +13,7 @@ import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from ".
  * recently edited field wins and concurrent edits resolve deterministically. The committed CRDT — not a
  * re-derived snapshot — is the source of truth, so deletions survive as tombstones.
  *
- * Note (local-only invariant, §14.2): machine-specific assignments such as `clineSettings` are carried as
+ * Note (local-only invariant, §14.2): machine-specific assignments such as `nkleinSettings` are carried as
  * fields but MUST be re-resolved against the importing machine's local models on load; this module preserves
  * them, it does not endorse them.
  */

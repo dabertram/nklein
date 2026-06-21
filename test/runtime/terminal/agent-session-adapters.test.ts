@@ -116,7 +116,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(launchCommand).not.toContain("codex-wrapper");
 		expect(launchCommand).not.toContain("notify=");
 
-		const wrapperPath = join(homedir(), ".cline", "nklein", "hooks", "codex", "codex-wrapper.mjs");
+		const wrapperPath = join(homedir(), ".nklein", "nklein", "hooks", "codex", "codex-wrapper.mjs");
 		expect(existsSync(wrapperPath)).toBe(false);
 	});
 
@@ -199,7 +199,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const settingsPath = join(homedir(), ".cline", "nklein", "hooks", "claude", "settings.json");
+		const settingsPath = join(homedir(), ".nklein", "nklein", "hooks", "claude", "settings.json");
 		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
 			hooks?: Record<string, unknown>;
 		};
@@ -221,14 +221,14 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const settingsPath = join(homedir(), ".cline", "nklein", "hooks", "gemini", "settings.json");
+		const settingsPath = join(homedir(), ".nklein", "nklein", "hooks", "gemini", "settings.json");
 		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
 			hooks?: Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
 		};
 		const afterToolCommand = settings.hooks?.AfterTool?.[0]?.hooks?.[0]?.command;
 		expect(afterToolCommand).toContain("hooks");
 		expect(afterToolCommand).toContain("gemini-hook");
-		const hookScriptPath = join(homedir(), ".cline", "nklein", "hooks", "gemini", "gemini-hook.mjs");
+		const hookScriptPath = join(homedir(), ".nklein", "nklein", "hooks", "gemini", "gemini-hook.mjs");
 		expect(existsSync(hookScriptPath)).toBe(false);
 	});
 
@@ -244,7 +244,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			workspaceId: "workspace-1",
 		});
 
-		const pluginPath = join(homedir(), ".cline", "nklein", "hooks", "opencode", "kanban.js");
+		const pluginPath = join(homedir(), ".nklein", "nklein", "hooks", "opencode", "kanban.js");
 		const plugin = readFileSync(pluginPath, "utf8");
 		expect(plugin).toContain("parentID");
 		expect(plugin).toContain('"permission.ask"');
@@ -455,19 +455,19 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(launch.deferredStartupInput?.endsWith("\r")).toBe(true);
 	});
 
-	it("writes Cline hook scripts and injects --hooks-dir", async () => {
+	it("writes NKlein hook scripts and injects --hooks-dir", async () => {
 		setupTempHome();
 		const launch = await prepareAgentLaunch({
 			taskId: "task-1",
-			agentId: "cline",
-			binary: "cline",
+			agentId: "nklein",
+			binary: "nklein",
 			args: [],
 			cwd: "/tmp",
 			prompt: "",
 			workspaceId: "workspace-1",
 		});
 
-		const hooksDir = join(homedir(), ".cline", "nklein", "hooks", "cline");
+		const hooksDir = join(homedir(), ".nklein", "nklein", "hooks", "nklein");
 		const notificationHookPath =
 			process.platform === "win32" ? join(hooksDir, "Notification.ps1") : join(hooksDir, "Notification");
 		const taskCompleteHookPath =
@@ -594,16 +594,16 @@ describe("prepareAgentLaunch hook strategies", () => {
 		});
 		expect(kiroLaunch.args).toContain("--resume");
 
-		const clineLaunch = await prepareAgentLaunch({
-			taskId: "task-cline",
-			agentId: "cline",
-			binary: "cline",
+		const nkleinLaunch = await prepareAgentLaunch({
+			taskId: "task-nklein",
+			agentId: "nklein",
+			binary: "nklein",
 			args: [],
 			cwd: "/tmp",
 			prompt: "",
 			resumeFromTrash: true,
 		});
-		expect(clineLaunch.args).toContain("--continue");
+		expect(nkleinLaunch.args).toContain("--continue");
 	});
 
 	it("places Codex hook config before the resume subcommand", async () => {
@@ -683,16 +683,16 @@ describe("prepareAgentLaunch hook strategies", () => {
 		});
 		expect(kiroLaunch.args).toContain("--trust-all-tools");
 
-		const clineLaunch = await prepareAgentLaunch({
-			taskId: "task-cline-auto",
-			agentId: "cline",
-			binary: "cline",
+		const nkleinLaunch = await prepareAgentLaunch({
+			taskId: "task-nklein-auto",
+			agentId: "nklein",
+			binary: "nklein",
 			args: [],
 			autonomousModeEnabled: true,
 			cwd: "/tmp",
 			prompt: "",
 		});
-		expect(clineLaunch.args).toContain("--auto-approve-all");
+		expect(nkleinLaunch.args).toContain("--auto-approve-all");
 	});
 
 	it("preserves explicit autonomous args when autonomous mode is disabled", async () => {
@@ -731,16 +731,16 @@ describe("prepareAgentLaunch hook strategies", () => {
 		});
 		expect(geminiLaunch.args).toContain("--yolo");
 
-		const clineLaunch = await prepareAgentLaunch({
-			taskId: "task-cline-no-auto",
-			agentId: "cline",
-			binary: "cline",
+		const nkleinLaunch = await prepareAgentLaunch({
+			taskId: "task-nklein-no-auto",
+			agentId: "nklein",
+			binary: "nklein",
 			args: ["--auto-approve-all"],
 			autonomousModeEnabled: false,
 			cwd: "/tmp",
 			prompt: "",
 		});
-		expect(clineLaunch.args).toContain("--auto-approve-all");
+		expect(nkleinLaunch.args).toContain("--auto-approve-all");
 
 		const kiroLaunch = await prepareAgentLaunch({
 			taskId: "task-kiro-no-auto",

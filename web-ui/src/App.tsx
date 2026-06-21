@@ -69,7 +69,7 @@ import {
 } from "@/runtime/native-agent";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
-	RuntimeClineReasoningEffort,
+	RuntimeNKleinReasoningEffort,
 	RuntimeTaskSessionSummary,
 	RuntimeWorkspaceStateResponse,
 } from "@/runtime/types";
@@ -78,7 +78,7 @@ import { useTerminalConnectionReady } from "@/runtime/use-terminal-connection-re
 import { useWorkspacePersistence } from "@/runtime/use-workspace-persistence";
 import { saveWorkspaceState } from "@/runtime/workspace-state-query";
 import {
-	applyTaskDetailClineSettingsChange,
+	applyTaskDetailNKleinSettingsChange,
 	approvePlanningTaskForExecution,
 	findCardSelection,
 } from "@/state/board-state";
@@ -118,10 +118,10 @@ export default function App(): ReactElement {
 		workspaceMetadata,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
-		clineTeamProgressByTaskId,
+		nkleinTeamProgressByTaskId,
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
-		clineSessionContextVersion,
+		nkleinSessionContextVersion,
 		streamError,
 		isRuntimeDisconnected,
 		hasReceivedSnapshot,
@@ -161,7 +161,7 @@ export default function App(): ReactElement {
 	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(settingsRuntimeProjectConfig);
 	const featurebaseFeedbackState = useFeaturebaseFeedbackWidget({
 		workspaceId: settingsWorkspaceId,
-		clineProviderSettings: settingsRuntimeProjectConfig?.clineProviderSettings ?? null,
+		nkleinProviderSettings: settingsRuntimeProjectConfig?.nkleinProviderSettings ?? null,
 		cloudProviderSupportEnabled,
 	});
 	const {
@@ -169,7 +169,7 @@ export default function App(): ReactElement {
 		handleOpenStartupOnboardingDialog,
 		handleCloseStartupOnboardingDialog,
 		handleSelectOnboardingAgent,
-		handleOnboardingClineSetupSaved,
+		handleOnboardingNKleinSetupSaved,
 	} = useStartupOnboarding({
 		currentProjectId,
 		runtimeProjectConfig,
@@ -362,8 +362,8 @@ export default function App(): ReactElement {
 		setNewTaskBranchRef,
 		newTaskAgentId,
 		setNewTaskAgentId,
-		newTaskClineSettings,
-		setNewTaskClineSettings,
+		newTaskNKleinSettings,
+		setNewTaskNKleinSettings,
 		editingTaskId,
 		editTaskPrompt,
 		setEditTaskPrompt,
@@ -380,8 +380,8 @@ export default function App(): ReactElement {
 		setEditTaskBranchRef,
 		editTaskAgentId,
 		setEditTaskAgentId,
-		editTaskClineSettings,
-		setEditTaskClineSettings,
+		editTaskNKleinSettings,
+		setEditTaskNKleinSettings,
 		handleOpenCreateTask,
 		handleCancelCreateTask,
 		handleOpenEditTask,
@@ -492,12 +492,12 @@ export default function App(): ReactElement {
 		currentProjectId,
 		hasNoProjects,
 		runtimeProjectConfig,
-		clineSessionContextVersion,
+		nkleinSessionContextVersion,
 		taskSessions: sessions,
 		workspaceGit,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
-		clineTeamProgressByTaskId,
+		nkleinTeamProgressByTaskId,
 	});
 	const { runningShortcutLabel, handleSelectShortcutLabel, handleRunShortcut, handleCreateShortcut } =
 		useShortcutActions({
@@ -788,16 +788,16 @@ export default function App(): ReactElement {
 		workspacePath: activeWorkspacePath,
 	});
 	const selectedTaskChatMessages = selectTaskChatMessagesForTask(selectedCard?.card.id, taskChatMessagesByTaskId);
-	const selectedTaskTeamProgress = selectedCard ? (clineTeamProgressByTaskId[selectedCard.card.id] ?? []) : [];
+	const selectedTaskTeamProgress = selectedCard ? (nkleinTeamProgressByTaskId[selectedCard.card.id] ?? []) : [];
 	const latestSelectedTaskChatMessage = selectLatestTaskChatMessageForTask(
 		selectedCard?.card.id,
 		latestTaskChatMessage,
 	);
-	const defaultTaskClineProviderId =
-		runtimeProjectConfig?.clineProviderSettings?.providerId ??
-		runtimeProjectConfig?.clineProviderSettings?.oauthProvider ??
+	const defaultTaskNKleinProviderId =
+		runtimeProjectConfig?.nkleinProviderSettings?.providerId ??
+		runtimeProjectConfig?.nkleinProviderSettings?.oauthProvider ??
 		null;
-	const handleClineTaskSettingsChangedForTask = useCallback(
+	const handleNKleinTaskSettingsChangedForTask = useCallback(
 		({
 			providerId,
 			modelId,
@@ -807,7 +807,7 @@ export default function App(): ReactElement {
 		}: {
 			providerId: string;
 			modelId: string;
-			reasoningEffort: RuntimeClineReasoningEffort | "";
+			reasoningEffort: RuntimeNKleinReasoningEffort | "";
 			contextScope: "full" | "smart" | "minimal" | "custom";
 			timeoutMode: "normal" | "long" | "extended" | "unlimited";
 		}) => {
@@ -816,7 +816,7 @@ export default function App(): ReactElement {
 			}
 			const taskId = selectedCard.card.id;
 			setBoard((currentBoard) => {
-				const result = applyTaskDetailClineSettingsChange(
+				const result = applyTaskDetailNKleinSettingsChange(
 					currentBoard,
 					taskId,
 					{
@@ -827,14 +827,14 @@ export default function App(): ReactElement {
 						timeoutMode,
 					},
 					{
-						providerId: defaultTaskClineProviderId,
-						modelId: runtimeProjectConfig?.clineProviderSettings?.modelId ?? null,
+						providerId: defaultTaskNKleinProviderId,
+						modelId: runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null,
 					},
 				);
 				return result.updated ? result.board : currentBoard;
 			});
 		},
-		[defaultTaskClineProviderId, runtimeProjectConfig, selectedCard, setBoard],
+		[defaultTaskNKleinProviderId, runtimeProjectConfig, selectedCard, setBoard],
 	);
 
 	const handleApprovePlanningCard = useCallback((taskId: string) => {
@@ -875,12 +875,12 @@ export default function App(): ReactElement {
 			onBranchRefChange={setEditTaskBranchRef}
 			agentId={editTaskAgentId}
 			onAgentIdChange={setEditTaskAgentId}
-			clineSettings={editTaskClineSettings}
-			onClineSettingsChange={setEditTaskClineSettings}
+			nkleinSettings={editTaskNKleinSettings}
+			onNKleinSettingsChange={setEditTaskNKleinSettings}
 			defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
-			defaultProviderId={defaultTaskClineProviderId}
-			defaultModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
-			defaultReasoningEffort={runtimeProjectConfig?.clineProviderSettings?.reasoningEffort ?? null}
+			defaultProviderId={defaultTaskNKleinProviderId}
+			defaultModelId={runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null}
+			defaultReasoningEffort={runtimeProjectConfig?.nkleinProviderSettings?.reasoningEffort ?? null}
 			cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 			mode="edit"
 			idPrefix={`inline-edit-task-${editingTaskId}`}
@@ -908,7 +908,7 @@ export default function App(): ReactElement {
 						canShowAgentSection={!hasNoProjects && Boolean(currentProjectId)}
 						agentSectionContent={homeSidebarAgentPanel}
 						selectedAgentId={settingsRuntimeProjectConfig?.selectedAgentId ?? null}
-						clineProviderSettings={settingsRuntimeProjectConfig?.clineProviderSettings ?? null}
+						nkleinProviderSettings={settingsRuntimeProjectConfig?.nkleinProviderSettings ?? null}
 						cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 						developerModeEnabled={developerModeEnabled}
 						featurebaseFeedbackState={featurebaseFeedbackState}
@@ -1093,7 +1093,7 @@ export default function App(): ReactElement {
 													selectedCard ? undefined : handleProgrammaticCardMoveReady
 												}
 												onDragEnd={handleDragEnd}
-												defaultClineModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
+												defaultNKleinModelId={runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null}
 											/>
 										)}
 									</div>
@@ -1182,14 +1182,14 @@ export default function App(): ReactElement {
 									onSendReviewComments={(taskId: string, text: string) => {
 										void handleSendReviewComments(taskId, text);
 									}}
-									onSendClineChatMessage={sendTaskChatMessage}
-									onCancelClineChatTurn={cancelTaskChatTurn}
+									onSendNKleinChatMessage={sendTaskChatMessage}
+									onCancelNKleinChatTurn={cancelTaskChatTurn}
 									onGrantProtectedTestApproval={grantProtectedTestApproval}
 									onMarkTaskInterrupted={markTaskInterrupted}
-									onLoadClineChatMessages={fetchTaskChatMessages}
-									latestClineChatMessage={latestSelectedTaskChatMessage}
-									streamedClineChatMessages={selectedTaskChatMessages}
-									clineTeamProgress={selectedTaskTeamProgress}
+									onLoadNKleinChatMessages={fetchTaskChatMessages}
+									latestNKleinChatMessage={latestSelectedTaskChatMessage}
+									streamedNKleinChatMessages={selectedTaskChatMessages}
+									nkleinTeamProgress={selectedTaskTeamProgress}
 									onMoveToTrash={handleMoveToTrash}
 									isMoveToTrashLoading={moveToTrashLoadingById[selectedCard.card.id] ?? false}
 									gitHistoryPanel={
@@ -1212,8 +1212,8 @@ export default function App(): ReactElement {
 									isBottomTerminalExpanded={isDetailTerminalExpanded}
 									onBottomTerminalToggleExpand={handleToggleExpandDetailTerminal}
 									isDocumentVisible={isDocumentVisible}
-									onClineSettingsSaved={refreshRuntimeProjectConfig}
-									onTaskClineSettingsChanged={handleClineTaskSettingsChangedForTask}
+									onNKleinSettingsSaved={refreshRuntimeProjectConfig}
+									onTaskNKleinSettingsChanged={handleNKleinTaskSettingsChangedForTask}
 									onApprovePlanningCard={handleApprovePlanningCard}
 									onWorkspaceStateApplied={handleWorkspaceStateApplied}
 								/>
@@ -1289,12 +1289,12 @@ export default function App(): ReactElement {
 					onBranchRefChange={setNewTaskBranchRef}
 					agentId={newTaskAgentId}
 					onAgentIdChange={setNewTaskAgentId}
-					clineSettings={newTaskClineSettings}
-					onClineSettingsChange={setNewTaskClineSettings}
+					nkleinSettings={newTaskNKleinSettings}
+					onNKleinSettingsChange={setNewTaskNKleinSettings}
 					defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
-					defaultProviderId={defaultTaskClineProviderId}
-					defaultModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
-					defaultReasoningEffort={runtimeProjectConfig?.clineProviderSettings?.reasoningEffort ?? null}
+					defaultProviderId={defaultTaskNKleinProviderId}
+					defaultModelId={runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null}
+					defaultReasoningEffort={runtimeProjectConfig?.nkleinProviderSettings?.reasoningEffort ?? null}
 					cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 				/>
 				<ClearTrashDialog
@@ -1308,11 +1308,11 @@ export default function App(): ReactElement {
 					onClose={handleCloseStartupOnboardingDialog}
 					selectedAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 					agents={runtimeProjectConfig?.agents ?? []}
-					clineProviderSettings={runtimeProjectConfig?.clineProviderSettings ?? null}
+					nkleinProviderSettings={runtimeProjectConfig?.nkleinProviderSettings ?? null}
 					workspaceId={currentProjectId}
 					runtimeConfig={runtimeProjectConfig ?? null}
 					onSelectAgent={handleSelectOnboardingAgent}
-					onClineSetupSaved={handleOnboardingClineSetupSaved}
+					onNKleinSetupSaved={handleOnboardingNKleinSetupSaved}
 				/>
 
 				<AddProjectDialog

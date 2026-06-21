@@ -24,7 +24,7 @@ function createSession(taskId: string, state: RuntimeTaskSessionSummary["state"]
 	return {
 		taskId,
 		state,
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/worktree",
 		pid: null,
 		startedAt: 1,

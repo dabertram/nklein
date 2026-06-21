@@ -41,7 +41,7 @@ describe("DebugDialog", () => {
 					open={true}
 					onOpenChange={() => {}}
 					isResetAllStatePending={false}
-					dataDirectoryPath={"/Users/david/.cline/nklein"}
+					dataDirectoryPath={"/Users/david/.nklein/nklein"}
 					onOpenDataDirectory={handleOpenDataDirectory}
 					onShowStartupOnboardingDialog={() => {}}
 					onResetAllState={() => {}}
@@ -50,7 +50,7 @@ describe("DebugDialog", () => {
 		});
 
 		expect(document.body.textContent).toContain("Open data directory");
-		expect(document.body.textContent).toContain("/Users/david/.cline/nklein");
+		expect(document.body.textContent).toContain("/Users/david/.nklein/nklein");
 
 		const button = Array.from(document.body.querySelectorAll("button")).find(
 			(candidate) => candidate.textContent?.trim() === "Open data dir",

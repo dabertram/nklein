@@ -207,7 +207,7 @@ describe("useTaskSessions", () => {
 			cols: 120,
 			rows: 40,
 			agentId: undefined,
-			clineSettings: undefined,
+			nkleinSettings: undefined,
 		});
 	});
 
@@ -254,7 +254,7 @@ describe("useTaskSessions", () => {
 		);
 	});
 
-	it("forwards task-level Cline reasoning effort overrides when starting a task", async () => {
+	it("forwards task-level NKlein reasoning effort overrides when starting a task", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 
 		await act(async () => {
@@ -274,8 +274,8 @@ describe("useTaskSessions", () => {
 		await act(async () => {
 			await latestSnapshot?.startTaskSession({
 				...createTask(),
-				agentId: "cline",
-				clineSettings: {
+				agentId: "nklein",
+				nkleinSettings: {
 					providerId: "openrouter",
 					modelId: "anthropic/claude-opus-4.6",
 					reasoningEffort: "low",
@@ -285,7 +285,7 @@ describe("useTaskSessions", () => {
 
 		expect(startTaskSessionMutateMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				clineSettings: {
+				nkleinSettings: {
 					providerId: "openrouter",
 					modelId: "anthropic/claude-opus-4.6",
 					reasoningEffort: "low",
@@ -314,7 +314,7 @@ describe("useTaskSessions", () => {
 		await act(async () => {
 			await latestSnapshot?.startTaskSession({
 				...createTask(),
-				clineSettings: {
+				nkleinSettings: {
 					reasoningEffort: "high",
 				},
 			});
@@ -322,7 +322,7 @@ describe("useTaskSessions", () => {
 
 		expect(startTaskSessionMutateMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				clineSettings: {
+				nkleinSettings: {
 					reasoningEffort: "high",
 				},
 			}),

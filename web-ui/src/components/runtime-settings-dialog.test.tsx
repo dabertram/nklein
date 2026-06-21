@@ -110,23 +110,23 @@ vi.mock("@radix-ui/react-switch", () => ({
 
 const resetLayoutCustomizationsMock = vi.hoisted(() => vi.fn());
 const saveRuntimeConfigMock = vi.hoisted(() => vi.fn(async () => true));
-const buildClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
-const sendClineAdvisorRequestMock = vi.hoisted(() => vi.fn());
-const writeClineDogfoodBacklogMock = vi.hoisted(() => vi.fn());
-const runClineSmokeEvalMock = vi.hoisted(() => vi.fn());
-const fetchClineProviderModelsMock = vi.hoisted(() => vi.fn());
-const discoverClineEndpointModelsMock = vi.hoisted(() => vi.fn());
-const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
-const fetchClineModelRegistryMock = vi.hoisted(() => vi.fn());
-const saveClineModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
-const removeClineModelRegistryEntryMock = vi.hoisted(() => vi.fn());
-const pruneClineModelRegistryMock = vi.hoisted(() => vi.fn());
+const buildNKleinAdvisorRequestMock = vi.hoisted(() => vi.fn());
+const sendNKleinAdvisorRequestMock = vi.hoisted(() => vi.fn());
+const writeNKleinDogfoodBacklogMock = vi.hoisted(() => vi.fn());
+const runNKleinSmokeEvalMock = vi.hoisted(() => vi.fn());
+const fetchNKleinProviderModelsMock = vi.hoisted(() => vi.fn());
+const discoverNKleinEndpointModelsMock = vi.hoisted(() => vi.fn());
+const fetchNKleinCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
+const fetchNKleinModelRegistryMock = vi.hoisted(() => vi.fn());
+const saveNKleinModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
+const removeNKleinModelRegistryEntryMock = vi.hoisted(() => vi.fn());
+const pruneNKleinModelRegistryMock = vi.hoisted(() => vi.fn());
 const openFileOnHostMock = vi.hoisted(() => vi.fn(async () => undefined));
 const addMcpServerMock = vi.hoisted(() => vi.fn());
-const clineSetupSectionOnSavedRef = vi.hoisted(() => ({
+const nkleinSetupSectionOnSavedRef = vi.hoisted(() => ({
 	onSaved: null as null | (() => void),
 }));
-const clineControllerState = vi.hoisted(() => ({
+const nkleinControllerState = vi.hoisted(() => ({
 	providerId: "anthropic",
 	modelId: "claude-3-7-sonnet",
 	baseUrl: "",
@@ -139,7 +139,7 @@ vi.mock("@runtime-agent-catalog", () => ({
 		autonomousArgs: [],
 	})),
 	getRuntimeLaunchSupportedAgentCatalog: vi.fn(() => [
-		{ id: "cline", label: "Cline", binary: "cline" },
+		{ id: "nklein", label: "!Klein", binary: "nklein" },
 		{ id: "claude", label: "Claude Code", binary: "claude" },
 	]),
 }));
@@ -148,19 +148,19 @@ vi.mock("@runtime-shortcuts", () => ({
 	areRuntimeProjectShortcutsEqual: vi.fn(() => true),
 }));
 
-vi.mock("@/components/shared/cline-setup-section", () => ({
-	ClineSetupSection: ({ onSaved }: { onSaved?: () => void }) => {
-		clineSetupSectionOnSavedRef.onSaved = onSaved ?? null;
+vi.mock("@/components/shared/nklein-setup-section", () => ({
+	NKleinSetupSection: ({ onSaved }: { onSaved?: () => void }) => {
+		nkleinSetupSectionOnSavedRef.onSaved = onSaved ?? null;
 		return null;
 	},
 }));
 
-vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
-	useRuntimeSettingsClineController: () => ({
+vi.mock("@/hooks/use-runtime-settings-nklein-controller", () => ({
+	useRuntimeSettingsNKleinController: () => ({
 		currentProviderSettings: {
-			providerId: clineControllerState.providerId,
-			modelId: clineControllerState.modelId,
-			baseUrl: clineControllerState.baseUrl.trim() || null,
+			providerId: nkleinControllerState.providerId,
+			modelId: nkleinControllerState.modelId,
+			baseUrl: nkleinControllerState.baseUrl.trim() || null,
 			reasoningEffort: null,
 			apiKeyConfigured: true,
 			oauthProvider: null,
@@ -170,9 +170,9 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 			oauthExpiresAt: null,
 		},
 		hasUnsavedChanges: false,
-		providerId: clineControllerState.providerId,
-		modelId: clineControllerState.modelId,
-		baseUrl: clineControllerState.baseUrl,
+		providerId: nkleinControllerState.providerId,
+		modelId: nkleinControllerState.modelId,
+		baseUrl: nkleinControllerState.baseUrl,
 		reasoningEffort: "",
 		providerCatalog: [
 			{
@@ -213,8 +213,8 @@ vi.mock("@/hooks/use-runtime-settings-cline-controller", () => ({
 	}),
 }));
 
-vi.mock("@/hooks/use-runtime-settings-cline-mcp-controller", () => ({
-	useRuntimeSettingsClineMcpController: () => ({
+vi.mock("@/hooks/use-runtime-settings-nklein-mcp-controller", () => ({
+	useRuntimeSettingsNKleinMcpController: () => ({
 		hasUnsavedChanges: false,
 		isSavingMcpSettings: false,
 		addMcpServer: addMcpServerMock,
@@ -240,18 +240,18 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
-	buildClineAdvisorRequest: buildClineAdvisorRequestMock,
-	discoverClineEndpointModels: discoverClineEndpointModelsMock,
-	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
-	fetchClineModelRegistry: fetchClineModelRegistryMock,
-	fetchClineProviderModels: fetchClineProviderModelsMock,
+	buildNKleinAdvisorRequest: buildNKleinAdvisorRequestMock,
+	discoverNKleinEndpointModels: discoverNKleinEndpointModelsMock,
+	fetchNKleinCodeIntelligenceStatus: fetchNKleinCodeIntelligenceStatusMock,
+	fetchNKleinModelRegistry: fetchNKleinModelRegistryMock,
+	fetchNKleinProviderModels: fetchNKleinProviderModelsMock,
 	openFileOnHost: openFileOnHostMock,
-	pruneClineModelRegistry: pruneClineModelRegistryMock,
-	removeClineModelRegistryEntry: removeClineModelRegistryEntryMock,
-	runClineSmokeEval: runClineSmokeEvalMock,
-	saveClineModelContextWindowOverride: saveClineModelContextWindowOverrideMock,
-	sendClineAdvisorRequest: sendClineAdvisorRequestMock,
-	writeClineDogfoodBacklog: writeClineDogfoodBacklogMock,
+	pruneNKleinModelRegistry: pruneNKleinModelRegistryMock,
+	removeNKleinModelRegistryEntry: removeNKleinModelRegistryEntryMock,
+	runNKleinSmokeEval: runNKleinSmokeEvalMock,
+	saveNKleinModelContextWindowOverride: saveNKleinModelContextWindowOverrideMock,
+	sendNKleinAdvisorRequest: sendNKleinAdvisorRequestMock,
+	writeNKleinDogfoodBacklog: writeNKleinDogfoodBacklogMock,
 }));
 
 vi.mock("@/utils/notification-permission", () => ({
@@ -327,8 +327,8 @@ function findSectionByHeading(headingText: string, containedText: string): HTMLE
 	return null;
 }
 
-const savedClineOauthConfig = {
-	selectedAgentId: "cline",
+const savedNKleinOauthConfig = {
+	selectedAgentId: "nklein",
 	selectedShortcutLabel: null,
 	agentAutonomousModeEnabled: true,
 	lostHeartbeatPolicy: "park",
@@ -349,7 +349,7 @@ const savedClineOauthConfig = {
 		message: null,
 		checkedAt: 1,
 	},
-	effectiveCommand: "cline",
+	effectiveCommand: "nklein",
 	detectedCommands: [],
 	shortcuts: [],
 	modelRoles: {},
@@ -361,10 +361,10 @@ const savedClineOauthConfig = {
 	projectConfigPath: null,
 	agents: [
 		{
-			id: "cline",
-			label: "Cline",
-			binary: "cline",
-			command: "cline",
+			id: "nklein",
+			label: "!Klein",
+			binary: "nklein",
+			command: "nklein",
 			installed: true,
 		},
 		{
@@ -375,13 +375,13 @@ const savedClineOauthConfig = {
 			installed: true,
 		},
 	],
-	clineProviderSettings: {
+	nkleinProviderSettings: {
 		providerId: null,
-		modelId: "cline-sonnet",
+		modelId: "nklein-sonnet",
 		baseUrl: null,
 		reasoningEffort: null,
 		apiKeyConfigured: false,
-		oauthProvider: "cline",
+		oauthProvider: "nklein",
 		oauthAccessTokenConfigured: true,
 		oauthRefreshTokenConfigured: true,
 		oauthAccountId: "acc-1",
@@ -389,13 +389,13 @@ const savedClineOauthConfig = {
 	},
 } as unknown as RuntimeConfigResponse;
 
-const cloudEnabledClineOauthConfig = {
-	...savedClineOauthConfig,
+const cloudEnabledNKleinOauthConfig = {
+	...savedNKleinOauthConfig,
 	cloudProviderSupportEnabled: true,
 } as RuntimeConfigResponse;
 
-const debugClineOauthConfig = {
-	...savedClineOauthConfig,
+const debugNKleinOauthConfig = {
+	...savedNKleinOauthConfig,
 	developerModeEnabled: true,
 } as RuntimeConfigResponse;
 
@@ -406,38 +406,38 @@ describe("RuntimeSettingsDialog", () => {
 
 	beforeEach(() => {
 		resetLayoutCustomizationsMock.mockReset();
-		buildClineAdvisorRequestMock.mockReset();
-		buildClineAdvisorRequestMock.mockResolvedValue({
+		buildNKleinAdvisorRequestMock.mockReset();
+		buildNKleinAdvisorRequestMock.mockResolvedValue({
 			kind: "model_freshness",
 			title: "Check For Better Models",
 			prompt: "Compare connected models.",
 			requiresWebResearch: true,
 			recommendedSources: ["https://openrouter.ai/models"],
 		});
-		sendClineAdvisorRequestMock.mockReset();
-		sendClineAdvisorRequestMock.mockResolvedValue({
+		sendNKleinAdvisorRequestMock.mockReset();
+		sendNKleinAdvisorRequestMock.mockResolvedValue({
 			providerId: "lmstudio",
 			modelId: "loaded-qwen",
 			output: "Use the loaded Qwen model for local checks.",
 			sentAt: Date.UTC(2026, 0, 2, 3, 4, 5),
 			receivedAt: Date.UTC(2026, 0, 2, 3, 4, 8),
 		});
-		writeClineDogfoodBacklogMock.mockReset();
-		writeClineDogfoodBacklogMock.mockResolvedValue({
-			rootPath: "/repo/.cline/nklein/plans/dogfood",
-			specPath: "/repo/.cline/nklein/plans/dogfood/spec.md",
-			planPath: "/repo/.cline/nklein/plans/dogfood/plan.md",
-			questionsPath: "/repo/.cline/nklein/plans/dogfood/questions.md",
-			decisionsPath: "/repo/.cline/nklein/plans/dogfood/decisions.md",
-			revisionsPath: "/repo/.cline/nklein/plans/dogfood/revisions.md",
-			summaryPath: "/repo/.cline/nklein/plans/dogfood/summary.md",
-			taskGraphPath: "/repo/.cline/nklein/plans/dogfood/tasks.json",
+		writeNKleinDogfoodBacklogMock.mockReset();
+		writeNKleinDogfoodBacklogMock.mockResolvedValue({
+			rootPath: "/repo/.nklein/nklein/plans/dogfood",
+			specPath: "/repo/.nklein/nklein/plans/dogfood/spec.md",
+			planPath: "/repo/.nklein/nklein/plans/dogfood/plan.md",
+			questionsPath: "/repo/.nklein/nklein/plans/dogfood/questions.md",
+			decisionsPath: "/repo/.nklein/nklein/plans/dogfood/decisions.md",
+			revisionsPath: "/repo/.nklein/nklein/plans/dogfood/revisions.md",
+			summaryPath: "/repo/.nklein/nklein/plans/dogfood/summary.md",
+			taskGraphPath: "/repo/.nklein/nklein/plans/dogfood/tasks.json",
 			slug: "dogfood",
 			taskCount: 1,
 			nextCommand: "nklein task decompose --slug dogfood --project-path /repo",
 		});
-		runClineSmokeEvalMock.mockReset();
-		runClineSmokeEvalMock.mockResolvedValue({
+		runNKleinSmokeEvalMock.mockReset();
+		runNKleinSmokeEvalMock.mockResolvedValue({
 			workspacePath: "/tmp/eval-workspace",
 			evidenceBundlePath: "/tmp/eval-evidence",
 			acceptanceCommand: "npm test",
@@ -448,8 +448,8 @@ describe("RuntimeSettingsDialog", () => {
 			modelId: "qwen3.5-9b",
 			endpoint: "http://127.0.0.1:11434",
 		});
-		fetchClineCodeIntelligenceStatusMock.mockReset();
-		fetchClineCodeIntelligenceStatusMock.mockResolvedValue({
+		fetchNKleinCodeIntelligenceStatusMock.mockReset();
+		fetchNKleinCodeIntelligenceStatusMock.mockResolvedValue({
 			codeEmbeddingSettings: {
 				globalDefaults: {
 					provider: "local_lexical",
@@ -473,7 +473,7 @@ describe("RuntimeSettingsDialog", () => {
 				error: null,
 			},
 			codeIndex: {
-				cachePath: "/repo/.cline/nklein/code-index-v1.json",
+				cachePath: "/repo/.nklein/nklein/code-index-v1.json",
 				cacheExists: true,
 				embeddingProvider: "local_lexical",
 				embeddingModel: "kanban-local-lexical-vector-v1",
@@ -500,8 +500,8 @@ describe("RuntimeSettingsDialog", () => {
 				error: null,
 			},
 		});
-		fetchClineModelRegistryMock.mockReset();
-		fetchClineModelRegistryMock.mockResolvedValue({
+		fetchNKleinModelRegistryMock.mockReset();
+		fetchNKleinModelRegistryMock.mockResolvedValue({
 			schemaVersion: 1,
 			updatedAt: 120_000,
 			models: [
@@ -550,18 +550,18 @@ describe("RuntimeSettingsDialog", () => {
 				},
 			],
 		});
-		saveClineModelContextWindowOverrideMock.mockReset();
-		saveClineModelContextWindowOverrideMock.mockResolvedValue({
+		saveNKleinModelContextWindowOverrideMock.mockReset();
+		saveNKleinModelContextWindowOverrideMock.mockResolvedValue({
 			model: {
 				key: "ollama:qwen:http://127.0.0.1:11434",
 			},
 		});
-		removeClineModelRegistryEntryMock.mockReset();
-		removeClineModelRegistryEntryMock.mockResolvedValue({ removed: true });
-		pruneClineModelRegistryMock.mockReset();
-		pruneClineModelRegistryMock.mockResolvedValue({ removed: 1 });
-		fetchClineProviderModelsMock.mockReset();
-		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+		removeNKleinModelRegistryEntryMock.mockReset();
+		removeNKleinModelRegistryEntryMock.mockResolvedValue({ removed: true });
+		pruneNKleinModelRegistryMock.mockReset();
+		pruneNKleinModelRegistryMock.mockResolvedValue({ removed: 1 });
+		fetchNKleinProviderModelsMock.mockReset();
+		fetchNKleinProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "openrouter") {
 				return [
 					{ id: "openai/gpt-5.4", name: "GPT-5.4", contextWindow: 128_000, supportsReasoningEffort: true },
@@ -578,8 +578,8 @@ describe("RuntimeSettingsDialog", () => {
 			}
 			return [];
 		});
-		discoverClineEndpointModelsMock.mockReset();
-		discoverClineEndpointModelsMock.mockResolvedValue({
+		discoverNKleinEndpointModelsMock.mockReset();
+		discoverNKleinEndpointModelsMock.mockResolvedValue({
 			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
 			models: [{ id: "nomic-embed-text", name: "nomic-embed-text" }],
 		});
@@ -588,10 +588,10 @@ describe("RuntimeSettingsDialog", () => {
 		openFileOnHostMock.mockClear();
 		saveRuntimeConfigMock.mockClear();
 		saveRuntimeConfigMock.mockResolvedValue(true);
-		clineControllerState.providerId = "anthropic";
-		clineControllerState.modelId = "claude-3-7-sonnet";
-		clineControllerState.baseUrl = "";
-		clineSetupSectionOnSavedRef.onSaved = null;
+		nkleinControllerState.providerId = "anthropic";
+		nkleinControllerState.modelId = "claude-3-7-sonnet";
+		nkleinControllerState.baseUrl = "";
+		nkleinSetupSectionOnSavedRef.onSaved = null;
 		window.localStorage.clear();
 		document.documentElement.removeAttribute("data-theme");
 		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -630,7 +630,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -646,13 +646,13 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
 		});
 
-		expect(document.body.textContent).not.toContain("Sign in to Cline");
+		expect(document.body.textContent).not.toContain("Sign in to !Klein");
 		expect(document.body.textContent).not.toContain("Account ID:");
 		expect(document.body.textContent).not.toContain("Sign in again with");
 		expect(Array.from(document.body.querySelectorAll("option")).map((option) => option.value)).not.toContain("cloud");
@@ -664,19 +664,19 @@ describe("RuntimeSettingsDialog", () => {
 		expect(roleProviderValues).toEqual(["", "lmstudio"]);
 	});
 
-	it("replaces the cloud agent picker with a local-only Cline line", async () => {
+	it("replaces the cloud agent picker with a local-only !Klein line", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
 		});
 
-		expect(document.body.textContent).toContain("Local Cline agent (cloud disabled).");
+		expect(document.body.textContent).toContain("Local !Klein agent (cloud disabled).");
 		expect(document.body.textContent).not.toContain("Claude Code");
 		expect(document.body.textContent).not.toContain("Checking which CLIs are installed");
 	});
@@ -689,7 +689,7 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...savedClineOauthConfig,
+							...savedNKleinOauthConfig,
 							maxConcurrentTasks: 5,
 							sandboxMaxContainers: 2,
 							sandboxAgentsPerContainer: 2,
@@ -724,7 +724,7 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("Context budget policy");
 		expect(document.body.textContent).toContain("Acceptance gate");
 		expect(document.body.textContent).toContain("Telemetry");
-		expect(document.body.textContent).toContain(".cline/nklein/telemetry, limit 20");
+		expect(document.body.textContent).toContain(".nklein/nklein/telemetry, limit 20");
 	});
 
 	it("saves sandbox pool settings from general settings", async () => {
@@ -733,7 +733,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -777,7 +777,7 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...savedClineOauthConfig,
+							...savedNKleinOauthConfig,
 							sandboxMaxContainers: 3,
 							sandboxAgentsPerContainer: 2,
 						} as RuntimeConfigResponse
@@ -828,7 +828,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -860,7 +860,7 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...savedClineOauthConfig,
+							...savedNKleinOauthConfig,
 							selectedAgentId: "claude",
 							effectiveCommand: "claude",
 						} as RuntimeConfigResponse
@@ -898,14 +898,14 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
 			await Promise.resolve();
 		});
 
-		expect(fetchClineCodeIntelligenceStatusMock).not.toHaveBeenCalled();
+		expect(fetchNKleinCodeIntelligenceStatusMock).not.toHaveBeenCalled();
 		expect(document.body.textContent).not.toContain("16/20 chunks");
 		expect(document.body.textContent).not.toContain("Repo map");
 	});
@@ -916,7 +916,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -925,7 +925,7 @@ describe("RuntimeSettingsDialog", () => {
 		await waitForCondition(() => document.body.textContent?.includes("Model context windows") === true);
 		await waitForCondition(() => document.body.textContent?.includes("ollama/qwen") === true);
 
-		expect(fetchClineModelRegistryMock).toHaveBeenCalledWith("workspace-1");
+		expect(fetchNKleinModelRegistryMock).toHaveBeenCalledWith("workspace-1");
 		expect(document.body.textContent).toContain("1 local model tracked");
 		expect(document.body.textContent).toContain("Effective context: 64,000");
 		const input = document.body.querySelector("input[aria-label='Context window override for ollama/qwen']");
@@ -952,7 +952,7 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		await flushAsyncWork();
 
-		expect(saveClineModelContextWindowOverrideMock).toHaveBeenCalledWith("workspace-1", {
+		expect(saveNKleinModelContextWindowOverrideMock).toHaveBeenCalledWith("workspace-1", {
 			providerId: "ollama",
 			modelId: "qwen",
 			endpoint: "http://127.0.0.1:11434",
@@ -966,7 +966,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -988,7 +988,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1031,7 +1031,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1079,7 +1079,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1110,8 +1110,8 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.documentElement.getAttribute("data-theme")).toBe("graphite");
 	});
 
-	it("saves configured Cline model roles", async () => {
-		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+	it("saves configured NKlein model roles", async () => {
+		fetchNKleinProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "lmstudio") {
 				return [
 					{
@@ -1130,7 +1130,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1156,10 +1156,10 @@ describe("RuntimeSettingsDialog", () => {
 			setSelectValue(architectProviderSelect, "lmstudio");
 		});
 		await waitForCondition(() =>
-			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
+			fetchNKleinProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
 		);
 		await flushAsyncWork();
-		expect(fetchClineProviderModelsMock).toHaveBeenCalledWith("workspace-1", "lmstudio");
+		expect(fetchNKleinProviderModelsMock).toHaveBeenCalledWith("workspace-1", "lmstudio");
 		expect(Array.from(architectModelSelect.options).map((option) => option.value)).toContain("loaded-qwen");
 
 		await act(async () => {
@@ -1189,7 +1189,7 @@ describe("RuntimeSettingsDialog", () => {
 	});
 
 	it("discovers embedding models for OpenAI-compatible endpoints", async () => {
-		discoverClineEndpointModelsMock.mockResolvedValue({
+		discoverNKleinEndpointModelsMock.mockResolvedValue({
 			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
 			models: [
 				{ id: "nomic-embed-text", name: "nomic-embed-text" },
@@ -1203,7 +1203,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1240,8 +1240,8 @@ describe("RuntimeSettingsDialog", () => {
 			discoverButton.click();
 		});
 
-		await waitForCondition(() => discoverClineEndpointModelsMock.mock.calls.length > 0);
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+		await waitForCondition(() => discoverNKleinEndpointModelsMock.mock.calls.length > 0);
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
 			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
 		});
 		await waitForCondition(
@@ -1278,7 +1278,7 @@ describe("RuntimeSettingsDialog", () => {
 	});
 
 	it("auto-discovers embedding models for local OpenAI-compatible endpoints", async () => {
-		discoverClineEndpointModelsMock.mockResolvedValue({
+		discoverNKleinEndpointModelsMock.mockResolvedValue({
 			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
 			models: [
 				{ id: "nomic-embed-text", name: "nomic-embed-text" },
@@ -1291,7 +1291,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1322,8 +1322,8 @@ describe("RuntimeSettingsDialog", () => {
 		});
 		await waitForEmbeddingDiscoveryDebounce();
 
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledTimes(1);
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledTimes(1);
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
 			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
 		});
 		await waitForCondition(
@@ -1337,14 +1337,14 @@ describe("RuntimeSettingsDialog", () => {
 	});
 
 	it("does not auto-discover non-local embedding endpoints and keeps automatic failures quiet", async () => {
-		discoverClineEndpointModelsMock.mockRejectedValue(new Error("offline endpoint"));
+		discoverNKleinEndpointModelsMock.mockRejectedValue(new Error("offline endpoint"));
 
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1374,14 +1374,14 @@ describe("RuntimeSettingsDialog", () => {
 			setInputValue(endpointInput, "https://example.com/v1/embeddings");
 		});
 		await waitForEmbeddingDiscoveryDebounce();
-		expect(discoverClineEndpointModelsMock).not.toHaveBeenCalled();
+		expect(discoverNKleinEndpointModelsMock).not.toHaveBeenCalled();
 
 		await act(async () => {
 			setInputValue(endpointInput, "http://127.0.0.1:11434/v1/embeddings");
 		});
 		await waitForEmbeddingDiscoveryDebounce();
 
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledTimes(1);
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledTimes(1);
 		await waitForCondition(
 			() =>
 				document.body.textContent?.includes(
@@ -1392,10 +1392,10 @@ describe("RuntimeSettingsDialog", () => {
 	});
 
 	it("prefills OpenAI-compatible embedding endpoints from the selected LM Studio provider", async () => {
-		clineControllerState.providerId = "lmstudio";
-		clineControllerState.modelId = "loaded-qwen";
-		clineControllerState.baseUrl = "http://127.0.0.1:1234/v1";
-		discoverClineEndpointModelsMock.mockResolvedValue({
+		nkleinControllerState.providerId = "lmstudio";
+		nkleinControllerState.modelId = "loaded-qwen";
+		nkleinControllerState.baseUrl = "http://127.0.0.1:1234/v1";
+		discoverNKleinEndpointModelsMock.mockResolvedValue({
 			modelSourceUrl: "http://127.0.0.1:1234/api/v0/models",
 			models: [{ id: "bge-large", name: "BGE Large" }],
 		});
@@ -1405,7 +1405,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1434,13 +1434,13 @@ describe("RuntimeSettingsDialog", () => {
 		expect(endpointInput.value).toBe("http://127.0.0.1:1234/v1/embeddings");
 
 		await waitForEmbeddingDiscoveryDebounce();
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
 			baseUrl: "http://127.0.0.1:1234/v1/embeddings",
 		});
 	});
 
 	it("tests embedding endpoints without populating the model dropdown", async () => {
-		discoverClineEndpointModelsMock.mockResolvedValue({
+		discoverNKleinEndpointModelsMock.mockResolvedValue({
 			modelSourceUrl: "http://127.0.0.1:11434/v1/models",
 			models: [
 				{ id: "nomic-embed-text", name: "nomic-embed-text" },
@@ -1453,7 +1453,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1490,8 +1490,8 @@ describe("RuntimeSettingsDialog", () => {
 			testButton.click();
 		});
 
-		await waitForCondition(() => discoverClineEndpointModelsMock.mock.calls.length > 0);
-		expect(discoverClineEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
+		await waitForCondition(() => discoverNKleinEndpointModelsMock.mock.calls.length > 0);
+		expect(discoverNKleinEndpointModelsMock).toHaveBeenCalledWith("workspace-1", {
 			baseUrl: "http://127.0.0.1:11434/v1/embeddings",
 		});
 		await waitForCondition(
@@ -1508,7 +1508,7 @@ describe("RuntimeSettingsDialog", () => {
 	});
 
 	it("warns and blocks saving model roles below the minimum context window", async () => {
-		fetchClineProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
+		fetchNKleinProviderModelsMock.mockImplementation(async (_workspaceId: string | null, providerId: string) => {
 			if (providerId === "lmstudio") {
 				return [
 					{
@@ -1527,7 +1527,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1549,7 +1549,7 @@ describe("RuntimeSettingsDialog", () => {
 			setSelectValue(architectProviderSelect, "lmstudio");
 		});
 		await waitForCondition(() =>
-			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
+			fetchNKleinProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
 		);
 		await flushAsyncWork();
 
@@ -1575,7 +1575,7 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...savedClineOauthConfig,
+							...savedNKleinOauthConfig,
 							modelRoles: {
 								architect: {
 									providerId: "lmstudio",
@@ -1589,7 +1589,7 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 		await waitForCondition(() =>
-			fetchClineProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
+			fetchNKleinProviderModelsMock.mock.calls.some((call) => call[0] === "workspace-1" && call[1] === "lmstudio"),
 		);
 		await waitForCondition(() => document.body.textContent?.includes("Loaded Qwen") === true);
 
@@ -1612,7 +1612,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={handleOpenChange}
 				/>,
 			);
@@ -1671,7 +1671,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1681,10 +1681,10 @@ describe("RuntimeSettingsDialog", () => {
 		expect(findButtonByText(document.body, "Explain config")).toBeNull();
 		expect(findButtonByText(document.body, "Analyze logs")).toBeNull();
 		expect(findButtonByText(document.body, "Find MCP plugins")).toBeNull();
-		expect(buildClineAdvisorRequestMock).not.toHaveBeenCalled();
+		expect(buildNKleinAdvisorRequestMock).not.toHaveBeenCalled();
 	});
 
-	it("builds, sends, and copies Cline advisor prompts when cloud provider support is enabled", async () => {
+	it("keeps NKlein advisor prompts hidden when stale config enables cloud provider support", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
@@ -1692,9 +1692,9 @@ describe("RuntimeSettingsDialog", () => {
 					workspaceId={"workspace-1"}
 					initialConfig={
 						{
-							...cloudEnabledClineOauthConfig,
-							clineProviderSettings: {
-								...cloudEnabledClineOauthConfig.clineProviderSettings,
+							...cloudEnabledNKleinOauthConfig,
+							nkleinProviderSettings: {
+								...cloudEnabledNKleinOauthConfig.nkleinProviderSettings,
 								providerId: "lmstudio",
 								modelId: "loaded-qwen",
 								baseUrl: "http://localhost:1234/v1",
@@ -1706,60 +1706,15 @@ describe("RuntimeSettingsDialog", () => {
 			);
 		});
 
-		const checkModelsButton = findButtonByText(document.body, "Check models");
-		expect(checkModelsButton).toBeInstanceOf(HTMLButtonElement);
-		expect(findButtonByText(document.body, "Explain config")).toBeInstanceOf(HTMLButtonElement);
-		expect(findButtonByText(document.body, "Analyze logs")).toBeInstanceOf(HTMLButtonElement);
-
-		await act(async () => {
-			checkModelsButton?.click();
-		});
-
-		expect(buildClineAdvisorRequestMock).toHaveBeenCalledWith("workspace-1", { kind: "model_freshness" });
-		expect(document.body.textContent).toContain("Check For Better Models");
-		expect(document.body.textContent).toContain("openrouter.ai");
-		const sendButton = findButtonByText(document.body, "Send prompt");
-		expect(sendButton).toBeInstanceOf(HTMLButtonElement);
-		await act(async () => {
-			sendButton?.click();
-			await Promise.resolve();
-		});
-
-		expect(sendClineAdvisorRequestMock).toHaveBeenCalledWith("workspace-1", {
-			prompt: "Compare connected models.",
-			providerId: "lmstudio",
-			modelId: "loaded-qwen",
-		});
-		expect(document.body.textContent).toContain("Use the loaded Qwen model for local checks.");
-		expect(document.body.textContent).toContain("lmstudio / loaded-qwen");
-		expect(document.body.textContent).toContain("Sent");
-		expect(document.body.textContent).toContain("Received");
-
-		const copyButton = findButtonByText(document.body, "Copy prompt");
-		expect(copyButton).toBeInstanceOf(HTMLButtonElement);
-
-		await act(async () => {
-			copyButton?.click();
-		});
-
-		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Compare connected models.");
-
-		const explainConfigButton = findButtonByText(document.body, "Explain config");
-		await act(async () => {
-			explainConfigButton?.click();
-		});
-
-		expect(buildClineAdvisorRequestMock).toHaveBeenLastCalledWith(
-			"workspace-1",
-			expect.objectContaining({
-				kind: "config_explainer",
-				runtimeConfigSummary: expect.stringContaining("selectedAgentId=cline"),
-			}),
-		);
+		expect(findButtonByText(document.body, "Check models")).toBeNull();
+		expect(findButtonByText(document.body, "Explain config")).toBeNull();
+		expect(findButtonByText(document.body, "Analyze logs")).toBeNull();
+		expect(buildNKleinAdvisorRequestMock).not.toHaveBeenCalled();
+		expect(sendNKleinAdvisorRequestMock).not.toHaveBeenCalled();
 	});
 
-	it("adds a pasted MCP advisor suggestion to Cline MCP settings when cloud provider support is enabled", async () => {
-		buildClineAdvisorRequestMock.mockResolvedValueOnce({
+	it("keeps MCP advisor suggestions hidden when stale config enables cloud provider support", async () => {
+		buildNKleinAdvisorRequestMock.mockResolvedValueOnce({
 			kind: "mcp_discovery",
 			title: "Find Useful MCP Plugins",
 			prompt: "Research MCP servers.",
@@ -1772,67 +1727,15 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={cloudEnabledClineOauthConfig}
+					initialConfig={cloudEnabledNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
 		});
 
-		const findPluginsButton = findButtonByText(document.body, "Find MCP plugins");
-		expect(findPluginsButton).toBeInstanceOf(HTMLButtonElement);
-
-		await act(async () => {
-			findPluginsButton?.click();
-		});
-
-		const suggestionInput = Array.from(document.body.querySelectorAll("textarea")).find((textarea) =>
-			textarea.getAttribute("placeholder")?.includes('"mcpServers"'),
-		);
-		if (!(suggestionInput instanceof HTMLTextAreaElement)) {
-			throw new Error("Expected MCP suggestion textarea.");
-		}
-		await act(async () => {
-			setTextAreaValue(
-				suggestionInput,
-				JSON.stringify({
-					mcpServers: [
-						{
-							name: "linear",
-							type: "streamableHttp",
-							url: "https://mcp.linear.app/mcp",
-						},
-					],
-				}),
-			);
-		});
-
-		const findAddableButton = findButtonByText(document.body, "Find addable servers");
-		expect(findAddableButton).toBeInstanceOf(HTMLButtonElement);
-		expect(findAddableButton?.disabled).toBe(false);
-
-		await act(async () => {
-			findAddableButton?.click();
-		});
-		await flushAsyncWork();
-
-		expect(document.body.textContent).toContain("linear");
-		const linearSuggestion = Array.from(document.body.querySelectorAll("p")).find((element) =>
-			element.textContent?.includes("linear"),
-		)?.parentElement?.parentElement;
-		const addButton = linearSuggestion ? findButtonByText(linearSuggestion, "Add") : null;
-		expect(addButton).toBeInstanceOf(HTMLButtonElement);
-
-		await act(async () => {
-			addButton?.click();
-		});
-		await flushAsyncWork();
-
-		expect(addMcpServerMock).toHaveBeenCalledWith({
-			name: "linear",
-			disabled: false,
-			type: "streamableHttp",
-			url: "https://mcp.linear.app/mcp",
-		});
+		expect(findButtonByText(document.body, "Find MCP plugins")).toBeNull();
+		expect(buildNKleinAdvisorRequestMock).not.toHaveBeenCalled();
+		expect(addMcpServerMock).not.toHaveBeenCalled();
 	});
 
 	it("hides developer tools in normal settings mode", async () => {
@@ -1841,7 +1744,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1858,7 +1761,7 @@ describe("RuntimeSettingsDialog", () => {
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={debugClineOauthConfig}
+					initialConfig={debugNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1884,20 +1787,20 @@ describe("RuntimeSettingsDialog", () => {
 			suggestButton?.click();
 		});
 
-		expect(writeClineDogfoodBacklogMock).toHaveBeenCalledWith("workspace-1", {
+		expect(writeNKleinDogfoodBacklogMock).toHaveBeenCalledWith("workspace-1", {
 			suggestion: "Improve stalled task diagnostics.",
 		});
 		expect(document.body.textContent).toContain("1 task drafted");
 		expect(document.body.textContent).toContain("nklein task decompose --slug dogfood");
 	});
 
-	it("runs the Cline smoke eval from settings in debug mode", async () => {
+	it("runs the NKlein smoke eval from settings in debug mode", async () => {
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={debugClineOauthConfig}
+					initialConfig={debugNKleinOauthConfig}
 					onOpenChange={() => {}}
 				/>,
 			);
@@ -1910,29 +1813,29 @@ describe("RuntimeSettingsDialog", () => {
 			runEvalButton?.click();
 		});
 
-		expect(runClineSmokeEvalMock).toHaveBeenCalledWith("workspace-1");
+		expect(runNKleinSmokeEvalMock).toHaveBeenCalledWith("workspace-1");
 		expect(document.body.textContent).toContain("ollama:qwen3.5-9b passed npm test");
 		expect(document.body.textContent).toContain("/tmp/eval-evidence");
 	});
 
-	it("forwards cline setup saves to the dialog onSaved callback", async () => {
+	it("forwards nklein setup saves to the dialog onSaved callback", async () => {
 		const handleSaved = vi.fn();
 		await act(async () => {
 			root.render(
 				<RuntimeSettingsDialog
 					open={true}
 					workspaceId={"workspace-1"}
-					initialConfig={savedClineOauthConfig}
+					initialConfig={savedNKleinOauthConfig}
 					onOpenChange={() => {}}
 					onSaved={handleSaved}
 				/>,
 			);
 		});
 
-		expect(clineSetupSectionOnSavedRef.onSaved).toBeTypeOf("function");
+		expect(nkleinSetupSectionOnSavedRef.onSaved).toBeTypeOf("function");
 
 		await act(async () => {
-			clineSetupSectionOnSavedRef.onSaved?.();
+			nkleinSetupSectionOnSavedRef.onSaved?.();
 		});
 
 		expect(handleSaved).toHaveBeenCalledTimes(1);

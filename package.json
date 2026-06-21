@@ -15,14 +15,14 @@
     "task-management",
     "typescript"
   ],
-  "homepage": "https://github.com/cline/kanban",
+  "homepage": "https://github.com/nklein/kanban",
   "bugs": {
-    "url": "https://github.com/cline/kanban/issues"
+    "url": "https://github.com/nklein/kanban/issues"
   },
-  "author": "Cline",
+  "author": "NKlein",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cline/kanban"
+    "url": "https://github.com/nklein/kanban"
   },
   "type": "module",
   "bin": {
@@ -62,7 +62,7 @@
     "web:test": "npm --prefix web-ui run test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "npx @biomejs/biome lint src test web-ui/src web-ui/tests vitest.config.ts web-ui/vite.config.ts web-ui/vitest.config.ts web-ui/playwright.config.ts",
-    "check:cline-boundary": "node .github/scripts/check-cline-boundary.mjs",
+    "check:nklein-boundary": "node .github/scripts/check-nklein-boundary.mjs",
     "format": "npx @biomejs/biome check --write .",
     "check": "npx @biomejs/biome check . && npm run typecheck && npm run test",
     "test": "vitest run",
@@ -96,8 +96,6 @@
     "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9"
   },
   "dependencies": {
-    "@clinebot/core": "^0.0.38",
-    "@clinebot/shared": "^0.0.38",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sentry/node": "^10.45.0",
     "@trpc/client": "^11.11.0",
@@ -112,7 +110,11 @@
     "proper-lockfile": "^4.1.2",
     "tree-kill": "^1.2.2",
     "ws": "^8.18.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@nklein/core": "file:vendor/nklein-sdk/core",
+    "@nklein/agents": "file:vendor/nklein-sdk/agents",
+    "@nklein/llms": "file:vendor/nklein-sdk/llms",
+    "@nklein/shared": "file:vendor/nklein-sdk/shared"
   },
   "overrides": {
     "protobufjs": "7.5.8"

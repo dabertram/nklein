@@ -4,8 +4,8 @@ import { toFileUrl } from "@/utils/file-url";
 
 describe("toFileUrl", () => {
 	it("converts Unix absolute paths to file urls", () => {
-		expect(toFileUrl("/Users/dev/repo/.cline/nklein/config.json")).toBe(
-			"file:///Users/dev/repo/.cline/nklein/config.json",
+		expect(toFileUrl("/Users/dev/repo/.nklein/nklein/config.json")).toBe(
+			"file:///Users/dev/repo/.nklein/nklein/config.json",
 		);
 	});
 

@@ -3,7 +3,7 @@
 Local-only Python sidecar that owns !Klein's ML + native-agent capabilities, called by the TypeScript runtime
 over a small versioned HTTP/JSON contract. See the migration plan and `THIRD_PARTY_NOTICES.md`.
 
-**Why this exists:** the Cline SDK's LLM layer can only forward `temperature`/`max_tokens`/`stop`. The Python
+**Why this exists:** the NKlein SDK's LLM layer can only forward `temperature`/`max_tokens`/`stop`. The Python
 core can send full sampling + **grammar / JSON-schema constrained decoding** (the biggest small/quantized-model
 reliability win), and unlocks the Python ML ecosystem (LLMLingua-2, sentence-transformers, tree-sitter,
 llama-cpp-python) and direct reuse of Apache/MIT Python agents (aider, OpenHands).

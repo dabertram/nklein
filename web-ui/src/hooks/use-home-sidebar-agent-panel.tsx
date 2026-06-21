@@ -1,23 +1,23 @@
 // Composes the sidebar agent surface for the current workspace.
-// It decides whether the synthetic home session should render native Cline
+// It decides whether the synthetic home session should render native NKlein
 // chat or a terminal panel and wires that surface to shared runtime actions.
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
-import { ClineAgentChatPanel } from "@/components/detail-panels/cline-agent-chat-panel";
+import { NKleinAgentChatPanel } from "@/components/detail-panels/nklein-agent-chat-panel";
 import { Spinner } from "@/components/ui/spinner";
 import { createIdleTaskSession } from "@/hooks/app-utils";
 import { selectNewestTaskSessionSummary } from "@/hooks/home-sidebar-agent-panel-session-summary";
-import { useClineChatRuntimeActions } from "@/hooks/use-cline-chat-runtime-actions";
 import { useHomeAgentSession } from "@/hooks/use-home-agent-session";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useNKleinChatRuntimeActions } from "@/hooks/use-nklein-chat-runtime-actions";
 import { selectLatestTaskChatMessageForTask } from "@/runtime/native-agent";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
-	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
 	RuntimeGitRepositoryInfo,
+	RuntimeNKleinTeamProgressEvent,
 	RuntimeStateStreamTaskChatMessage,
 	RuntimeTaskChatMessage,
 	RuntimeTaskSessionSummary,
@@ -28,12 +28,12 @@ interface UseHomeSidebarAgentPanelInput {
 	currentProjectId: string | null;
 	hasNoProjects: boolean;
 	runtimeProjectConfig: RuntimeConfigResponse | null;
-	clineSessionContextVersion: number;
+	nkleinSessionContextVersion: number;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
 	workspaceGit: RuntimeGitRepositoryInfo | null;
 	latestTaskChatMessage: RuntimeStateStreamTaskChatMessage | null;
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
-	clineTeamProgressByTaskId: Record<string, RuntimeClineTeamProgressEvent[]>;
+	nkleinTeamProgressByTaskId: Record<string, RuntimeNKleinTeamProgressEvent[]>;
 }
 
 async function stopHomeSidebarTaskSession(workspaceId: string, taskId: string): Promise<void> {
@@ -50,12 +50,12 @@ export function useHomeSidebarAgentPanel({
 	currentProjectId,
 	hasNoProjects,
 	runtimeProjectConfig,
-	clineSessionContextVersion,
+	nkleinSessionContextVersion,
 	taskSessions,
 	workspaceGit,
 	latestTaskChatMessage,
 	taskChatMessagesByTaskId,
-	clineTeamProgressByTaskId,
+	nkleinTeamProgressByTaskId,
 }: UseHomeSidebarAgentPanelInput): ReactElement | null {
 	const isMobile = useIsMobile();
 	const terminalThemeColors = useTerminalThemeColors();
@@ -87,7 +87,7 @@ export function useHomeSidebarAgentPanel({
 		currentProjectId,
 		runtimeProjectConfig,
 		workspaceGit,
-		clineSessionContextVersion,
+		nkleinSessionContextVersion,
 		sessionSummaries: effectiveSessionSummaries,
 		setSessionSummaries,
 		upsertSessionSummary,
@@ -98,7 +98,7 @@ export function useHomeSidebarAgentPanel({
 		currentTaskIdRef.current = taskId;
 	}, [taskId]);
 	const { sendTaskChatMessage, loadTaskChatMessages, cancelTaskChatTurn, grantProtectedTestApproval } =
-		useClineChatRuntimeActions({
+		useNKleinChatRuntimeActions({
 			currentProjectId,
 			onSessionSummary: upsertSessionSummary,
 		});
@@ -115,10 +115,10 @@ export function useHomeSidebarAgentPanel({
 
 	const homeAgentPanelSummary = taskId ? (effectiveSessionSummaries[taskId] ?? null) : null;
 	const homeTaskChatMessages = taskId ? (taskChatMessagesByTaskId[taskId] ?? null) : null;
-	const homeTeamProgress = taskId ? (clineTeamProgressByTaskId[taskId] ?? []) : [];
+	const homeTeamProgress = taskId ? (nkleinTeamProgressByTaskId[taskId] ?? []) : [];
 	const latestHomeTaskChatMessage = selectLatestTaskChatMessageForTask(taskId, latestTaskChatMessage);
 
-	const handleSendHomeClineChatMessage = useCallback(
+	const handleSendHomeNKleinChatMessage = useCallback(
 		async (messageTaskId: string, text: string, options?: { mode?: "act" | "plan" }) => {
 			const result = await sendTaskChatMessage(messageTaskId, text, options);
 			if (!result.ok) {
@@ -134,12 +134,12 @@ export function useHomeSidebarAgentPanel({
 		[currentProjectId, sendTaskChatMessage],
 	);
 
-	const handleLoadHomeClineChatMessages = useCallback(
+	const handleLoadHomeNKleinChatMessages = useCallback(
 		async (messageTaskId: string) => await loadTaskChatMessages(messageTaskId),
 		[loadTaskChatMessages],
 	);
 
-	const handleCancelHomeClineChatTurn = useCallback(
+	const handleCancelHomeNKleinChatTurn = useCallback(
 		async (messageTaskId: string) => await cancelTaskChatTurn(messageTaskId),
 		[cancelTaskChatTurn],
 	);
@@ -158,7 +158,7 @@ export function useHomeSidebarAgentPanel({
 
 	if (panelMode === "chat" && taskId) {
 		return (
-			<ClineAgentChatPanel
+			<NKleinAgentChatPanel
 				key={taskId}
 				taskId={taskId}
 				summary={homeAgentPanelSummary ?? createIdleTaskSession(taskId)}
@@ -166,9 +166,9 @@ export function useHomeSidebarAgentPanel({
 				showComposerModeToggle={false}
 				workspaceId={currentProjectId}
 				runtimeConfig={runtimeProjectConfig}
-				onSendMessage={handleSendHomeClineChatMessage}
-				onCancelTurn={handleCancelHomeClineChatTurn}
-				onLoadMessages={handleLoadHomeClineChatMessages}
+				onSendMessage={handleSendHomeNKleinChatMessage}
+				onCancelTurn={handleCancelHomeNKleinChatTurn}
+				onLoadMessages={handleLoadHomeNKleinChatMessages}
 				onGrantProtectedTestApproval={grantProtectedTestApproval}
 				incomingMessage={latestHomeTaskChatMessage}
 				incomingMessages={homeTaskChatMessages}
@@ -195,11 +195,11 @@ export function useHomeSidebarAgentPanel({
 		);
 	}
 
-	if (runtimeProjectConfig.selectedAgentId !== "cline") {
+	if (runtimeProjectConfig.selectedAgentId !== "nklein") {
 		if (runtimeProjectConfig.cloudProviderSupportEnabled !== true) {
 			return (
 				<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
-					Local-only mode is enabled. Select a local Cline provider in Settings to use the !Klein Agent.
+					Local-only mode is enabled. Select a local !Klein provider in Settings to use the !Klein Agent.
 				</div>
 			);
 		}
@@ -212,7 +212,7 @@ export function useHomeSidebarAgentPanel({
 
 	return (
 		<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
-			Select a local Cline provider in Settings to start a home chat session.
+			Select a local !Klein provider in Settings to start a home chat session.
 		</div>
 	);
 }

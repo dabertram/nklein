@@ -20,19 +20,19 @@
   high-level idea into the board; !Klein decomposes it into a dependency-linked DAG of right-sized cards and
   runs them with local LLM agents — in parallel where safe — entirely on the user's own hardware.
 - **Naming:** in-app brand `!Klein`; OS/packaging `nKlein`; technical identifiers `nklein`; the upstream
-  engine stays `Cline` (`@clinebot/core` / `@clinebot/llms`). Repo name and `kanban.repositoryCreatedByKanban`
+  engine stays `NKlein` (`@nklein/core` / `@nklein/llms`). Repo name and `kanban.repositoryCreatedByKanban`
   git marker are intentional keeps.
 - **Invariant — LOCAL MODELS ONLY.** `CLOUD_ENABLED = false`
-  ([src/cline-sdk/cline-local-only-policy.ts](src/cline-sdk/cline-local-only-policy.ts)). No request can reach
+  ([src/nklein-sdk/nklein-local-only-policy.ts](src/nklein-sdk/nklein-local-only-policy.ts)). No request can reach
   a paid/cloud LLM; cloud providers don't render, can't be selected, and cloud-pinned cards hard-stop.
   Re-enabling is a single reviewed code change, never a setting.
-- **Invariant — ≥32k context minimum.** `CLINE_MIN_CONTEXT_WINDOW_TOKENS = 32_000`, enforced at every entry.
+- **Invariant — ≥32k context minimum.** `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`, enforced at every entry.
 - **Invariant — STRICT DOCKER AGENT ISOLATION (mandatory, unconditional, fail-closed).** Every agent shell
   command and filesystem read/write runs inside a Docker container; the host runtime never executes
   shell/FS on the LLM's behalf. Docker is a hard prerequisite — no host fallback, no degraded mode, **no
   toggle to disable**. If Docker/image is unavailable, agent tasks refuse to start.
-- **Invariant — upstream-clean.** Every feature is a `src/cline-sdk/` plug-in on an official SDK socket;
-  `node_modules/@clinebot/*` is never patched (CI-guarded by `check:cline-boundary`).
+- **Invariant — upstream-clean.** Every feature is a `src/nklein-sdk/` plug-in on an official SDK socket;
+  `node_modules/@nkleinbot/*` is never patched (CI-guarded by `check:nklein-boundary`).
 - **Invariant — never an oversized prompt.** No request exceeds the model's effective window; over-budget
   turns are compacted or the task stops — never sent.
 
@@ -46,7 +46,7 @@
 - [x] Gated at the request chokepoint (`resolveLaunchConfig`), re-asserted at task start, and at
   router/role resolution. Cloud-pinned cards hard-stop with a clear message on (re)start and resume.
 - [x] Provider catalog, model picker, role pickers, onboarding carousel, and settings all filter cloud out;
-  `normalizeAgentId` clamps any persisted cloud agent id → `cline` at load.
+  `normalizeAgentId` clamps any persisted cloud agent id → `nklein` at load.
 - [x] Boundary scan test fails if a concrete cloud-provider literal escapes the documented boundary file.
 
 ## 2. Reliability core  *(shipped — 2026-06)*
@@ -88,7 +88,7 @@
 ## 5. Parallel local swarm executor  *(shipped)*
 
 - [x] `maxConcurrentTasks` actively enforced across single/batch/dependency/runtime starts (counts
-  running/review sessions without cold-starting Cline).
+  running/review sessions without cold-starting NKlein).
 - [x] Auto-start newly-unblocked cards on completion/commit, under the cap.
 - [x] Per-local-endpoint serialization (same endpoint serialized, distinct endpoints parallel) with a typed
   `endpoint_busy` response + `retryAfterMs` from MCSR wall-time, opt-in queued admission with dedupe + retry.
@@ -112,7 +112,7 @@
   for domain-heavy work.
 - [x] Recursive expand loop (bounded depth) with dependency rewriting to terminal leaves; final leaves pass
   the connected-local-model fit guard before artifacts are accepted.
-- [x] Plan artifacts under `<project>/.cline/nklein/plans/<slug>/`: `spec.md`, `plan.md`, `tasks.json`,
+- [x] Plan artifacts under `<project>/.nklein/nklein/plans/<slug>/`: `spec.md`, `plan.md`, `tasks.json`,
   `questions.md` (clarifying Q&A / assumptions), `summary.md` (plain-language), `decisions.md`,
   `revisions.md` (audit trail). Workspace-owned artifacts with id/provenance; idempotent apply.
 - [x] Cards land in the **Planning** lane; runnable Planning cards flow into execution. Overridable
@@ -128,7 +128,7 @@
   scope, integration gap) → recursive split / integration card / decision-pause card / re-ask, bounded by
   swarm guardrails; `expand-plan-task` applies approved replacement graphs.
 - [x] **Works under strict isolation** *(restored 2026-06-19)* — the `decompose_project`/`expand_task` tools
-  are trusted control-plane (they mutate only `~/.cline/nklein/` plan artifacts + the board, never the user's
+  are trusted control-plane (they mutate only `~/.nklein/nklein/` plan artifacts + the board, never the user's
   working tree) and stay available host-side during sandboxed planning. The host workspace root is forwarded
   to the runtime so board/plan mutations resolve to the owning workspace, not the container workdir, so a
   1-shot prompt → Planning DAG → cards works with isolation ON.
@@ -142,7 +142,7 @@
   ranked search; cache GC keyed to current chunks.
 - [x] Settings Code-intelligence panel (repo-map availability, index coverage, embedding provider/model,
   staleness, live indexing progress) + a board status chip; global + per-project embedding overrides.
-- [x] Knowledge/tool usage statistics: every Cline tool start/result for retrieval, code index, file
+- [x] Knowledge/tool usage statistics: every NKlein tool start/result for retrieval, code index, file
   discovery/read, planning-control, architecture-knowledge, and external-fetch tools is recorded as local
   JSONL telemetry and aggregated by project, !Klein version, model, role, tool, category, and outcome. The
   Settings statistics view exposes this beside model performance so weak/small-model knowledge gaps can be
@@ -189,7 +189,7 @@
 - [x] Fail-closed preflight at start + runtime startup; no-host-execution guard tests; Docker-gated
   lifecycle/queue integration tests; orphan reaping; killswitch via container removal; Settings isolation
   status + pool controls.
-- [x] **Live-verified end-to-end (2026-06-19):** a real Cline task against LM Studio ran with a shared Docker
+- [x] **Live-verified end-to-end (2026-06-19):** a real NKlein task against LM Studio ran with a shared Docker
   sandbox container, no host worktree, clean teardown, fail-closed when the image is missing, and clean
   telemetry — via `scripts/verify-strict-isolation.mts`. **Still owed:** browser-only Settings isolation
   status/pool UI inspection.
@@ -244,7 +244,7 @@
   rebase/retry.
 - [~] **Project portability baseline** *(started 2026-06-19)*: runtime-home remains the fast local index/cache,
   but board state, session summaries, revision metadata, and workspace identity are mirrored into
-  `<project>/.cline/nklein/workspace/`; project loads can recover from that workspace-local mirror if the
+  `<project>/.nklein/nklein/workspace/`; project loads can recover from that workspace-local mirror if the
   runtime-home workspace cache is missing. Running sessions, model telemetry/speed, endpoint config,
   sandbox containers, task result branches, and local telemetry remain machine-local.
 - [x] Guidance skills (`security`/`ui`/`ts`) seeded as on-demand `/nklein-*` workflows, routed by card topic.
@@ -254,11 +254,11 @@
 - [x] ~~Decomposition→cards dark under isolation~~ — **resolved 2026-06-19** (see §6); decomposition is
   trusted control-plane and stays host-side under isolation.
 - **PARKED (cloud-dependent; re-enable only when cloud is revisited or a strong local model is proven):**
-  - `cline-advisor.ts` (config explainer / log analysis / MCP discovery advisor buttons).
-  - `cline-model-research.ts` (model-freshness research — needs web + a strong model).
-  - `cline-team-delegation.ts` / `cline-team-progress.ts` (native Cline team delegation UI).
-  - `cline-trusted-auto-merge.ts` (self-merge safety policy — stays off; `null` regression delta blocks).
-  - `cline-web-research-tool.ts` (host web research — also incompatible with `--network none` sandbox).
+  - `nklein-advisor.ts` (config explainer / log analysis / MCP discovery advisor buttons).
+  - `nklein-model-research.ts` (model-freshness research — needs web + a strong model).
+  - `nklein-team-delegation.ts` / `nklein-team-progress.ts` (native NKlein team delegation UI).
+  - `nklein-trusted-auto-merge.ts` (self-merge safety policy — stays off; `null` regression delta blocks).
+  - `nklein-web-research-tool.ts` (host web research — also incompatible with `--network none` sandbox).
   - These compile as parked helpers but render no local-only UI affordance: Settings advisor actions are
     hidden while cloud support is disabled, host web research is not registered while `CLOUD_ENABLED=false`,
     and native SDK team delegation stays disabled even if the legacy env flag is set.
@@ -274,7 +274,7 @@
 
 ### 14.2 — Portable "project state in the repository" (cross-machine continuation) *(active baseline)*
 - [~] **Started 2026-06-19:** !Klein now mirrors core workspace state into
-  `<project>/.cline/nklein/workspace/` and can recover board/session/meta from that mirror when the
+  `<project>/.nklein/nklein/workspace/` and can recover board/session/meta from that mirror when the
   runtime-home cache is missing. This is the base for portability, not the full collaborative sync story.
 - [ ] !Klein shall store **all durable, non-machine-local** information about a project's tasks, task cards, task graph (DAG),
   progress, spec, plans, decisions, and revision history **inside the repository itself** (e.g. a committed
@@ -283,7 +283,7 @@
   2. fetched onto another machine, and
   3. loaded there into a fresh !Klein install, and
   4. **work continued** with whatever local LLM models are available on that machine.
-- **Why:** today part of project state still lives in `~/.cline/nklein/` (per-machine, outside the repo). Moving the durable
+- **Why:** today part of project state still lives in `~/.nklein/nklein/` (per-machine, outside the repo). Moving the durable
   project state into the repo makes a !Klein project portable and collaboratable, and decouples "the plan and
   its progress" from the machine that produced it.
 - **Open clarification topics to resolve WITH THE USER before building (non-exhaustive):**
@@ -301,7 +301,7 @@
 - [~] **Started 2026-06-21 (conflict model chosen: CRDT):** the committed schema, export/import, and load-time
       re-resolution against local models are implemented as a per-field LWW-register board CRDT
       ([portable-board-crdt.ts](src/state/portable-board-crdt.ts)) plus a committed store
-      ([portable-board-store.ts](src/state/portable-board-store.ts)) that drops machine-local `clineSettings` on
+      ([portable-board-store.ts](src/state/portable-board-store.ts)) that drops machine-local `nkleinSettings` on
       import. The CRDT merge is automatic, so no manual rebase UX is needed. Remaining: wire export/import into
       the workspace load/save path and record card-trash tombstones (see plan.md F6.6).
 
@@ -359,4 +359,4 @@
     execution-discovered gaps.
 11. Nothing built since branching from `main` is invisible in the UI (coverage matrix has no unmapped entry).
 12. **Every agent shell/FS action runs in Docker; no host fallback exists; Docker-down fails closed.**
-13. Upstream-clean: re-pulling Cline-Kanban needs no reverts (no `node_modules/@clinebot/*` diffs).
+13. Upstream-clean: re-pulling NKlein-Kanban needs no reverts (no `node_modules/@nkleinbot/*` diffs).

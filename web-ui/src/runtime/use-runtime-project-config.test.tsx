@@ -66,7 +66,7 @@ function createRuntimeConfigResponse(
 		},
 		effectiveCommand: selectedAgentId,
 		globalConfigPath: "/tmp/global-config.json",
-		projectConfigPath: "/tmp/project/.cline/nklein/config.json",
+		projectConfigPath: "/tmp/project/.nklein/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
 		detectedCommands: [selectedAgentId],
 		agents: [
@@ -91,7 +91,7 @@ function createRuntimeConfigResponse(
 		],
 		shortcuts,
 		modelRoles: {},
-		clineProviderSettings: {
+		nkleinProviderSettings: {
 			providerId: null,
 			modelId: null,
 			baseUrl: null,

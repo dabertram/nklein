@@ -127,7 +127,7 @@ function hasCliOption(args: string[], optionName: string): boolean {
 	return false;
 }
 
-function getClineHookScriptPath(
+function getNKleinHookScriptPath(
 	hooksDir: string,
 	hookName: "Notification" | "TaskComplete" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse",
 ): string {
@@ -137,8 +137,8 @@ function getClineHookScriptPath(
 	return join(hooksDir, hookName);
 }
 
-function buildClineHookScriptContent(event: RuntimeHookEvent): string {
-	const commandParts = buildHooksCommandParts(["notify", "--event", event, "--source", "cline"]);
+function buildNKleinHookScriptContent(event: RuntimeHookEvent): string {
+	const commandParts = buildHooksCommandParts(["notify", "--event", event, "--source", "nklein"]);
 	if (process.platform === "win32") {
 		const command = commandParts.map(powerShellQuote).join(" ");
 		return `$inputText = [Console]::In.ReadToEnd()
@@ -158,8 +158,8 @@ echo '{"cancel":false}'
 `;
 }
 
-function buildClineNotificationHookScriptContent(): string {
-	const commandParts = buildHooksCommandParts(["notify", "--event", "to_review", "--source", "cline"]);
+function buildNKleinNotificationHookScriptContent(): string {
+	const commandParts = buildHooksCommandParts(["notify", "--event", "to_review", "--source", "nklein"]);
 	if (process.platform === "win32") {
 		const command = commandParts.map(powerShellQuote).join(" ");
 		return `$inputText = [Console]::In.ReadToEnd()
@@ -187,10 +187,10 @@ echo '{"cancel":false}'
 `;
 }
 
-function buildClinePreToolUseHookScriptContent(): string {
-	const activityCommand = buildHooksCommandParts(["notify", "--event", "activity", "--source", "cline"]);
-	const reviewCommand = buildHooksCommandParts(["notify", "--event", "to_review", "--source", "cline"]);
-	const inProgressCommand = buildHooksCommandParts(["notify", "--event", "to_in_progress", "--source", "cline"]);
+function buildNKleinPreToolUseHookScriptContent(): string {
+	const activityCommand = buildHooksCommandParts(["notify", "--event", "activity", "--source", "nklein"]);
+	const reviewCommand = buildHooksCommandParts(["notify", "--event", "to_review", "--source", "nklein"]);
+	const inProgressCommand = buildHooksCommandParts(["notify", "--event", "to_in_progress", "--source", "nklein"]);
 	if (process.platform === "win32") {
 		const activity = activityCommand.map(powerShellQuote).join(" ");
 		const review = reviewCommand.map(powerShellQuote).join(" ");
@@ -231,9 +231,9 @@ echo '{"cancel":false}'
 `;
 }
 
-function buildClinePostToolUseHookScriptContent(): string {
-	const activityCommand = buildHooksCommandParts(["notify", "--event", "activity", "--source", "cline"]);
-	const inProgressCommand = buildHooksCommandParts(["notify", "--event", "to_in_progress", "--source", "cline"]);
+function buildNKleinPostToolUseHookScriptContent(): string {
+	const activityCommand = buildHooksCommandParts(["notify", "--event", "activity", "--source", "nklein"]);
+	const inProgressCommand = buildHooksCommandParts(["notify", "--event", "to_in_progress", "--source", "nklein"]);
 	if (process.platform === "win32") {
 		const activity = activityCommand.map(powerShellQuote).join(" ");
 		const inProgress = inProgressCommand.map(powerShellQuote).join(" ");
@@ -1370,7 +1370,7 @@ const kiroAdapter: AgentSessionAdapter = {
 	},
 };
 
-const clineAdapter: AgentSessionAdapter = {
+const nkleinAdapter: AgentSessionAdapter = {
 	async prepare(input) {
 		const args = [...input.args];
 		const env: Record<string, string | undefined> = {};
@@ -1389,19 +1389,19 @@ const clineAdapter: AgentSessionAdapter = {
 
 		const hooks = resolveHookContext(input);
 		if (hooks) {
-			const hooksDir = getHookAgentDirectory("cline");
-			const notificationHookPath = getClineHookScriptPath(hooksDir, "Notification");
-			const taskCompleteHookPath = getClineHookScriptPath(hooksDir, "TaskComplete");
-			const userPromptSubmitHookPath = getClineHookScriptPath(hooksDir, "UserPromptSubmit");
-			const preToolUseHookPath = getClineHookScriptPath(hooksDir, "PreToolUse");
-			const postToolUseHookPath = getClineHookScriptPath(hooksDir, "PostToolUse");
+			const hooksDir = getHookAgentDirectory("nklein");
+			const notificationHookPath = getNKleinHookScriptPath(hooksDir, "Notification");
+			const taskCompleteHookPath = getNKleinHookScriptPath(hooksDir, "TaskComplete");
+			const userPromptSubmitHookPath = getNKleinHookScriptPath(hooksDir, "UserPromptSubmit");
+			const preToolUseHookPath = getNKleinHookScriptPath(hooksDir, "PreToolUse");
+			const postToolUseHookPath = getNKleinHookScriptPath(hooksDir, "PostToolUse");
 			const executable = process.platform !== "win32";
 
-			await ensureTextFile(notificationHookPath, buildClineNotificationHookScriptContent(), executable);
-			await ensureTextFile(taskCompleteHookPath, buildClineHookScriptContent("to_review"), executable);
-			await ensureTextFile(userPromptSubmitHookPath, buildClineHookScriptContent("to_in_progress"), executable);
-			await ensureTextFile(preToolUseHookPath, buildClinePreToolUseHookScriptContent(), executable);
-			await ensureTextFile(postToolUseHookPath, buildClinePostToolUseHookScriptContent(), executable);
+			await ensureTextFile(notificationHookPath, buildNKleinNotificationHookScriptContent(), executable);
+			await ensureTextFile(taskCompleteHookPath, buildNKleinHookScriptContent("to_review"), executable);
+			await ensureTextFile(userPromptSubmitHookPath, buildNKleinHookScriptContent("to_in_progress"), executable);
+			await ensureTextFile(preToolUseHookPath, buildNKleinPreToolUseHookScriptContent(), executable);
+			await ensureTextFile(postToolUseHookPath, buildNKleinPostToolUseHookScriptContent(), executable);
 
 			if (!hasCliOption(args, "--hooks-dir")) {
 				args.push("--hooks-dir", hooksDir);
@@ -1434,7 +1434,7 @@ const ADAPTERS: Record<RuntimeAgentId, AgentSessionAdapter> = {
 	opencode: opencodeAdapter,
 	droid: droidAdapter,
 	kiro: kiroAdapter,
-	cline: clineAdapter,
+	nklein: nkleinAdapter,
 };
 
 export async function prepareAgentLaunch(input: AgentAdapterLaunchInput): Promise<PreparedAgentLaunch> {

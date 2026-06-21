@@ -6,7 +6,7 @@ This repo is still named `kanban`, but the product name is `!Klein` and the CLI 
 
 - Node.js 20+
 - npm 10+
-- Docker, for strict local isolation of Cline agent tool execution
+- Docker, for strict local isolation of NKlein agent tool execution
 
 ## Install
 
@@ -14,7 +14,7 @@ This repo is still named `kanban`, but the product name is `!Klein` and the CLI 
 npm run install:all
 ```
 
-Build the pinned agent sandbox image before starting Cline-backed tasks:
+Build the pinned agent sandbox image before starting NKlein-backed tasks:
 
 ```bash
 npm run sandbox:build
@@ -175,7 +175,7 @@ npm run unlink
 - `npm run dev:full`: run the runtime watch server and Vite web UI dev server together
 - `npm run web:dev`: run web UI dev server
 - `npm run web:build`: build web UI
-- `npm run sandbox:build`: build the pinned Docker image used for Cline agent tool isolation
+- `npm run sandbox:build`: build the pinned Docker image used for NKlein agent tool isolation
 - `npm run typecheck`: typecheck runtime
 - `npm run web:typecheck`: typecheck web UI
 - `npm run test`: run runtime tests
@@ -214,7 +214,7 @@ How it works end to end:
 Current agent mappings:
 
 These are external agent/file-hook names where the agent config requires them.
-They are distinct from Cline SDK plugin runtime hooks such as `beforeRun`,
+They are distinct from NKlein SDK plugin runtime hooks such as `beforeRun`,
 `beforeTool`, `afterTool`, and `afterRun`.
 
 - Claude
@@ -262,7 +262,7 @@ Local development:
 
 Release builds:
 - The publish workflow injects `POSTHOG_KEY` and `POSTHOG_HOST` from GitHub Secrets.
-- `POSTHOG_HOST` is optional and defaults to `https://data.cline.bot`.
+- `POSTHOG_HOST` is optional and defaults to `https://data.nklein.bot`.
 
 Result:
 - Official releases have telemetry enabled.

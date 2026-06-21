@@ -15,7 +15,7 @@ function summary(activityText: string | null, lastHookAt: number, toolName: stri
 					finalMessage: null,
 					hookEventName: "tool",
 					notificationType: null,
-					source: "cline-sdk",
+					source: "nklein-sdk",
 				}
 			: null,
 		lastHookAt,

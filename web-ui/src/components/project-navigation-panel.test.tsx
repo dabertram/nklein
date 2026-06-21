@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectNavigationPanel } from "@/components/project-navigation-panel";
 import { useProjectNavigationLayout } from "@/resize/use-project-navigation-layout";
-import type { RuntimeClineProviderSettings, RuntimeProjectSummary } from "@/runtime/types";
+import type { RuntimeNKleinProviderSettings, RuntimeProjectSummary } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
 
 vi.mock("@/resize/layout-customizations", () => ({
@@ -30,14 +30,14 @@ const cleanupDevTestProjectsMock = vi.hoisted(() => vi.fn());
 const createDevTestProjectMock = vi.hoisted(() => vi.fn());
 const createSelfImprovementProjectMock = vi.hoisted(() => vi.fn());
 const migrateAccidentalProjectArtifactsMock = vi.hoisted(() => vi.fn());
-const fetchClineCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
+const fetchNKleinCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	cleanupDevTestProjects: cleanupDevTestProjectsMock,
 	createDevTestProject: createDevTestProjectMock,
 	createSelfImprovementProject: createSelfImprovementProjectMock,
 	migrateAccidentalProjectArtifacts: migrateAccidentalProjectArtifactsMock,
-	fetchClineCodeIntelligenceStatus: fetchClineCodeIntelligenceStatusMock,
+	fetchNKleinCodeIntelligenceStatus: fetchNKleinCodeIntelligenceStatusMock,
 }));
 
 const PROJECTS: RuntimeProjectSummary[] = [
@@ -62,7 +62,7 @@ const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
 	{
 		id: "worktree-project",
 		name: "!Klein",
-		path: "/Users/david/.cline/worktrees/source-card/kanban",
+		path: "/Users/david/.nklein/worktrees/source-card/kanban",
 		taskCounts: {
 			backlog: 10,
 			planning: 0,
@@ -89,13 +89,13 @@ const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
 	},
 ];
 
-const CLINE_OAUTH_SETTINGS: RuntimeClineProviderSettings = {
+const NKLEIN_OAUTH_SETTINGS: RuntimeNKleinProviderSettings = {
 	providerId: null,
-	modelId: "cline-sonnet",
+	modelId: "nklein-sonnet",
 	baseUrl: null,
 	reasoningEffort: null,
 	apiKeyConfigured: false,
-	oauthProvider: "cline",
+	oauthProvider: "nklein",
 	oauthAccessTokenConfigured: true,
 	oauthRefreshTokenConfigured: true,
 	oauthAccountId: "acc-1",
@@ -168,7 +168,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 				startInPlanMode: true,
 				autoReviewEnabled: true,
 				autoReviewMode: "commit",
-				agentId: "cline",
+				agentId: "nklein",
 				baseRef: "main",
 				createdAt: 1,
 				updatedAt: 1,
@@ -185,8 +185,8 @@ describe("ProjectNavigationPanel width persistence", () => {
 			parentWorkspacePath: "/tmp/kanban",
 			errors: [],
 		});
-		fetchClineCodeIntelligenceStatusMock.mockReset();
-		fetchClineCodeIntelligenceStatusMock.mockResolvedValue({
+		fetchNKleinCodeIntelligenceStatusMock.mockReset();
+		fetchNKleinCodeIntelligenceStatusMock.mockResolvedValue({
 			codeEmbeddingSettings: {
 				globalDefaults: {
 					provider: "local_lexical",
@@ -210,7 +210,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 				error: null,
 			},
 			codeIndex: {
-				cachePath: "/repo/.cline/nklein/code-index-v1.json",
+				cachePath: "/repo/.nklein/nklein/code-index-v1.json",
 				cacheExists: true,
 				embeddingProvider: "local_lexical",
 				embeddingModel: "kanban-local-lexical-vector-v1",
@@ -277,7 +277,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 					onActiveSectionChange={() => {}}
 					canShowAgentSection
 					selectedAgentId={null}
-					clineProviderSettings={null}
+					nkleinProviderSettings={null}
 					featurebaseFeedbackState={undefined}
 					onSelectProject={() => {}}
 					onRemoveProject={async () => true}
@@ -336,11 +336,11 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).toContain("Report issue");
 	});
 
-	it("shows send feedback instead of report issue when Cline OAuth is available", () => {
+	it("shows send feedback instead of report issue when NKlein OAuth is available", () => {
 		renderPanel({
 			cloudProviderSupportEnabled: true,
-			selectedAgentId: "cline",
-			clineProviderSettings: CLINE_OAUTH_SETTINGS,
+			selectedAgentId: "nklein",
+			nkleinProviderSettings: NKLEIN_OAUTH_SETTINGS,
 			featurebaseFeedbackState: {
 				authState: "ready",
 				widgetOpenCount: 0,
@@ -358,7 +358,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 			await Promise.resolve();
 		});
 
-		expect(fetchClineCodeIntelligenceStatusMock).toHaveBeenCalledWith("project-1");
+		expect(fetchNKleinCodeIntelligenceStatusMock).toHaveBeenCalledWith("project-1");
 		expect(container.textContent).toContain("Code intelligence");
 		expect(container.textContent).toContain("16/20 chunks (80%) indexed");
 		expect(container.textContent).toContain("repo map ready");
@@ -373,7 +373,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 			await Promise.resolve();
 		});
 
-		expect(fetchClineCodeIntelligenceStatusMock).not.toHaveBeenCalled();
+		expect(fetchNKleinCodeIntelligenceStatusMock).not.toHaveBeenCalled();
 		expect(container.textContent).not.toContain("Code intelligence");
 	});
 
@@ -383,6 +383,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).toContain("Create fixture projects");
 		expect(container.textContent).toContain("Create mid task project");
 		expect(container.textContent).toContain("Create complex product project");
+		expect(container.textContent).toContain("Create audio VST project");
 		expect(container.textContent).toContain("Create self-improvement project");
 	});
 
@@ -399,6 +400,49 @@ describe("ProjectNavigationPanel width persistence", () => {
 				"Create a marked !Klein dev-test project and make it the active project?",
 			);
 			expect(createDevTestProjectMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("requires confirmation before creating audio VST dev-test projects", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ developerModeEnabled: true });
+
+			act(() => {
+				getButtonByText(container, "Create audio VST project").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Create a marked !Klein audio VST dev-test project and make it the active project?",
+			);
+			expect(createDevTestProjectMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("creates audio VST dev-test projects with the audio preset", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		createDevTestProjectMock.mockResolvedValue({
+			ok: false,
+			error: "stop after mutation for test",
+			project: null,
+			task: null,
+			workspacePath: null,
+			scenario: null,
+			evidenceRootPath: null,
+		});
+		try {
+			renderPanel({ developerModeEnabled: true });
+
+			await act(async () => {
+				getButtonByText(container, "Create audio VST project").click();
+				await Promise.resolve();
+			});
+
+			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { preset: "audio_vst" });
 		} finally {
 			confirmSpy.mockRestore();
 		}

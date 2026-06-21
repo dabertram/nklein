@@ -1,26 +1,26 @@
 import { z } from "zod";
 
 import {
-	type RuntimeClineAccountSwitchRequest,
-	type RuntimeClineAddProviderRequest,
-	type RuntimeClineAdvisorBuildRequest,
-	type RuntimeClineAdvisorSendRequest,
-	type RuntimeClineDeviceAuthCompleteRequest,
-	type RuntimeClineDogfoodBacklogRequest,
-	type RuntimeClineEndpointModelDiscoveryRequest,
-	type RuntimeClineMcpOAuthRequest,
-	type RuntimeClineMcpSettingsSaveRequest,
-	type RuntimeClineModelContextWindowOverrideRequest,
-	type RuntimeClineModelRegistryRemoveRequest,
-	type RuntimeClineOauthLoginRequest,
-	type RuntimeClineProviderModelsRequest,
-	type RuntimeClineProviderSettingsSaveRequest,
-	type RuntimeClineUpdateProviderRequest,
 	type RuntimeCommandRunRequest,
 	type RuntimeConfigSaveRequest,
 	type RuntimeDirectoryListRequest,
 	type RuntimeGitCheckoutRequest,
 	type RuntimeHookIngestRequest,
+	type RuntimeNKleinAccountSwitchRequest,
+	type RuntimeNKleinAddProviderRequest,
+	type RuntimeNKleinAdvisorBuildRequest,
+	type RuntimeNKleinAdvisorSendRequest,
+	type RuntimeNKleinDeviceAuthCompleteRequest,
+	type RuntimeNKleinDogfoodBacklogRequest,
+	type RuntimeNKleinEndpointModelDiscoveryRequest,
+	type RuntimeNKleinMcpOAuthRequest,
+	type RuntimeNKleinMcpSettingsSaveRequest,
+	type RuntimeNKleinModelContextWindowOverrideRequest,
+	type RuntimeNKleinModelRegistryRemoveRequest,
+	type RuntimeNKleinOauthLoginRequest,
+	type RuntimeNKleinProviderModelsRequest,
+	type RuntimeNKleinProviderSettingsSaveRequest,
+	type RuntimeNKleinUpdateProviderRequest,
 	type RuntimeProjectAddRequest,
 	type RuntimeProjectArtifactMigrationRequest,
 	type RuntimeProjectRemoveRequest,
@@ -45,26 +45,26 @@ import {
 	type RuntimeWorkspaceStateSaveRequest,
 	type RuntimeWorktreeDeleteRequest,
 	type RuntimeWorktreeEnsureRequest,
-	runtimeClineAccountSwitchRequestSchema,
-	runtimeClineAddProviderRequestSchema,
-	runtimeClineAdvisorBuildRequestSchema,
-	runtimeClineAdvisorSendRequestSchema,
-	runtimeClineDeviceAuthCompleteRequestSchema,
-	runtimeClineDogfoodBacklogRequestSchema,
-	runtimeClineEndpointModelDiscoveryRequestSchema,
-	runtimeClineMcpOAuthRequestSchema,
-	runtimeClineMcpSettingsSaveRequestSchema,
-	runtimeClineModelContextWindowOverrideRequestSchema,
-	runtimeClineModelRegistryRemoveRequestSchema,
-	runtimeClineOauthLoginRequestSchema,
-	runtimeClineProviderModelsRequestSchema,
-	runtimeClineProviderSettingsSaveRequestSchema,
-	runtimeClineUpdateProviderRequestSchema,
 	runtimeCommandRunRequestSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDirectoryListRequestSchema,
 	runtimeGitCheckoutRequestSchema,
 	runtimeHookIngestRequestSchema,
+	runtimeNKleinAccountSwitchRequestSchema,
+	runtimeNKleinAddProviderRequestSchema,
+	runtimeNKleinAdvisorBuildRequestSchema,
+	runtimeNKleinAdvisorSendRequestSchema,
+	runtimeNKleinDeviceAuthCompleteRequestSchema,
+	runtimeNKleinDogfoodBacklogRequestSchema,
+	runtimeNKleinEndpointModelDiscoveryRequestSchema,
+	runtimeNKleinMcpOAuthRequestSchema,
+	runtimeNKleinMcpSettingsSaveRequestSchema,
+	runtimeNKleinModelContextWindowOverrideRequestSchema,
+	runtimeNKleinModelRegistryRemoveRequestSchema,
+	runtimeNKleinOauthLoginRequestSchema,
+	runtimeNKleinProviderModelsRequestSchema,
+	runtimeNKleinProviderSettingsSaveRequestSchema,
+	runtimeNKleinUpdateProviderRequestSchema,
 	runtimeProjectAddRequestSchema,
 	runtimeProjectArtifactMigrationRequestSchema,
 	runtimeProjectRemoveRequestSchema,
@@ -208,6 +208,7 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 	const path = parsed.path?.trim() || undefined;
 	const gitUrl = parsed.gitUrl?.trim() || undefined;
 	const ref = parsed.ref?.trim() || undefined;
+	const projectName = parsed.projectName?.trim() || undefined;
 	if (!path && !gitUrl) {
 		throw new Error("Either path or gitUrl is required.");
 	}
@@ -215,6 +216,8 @@ export function parseProjectAddRequest(value: unknown): RuntimeProjectAddRequest
 		path,
 		gitUrl,
 		ref,
+		projectName,
+		createDirectory: parsed.createDirectory,
 		initializeGit: parsed.initializeGit,
 		confirmSelfProject: parsed.confirmSelfProject,
 		allowTaskWorktreeProject: parsed.allowTaskWorktreeProject,
@@ -412,8 +415,8 @@ export function parseTaskChatCancelRequest(value: unknown): RuntimeTaskChatCance
 	};
 }
 
-export function parseClineProviderModelsRequest(value: unknown): RuntimeClineProviderModelsRequest {
-	const parsed = parseWithSchema(runtimeClineProviderModelsRequestSchema, value);
+export function parseNKleinProviderModelsRequest(value: unknown): RuntimeNKleinProviderModelsRequest {
+	const parsed = parseWithSchema(runtimeNKleinProviderModelsRequestSchema, value);
 	const providerId = parsed.providerId.trim();
 	if (!providerId) {
 		throw new Error("Provider ID cannot be empty.");
@@ -423,8 +426,8 @@ export function parseClineProviderModelsRequest(value: unknown): RuntimeClinePro
 	};
 }
 
-export function parseClineEndpointModelDiscoveryRequest(value: unknown): RuntimeClineEndpointModelDiscoveryRequest {
-	const parsed = parseWithSchema(runtimeClineEndpointModelDiscoveryRequestSchema, value);
+export function parseNKleinEndpointModelDiscoveryRequest(value: unknown): RuntimeNKleinEndpointModelDiscoveryRequest {
+	const parsed = parseWithSchema(runtimeNKleinEndpointModelDiscoveryRequestSchema, value);
 	const baseUrl = parsed.baseUrl.trim();
 	if (!baseUrl) {
 		throw new Error("Base URL cannot be empty.");
@@ -437,10 +440,10 @@ export function parseClineEndpointModelDiscoveryRequest(value: unknown): Runtime
 	};
 }
 
-export function parseClineModelContextWindowOverrideRequest(
+export function parseNKleinModelContextWindowOverrideRequest(
 	value: unknown,
-): RuntimeClineModelContextWindowOverrideRequest {
-	const parsed = parseWithSchema(runtimeClineModelContextWindowOverrideRequestSchema, value);
+): RuntimeNKleinModelContextWindowOverrideRequest {
+	const parsed = parseWithSchema(runtimeNKleinModelContextWindowOverrideRequestSchema, value);
 	const providerId = parsed.providerId.trim();
 	const modelId = parsed.modelId.trim();
 	const endpoint = parsed.endpoint?.trim() || null;
@@ -458,8 +461,8 @@ export function parseClineModelContextWindowOverrideRequest(
 	};
 }
 
-export function parseClineModelRegistryRemoveRequest(value: unknown): RuntimeClineModelRegistryRemoveRequest {
-	const parsed = parseWithSchema(runtimeClineModelRegistryRemoveRequestSchema, value);
+export function parseNKleinModelRegistryRemoveRequest(value: unknown): RuntimeNKleinModelRegistryRemoveRequest {
+	const parsed = parseWithSchema(runtimeNKleinModelRegistryRemoveRequestSchema, value);
 	const key = parsed.key.trim();
 	if (!key) {
 		throw new Error("Model registry key cannot be empty.");
@@ -467,20 +470,20 @@ export function parseClineModelRegistryRemoveRequest(value: unknown): RuntimeCli
 	return { key };
 }
 
-export function parseClineAdvisorBuildRequest(value: unknown): RuntimeClineAdvisorBuildRequest {
-	return parseWithSchema(runtimeClineAdvisorBuildRequestSchema, value);
+export function parseNKleinAdvisorBuildRequest(value: unknown): RuntimeNKleinAdvisorBuildRequest {
+	return parseWithSchema(runtimeNKleinAdvisorBuildRequestSchema, value);
 }
 
-export function parseClineAdvisorSendRequest(value: unknown): RuntimeClineAdvisorSendRequest {
-	return parseWithSchema(runtimeClineAdvisorSendRequestSchema, value);
+export function parseNKleinAdvisorSendRequest(value: unknown): RuntimeNKleinAdvisorSendRequest {
+	return parseWithSchema(runtimeNKleinAdvisorSendRequestSchema, value);
 }
 
-export function parseClineDogfoodBacklogRequest(value: unknown): RuntimeClineDogfoodBacklogRequest {
-	return parseWithSchema(runtimeClineDogfoodBacklogRequestSchema, value);
+export function parseNKleinDogfoodBacklogRequest(value: unknown): RuntimeNKleinDogfoodBacklogRequest {
+	return parseWithSchema(runtimeNKleinDogfoodBacklogRequestSchema, value);
 }
 
-export function parseClineAddProviderRequest(value: unknown): RuntimeClineAddProviderRequest {
-	const parsed = parseWithSchema(runtimeClineAddProviderRequestSchema, value);
+export function parseNKleinAddProviderRequest(value: unknown): RuntimeNKleinAddProviderRequest {
+	const parsed = parseWithSchema(runtimeNKleinAddProviderRequestSchema, value);
 	const providerId = parsed.providerId.trim().toLowerCase().replace(/\s+/g, "-");
 	if (!providerId) {
 		throw new Error("Provider ID cannot be empty.");
@@ -520,8 +523,8 @@ export function parseClineAddProviderRequest(value: unknown): RuntimeClineAddPro
 	};
 }
 
-export function parseClineUpdateProviderRequest(value: unknown): RuntimeClineUpdateProviderRequest {
-	const parsed = parseWithSchema(runtimeClineUpdateProviderRequestSchema, value);
+export function parseNKleinUpdateProviderRequest(value: unknown): RuntimeNKleinUpdateProviderRequest {
+	const parsed = parseWithSchema(runtimeNKleinUpdateProviderRequestSchema, value);
 	const providerId = parsed.providerId.trim().toLowerCase().replace(/\s+/g, "-");
 	if (!providerId) {
 		throw new Error("Provider ID cannot be empty.");
@@ -553,8 +556,8 @@ export function parseClineUpdateProviderRequest(value: unknown): RuntimeClineUpd
 	};
 }
 
-export function parseClineProviderSettingsSaveRequest(value: unknown): RuntimeClineProviderSettingsSaveRequest {
-	const parsed = parseWithSchema(runtimeClineProviderSettingsSaveRequestSchema, value);
+export function parseNKleinProviderSettingsSaveRequest(value: unknown): RuntimeNKleinProviderSettingsSaveRequest {
+	const parsed = parseWithSchema(runtimeNKleinProviderSettingsSaveRequestSchema, value);
 	const providerId = parsed.providerId.trim();
 	if (!providerId) {
 		throw new Error("Provider ID cannot be empty.");
@@ -590,8 +593,8 @@ export function parseClineProviderSettingsSaveRequest(value: unknown): RuntimeCl
 	};
 }
 
-export function parseClineMcpSettingsSaveRequest(value: unknown): RuntimeClineMcpSettingsSaveRequest {
-	const parsed = parseWithSchema(runtimeClineMcpSettingsSaveRequestSchema, value);
+export function parseNKleinMcpSettingsSaveRequest(value: unknown): RuntimeNKleinMcpSettingsSaveRequest {
+	const parsed = parseWithSchema(runtimeNKleinMcpSettingsSaveRequestSchema, value);
 	const normalizedServers = parsed.servers.map((server) => {
 		const name = server.name.trim();
 		if (!name) {
@@ -659,8 +662,8 @@ export function parseClineMcpSettingsSaveRequest(value: unknown): RuntimeClineMc
 	};
 }
 
-export function parseClineMcpOAuthRequest(value: unknown): RuntimeClineMcpOAuthRequest {
-	const parsed = parseWithSchema(runtimeClineMcpOAuthRequestSchema, value);
+export function parseNKleinMcpOAuthRequest(value: unknown): RuntimeNKleinMcpOAuthRequest {
+	const parsed = parseWithSchema(runtimeNKleinMcpOAuthRequestSchema, value);
 	const serverName = parsed.serverName.trim();
 	if (!serverName) {
 		throw new Error("MCP server name cannot be empty.");
@@ -670,16 +673,16 @@ export function parseClineMcpOAuthRequest(value: unknown): RuntimeClineMcpOAuthR
 	};
 }
 
-export function parseClineOauthLoginRequest(value: unknown): RuntimeClineOauthLoginRequest {
-	const parsed = parseWithSchema(runtimeClineOauthLoginRequestSchema, value);
+export function parseNKleinOauthLoginRequest(value: unknown): RuntimeNKleinOauthLoginRequest {
+	const parsed = parseWithSchema(runtimeNKleinOauthLoginRequestSchema, value);
 	return {
 		...parsed,
 		baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl.trim() || null : parsed.baseUrl,
 	};
 }
 
-export function parseClineDeviceAuthCompleteRequest(value: unknown): RuntimeClineDeviceAuthCompleteRequest {
-	const parsed = parseWithSchema(runtimeClineDeviceAuthCompleteRequestSchema, value);
+export function parseNKleinDeviceAuthCompleteRequest(value: unknown): RuntimeNKleinDeviceAuthCompleteRequest {
+	const parsed = parseWithSchema(runtimeNKleinDeviceAuthCompleteRequestSchema, value);
 	return {
 		...parsed,
 		baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl.trim() || null : parsed.baseUrl,
@@ -748,8 +751,8 @@ export function parseDirectoryListRequest(value: unknown): RuntimeDirectoryListR
 	return parseWithSchema(runtimeDirectoryListRequestSchema, value);
 }
 
-export function parseClineAccountSwitchRequest(value: unknown): RuntimeClineAccountSwitchRequest {
-	return parseWithSchema(runtimeClineAccountSwitchRequestSchema, value);
+export function parseNKleinAccountSwitchRequest(value: unknown): RuntimeNKleinAccountSwitchRequest {
+	return parseWithSchema(runtimeNKleinAccountSwitchRequestSchema, value);
 }
 
 export function parseTaskEvidenceRequest(value: unknown): RuntimeTaskEvidenceRequest {

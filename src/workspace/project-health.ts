@@ -35,7 +35,7 @@ function boardHasTask(board: RuntimeBoardData, taskId: string): boolean {
 }
 
 async function countPlanArtifacts(workspacePath: string): Promise<number> {
-	const plansPath = join(workspacePath, ".cline", "nklein", "plans");
+	const plansPath = join(workspacePath, ".nklein", "nklein", "plans");
 	const entries = await readdir(plansPath, { withFileTypes: true }).catch(() => []);
 	return entries.filter((entry) => entry.isDirectory()).length;
 }
@@ -58,7 +58,7 @@ function readPendingPlanArtifactInfo(value: unknown): PendingPlanArtifactInfo | 
 }
 
 async function listPendingPlanArtifacts(workspacePath: string): Promise<PendingPlanArtifactInfo[]> {
-	const plansPath = join(workspacePath, ".cline", "nklein", "plans");
+	const plansPath = join(workspacePath, ".nklein", "nklein", "plans");
 	const entries = await readdir(plansPath, { withFileTypes: true }).catch(() => []);
 	const pending: PendingPlanArtifactInfo[] = [];
 	for (const entry of entries) {

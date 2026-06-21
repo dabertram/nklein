@@ -15,7 +15,7 @@ const dndMock = vi.hoisted(() => ({
 }));
 const runtimeConfigQueryMocks = vi.hoisted(() => ({
 	collectTaskEvidence: vi.fn(),
-	fetchClineCodeIntelligenceStatus: vi.fn(),
+	fetchNKleinCodeIntelligenceStatus: vi.fn(),
 	pauseTask: vi.fn(),
 	resumeTask: vi.fn(),
 	saveRuntimeConfig: vi.fn(),
@@ -109,7 +109,7 @@ vi.mock("@/components/dependencies/use-dependency-linking", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	collectTaskEvidence: runtimeConfigQueryMocks.collectTaskEvidence,
-	fetchClineCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus,
+	fetchNKleinCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus,
 	pauseTask: runtimeConfigQueryMocks.pauseTask,
 	resumeTask: runtimeConfigQueryMocks.resumeTask,
 	saveRuntimeConfig: runtimeConfigQueryMocks.saveRuntimeConfig,
@@ -141,7 +141,7 @@ function createRect(left: number, top: number, width: number, height: number): D
 
 function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse {
 	return {
-		selectedAgentId: "cline",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
@@ -179,17 +179,17 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 			model: "kanban-local-lexical-vector-v1",
 			baseUrl: null,
 		},
-		effectiveCommand: "cline",
+		effectiveCommand: "nklein",
 		globalConfigPath: "/tmp/global-config.json",
-		projectConfigPath: "/tmp/project/.cline/nklein/config.json",
+		projectConfigPath: "/tmp/project/.nklein/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
-		detectedCommands: ["cline"],
+		detectedCommands: ["nklein"],
 		agents: [
 			{
-				id: "cline",
-				label: "Cline",
-				binary: "cline",
-				command: "cline",
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "nklein",
 				defaultArgs: [],
 				installed: true,
 				configured: true,
@@ -197,7 +197,7 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		],
 		shortcuts: [],
 		modelRoles: {},
-		clineProviderSettings: {
+		nkleinProviderSettings: {
 			providerId: "lmstudio",
 			modelId: "local-model",
 			baseUrl: null,
@@ -220,7 +220,7 @@ function createRunningSession(taskId: string, sharedEndpointId: string, modelId:
 		taskId,
 		state: "running",
 		mode: "act",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/project",
 		pid: 123,
 		startedAt: Date.now() - 1000,
@@ -274,8 +274,8 @@ describe("KanbanBoard", () => {
 			diffPatchText: "File: src/example.ts\nStatus: modified",
 			promptBlock: "Here is evidence from a !Klein task.",
 		});
-		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockReset();
-		runtimeConfigQueryMocks.fetchClineCodeIntelligenceStatus.mockResolvedValue(null);
+		runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus.mockReset();
+		runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus.mockResolvedValue(null);
 		runtimeConfigQueryMocks.pauseTask.mockReset();
 		runtimeConfigQueryMocks.pauseTask.mockResolvedValue({
 			ok: true,
@@ -363,7 +363,7 @@ describe("KanbanBoard", () => {
 							title: "Ready",
 							prompt: "Build",
 							startInPlanMode: false,
-							agentId: "cline",
+							agentId: "nklein",
 							baseRef: "main",
 							createdAt: 1,
 							updatedAt: 1,
@@ -373,7 +373,7 @@ describe("KanbanBoard", () => {
 							title: "Blocked",
 							prompt: "Blocked",
 							startInPlanMode: false,
-							agentId: "cline",
+							agentId: "nklein",
 							baseRef: "main",
 							blockedKind: "needs_decomposition",
 							createdAt: 2,
@@ -428,7 +428,7 @@ describe("KanbanBoard", () => {
 							title: "Review task",
 							prompt: "Fix the issue",
 							startInPlanMode: false,
-							agentId: "cline",
+							agentId: "nklein",
 							baseRef: "main",
 							createdAt: 1,
 							updatedAt: 1,
@@ -503,7 +503,7 @@ describe("KanbanBoard", () => {
 							title: "Running task",
 							prompt: "Keep working",
 							startInPlanMode: false,
-							agentId: "cline",
+							agentId: "nklein",
 							baseRef: "main",
 							createdAt: 1,
 							updatedAt: 1,

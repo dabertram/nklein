@@ -44,7 +44,7 @@
 			"plugins": ["grit/no-console.grit", "grit/no-process-exit.grit"]
 		},
 		{
-			"includes": ["src/**/*.ts", "src/**/*.tsx", "!src/cline-sdk/**/*.ts"],
+			"includes": ["src/**/*.ts", "src/**/*.tsx", "!src/nklein-sdk/**/*.ts"],
 			"linter": {
 				"rules": {
 					"style": {
@@ -53,17 +53,17 @@
 							"options": {
 								"patterns": [
 									{
-										"group": ["@clinebot/core", "@clinebot/core/**"],
-										"message": "Import Cline SDK packages only through src/cline-sdk/sdk-provider-boundary.ts or src/cline-sdk/sdk-runtime-boundary.ts."
+										"group": ["@nkleinbot/core", "@nkleinbot/core/**"],
+										"message": "Import NKlein SDK packages only through src/nklein-sdk/sdk-provider-boundary.ts or src/nklein-sdk/sdk-runtime-boundary.ts."
 									},
 									{
 										"group": [
-											"@clinebot/shared",
-											"@clinebot/shared/**",
-											"@clinebot/llms",
-											"@clinebot/llms/**"
+											"@nkleinbot/shared",
+											"@nkleinbot/shared/**",
+											"@nkleinbot/llms",
+											"@nkleinbot/llms/**"
 										],
-										"message": "Import Cline SDK packages only through src/cline-sdk/ boundary files."
+										"message": "Import NKlein SDK packages only through src/nklein-sdk/ boundary files."
 									}
 								]
 							}

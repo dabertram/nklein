@@ -172,7 +172,7 @@ describe.sequential("workspace-state integration", () => {
 						"task-1": createSessionSummary("task-1"),
 					},
 				});
-				const localStatePath = join(workspacePath, ".cline", "nklein", "workspace");
+				const localStatePath = join(workspacePath, ".nklein", "nklein", "workspace");
 				expect(existsSync(join(localStatePath, "identity.json"))).toBe(true);
 				expect(JSON.parse(readFileSync(join(localStatePath, "identity.json"), "utf8"))).toMatchObject({
 					version: 1,
@@ -212,18 +212,18 @@ describe.sequential("workspace-state integration", () => {
 				const board = createBoard("CRDT Task");
 				const card = board.columns[0]?.cards[0];
 				if (card) {
-					(card as { clineSettings?: unknown }).clineSettings = { providerId: "lmstudio", modelId: "qwen" };
+					(card as { nkleinSettings?: unknown }).nkleinSettings = { providerId: "lmstudio", modelId: "qwen" };
 				}
 				await saveWorkspaceState(workspacePath, { board });
 
-				const crdtPath = join(workspacePath, ".cline", "nklein", "workspace", "board-crdt.json");
+				const crdtPath = join(workspacePath, ".nklein", "nklein", "workspace", "board-crdt.json");
 				expect(existsSync(crdtPath)).toBe(true);
 
 				// Simulate a fresh machine: drop the runtime cache and the project board mirror, keep the CRDT
 				// (and the identity mirror so the workspace still resolves).
 				rmSync(join(getWorkspacesRootPath(), context.workspaceId), { recursive: true, force: true });
 				rmSync(join(getWorkspacesRootPath(), "index.json"), { force: true });
-				rmSync(join(workspacePath, ".cline", "nklein", "workspace", "board.json"), { force: true });
+				rmSync(join(workspacePath, ".nklein", "nklein", "workspace", "board.json"), { force: true });
 
 				await loadWorkspaceContext(workspacePath);
 				const recovered = await loadWorkspaceState(workspacePath);
@@ -232,7 +232,7 @@ describe.sequential("workspace-state integration", () => {
 					.find((entry) => entry.id === "task-1");
 				expect(recoveredCard?.prompt).toBe("CRDT Task");
 				// Machine-local model assignment is dropped so it re-resolves against this machine.
-				expect(recoveredCard && "clineSettings" in recoveredCard).toBe(false);
+				expect(recoveredCard && "nkleinSettings" in recoveredCard).toBe(false);
 			} finally {
 				cleanup();
 			}

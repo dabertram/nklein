@@ -27,7 +27,7 @@ export interface RenderAppendSystemPromptOptions {
 const APPEND_PROMPT_AGENT_IDS: readonly RuntimeAgentId[] = [
 	"claude",
 	"codex",
-	"cline",
+	"nklein",
 	"droid",
 	"kiro",
 	"gemini",
@@ -52,8 +52,8 @@ function resolveHomeAgentId(taskId: string): RuntimeAgentId | null {
 
 function renderLinearSetupGuidanceForAgent(agentId: RuntimeAgentId | null): string {
 	switch (agentId) {
-		case "cline":
-			return "- If Linear MCP is not available in the current agent (Cline), direct the user to open settings and go to the MCP section where they can add the Linear integration.";
+		case "nklein":
+			return "- If Linear MCP is not available in the current agent (!Klein), direct the user to open settings and go to the MCP section where they can add the Linear integration.";
 		case "claude":
 			return "- If Linear MCP is not available in the current agent (Claude Code), suggest running: `claude mcp add --transport http --scope user linear https://mcp.linear.app/mcp`";
 		case "codex":
@@ -145,7 +145,7 @@ If the user asks you to write code, fix a bug, implement a feature, refactor, or
 - !Klein also supports linking tasks. Linking is useful both for parallelization and for dependencies: when work is easy to decompose into multiple pieces that can be done in parallel, link multiple backlog tasks to the same dependency so they all become ready to start once that dependency finishes; when one piece of work depends on another, use links to represent that follow-on dependency. If both linked tasks are in backlog, !Klein preserves the order you pass to the command: \`--task-id\` waits on \`--linked-task-id\`, and on the board the arrow points into \`--linked-task-id\`. Once only one linked task remains in backlog, !Klein reorients the saved dependency so the backlog task is the waiting dependent task and the other task is the prerequisite. The board arrow points into the prerequisite task so the user can see what must finish first. A link requires at least one backlog task, and when the linked review task is moved to completed, that backlog task becomes ready to start.
 - How linking works: when a task in the review column is moved to completed, any linked backlog tasks automatically start. This is how you chain work so tasks kick off autonomously without manual intervention.
 - Tasks can also enable automatic review actions: auto-commit or auto-open-pr once completed, which then moves the task to completed and kicks off any linked tasks. Combining auto-review with linking is how you can set up fully autonomous pipelines when the user wants it. For example, enabling auto-commit on each task in a chain: task A finishes, auto-commits and is moved to completed, task B auto-starts from backlog, auto-commits and is moved to completed, task C auto-starts, and so on.
-- If your current working directory is inside \`.cline/worktrees/\`, you are inside a legacy !Klein task workspace. In that case, create or manage tasks against the main workspace path, not the task workspace path. Pass the main workspace with \`--project-path\`.
+- If your current working directory is inside \`.nklein/worktrees/\`, you are inside a legacy !Klein task workspace. In that case, create or manage tasks against the main workspace path, not the task workspace path. Pass the main workspace with \`--project-path\`.
 - If a task command fails because the runtime is unavailable, tell the user to start !Klein in that workspace first with \`${nkleinCommand}\`, then retry the task command.
 
 # Command Prefix
@@ -298,14 +298,14 @@ Command:
 \`${nkleinCommand} task decompose --slug <plan_slug> [--project-path <path>] [--base-ref <branch>]\`
 
 Parameters:
-- \`--slug <plan_slug>\` required plan slug under \`.cline/nklein/plans/<slug>\`.
+- \`--slug <plan_slug>\` required plan slug under \`.nklein/nklein/plans/<slug>\`.
 - \`--project-path <path>\` optional workspace path. If not already registered in !Klein, it is auto-added for git repos.
 - \`--base-ref <branch>\` optional base branch/ref for all generated tasks. Defaults to current branch, then default branch, then first known branch.
 
 Notes:
 - Use this after !Klein's \`decompose_project\` tool has validated and persisted the plan artifacts.
-- Do not manually edit \`.cline/nklein/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state to create tasks.
-- Each generated task is created in backlog with Cline as its agent and auto-review enabled.
+- Do not manually edit \`.nklein/nklein/plans/**\`, \`tasks.json\`, board state, workspace state, or dependency state to create tasks.
+- Each generated task is created in backlog with !Klein as its agent and auto-review enabled.
 - Dependency links from the validated task graph are applied automatically.
 - Each task graph leaf must include \`acceptanceCommand\`, stay at complexity <= 75, and list no more than 3 likely files. Split or expand oversized leaves before running this command.
 

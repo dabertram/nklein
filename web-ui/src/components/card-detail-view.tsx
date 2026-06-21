@@ -20,36 +20,39 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { showAppToast } from "@/components/app-toaster";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { AgentWatchPanel } from "@/components/detail-panels/agent-watch-panel";
-import { ClineAgentChatPanel, type ClineAgentChatPanelHandle } from "@/components/detail-panels/cline-agent-chat-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
 import { type DiffLineComment, DiffViewerPanel } from "@/components/detail-panels/diff-viewer-panel";
 import { FileTreePanel } from "@/components/detail-panels/file-tree-panel";
+import {
+	NKleinAgentChatPanel,
+	type NKleinAgentChatPanelHandle,
+} from "@/components/detail-panels/nklein-agent-chat-panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
-import type { ClineChatActionResult } from "@/hooks/use-cline-chat-runtime-actions";
-import type { ClineChatMessage } from "@/hooks/use-cline-chat-session";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import type { NKleinChatActionResult } from "@/hooks/use-nklein-chat-runtime-actions";
+import type { NKleinChatMessage } from "@/hooks/use-nklein-chat-session";
 import { ResizableBottomPane } from "@/resize/resizable-bottom-pane";
 import { ResizeHandle } from "@/resize/resize-handle";
 import { useCardDetailLayout } from "@/resize/use-card-detail-layout";
 import { useResizeDrag } from "@/resize/use-resize-drag";
-import { isNativeClineAgentSelected } from "@/runtime/native-agent";
+import { isNativeNKleinAgentSelected } from "@/runtime/native-agent";
 import {
-	applyClinePlanArtifact,
+	applyNKleinPlanArtifact,
 	collectTaskEvidence,
-	fetchClinePlanArtifacts,
+	fetchNKleinPlanArtifacts,
 	fetchTaskDiagnostics,
 	mergeTaskWorktrees,
-	rejectClinePlanArtifact,
+	rejectNKleinPlanArtifact,
 	verifyTaskAcceptance,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
-	RuntimeClinePlanArtifactSummary,
-	RuntimeClineReasoningEffort,
-	RuntimeClineTeamProgressEvent,
 	RuntimeConfigResponse,
+	RuntimeNKleinPlanArtifactSummary,
+	RuntimeNKleinReasoningEffort,
+	RuntimeNKleinTeamProgressEvent,
 	RuntimeProtectedTestApprovalPayload,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticEvent,
@@ -289,12 +292,12 @@ function getActivityToneClassName(tone: TaskActivityStep["tone"]): string {
 }
 
 function formatRoutingActivityDetail(selection: CardSelection, summary: RuntimeTaskSessionSummary | null): string {
-	const providerId = summary?.providerId?.trim() || selection.card.clineSettings?.providerId?.trim();
-	const modelId = summary?.modelId?.trim() || selection.card.clineSettings?.modelId?.trim();
+	const providerId = summary?.providerId?.trim() || selection.card.nkleinSettings?.providerId?.trim();
+	const modelId = summary?.modelId?.trim() || selection.card.nkleinSettings?.modelId?.trim();
 	const endpoint = summary?.sharedEndpointId?.trim();
 	if (providerId && modelId) {
 		const source =
-			selection.card.clineSettings?.providerId || selection.card.clineSettings?.modelId
+			selection.card.nkleinSettings?.providerId || selection.card.nkleinSettings?.modelId
 				? "card-selected"
 				: "runtime-selected";
 		return endpoint
@@ -566,13 +569,13 @@ function isRevisedPlanningCard(card: BoardCard): boolean {
 }
 
 function formatDagModelLabel(card: BoardCard): string {
-	const providerId = card.clineSettings?.providerId?.trim();
-	const modelId = card.clineSettings?.modelId?.trim();
+	const providerId = card.nkleinSettings?.providerId?.trim();
+	const modelId = card.nkleinSettings?.modelId?.trim();
 	if (providerId && modelId) {
 		return `${providerId} / ${modelId}`;
 	}
-	if (card.agentId === "cline" || card.clineSettings) {
-		return "Cline local model";
+	if (card.agentId === "nklein" || card.nkleinSettings) {
+		return "!Klein local model";
 	}
 	return card.agentId ?? "Default agent";
 }
@@ -765,7 +768,7 @@ function PendingPlanArtifactsPanel({
 	taskId: string;
 	onWorkspaceStateApplied?: (state: RuntimeWorkspaceStateResponse) => void;
 }): React.ReactElement | null {
-	const [artifacts, setArtifacts] = useState<RuntimeClinePlanArtifactSummary[]>([]);
+	const [artifacts, setArtifacts] = useState<RuntimeNKleinPlanArtifactSummary[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [actionArtifactId, setActionArtifactId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -779,7 +782,7 @@ function PendingPlanArtifactsPanel({
 		}
 		setIsLoading(true);
 		setError(null);
-		void fetchClinePlanArtifacts(workspaceId, taskId)
+		void fetchNKleinPlanArtifacts(workspaceId, taskId)
 			.then((response) => {
 				if (!cancelled) {
 					setArtifacts(response.artifacts);
@@ -808,7 +811,7 @@ function PendingPlanArtifactsPanel({
 			setActionArtifactId(artifactId);
 			setError(null);
 			try {
-				const response = await applyClinePlanArtifact(workspaceId, artifactId);
+				const response = await applyNKleinPlanArtifact(workspaceId, artifactId);
 				onWorkspaceStateApplied?.(response.workspaceState);
 				setArtifacts((current) => current.filter((artifact) => artifact.artifactId !== artifactId));
 				showAppToast({ intent: "success", message: response.message, timeout: 5000 });
@@ -831,7 +834,7 @@ function PendingPlanArtifactsPanel({
 			setActionArtifactId(artifactId);
 			setError(null);
 			try {
-				const response = await rejectClinePlanArtifact(workspaceId, artifactId);
+				const response = await rejectNKleinPlanArtifact(workspaceId, artifactId);
 				setArtifacts((current) => current.filter((artifact) => artifact.artifactId !== artifactId));
 				showAppToast({ intent: "success", message: response.message, timeout: 5000 });
 			} catch (rejectError) {
@@ -1433,14 +1436,14 @@ export function CardDetailView({
 	moveToTrashLoadingById,
 	onAddReviewComments,
 	onSendReviewComments,
-	onSendClineChatMessage,
-	onCancelClineChatTurn,
+	onSendNKleinChatMessage,
+	onCancelNKleinChatTurn,
 	onGrantProtectedTestApproval,
 	onMarkTaskInterrupted,
-	onLoadClineChatMessages,
-	latestClineChatMessage,
-	streamedClineChatMessages,
-	clineTeamProgress,
+	onLoadNKleinChatMessages,
+	latestNKleinChatMessage,
+	streamedNKleinChatMessages,
+	nkleinTeamProgress,
 	onMoveToTrash,
 	isMoveToTrashLoading,
 	gitHistoryPanel,
@@ -1459,8 +1462,8 @@ export function CardDetailView({
 	isBottomTerminalExpanded,
 	onBottomTerminalToggleExpand,
 	isDocumentVisible = true,
-	onClineSettingsSaved,
-	onTaskClineSettingsChanged,
+	onNKleinSettingsSaved,
+	onTaskNKleinSettingsChanged,
 	onApprovePlanningCard,
 	onWorkspaceStateApplied,
 }: {
@@ -1497,21 +1500,21 @@ export function CardDetailView({
 	moveToTrashLoadingById?: Record<string, boolean>;
 	onAddReviewComments?: (taskId: string, text: string) => void;
 	onSendReviewComments?: (taskId: string, text: string) => void;
-	onSendClineChatMessage?: (
+	onSendNKleinChatMessage?: (
 		taskId: string,
 		text: string,
 		options?: { mode?: RuntimeTaskSessionMode },
-	) => Promise<ClineChatActionResult>;
-	onCancelClineChatTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
+	) => Promise<NKleinChatActionResult>;
+	onCancelNKleinChatTurn?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
 	onGrantProtectedTestApproval?: (
 		taskId: string,
 		approval: RuntimeProtectedTestApprovalPayload,
-	) => Promise<ClineChatActionResult>;
+	) => Promise<NKleinChatActionResult>;
 	onMarkTaskInterrupted?: (taskId: string) => Promise<{ ok: boolean; message?: string }>;
-	onLoadClineChatMessages?: (taskId: string) => Promise<ClineChatMessage[] | null>;
-	latestClineChatMessage?: ClineChatMessage | null;
-	streamedClineChatMessages?: ClineChatMessage[] | null;
-	clineTeamProgress?: RuntimeClineTeamProgressEvent[];
+	onLoadNKleinChatMessages?: (taskId: string) => Promise<NKleinChatMessage[] | null>;
+	latestNKleinChatMessage?: NKleinChatMessage | null;
+	streamedNKleinChatMessages?: NKleinChatMessage[] | null;
+	nkleinTeamProgress?: RuntimeNKleinTeamProgressEvent[];
 	onMoveToTrash: () => void;
 	isMoveToTrashLoading?: boolean;
 	gitHistoryPanel?: ReactNode;
@@ -1530,11 +1533,11 @@ export function CardDetailView({
 	isBottomTerminalExpanded?: boolean;
 	onBottomTerminalToggleExpand?: () => void;
 	isDocumentVisible?: boolean;
-	onClineSettingsSaved?: () => void;
-	onTaskClineSettingsChanged?: (settings: {
+	onNKleinSettingsSaved?: () => void;
+	onTaskNKleinSettingsChanged?: (settings: {
 		providerId: string;
 		modelId: string;
-		reasoningEffort: RuntimeClineReasoningEffort | "";
+		reasoningEffort: RuntimeNKleinReasoningEffort | "";
 		contextScope: "full" | "smart" | "minimal" | "custom";
 		timeoutMode: "normal" | "long" | "extended" | "unlimited";
 	}) => void;
@@ -1562,11 +1565,11 @@ export function CardDetailView({
 	const { startDrag: startAgentPanelResize } = useResizeDrag();
 	const { startDrag: startDetailDiffResize } = useResizeDrag();
 	const detailLayoutRef = useRef<HTMLDivElement | null>(null);
-	const hasExplicitTaskClineSettings =
-		selection.card.agentId === "cline" || selection.card.clineSettings !== undefined;
+	const hasExplicitTaskNKleinSettings =
+		selection.card.agentId === "nklein" || selection.card.nkleinSettings !== undefined;
 	const mainRowRef = useRef<HTMLDivElement | null>(null);
 	const detailDiffRowRef = useRef<HTMLDivElement | null>(null);
-	const clineAgentChatPanelRef = useRef<ClineAgentChatPanelHandle | null>(null);
+	const nkleinAgentChatPanelRef = useRef<NKleinAgentChatPanelHandle | null>(null);
 
 	const handleSeparatorMouseDown = useResizeHandler(
 		detailLayoutRef,
@@ -1625,7 +1628,7 @@ export function CardDetailView({
 	const isTaskTerminalEnabled =
 		selection.column.id === "planning" || selection.column.id === "in_progress" || selection.column.id === "review";
 	const effectiveTaskAgentId = sessionSummary?.agentId ?? selection.card.agentId ?? selectedAgentId;
-	const showClineAgentChatPanel = isNativeClineAgentSelected(effectiveTaskAgentId);
+	const showNKleinAgentChatPanel = isNativeNKleinAgentSelected(effectiveTaskAgentId);
 	const availablePaths = useMemo(() => {
 		if (!runtimeFiles || runtimeFiles.length === 0) {
 			return [];
@@ -1718,34 +1721,34 @@ export function CardDetailView({
 
 	const handleAddDiffComments = useCallback(
 		(formatted: string) => {
-			if (showClineAgentChatPanel) {
-				clineAgentChatPanelRef.current?.appendToDraft(formatted);
+			if (showNKleinAgentChatPanel) {
+				nkleinAgentChatPanelRef.current?.appendToDraft(formatted);
 				setIsDiffExpanded(false);
 				return;
 			}
 			onAddReviewComments?.(selection.card.id, formatted);
 		},
-		[onAddReviewComments, selection.card.id, showClineAgentChatPanel],
+		[onAddReviewComments, selection.card.id, showNKleinAgentChatPanel],
 	);
 
 	const handleSendDiffComments = useCallback(
 		(formatted: string) => {
-			if (showClineAgentChatPanel) {
-				void clineAgentChatPanelRef.current?.sendText(formatted);
+			if (showNKleinAgentChatPanel) {
+				void nkleinAgentChatPanelRef.current?.sendText(formatted);
 				setIsDiffExpanded(false);
 				return;
 			}
 			onSendReviewComments?.(selection.card.id, formatted);
 			setIsDiffExpanded(false);
 		},
-		[onSendReviewComments, selection.card.id, showClineAgentChatPanel],
+		[onSendReviewComments, selection.card.id, showNKleinAgentChatPanel],
 	);
 
 	const showBottomTerminal = bottomTerminalOpen && !!bottomTerminalTaskId;
 
-	const agentChatPanel = showClineAgentChatPanel ? (
-		<ClineAgentChatPanel
-			ref={clineAgentChatPanelRef}
+	const agentChatPanel = showNKleinAgentChatPanel ? (
+		<NKleinAgentChatPanel
+			ref={nkleinAgentChatPanelRef}
 			taskId={selection.card.id}
 			summary={sessionSummary}
 			taskColumnId={selection.column.id}
@@ -1755,17 +1758,17 @@ export function CardDetailView({
 			taskTitle={selection.card.title}
 			taskPrompt={selection.card.prompt}
 			runtimeConfig={runtimeConfig}
-			taskClineSettings={selection.card.clineSettings}
-			taskHasExplicitClineSettings={hasExplicitTaskClineSettings}
-			onClineSettingsSaved={onClineSettingsSaved}
-			onTaskClineSettingsChanged={onTaskClineSettingsChanged}
-			onSendMessage={onSendClineChatMessage}
-			onCancelTurn={onCancelClineChatTurn}
-			onLoadMessages={onLoadClineChatMessages}
+			taskNKleinSettings={selection.card.nkleinSettings}
+			taskHasExplicitNKleinSettings={hasExplicitTaskNKleinSettings}
+			onNKleinSettingsSaved={onNKleinSettingsSaved}
+			onTaskNKleinSettingsChanged={onTaskNKleinSettingsChanged}
+			onSendMessage={onSendNKleinChatMessage}
+			onCancelTurn={onCancelNKleinChatTurn}
+			onLoadMessages={onLoadNKleinChatMessages}
 			onGrantProtectedTestApproval={onGrantProtectedTestApproval}
-			incomingMessages={streamedClineChatMessages}
-			incomingMessage={latestClineChatMessage}
-			teamProgress={clineTeamProgress}
+			incomingMessages={streamedNKleinChatMessages}
+			incomingMessage={latestNKleinChatMessage}
+			teamProgress={nkleinTeamProgress}
 			onCommit={onAgentCommitTask ? () => onAgentCommitTask(selection.card.id) : undefined}
 			onOpenPr={onAgentOpenPrTask ? () => onAgentOpenPrTask(selection.card.id) : undefined}
 			isCommitLoading={agentCommitTaskLoadingById?.[selection.card.id] ?? false}
@@ -1896,10 +1899,10 @@ export function CardDetailView({
 										onSelectedPathChange={setSelectedPath}
 										viewMode="unified"
 										onAddToTerminal={
-											onAddReviewComments || showClineAgentChatPanel ? handleAddDiffComments : undefined
+											onAddReviewComments || showNKleinAgentChatPanel ? handleAddDiffComments : undefined
 										}
 										onSendToTerminal={
-											onSendReviewComments || showClineAgentChatPanel ? handleSendDiffComments : undefined
+											onSendReviewComments || showNKleinAgentChatPanel ? handleSendDiffComments : undefined
 										}
 										comments={diffComments}
 										onCommentsChange={setDiffComments}
@@ -1977,7 +1980,7 @@ export function CardDetailView({
 							openPrTaskLoadingById={openPrTaskLoadingById}
 							moveToTrashLoadingById={moveToTrashLoadingById}
 							panelWidth="100%"
-							defaultClineModelId={runtimeConfig?.clineProviderSettings?.modelId ?? null}
+							defaultNKleinModelId={runtimeConfig?.nkleinProviderSettings?.modelId ?? null}
 						/>
 					</div>
 					<ResizeHandle
@@ -2062,12 +2065,12 @@ export function CardDetailView({
 													onSelectedPathChange={setSelectedPath}
 													viewMode={isDiffExpanded ? "split" : "unified"}
 													onAddToTerminal={
-														onAddReviewComments || showClineAgentChatPanel
+														onAddReviewComments || showNKleinAgentChatPanel
 															? handleAddDiffComments
 															: undefined
 													}
 													onSendToTerminal={
-														onSendReviewComments || showClineAgentChatPanel
+														onSendReviewComments || showNKleinAgentChatPanel
 															? handleSendDiffComments
 															: undefined
 													}

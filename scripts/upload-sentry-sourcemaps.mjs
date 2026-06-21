@@ -3,7 +3,7 @@ import { cp, mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { relative, resolve, sep } from "node:path";
 
-const SENTRY_ORG = "cline-bot-inc-xi";
+const SENTRY_ORG = "nklein-bot-inc-xi";
 const SENTRY_WEB_PROJECT = "kanban-react";
 const SENTRY_NODE_PROJECT = "kanban-node";
 

@@ -36,14 +36,14 @@ apply something automatically, it should still keep an observable artifact trail
   - [x] Apply the same confirmation when the normal Add Project flow selects !Klein's own repo.
 
 - [x] **Resolve task worktrees to their owning parent workspace.**
-  - [x] Detect paths under `~/.cline/worktrees/...` before calling workspace auto-creation logic.
+  - [x] Detect paths under `~/.nklein/worktrees/...` before calling workspace auto-creation logic.
   - [x] Resolve task worktree commands to the parent project/workspace id recorded for the task.
   - [x] Prevent task worktree paths from being registered as standalone projects unless an advanced explicit flow confirms it.
   - [x] Prefer explicit workspace id/project path from task/session/hook context over `cwd`.
   - [x] Make `nklein task decompose`, task hooks, and task artifact application use the owning workspace, not the task worktree.
 
 - [x] **Add accidental-project detection and repair UX.**
-  - [x] Detect workspace index entries whose project path is under `~/.cline/worktrees`.
+  - [x] Detect workspace index entries whose project path is under `~/.nklein/worktrees`.
   - [x] Detect stale dev-test/worktree projects that have no valid parent project relationship.
   - [x] Present detected accidental projects to the user with choices to inspect, remove, or migrate artifacts.
   - [x] Do not silently migrate or delete existing accidental entries.
@@ -172,13 +172,13 @@ apply something automatically, it should still keep an observable artifact trail
 
 - [x] **Advisor settings: replace copy-only prompt flow.**
   - [x] Remove or de-emphasize the "Copy prompt" advisor action.
-  - [x] Add a local Cline model selector for advisor prompts.
+  - [x] Add a local NKlein model selector for advisor prompts.
   - [x] Add a Send prompt action.
-  - [x] Send the generated prompt to the selected local Cline-compatible model.
+  - [x] Send the generated prompt to the selected local NKlein-compatible model.
   - [x] Show a read-only or editable output textbox with the model response.
   - [x] Show sent timestamp and received timestamp.
   - [x] Show failure text in the output area when the send fails.
-  - [x] Keep v1 scoped to local Cline providers only.
+  - [x] Keep v1 scoped to local NKlein providers only.
 
 - [x] **Clarify context labels and override behavior.**
   - [x] Rename "Effective" to "Effective context".
@@ -187,8 +187,8 @@ apply something automatically, it should still keep an observable artifact trail
   - [x] Show units for token counts.
   - [x] Make inherited/default/effective values visually distinct.
 
-- [x] **Expose full Cline task settings without raw internal names.**
-  - [x] Preserve full `RuntimeTaskClineSettings` when editing task model settings.
+- [x] **Expose full NKlein task settings without raw internal names.**
+  - [x] Preserve full `RuntimeTaskNKleinSettings` when editing task model settings.
   - [x] Expose context scope using human labels.
   - [x] Expose timeout settings with human labels and units.
   - [x] Avoid labels like `requestTimeoutMs` as primary UI text.
@@ -205,7 +205,7 @@ apply something automatically, it should still keep an observable artifact trail
   - [x] Advisor send records sent and received timestamps.
   - [x] Advisor output renders success and failure responses.
   - [x] Context labels use "Effective context" and clear override language.
-  - [x] Editing task model settings preserves all existing Cline settings.
+  - [x] Editing task model settings preserves all existing NKlein settings.
   - [x] Fixture model ids do not appear in production model selectors.
 
 ---
@@ -308,7 +308,7 @@ apply something automatically, it should still keep an observable artifact trail
 - [x] Existing accidental worktree projects are detected and presented for user decision.
 - [x] Lost sessions no longer sit indefinitely as ordinary running cards when useful artifacts exist.
 - [x] Board saves cannot overwrite runtime-owned session status.
-- [x] Advisor can send a prompt to a selected local Cline model and show response timestamps.
+- [x] Advisor can send a prompt to a selected local NKlein model and show response timestamps.
 - [x] Code intelligence embedding defaults and project overrides are user-configurable.
 - [x] Developer-only features are hidden unless debug/dev mode is enabled.
 - [x] Tests cover the observed complex dev-test workspace failure mode.

@@ -42,9 +42,9 @@ function createBoard(): RuntimeBoardData {
 				title: "Planning",
 				cards: [
 					{
-						id: "default-cline-task",
-						title: "Default Cline task",
-						prompt: "Default Cline task",
+						id: "default-nklein-task",
+						title: "Default NKlein task",
+						prompt: "Default NKlein task",
 						startInPlanMode: true,
 						baseRef: "main",
 						createdAt: now,
@@ -57,11 +57,11 @@ function createBoard(): RuntimeBoardData {
 				title: "In Progress",
 				cards: [
 					{
-						id: "explicit-cline-task",
-						title: "Explicit Cline task",
-						prompt: "Explicit Cline task",
+						id: "explicit-nklein-task",
+						title: "Explicit NKlein task",
+						prompt: "Explicit NKlein task",
 						startInPlanMode: false,
-						agentId: "cline",
+						agentId: "nklein",
 						baseRef: "main",
 						createdAt: now,
 						updatedAt: now,
@@ -99,7 +99,7 @@ describe("createWorkspaceMetadataMonitor", () => {
 		gitSyncMocks.getGitSyncSummary.mockResolvedValue(EMPTY_GIT_SUMMARY);
 		taskWorktreeMocks.getTaskWorkspacePathInfo.mockResolvedValue({
 			taskId: "legacy-codex-task",
-			path: "/repo/.cline/worktrees/legacy-codex-task/repo",
+			path: "/repo/.nklein/worktrees/legacy-codex-task/repo",
 			exists: false,
 			baseRef: "main",
 		});

@@ -2,9 +2,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
-import type { RuntimeClineProviderSettings } from "@/runtime/types";
+import type { RuntimeNKleinProviderSettings } from "@/runtime/types";
 
-const defaultClineProviderSettings: RuntimeClineProviderSettings = {
+const defaultNKleinProviderSettings: RuntimeNKleinProviderSettings = {
 	providerId: null,
 	modelId: null,
 	baseUrl: null,
@@ -16,16 +16,16 @@ const defaultClineProviderSettings: RuntimeClineProviderSettings = {
 	oauthExpiresAt: null,
 };
 
-const authenticatedClineSettings: RuntimeClineProviderSettings = {
-	...defaultClineProviderSettings,
-	oauthProvider: "cline",
+const authenticatedNKleinSettings: RuntimeNKleinProviderSettings = {
+	...defaultNKleinProviderSettings,
+	oauthProvider: "nklein",
 	oauthAccessTokenConfigured: true,
 	oauthRefreshTokenConfigured: true,
 	oauthAccountId: "acc-1",
 };
 
-const tokensOnlySettings: RuntimeClineProviderSettings = {
-	...defaultClineProviderSettings,
+const tokensOnlySettings: RuntimeNKleinProviderSettings = {
+	...defaultNKleinProviderSettings,
 	oauthProvider: null,
 	oauthAccessTokenConfigured: true,
 	oauthRefreshTokenConfigured: true,
@@ -40,7 +40,7 @@ async function importFeaturebaseModule() {
 	const nativeAgent = await import("@/runtime/native-agent");
 	vi.doMock("@/runtime/native-agent", () => ({
 		...nativeAgent,
-		isClineOauthAuthenticated: nativeAgent.isClineOauthAuthenticated,
+		isNKleinOauthAuthenticated: nativeAgent.isNKleinOauthAuthenticated,
 	}));
 	const module = await import("@/hooks/use-featurebase-feedback-widget");
 	return {
@@ -98,7 +98,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 		module: Awaited<ReturnType<typeof importFeaturebaseModule>>["module"],
 		input: {
 			workspaceId: string | null;
-			clineProviderSettings: RuntimeClineProviderSettings;
+			nkleinProviderSettings: RuntimeNKleinProviderSettings;
 			cloudProviderSupportEnabled?: boolean;
 		},
 	): Promise<{ getState: () => FeaturebaseFeedbackState }> {
@@ -135,7 +135,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		expect(getState().authState).toBe("idle");
@@ -150,7 +150,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: defaultClineProviderSettings,
+			nkleinProviderSettings: defaultNKleinProviderSettings,
 		});
 
 		expect(getState().authState).toBe("idle");
@@ -158,14 +158,14 @@ describe("useFeaturebaseFeedbackWidget", () => {
 		expect(featurebaseMock).not.toHaveBeenCalled();
 	});
 
-	it("requires oauthProvider=cline before opening", async () => {
+	it("requires oauthProvider=nklein before opening", async () => {
 		const { module, fetchFeaturebaseTokenMock } = await importFeaturebaseModule();
 		const featurebaseMock = vi.fn();
 		mockSdkLoad(featurebaseMock);
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: tokensOnlySettings,
+			nkleinProviderSettings: tokensOnlySettings,
 		});
 
 		await act(async () => {
@@ -186,7 +186,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		let openPromise: Promise<void> | null = null;
@@ -200,7 +200,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 		expect(initCall).toBeTruthy();
 		expect(initCall?.[1]).toEqual(
 			expect.objectContaining({
-				organization: "cline",
+				organization: "nklein",
 				theme: "dark",
 				locale: "en",
 				metadata: { app: "kanban" },
@@ -236,7 +236,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		let openPromise: Promise<void> | null = null;
@@ -276,7 +276,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		let openPromise: Promise<void> | null = null;
@@ -322,7 +322,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		expect(fetchFeaturebaseTokenMock).not.toHaveBeenCalled();
@@ -378,7 +378,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		const openPromise = getState().openFeedbackWidget();
@@ -421,7 +421,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		const openPromise = getState().openFeedbackWidget();
@@ -452,7 +452,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		const openPromise = getState().openFeedbackWidget();
@@ -501,7 +501,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: null,
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		await act(async () => {
@@ -523,7 +523,7 @@ describe("useFeaturebaseFeedbackWidget", () => {
 
 		const { getState } = await renderHook(module, {
 			workspaceId: "workspace-1",
-			clineProviderSettings: authenticatedClineSettings,
+			nkleinProviderSettings: authenticatedNKleinSettings,
 		});
 
 		await act(async () => {

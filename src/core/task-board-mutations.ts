@@ -6,8 +6,8 @@ import type {
 	RuntimeBoardDependency,
 	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
-	RuntimeTaskClineSettings,
 	RuntimeTaskImage,
+	RuntimeTaskNKleinSettings,
 } from "./api-contract";
 import { createUniqueTaskId } from "./task-id";
 import { resolveTaskTitle } from "./task-title";
@@ -21,7 +21,7 @@ export interface RuntimeCreateTaskInput {
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId;
-	clineSettings?: RuntimeTaskClineSettings;
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
 	baseRef: string;
@@ -35,7 +35,7 @@ export interface RuntimeUpdateTaskInput {
 	autoReviewMode?: RuntimeTaskAutoReviewMode;
 	images?: RuntimeTaskImage[];
 	agentId?: RuntimeAgentId | null;
-	clineSettings?: RuntimeTaskClineSettings | null;
+	nkleinSettings?: RuntimeTaskNKleinSettings | null;
 	baseRef: string;
 }
 
@@ -51,7 +51,7 @@ function cloneTaskImages(images?: RuntimeTaskImage[]): RuntimeTaskImage[] | unde
 	return images && images.length > 0 ? images.map((image) => ({ ...image })) : undefined;
 }
 
-function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings | null): RuntimeTaskClineSettings | undefined {
+function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings | null): RuntimeTaskNKleinSettings | undefined {
 	if (settings === undefined || settings === null) {
 		return undefined;
 	}
@@ -335,7 +335,7 @@ export function addTaskToColumn(
 		autoReviewMode: normalizeTaskAutoReviewMode(input.autoReviewMode),
 		images: cloneTaskImages(input.images),
 		...(input.agentId ? { agentId: input.agentId } : {}),
-		...(input.clineSettings !== undefined ? { clineSettings: cloneTaskClineSettings(input.clineSettings) } : {}),
+		...(input.nkleinSettings !== undefined ? { nkleinSettings: cloneTaskNKleinSettings(input.nkleinSettings) } : {}),
 		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
 		baseRef,
@@ -669,12 +669,12 @@ export function updateTask(
 				autoReviewMode: normalizeTaskAutoReviewMode(input.autoReviewMode),
 				images: input.images === undefined ? card.images : cloneTaskImages(input.images),
 				agentId: input.agentId === undefined ? card.agentId : (input.agentId ?? undefined),
-				clineSettings:
-					input.clineSettings === undefined
-						? cloneTaskClineSettings(card.clineSettings)
-						: input.clineSettings === null
+				nkleinSettings:
+					input.nkleinSettings === undefined
+						? cloneTaskNKleinSettings(card.nkleinSettings)
+						: input.nkleinSettings === null
 							? undefined
-							: cloneTaskClineSettings(input.clineSettings),
+							: cloneTaskNKleinSettings(input.nkleinSettings),
 				baseRef,
 				updatedAt: now,
 			};

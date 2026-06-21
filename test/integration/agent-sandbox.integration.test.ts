@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ToolExecutors } from "@clinebot/core";
+import type { ToolExecutors } from "@nklein/core";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -11,7 +11,7 @@ import {
 	createAgentSandboxContainerName,
 	createAgentSandboxVolumeName,
 	resolveAgentSandboxImageName,
-} from "../../src/cline-sdk/cline-agent-sandbox";
+} from "../../src/nklein-sdk/nklein-agent-sandbox";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 
@@ -217,8 +217,8 @@ if (dockerGate.ready) {
 					runGit(clonePath, ["apply", "--check", join(sandboxRoot, "workspace.patch")]);
 					runGit(clonePath, ["apply", join(sandboxRoot, "workspace.patch")]);
 
-					expect(existsSync(join(homePath, ".cline", "nklein"))).toBe(false);
-					expect(existsSync(join(homePath, ".cline", "worktrees"))).toBe(false);
+					expect(existsSync(join(homePath, ".nklein", "nklein"))).toBe(false);
+					expect(existsSync(join(homePath, ".nklein", "worktrees"))).toBe(false);
 
 					await manager.disposeWorkspace(taskA);
 					const removedWorkspace = await manager.exec(taskB, ["test", "!", "-e", workspaceA.workdir]);

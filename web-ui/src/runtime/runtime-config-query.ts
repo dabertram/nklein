@@ -1,43 +1,8 @@
-// Browser-side query helpers for runtime settings and Cline actions.
+// Browser-side query helpers for runtime settings and NKlein actions.
 // Keep TRPC request details here so components and controller hooks can focus
 // on state orchestration instead of transport plumbing.
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
-	RuntimeClineAccountBalanceResponse,
-	RuntimeClineAccountOrganizationsResponse,
-	RuntimeClineAccountProfileResponse,
-	RuntimeClineAccountSwitchResponse,
-	RuntimeClineAddProviderResponse,
-	RuntimeClineAdvisorBuildRequest,
-	RuntimeClineAdvisorRequest,
-	RuntimeClineAdvisorSendResponse,
-	RuntimeClineCodeIntelligenceStatusResponse,
-	RuntimeClineDeviceAuthCompleteRequest,
-	RuntimeClineDeviceAuthCompleteResponse,
-	RuntimeClineDeviceAuthStartResponse,
-	RuntimeClineDogfoodBacklogResponse,
-	RuntimeClineEndpointModelDiscoveryResponse,
-	RuntimeClineKanbanAccessResponse,
-	RuntimeClineMcpAuthStatusResponse,
-	RuntimeClineMcpOAuthResponse,
-	RuntimeClineMcpServer,
-	RuntimeClineMcpSettingsResponse,
-	RuntimeClineModelContextWindowOverrideResponse,
-	RuntimeClineModelRegistryPruneResponse,
-	RuntimeClineModelRegistryRemoveResponse,
-	RuntimeClineModelRegistryResponse,
-	RuntimeClineOauthLoginResponse,
-	RuntimeClineOauthProvider,
-	RuntimeClinePlanArtifactApplyResponse,
-	RuntimeClinePlanArtifactRejectResponse,
-	RuntimeClinePlanArtifactsResponse,
-	RuntimeClineProviderCapability,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderModel,
-	RuntimeClineProviderSettings,
-	RuntimeClineReasoningEffort,
-	RuntimeClineSmokeEvalResponse,
-	RuntimeClineUpdateProviderResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
@@ -47,6 +12,41 @@ import type {
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeNKleinAccountBalanceResponse,
+	RuntimeNKleinAccountOrganizationsResponse,
+	RuntimeNKleinAccountProfileResponse,
+	RuntimeNKleinAccountSwitchResponse,
+	RuntimeNKleinAddProviderResponse,
+	RuntimeNKleinAdvisorBuildRequest,
+	RuntimeNKleinAdvisorRequest,
+	RuntimeNKleinAdvisorSendResponse,
+	RuntimeNKleinCodeIntelligenceStatusResponse,
+	RuntimeNKleinDeviceAuthCompleteRequest,
+	RuntimeNKleinDeviceAuthCompleteResponse,
+	RuntimeNKleinDeviceAuthStartResponse,
+	RuntimeNKleinDogfoodBacklogResponse,
+	RuntimeNKleinEndpointModelDiscoveryResponse,
+	RuntimeNKleinKanbanAccessResponse,
+	RuntimeNKleinMcpAuthStatusResponse,
+	RuntimeNKleinMcpOAuthResponse,
+	RuntimeNKleinMcpServer,
+	RuntimeNKleinMcpSettingsResponse,
+	RuntimeNKleinModelContextWindowOverrideResponse,
+	RuntimeNKleinModelRegistryPruneResponse,
+	RuntimeNKleinModelRegistryRemoveResponse,
+	RuntimeNKleinModelRegistryResponse,
+	RuntimeNKleinOauthLoginResponse,
+	RuntimeNKleinOauthProvider,
+	RuntimeNKleinPlanArtifactApplyResponse,
+	RuntimeNKleinPlanArtifactRejectResponse,
+	RuntimeNKleinPlanArtifactsResponse,
+	RuntimeNKleinProviderCapability,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderModel,
+	RuntimeNKleinProviderSettings,
+	RuntimeNKleinReasoningEffort,
+	RuntimeNKleinSmokeEvalResponse,
+	RuntimeNKleinUpdateProviderResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectResponse,
@@ -85,14 +85,14 @@ export async function fetchKnowledgeToolUsageStats(
 	return await trpcClient.runtime.getKnowledgeToolUsageStats.query();
 }
 
-export async function saveClineProviderSettings(
+export async function saveNKleinProviderSettings(
 	workspaceId: string | null,
 	input: {
 		providerId: string;
 		modelId?: string | null;
 		apiKey?: string | null;
 		baseUrl?: string | null;
-		reasoningEffort?: RuntimeClineReasoningEffort | null;
+		reasoningEffort?: RuntimeNKleinReasoningEffort | null;
 		region?: string | null;
 		aws?: {
 			accessKey?: string | null;
@@ -108,12 +108,12 @@ export async function saveClineProviderSettings(
 			region?: string | null;
 		};
 	},
-): Promise<RuntimeClineProviderSettings> {
+): Promise<RuntimeNKleinProviderSettings> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.saveClineProviderSettings.mutate(input);
+	return await trpcClient.runtime.saveNKleinProviderSettings.mutate(input);
 }
 
-export async function addClineProvider(
+export async function addNKleinProvider(
 	workspaceId: string | null,
 	input: {
 		providerId: string;
@@ -125,14 +125,14 @@ export async function addClineProvider(
 		models: string[];
 		defaultModelId?: string | null;
 		modelsSourceUrl?: string | null;
-		capabilities?: RuntimeClineProviderCapability[];
+		capabilities?: RuntimeNKleinProviderCapability[];
 	},
-): Promise<RuntimeClineAddProviderResponse> {
+): Promise<RuntimeNKleinAddProviderResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.addClineProvider.mutate(input);
+	return await trpcClient.runtime.addNKleinProvider.mutate(input);
 }
 
-export async function updateClineProvider(
+export async function updateNKleinProvider(
 	workspaceId: string | null,
 	input: {
 		providerId: string;
@@ -144,31 +144,31 @@ export async function updateClineProvider(
 		models?: string[];
 		defaultModelId?: string | null;
 		modelsSourceUrl?: string | null;
-		capabilities?: RuntimeClineProviderCapability[];
+		capabilities?: RuntimeNKleinProviderCapability[];
 	},
-): Promise<RuntimeClineUpdateProviderResponse> {
+): Promise<RuntimeNKleinUpdateProviderResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.updateClineProvider.mutate(input);
+	return await trpcClient.runtime.updateNKleinProvider.mutate(input);
 }
 
-export async function fetchClineProviderCatalog(
+export async function fetchNKleinProviderCatalog(
 	workspaceId: string | null,
-): Promise<RuntimeClineProviderCatalogItem[]> {
+): Promise<RuntimeNKleinProviderCatalogItem[]> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	const response = await trpcClient.runtime.getClineProviderCatalog.query();
+	const response = await trpcClient.runtime.getNKleinProviderCatalog.query();
 	return response.providers;
 }
 
-export async function fetchClineAccountProfile(
+export async function fetchNKleinAccountProfile(
 	workspaceId: string | null,
-): Promise<RuntimeClineAccountProfileResponse> {
+): Promise<RuntimeNKleinAccountProfileResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineAccountProfile.query();
+	return await trpcClient.runtime.getNKleinAccountProfile.query();
 }
 
-export async function fetchClineKanbanAccess(workspaceId: string | null): Promise<RuntimeClineKanbanAccessResponse> {
+export async function fetchNKleinKanbanAccess(workspaceId: string | null): Promise<RuntimeNKleinKanbanAccessResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineKanbanAccess.query();
+	return await trpcClient.runtime.getNKleinKanbanAccess.query();
 }
 
 export async function fetchFeaturebaseToken(workspaceId: string | null): Promise<RuntimeFeaturebaseTokenResponse> {
@@ -176,16 +176,16 @@ export async function fetchFeaturebaseToken(workspaceId: string | null): Promise
 	return await trpcClient.runtime.getFeaturebaseToken.query();
 }
 
-export async function fetchClineProviderModels(
+export async function fetchNKleinProviderModels(
 	workspaceId: string | null,
 	providerId: string,
-): Promise<RuntimeClineProviderModel[]> {
+): Promise<RuntimeNKleinProviderModel[]> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	const response = await trpcClient.runtime.getClineProviderModels.query({ providerId });
+	const response = await trpcClient.runtime.getNKleinProviderModels.query({ providerId });
 	return response.models;
 }
 
-export async function discoverClineEndpointModels(
+export async function discoverNKleinEndpointModels(
 	workspaceId: string | null,
 	input: {
 		baseUrl: string;
@@ -193,17 +193,19 @@ export async function discoverClineEndpointModels(
 		modelsSourceUrl?: string | null;
 		timeoutMs?: number | null;
 	},
-): Promise<RuntimeClineEndpointModelDiscoveryResponse> {
+): Promise<RuntimeNKleinEndpointModelDiscoveryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.discoverClineEndpointModels.query(input);
+	return await trpcClient.runtime.discoverNKleinEndpointModels.query(input);
 }
 
-export async function fetchClineModelRegistry(workspaceId: string | null): Promise<RuntimeClineModelRegistryResponse> {
+export async function fetchNKleinModelRegistry(
+	workspaceId: string | null,
+): Promise<RuntimeNKleinModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineModelRegistry.query();
+	return await trpcClient.runtime.getNKleinModelRegistry.query();
 }
 
-export async function saveClineModelContextWindowOverride(
+export async function saveNKleinModelContextWindowOverride(
 	workspaceId: string | null,
 	input: {
 		providerId: string;
@@ -211,31 +213,31 @@ export async function saveClineModelContextWindowOverride(
 		endpoint?: string | null;
 		contextWindow: number | null;
 	},
-): Promise<RuntimeClineModelContextWindowOverrideResponse> {
+): Promise<RuntimeNKleinModelContextWindowOverrideResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.saveClineModelContextWindowOverride.mutate(input);
+	return await trpcClient.runtime.saveNKleinModelContextWindowOverride.mutate(input);
 }
 
-export async function removeClineModelRegistryEntry(
+export async function removeNKleinModelRegistryEntry(
 	workspaceId: string | null,
 	input: { key: string },
-): Promise<RuntimeClineModelRegistryRemoveResponse> {
+): Promise<RuntimeNKleinModelRegistryRemoveResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.removeClineModelRegistryEntry.mutate(input);
+	return await trpcClient.runtime.removeNKleinModelRegistryEntry.mutate(input);
 }
 
-export async function pruneClineModelRegistry(
+export async function pruneNKleinModelRegistry(
 	workspaceId: string | null,
-): Promise<RuntimeClineModelRegistryPruneResponse> {
+): Promise<RuntimeNKleinModelRegistryPruneResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.pruneClineModelRegistry.mutate();
+	return await trpcClient.runtime.pruneNKleinModelRegistry.mutate();
 }
 
-export async function fetchClineCodeIntelligenceStatus(
+export async function fetchNKleinCodeIntelligenceStatus(
 	workspaceId: string | null,
-): Promise<RuntimeClineCodeIntelligenceStatusResponse> {
+): Promise<RuntimeNKleinCodeIntelligenceStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineCodeIntelligenceStatus.query();
+	return await trpcClient.runtime.getNKleinCodeIntelligenceStatus.query();
 }
 
 export async function fetchTaskDiagnostics(
@@ -247,33 +249,33 @@ export async function fetchTaskDiagnostics(
 	return await trpcClient.runtime.getTaskDiagnostics.query({ taskId, limit });
 }
 
-export async function buildClineAdvisorRequest(
+export async function buildNKleinAdvisorRequest(
 	workspaceId: string | null,
-	input: RuntimeClineAdvisorBuildRequest,
-): Promise<RuntimeClineAdvisorRequest> {
+	input: RuntimeNKleinAdvisorBuildRequest,
+): Promise<RuntimeNKleinAdvisorRequest> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.buildClineAdvisor.query(input);
+	return await trpcClient.runtime.buildNKleinAdvisor.query(input);
 }
 
-export async function sendClineAdvisorRequest(
+export async function sendNKleinAdvisorRequest(
 	workspaceId: string | null,
 	input: { prompt: string; providerId: string; modelId: string },
-): Promise<RuntimeClineAdvisorSendResponse> {
+): Promise<RuntimeNKleinAdvisorSendResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.sendClineAdvisor.mutate(input);
+	return await trpcClient.runtime.sendNKleinAdvisor.mutate(input);
 }
 
-export async function writeClineDogfoodBacklog(
+export async function writeNKleinDogfoodBacklog(
 	workspaceId: string | null,
 	input: { suggestion?: string; slug?: string },
-): Promise<RuntimeClineDogfoodBacklogResponse> {
+): Promise<RuntimeNKleinDogfoodBacklogResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.writeClineDogfoodBacklog.mutate(input);
+	return await trpcClient.runtime.writeNKleinDogfoodBacklog.mutate(input);
 }
 
-export async function runClineSmokeEval(workspaceId: string | null): Promise<RuntimeClineSmokeEvalResponse> {
+export async function runNKleinSmokeEval(workspaceId: string | null): Promise<RuntimeNKleinSmokeEvalResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.runClineSmokeEval.mutate();
+	return await trpcClient.runtime.runNKleinSmokeEval.mutate();
 }
 
 export async function collectTaskEvidence(
@@ -323,60 +325,60 @@ export async function migrateAccidentalProjectArtifacts(
 	return await trpcClient.projects.migrateAccidentalProjectArtifacts.mutate({ projectId });
 }
 
-export async function runClineProviderOauthLogin(
+export async function runNKleinProviderOauthLogin(
 	workspaceId: string | null,
 	input: {
-		provider: RuntimeClineOauthProvider;
+		provider: RuntimeNKleinOauthProvider;
 		baseUrl?: string | null;
 	},
-): Promise<RuntimeClineOauthLoginResponse> {
+): Promise<RuntimeNKleinOauthLoginResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.runClineProviderOAuthLogin.mutate(input);
+	return await trpcClient.runtime.runNKleinProviderOAuthLogin.mutate(input);
 }
 
-export async function startClineDeviceAuth(workspaceId: string | null): Promise<RuntimeClineDeviceAuthStartResponse> {
+export async function startNKleinDeviceAuth(workspaceId: string | null): Promise<RuntimeNKleinDeviceAuthStartResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.startClineDeviceAuth.mutate();
+	return await trpcClient.runtime.startNKleinDeviceAuth.mutate();
 }
 
-export async function completeClineDeviceAuth(
+export async function completeNKleinDeviceAuth(
 	workspaceId: string | null,
-	input: RuntimeClineDeviceAuthCompleteRequest,
-): Promise<RuntimeClineDeviceAuthCompleteResponse> {
+	input: RuntimeNKleinDeviceAuthCompleteRequest,
+): Promise<RuntimeNKleinDeviceAuthCompleteResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.completeClineDeviceAuth.mutate(input);
+	return await trpcClient.runtime.completeNKleinDeviceAuth.mutate(input);
 }
 
-export async function fetchClineMcpSettings(workspaceId: string | null): Promise<RuntimeClineMcpSettingsResponse> {
+export async function fetchNKleinMcpSettings(workspaceId: string | null): Promise<RuntimeNKleinMcpSettingsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineMcpSettings.query();
+	return await trpcClient.runtime.getNKleinMcpSettings.query();
 }
 
-export async function fetchClineMcpAuthStatuses(
+export async function fetchNKleinMcpAuthStatuses(
 	workspaceId: string | null,
-): Promise<RuntimeClineMcpAuthStatusResponse> {
+): Promise<RuntimeNKleinMcpAuthStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineMcpAuthStatuses.query();
+	return await trpcClient.runtime.getNKleinMcpAuthStatuses.query();
 }
 
-export async function saveClineMcpSettings(
+export async function saveNKleinMcpSettings(
 	workspaceId: string | null,
 	input: {
-		servers: RuntimeClineMcpServer[];
+		servers: RuntimeNKleinMcpServer[];
 	},
-): Promise<RuntimeClineMcpSettingsResponse> {
+): Promise<RuntimeNKleinMcpSettingsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.saveClineMcpSettings.mutate(input);
+	return await trpcClient.runtime.saveNKleinMcpSettings.mutate(input);
 }
 
-export async function runClineMcpServerOAuth(
+export async function runNKleinMcpServerOAuth(
 	workspaceId: string | null,
 	input: {
 		serverName: string;
 	},
-): Promise<RuntimeClineMcpOAuthResponse> {
+): Promise<RuntimeNKleinMcpOAuthResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.runClineMcpServerOAuth.mutate(input);
+	return await trpcClient.runtime.runNKleinMcpServerOAuth.mutate(input);
 }
 
 export async function resetRuntimeDebugState(workspaceId: string | null): Promise<RuntimeDebugResetAllStateResponse> {
@@ -389,26 +391,26 @@ export async function openFileOnHost(workspaceId: string | null, filePath: strin
 	await trpcClient.runtime.openFile.mutate({ filePath });
 }
 
-export async function fetchClineAccountBalance(
+export async function fetchNKleinAccountBalance(
 	workspaceId: string | null,
-): Promise<RuntimeClineAccountBalanceResponse> {
+): Promise<RuntimeNKleinAccountBalanceResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineAccountBalance.query();
+	return await trpcClient.runtime.getNKleinAccountBalance.query();
 }
 
-export async function fetchClineAccountOrganizations(
+export async function fetchNKleinAccountOrganizations(
 	workspaceId: string | null,
-): Promise<RuntimeClineAccountOrganizationsResponse> {
+): Promise<RuntimeNKleinAccountOrganizationsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.getClineAccountOrganizations.query();
+	return await trpcClient.runtime.getNKleinAccountOrganizations.query();
 }
 
-export async function switchClineAccount(
+export async function switchNKleinAccount(
 	workspaceId: string | null,
 	organizationId: string | null,
-): Promise<RuntimeClineAccountSwitchResponse> {
+): Promise<RuntimeNKleinAccountSwitchResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.switchClineAccount.mutate({ organizationId });
+	return await trpcClient.runtime.switchNKleinAccount.mutate({ organizationId });
 }
 
 export async function fetchRuntimeUpdateStatus(workspaceId: string | null): Promise<RuntimeUpdateStatusResponse> {
@@ -421,28 +423,28 @@ export async function runRuntimeUpdateNow(workspaceId: string | null): Promise<R
 	return await trpcClient.runtime.runUpdateNow.mutate();
 }
 
-export async function fetchClinePlanArtifacts(
+export async function fetchNKleinPlanArtifacts(
 	workspaceId: string | null,
 	taskId: string,
-): Promise<RuntimeClinePlanArtifactsResponse> {
+): Promise<RuntimeNKleinPlanArtifactsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.listClinePlanArtifacts.query({ taskId });
+	return await trpcClient.runtime.listNKleinPlanArtifacts.query({ taskId });
 }
 
-export async function applyClinePlanArtifact(
+export async function applyNKleinPlanArtifact(
 	workspaceId: string | null,
 	artifactId: string,
-): Promise<RuntimeClinePlanArtifactApplyResponse> {
+): Promise<RuntimeNKleinPlanArtifactApplyResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.applyClinePlanArtifact.mutate({ artifactId });
+	return await trpcClient.runtime.applyNKleinPlanArtifact.mutate({ artifactId });
 }
 
-export async function rejectClinePlanArtifact(
+export async function rejectNKleinPlanArtifact(
 	workspaceId: string | null,
 	artifactId: string,
-): Promise<RuntimeClinePlanArtifactRejectResponse> {
+): Promise<RuntimeNKleinPlanArtifactRejectResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	return await trpcClient.runtime.rejectClinePlanArtifact.mutate({ artifactId });
+	return await trpcClient.runtime.rejectNKleinPlanArtifact.mutate({ artifactId });
 }
 
 export async function verifyTaskAcceptance(

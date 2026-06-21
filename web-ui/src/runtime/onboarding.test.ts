@@ -2,20 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildFirstRunLocalModelRoles,
-	isLocalClineProviderSettings,
+	isLocalNKleinProviderSettings,
 	isSelectedAgentAuthenticated,
 	shouldShowStartupOnboardingDialog,
 } from "@/runtime/onboarding";
 
 describe("runtime onboarding helpers", () => {
-	it("treats non-cline selections as authenticated", () => {
+	it("treats non-nklein selections as authenticated", () => {
 		expect(isSelectedAgentAuthenticated("claude", null)).toBe(true);
 		expect(isSelectedAgentAuthenticated("codex", null)).toBe(true);
 	});
 
-	it("checks cline authentication from provider settings", () => {
+	it("checks nklein authentication from provider settings", () => {
 		expect(
-			isSelectedAgentAuthenticated("cline", {
+			isSelectedAgentAuthenticated("nklein", {
 				providerId: null,
 				modelId: null,
 				baseUrl: null,
@@ -28,7 +28,7 @@ describe("runtime onboarding helpers", () => {
 			}),
 		).toBe(false);
 		expect(
-			isSelectedAgentAuthenticated("cline", {
+			isSelectedAgentAuthenticated("nklein", {
 				providerId: "anthropic",
 				modelId: "claude-3-7-sonnet",
 				baseUrl: null,
@@ -59,12 +59,12 @@ describe("runtime onboarding helpers", () => {
 		).toBe(false);
 	});
 
-	it("reopens startup onboarding for Cline without a configured local model", () => {
+	it("reopens startup onboarding for NKlein without a configured local model", () => {
 		expect(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog: true,
-				selectedAgentId: "cline",
-				clineProviderSettings: {
+				selectedAgentId: "nklein",
+				nkleinProviderSettings: {
 					providerId: "openrouter",
 					modelId: "cloud-model",
 					baseUrl: null,
@@ -79,9 +79,9 @@ describe("runtime onboarding helpers", () => {
 		).toBe(true);
 	});
 
-	it("recognizes built-in and local-endpoint Cline providers", () => {
+	it("recognizes built-in and local-endpoint NKlein providers", () => {
 		expect(
-			isLocalClineProviderSettings({
+			isLocalNKleinProviderSettings({
 				providerId: "lm-studio",
 				modelId: "qwen3",
 				baseUrl: null,
@@ -94,7 +94,7 @@ describe("runtime onboarding helpers", () => {
 			}),
 		).toBe(true);
 		expect(
-			isLocalClineProviderSettings({
+			isLocalNKleinProviderSettings({
 				providerId: "openai-compatible",
 				modelId: "local-model",
 				baseUrl: "http://model-host.local:1234/v1",
@@ -107,7 +107,7 @@ describe("runtime onboarding helpers", () => {
 			}),
 		).toBe(true);
 		expect(
-			isLocalClineProviderSettings({
+			isLocalNKleinProviderSettings({
 				providerId: "openai-compatible",
 				modelId: "local-model",
 				baseUrl: "http://100.64.0.10:1234/v1",

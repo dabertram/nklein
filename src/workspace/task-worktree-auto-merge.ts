@@ -151,7 +151,7 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	const steps: TaskWorktreeAutoMergeStep[] = [];
 	const mergedTaskIds: string[] = [];
 	const skippedTaskIds: string[] = [];
-	const status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).cline/nklein"]);
+	const status = await runGit(input.repoPath, ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
 	if (!status.ok || status.stdout.trim()) {
 		const blocked: TaskWorktreeAutoMergeBlocked = {
 			type: "blocked",

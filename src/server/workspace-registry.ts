@@ -15,6 +15,7 @@ import {
 	type RuntimeWorkspaceIndexEntry,
 	removeWorkspaceIndexEntry,
 	removeWorkspaceStateFiles,
+	resolveWorkspacePath,
 } from "../state/workspace-state";
 import { TerminalSessionManager } from "../terminal/session-manager";
 import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
@@ -75,6 +76,7 @@ export interface WorkspaceRegistry {
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
 		gitRepositoryCreatedByKanban: boolean;
+		displayName?: string | null;
 		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
@@ -180,11 +182,12 @@ function toProjectSummary(project: {
 	repoPath: string;
 	taskCounts: RuntimeProjectTaskCounts;
 	gitRepositoryCreatedByKanban: boolean;
+	displayName?: string | null;
 	healthIssues?: RuntimeProjectHealthIssue[];
 }): RuntimeProjectSummary {
 	const normalized = project.repoPath.replaceAll("\\", "/").replace(/\/+$/g, "");
 	const segments = normalized.split("/").filter((segment) => segment.length > 0);
-	const name = segments[segments.length - 1] ?? normalized;
+	const name = project.displayName?.trim() || segments[segments.length - 1] || normalized;
 	return {
 		id: project.workspaceId,
 		path: project.repoPath,
@@ -196,18 +199,20 @@ function toProjectSummary(project: {
 }
 
 export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDependencies): Promise<WorkspaceRegistry> {
-	const launchedFromGitRepo = deps.hasGitRepository(deps.cwd);
-	const initialWorkspace = launchedFromGitRepo
-		? await loadWorkspaceContext(deps.cwd, { autoCreateIfMissing: true }).catch(() => null)
+	const sourceWorkspacePath = deps.hasGitRepository(deps.cwd)
+		? await resolveWorkspacePath(deps.cwd).catch(() => null)
 		: null;
-	let indexedWorkspace: RuntimeWorkspaceIndexEntry | null = null;
-	if (!initialWorkspace) {
-		const indexedWorkspaces = await listWorkspaceIndexEntries();
-		indexedWorkspace = indexedWorkspaces[0] ?? null;
-	}
+	const filterUnconfirmedSourceWorkspace = (projects: RuntimeWorkspaceIndexEntry[]): RuntimeWorkspaceIndexEntry[] =>
+		sourceWorkspacePath
+			? projects.filter(
+					(project) => project.repoPath !== sourceWorkspacePath || project.selfProjectConfirmed === true,
+				)
+			: projects;
+	const indexedWorkspaces = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
+	const indexedWorkspace = indexedWorkspaces[0] ?? null;
 
-	let activeWorkspaceId: string | null = initialWorkspace?.workspaceId ?? indexedWorkspace?.workspaceId ?? null;
-	let activeWorkspacePath: string | null = initialWorkspace?.repoPath ?? indexedWorkspace?.repoPath ?? null;
+	let activeWorkspaceId: string | null = indexedWorkspace?.workspaceId ?? null;
+	let activeWorkspacePath: string | null = indexedWorkspace?.repoPath ?? null;
 	let globalRuntimeConfig = await deps.loadGlobalRuntimeConfig();
 	let activeRuntimeConfig = activeWorkspacePath
 		? await deps.loadRuntimeConfig(activeWorkspacePath)
@@ -339,7 +344,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	};
 
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
-		const projects = await listWorkspaceIndexEntries();
+		const projects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
 		const healthIssuesByWorkspaceId = await detectProjectHealthIssuesByWorkspaceId({ projects });
 		const fallbackProjectId =
 			projects.find((project) => project.workspaceId === activeWorkspaceId)?.workspaceId ??
@@ -358,6 +363,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					repoPath: project.repoPath,
 					taskCounts,
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					displayName: project.displayName,
 					healthIssues: healthIssuesByWorkspaceId.get(project.workspaceId) ?? [],
 				});
 			}),
@@ -374,7 +380,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 			onRemovedWorkspace?: (workspace: RemovedWorkspaceNotice) => void;
 		},
 	): Promise<ResolvedWorkspaceStreamTarget> => {
-		const allProjects = await listWorkspaceIndexEntries();
+		const allProjects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
 		const existingProjects: RuntimeWorkspaceIndexEntry[] = [];
 		const removedProjects: RuntimeWorkspaceIndexEntry[] = [];
 
@@ -450,10 +456,6 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 			didPruneProjects: removedProjects.length > 0,
 		};
 	};
-
-	if (initialWorkspace) {
-		await ensureTerminalManagerForWorkspace(initialWorkspace.workspaceId, initialWorkspace.repoPath);
-	}
 
 	return {
 		getActiveWorkspaceId: () => activeWorkspaceId,

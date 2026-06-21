@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
 import {
-	CLINE_HOME_DIR_NAME,
+	NKLEIN_HOME_DIR_NAME,
 	NKLEIN_RUNTIME_DIR_NAME,
 	TASK_WORKTREES_DIR_NAME,
 } from "../config/runtime-path-constants";
@@ -27,7 +27,7 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 
-const RUNTIME_HOME_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
 const RUNTIME_WORKTREES_DIR = TASK_WORKTREES_DIR_NAME;
 const WORKSPACES_DIR = "workspaces";
@@ -53,12 +53,16 @@ interface WorkspaceIndexEntry {
 	workspaceId: string;
 	repoPath: string;
 	gitRepositoryCreatedByKanban?: boolean;
+	displayName?: string;
+	selfProjectConfirmed?: boolean;
 }
 
 export interface RuntimeWorkspaceIndexEntry {
 	workspaceId: string;
 	repoPath: string;
 	gitRepositoryCreatedByKanban: boolean;
+	displayName: string | null;
+	selfProjectConfirmed: boolean;
 }
 
 interface WorkspaceIndexFile {
@@ -95,6 +99,8 @@ const workspaceIndexEntrySchema = z.object({
 	workspaceId: z.string().min(1, "Workspace ID cannot be empty."),
 	repoPath: z.string().min(1, "Workspace repository path cannot be empty."),
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
+	displayName: z.string().optional(),
+	selfProjectConfirmed: z.boolean().optional(),
 });
 
 const workspaceIndexFileSchema = z
@@ -170,11 +176,15 @@ export interface RuntimeWorkspaceContext {
 	statePath: string;
 	git: RuntimeGitRepositoryInfo;
 	gitRepositoryCreatedByKanban?: boolean;
+	displayName?: string | null;
+	selfProjectConfirmed?: boolean;
 }
 
 export interface LoadWorkspaceContextOptions {
 	autoCreateIfMissing?: boolean;
 	gitRepositoryCreatedByKanban?: boolean;
+	displayName?: string;
+	selfProjectConfirmed?: boolean;
 	allowTaskWorktreeProject?: boolean;
 	resolutionSource?: string;
 	resolutionMetadata?: Record<string, unknown>;
@@ -288,7 +298,7 @@ function getWorkspaceMetaPath(workspaceId: string): string {
 }
 
 function getWorkspaceLocalStateDirectoryPath(repoPath: string): string {
-	return join(repoPath, ".cline", RUNTIME_HOME_DIR, WORKSPACE_LOCAL_STATE_DIR);
+	return join(repoPath, ".nklein", RUNTIME_HOME_DIR, WORKSPACE_LOCAL_STATE_DIR);
 }
 
 function getWorkspaceLocalBoardPath(repoPath: string): string {
@@ -641,15 +651,24 @@ function ensureWorkspaceEntry(
 	repoPath: string,
 	gitRepositoryCreatedByKanban: boolean,
 	preferredWorkspaceId?: string,
+	displayName?: string,
+	selfProjectConfirmed?: boolean,
 ): { index: WorkspaceIndexFile; entry: WorkspaceIndexEntry; changed: boolean } {
+	const normalizedDisplayName = displayName?.trim() || undefined;
 	const existingWorkspaceId = index.repoPathToId[repoPath];
 	if (existingWorkspaceId) {
 		const existingEntry = index.entries[existingWorkspaceId];
 		if (existingEntry && existingEntry.repoPath === repoPath) {
-			if (gitRepositoryCreatedByKanban && !existingEntry.gitRepositoryCreatedByKanban) {
+			const shouldMarkGitCreated = gitRepositoryCreatedByKanban && !existingEntry.gitRepositoryCreatedByKanban;
+			const shouldUpdateDisplayName =
+				normalizedDisplayName !== undefined && existingEntry.displayName !== normalizedDisplayName;
+			const shouldMarkSelfConfirmed = selfProjectConfirmed === true && !existingEntry.selfProjectConfirmed;
+			if (shouldMarkGitCreated || shouldUpdateDisplayName || shouldMarkSelfConfirmed) {
 				const updatedEntry = {
 					...existingEntry,
-					gitRepositoryCreatedByKanban: true,
+					...(shouldMarkGitCreated ? { gitRepositoryCreatedByKanban: true } : {}),
+					...(shouldUpdateDisplayName ? { displayName: normalizedDisplayName } : {}),
+					...(shouldMarkSelfConfirmed ? { selfProjectConfirmed: true } : {}),
 				};
 				return {
 					index: {
@@ -677,6 +696,8 @@ function ensureWorkspaceEntry(
 		workspaceId,
 		repoPath,
 		...(gitRepositoryCreatedByKanban ? { gitRepositoryCreatedByKanban: true } : {}),
+		...(normalizedDisplayName ? { displayName: normalizedDisplayName } : {}),
+		...(selfProjectConfirmed ? { selfProjectConfirmed: true } : {}),
 	};
 
 	return {
@@ -895,6 +916,8 @@ export async function loadWorkspaceContext(
 			statePath: getWorkspaceDirectoryPath(existingEntry.workspaceId),
 			git: detectGitRepositoryInfo(repoPath),
 			gitRepositoryCreatedByKanban: existingEntry.gitRepositoryCreatedByKanban === true,
+			displayName: existingEntry.displayName?.trim() || null,
+			selfProjectConfirmed: existingEntry.selfProjectConfirmed === true,
 		};
 	}
 
@@ -906,6 +929,8 @@ export async function loadWorkspaceContext(
 			repoPath,
 			options.gitRepositoryCreatedByKanban === true,
 			localIdentity?.workspaceId,
+			options.displayName,
+			options.selfProjectConfirmed === true,
 		);
 		index = ensured.index;
 		if (ensured.changed) {
@@ -935,6 +960,8 @@ export async function loadWorkspaceContext(
 			statePath: getWorkspaceDirectoryPath(ensured.entry.workspaceId),
 			git: detectGitRepositoryInfo(repoPath),
 			gitRepositoryCreatedByKanban: ensured.entry.gitRepositoryCreatedByKanban === true,
+			displayName: ensured.entry.displayName?.trim() || null,
+			selfProjectConfirmed: ensured.entry.selfProjectConfirmed === true,
 		};
 	});
 }
@@ -974,6 +1001,8 @@ export async function listWorkspaceIndexEntries(): Promise<RuntimeWorkspaceIndex
 			workspaceId: entry.workspaceId,
 			repoPath: entry.repoPath,
 			gitRepositoryCreatedByKanban: entry.gitRepositoryCreatedByKanban === true,
+			displayName: entry.displayName?.trim() || null,
+			selfProjectConfirmed: entry.selfProjectConfirmed === true,
 		}))
 		.sort((left, right) => left.repoPath.localeCompare(right.repoPath));
 }

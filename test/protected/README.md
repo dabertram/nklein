@@ -14,12 +14,12 @@ Changing protected tests, the protected manifest, or this protected-suite config
 
 Current protected groups:
 
-- `cline-local-only-policy`: local-only provider policy and cloud hiding boundary.
-- `cline-context-window-policy`: effective context-window and overflow guard behavior.
-- `cline-timeout-scaling`: slow local model timeout scaling and body-timeout recovery.
+- `nklein-local-only-policy`: local-only provider policy and cloud hiding boundary.
+- `nklein-context-window-policy`: effective context-window and overflow guard behavior.
+- `nklein-timeout-scaling`: slow local model timeout scaling and body-timeout recovery.
 - `swarm-guardrails`: swarm stop/resume and autonomous guardrails.
 - `workspace-registry`: workspace identity, ownership, and project-health diagnostics.
-- `cline-decomposition-tool`: decomposition graph application and Planning artifacts.
-- `cline-agent-sandbox-host-guard`: strict-isolation guarantee that agent tools + the acceptance gate never run on the host (no host fallback).
-- `cline-agent-sandbox`: Docker sandbox lockdown flags, fail-closed availability, per-task uid isolation, and pool/queue admission.
-- `cline-task-start-guard`: fail-closed task-start preflight and candidate-window fit budget.
+- `nklein-decomposition-tool`: decomposition graph application and Planning artifacts.
+- `nklein-agent-sandbox-host-guard`: strict-isolation guarantee that agent tools + the acceptance gate never run on the host (no host fallback).
+- `nklein-agent-sandbox`: Docker sandbox lockdown flags, fail-closed availability, per-task uid isolation, and pool/queue admission.
+- `nklein-task-start-guard`: fail-closed task-start preflight and candidate-window fit budget.

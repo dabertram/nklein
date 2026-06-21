@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	filterVisibleClineProviderCatalog,
+	filterVisibleNKleinProviderCatalog,
 	getTaskAgentNavbarHint,
-	isClineProviderAuthenticated,
-	isNativeClineAgentSelected,
+	isCloudProviderSupportEnabled,
+	isNativeNKleinAgentSelected,
+	isNKleinProviderAuthenticated,
 	isTaskAgentSetupSatisfied,
 	selectLatestTaskChatMessageForTask,
 	selectTaskChatMessagesForTask,
 } from "@/runtime/native-agent";
 import type {
-	RuntimeClineProviderCatalogItem,
 	RuntimeConfigResponse,
+	RuntimeNKleinProviderCatalogItem,
 	RuntimeStateStreamTaskChatMessage,
 } from "@/runtime/types";
 
@@ -58,17 +59,17 @@ function createRuntimeConfigResponse(
 			model: "kanban-local-lexical-vector-v1",
 			baseUrl: null,
 		},
-		effectiveCommand: selectedAgentId === "cline" ? null : selectedAgentId,
+		effectiveCommand: selectedAgentId === "nklein" ? null : selectedAgentId,
 		globalConfigPath: "/tmp/global-config.json",
-		projectConfigPath: "/tmp/project/.cline/nklein/config.json",
+		projectConfigPath: "/tmp/project/.nklein/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
 		detectedCommands: ["claude", "codex"],
 		agents: [
 			{
-				id: "cline",
-				label: "Cline",
-				binary: "cline",
-				command: "cline",
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "nklein",
 				defaultArgs: [],
 				installed: false,
 				configured: true,
@@ -85,12 +86,12 @@ function createRuntimeConfigResponse(
 		],
 		shortcuts: [],
 		modelRoles: {},
-		clineProviderSettings: {
-			providerId: "cline",
+		nkleinProviderSettings: {
+			providerId: "nklein",
 			modelId: "sonnet",
 			baseUrl: null,
 			apiKeyConfigured: false,
-			oauthProvider: "cline",
+			oauthProvider: "nklein",
 			oauthAccessTokenConfigured: true,
 			oauthRefreshTokenConfigured: true,
 			oauthAccountId: "acct_123",
@@ -122,7 +123,7 @@ function createLatestTaskChatMessage(taskId: string): RuntimeStateStreamTaskChat
 	};
 }
 
-const providerCatalog: RuntimeClineProviderCatalogItem[] = [
+const providerCatalog: RuntimeNKleinProviderCatalogItem[] = [
 	{
 		id: "anthropic",
 		name: "Anthropic",
@@ -142,6 +143,24 @@ const providerCatalog: RuntimeClineProviderCatalogItem[] = [
 		supportsBaseUrl: true,
 	},
 	{
+		id: "custom-local",
+		name: "Custom Local",
+		enabled: true,
+		oauthSupported: false,
+		defaultModelId: null,
+		baseUrl: "http://127.0.0.1:4000/v1",
+		supportsBaseUrl: true,
+	},
+	{
+		id: "custom-cloud",
+		name: "Custom Cloud",
+		enabled: true,
+		oauthSupported: false,
+		defaultModelId: null,
+		baseUrl: "https://models.example.com/v1",
+		supportsBaseUrl: true,
+	},
+	{
 		id: "ollama",
 		name: "Ollama",
 		enabled: true,
@@ -153,30 +172,30 @@ const providerCatalog: RuntimeClineProviderCatalogItem[] = [
 ];
 
 describe("native-agent helpers", () => {
-	it("treats cline as the native chat agent", () => {
-		expect(isNativeClineAgentSelected("cline")).toBe(true);
-		expect(isNativeClineAgentSelected("codex")).toBe(false);
+	it("treats nklein as the native chat agent", () => {
+		expect(isNativeNKleinAgentSelected("nklein")).toBe(true);
+		expect(isNativeNKleinAgentSelected("codex")).toBe(false);
 	});
 
-	it("treats selected cline as task-ready when cline authentication is configured", () => {
-		expect(isTaskAgentSetupSatisfied(createRuntimeConfigResponse("cline"))).toBe(true);
+	it("treats selected nklein as task-ready when nklein authentication is configured", () => {
+		expect(isTaskAgentSetupSatisfied(createRuntimeConfigResponse("nklein"))).toBe(true);
 		expect(isTaskAgentSetupSatisfied(null)).toBeNull();
 	});
 
-	it("requires setup when cline is selected and cline authentication is missing", () => {
-		const config = createRuntimeConfigResponse("cline", {
+	it("requires setup when nklein is selected and nklein authentication is missing", () => {
+		const config = createRuntimeConfigResponse("nklein", {
 			agents: [
 				{
-					id: "cline",
-					label: "Cline",
-					binary: "cline",
-					command: "cline",
+					id: "nklein",
+					label: "!Klein",
+					binary: "nklein",
+					command: "nklein",
 					defaultArgs: [],
 					installed: true,
 					configured: true,
 				},
 			],
-			clineProviderSettings: {
+			nkleinProviderSettings: {
 				providerId: null,
 				modelId: null,
 				baseUrl: null,
@@ -191,14 +210,14 @@ describe("native-agent helpers", () => {
 		expect(isTaskAgentSetupSatisfied(config)).toBe(false);
 	});
 
-	it("falls back to other installed launch-supported agents when cline auth is missing", () => {
-		const config = createRuntimeConfigResponse("cline", {
+	it("falls back to other installed launch-supported agents when nklein auth is missing", () => {
+		const config = createRuntimeConfigResponse("nklein", {
 			agents: [
 				{
-					id: "cline",
-					label: "Cline",
-					binary: "cline",
-					command: "cline",
+					id: "nklein",
+					label: "!Klein",
+					binary: "nklein",
+					command: "nklein",
 					defaultArgs: [],
 					installed: true,
 					configured: true,
@@ -213,7 +232,7 @@ describe("native-agent helpers", () => {
 					configured: false,
 				},
 			],
-			clineProviderSettings: {
+			nkleinProviderSettings: {
 				providerId: null,
 				modelId: null,
 				baseUrl: null,
@@ -228,24 +247,24 @@ describe("native-agent helpers", () => {
 		expect(isTaskAgentSetupSatisfied(config)).toBe(true);
 	});
 
-	it("does not show the navbar setup hint when cline is configured through the native SDK path", () => {
-		expect(getTaskAgentNavbarHint(createRuntimeConfigResponse("cline"))).toBeUndefined();
+	it("does not show the navbar setup hint when nklein is configured through the native SDK path", () => {
+		expect(getTaskAgentNavbarHint(createRuntimeConfigResponse("nklein"))).toBeUndefined();
 	});
 
 	it("shows the navbar setup hint when no task agent path is ready", () => {
-		const config = createRuntimeConfigResponse("cline", {
+		const config = createRuntimeConfigResponse("nklein", {
 			agents: [
 				{
-					id: "cline",
-					label: "Cline",
-					binary: "cline",
-					command: "cline",
+					id: "nklein",
+					label: "!Klein",
+					binary: "nklein",
+					command: "nklein",
 					defaultArgs: [],
 					installed: true,
 					configured: true,
 				},
 			],
-			clineProviderSettings: {
+			nkleinProviderSettings: {
 				providerId: null,
 				modelId: null,
 				baseUrl: null,
@@ -265,24 +284,29 @@ describe("native-agent helpers", () => {
 		).toBeUndefined();
 	});
 
-	it("filters cloud providers out of the visible Cline provider catalog when cloud is disabled", () => {
-		expect(filterVisibleClineProviderCatalog(providerCatalog, false).map((provider) => provider.id)).toEqual([
+	it("filters cloud providers out of the visible NKlein provider catalog when cloud is disabled", () => {
+		expect(filterVisibleNKleinProviderCatalog(providerCatalog, false).map((provider) => provider.id)).toEqual([
 			"lmstudio",
+			"custom-local",
 			"ollama",
 		]);
 	});
 
-	it("keeps cloud providers in the visible Cline provider catalog when cloud is enabled", () => {
-		expect(filterVisibleClineProviderCatalog(providerCatalog, true).map((provider) => provider.id)).toEqual([
-			"anthropic",
+	it("keeps cloud providers hidden in the visible NKlein provider catalog even when stale config enables cloud", () => {
+		expect(filterVisibleNKleinProviderCatalog(providerCatalog, true).map((provider) => provider.id)).toEqual([
 			"lmstudio",
+			"custom-local",
 			"ollama",
 		]);
 	});
 
-	it("checks for a provider selection when determining cline authentication", () => {
+	it("keeps frontend cloud support disabled even when stale runtime config says otherwise", () => {
+		expect(isCloudProviderSupportEnabled({ cloudProviderSupportEnabled: true })).toBe(false);
+	});
+
+	it("checks for a provider selection when determining nklein authentication", () => {
 		expect(
-			isClineProviderAuthenticated({
+			isNKleinProviderAuthenticated({
 				providerId: null,
 				modelId: null,
 				baseUrl: null,
@@ -295,7 +319,7 @@ describe("native-agent helpers", () => {
 			}),
 		).toBe(false);
 		expect(
-			isClineProviderAuthenticated({
+			isNKleinProviderAuthenticated({
 				providerId: "anthropic",
 				modelId: null,
 				baseUrl: null,

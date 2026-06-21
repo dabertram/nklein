@@ -83,7 +83,7 @@ function createSession(hookEventName: string): RuntimeTaskSessionSummary {
 	return {
 		taskId: "task-1",
 		state: "awaiting_review",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/repo",
 		pid: null,
 		startedAt: 1,

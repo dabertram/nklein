@@ -14,8 +14,8 @@ change you flagged (200k clamp).**
 - [x] ~~`npm run typecheck` (server) passes~~
 - [x] ~~`npm run web:typecheck` passes~~
 - [x] ~~`npm run lint` (biome, 496 files) clean~~
-- [x] ~~`npm run check:cline-boundary` passes~~
-- [x] ~~`npx vitest run test/runtime/cline-sdk test/runtime/telemetry` → 324 tests / 41 files pass (9.4s, no hang)~~
+- [x] ~~`npm run check:nklein-boundary` passes~~
+- [x] ~~`npx vitest run test/runtime/nklein-sdk test/runtime/telemetry` → 324 tests / 41 files pass (9.4s, no hang)~~
 - [x] ~~Working tree clean; CHANGELOG `## [Upcoming]` present and diff-grounded~~
 
 ### Spot-verified as correctly implemented
@@ -23,15 +23,15 @@ change you flagged (200k clamp).**
 - [x] ~~L1.1 guard blocks/compacts **before** dispatch and emits proactive `context_overflow` telemetry (`blocked`/`compacted`)~~
 - [x] ~~L1.2 overflow restart reuses persisted launch config with a `startRuntimeTaskSessionFromLaunchConfig` fallback~~
 - [x] ~~L1.3 timeouts default to local-friendly values (request 1h, stream/tool/agent 24h, conversation 7d); the 1s bug is gone~~
-- [x] ~~Router H2 fixed: a feasible preferred model is `assign`ed, not downgraded ([cline-task-router.ts:161-168](src/cline-sdk/cline-task-router.ts#L161))~~
+- [x] ~~Router H2 fixed: a feasible preferred model is `assign`ed, not downgraded ([nklein-task-router.ts:161-168](src/nklein-sdk/nklein-task-router.ts#L161))~~
 
 ---
 
 ## F0 — Must change (you flagged this)
 
 - [x] **Drop / relax the hard 200k effective-context clamp** so local models can use all available context.
-      [cline-task-session-service.ts:86](src/cline-sdk/cline-task-session-service.ts#L86),
-      [normalizeEffectiveContextWindow :1060-1062](src/cline-sdk/cline-task-session-service.ts#L1060)
+      [nklein-task-session-service.ts:86](src/nklein-sdk/nklein-task-session-service.ts#L86),
+      [normalizeEffectiveContextWindow :1060-1062](src/nklein-sdk/nklein-task-session-service.ts#L1060)
   - Context: the 200k cap was a reaction to the cloud 1.1M-token incident. **Cloud is now hard-blocked
     (L0), so the cost risk is gone.** Capping local models at 200k throttles Qwen-1M / 256k / 512k local
     builds and contradicts "use all available context."
@@ -40,7 +40,7 @@ change you flagged (200k clamp).**
         sanity bound (e.g. ≥2M) purely to guard against an absurdly misreported window. The operative limit
         must be the per-model resolved window, not a global 200k throttle.
   - [x] **Single-source-of-truth check:** ensure the guard's effective window, the value fed to
-        `buildClineContextCompactionConfig` ([cline-session-runtime.ts:362](src/cline-sdk/cline-session-runtime.ts#L362),
+        `buildNKleinContextCompactionConfig` ([nklein-session-runtime.ts:362](src/nklein-sdk/nklein-session-runtime.ts#L362),
         default 80k), and the L1.6 context bar all read the **same** unclamped window, so guard / SDK
         compaction / bar never disagree.
   - [x] Add/adjust a test asserting a model advertising > 200k (e.g. 1M) keeps its full window end-to-end.
@@ -50,7 +50,7 @@ change you flagged (200k clamp).**
 ## F1 — Robustness / correctness
 
 - [x] **Oversized *single* prompt should degrade gracefully, not hard-throw.**
-      [prepareMessagesForKnownContextWindow :1138-1152](src/cline-sdk/cline-task-session-service.ts#L1138)
+      [prepareMessagesForKnownContextWindow :1138-1152](src/nklein-sdk/nklein-task-session-service.ts#L1138)
   - Today, if `projectedTokens > contextWindow` after maximal history compaction, the guard records a
     `blocked` signal and throws — correct for "never send oversized," but the common trigger (one huge
     incoming user message / file paste) can't be fixed by history compaction, so the user gets a generic error.
@@ -59,18 +59,18 @@ change you flagged (200k clamp).**
         larger-window model"), distinct from the history-overflow case.
   - [x] Optionally offer to truncate/summarize the incoming prompt instead of failing the turn.
 - [x] **Cold-start timeout floor.** `applyMcsrAwareLocalTimeoutScaling` is inert until `speed.samples > 0`
-      ([cline-timeout-scaling.ts:139](src/cline-sdk/cline-timeout-scaling.ts#L139)). Defaults are large so
+      ([nklein-timeout-scaling.ts:139](src/nklein-sdk/nklein-timeout-scaling.ts#L139)). Defaults are large so
       this is low-risk, but seed a conservative first-request floor from advertised window × a pessimistic
       tok/s prior so the very first turn on a brand-new slow model is generously bounded before EWMA kicks in.
 - [x] **`route_up` reason-string accuracy.** When the preferred model is infeasible (e.g. window too small)
       the router assigns `feasible[0]` and labels it `route_up`, which can be lower capability
-      ([cline-task-router.ts:169-178](src/cline-sdk/cline-task-router.ts#L169)). The decision is correct;
+      ([nklein-task-router.ts:169-178](src/nklein-sdk/nklein-task-router.ts#L169)). The decision is correct;
       reword to "preferred model doesn't fit; selected the smallest model satisfying capability + window."
 - [x] **Regression test: cloud-pinned card on the resume/overflow-restart path.** The start path maps
       `CloudProviderDisabledError → errorCode "cloud_provider_disabled"`
       ([runtime-api.ts:606](src/trpc/runtime-api.ts#L606)); add a test that a persisted cloud-pinned card
       hitting `startRuntimeTaskSessionFromLaunchConfig`
-      ([:1234-1245](src/cline-sdk/cline-task-session-service.ts#L1234)) is also blocked, not silently
+      ([:1234-1245](src/nklein-sdk/nklein-task-session-service.ts#L1234)) is also blocked, not silently
       restarted with the stale cloud config.
 
 ---
@@ -80,11 +80,11 @@ change you flagged (200k clamp).**
 - [x] **Syntax-tree + PageRank repo map.** Replaced JS/TS regex extraction with TypeScript AST extraction plus
       PageRank-style symbol ranking; repo maps still fall back to lexical extraction for non-JS/TS files and refresh
       after mutating tools.
-      ([cline-repo-map.ts](src/cline-sdk/cline-repo-map.ts), plan §M4). **Highest-leverage
+      ([nklein-repo-map.ts](src/nklein-sdk/nklein-repo-map.ts), plan §M4). **Highest-leverage
       remaining item for small-model navigation** — recommend promoting from "parked" to active.
 - [x] **Real local embeddings.** "Local embeddings" are bag-of-words token counts and search is lexical-first
-      with semantic only as a zero-result fallback ([cline-code-embeddings.ts](src/cline-sdk/cline-code-embeddings.ts),
-      [cline-code-search.ts](src/cline-sdk/cline-code-search.ts), plan §M2/M3). Either ship real offline ONNX
+      with semantic only as a zero-result fallback ([nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts),
+      [nklein-code-search.ts](src/nklein-sdk/nklein-code-search.ts), plan §M2/M3). Either ship real offline ONNX
       embeddings (no API key) or rename to `local_lexical` so the capability isn't oversold.
 - [x] **MCSR cold-start prior never decays** — weight by `1/(1+samples)` (plan §M1).
 - [x] **Self-review can't detect "claimed done, no diff"** — feed a real files-changed signal (plan §M5).

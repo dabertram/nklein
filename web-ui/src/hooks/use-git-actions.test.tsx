@@ -134,7 +134,7 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 		],
 		shortcuts: [],
 		modelRoles: {},
-		clineProviderSettings: {
+		nkleinProviderSettings: {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4",
 			baseUrl: null,
@@ -165,7 +165,7 @@ function HookHarness({
 		currentProjectId: "project-1",
 		board: createBoard(),
 		selectedCard: null,
-		runtimeProjectConfig: createRuntimeConfig("cline"),
+		runtimeProjectConfig: createRuntimeConfig("nklein"),
 		sendTaskSessionInput,
 		sendTaskChatMessage,
 		isGitHistoryOpen: false,
@@ -215,7 +215,7 @@ describe("useGitActions", () => {
 		}
 	});
 
-	it("sends commit prompts through the native cline chat API", async () => {
+	it("sends commit prompts through the native nklein chat API", async () => {
 		const sendTaskSessionInput = vi.fn(async () => ({ ok: true }));
 		const sendTaskChatMessage = vi.fn(async () => ({ ok: true }));
 		let latestSnapshot: HookSnapshot | null = null;

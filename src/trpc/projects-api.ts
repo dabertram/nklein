@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { cp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import {
-	CLINE_DEV_TEST_PROJECT_MARKER_PATH,
-	resolveClineDevTestProjectScenario,
-	scaffoldClineDevTestProject,
-} from "../cline-sdk/cline-dev-test-project";
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardData,
@@ -21,7 +16,7 @@ import type {
 	RuntimeProjectTaskCounts,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
-	RuntimeTaskClineSettings,
+	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	parseDirectoryListRequest,
@@ -30,9 +25,14 @@ import {
 	parseProjectRemoveRequest,
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
-import { withAutonomousClineTimeoutSettings } from "../core/autonomous-timeout-defaults";
+import { withAutonomousNKleinTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import {
+	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
+	resolveNKleinDevTestProjectScenario,
+	scaffoldNKleinDevTestProject,
+} from "../nklein-sdk/nklein-dev-test-project";
 import {
 	getCanonicalTaskWorktreesHomePath,
 	listWorkspaceIndexEntries,
@@ -82,7 +82,7 @@ async function isMarkedDevTestWorkspaceEntry(entry: {
 		return false;
 	}
 	try {
-		const rawMarker = await readFile(join(entry.repoPath, CLINE_DEV_TEST_PROJECT_MARKER_PATH), "utf8");
+		const rawMarker = await readFile(join(entry.repoPath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH), "utf8");
 		const parsed = JSON.parse(rawMarker) as { createdBy?: unknown };
 		return parsed.createdBy === "nklein-dev-test";
 	} catch {
@@ -108,21 +108,17 @@ export function createDevTestBoard(input: {
 }): RuntimeBoardData {
 	const workerSettings = input.modelRoles?.worker;
 	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
-		(settings): settings is RuntimeTaskClineSettings => Boolean(settings.providerId || settings.modelId),
+		(settings): settings is RuntimeTaskNKleinSettings => Boolean(settings.providerId || settings.modelId),
 	);
-	const clineSettings = withAutonomousClineTimeoutSettings(workerSettings ?? firstRoleSettings);
+	const nkleinSettings = withAutonomousNKleinTimeoutSettings(workerSettings ?? firstRoleSettings);
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,
-		prompt: [
-			input.prompt.trim(),
-			"",
-			`Use \`defaultAcceptanceCommand: "${input.acceptanceCommand}"\` when calling \`decompose_project\`, unless a generated leaf needs a narrower objective check.`,
-		].join("\n"),
+		prompt: input.prompt.trim(),
 		startInPlanMode: true,
 		autoReviewEnabled: true,
-		agentId: "cline" as const,
-		clineSettings,
+		agentId: "nklein" as const,
+		nkleinSettings,
 		baseRef: "main",
 		createdAt: input.now,
 		updatedAt: input.now,
@@ -204,6 +200,7 @@ export interface CreateProjectsApiDependencies {
 		repoPath: string;
 		taskCounts: RuntimeProjectTaskCounts;
 		gitRepositoryCreatedByKanban: boolean;
+		displayName?: string | null;
 		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
@@ -236,7 +233,7 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 async function listPlanArtifactDirectoryNames(workspacePath: string): Promise<string[]> {
-	const plansPath = join(workspacePath, ".cline", "nklein", "plans");
+	const plansPath = join(workspacePath, ".nklein", "nklein", "plans");
 	const entries = await readdir(plansPath, { withFileTypes: true }).catch(() => []);
 	return entries
 		.filter((entry) => entry.isDirectory())
@@ -323,6 +320,16 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				} else {
 					// path is guaranteed to exist here by the schema refine and the gitUrl branch above.
 					projectPath = deps.resolveProjectInputPath(body.path as string, resolveBasePath);
+					if (body.createDirectory) {
+						if (await pathExists(projectPath)) {
+							return {
+								ok: false,
+								project: null,
+								error: "Project folder already exists. Choose an existing project or use a different folder name.",
+							} satisfies RuntimeProjectAddResponse;
+						}
+						await mkdir(projectPath, { recursive: false });
+					}
 				}
 				await deps.assertPathIsDirectory(projectPath);
 				if (!deps.hasGitRepository(projectPath)) {
@@ -331,7 +338,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 							ok: false,
 							project: null,
 							requiresGitInitialization: true,
-							error: "This folder is not a git repository. Cline requires git to manage worktrees. Initialize git to continue.",
+							error: "This folder is not a git repository. !Klein requires git to manage worktrees. Initialize git to continue.",
 						} satisfies RuntimeProjectAddResponse;
 					}
 					const initResult = await initializeGitRepository(projectPath);
@@ -377,6 +384,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				}
 				const context = await loadWorkspaceContext(projectPath, {
 					gitRepositoryCreatedByKanban,
+					displayName: body.projectName,
+					selfProjectConfirmed: sourceRepoPath === candidateRepoPath && body.confirmSelfProject === true,
 					allowTaskWorktreeProject: body.allowTaskWorktreeProject === true,
 				});
 				deps.rememberWorkspace(context.workspaceId, context.repoPath);
@@ -397,6 +406,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						repoPath: context.repoPath,
 						taskCounts,
 						gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
+						displayName: context.displayName,
 					}),
 				} satisfies RuntimeProjectAddResponse;
 			} catch (error) {
@@ -426,8 +436,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 			}
 			try {
 				const preset = input?.preset ?? "mid_task";
-				const scenario = resolveClineDevTestProjectScenario(preset);
-				const scaffolded = await scaffoldClineDevTestProject({
+				const scenario = resolveNKleinDevTestProjectScenario(preset);
+				const scaffolded = await scaffoldNKleinDevTestProject({
 					scenario,
 					initializeGit: true,
 				});
@@ -605,7 +615,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						}),
 						startInPlanMode: true,
 						autoReviewEnabled: true,
-						agentId: "cline",
+						agentId: "nklein",
 						generatedFromPlan: {
 							artifactKind: "spec",
 							planSlug: "self-improvement-current-dev-checkout",
@@ -632,6 +642,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					repoPath: context.repoPath,
 					taskCounts,
 					gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
+					displayName: context.displayName,
 				});
 				void deps.broadcastRuntimeProjectsUpdated(context.workspaceId);
 				return {
@@ -919,8 +930,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				}
 				const artifactSlugs = await listPlanArtifactDirectoryNames(sourceEntry.repoPath);
 				for (const slug of artifactSlugs) {
-					const sourceArtifactPath = join(sourceEntry.repoPath, ".cline", "nklein", "plans", slug);
-					const targetArtifactPath = join(issue.parentWorkspacePath, ".cline", "nklein", "plans", slug);
+					const sourceArtifactPath = join(sourceEntry.repoPath, ".nklein", "nklein", "plans", slug);
+					const targetArtifactPath = join(issue.parentWorkspacePath, ".nklein", "nklein", "plans", slug);
 					if (await pathExists(targetArtifactPath)) {
 						skippedArtifacts += 1;
 						errors.push(`Skipped ${slug}: the parent project already has an artifact with that slug.`);

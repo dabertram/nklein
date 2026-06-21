@@ -1,7 +1,7 @@
 """Decomposition quality for the !Klein Python core.
 
-Ports the TS dependency-coherence validator (``cline-decomposition-graph-quality.ts``) and best-of-N selection
-(``cline-decomposition-selection.ts``) so the Python core can raise plan quality from weak local models via
+Ports the TS dependency-coherence validator (``nklein-decomposition-graph-quality.ts``) and best-of-N selection
+(``nklein-decomposition-selection.ts``) so the Python core can raise plan quality from weak local models via
 self-consistency (sample N graphs, keep the best by an objective judge; arXiv:2203.11171). This is the #1
 remaining quality gap (decomposition under-scoping) and lives in the Python core where constrained decoding +
 knowledge acquisition will drive generation. Pure/stdlib + unit-tested.

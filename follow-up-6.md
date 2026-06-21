@@ -221,7 +221,7 @@ Follow-up:
 - `psytrance-vst-synth-task-2` reached Review with sandbox result patch capture failed:
   `git apply --cached --binary --whitespace=nowarn ... task.patch failed: corrupt patch at line 53`.
 - `psytrance-vst-synth-task-10` reached Review after:
-  `Cline stream inactivity timeout after 360 seconds`.
+  `NKlein stream inactivity timeout after 360 seconds`.
 
 Follow-up:
 
@@ -299,7 +299,7 @@ Follow-up:
 ### 4.1 Fresh-run harnesses must use real UI-equivalent payloads
 
 - Direct `runtime.startTaskSession` calls failed until the harness supplied the same payload the UI sends:
-  `prompt`, `taskTitle`, `startInPlanMode`, `baseRef`, `agentId`, and `clineSettings`.
+  `prompt`, `taskTitle`, `startInPlanMode`, `baseRef`, `agentId`, and `nkleinSettings`.
 - The workspace board payload shape also differs from some internal assumptions: columns carry `cards`, not
   top-level `board.cards` / `taskIds`.
 

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { isClineOauthAuthenticated } from "@/runtime/native-agent";
+import { isNKleinOauthAuthenticated } from "@/runtime/native-agent";
 import { fetchFeaturebaseToken } from "@/runtime/runtime-config-query";
-import type { RuntimeClineProviderSettings } from "@/runtime/types";
+import type { RuntimeNKleinProviderSettings } from "@/runtime/types";
 
 const FEATUREBASE_SDK_ID = "featurebase-sdk";
 const FEATUREBASE_SDK_SRC = "https://do.featurebase.app/js/sdk.js";
-const FEATUREBASE_ORGANIZATION = "cline";
+const FEATUREBASE_ORGANIZATION = "nklein";
 const FEATUREBASE_FEEDBACK_OVERLAY_SELECTOR = ".fb-feedback-widget-overlay";
 const FEATUREBASE_FEEDBACK_HIDDEN_CLASS = "fb-feedback-widget-overlay-hidden";
 
@@ -132,11 +132,11 @@ function postFeaturebaseWidgetAction(win: Window, action: string): void {
 
 export function useFeaturebaseFeedbackWidget(input: {
 	workspaceId: string | null;
-	clineProviderSettings: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings: RuntimeNKleinProviderSettings | null;
 	cloudProviderSupportEnabled?: boolean;
 }): FeaturebaseFeedbackState {
-	const { workspaceId, clineProviderSettings, cloudProviderSupportEnabled = false } = input;
-	const isAuthenticated = isClineOauthAuthenticated(clineProviderSettings);
+	const { workspaceId, nkleinProviderSettings, cloudProviderSupportEnabled = false } = input;
+	const isAuthenticated = isNKleinOauthAuthenticated(nkleinProviderSettings);
 
 	const [authState, setAuthState] = useState<FeaturebaseAuthState>("idle");
 	const [widgetOpenCount, setWidgetOpenCount] = useState(0);

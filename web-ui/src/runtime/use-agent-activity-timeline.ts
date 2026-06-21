@@ -1,4 +1,4 @@
-import type { RuntimeClineTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeNKleinTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
 import { useEffect, useRef, useState } from "react";
 import {
 	type AgentActivityEntry,
@@ -14,7 +14,7 @@ import {
 export function useAgentActivityTimeline(
 	taskId: string | null,
 	summary: RuntimeTaskSessionSummary | null,
-	teamProgress: readonly RuntimeClineTeamProgressEvent[] = [],
+	teamProgress: readonly RuntimeNKleinTeamProgressEvent[] = [],
 ): AgentActivityEntry[] {
 	const [timeline, setTimeline] = useState<AgentActivityEntry[]>([]);
 	const taskIdRef = useRef<string | null>(taskId);

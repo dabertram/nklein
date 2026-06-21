@@ -21,8 +21,8 @@
    file/shell/edit/patch/search is *data-plane* and must be sandboxed. Keep that line bright.
 3. **≥32k context minimum**; no oversized prompt is ever sent; no hardcoded window/speed constants in
    routing/budget decisions.
-4. **UPSTREAM-CLEAN.** Never patch `node_modules/@clinebot/*`. Every feature is a `src/cline-sdk/` plug-in on
-   an official SDK socket. `npm run check:cline-boundary` must stay green.
+4. **UPSTREAM-CLEAN.** Never patch `node_modules/@nkleinbot/*`. Every feature is a `src/nklein-sdk/` plug-in on
+   an official SDK socket. `npm run check:nklein-boundary` must stay green.
 5. **PROTECTED TESTS ARE HUMAN-GATED.** You may not weaken or change anything in `test/protected/**`,
    `vitest.protected.config.ts`, or `test/protected/protected-tests.json` without **explicit user approval**.
    If a change you want requires touching them, STOP and ask the user with a structured proposal
@@ -69,7 +69,7 @@ Repeat until the stop condition (§4) is met:
 - `npm run typecheck` — 0 errors.
 - `npm run web:typecheck` — 0 errors.
 - `npm run lint` — clean.
-- `npm run check:cline-boundary` — passes.
+- `npm run check:nklein-boundary` — passes.
 - `npm run test:fast` (and the relevant `npx vitest run test/runtime/...` suites for what you touched) — green.
 - `npm run test:protected` — green (and you did not modify it without approval).
 - For web-ui changes: `npm --prefix web-ui run test` for the affected components.
@@ -152,17 +152,17 @@ If new ideas arrive: write them into `specsheet.md` §14 first, decompose into `
 
 ## 7. Quick reference — where things live
 
-- Local-only policy: `src/cline-sdk/cline-local-only-policy.ts`
-- Strict isolation: `src/cline-sdk/cline-agent-sandbox.ts`, `src/cline-sdk/agent-sandbox/`,
-  `docker/agent-sandbox/`, `src/cline-sdk/cline-agent-sandbox-extra-tools.ts`
+- Local-only policy: `src/nklein-sdk/nklein-local-only-policy.ts`
+- Strict isolation: `src/nklein-sdk/nklein-agent-sandbox.ts`, `src/nklein-sdk/agent-sandbox/`,
+  `docker/agent-sandbox/`, `src/nklein-sdk/nklein-agent-sandbox-extra-tools.ts`
 - Task session orchestration (sandbox lifecycle, pause, budgets, decomposition gating, result-branch capture):
-  `src/cline-sdk/cline-task-session-service.ts`
-- Decomposition: `src/cline-sdk/cline-decomposition-tool.ts`, `cline-decomposition-workflow.ts`,
-  `cline-plan-artifacts.ts`
+  `src/nklein-sdk/nklein-task-session-service.ts`
+- Decomposition: `src/nklein-sdk/nklein-decomposition-tool.ts`, `nklein-decomposition-workflow.ts`,
+  `nklein-plan-artifacts.ts`
 - Result branches / worktrees: `src/workspace/task-result-branches.ts`, `src/workspace/task-worktree*.ts`
-- MCSR: `src/cline-sdk/cline-model-registry.ts` · Router/guard: `cline-task-router.ts`,
-  `cline-task-start-guard.ts`
-- Guardrails: `src/core/swarm-guardrails.ts`, `src/core/card-pause.ts`, `cline-pause-controller.ts`
+- MCSR: `src/nklein-sdk/nklein-model-registry.ts` · Router/guard: `nklein-task-router.ts`,
+  `nklein-task-start-guard.ts`
+- Guardrails: `src/core/swarm-guardrails.ts`, `src/core/card-pause.ts`, `nklein-pause-controller.ts`
 - Protected tests: `test/protected/` · Write guard: `src/core/agent-write-guard.ts`
 - Runtime config / settings: `src/config/runtime-config.ts`, `src/core/api-contract.ts`,
   `web-ui/src/components/runtime-settings-dialog.tsx`

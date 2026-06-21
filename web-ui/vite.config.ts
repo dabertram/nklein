@@ -82,7 +82,7 @@ export default defineConfig({
 			"@": resolve(__dirname, "src"),
 			"@runtime-contract": resolve(__dirname, "../src/core/api-contract.ts"),
 			"@runtime-agent-catalog": resolve(__dirname, "../src/core/agent-catalog.ts"),
-			"@runtime-cline-tool-call-display": resolve(__dirname, "../src/cline-sdk/cline-tool-call-display.ts"),
+			"@runtime-nklein-tool-call-display": resolve(__dirname, "../src/nklein-sdk/nklein-tool-call-display.ts"),
 			"@runtime-home-agent-session": resolve(__dirname, "../src/core/home-agent-session.ts"),
 			"@runtime-task-context-import": resolve(__dirname, "../src/core/task-context-import.ts"),
 			"@runtime-shortcuts": resolve(__dirname, "../src/config/shortcut-utils.ts"),

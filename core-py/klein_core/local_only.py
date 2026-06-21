@@ -1,7 +1,7 @@
 """Local-only network policy for the !Klein Python core.
 
 Mirrors the TypeScript ``assertLocalProviderAllowed`` / ``isLocalBaseUrl`` guard
-(``src/cline-sdk/cline-local-only-policy.ts``). The Python core must never reach a cloud endpoint: every
+(``src/nklein-sdk/nklein-local-only-policy.ts``). The Python core must never reach a cloud endpoint: every
 generation backend funnels through :func:`assert_local_base_url`. Re-enabling cloud is a deliberate code
 change here, never a setting.
 """

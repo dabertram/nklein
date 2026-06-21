@@ -6,7 +6,6 @@ import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
-import { disposeCliTelemetryService } from "./cline-sdk/cline-telemetry-service.js";
 import { registerDevCommand } from "./commands/dev";
 import { registerHooksCommand } from "./commands/hooks";
 import { registerTaskCommand } from "./commands/task";
@@ -34,6 +33,7 @@ import {
 	setKanbanRuntimeTls,
 } from "./core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
+import { disposeCliTelemetryService } from "./nklein-sdk/nklein-telemetry-service.js";
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
 import { terminateProcessForTimeout } from "./server/process-termination";
 import type { RuntimeStateHub } from "./server/runtime-state-hub";
@@ -420,7 +420,7 @@ async function startServer(): Promise<{
 
 		A regression in 25ba59f showed that eagerly importing the runtime stack here
 		could leave the source CLI process alive after the command had already printed
-		its JSON result. The issue first appeared after the native Cline SDK runtime
+		its JSON result. The issue first appeared after the native NKlein SDK runtime
 		was added to the server import graph. We have not yet isolated the deepest
 		handle creator inside that graph, so we keep command-style subcommands on the
 		lightweight path and only load the server stack when we actually start !Klein.

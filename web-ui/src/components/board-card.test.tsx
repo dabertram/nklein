@@ -99,7 +99,7 @@ function createSummary(
 	return {
 		taskId: "task-1",
 		state,
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/worktree",
 		pid: null,
 		startedAt: 1,
@@ -201,7 +201,7 @@ describe("BoardCard", () => {
 		expect(nextCancelButton).toBeUndefined();
 	});
 
-	it("shows a recovery message for lost Cline heartbeats", async () => {
+	it("shows a recovery message for lost NKlein heartbeats", async () => {
 		await act(async () => {
 			root.render(
 				<BoardCard
@@ -212,13 +212,13 @@ describe("BoardCard", () => {
 						reviewReason: "error",
 						heartbeatStatus: "lost",
 						warningMessage:
-							"Cline session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
+							"!Klein session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
 					})}
 				/>,
 			);
 		});
 
-		expect(container.textContent).toContain("Needs attention: the Cline session heartbeat was lost");
+		expect(container.textContent).toContain("Needs attention: the !Klein session heartbeat was lost");
 	});
 
 	it("shows durable auto-review notices on review cards", async () => {
@@ -255,7 +255,7 @@ describe("BoardCard", () => {
 		await act(async () => {
 			root.render(
 				<BoardCard
-					card={createCard({ agentId: "cline" })}
+					card={createCard({ agentId: "nklein" })}
 					index={0}
 					columnId="review"
 					sessionSummary={createSummary("awaiting_review", {
@@ -428,7 +428,7 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).not.toContain("~/.cline/worktrees/trash-task-1/kanban");
+		expect(container.textContent).not.toContain("~/.nklein/worktrees/trash-task-1/kanban");
 	});
 
 	it("reconstructs and shows trashed worktree path for legacy host-workspace agents", async () => {
@@ -445,7 +445,7 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("~/.cline/worktrees/trash-task-1/kanban");
+		expect(container.textContent).toContain("~/.nklein/worktrees/trash-task-1/kanban");
 	});
 
 	it("shows formatted agent override details with model name and reasoning effort", async () => {
@@ -464,8 +464,8 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						agentId: "cline",
-						clineSettings: {
+						agentId: "nklein",
+						nkleinSettings: {
 							modelId: "openai/gpt-5.5",
 							reasoningEffort: "low",
 						},
@@ -476,7 +476,7 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("Cline");
+		expect(container.textContent).toContain("!Klein");
 		expect(container.textContent).toContain("GPT-5.5 (Low)");
 		expect(container.textContent).not.toContain("openai/gpt-5.5");
 	});
@@ -486,13 +486,13 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						clineSettings: {
+						nkleinSettings: {
 							reasoningEffort: "low",
 						},
 					})}
 					index={0}
 					columnId="backlog"
-					defaultClineModelId="openai/gpt-5.5"
+					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});
@@ -505,7 +505,7 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						clineSettings: {
+						nkleinSettings: {
 							reasoningEffort: "low",
 						},
 					})}
@@ -523,12 +523,12 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						agentId: "cline",
-						clineSettings: {},
+						agentId: "nklein",
+						nkleinSettings: {},
 					})}
 					index={0}
 					columnId="backlog"
-					defaultClineModelId="openai/gpt-5.5"
+					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});
@@ -542,13 +542,13 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						clineSettings: {
+						nkleinSettings: {
 							providerId: "groq",
 						},
 					})}
 					index={0}
 					columnId="backlog"
-					defaultClineModelId="openai/gpt-5.5"
+					defaultNKleinModelId="openai/gpt-5.5"
 				/>,
 			);
 		});
@@ -562,8 +562,8 @@ describe("BoardCard", () => {
 			root.render(
 				<BoardCard
 					card={createCard({
-						agentId: "cline",
-						clineSettings: {
+						agentId: "nklein",
+						nkleinSettings: {
 							modelId: "openai/gpt-5.5",
 						},
 					})}
@@ -587,7 +587,7 @@ describe("BoardCard", () => {
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
-						agentId: "cline",
+						agentId: "nklein",
 						workspacePath: "/tmp/worktree",
 						pid: null,
 						startedAt: Date.now(),
@@ -603,7 +603,7 @@ describe("BoardCard", () => {
 							finalMessage: null,
 							hookEventName: "tool_call",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 						latestTurnCheckpoint: null,
 						previousTurnCheckpoint: null,
@@ -616,7 +616,7 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("Using Read");
 	});
 
-	it("shows non-cline tool activity in the compact tool label format", async () => {
+	it("shows non-nklein tool activity in the compact tool label format", async () => {
 		await act(async () => {
 			root.render(
 				<BoardCard
@@ -723,7 +723,7 @@ describe("BoardCard", () => {
 		expect(container.textContent).not.toContain("fs_write");
 	});
 
-	it("keeps showing the last cline tool label during assistant streaming", async () => {
+	it("keeps showing the last nklein tool label during assistant streaming", async () => {
 		await act(async () => {
 			root.render(
 				<BoardCard
@@ -733,7 +733,7 @@ describe("BoardCard", () => {
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
-						agentId: "cline",
+						agentId: "nklein",
 						workspacePath: "/tmp/worktree",
 						pid: null,
 						startedAt: Date.now(),
@@ -749,7 +749,7 @@ describe("BoardCard", () => {
 							finalMessage: "Looking at the file now",
 							hookEventName: "assistant_delta",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 						latestTurnCheckpoint: null,
 						previousTurnCheckpoint: null,
@@ -827,7 +827,7 @@ describe("BoardCard", () => {
 								finalMessage: preview,
 								hookEventName: "assistant_delta",
 								notificationType: null,
-								source: "cline-sdk",
+								source: "nklein-sdk",
 							},
 						})}
 					/>
@@ -864,7 +864,7 @@ describe("BoardCard", () => {
 							finalMessage: preview,
 							hookEventName: "assistant_delta",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 					})}
 				/>,
@@ -897,7 +897,7 @@ describe("BoardCard", () => {
 							finalMessage: "Reviewing the final diff",
 							hookEventName: "assistant_delta",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 					})}
 				/>,
@@ -974,7 +974,7 @@ describe("BoardCard", () => {
 							finalMessage: "Cloud models are disabled in this build",
 							hookEventName: "agent_error",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 					})}
 				/>,

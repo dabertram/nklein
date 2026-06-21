@@ -68,8 +68,8 @@ naming tangle plus an env-var override bug (§E); Issue 5 is not started (§F).
    state, command-palette "Developer Tools", settings "Developer Tools") gates on the **toggle alone** so it works in
    packaged builds. Each gate gets a one-line comment stating which rule applies. **§E4.**
 4. **Cloud lockdown:** when `CLOUD_ENABLED` is false the agent picker is **not rendered at all** (replaced by a single
-   "Local Cline agent (cloud disabled)" line); `normalizeAgentId` clamps cloud ids to `cline` at load; the onboarding
-   carousel lists `cline` only. **§D.**
+   "Local NKlein agent (cloud disabled)" line); `normalizeAgentId` clamps cloud ids to `nklein` at load; the onboarding
+   carousel lists `nklein` only. **§D.**
 5. **🔒 Strict Docker agent isolation is mandatory and unconditional.** All agent shell + filesystem activity runs
    inside Docker (each task in its own named-volume workspace; **no host worktree folders**); the host runtime never
    executes shell/FS operations on the LLM's behalf. Docker is a hard prerequisite — **fail closed** (no host fallback,
@@ -129,7 +129,7 @@ naming tangle plus an env-var override bug (§E); Issue 5 is not started (§F).
 ### J1. The injection mechanism (how isolation attaches — this is the whole trick)
 The SDK already supports client-owned tool execution. Use it; do **not** patch `node_modules`.
 - The contract is `RuntimeCapabilities.toolExecutors?: Partial<ToolExecutors>`
-  (`node_modules/@clinebot/core/dist/runtime/capabilities/runtime-capabilities.d.ts`,
+  (`node_modules/@nkleinbot/core/dist/runtime/capabilities/runtime-capabilities.d.ts`,
   `.../extensions/tools/types.d.ts`). `ToolExecutors` members and signatures:
   - `bash?: (command: string | StructuredCommandInput, cwd: string, ctx) => Promise<string>` — **shell**
   - `readFile?: (request: ReadFileRequest, ctx) => Promise<string | (Text|Image)[]>` — **fs read**
@@ -137,14 +137,14 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
   - `editor?: (input: EditFileInput, cwd: string, ctx) => Promise<string>` — **fs write**
   - `applyPatch?: (input: ApplyPatchInput, cwd: string, ctx) => Promise<string>` — **fs write**
   - `webFetch?`, `skills?`, `askQuestion?`, `submit?` — not fs/shell (see J6 for `webFetch`).
-- **Injection point:** [cline-session-runtime.ts:784](src/cline-sdk/cline-session-runtime.ts#L784) — the
+- **Injection point:** [nklein-session-runtime.ts:784](src/nklein-sdk/nklein-session-runtime.ts#L784) — the
   `sessionHost.start({ ... localRuntime: {...}, ...(requestToolApproval ? { capabilities: { requestToolApproval } } : {}) })`
   call. Change the `capabilities` object to **always** include `toolExecutors: <Docker-backed executors bound to this
   task's workspace>` alongside `requestToolApproval`. Bind them to the task by `taskId` (→ `/workspaces/<taskId>` in the
   shared container); the SDK still passes a `cwd`, but the executors ignore it and always target the task workspace.
 - **In-container tool runner (reuse SDK semantics, relocated).** Bake a small compiled script into the image at
   `/opt/nklein/tool-runner.cjs` that imports the SDK's real executors (`createDefaultExecutors` from
-  `@clinebot/core`, `.../extensions/tools/executors`) with `cwd` = the per-task workdir it runs in
+  `@nkleinbot/core`, `.../extensions/tools/executors`) with `cwd` = the per-task workdir it runs in
   (`/workspaces/<taskId>`), and dispatches `{tool, input}` → the matching executor, printing a JSON `{ok,result,error}`
   to stdout. The host-side `toolExecutors` overrides are thin shims that call
   `manager.exec(taskId, ["node","/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input)])` (which runs
@@ -163,11 +163,11 @@ The SDK already supports client-owned tool execution. Use it; do **not** patch `
 - [x] Build script `scripts/build-agent-sandbox.mjs` + npm script `"sandbox:build"` that builds and tags
   `nklein/agent-sandbox:<package.json version>`. Resolve the image name from env `NKLEIN_AGENT_SANDBOX_IMAGE`,
   defaulting to that pinned tag.
-- [x] The `tool-runner` is built from a new `src/cline-sdk/agent-sandbox/tool-runner.ts` via esbuild into a single
+- [x] The `tool-runner` is built from a new `src/nklein-sdk/agent-sandbox/tool-runner.ts` via esbuild into a single
   `.cjs` during `sandbox:build` (and on `npm run build`) so bundled CommonJS dependencies execute reliably in Node.
 
-### J3. The sandbox boundary module (new) — `src/cline-sdk/cline-agent-sandbox.ts`
-A single `AgentSandboxManager` owns **all** Docker interaction (mirrors the `src/cline-sdk/` boundary; **`docker` CLI**
+### J3. The sandbox boundary module (new) — `src/nklein-sdk/nklein-agent-sandbox.ts`
+A single `AgentSandboxManager` owns **all** Docker interaction (mirrors the `src/nklein-sdk/` boundary; **`docker` CLI**
 via `node:child_process` `execFile`, proven in CAKE2 — do **not** add `dockerode` in v1) and manages a **configurable
 pool** of containers per the J8 settings. The default settings (1 container, unlimited agents per container) give
 "one container for all agents." The flag block below is **one** pool container; per-task `exec` / `disposeWorkspace` /
@@ -264,24 +264,24 @@ isolated from other tasks. This is the larger implementation effort and it is wo
     diagnostics, and cleanup confirmations now describe task workspaces/task results instead of promising host task
     worktrees. Compatibility API names and low-level legacy worktree modules remain unchanged while terminal-agent
     legacy worktree behavior is still supported.
-  - Web and CLI task-start paths now skip `workspace.ensureWorktree` for Cline/default tasks, letting
+  - Web and CLI task-start paths now skip `workspace.ensureWorktree` for NKlein/default tasks, letting
     `runtime.startTaskSession` prepare the Docker sandbox. The host worktree ensure remains only for explicitly
-    non-Cline legacy agent tasks.
+    non-NKlein legacy agent tasks.
   - Runtime shutdown now uses the same legacy-agent boundary before deleting/preserving host task workspaces:
-    interrupted Cline/default cards are still moved to Trash and marked interrupted, but only explicit non-Cline
+    interrupted NKlein/default cards are still moved to Trash and marked interrupted, but only explicit non-NKlein
     legacy agents enter the host worktree cleanup path. Shutdown also canonicalizes managed/indexed workspace paths
     before de-duping, avoiding duplicate cleanup when macOS temp paths differ by `/var` vs `/private/var`.
   - Workspace metadata polling now applies the same boundary: host task-workspace Git metadata is collected only for
-    explicitly non-Cline legacy agent cards. Default/Cline active cards no longer publish fake missing host-workspace
+    explicitly non-NKlein legacy agent cards. Default/NKlein active cards no longer publish fake missing host-workspace
     paths, while explicit Codex/Claude-style task workspaces still drive the existing diff/status UI.
   - Task commit/PR prompt dispatch now derives the configured `{{base_ref}}` git context from the review card instead
-    of resolving host task-workspace metadata first, so sandbox-native Cline/default tasks can ask their chat session
+    of resolving host task-workspace metadata first, so sandbox-native NKlein/default tasks can ask their chat session
     to commit or open a PR without requiring a host worktree path.
-  - Trashed-card workspace-path fallback now uses the same legacy-agent boundary: explicit non-Cline terminal-agent
-    cards may still reconstruct their old host task-workspace path, but default/Cline sandbox cards no longer invent a
-    `~/.cline/worktrees/...` path when no workspace metadata exists.
+  - Trashed-card workspace-path fallback now uses the same legacy-agent boundary: explicit non-NKlein terminal-agent
+    cards may still reconstruct their old host task-workspace path, but default/NKlein sandbox cards no longer invent a
+    `~/.nklein/worktrees/...` path when no workspace metadata exists.
   - Review Commit/Open PR controls now also recognize the sandbox result-branch capture signal
-    (`sandbox_patch_captured`) when no host workspace snapshot exists, so default/Cline review cards and chat footers
+    (`sandbox_patch_captured`) when no host workspace snapshot exists, so default/NKlein review cards and chat footers
     keep their git action affordances after metadata polling is limited to legacy workspaces.
   - Auto-review commit/PR scheduling now uses the same tri-state change signal: host snapshot dirty/clean when present,
     otherwise sandbox `sandbox_patch_captured`/`sandbox_patch_empty`. This lets sandbox result-branch tasks start
@@ -323,16 +323,16 @@ agents in one container still cannot read each other's files.
 
 ### J4. Lifecycle: lazy start, pool reuse, configurable idle teardown
 - [x] **Single manager instance** owned by the task-session service
-  ([cline-task-session-service.ts](src/cline-sdk/cline-task-session-service.ts)). Never create a container per task.
-- [x] **On task start** (`startTaskSession` [L1313](src/cline-sdk/cline-task-session-service.ts#L1313) /
-  `startRuntimeTaskSessionFromLaunchConfig` [L592](src/cline-sdk/cline-task-session-service.ts#L592)): before
+  ([nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts)). Never create a container per task.
+- [x] **On task start** (`startTaskSession` [L1313](src/nklein-sdk/nklein-task-session-service.ts#L1313) /
+  `startRuntimeTaskSessionFromLaunchConfig` [L592](src/nklein-sdk/nklein-task-session-service.ts#L592)): before
   `sessionHost.start`, `await manager.assertAvailable()` → `await manager.acquireSlot(taskId)` (may **queue** — J3c) →
   `await manager.prepareWorkspace({ taskId, projectRepoPath, baseRef })`. Pass the manager + `taskId` into the session
   runtime so the J1 executor shims exec into this task's workspace (thread through the
-  `StartClineTaskSessionRequest` / `request.cwd` carrier at
-  [cline-session-runtime.ts:580](src/cline-sdk/cline-session-runtime.ts#L580)).
-- [x] **On task end** (`stopTaskSession` [L1545](src/cline-sdk/cline-task-session-service.ts#L1545), `abortTaskSession`
-  [L1591](src/cline-sdk/cline-task-session-service.ts#L1591), error/park, completion): extract the patch (J3b), then
+  `StartNKleinTaskSessionRequest` / `request.cwd` carrier at
+  [nklein-session-runtime.ts:580](src/nklein-sdk/nklein-session-runtime.ts#L580)).
+- [x] **On task end** (`stopTaskSession` [L1545](src/nklein-sdk/nklein-task-session-service.ts#L1545), `abortTaskSession`
+  [L1591](src/nklein-sdk/nklein-task-session-service.ts#L1591), error/park, completion): extract the patch (J3b), then
   `await manager.disposeWorkspace(taskId)` (releases the slot, dequeues the next queued task, and arms the container's
   idle timer only if it is now empty). **Never** stop a container because a single task ended — it may host others and
   the pool serves the queue.
@@ -342,7 +342,7 @@ agents in one container still cannot read each other's files.
   to every container in the pool. Reuse-before-recreate is mandatory — the "no constant spawn/kill" requirement.
 - [x] **Killswitch (implicit, not a separate control):** removing the containers kills all agent activity at once. Wire
   `stopNow()` (removes **all** pool containers + their volumes) into `dispose`
-  ([L2197](src/cline-sdk/cline-task-session-service.ts#L2197)) and runtime shutdown. Do
+  ([L2197](src/nklein-sdk/nklein-task-session-service.ts#L2197)) and runtime shutdown. Do
   **not** add a user-facing "kill agents" button — the board Start/Pause/Resume (§K) plus this idle teardown are the
   only exposed controls. Note: **board pause halts the agent loops (§K1) but keeps the container up**, so resume is
   instant.
@@ -350,25 +350,25 @@ agents in one container still cannot read each other's files.
   any container left by a previous crash before starting a fresh one. The volume is recreated clean; nothing persists.
 
 ### J5. Route the remaining host-touching agent surfaces through the container
-- [x] **Acceptance gate.** [cline-acceptance-gate.ts](src/cline-sdk/cline-acceptance-gate.ts) `defaultRunCommand`
+- [x] **Acceptance gate.** [nklein-acceptance-gate.ts](src/nklein-sdk/nklein-acceptance-gate.ts) `defaultRunCommand`
   (L63) execs `/bin/sh -c` on the host via `execFileAsync`. The gate already accepts an injectable
-  `options.runCommand` ([L32](src/cline-sdk/cline-acceptance-gate.ts#L32)). Every caller that runs the gate for a
+  `options.runCommand` ([L32](src/nklein-sdk/nklein-acceptance-gate.ts#L32)). Every caller that runs the gate for a
   task **must** pass `runCommand` = a shim over `manager.exec(taskId, ["/bin/sh","-c",command])` (runs
   `-u <taskUid> -w /workspaces/<taskId>`). The host `defaultRunCommand` must never run for an agent task — make it
   throw if used without a bound sandbox/`taskId` in strict mode.
 - [x] **!Klein-implemented agent tools.** Audit and route through the container any of these that execute on the
-  LLM's behalf: [cline-write-files-tool.ts](src/cline-sdk/cline-write-files-tool.ts),
-  [cline-file-discovery-tools.ts](src/cline-sdk/cline-file-discovery-tools.ts),
-  [cline-retrieval-tools.ts](src/cline-sdk/cline-retrieval-tools.ts),
-  [cline-code-search.ts](src/cline-sdk/cline-code-search.ts),
-  [cline-large-file-workflow.ts](src/cline-sdk/cline-large-file-workflow.ts). For each: if it is registered as an
+  LLM's behalf: [nklein-write-files-tool.ts](src/nklein-sdk/nklein-write-files-tool.ts),
+  [nklein-file-discovery-tools.ts](src/nklein-sdk/nklein-file-discovery-tools.ts),
+  [nklein-retrieval-tools.ts](src/nklein-sdk/nklein-retrieval-tools.ts),
+  [nklein-code-search.ts](src/nklein-sdk/nklein-code-search.ts),
+  [nklein-large-file-workflow.ts](src/nklein-sdk/nklein-large-file-workflow.ts). For each: if it is registered as an
   agent tool and reads/writes/execs, replace its host fs/child_process calls with `manager.exec(taskId, …)` (read via
   `docker exec cat/sed`, search via `docker exec rg`, large-file read via the in-container runner). If it is only used
   by trusted prebuild (indexing/embeddings), leave it (J0 out-of-scope) and add a comment saying so.
-  - [x] Cline sandbox starts now pass proxy `AgentTool`s for `repo_map`, `search_code`, file discovery, `read_large_file`,
+  - [x] NKlein sandbox starts now pass proxy `AgentTool`s for `repo_map`, `search_code`, file discovery, `read_large_file`,
     `write_file`, and `write_files`; each proxy executes `kanbanExtraTool` through the Docker tool-runner inside the
     task workspace.
-- [x] **MCP.** [cline-mcp-runtime-service.ts](src/cline-sdk/cline-mcp-runtime-service.ts): locally-executing MCP
+- [x] **MCP.** [nklein-mcp-runtime-service.ts](src/nklein-sdk/nklein-mcp-runtime-service.ts): locally-executing MCP
   servers run subprocesses on the host. In strict mode, **disable local-exec MCP servers by default** (do not spawn
   them) and surface a one-line "MCP local execution is disabled under strict isolation" note. (Containerizing MCP is
   out of scope for v1; default-deny is the safe behavior.)
@@ -384,24 +384,24 @@ agents in one container still cannot read each other's files.
   superseded for agent tools by `--network none`. Leave it for user terminals; note the reconciliation in a comment.
 
 ### J7. Fail-closed enforcement (no path may ever run a tool on the host)
-- [x] Add the preflight to [cline-task-start-guard.ts](src/cline-sdk/cline-task-start-guard.ts): before any task
+- [x] Add the preflight to [nklein-task-start-guard.ts](src/nklein-sdk/nklein-task-start-guard.ts): before any task
   starts, `await AgentSandbox.assertAvailable(image)`; on failure, block the start and return the
   `AgentSandboxUnavailableError` message ("Docker is required for strict agent isolation and is unavailable: <reason>.
   Install/start Docker and run `npm run sandbox:build`.") so it surfaces in the UI start flow.
-  - Done for the Cline runtime start path: `startTaskSession` refreshes the sandbox status before Cline launch and
-    returns `agent_sandbox_unavailable` without creating a Cline session when Docker/image preflight fails.
+  - Done for the NKlein runtime start path: `startTaskSession` refreshes the sandbox status before NKlein launch and
+    returns `agent_sandbox_unavailable` without creating a NKlein session when Docker/image preflight fails.
 - [x] Run the same preflight once at runtime startup and expose the result for J8.
 - [x] **Forbid host fallback structurally:** the host-side executor shims (J1) and the acceptance gate (J5) must throw
   if no sandbox manager + bound `taskId` is present. There is no env var, setting, or code branch that runs an agent
   tool on the host.
   Grep after implementing: no agent tool path calls `child_process`/`fs` write/`/bin/sh` directly.
-  - [x] `runClineAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
-    explicit runner or opt into trusted host execution, while agent-task acceptance uses `runClineAcceptanceGateInSandbox`.
+  - [x] `runNKleinAcceptanceGate` no longer defaults to host execution for acceptance commands; callers must supply an
+    explicit runner or opt into trusted host execution, while agent-task acceptance uses `runNKleinAcceptanceGateInSandbox`.
   - [x] Add the no-host execution guard test across SDK default executors and acceptance.
-  - [x] Sandboxed Cline starts omit host `web_research` even when `KANBAN_ENABLE_WEB_RESEARCH=1`.
-  - [x] Sandboxed Cline starts omit the host-side `decompose_project` / `expand_task` tools; strict-isolation planning
+  - [x] Sandboxed NKlein starts omit host `web_research` even when `KANBAN_ENABLE_WEB_RESEARCH=1`.
+  - [x] Sandboxed NKlein starts omit the host-side `decompose_project` / `expand_task` tools; strict-isolation planning
     prompts no longer point the agent at the unavailable host mutation workflow.
-  - [x] The Cline task-session service no longer has a silent optional no-sandbox construction path. Runtime callers
+  - [x] The NKlein task-session service no longer has a silent optional no-sandbox construction path. Runtime callers
     must pass an `AgentSandboxManager`; unit tests that stub the SDK runtime must explicitly pass
     `allowUnisolatedTestRuntime: true`, and a regression test asserts construction throws without either.
 
@@ -445,7 +445,7 @@ agents in one container still cannot read each other's files.
   for **two** taskIds (default settings → same container) from a temp repo; assert task A cannot read `/workspaces/<B>`
   (uid isolation); run `bash` (`pwd`→`/workspaces/<A>`), `readFile`, `editor`, `applyPatch` in A; extract the patch and
   assert it applies cleanly to a throwaway clone of the host repo; assert **no** host worktree dir was created under
-  `~/.cline/nklein/`; `disposeWorkspace` removes the dir; the idle teardown removes the container + its volume
+  `~/.nklein/nklein/`; `disposeWorkspace` removes the dir; the idle teardown removes the container + its volume
   (`docker ps -a` / `docker volume ls` clean by label).
   - Verified by `test/integration/agent-sandbox.integration.test.ts`; the real Docker run also fixed named-volume root
     permissions, first-workspace bootstrap workdir, CJS tool-runner bundling, task-owned cleanup under `--cap-drop ALL`,
@@ -497,9 +497,9 @@ files too — the §E grep will catch them.)
 
 - [x] **A1. Add the field to every `createRuntimeConfigState` test fixture** — add `developerModeEnabled: false,`
   (next to `selectedShortcutLabel`) to each returned object literal:
-  - [x] [test/runtime/cline-sdk/cline-acceptance-auto-repair.test.ts:66](test/runtime/cline-sdk/cline-acceptance-auto-repair.test.ts#L66) — `function createRuntimeConfigState(): RuntimeConfigState`.
+  - [x] [test/runtime/nklein-sdk/nklein-acceptance-auto-repair.test.ts:66](test/runtime/nklein-sdk/nklein-acceptance-auto-repair.test.ts#L66) — `function createRuntimeConfigState(): RuntimeConfigState`.
   - [x] [test/runtime/commands/task-verify.test.ts:60](test/runtime/commands/task-verify.test.ts#L60) — `function createRuntimeConfigState(modelRoles)`.
-  - [x] [test/runtime/trpc/runtime-api.test.ts:330](test/runtime/trpc/runtime-api.test.ts#L330) — `function createRuntimeConfigState(): RuntimeConfigState`. Also change its `selectedAgentId: "claude"` to `"cline"`.
+  - [x] [test/runtime/trpc/runtime-api.test.ts:330](test/runtime/trpc/runtime-api.test.ts#L330) — `function createRuntimeConfigState(): RuntimeConfigState`. Also change its `selectedAgentId: "claude"` to `"nklein"`.
   - [x] [test/runtime/terminal/agent-registry.test.ts:18-19](test/runtime/terminal/agent-registry.test.ts#L18) — `function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {})`. Add `developerModeEnabled: false,` to the **base literal before** the `...overrides` spread (this clears the TS2322 `boolean | undefined`).
 - [x] **A2.** Re-run `npm run typecheck` until clean (0 errors), then `npm run web:typecheck` (keep it clean).
 - [x] **A3.** Run `npm run lint`; fix any Biome findings from the edits.
@@ -514,9 +514,9 @@ files too — the §E grep will catch them.)
 
 ### B0. Root cause (read first)
 The "Model context windows" list is the **model registry**. Entries persist to
-`~/.cline/nklein/model-registry.json` and are created by *any* observation (`recordRequest` / `recordContextWindow` /
+`~/.nklein/nklein/model-registry.json` and are created by *any* observation (`recordRequest` / `recordContextWindow` /
 `recordCapability` / `setContextWindowOverride` → `getOrCreateEntry`) in
-[src/cline-sdk/cline-model-registry.ts](src/cline-sdk/cline-model-registry.ts). tRPC `getClineModelRegistry`
+[src/nklein-sdk/nklein-model-registry.ts](src/nklein-sdk/nklein-model-registry.ts). tRPC `getNKleinModelRegistry`
 ([src/trpc/runtime-api.ts:1568](src/trpc/runtime-api.ts#L1568)) returns the persisted snapshot **plus** synthesized
 entries from currently-configured models (`addConfiguredLocalModelRegistryEntries`,
 [src/trpc/runtime-api.ts:688](src/trpc/runtime-api.ts#L688)), filtered to `isLocalProvider`. So
@@ -524,53 +524,53 @@ entries from currently-configured models (`addConfiguredLocalModelRegistryEntrie
 every filter, and never expire. There is **no prune path** today.
 
 > The names `small-local-model` / `huge-advertised-model` also appear in test fixtures
-> (`cline-task-session-service.test.ts`) and `cline-model-tool-routing.ts` (a *tool* name) — those are not the source
+> (`nklein-task-session-service.test.ts`) and `nklein-model-tool-routing.ts` (a *tool* name) — those are not the source
 > and must stay.
 
 ### B1. What the agent already did (keep)
-- [x] Added a loaded-model filter in the **Settings** panel `ClineModelContextWindowSettingsPanel`
+- [x] Added a loaded-model filter in the **Settings** panel `NKleinModelContextWindowSettingsPanel`
   ([runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx)): `loadedLmStudioModelIds`,
-  `visibleRegistryEntries`, a new `selectedProviderModels` prop fed from `clineSettings.providerModels`.
+  `visibleRegistryEntries`, a new `selectedProviderModels` prop fed from `nkleinSettings.providerModels`.
 
 ### B2. Add one shared filter and use it in both panels
 - [x] Add an exported pure function in
-  [cline-model-registry-panel.tsx](web-ui/src/components/detail-panels/cline-model-registry-panel.tsx):
+  [nklein-model-registry-panel.tsx](web-ui/src/components/detail-panels/nklein-model-registry-panel.tsx):
   ```ts
   export function filterRegistryEntriesToLoadedModels(
-    entries: readonly RuntimeClineModelRegistryEntry[],
+    entries: readonly RuntimeNKleinModelRegistryEntry[],
     selectedProviderId: string,
-    loadedProviderModels: readonly RuntimeClineProviderModel[],
-  ): RuntimeClineModelRegistryEntry[]
+    loadedProviderModels: readonly RuntimeNKleinProviderModel[],
+  ): RuntimeNKleinModelRegistryEntry[]
   ```
   Behavior: when `selectedProviderId` is an **on-device local provider** (`lmstudio` / `lm-studio` / `ollama`), keep
   only entries whose `providerId` matches the selected provider **and** whose `modelId` is in the loaded set; if the
   loaded set is empty (endpoint unreachable), return `[]` for that provider; for any other provider return `entries`
   unchanged. Add a small `isOnDeviceLocalProviderId(id)` helper (reuse `isLmStudioProviderId` from
-  [cline-context-window-policy.ts](web-ui/src/runtime/cline-context-window-policy.ts) and add the Ollama case).
-- [x] Replace the inline `visibleRegistryEntries` memo in `ClineModelContextWindowSettingsPanel` with a call to this
+  [nklein-context-window-policy.ts](web-ui/src/runtime/nklein-context-window-policy.ts) and add the Ollama case).
+- [x] Replace the inline `visibleRegistryEntries` memo in `NKleinModelContextWindowSettingsPanel` with a call to this
   helper.
-- [x] **Fix the chat panel.** [cline-agent-chat-panel.tsx:744](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L744)
-  `modelRegistryEntries` is passed **raw** to `ClineModelRegistryPanel` at
-  [~L1210](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L1210). Wrap it with the same helper using
-  `clineSettings.providerId` and `clineSettings.providerModels`.
+- [x] **Fix the chat panel.** [nklein-agent-chat-panel.tsx:744](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L744)
+  `modelRegistryEntries` is passed **raw** to `NKleinModelRegistryPanel` at
+  [~L1210](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L1210). Wrap it with the same helper using
+  `nkleinSettings.providerId` and `nkleinSettings.providerModels`.
 
 ### B3. Add a real prune/delete path (the "drop completely" half)
-- [x] **Registry.** In [cline-model-registry.ts](src/cline-sdk/cline-model-registry.ts) add
+- [x] **Registry.** In [nklein-model-registry.ts](src/nklein-sdk/nklein-model-registry.ts) add
   `async removeEntry(key: string): Promise<boolean>` and
   `async removeEntries(keys: readonly string[]): Promise<number>`. Each mutates `snapshot.models`, bumps
   `updatedAt`, and calls `schedulePersist` (mirror `setContextWindowOverride`).
-- [x] **tRPC.** Add `removeClineModelRegistryEntry` (single key) and `pruneClineModelRegistry` (remove every row that
+- [x] **tRPC.** Add `removeNKleinModelRegistryEntry` (single key) and `pruneNKleinModelRegistry` (remove every row that
   is not currently loaded or configured):
   - schema in [src/core/api-contract.ts](src/core/api-contract.ts) near
-    `runtimeClineModelContextWindowOverrideRequestSchema`;
+    `runtimeNKleinModelContextWindowOverrideRequestSchema`;
   - parser in [src/core/api-validation.ts](src/core/api-validation.ts);
-  - router wiring in [src/trpc/app-router.ts](src/trpc/app-router.ts) near `saveClineModelContextWindowOverride`;
+  - router wiring in [src/trpc/app-router.ts](src/trpc/app-router.ts) near `saveNKleinModelContextWindowOverride`;
   - handler in [src/trpc/runtime-api.ts](src/trpc/runtime-api.ts) near
-    [saveClineModelContextWindowOverride (~L1595)](src/trpc/runtime-api.ts#L1595), guarded by
-    `assertLocalProviderAllowed`. `pruneClineModelRegistry` computes the keep-set from
+    [saveNKleinModelContextWindowOverride (~L1595)](src/trpc/runtime-api.ts#L1595), guarded by
+    `assertLocalProviderAllowed`. `pruneNKleinModelRegistry` computes the keep-set from
     `addConfiguredLocalModelRegistryEntries` inputs (launch/provider/role configs) ∪ currently-loaded provider
     models, then removes the rest.
-- [x] **UI.** In [cline-model-registry-panel.tsx](web-ui/src/components/detail-panels/cline-model-registry-panel.tsx):
+- [x] **UI.** In [nklein-model-registry-panel.tsx](web-ui/src/components/detail-panels/nklein-model-registry-panel.tsx):
   add an optional `onRemoveEntry?(entry)` per-row button (`lucide-react` `Trash2`) and a header **"Clear stale
   models"** button wired to a `onPruneStale?()` callback. Plumb both from the Settings panel and the chat panel;
   refetch after success (like `handleSaveModelContextWindowOverride`, chat-panel L734-742); toast via `showAppToast`
@@ -580,7 +580,7 @@ every filter, and never expire. There is **no prune path** today.
   that is correct (real models reappear). The junk rows are neither configured nor loaded, so they stay gone.
 
 ### B4. Verify there is no third consumer
-- [x] `grep -rn "ClineModelRegistryPanel\|getClineModelRegistry" web-ui/src | grep -v test` returns the
+- [x] `grep -rn "NKleinModelRegistryPanel\|getNKleinModelRegistry" web-ui/src | grep -v test` returns the
   API query wrapper plus the Settings panel and chat panel UI consumers; both UI consumers now use the shared loaded
   model filter.
 
@@ -589,22 +589,22 @@ every filter, and never expire. There is **no prune path** today.
 ## C. Issue 2 — show the actually-selected, actually-loaded LM Studio model + real context window
 
 ### C0. The data already exists
-`getClineProviderModels` → `loadProviderModelsWithMeasuredWindows` → `toLmStudioModel` / `toLmStudioModels`
-([cline-provider-service.ts:409-493](src/cline-sdk/cline-provider-service.ts#L409)) reads the **real loaded** context
+`getNKleinProviderModels` → `loadProviderModelsWithMeasuredWindows` → `toLmStudioModel` / `toLmStudioModels`
+([nklein-provider-service.ts:409-493](src/nklein-sdk/nklein-provider-service.ts#L409)) reads the **real loaded** context
 length from LM Studio (`loaded_context_length`, `loaded_instances[].config`, `max_context_length`, …). It surfaces as
-`RuntimeClineProviderModel.contextWindow` in `clineSettings.providerModels`. This is a presentation task.
+`RuntimeNKleinProviderModel.contextWindow` in `nkleinSettings.providerModels`. This is a presentation task.
 
 ### C1. What the agent already did (keep)
-- [x] Added a **"Selected loaded model: <name> (<n> ctx)"** line in `ClineModelContextWindowSettingsPanel` using
-  `selectedLoadedProviderModel = findClineProviderModel(selectedProviderModels, selectedModelId)` and
-  `formatClineModelContextWindowLabel` ([cline-context-window-policy.ts:33](web-ui/src/runtime/cline-context-window-policy.ts#L33)).
+- [x] Added a **"Selected loaded model: <name> (<n> ctx)"** line in `NKleinModelContextWindowSettingsPanel` using
+  `selectedLoadedProviderModel = findNKleinProviderModel(selectedProviderModels, selectedModelId)` and
+  `formatNKleinModelContextWindowLabel` ([nklein-context-window-policy.ts:33](web-ui/src/runtime/nklein-context-window-policy.ts#L33)).
 
 ### C2. Make it consistent and unambiguous
 - [x] Label the live value vs telemetry so they can't be confused: the C1 line reads **"Selected loaded model (live):
   …"**; the registry section header reads **"Past telemetry"**.
 - [x] Render the same **"Selected loaded model (live)"** line in the chat panel near the telemetry header
-  ([cline-agent-chat-panel.tsx:744-751,1208-1217](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L744)),
-  from `clineSettings.providerModels` + `clineSettings.modelId`, reusing `formatClineModelContextWindowLabel`.
+  ([nklein-agent-chat-panel.tsx:744-751,1208-1217](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L744)),
+  from `nkleinSettings.providerModels` + `nkleinSettings.modelId`, reusing `formatNKleinModelContextWindowLabel`.
 - [x] When `selectedLoadedProviderModel` is null, render a muted line: **"Selected model is not currently loaded in LM
   Studio."** in both places. Never render nothing.
 - [x] The Settings panel refresh button must also re-pull `providerModels` (not just the registry) so swapping the
@@ -616,56 +616,56 @@ length from LM Studio (`loaded_context_length`, `loaded_instances[].config`, `ma
 ## D. Issue 3 — NO CLOUD: local default + remove every cloud path/affordance
 
 Single source of truth: `CLOUD_ENABLED = false`
-([src/cline-sdk/cline-local-only-policy.ts:12](src/cline-sdk/cline-local-only-policy.ts#L12)); the response exposes it
+([src/nklein-sdk/nklein-local-only-policy.ts:12](src/nklein-sdk/nklein-local-only-policy.ts#L12)); the response exposes it
 as `cloudProviderSupportEnabled` ([agent-registry.ts:128](src/terminal/agent-registry.ts#L128)). Everything derives
 from that flag.
 
 ### D1. What the agent already did (keep)
-- [x] `AUTO_SELECT_AGENT_PRIORITY = []`, `DEFAULT_AGENT_ID = "cline"`
+- [x] `AUTO_SELECT_AGENT_PRIORITY = []`, `DEFAULT_AGENT_ID = "nklein"`
   ([runtime-config.ts:54,113](src/config/runtime-config.ts#L113)).
-- [x] `resolveSelectedAgentIdForLocalOnly()` clamps non-`cline` → `cline` in `getCuratedDefinitions`,
+- [x] `resolveSelectedAgentIdForLocalOnly()` clamps non-`nklein` → `nklein` in `getCuratedDefinitions`,
   `resolveAgentCommand`, `buildRuntimeConfigResponse` ([agent-registry.ts:53,75,128](src/terminal/agent-registry.ts#L53));
-  supported catalog filtered to `cline`.
-- [x] Settings default `"cline"`; `displayedAgents` filtered to `cline` when cloud off
+  supported catalog filtered to `nklein`.
+- [x] Settings default `"nklein"`; `displayedAgents` filtered to `nklein` when cloud off
   ([runtime-settings-dialog.tsx:1648,1663](web-ui/src/components/runtime-settings-dialog.tsx#L1648)).
 - [x] Home agent session refuses terminal CLI agents when `cloudProviderSupportEnabled !== true`
   ([use-home-agent-session.ts:144](web-ui/src/hooks/use-home-agent-session.ts#L144)); sidebar shows a local-only
   message ([use-home-sidebar-agent-panel.tsx:196-204](web-ui/src/hooks/use-home-sidebar-agent-panel.tsx#L196)).
-- [x] Provider catalog local-only via `isLocalProvider` ([cline-provider-service.ts:1431](src/cline-sdk/cline-provider-service.ts#L1431));
-  web `filterVisibleClineProviderCatalog` ([native-agent.ts:37](web-ui/src/runtime/native-agent.ts#L37)).
+- [x] Provider catalog local-only via `isLocalProvider` ([nklein-provider-service.ts:1431](src/nklein-sdk/nklein-provider-service.ts#L1431));
+  web `filterVisibleNKleinProviderCatalog` ([native-agent.ts:37](web-ui/src/runtime/native-agent.ts#L37)).
 
 ### D2. Clamp cloud agents at the source (`normalizeAgentId`)
 - [x] In [runtime-config.ts:194](src/config/runtime-config.ts#L194), make `normalizeAgentId` return `DEFAULT_AGENT_ID`
-  whenever `!CLOUD_ENABLED` and the id is a cloud agent (everything except `cline`). Import `CLOUD_ENABLED` from
-  `../cline-sdk/cline-local-only-policy`. A persisted `selectedAgentId:"claude"` now loads as `"cline"` and self-heals.
+  whenever `!CLOUD_ENABLED` and the id is a cloud agent (everything except `nklein`). Import `CLOUD_ENABLED` from
+  `../nklein-sdk/nklein-local-only-policy`. A persisted `selectedAgentId:"claude"` now loads as `"nklein"` and self-heals.
 - [x] Keep the three `resolveSelectedAgentIdForLocalOnly` clamps in `agent-registry.ts` as defense in depth.
 - [x] Add a unit test in [test/runtime/config/runtime-config.test.ts](test/runtime/config/runtime-config.test.ts): a
-  config file with `selectedAgentId:"claude"` loads with `selectedAgentId === "cline"`.
+  config file with `selectedAgentId:"claude"` loads with `selectedAgentId === "nklein"`.
 
 ### D3. Stop the onboarding carousel from listing cloud agents
 [task-start-agent-onboarding-carousel.tsx:545-558](web-ui/src/components/task-start-agent-onboarding-carousel.tsx#L545)
-builds `onboardingAgents` from **all** of `ONBOARDING_AGENT_IDS = ["cline","claude","codex","droid","kiro"]`
+builds `onboardingAgents` from **all** of `ONBOARDING_AGENT_IDS = ["nklein","claude","codex","droid","kiro"]`
 ([L95](web-ui/src/components/task-start-agent-onboarding-carousel.tsx#L95)) and renders them at
 [L711](web-ui/src/components/task-start-agent-onboarding-carousel.tsx#L711). `cloudProviderSupportEnabled` is already
 in scope (L540).
-- [x] Restrict `onboardingAgents` to `cline` only when `!cloudProviderSupportEnabled` (filter the id list before the
+- [x] Restrict `onboardingAgents` to `nklein` only when `!cloudProviderSupportEnabled` (filter the id list before the
   map). The Claude-specific copy at [L467,483](web-ui/src/components/task-start-agent-onboarding-carousel.tsx#L467)
   becomes unreachable then — leave it (dead but harmless) or delete it; deleting is cleaner.
 
-### D4. Hide the agent picker entirely when only `cline` is selectable
+### D4. Hide the agent picker entirely when only `nklein` is selectable
 - [x] In [runtime-settings-dialog.tsx:2561-2572](web-ui/src/components/runtime-settings-dialog.tsx#L2561), when
   `!cloudProviderSupportEnabled` do not render the `displayedAgents.map(...)` rows or the "Checking which CLIs are
-  installed…" line; render a single static line **"Local Cline agent (cloud disabled)."** instead. Keep the bypass /
+  installed…" line; render a single static line **"Local NKlein agent (cloud disabled)."** instead. Keep the bypass /
   developer-mode controls below it.
 - [x] Add a code comment on both the backend `MANAGED_CLOUD_PROVIDER_IDS`/`LOCAL_PROVIDER_IDS`
-  ([cline-local-only-policy.ts:15-18](src/cline-sdk/cline-local-only-policy.ts#L15)) and the web
+  ([nklein-local-only-policy.ts:15-18](src/nklein-sdk/nklein-local-only-policy.ts#L15)) and the web
   `KNOWN_CLOUD_PROVIDER_IDS` ([native-agent.ts:15](web-ui/src/runtime/native-agent.ts#L15)) cross-referencing each
   other, so a future provider addition updates both. (Backend catalog is default-deny and authoritative; the web list
   is a secondary screen.)
 
 ### D5. Regression test
 - [x] Extend coverage so that with `cloudProviderSupportEnabled = false`: settings renders no agent rows (just the
-  static line), onboarding agents resolve to `["cline"]`, and the provider catalog excludes
+  static line), onboarding agents resolve to `["nklein"]`, and the provider catalog excludes
   anthropic/openai/etc. Build on the existing home-session test
   ([use-home-agent-session.test.tsx:335](web-ui/src/hooks/use-home-agent-session.test.tsx#L335)).
 
@@ -764,8 +764,8 @@ Embedding fields live in `CodeEmbeddingProviderFields`
 **Default/global** (`labelPrefix="Default"`, [~L2980](web-ui/src/components/runtime-settings-dialog.tsx#L2980)) and
 **Project override** (`labelPrefix="Project"`, [~L3034](web-ui/src/components/runtime-settings-dialog.tsx#L3034)).
 Providers: `local_lexical` and `openai_compatible` ([L462](web-ui/src/components/runtime-settings-dialog.tsx#L462)).
-Discovery exists (`handleDiscoverModels` → `discoverClineEndpointModels` → backend `discoverEndpointModels` →
-`discoverModelsFromEndpoint`, [cline-provider-service.ts:624,1523](src/cline-sdk/cline-provider-service.ts#L624)) and
+Discovery exists (`handleDiscoverModels` → `discoverNKleinEndpointModels` → backend `discoverEndpointModels` →
+`discoverModelsFromEndpoint`, [nklein-provider-service.ts:624,1523](src/nklein-sdk/nklein-provider-service.ts#L624)) and
 renders a `<NativeSelect>` of `discoveredModels` — but only after a manual button click and a manually-typed endpoint.
 
 ### F1. Auto-discover when the provider is openai_compatible and the endpoint is a reachable local URL
@@ -778,7 +778,7 @@ renders a `<NativeSelect>` of `discoveredModels` — but only after a manual but
 
 ### F2. Prefill the endpoint from the configured LM Studio provider
 - [x] When the embedding provider is `openai_compatible` and the endpoint is blank, prefill it from the selected local
-  chat provider's base URL (available via `clineSettings` provider id/baseUrl / `clineSettings.providerCatalog`).
+  chat provider's base URL (available via `nkleinSettings` provider id/baseUrl / `nkleinSettings.providerCatalog`).
   Derive the embeddings path (e.g. `http://127.0.0.1:1234/v1` → `http://127.0.0.1:1234/v1/embeddings`). Pass it as a
   new `suggestedBaseUrl` prop to both `CodeEmbeddingProviderFields` instances; initialize
   `codeEmbeddingDefaultsBaseUrl` ([L1576](web-ui/src/components/runtime-settings-dialog.tsx#L1576)) from it when the
@@ -788,13 +788,13 @@ renders a `<NativeSelect>` of `discoveredModels` — but only after a manual but
 
 ### F3. Prefer embedding-type models for LM Studio
 - [x] When discovering for embeddings, prefer the `/api/v0/models` candidate in `discoverModelsFromEndpoint`
-  ([cline-provider-service.ts:600-621,656](src/cline-sdk/cline-provider-service.ts#L600)) and, when LM Studio reports
+  ([nklein-provider-service.ts:600-621,656](src/nklein-sdk/nklein-provider-service.ts#L600)) and, when LM Studio reports
   a `type` field, sort `type === "embeddings"` models first. Do not hard-filter (a user may run an embedding model LM
   Studio mislabels) — sort/flag only. Carry the `type` through `toLmStudioModel` /
   `extractDiscoveredModelsFromPayload` if it is not already present.
 
 ### F4. Tests
-- [x] Mock `discoverClineEndpointModels`: selecting `openai_compatible` with a local baseUrl populates the
+- [x] Mock `discoverNKleinEndpointModels`: selecting `openai_compatible` with a local baseUrl populates the
   `<NativeSelect>` with no click; a blank/non-local baseUrl does not fire; a failed auto-attempt raises no error toast.
 - [x] Test the endpoint derivation (LM Studio base → `/v1/embeddings`).
 - [x] Test that embedding-type models sort first when a `type` field is present.
@@ -824,11 +824,11 @@ renders a `<NativeSelect>` of `discoveredModels` — but only after a manual but
 ([src/core/swarm-guardrails.ts](src/core/swarm-guardrails.ts)). That signal is **only read at task start**
 ([runtime-api.ts:1017-1022](src/trpc/runtime-api.ts#L1017)) to refuse new starts. A task that is **already running**
 never re-checks it, so its autonomous loop keeps issuing turn after turn (LLM request after request). That is the bug.
-> Also fix the latent rename miss: `getSwarmStopSignalPath` uses `.cline/kanban/`
-> ([swarm-guardrails.ts:16](src/core/swarm-guardrails.ts#L16)) — change to `.cline/nklein/` (the runtime-home
+> Also fix the latent rename miss: `getSwarmStopSignalPath` uses `.nklein/kanban/`
+> ([swarm-guardrails.ts:16](src/core/swarm-guardrails.ts#L16)) — change to `.nklein/nklein/` (the runtime-home
 > constant), with a one-release read-fallback to the old path so an in-flight pause survives the rename. **Done.**
 
-**K1.1 Add a shared pause primitive.** Create `src/cline-sdk/cline-pause-controller.ts` exporting a `PauseController`
+**K1.1 Add a shared pause primitive.** Create `src/nklein-sdk/nklein-pause-controller.ts` exporting a `PauseController`
 with: `isPaused(taskId): boolean` (true if the **board** is paused OR **this card** is paused — K2),
 `waitUntilResumed(taskId, signal?): Promise<void>` (resolves when unpaused; rejects on task stop/abort), and
 `setBoardPaused(bool)` / `setCardPaused(taskId, bool)` that notify waiters. Back the board flag with the existing
@@ -836,9 +836,9 @@ swarm-stop file and the card flags with K2's store so state survives a runtime r
 
 **K1.2 Gate the loop continuation (no new LLM request while paused).** The autonomous loop is halted today at the
 per-turn checkpoint: `applyTurnCheckpoint` → `enforceAutonomyBudgets`
-([cline-task-session-service.ts:2007-2017](src/cline-sdk/cline-task-session-service.ts#L2007)), which parks the task
-via `parkTaskForAutonomyBudget` ([L2156](src/cline-sdk/cline-task-session-service.ts#L2156)) — and that helper stops
-the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/cline-sdk/cline-task-session-service.ts#L2165)).
+([nklein-task-session-service.ts:2007-2017](src/nklein-sdk/nklein-task-session-service.ts#L2007)), which parks the task
+via `parkTaskForAutonomyBudget` ([L2156](src/nklein-sdk/nklein-task-session-service.ts#L2156)) — and that helper stops
+the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/nklein-sdk/nklein-task-session-service.ts#L2165)).
 - [x] In `enforceAutonomyBudgets`, **before** the existing budget checks, add: `if (pauseController.isPaused(taskId)) return this.parkTaskForPause({ taskId, entry });`. Because this runs **after** the in-flight turn's checkpoint, the in-flight response is fully received and processed first, then the loop halts before the next turn — exactly the user's accepted semantics ("ok to receive responses for already-sent requests; no new requests").
 
 **K1.3 New "paused" park state (distinct from the guardrail "attention" park).**
@@ -851,7 +851,7 @@ the SDK by calling `this.sessionRuntime.abortTaskSession(taskId)` ([L2165](src/c
 **K1.4 Auto-resume on unpause (drain the queue).**
 - [x] When the board is resumed (`clearSwarmStop`, [runtime-api.ts:825](src/trpc/runtime-api.ts#L825)) **or** a card
   is resumed (K2), the session service must re-drive every task currently parked as `"paused"`. Re-continue via the
-  existing continuation path `sendTaskSessionInput` ([cline-task-session-service.ts:1651](src/cline-sdk/cline-task-session-service.ts#L1651))
+  existing continuation path `sendTaskSessionInput` ([nklein-task-session-service.ts:1651](src/nklein-sdk/nklein-task-session-service.ts#L1651))
   with an empty/continue instruction (the same way a parked task is continued today), so the agent picks up from the
   last checkpoint. Resume only tasks that were paused by this controller — never silently restart guardrail-parked or
   failed tasks. **Done for board and per-card resume; queued tool-executor gating remains K1.5.**
@@ -874,7 +874,7 @@ covered.**
 
 ### K2. Per-card pause / resume, and a replay control for finished cards
 **K2.1 Card pause store + API.**
-- [x] Persist per-task pause in `.cline/nklein/paused-tasks.json` (a `string[]` of taskIds) via `lockedFileSystem`,
+- [x] Persist per-task pause in `.nklein/nklein/paused-tasks.json` (a `string[]` of taskIds) via `lockedFileSystem`,
   mirroring `swarm-guardrails.ts`. Add `src/core/card-pause.ts` with `readPausedTasks`, `setCardPaused(taskId,bool)`.
 - [x] tRPC: `pauseTask` / `resumeTask` mutations (schema in [api-contract.ts](src/core/api-contract.ts), parsers in
   [api-validation.ts](src/core/api-validation.ts), wiring in [app-router.ts](src/trpc/app-router.ts) near
@@ -917,13 +917,13 @@ session. **Done with card, board, settings, persistence/config, runtime API, and
 ### K3. Timestamp every chat-log message (top-right, collapsible, with duration on hover)
 **K3.0 Data.** Each message already carries `createdAt` (`RuntimeTaskChatMessage`,
 [api-contract.ts:1720](src/core/api-contract.ts#L1720)); `meta` has **no** duration field. Messages render in
-`ClineChatMessageItem` ([cline-chat-message-item.tsx:181](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L181)),
-whose role-specific wrappers are at [L192](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L192) (user
-bubble), [L203](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L203), and
-[L209](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L209).
+`NKleinChatMessageItem` ([nklein-chat-message-item.tsx:181](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx#L181)),
+whose role-specific wrappers are at [L192](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx#L192) (user
+bubble), [L203](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx#L203), and
+[L209](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx#L209).
 
 **K3.1 Compute duration in the list (no backend change).** In the message-list render
-([cline-agent-chat-panel.tsx:1125](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L1125)) pass each
+([nklein-agent-chat-panel.tsx:1125](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L1125)) pass each
 item a `durationMs` = `nextMessage.createdAt − message.createdAt` (for the last/in-flight message, `nowMs −
 createdAt`, using the existing `nowMs` ticker). This represents "how long the underlying activity / LLM response took
 before the next event." (Optional accuracy later: record a real `meta.durationMs` at the source.)
@@ -945,24 +945,24 @@ before the next event." (Optional accuracy later: record a real `meta.durationMs
   small helper (`<1s` → "Nms", else "N.Ns", minutes as "Nm Ns").
 - [x] Keep it subtle and NICE: tertiary color, no border, no background; the clock icon only appears on the corner and
   brightens on hover (`hover:text-text-secondary`). It must never cover tool-block chevrons or the spinner — verify
-  against the running-tool layout ([cline-chat-message-item.tsx:43](web-ui/src/components/detail-panels/cline-chat-message-item.tsx#L43)).
+  against the running-tool layout ([nklein-chat-message-item.tsx:43](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx#L43)).
 
 **K3.4 Tests.** Timestamp shows local time from `createdAt`; clicking collapses all to the clock icon and persists;
 hover tooltip contains both timestamp and formatted duration; the collapsed icon stays clickable.
 
 ### K4. Context-usage bar — dedicated full-width line
-The bar (`ClineContextBudgetBar`,
-[cline-agent-chat-panel.tsx:194](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L194)) is currently
+The bar (`NKleinContextBudgetBar`,
+[nklein-agent-chat-panel.tsx:194](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L194)) is currently
 crammed into a `flex flex-wrap items-center gap-2` row at
-[L1136-1143](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L1136) alongside `cardContentText`,
+[L1136-1143](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L1136) alongside `cardContentText`,
 `modelActivityText`, `modelRegistryText`, and (via `ml-auto`) the context-scope `<NativeSelect>` — so it is squeezed
 to `min-w-[220px]` and wraps awkwardly.
-- [x] Move `ClineContextBudgetBar` **out** of that flex row into its **own row** directly above (or below) it, spanning
+- [x] Move `NKleinContextBudgetBar` **out** of that flex row into its **own row** directly above (or below) it, spanning
   the full panel width: wrap it in `<div className="px-2 pt-2 w-full">`. Leave the meta text + scope select in their
   own row.
-- [x] In `ClineContextBudgetBar` change the root from `flex min-w-[220px] max-w-full flex-col gap-1`
-  ([L215](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L215)) to `flex w-full flex-col gap-1`, so
-  the segmented bar (already `w-full` at [L223](web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx#L223))
+- [x] In `NKleinContextBudgetBar` change the root from `flex min-w-[220px] max-w-full flex-col gap-1`
+  ([L215](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L215)) to `flex w-full flex-col gap-1`, so
+  the segmented bar (already `w-full` at [L223](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx#L223))
   uses all available width. Keep the summary text line; it can sit left-aligned above the bar.
 - [x] Apply the same dedicated-line treatment anywhere else the bar renders for a card — check
   [card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx) and
@@ -984,15 +984,15 @@ to `min-w-[220px]` and wraps awkwardly.
 - [x] `npx vitest run test/runtime/config/runtime-config.test.ts test/runtime/terminal/agent-registry.test.ts test/runtime/trpc/runtime-api.test.ts` — green.
 - [ ] **Manual (dev build: `npm run web:dev` + runtime):**
   - Recheck on 2026-06-19: started the source runtime and Vite against isolated
-    `HOME=/private/tmp/nklein-follow-up-4-home` so the user's real `~/.cline/nklein` config was not mutated.
+    `HOME=/private/tmp/nklein-follow-up-4-home` so the user's real `~/.nklein/nklein` config was not mutated.
     Runtime responded at `http://127.0.0.1:3484/api/trpc/projects.list` with an empty fresh project list, and Vite
     responded `200 OK` at `http://127.0.0.1:4173/`. The in-app browser could not complete manual UI inspection because
     new local tabs timed out while attaching to the Browser webview, so the visible Settings/onboarding checks below
     remain open.
-  - [ ] Fresh config: nothing defaults to Claude; only the local Cline agent appears anywhere (settings shows the
-    static "Local Cline agent (cloud disabled)" line, onboarding lists `cline` only).
+  - [ ] Fresh config: nothing defaults to Claude; only the local NKlein agent appears anywhere (settings shows the
+    static "Local NKlein agent (cloud disabled)" line, onboarding lists `nklein` only).
   - [ ] Settings → model context windows: junk LM Studio rows are hidden; "Clear stale models" / per-row remove
-    actually deletes them from `~/.cline/nklein/model-registry.json`; the chat panel telemetry shows the same filtered
+    actually deletes them from `~/.nklein/nklein/model-registry.json`; the chat panel telemetry shows the same filtered
     list.
   - [ ] "Selected loaded model (live)" matches the model actually loaded in LM Studio, in both Settings and chat panel.
   - [ ] Developer Mode off ⇒ sidebar Dev Test Scenarios, command-palette "Developer Tools", and settings "Developer
@@ -1018,7 +1018,7 @@ to `min-w-[220px]` and wraps awkwardly.
       `nklein.kind=agent-sandbox` containers or volumes.
   - [ ] With Docker running, start real tasks: `docker ps` shows **one** shared `nklein.kind=agent-sandbox` container
     for all of them; each agent's edits stay in its `/workspaces/<taskId>` volume dir (nothing written under
-    `~/.cline/nklein/` worktrees or anywhere on the host); the result patch applies to your repo on review; the
+    `~/.nklein/nklein/` worktrees or anywhere on the host); the result patch applies to your repo on review; the
     container stays up between tasks and is removed only after the generous idle grace (~10 min) (or on exit). No host
     shell is spawned for the agent.
     - Blocked recheck on 2026-06-19: `docker image inspect nklein/agent-sandbox:0.0.1` succeeds, but sandboxed
@@ -1032,8 +1032,8 @@ to `min-w-[220px]` and wraps awkwardly.
     containers shut down after the configured timeout and are reused before that.
 - [x] **Runtime control & chat UI (§K):**
   - Verified on 2026-06-19 with focused runtime and web UI tests:
-    `npx vitest run test/runtime/card-pause.test.ts test/runtime/trpc/runtime-api.test.ts test/runtime/cline-sdk/cline-task-session-service.test.ts`
-    and `npm --prefix web-ui run test -- src/components/board-card.test.tsx src/components/kanban-board.test.tsx src/components/detail-panels/cline-agent-chat-panel.test.tsx src/components/detail-panels/cline-chat-message-utils.test.ts src/components/card-detail-view.test.tsx src/hooks/use-task-sessions.test.tsx src/hooks/use-board-interactions.test.tsx src/components/runtime-settings-dialog.test.tsx`.
+    `npx vitest run test/runtime/card-pause.test.ts test/runtime/trpc/runtime-api.test.ts test/runtime/nklein-sdk/nklein-task-session-service.test.ts`
+    and `npm --prefix web-ui run test -- src/components/board-card.test.tsx src/components/kanban-board.test.tsx src/components/detail-panels/nklein-agent-chat-panel.test.tsx src/components/detail-panels/nklein-chat-message-utils.test.ts src/components/card-detail-view.test.tsx src/hooks/use-task-sessions.test.tsx src/hooks/use-board-interactions.test.tsx src/components/runtime-settings-dialog.test.tsx`.
     Manual dev-build checks remain tracked separately above.
   - [x] Pause the board while a card is actively running → the running agent stops issuing new LLM requests within one
     turn (watch the transcript / model activity stop advancing); the card shows a "paused" state. Resume → it

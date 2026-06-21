@@ -46,7 +46,7 @@ export function BoardColumn({
 	isDependencyLinking,
 	workspacePath,
 	replayCardsEnabled = false,
-	defaultClineModelId,
+	defaultNKleinModelId,
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -84,7 +84,7 @@ export function BoardColumn({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	replayCardsEnabled?: boolean;
-	defaultClineModelId?: string | null;
+	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
 	const canStartAllTasks = column.id === "backlog" && onStartAllTasks;
@@ -211,7 +211,7 @@ export function BoardColumn({
 											isDependencyTarget={dependencyTargetTaskId === card.id}
 											isDependencyLinking={isDependencyLinking}
 											workspacePath={workspacePath}
-											defaultClineModelId={defaultClineModelId}
+											defaultNKleinModelId={defaultNKleinModelId}
 											onSaveTitle={onSaveTitle}
 											onClick={() => {
 												if (column.id === "backlog") {

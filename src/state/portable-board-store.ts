@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { CLINE_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "../config/runtime-path-constants";
+import { NKLEIN_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "../config/runtime-path-constants";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeBoardCard, RuntimeBoardData } from "../core/api-contract";
 import { lockedFileSystem } from "../fs/locked-file-system";
@@ -17,13 +17,13 @@ import {
 /**
  * Committed, portable board CRDT store (specsheet §14.2).
  *
- * The board CRDT is written into the repository itself (`<repo>/.cline/nklein/workspace/board-crdt.json`) so
+ * The board CRDT is written into the repository itself (`<repo>/.nklein/nklein/workspace/board-crdt.json`) so
  * the durable project state — cards, the DAG, placement, provenance — can be pushed, fetched on another
  * machine, and merged there. Plan artifacts (spec/plan/decisions/revisions) already live under
- * `.cline/nklein/plans/`, so this store covers the remaining board/DAG portion.
+ * `.nklein/nklein/plans/`, so this store covers the remaining board/DAG portion.
  *
  * `importPortableBoard` merges the committed CRDT with the local board and re-resolves machine-local model
- * assignments against the importing machine (the source machine's `clineSettings` are dropped so roles/fit are
+ * assignments against the importing machine (the source machine's `nkleinSettings` are dropped so roles/fit are
  * resolved locally on start — see `prepareImportedBoardForLocalModels`), honoring the local-only invariant.
  */
 
@@ -33,7 +33,7 @@ const WORKSPACE_LOCAL_STATE_DIR = "workspace";
 export function getPortableBoardCrdtPath(repoPath: string): string {
 	return join(
 		repoPath,
-		CLINE_HOME_DIR_NAME,
+		NKLEIN_HOME_DIR_NAME,
 		NKLEIN_RUNTIME_DIR_NAME,
 		WORKSPACE_LOCAL_STATE_DIR,
 		PORTABLE_BOARD_CRDT_FILENAME,
@@ -55,7 +55,7 @@ export async function readPortableBoardCrdt(repoPath: string): Promise<PortableB
 
 export async function writePortableBoardCrdt(repoPath: string, crdt: PortableBoardCrdt): Promise<string> {
 	const path = getPortableBoardCrdtPath(repoPath);
-	await mkdir(join(repoPath, CLINE_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME, WORKSPACE_LOCAL_STATE_DIR), {
+	await mkdir(join(repoPath, NKLEIN_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME, WORKSPACE_LOCAL_STATE_DIR), {
 		recursive: true,
 	});
 	await lockedFileSystem.writeJsonFileAtomic(path, crdt);
@@ -118,7 +118,7 @@ export async function resolveMachineReplicaId(): Promise<string> {
 /**
  * Strips machine-local model assignments so the importing machine re-resolves roles/fit against its own local
  * models (specsheet §14.2: "re-resolve roles/fit on load rather than trusting the source machine's
- * assignments"). The card keeps its `agentId` (always `cline` under local-only) but loses `clineSettings`.
+ * assignments"). The card keeps its `agentId` (always `nklein` under local-only) but loses `nkleinSettings`.
  */
 export function prepareImportedBoardForLocalModels(board: RuntimeBoardData): RuntimeBoardData {
 	return {
@@ -126,11 +126,11 @@ export function prepareImportedBoardForLocalModels(board: RuntimeBoardData): Run
 		columns: board.columns.map((column) => ({
 			...column,
 			cards: column.cards.map((card) => {
-				if (!("clineSettings" in card)) {
+				if (!("nkleinSettings" in card)) {
 					return card;
 				}
-				const { clineSettings: _clineSettings, ...rest } = card as RuntimeBoardCard & {
-					clineSettings?: unknown;
+				const { nkleinSettings: _nkleinSettings, ...rest } = card as RuntimeBoardCard & {
+					nkleinSettings?: unknown;
 				};
 				return rest as RuntimeBoardCard;
 			}),

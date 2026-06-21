@@ -1,7 +1,7 @@
 /**
- * !Klein native agent core — a constrained tool-calling loop that does NOT depend on the Cline SDK.
+ * !Klein native agent core — a constrained tool-calling loop that does NOT depend on the NKlein SDK.
  *
- * This is the foundation of !Klein's own backend (the decision to grow beyond a Cline-only runtime is recorded
+ * This is the foundation of !Klein's own backend (the decision to grow beyond a NKlein-only runtime is recorded
  * in THIRD_PARTY_NOTICES.md and plan.md). The loop is the well-trodden ReAct / tool-calling pattern (Yao et al.,
  * ReAct, arXiv:2210.03629), adapted for small/quantized local models: the *next action* is produced via
  * constrained JSON decoding (see `LocalLlmClient.generateStructured`), so the model reliably emits a valid

@@ -45,7 +45,7 @@ function createBoard(columns: {
 function createWorkspaceState(board: BoardData, revision: number): RuntimeWorkspaceStateResponse {
 	return {
 		repoPath: "/tmp/project-a",
-		statePath: "/tmp/project-a/.cline/nklein",
+		statePath: "/tmp/project-a/.nklein/nklein",
 		git: {
 			currentBranch: "main",
 			defaultBranch: "main",

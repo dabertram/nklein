@@ -34,8 +34,8 @@
 - [x] `npm run typecheck` (server) — **0 errors**.
 - [x] `npm run web:typecheck` — **0 errors**.
 - [x] `npm run lint` (biome, 537 files) — clean, no fixes applied.
-- [x] `npm run check:cline-boundary` — passes (no `node_modules/@clinebot/*` patching; SDK boundary intact).
-- [x] `npx vitest run test/runtime/cline-sdk test/runtime/telemetry` — **405 tests / 44 files pass** (~11s, no hang).
+- [x] `npm run check:nklein-boundary` — passes (no `node_modules/@nkleinbot/*` patching; SDK boundary intact).
+- [x] `npx vitest run test/runtime/nklein-sdk test/runtime/telemetry` — **405 tests / 44 files pass** (~11s, no hang).
 - [x] `npm run test:protected` — **46 tests / 6 files pass** (~1s).
 - [x] Working tree effectively clean (only `AGENTS.md` modified + an untracked `nKlein.code-workspace`);
       `CHANGELOG.md` `## [Upcoming !Klein 0.0.1]` present and diff-grounded.
@@ -52,12 +52,12 @@ and a **manual-verification debt** that is environmental, not code (§4).
 ### 2.A — ✅ RESOLVED (2026-06-19): strict isolation had silently disabled the autonomous decomposition→cards flow
 
 > **Resolution shipped.** Re-classified `decompose_project`/`expand_task` as trusted control-plane tools that
-> stay available host-side under isolation (they mutate only `~/.cline/nklein/` plan artifacts + the board via
-> `mutateWorkspaceState`, never the user's working tree). `cline-session-runtime.ts` always includes them now;
-> `cline-task-session-service.ts` restores the planning-workflow instruction and always forwards the host
+> stay available host-side under isolation (they mutate only `~/.nklein/nklein/` plan artifacts + the board via
+> `mutateWorkspaceState`, never the user's working tree). `nklein-session-runtime.ts` always includes them now;
+> `nklein-task-session-service.ts` restores the planning-workflow instruction and always forwards the host
 > `workspaceRoot` so artifacts/board resolve to the owning workspace, not the container workdir. Tests updated
 > (session-runtime asserts decomposition tools present under sandbox proxy tools; task-session-service asserts
-> the host root is forwarded distinctly from the container cwd). Full cline-sdk suite green (396/42). The
+> the host root is forwarded distinctly from the container cwd). Full nklein-sdk suite green (396/42). The
 > remaining bullets below are kept for historical context; the recommended option was taken.
 
 
@@ -65,14 +65,14 @@ and a **manual-verification debt** that is environmental, not code (§4).
   This is the single most important finding in this pass and it directly undermines the user's headline
   goal ("!Klein decomposes a 1-shot high-level input into as-many-as-needed cards and its agents work the
   plan"). Evidence:
-  - [cline-task-session-service.ts:494-506](src/cline-sdk/cline-task-session-service.ts#L494) gates the
+  - [nklein-task-session-service.ts:494-506](src/nklein-sdk/nklein-task-session-service.ts#L494) gates the
     decomposition instruction on `decompositionToolsAvailable`, and
-    [:1582](src/cline-sdk/cline-task-session-service.ts#L1582) sets it to `!sandboxWorkspace` — i.e. **false
+    [:1582](src/nklein-sdk/nklein-task-session-service.ts#L1582) sets it to `!sandboxWorkspace` — i.e. **false
     whenever a sandbox workspace exists, which is always** (isolation is mandatory).
   - When false the agent is told: *"Strict Docker isolation is active, so the host-side !Klein decomposition
     tool is unavailable in this agent session. Produce a clear implementation plan in chat and do not edit
     !Klein board, workspace, plan, or task state directly."*
-  - `findings-from-follow-up-work-4.md` confirms this was intentional: "Sandboxed Cline starts now omit
+  - `findings-from-follow-up-work-4.md` confirms this was intentional: "Sandboxed NKlein starts now omit
     `decompose_project` and `expand_task`" and "planning prompts now tell the agent to produce a plan in chat
     instead of using `/kanban-decompose`."
   - **Net effect:** the rich L3 decomposition machinery (recursive expand, sizing contract, fit guard,
@@ -83,21 +83,21 @@ and a **manual-verification debt** that is environmental, not code (§4).
   mutation is **trusted-runtime control-plane work, not agent filesystem/shell activity on the user's repo**:
   > *Out of scope (trusted runtime, stays on host): !Klein's own git integration … config/state file I/O …
   > These are !Klein's trusted code, not the model's actions.*
-  Writing plan artifacts to `~/.cline/nklein/plans/<slug>/` and creating cards/links on the board is exactly
+  Writing plan artifacts to `~/.nklein/nklein/plans/<slug>/` and creating cards/links on the board is exactly
   that — it never touches the user's working tree. The implementation over-applied the isolation rule and
   removed a **control-plane** tool as if it were a **data-plane** (file/shell) tool.
 - [ ] **Resolution to design and implement (pick one; first is recommended):**
   - [ ] **(Recommended) Re-classify decomposition/board/plan mutation as trusted control-plane tools that
         remain available host-side even under strict isolation.** They mutate only !Klein-owned state
-        (`~/.cline/nklein/...` + the board), never the sandboxed working tree, so they don't violate the
+        (`~/.nklein/nklein/...` + the board), never the sandboxed working tree, so they don't violate the
         isolation invariant. Keep file/shell/edit/patch/search strictly sandboxed; allow the agent to call
         `decompose_project` / `expand_task` as orchestration. Add a guard test asserting these tools touch
-        **only** `~/.cline/nklein/` and board state, never the user repo path, so the classification can't
+        **only** `~/.nklein/nklein/` and board state, never the user repo path, so the classification can't
         regress into a host-FS escape.
   - [ ] **(Alternative) Add a trusted host-side "apply chat plan" bridge.** Let the sandboxed planning agent
         emit a structured plan (JSON in a fenced block / a sandbox file written to its workspace and patched
         out), then a trusted runtime step validates it through the existing
-        `validateTaskSizingContract` + router fit guard and calls `applyClinePlanTaskGraphToBoard` host-side.
+        `validateTaskSizingContract` + router fit guard and calls `applyNKleinPlanTaskGraphToBoard` host-side.
         More moving parts; only choose this if keeping the agent 100% tool-free during planning is a hard
         requirement.
   - [ ] Either way: **the Planning lane → DAG → auto-start pipeline must work end-to-end from a single
@@ -113,21 +113,21 @@ and a **manual-verification debt** that is environmental, not code (§4).
 > *implementation* threads. The sandbox now does clone-in / patch-out via deterministic
 > `nklein/tasks/<task>` result branches ([src/workspace/task-result-branches.ts](src/workspace/task-result-branches.ts)),
 > but the **legacy host-worktree subsystem still exists in parallel** and the two paths are interleaved
-> behind a "legacy non-Cline agent" boundary. This dual-path state is correct but is a maintainability and
+> behind a "legacy non-NKlein agent" boundary. This dual-path state is correct but is a maintainability and
 > correctness liability that must be deliberately finished.
 
 > **Update 2026-06-19:** direction decided — **retire** (terminal/CLI agents stay permanently disabled under
 > local-only). Start-path retirement is confirmed and locked: `usesLegacyHostTaskWorkspace(agentId)`
 > ([agent-catalog.ts:97](src/core/agent-catalog.ts#L97)) is the single boundary predicate (now documented),
-> covered by [test/runtime/agent-catalog.test.ts](test/runtime/agent-catalog.test.ts) proving Cline/default/null
+> covered by [test/runtime/agent-catalog.test.ts](test/runtime/agent-catalog.test.ts) proving NKlein/default/null
 > never create a host worktree. Remaining work is **dead-code deletion** (deletion-risk; schedule a focused
-> session): remove unreachable non-Cline `ensureWorktree` start branches + unused `task-worktree*.ts` creation
+> session): remove unreachable non-NKlein `ensureWorktree` start branches + unused `task-worktree*.ts` creation
 > modules, retire saved-host-patch semantics, update AGENTS.md + project-health. The bullets below remain the
 > detailed checklist for that deletion pass.
 >
 > **Reachability audit (2026-06-19) — deletion is blocked, not just deferred.** A full caller map proved the
 > worktree modules are NOT dead: `ensureWorktree` is live web-ui/CLI contract (gated, dead-at-runtime for
-> Cline but compile-coupled), and `ensureTaskWorktreeIfDoesntExist` + the saved-patch sync are reachable via
+> NKlein but compile-coupled), and `ensureTaskWorktreeIfDoesntExist` + the saved-patch sync are reachable via
 > user shell-terminals-on-a-task (`startShellSession` → `resolveTaskCwd({ ensure: true })`) and legacy
 > diff/merge reads — every helper has live external callers. So blind deletion would break the build/flows.
 > True deletion requires two larger, **UI-verifiable** changes first: (1) remove terminal/CLI agents from
@@ -138,11 +138,11 @@ and a **manual-verification debt** that is environmental, not code (§4).
 
 - [~] **Host worktree code is still load-bearing.** `resolveTaskCwd` / `ensureWorktree` are still called from
   `src/trpc/runtime-api.ts`, `src/trpc/workspace-api.ts`, `src/trpc/app-router.ts`,
-  `src/commands/task.ts`, `src/cline-sdk/cline-acceptance-auto-repair.ts`, and the whole
+  `src/commands/task.ts`, `src/nklein-sdk/nklein-acceptance-auto-repair.ts`, and the whole
   `src/workspace/task-worktree*.ts` family (`task-worktree.ts`, `task-worktree-sync.ts`,
   `task-worktree-auto-merge.ts`, `task-worktree-path.ts`, `task-worktree-turbopack.ts`). Confirm which of
-  these are reachable for **default/Cline** tasks vs **only** explicit non-Cline legacy terminal agents.
-- [ ] **Decide the terminal-agent story.** Strict isolation covers Cline/default agents. Terminal CLI agents
+  these are reachable for **default/NKlein** tasks vs **only** explicit non-NKlein legacy terminal agents.
+- [ ] **Decide the terminal-agent story.** Strict isolation covers NKlein/default agents. Terminal CLI agents
   (Codex/Claude/etc.) are cloud and already disabled by L0/G5. So: are host worktrees needed at all anymore,
   or are they dead code kept "just in case"? Options:
   - [ ] If terminal agents stay disabled under local-only: **retire** the host-worktree creation paths,
@@ -160,20 +160,20 @@ and a **manual-verification debt** that is environmental, not code (§4).
 - [ ] **Project-health diagnostics** ("accidental worktree projects", "missing parent workspace") were written
   for the host-worktree world. Re-validate they still make sense (and don't false-positive) once the primary
   path is container workspaces.
-- [ ] **Tests:** add coverage proving a default/Cline task start creates **no** host worktree directory under
-  `~/.cline/nklein/worktrees` (the integration test asserts this for the sandbox; add a unit-level guard on
+- [ ] **Tests:** add coverage proving a default/NKlein task start creates **no** host worktree directory under
+  `~/.nklein/nklein/worktrees` (the integration test asserts this for the sandbox; add a unit-level guard on
   the start path too), and that diff/merge/evidence read from the result branch.
 
-### 2.C — ✅ MOSTLY VERIFIED (2026-06-19): strict isolation observed working on a real Cline task
+### 2.C — ✅ MOSTLY VERIFIED (2026-06-19): strict isolation observed working on a real NKlein task
 
 > **Headless verification done** against real Docker (29.4.3) + real LM Studio
 > (`qwen3.5-9b-mlx-8bit-m4-32kctx`, loaded, tool_use). New scripted runbook
 > [scripts/verify-strict-isolation.mts](scripts/verify-strict-isolation.mts) drives the **real**
-> `AgentSandboxManager` + `InMemoryClineTaskSessionService` against the local model in an isolated HOME and
+> `AgentSandboxManager` + `InMemoryNKleinTaskSessionService` against the local model in an isolated HOME and
 > asserts the invariants. Results:
-> - **Real Cline task in Docker:** the SDK booted against LM Studio, a shared `nklein-agent-sandbox-1`
+> - **Real NKlein task in Docker:** the SDK booted against LM Studio, a shared `nklein-agent-sandbox-1`
 >   container appeared during the run, the session advanced to `running`, **no host worktree** was created
->   under `<HOME>/.cline/nklein/worktrees`, and the container **tore down cleanly** on dispose (zero leftover
+>   under `<HOME>/.nklein/nklein/worktrees`, and the container **tore down cleanly** on dispose (zero leftover
 >   containers/volumes). ✓
 > - **Docker-gated integration test** (`test/integration/agent-sandbox.integration.test.ts`) passes against
 >   the real image (uid isolation, exec, patch capture/apply, no host worktree, idle teardown). ✓
@@ -199,9 +199,9 @@ and a **manual-verification debt** that is environmental, not code (§4).
 > permission or attach the in-app browser. They must be run from an interactive shell + a real LM Studio /
 > Ollama endpoint before strict isolation and the follow-up-4 UX can be called shippable.
 
-- [ ] **Strict isolation, real Cline task, observed in Docker.** Start ≥2 real tasks with Docker running and
+- [ ] **Strict isolation, real NKlein task, observed in Docker.** Start ≥2 real tasks with Docker running and
   confirm: one shared `nklein.kind=agent-sandbox` container by default; each agent's edits stay in its
-  `/workspaces/<taskId>` volume dir; **nothing** written under `~/.cline/nklein/worktrees` or elsewhere on the
+  `/workspaces/<taskId>` volume dir; **nothing** written under `~/.nklein/nklein/worktrees` or elsewhere on the
   host; the result patch applies on review; the container stays warm between tasks and is removed only after
   the idle grace (~10 min); no host shell spawned for the agent. (`follow-up-4 §H` lines 1016–1024.)
 - [ ] **Settings isolation UI inspection.** Confirm the read-only "Agent isolation" status (Docker ✓ / image ✓)
@@ -210,13 +210,13 @@ and a **manual-verification debt** that is environmental, not code (§4).
   correct. Exercise maxContainers=2 / agentsPerContainer=1 → two single-agent containers; over-capacity →
   queued cards. (`follow-up-4 §H` lines 1025–1029.)
 - [ ] **Dev-build UX verification** (`follow-up-4 §H` lines 982–998): fresh config never defaults to Claude
-  and shows only the local Cline agent; junk LM Studio registry rows hidden + "Clear stale models" actually
+  and shows only the local NKlein agent; junk LM Studio registry rows hidden + "Clear stale models" actually
   deletes them from `model-registry.json`; "Selected loaded model (live)" matches LM Studio; Developer Mode
   off hides all dev surfaces and persists across reload (and an explicit off beats the env var); embedding
   "OpenAI-compatible endpoint" prefills the LM Studio endpoint and auto-populates the model dropdown with no
   click.
 - [ ] **Telemetry diff (local dogfood).** Re-run a day of dogfood on the in-use local model; assert the
-  `~/.cline/nklein/telemetry/*.jsonl` shows **zero** `"Insufficient balance"`, **zero** `>1M-token`
+  `~/.nklein/nklein/telemetry/*.jsonl` shows **zero** `"Insufficient balance"`, **zero** `>1M-token`
   overflows, **zero** `"timeout after 1 seconds"` (the original three failure classes from `plan.md` §Context).
 - [ ] Provide a **scripted verification harness** (a `scripts/verify-strict-isolation.mjs` or documented
   runbook) so this manual debt becomes a repeatable check rather than ad-hoc shell archaeology each session.
@@ -227,8 +227,8 @@ and a **manual-verification debt** that is environmental, not code (§4).
 
 ### 3.1 — ✅ RESOLVED (2026-06-19): protected test set now covers the strict-isolation guards
 
-> **Done, human-approved.** Added `cline-agent-sandbox-host-guard` (no-host-execution), `cline-agent-sandbox`
-> (lockdown/fail-closed/uid-isolation/pool), and `cline-task-start-guard` (fail-closed preflight) to
+> **Done, human-approved.** Added `nklein-agent-sandbox-host-guard` (no-host-execution), `nklein-agent-sandbox`
+> (lockdown/fail-closed/uid-isolation/pool), and `nklein-task-start-guard` (fail-closed preflight) to
 > `test/protected/protected-tests.json` + README. Protected suite now 9 files / 79 tests. Adding the
 > `agent-write-guard` secret/protected-path tests remains an optional future strengthening.
 
@@ -250,8 +250,8 @@ and a **manual-verification debt** that is environmental, not code (§4).
 
 ### 3.2 — ✅ RESOLVED (2026-06-19): parked cloud-dependent features are documented and hidden
 
-- [x] `cline-advisor.ts`, `cline-model-research.ts`, `cline-team-delegation.ts`, `cline-team-progress.ts`,
-  `cline-trusted-auto-merge.ts`, and `cline-web-research-tool.ts` remain in the tree as compile-only parked
+- [x] `nklein-advisor.ts`, `nklein-model-research.ts`, `nklein-team-delegation.ts`, `nklein-team-progress.ts`,
+  `nklein-trusted-auto-merge.ts`, and `nklein-web-research-tool.ts` remain in the tree as compile-only parked
   helpers and are listed in `specsheet.md` with their re-enable trigger. Local-only UI/runtime affordances are
   now gated: Settings advisor actions render only when cloud provider support is enabled, host web research is
   not registered while `CLOUD_ENABLED=false`, and native SDK team delegation stays disabled even if the legacy
@@ -260,7 +260,7 @@ and a **manual-verification debt** that is environmental, not code (§4).
 ### 3.3 — Agentic workflow consistency under isolation (beyond 2.A)
 
 - [x] **Acceptance gate / repair / plan-gap under isolation.** Acceptance now runs in the sandbox
-  (`runClineAcceptanceGateInSandbox`). The automatic repair loop uses the scoped service
+  (`runNKleinAcceptanceGateInSandbox`). The automatic repair loop uses the scoped service
   `verifyTaskAcceptanceInSandbox` path for normal runtime repair checks and no longer depends on a legacy host
   task worktree; a regression test now passes a `resolveTaskCwd` spy and asserts it is not called on that path.
 - [x] **`nklein task plan-gap` / `expand-plan-task` / `task merge` are host-side CLI mutations.** These are
@@ -298,12 +298,12 @@ and a **manual-verification debt** that is environmental, not code (§4).
 
 ### 3.5 — Code quality / maintainability observations
 
-- [~] **Dual-path branching ("is this a legacy non-Cline agent?") is duplicated** across runtime-api,
+- [~] **Dual-path branching ("is this a legacy non-NKlein agent?") is duplicated** across runtime-api,
   workspace-api, shutdown, metadata polling, trashed-card path reconstruction, and review-action visibility
   (documented across `findings-from-follow-up-work-4`). Centralize into one predicate + one helper module so
   the eventual host-worktree retirement (§2.B) is a single-file change, not a scattered hunt.
-- [x] **No `node_modules/@clinebot/*` patching** — boundary check passes; SDK plug-in discipline held.
-- [ ] **`cline-task-session-service.ts` size.** It is the largest, most central file (sandbox lifecycle +
+- [x] **No `node_modules/@nkleinbot/*` patching** — boundary check passes; SDK plug-in discipline held.
+- [ ] **`nklein-task-session-service.ts` size.** It is the largest, most central file (sandbox lifecycle +
   pause + budgets + decomposition gating + start/stop/abort + result-branch capture). It's coherent but
   approaching a maintainability ceiling; consider extracting the sandbox-lifecycle orchestration and the
   autonomy-budget/pause enforcement into companion modules once §2.A/§2.B settle (don't churn it before).

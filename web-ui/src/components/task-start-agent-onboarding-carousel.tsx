@@ -1,26 +1,26 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
-import { RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
+import { RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
 import { Check, ExternalLink, Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ClineSetupSection } from "@/components/shared/cline-setup-section";
+import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import { cn } from "@/components/ui/cn";
-import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
+import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import {
-	filterVisibleClineProviderCatalog,
-	isClineProviderAuthenticated,
+	filterVisibleNKleinProviderCatalog,
 	isCloudProviderSupportEnabled,
+	isNKleinProviderAuthenticated,
 } from "@/runtime/native-agent";
 import { buildFirstRunLocalModelRoles } from "@/runtime/onboarding";
-import { saveClineModelContextWindowOverride, saveRuntimeConfig } from "@/runtime/runtime-config-query";
+import { saveNKleinModelContextWindowOverride, saveRuntimeConfig } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderModel,
-	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderModel,
+	RuntimeNKleinProviderSettings,
 } from "@/runtime/types";
 
 interface BaseOnboardingSlide {
@@ -92,7 +92,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	},
 ];
 
-const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "droid", "kiro"];
+const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
 const FALLBACK_ONBOARDING_SLIDE: OnboardingSlide = {
 	kind: "agent-selection",
 	title: "",
@@ -100,7 +100,7 @@ const FALLBACK_ONBOARDING_SLIDE: OnboardingSlide = {
 };
 
 export function resolveOnboardingAgentIds(cloudProviderSupportEnabled: boolean): RuntimeAgentId[] {
-	return cloudProviderSupportEnabled ? [...ONBOARDING_AGENT_IDS] : ["cline"];
+	return cloudProviderSupportEnabled ? [...ONBOARDING_AGENT_IDS] : ["nklein"];
 }
 const ONBOARDING_MEDIA_SLIDES = TASK_START_ONBOARDING_SLIDES.filter(
 	(slide): slide is MediaOnboardingSlide => slide.kind === "media",
@@ -134,7 +134,7 @@ function isBuiltInLocalProviderId(providerId: string): boolean {
 	return normalized === "ollama" || normalized === "lmstudio" || normalized === "lm-studio";
 }
 
-function formatLocalProviderLabel(provider: RuntimeClineProviderCatalogItem): string {
+function formatLocalProviderLabel(provider: RuntimeNKleinProviderCatalogItem): string {
 	const endpoint = provider.baseUrl?.trim();
 	return endpoint ? `${provider.name} (${endpoint})` : provider.name;
 }
@@ -145,8 +145,8 @@ function LocalModelSetupStatus({
 	selectedProviderId,
 	isLoadingModels,
 }: {
-	providers: RuntimeClineProviderCatalogItem[];
-	models: RuntimeClineProviderModel[];
+	providers: RuntimeNKleinProviderCatalogItem[];
+	models: RuntimeNKleinProviderModel[];
 	selectedProviderId: string;
 	isLoadingModels: boolean;
 }): ReactElement {
@@ -231,8 +231,8 @@ function LocalEndpointStartGuide({
 	models,
 	selectedProviderId,
 }: {
-	providers: RuntimeClineProviderCatalogItem[];
-	models: RuntimeClineProviderModel[];
+	providers: RuntimeNKleinProviderCatalogItem[];
+	models: RuntimeNKleinProviderModel[];
 	selectedProviderId: string;
 }): ReactElement {
 	const providersById = new Map(providers.map((provider) => [provider.id.trim().toLowerCase(), provider]));
@@ -465,7 +465,7 @@ function OnboardingMedia({
 }
 
 function resolveInstallInstructions(agentId: RuntimeAgentId): string {
-	if (agentId === "cline") {
+	if (agentId === "nklein") {
 		return "Built-in agent with support for any LLM provider. No CLI install needed.";
 	}
 	if (agentId === "claude") {
@@ -505,10 +505,10 @@ export function TaskStartAgentOnboardingCarousel({
 	runtimeConfig,
 	selectedAgentId,
 	agents,
-	clineProviderSettings,
+	nkleinProviderSettings,
 	activeSlideIndex,
 	onSelectAgent,
-	onClineSetupSaved,
+	onNKleinSetupSaved,
 	onDoneActionChange,
 }: {
 	open: boolean;
@@ -516,16 +516,16 @@ export function TaskStartAgentOnboardingCarousel({
 	runtimeConfig: RuntimeConfigResponse | null;
 	selectedAgentId: RuntimeAgentId | null;
 	agents: RuntimeAgentDefinition[];
-	clineProviderSettings: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings: RuntimeNKleinProviderSettings | null;
 	activeSlideIndex: number;
 	onSelectAgent?: (agentId: RuntimeAgentId) => Promise<AgentSelectionResult>;
-	onClineSetupSaved?: () => void;
+	onNKleinSetupSaved?: () => void;
 	onDoneActionChange?: (action: (() => Promise<OnboardingDoneResult>) | null) => void;
 }): ReactElement {
 	const [activeAgentId, setActiveAgentId] = useState<RuntimeAgentId | null>(selectedAgentId);
 	const [selectionError, setSelectionError] = useState<string | null>(null);
-	const [clineSetupError, setClineSetupError] = useState<string | null>(null);
-	const [clineContextWindowInput, setClineContextWindowInput] = useState("");
+	const [nkleinSetupError, setNKleinSetupError] = useState<string | null>(null);
+	const [nkleinContextWindowInput, setNKleinContextWindowInput] = useState("");
 	const selectionSavePromiseRef = useRef<Promise<AgentSelectionResult> | null>(null);
 
 	useEffect(() => {
@@ -534,17 +534,17 @@ export function TaskStartAgentOnboardingCarousel({
 
 	const currentSlide =
 		TASK_START_ONBOARDING_SLIDES[activeSlideIndex] ?? TASK_START_ONBOARDING_SLIDES[0] ?? FALLBACK_ONBOARDING_SLIDE;
-	const clineAuthenticated = isClineProviderAuthenticated(clineProviderSettings);
-	const clineSettings = useRuntimeSettingsClineController({
+	const nkleinAuthenticated = isNKleinProviderAuthenticated(nkleinProviderSettings);
+	const nkleinSettings = useRuntimeSettingsNKleinController({
 		open,
 		workspaceId,
-		selectedAgentId: activeAgentId ?? selectedAgentId ?? "cline",
+		selectedAgentId: activeAgentId ?? selectedAgentId ?? "nklein",
 		config: runtimeConfig,
 	});
 	const cloudProviderSupportEnabled = isCloudProviderSupportEnabled(runtimeConfig);
-	const visibleClineProviderCatalog = useMemo(
-		() => filterVisibleClineProviderCatalog(clineSettings.providerCatalog, cloudProviderSupportEnabled),
-		[clineSettings.providerCatalog, cloudProviderSupportEnabled],
+	const visibleNKleinProviderCatalog = useMemo(
+		() => filterVisibleNKleinProviderCatalog(nkleinSettings.providerCatalog, cloudProviderSupportEnabled),
+		[nkleinSettings.providerCatalog, cloudProviderSupportEnabled],
 	);
 	const onboardingAgents = useMemo(
 		() =>
@@ -560,8 +560,10 @@ export function TaskStartAgentOnboardingCarousel({
 			}),
 		[agents, cloudProviderSupportEnabled],
 	);
-	const selectedClineProviderModel = clineSettings.providerModels.find((model) => model.id === clineSettings.modelId);
-	const selectedModelContextWindow = selectedClineProviderModel?.contextWindow ?? null;
+	const selectedNKleinProviderModel = nkleinSettings.providerModels.find(
+		(model) => model.id === nkleinSettings.modelId,
+	);
+	const selectedModelContextWindow = selectedNKleinProviderModel?.contextWindow ?? null;
 
 	const handleAgentSelect = (agentId: RuntimeAgentId) => {
 		if (activeAgentId === agentId) {
@@ -611,44 +613,44 @@ export function TaskStartAgentOnboardingCarousel({
 				return { ok: false, message };
 			}
 		}
-		if (activeAgentId !== "cline") {
+		if (activeAgentId !== "nklein") {
 			return { ok: true };
 		}
-		if (!clineSettings.hasUnsavedChanges) {
+		if (!nkleinSettings.hasUnsavedChanges) {
 			return { ok: true };
 		}
-		setClineSetupError(null);
-		const saveResult = await clineSettings.saveProviderSettings();
+		setNKleinSetupError(null);
+		const saveResult = await nkleinSettings.saveProviderSettings();
 		if (!saveResult.ok) {
-			const message = saveResult.message ?? "Could not save Cline provider settings.";
-			setClineSetupError(message);
+			const message = saveResult.message ?? "Could not save !Klein provider settings.";
+			setNKleinSetupError(message);
 			return { ok: false, message };
 		}
 		const firstRunRoles = buildFirstRunLocalModelRoles({
 			existingRoles: runtimeConfig?.modelRoles,
-			providerId: clineSettings.providerId,
-			modelId: clineSettings.modelId,
-			baseUrl: clineSettings.baseUrl,
-			reasoningEffort: clineSettings.reasoningEffort,
+			providerId: nkleinSettings.providerId,
+			modelId: nkleinSettings.modelId,
+			baseUrl: nkleinSettings.baseUrl,
+			reasoningEffort: nkleinSettings.reasoningEffort,
 		});
-		const trimmedContextWindow = clineContextWindowInput.trim();
+		const trimmedContextWindow = nkleinContextWindowInput.trim();
 		if (trimmedContextWindow) {
 			const contextWindow = Number(trimmedContextWindow);
-			if (!Number.isInteger(contextWindow) || contextWindow < RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS) {
-				const message = `Context window must be at least ${RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS.toLocaleString()} tokens.`;
-				setClineSetupError(message);
+			if (!Number.isInteger(contextWindow) || contextWindow < RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS) {
+				const message = `Context window must be at least ${RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS.toLocaleString()} tokens.`;
+				setNKleinSetupError(message);
 				return { ok: false, message };
 			}
 			try {
-				await saveClineModelContextWindowOverride(workspaceId, {
-					providerId: clineSettings.providerId,
-					modelId: clineSettings.modelId,
-					endpoint: clineSettings.baseUrl?.trim() || null,
+				await saveNKleinModelContextWindowOverride(workspaceId, {
+					providerId: nkleinSettings.providerId,
+					modelId: nkleinSettings.modelId,
+					endpoint: nkleinSettings.baseUrl?.trim() || null,
 					contextWindow,
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				setClineSetupError(message);
+				setNKleinSetupError(message);
 				return { ok: false, message };
 			}
 		}
@@ -657,17 +659,17 @@ export function TaskStartAgentOnboardingCarousel({
 				await saveRuntimeConfig(workspaceId, { modelRoles: firstRunRoles });
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				setClineSetupError(message);
+				setNKleinSetupError(message);
 				return { ok: false, message };
 			}
 		}
-		onClineSetupSaved?.();
+		onNKleinSetupSaved?.();
 		return { ok: true };
 	}, [
 		activeAgentId,
-		clineContextWindowInput,
-		clineSettings,
-		onClineSetupSaved,
+		nkleinContextWindowInput,
+		nkleinSettings,
+		onNKleinSetupSaved,
 		runtimeConfig?.modelRoles,
 		workspaceId,
 	]);
@@ -748,8 +750,8 @@ export function TaskStartAgentOnboardingCarousel({
 									</RadixCheckbox.Root>
 									<span className="text-[13px] text-text-primary">{agent.label}</span>
 								</span>
-								{agent.id === "cline" ? (
-									clineAuthenticated ? (
+								{agent.id === "nklein" ? (
+									nkleinAuthenticated ? (
 										<AgentStatusBadge
 											label="Authenticated"
 											statusClassName="bg-status-green/10 text-status-green"
@@ -763,7 +765,7 @@ export function TaskStartAgentOnboardingCarousel({
 							</div>
 							<p className="mt-2 mb-0 text-[12px] text-text-secondary">
 								{resolveInstallInstructions(agent.id)}
-								{agent.id !== "cline" && agent.installUrl ? (
+								{agent.id !== "nklein" && agent.installUrl ? (
 									<>
 										{" "}
 										<a
@@ -777,26 +779,26 @@ export function TaskStartAgentOnboardingCarousel({
 									</>
 								) : null}
 							</p>
-							{agent.id === "cline" ? (
+							{agent.id === "nklein" ? (
 								<div className="mt-2">
 									<LocalModelSetupStatus
-										providers={visibleClineProviderCatalog}
-										models={clineSettings.providerModels}
-										selectedProviderId={clineSettings.providerId}
-										isLoadingModels={clineSettings.isLoadingProviderModels}
+										providers={visibleNKleinProviderCatalog}
+										models={nkleinSettings.providerModels}
+										selectedProviderId={nkleinSettings.providerId}
+										isLoadingModels={nkleinSettings.isLoadingProviderModels}
 									/>
 									<LocalEndpointStartGuide
-										providers={visibleClineProviderCatalog}
-										models={clineSettings.providerModels}
-										selectedProviderId={clineSettings.providerId}
+										providers={visibleNKleinProviderCatalog}
+										models={nkleinSettings.providerModels}
+										selectedProviderId={nkleinSettings.providerId}
 									/>
-									<ClineSetupSection
-										controller={clineSettings}
+									<NKleinSetupSection
+										controller={nkleinSettings}
 										controlsDisabled={false}
 										cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 										showMcpSettings={false}
-										onError={setClineSetupError}
-										onSaved={onClineSetupSaved}
+										onError={setNKleinSetupError}
+										onSaved={onNKleinSetupSaved}
 									/>
 									<div className="mt-2 rounded-md border border-border bg-surface-1 p-2">
 										<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
@@ -809,12 +811,12 @@ export function TaskStartAgentOnboardingCarousel({
 												</div>
 											</div>
 											<input
-												value={clineContextWindowInput}
-												onChange={(event) => setClineContextWindowInput(event.target.value)}
+												value={nkleinContextWindowInput}
+												onChange={(event) => setNKleinContextWindowInput(event.target.value)}
 												placeholder="64000"
 												inputMode="numeric"
 												className="h-8 min-w-0 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary"
-												aria-label="Cline context window override"
+												aria-label="!Klein context window override"
 											/>
 										</div>
 										<div className="mt-2 flex flex-wrap gap-1.5">
@@ -823,15 +825,15 @@ export function TaskStartAgentOnboardingCarousel({
 													key={roleId}
 													className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-secondary"
 												>
-													{roleId}: {clineSettings.modelId || "select model"}
-													{clineSettings.reasoningEffort ? ` · ${clineSettings.reasoningEffort}` : ""}
+													{roleId}: {nkleinSettings.modelId || "select model"}
+													{nkleinSettings.reasoningEffort ? ` · ${nkleinSettings.reasoningEffort}` : ""}
 												</span>
 											))}
 										</div>
 									</div>
-									{clineSetupError ? (
+									{nkleinSetupError ? (
 										<div className="mt-2 rounded-md border border-status-red/30 bg-status-red/5 p-2 text-[12px] text-text-primary">
-											{clineSetupError}
+											{nkleinSetupError}
 										</div>
 									) : null}
 								</div>

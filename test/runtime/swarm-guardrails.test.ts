@@ -26,8 +26,10 @@ describe("swarm guardrails", () => {
 				reason: "Pause overnight run.",
 				createdAt: 123,
 			});
-			expect(getSwarmStopSignalPath(workspacePath)).toBe(join(workspacePath, ".cline", "nklein", "swarm-stop.json"));
-			await expect(readFile(join(workspacePath, ".cline", "nklein", "swarm-stop.json"), "utf8")).resolves.toContain(
+			expect(getSwarmStopSignalPath(workspacePath)).toBe(
+				join(workspacePath, ".nklein", "nklein", "swarm-stop.json"),
+			);
+			await expect(readFile(join(workspacePath, ".nklein", "nklein", "swarm-stop.json"), "utf8")).resolves.toContain(
 				"Pause overnight run.",
 			);
 			await expect(readSwarmStopSignal(workspacePath)).resolves.toEqual(signal);
@@ -42,8 +44,8 @@ describe("swarm guardrails", () => {
 	it("reads and clears the legacy kanban stop signal during the rename transition", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-swarm-stop-"));
 		try {
-			const legacyPath = join(workspacePath, ".cline", "kanban", "swarm-stop.json");
-			await mkdir(join(workspacePath, ".cline", "kanban"), { recursive: true });
+			const legacyPath = join(workspacePath, ".nklein", "kanban", "swarm-stop.json");
+			await mkdir(join(workspacePath, ".nklein", "kanban"), { recursive: true });
 			await writeFile(
 				legacyPath,
 				`${JSON.stringify({ stopped: true, reason: "Legacy pause.", createdAt: 456 })}\n`,

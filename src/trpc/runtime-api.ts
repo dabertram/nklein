@@ -1,6 +1,6 @@
 // Coordinates the runtime-side TRPC handlers used by the browser.
 // This is the main backend entrypoint for sessions, settings, git, and
-// workspace actions, but detailed Cline, terminal, and config behavior
+// workspace actions, but detailed NKlein, terminal, and config behavior
 // should stay in focused services instead of accumulating here.
 
 import { execFile } from "node:child_process";
@@ -10,62 +10,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { buildClineAdvisorRequest } from "../cline-sdk/cline-advisor";
-import { createClineCodeEmbeddingProviderFromSettings } from "../cline-sdk/cline-code-embeddings";
-import { getClineCodeIndexStatus } from "../cline-sdk/cline-code-index";
-import {
-	assertClineContextWindowPolicy,
-	isClineContextWindowPolicyError,
-} from "../cline-sdk/cline-context-window-policy";
-import { applyClinePlanTaskGraphToBoard } from "../cline-sdk/cline-decomposition-tool";
-import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
-import { scheduleClineEndpointStart } from "../cline-sdk/cline-endpoint-scheduler";
-import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
-import {
-	assertLocalProviderAllowed,
-	isCloudProviderDisabledError,
-	isLocalProvider,
-} from "../cline-sdk/cline-local-only-policy";
-import { createClineMcpRuntimeService } from "../cline-sdk/cline-mcp-runtime-service";
-import { createClineMcpSettingsService } from "../cline-sdk/cline-mcp-settings-service";
-import {
-	buildClineModelRegistryKey,
-	type ClineModelRegistryEntry,
-	type ClineModelRegistryKeyInput,
-	createClineModelRegistryEntry,
-	getDefaultClineModelRegistry,
-} from "../cline-sdk/cline-model-registry";
-import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
-import {
-	type ClinePlanArtifactSummary,
-	listClinePlanArtifactsForSourceTask,
-	readClinePlanArtifactsByArtifactId,
-	summarizeClinePlanArtifacts,
-	updateClinePlanArtifactApplicationStatus,
-} from "../cline-sdk/cline-plan-artifacts";
-import { createClineProviderService } from "../cline-sdk/cline-provider-service";
-import { buildClineRepoMap } from "../cline-sdk/cline-repo-map";
-import { setClineLostHeartbeatPolicy } from "../cline-sdk/cline-session-state";
-import { isClineClearSlashCommand } from "../cline-sdk/cline-slash-commands";
-import { routeClineTask } from "../cline-sdk/cline-task-router";
-import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
-import {
-	buildClineSandboxStartBlock,
-	buildClineStartGuardCandidate,
-	type ClineStartGuardCandidate,
-	estimateClineStartDifficulty,
-	estimateClineStartFitBudgetTokens,
-	estimateClineStartPromptTokens,
-	formatClineTaskRoutingBlockMessage,
-} from "../cline-sdk/cline-task-start-guard";
-import { applyMcsrAwareLocalTimeoutScaling } from "../cline-sdk/cline-timeout-scaling";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeBoardCard,
-	RuntimeClineProviderSettings,
 	RuntimeCommandRunResponse,
+	RuntimeNKleinProviderSettings,
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeTaskContextImportResponse,
@@ -76,22 +27,22 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import {
-	parseClineAccountSwitchRequest,
-	parseClineAddProviderRequest,
-	parseClineAdvisorBuildRequest,
-	parseClineAdvisorSendRequest,
-	parseClineDeviceAuthCompleteRequest,
-	parseClineDogfoodBacklogRequest,
-	parseClineEndpointModelDiscoveryRequest,
-	parseClineMcpOAuthRequest,
-	parseClineMcpSettingsSaveRequest,
-	parseClineModelContextWindowOverrideRequest,
-	parseClineModelRegistryRemoveRequest,
-	parseClineOauthLoginRequest,
-	parseClineProviderModelsRequest,
-	parseClineProviderSettingsSaveRequest,
-	parseClineUpdateProviderRequest,
 	parseCommandRunRequest,
+	parseNKleinAccountSwitchRequest,
+	parseNKleinAddProviderRequest,
+	parseNKleinAdvisorBuildRequest,
+	parseNKleinAdvisorSendRequest,
+	parseNKleinDeviceAuthCompleteRequest,
+	parseNKleinDogfoodBacklogRequest,
+	parseNKleinEndpointModelDiscoveryRequest,
+	parseNKleinMcpOAuthRequest,
+	parseNKleinMcpSettingsSaveRequest,
+	parseNKleinModelContextWindowOverrideRequest,
+	parseNKleinModelRegistryRemoveRequest,
+	parseNKleinOauthLoginRequest,
+	parseNKleinProviderModelsRequest,
+	parseNKleinProviderSettingsSaveRequest,
+	parseNKleinUpdateProviderRequest,
 	parseProtectedTestApprovalGrantRequest,
 	parseRuntimeConfigSaveRequest,
 	parseShellSessionStartRequest,
@@ -111,6 +62,7 @@ import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
+import { moveTaskToColumn } from "../core/task-board-mutations";
 import {
 	formatGitHubContextLabel,
 	type GitHubIssueView,
@@ -118,6 +70,55 @@ import {
 	renderGitHubIssueContext,
 } from "../core/task-context-import";
 import { resolveTaskTitle } from "../core/task-title.js";
+import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
+import { createNKleinCodeEmbeddingProviderFromSettings } from "../nklein-sdk/nklein-code-embeddings";
+import { getNKleinCodeIndexStatus } from "../nklein-sdk/nklein-code-index";
+import {
+	assertNKleinContextWindowPolicy,
+	isNKleinContextWindowPolicyError,
+} from "../nklein-sdk/nklein-context-window-policy";
+import { applyNKleinPlanTaskGraphToBoard } from "../nklein-sdk/nklein-decomposition-tool";
+import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
+import { scheduleNKleinEndpointStart } from "../nklein-sdk/nklein-endpoint-scheduler";
+import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
+import {
+	assertLocalProviderAllowed,
+	isCloudProviderDisabledError,
+	isLocalProvider,
+} from "../nklein-sdk/nklein-local-only-policy";
+import { createNKleinMcpRuntimeService } from "../nklein-sdk/nklein-mcp-runtime-service";
+import { createNKleinMcpSettingsService } from "../nklein-sdk/nklein-mcp-settings-service";
+import {
+	buildNKleinModelRegistryKey,
+	createNKleinModelRegistryEntry,
+	getDefaultNKleinModelRegistry,
+	type NKleinModelRegistryEntry,
+	type NKleinModelRegistryKeyInput,
+} from "../nklein-sdk/nklein-model-registry";
+import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
+import {
+	listNKleinPlanArtifactsForSourceTask,
+	type NKleinPlanArtifactSummary,
+	readNKleinPlanArtifactsByArtifactId,
+	summarizeNKleinPlanArtifacts,
+	updateNKleinPlanArtifactApplicationStatus,
+} from "../nklein-sdk/nklein-plan-artifacts";
+import { createNKleinProviderService } from "../nklein-sdk/nklein-provider-service";
+import { buildNKleinRepoMap } from "../nklein-sdk/nklein-repo-map";
+import { setNKleinLostHeartbeatPolicy } from "../nklein-sdk/nklein-session-state";
+import { isNKleinClearSlashCommand } from "../nklein-sdk/nklein-slash-commands";
+import { routeNKleinTask } from "../nklein-sdk/nklein-task-router";
+import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
+import {
+	buildNKleinSandboxStartBlock,
+	buildNKleinStartGuardCandidate,
+	estimateNKleinStartDifficulty,
+	estimateNKleinStartFitBudgetTokens,
+	estimateNKleinStartPromptTokens,
+	formatNKleinTaskRoutingBlockMessage,
+	type NKleinStartGuardCandidate,
+} from "../nklein-sdk/nklein-task-start-guard";
+import { applyMcsrAwareLocalTimeoutScaling } from "../nklein-sdk/nklein-timeout-scaling";
 import { openInBrowser } from "../server/browser";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
@@ -138,8 +139,8 @@ import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
-type ResolvedClineLaunchConfig = Awaited<
-	ReturnType<ReturnType<typeof createClineProviderService>["resolveLaunchConfig"]>
+type ResolvedNKleinLaunchConfig = Awaited<
+	ReturnType<ReturnType<typeof createNKleinProviderService>["resolveLaunchConfig"]>
 >;
 
 const execFileAsync = promisify(execFile);
@@ -147,7 +148,7 @@ const GITHUB_CONTEXT_IMPORT_TIMEOUT_MS = 20_000;
 const GITHUB_CONTEXT_IMPORT_MAX_BUFFER_BYTES = 512_000;
 
 interface AdvisorChatCompletionInput {
-	launchConfig: ResolvedClineLaunchConfig;
+	launchConfig: ResolvedNKleinLaunchConfig;
 	prompt: string;
 }
 
@@ -162,7 +163,7 @@ function withTaskPausedState(
 	return summary ? { ...summary, paused: pausedTaskIds.has(summary.taskId) } : null;
 }
 
-function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedClineLaunchConfig): string {
+function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
 	const configured = launchConfig.baseUrl?.trim();
 	if (configured) {
 		const trimmed = configured.replace(/\/+$/u, "");
@@ -182,7 +183,7 @@ function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedClineLaunchConfig): s
 	return "http://localhost:11434/v1";
 }
 
-function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedClineLaunchConfig): string {
+function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
 	return launchConfig.baseUrl?.trim().replace(/\/+$/u, "") || "http://localhost:11434";
 }
 
@@ -357,15 +358,15 @@ export interface CreateRuntimeApiDependencies {
 	loadScopedRuntimeConfig: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeConfigState>;
 	setActiveRuntimeConfig: (config: RuntimeConfigState) => void;
 	getScopedTerminalManager: (scope: RuntimeTrpcWorkspaceScope) => Promise<TerminalSessionManager>;
-	getScopedClineTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<ClineTaskSessionService>;
-	getLoadedScopedClineTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => ClineTaskSessionService | null;
+	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
+	getLoadedScopedNKleinTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => NKleinTaskSessionService | null;
 	resolveInteractiveShellCommand: () => { binary: string; args: string[] };
 	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
-	broadcastClineMcpAuthStatusesUpdated?: (
-		statuses: Awaited<ReturnType<ReturnType<typeof createClineMcpRuntimeService>["getAuthStatuses"]>>,
+	broadcastNKleinMcpAuthStatusesUpdated?: (
+		statuses: Awaited<ReturnType<ReturnType<typeof createNKleinMcpRuntimeService>["getAuthStatuses"]>>,
 	) => void;
 	broadcastTaskChatCleared?: (workspaceId: string, taskId: string) => void;
-	bumpClineSessionContextVersion?: () => void;
+	bumpNKleinSessionContextVersion?: () => void;
 	prepareForStateReset?: () => Promise<void>;
 	taskStartQueue?: RuntimeTaskStartQueue;
 	getDogfoodTelemetryRoot?: () => string;
@@ -513,13 +514,13 @@ function scaleTimeoutMs(value: number | null, factor: number): number | null {
 	return Math.max(0, Math.trunc(value * factor));
 }
 
-const MIN_POSITIVE_CLINE_TIMEOUT_MS = 60 * 1000;
+const MIN_POSITIVE_NKLEIN_TIMEOUT_MS = 60 * 1000;
 
-function enforceLocalClineTimeoutFloor(value: number | null): number | null {
+function enforceLocalNKleinTimeoutFloor(value: number | null): number | null {
 	if (value === null || value === 0) {
 		return value;
 	}
-	return Math.max(MIN_POSITIVE_CLINE_TIMEOUT_MS, value);
+	return Math.max(MIN_POSITIVE_NKLEIN_TIMEOUT_MS, value);
 }
 
 function resolveEffectiveTaskTimeoutSettings(input: {
@@ -573,11 +574,11 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 	return {
 		timeoutMode,
 		timeoutProfile,
-		requestTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(requestTimeoutMs, scale)),
-		streamTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(streamTimeoutMs, scale)),
-		toolTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(toolTimeoutMs, scale)),
-		agentTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(agentTimeoutMs, scale)),
-		conversationTimeoutMs: enforceLocalClineTimeoutFloor(scaleTimeoutMs(conversationTimeoutMs, scale)),
+		requestTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(requestTimeoutMs, scale)),
+		streamTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(streamTimeoutMs, scale)),
+		toolTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(toolTimeoutMs, scale)),
+		agentTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(agentTimeoutMs, scale)),
+		conversationTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(conversationTimeoutMs, scale)),
 	};
 }
 
@@ -629,7 +630,44 @@ function findSourceCardBaseRef(cards: readonly RuntimeBoardCard[], sourceTaskId:
 	return findBoardCardById(cards, sourceTaskId)?.baseRef ?? null;
 }
 
-function toRuntimePlanArtifactSummary(summary: ClinePlanArtifactSummary): ClinePlanArtifactSummary {
+async function reconcileRunningTaskBoardLane(
+	workspaceScope: RuntimeTrpcWorkspaceScope,
+	summary: RuntimeTaskSessionSummary,
+): Promise<void> {
+	if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
+		return;
+	}
+	try {
+		await mutateWorkspaceState(workspaceScope.workspacePath, (state) => {
+			const record = findBoardCardRecordById(state.board, summary.taskId);
+			if (!record || record.columnId === "completed" || record.columnId === "trash") {
+				return {
+					board: state.board,
+					save: false,
+					value: null,
+				};
+			}
+			const targetColumnId = record.card.startInPlanMode ? "planning" : "in_progress";
+			if (record.columnId === targetColumnId) {
+				return {
+					board: state.board,
+					save: false,
+					value: null,
+				};
+			}
+			const movement = moveTaskToColumn(state.board, summary.taskId, targetColumnId);
+			return {
+				board: movement.board,
+				save: movement.moved,
+				value: null,
+			};
+		});
+	} catch {
+		// Chat/input delivery is primary; lane reconciliation is best-effort for real persisted boards.
+	}
+}
+
+function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
 	return summary;
 }
 
@@ -703,14 +741,14 @@ function formatMergeMessage(input: {
 }
 
 function addConfiguredLocalModelRegistryEntries(input: {
-	models: Record<string, ClineModelRegistryEntry>;
+	models: Record<string, NKleinModelRegistryEntry>;
 	runtimeConfig: RuntimeConfigState | null;
-	launchConfig: ResolvedClineLaunchConfig | null;
-	providerSettings: RuntimeClineProviderSettings | null;
+	launchConfig: ResolvedNKleinLaunchConfig | null;
+	providerSettings: RuntimeNKleinProviderSettings | null;
 	now: number;
-}): Record<string, ClineModelRegistryEntry> {
+}): Record<string, NKleinModelRegistryEntry> {
 	const nextModels = { ...input.models };
-	const candidates: ClineModelRegistryKeyInput[] = [];
+	const candidates: NKleinModelRegistryKeyInput[] = [];
 	if (input.launchConfig?.providerId && input.launchConfig.modelId) {
 		candidates.push({
 			providerId: input.launchConfig.providerId,
@@ -737,18 +775,18 @@ function addConfiguredLocalModelRegistryEntries(input: {
 		if (!isLocalProvider(candidate.providerId, candidate.endpoint)) {
 			continue;
 		}
-		const key = buildClineModelRegistryKey(candidate);
+		const key = buildNKleinModelRegistryKey(candidate);
 		if (nextModels[key]) {
 			continue;
 		}
-		nextModels[key] = createClineModelRegistryEntry(candidate, input.now);
+		nextModels[key] = createNKleinModelRegistryEntry(candidate, input.now);
 	}
 	return nextModels;
 }
 
-function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedClineLaunchConfig>(
+function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKleinLaunchConfig>(
 	launchConfig: TLaunchConfig,
-	candidate: ClineStartGuardCandidate<TLaunchConfig>,
+	candidate: NKleinStartGuardCandidate<TLaunchConfig>,
 ): TLaunchConfig {
 	const effectiveContextWindow = candidate.entry.contextWindow.effective;
 	if (
@@ -766,23 +804,23 @@ function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedClin
 }
 
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
-	const clineProviderService = createClineProviderService();
-	const clineMcpSettingsService = createClineMcpSettingsService();
-	const clineMcpRuntimeService = createClineMcpRuntimeService({
+	const nkleinProviderService = createNKleinProviderService();
+	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
+	const nkleinMcpRuntimeService = createNKleinMcpRuntimeService({
 		onAuthStatusesChanged: (statuses) => {
-			deps.broadcastClineMcpAuthStatusesUpdated?.(statuses);
+			deps.broadcastNKleinMcpAuthStatusesUpdated?.(statuses);
 		},
 	});
 	const debugResetTargetPaths = [
-		join(homedir(), ".cline", "data"),
-		join(homedir(), ".cline", "nklein"),
-		join(homedir(), ".cline", "worktrees"),
+		join(homedir(), ".nklein", "data"),
+		join(homedir(), ".nklein", "nklein"),
+		join(homedir(), ".nklein", "worktrees"),
 	] as const;
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
 		buildRuntimeConfigResponse(
 			runtimeConfig,
-			clineProviderService.getProviderSettingsSummary(),
+			nkleinProviderService.getProviderSettingsSummary(),
 			deps.getAgentSandboxStatus?.(),
 		);
 
@@ -800,7 +838,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			} else {
 				throw new Error("No active runtime config provider is available.");
 			}
-			setClineLostHeartbeatPolicy(scopedRuntimeConfig.lostHeartbeatPolicy);
+			setNKleinLostHeartbeatPolicy(scopedRuntimeConfig.lostHeartbeatPolicy);
 			return buildConfigResponse(scopedRuntimeConfig);
 		},
 		saveConfig: async (workspaceScope, input) => {
@@ -824,7 +862,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			if (!workspaceScope) {
 				deps.setActiveRuntimeConfig(nextRuntimeConfig);
 			}
-			setClineLostHeartbeatPolicy(nextRuntimeConfig.lostHeartbeatPolicy);
+			setNKleinLostHeartbeatPolicy(nextRuntimeConfig.lostHeartbeatPolicy);
 			return buildConfigResponse(nextRuntimeConfig);
 		},
 		getModelPerformanceStats: async (workspaceScope) => {
@@ -848,7 +886,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				workspacePath: workspaceScope.workspacePath,
 				reason: input.reason,
 			});
-			deps.getLoadedScopedClineTaskSessionService?.(workspaceScope)?.setBoardPaused(true);
+			deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.setBoardPaused(true);
 			return {
 				ok: true,
 				signal,
@@ -856,9 +894,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		clearSwarmStop: async (workspaceScope) => {
 			await clearSwarmStop(workspaceScope.workspacePath);
-			const clineTaskSessionService = deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
-			clineTaskSessionService?.setBoardPaused(false);
-			await clineTaskSessionService?.resumePausedTasks();
+			const nkleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
+			nkleinTaskSessionService?.setBoardPaused(false);
+			await nkleinTaskSessionService?.resumePausedTasks();
 			return {
 				ok: true,
 				signal: null,
@@ -883,8 +921,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				runSummaries,
 			};
 		},
-		listClinePlanArtifacts: async (workspaceScope, input) => {
-			const artifacts = await listClinePlanArtifactsForSourceTask({
+		listNKleinPlanArtifacts: async (workspaceScope, input) => {
+			const artifacts = await listNKleinPlanArtifactsForSourceTask({
 				workspacePath: workspaceScope.workspacePath,
 				sourceTaskId: input.taskId,
 				applicationStatus: "pending",
@@ -893,8 +931,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				artifacts: artifacts.map(toRuntimePlanArtifactSummary),
 			};
 		},
-		applyClinePlanArtifact: async (workspaceScope, input) => {
-			const artifacts = await readClinePlanArtifactsByArtifactId({
+		applyNKleinPlanArtifact: async (workspaceScope, input) => {
+			const artifacts = await readNKleinPlanArtifactsByArtifactId({
 				workspacePath: workspaceScope.workspacePath,
 				artifactId: input.artifactId,
 			});
@@ -917,7 +955,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				if (artifacts.metadata.sourceTaskId && !findBoardCardById(cards, artifacts.metadata.sourceTaskId)) {
 					throw new Error(`Source card ${artifacts.metadata.sourceTaskId} was not found on this board.`);
 				}
-				const applied = applyClinePlanTaskGraphToBoard({
+				const applied = applyNKleinPlanTaskGraphToBoard({
 					board: state.board,
 					taskGraph: artifacts.taskGraph,
 					baseRef,
@@ -937,26 +975,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					},
 				};
 			});
-			await updateClinePlanArtifactApplicationStatus({
+			await updateNKleinPlanArtifactApplicationStatus({
 				workspacePath: workspaceScope.workspacePath,
 				slug: artifacts.taskGraph.slug,
 				applicationStatus: "applied",
 			});
-			const updatedArtifacts = await readClinePlanArtifactsByArtifactId({
+			const updatedArtifacts = await readNKleinPlanArtifactsByArtifactId({
 				workspacePath: workspaceScope.workspacePath,
 				artifactId: input.artifactId,
 			});
 			return {
 				ok: true,
-				artifact: summarizeClinePlanArtifacts(updatedArtifacts),
+				artifact: summarizeNKleinPlanArtifacts(updatedArtifacts),
 				createdTaskCount: mutation.value.createdTaskCount,
 				createdDependencyCount: mutation.value.createdDependencyCount,
 				message: `Applied ${artifacts.taskGraph.title}: created ${mutation.value.createdTaskCount} cards and ${mutation.value.createdDependencyCount} dependencies.`,
 				workspaceState: mutation.state,
 			};
 		},
-		rejectClinePlanArtifact: async (workspaceScope, input) => {
-			const artifacts = await readClinePlanArtifactsByArtifactId({
+		rejectNKleinPlanArtifact: async (workspaceScope, input) => {
+			const artifacts = await readNKleinPlanArtifactsByArtifactId({
 				workspacePath: workspaceScope.workspacePath,
 				artifactId: input.artifactId,
 			});
@@ -966,18 +1004,18 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: "Applied plan artifacts cannot be rejected.",
 				});
 			}
-			await updateClinePlanArtifactApplicationStatus({
+			await updateNKleinPlanArtifactApplicationStatus({
 				workspacePath: workspaceScope.workspacePath,
 				slug: artifacts.taskGraph.slug,
 				applicationStatus: "rejected",
 			});
-			const updatedArtifacts = await readClinePlanArtifactsByArtifactId({
+			const updatedArtifacts = await readNKleinPlanArtifactsByArtifactId({
 				workspacePath: workspaceScope.workspacePath,
 				artifactId: input.artifactId,
 			});
 			return {
 				ok: true,
-				artifact: summarizeClinePlanArtifacts(updatedArtifacts),
+				artifact: summarizeNKleinPlanArtifacts(updatedArtifacts),
 				message: `Rejected ${artifacts.taskGraph.title}.`,
 			};
 		},
@@ -990,8 +1028,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					message: `Task "${input.taskId}" was not found.`,
 				});
 			}
-			const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-			const acceptance = await clineTaskSessionService.verifyTaskAcceptanceInSandbox({
+			const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+			const acceptance = await nkleinTaskSessionService.verifyTaskAcceptanceInSandbox({
 				taskId: input.taskId,
 				projectRepoPath: workspaceScope.workspacePath,
 				baseRef: taskRecord.card.baseRef,
@@ -1030,22 +1068,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				message: formatMergeMessage(result),
 			};
 		},
-		saveClineProviderSettings: async (_workspaceScope, input) => {
-			const body = parseClineProviderSettingsSaveRequest(input);
-			const response = await clineProviderService.saveProviderSettings(body);
-			deps.bumpClineSessionContextVersion?.();
+		saveNKleinProviderSettings: async (_workspaceScope, input) => {
+			const body = parseNKleinProviderSettingsSaveRequest(input);
+			const response = await nkleinProviderService.saveProviderSettings(body);
+			deps.bumpNKleinSessionContextVersion?.();
 			return response;
 		},
-		addClineProvider: async (_workspaceScope, input) => {
-			const body = parseClineAddProviderRequest(input);
-			const response = await clineProviderService.addCustomProvider(body);
-			deps.bumpClineSessionContextVersion?.();
+		addNKleinProvider: async (_workspaceScope, input) => {
+			const body = parseNKleinAddProviderRequest(input);
+			const response = await nkleinProviderService.addCustomProvider(body);
+			deps.bumpNKleinSessionContextVersion?.();
 			return response;
 		},
-		updateClineProvider: async (_workspaceScope, input) => {
-			const body = parseClineUpdateProviderRequest(input);
-			const response = await clineProviderService.updateCustomProvider(body);
-			deps.bumpClineSessionContextVersion?.();
+		updateNKleinProvider: async (_workspaceScope, input) => {
+			const body = parseNKleinUpdateProviderRequest(input);
+			const response = await nkleinProviderService.updateCustomProvider(body);
+			deps.bumpNKleinSessionContextVersion?.();
 			return response;
 		},
 		startTaskSession: async (workspaceScope, input) => {
@@ -1065,18 +1103,18 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						};
 					}
 				}
-				const requestedClineTaskMode = body.mode ?? "act";
+				const requestedNKleinTaskMode = body.mode ?? "act";
 				const scopedRuntimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
 				const effectiveTimeouts = resolveEffectiveTaskTimeoutSettings({
 					runtimeConfig: scopedRuntimeConfig,
-					taskSettings: body.clineSettings,
+					taskSettings: body.nkleinSettings,
 				});
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				if (!isHomeAgentSessionId(body.taskId)) {
-					const loadedClineTaskSessionService =
-						deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
+					const loadedNKleinTaskSessionService =
+						deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
 					const activeProjectTaskCount = countActiveProjectTaskSessions(
-						[...terminalManager.listSummaries(), ...(loadedClineTaskSessionService?.listSummaries() ?? [])],
+						[...terminalManager.listSummaries(), ...(loadedNKleinTaskSessionService?.listSummaries() ?? [])],
 						body.taskId,
 					);
 					if (activeProjectTaskCount >= scopedRuntimeConfig.maxConcurrentTasks) {
@@ -1097,7 +1135,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				//   2. body.agentId — the card's current per-task agent override.
 				//   3. scopedRuntimeConfig.selectedAgentId — the workspace-level default.
 				//
-				// clineSettings (which LLM model and reasoning profile the Cline agent uses):
+				// nkleinSettings (which LLM model and reasoning profile the NKlein agent uses):
 				//   Always taken from the card's current override object. There is no
 				//   session-level persistence for these;
 				//   if the user changes the model on the card, the next session launch
@@ -1106,27 +1144,27 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					? (terminalManager.getSummary(body.taskId)?.agentId ?? null)
 					: null;
 				const effectiveAgentId = previousTerminalAgentId ?? body.agentId ?? scopedRuntimeConfig.selectedAgentId;
-				let useClinePath = effectiveAgentId === "cline";
-				const shouldProbePersistedClineSession =
-					body.resumeFromTrash && !useClinePath && previousTerminalAgentId === null;
-				if (shouldProbePersistedClineSession) {
-					// If the terminal summary already has a concrete non-Cline agentId,
-					// skip Cline persisted-session probing. That probe can cold-start the
-					// Cline session host and adds multi-second latency to Codex restores.
-					const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-					const persistedSession = await clineTaskSessionService
+				let useNKleinPath = effectiveAgentId === "nklein";
+				const shouldProbePersistedNKleinSession =
+					body.resumeFromTrash && !useNKleinPath && previousTerminalAgentId === null;
+				if (shouldProbePersistedNKleinSession) {
+					// If the terminal summary already has a concrete non-NKlein agentId,
+					// skip NKlein persisted-session probing. That probe can cold-start the
+					// NKlein session host and adds multi-second latency to Codex restores.
+					const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+					const persistedSession = await nkleinTaskSessionService
 						.rebindPersistedTaskSession(body.taskId)
 						.catch(() => null);
 					if (persistedSession) {
-						useClinePath = true;
+						useNKleinPath = true;
 					}
 				}
 
-				if (useClinePath) {
+				if (useNKleinPath) {
 					const sandboxStatus = deps.refreshAgentSandboxStatus
 						? await deps.refreshAgentSandboxStatus()
 						: deps.getAgentSandboxStatus?.();
-					const sandboxStartBlock = buildClineSandboxStartBlock(sandboxStatus);
+					const sandboxStartBlock = buildNKleinSandboxStartBlock(sandboxStatus);
 					if (sandboxStartBlock) {
 						return {
 							ok: false,
@@ -1135,50 +1173,50 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							errorCode: sandboxStartBlock.errorCode,
 						};
 					}
-					const hasTaskLevelClineSettingsOverride = body.clineSettings !== undefined;
-					let clineLaunchConfig = await clineProviderService.resolveLaunchConfig({
-						providerIdOverride: body.clineSettings?.providerId ?? undefined,
-						modelIdOverride: body.clineSettings?.modelId ?? undefined,
-						...(hasTaskLevelClineSettingsOverride
+					const hasTaskLevelNKleinSettingsOverride = body.nkleinSettings !== undefined;
+					let nkleinLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
+						providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
+						modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
+						...(hasTaskLevelNKleinSettingsOverride
 							? {
-									reasoningEffortOverride: body.clineSettings?.reasoningEffort ?? null,
+									reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
 								}
 							: {}),
 					});
-					const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-					const modelRegistrySnapshot = await Promise.resolve(getDefaultClineModelRegistry().getSnapshot()).catch(
+					const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+					const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(
 						() => ({
 							schemaVersion: 1,
 							updatedAt: 0,
 							models: {},
 						}),
 					);
-					const guardCandidates = new Map<string, ClineStartGuardCandidate<ResolvedClineLaunchConfig>>();
-					const selectedCandidate = buildClineStartGuardCandidate({
-						launchConfig: clineLaunchConfig,
+					const guardCandidates = new Map<string, NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>>();
+					const selectedCandidate = buildNKleinStartGuardCandidate({
+						launchConfig: nkleinLaunchConfig,
 						role: null,
 						modelRegistry: modelRegistrySnapshot,
 					});
-					clineLaunchConfig = applyCandidateEffectiveContextWindow(clineLaunchConfig, selectedCandidate);
+					nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
 					guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
 					for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
 						if (!settings.providerId && !settings.modelId) {
 							continue;
 						}
 						try {
-							const roleLaunchConfig = await clineProviderService.resolveLaunchConfig({
+							const roleLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
 								providerIdOverride: settings.providerId ?? undefined,
 								modelIdOverride: settings.modelId ?? undefined,
 								reasoningEffortOverride: settings.reasoningEffort ?? null,
 							});
-							const roleCandidate = buildClineStartGuardCandidate({
+							const roleCandidate = buildNKleinStartGuardCandidate({
 								launchConfig: roleLaunchConfig,
 								role,
 								modelRegistry: modelRegistrySnapshot,
 							});
 							guardCandidates.set(roleCandidate.entry.key, roleCandidate);
 						} catch (error) {
-							if (isClineContextWindowPolicyError(error)) {
+							if (isNKleinContextWindowPolicyError(error)) {
 								return {
 									ok: false,
 									summary: null,
@@ -1189,7 +1227,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							// Ignore roles that are not currently runnable; the configured default still participates.
 						}
 					}
-					const promptTokens = estimateClineStartPromptTokens({
+					const promptTokens = estimateNKleinStartPromptTokens({
 						prompt: body.prompt,
 						taskTitle: body.taskTitle,
 						images: body.images,
@@ -1199,9 +1237,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
 							.filter((contextWindow) => contextWindow > 0)
 							.sort((left, right) => right - left)[0] ?? null;
-					const routingDecision = routeClineTask({
-						difficulty: estimateClineStartDifficulty(promptTokens),
-						fitBudgetTokens: estimateClineStartFitBudgetTokens(promptTokens, largestContextWindow),
+					const routingDecision = routeNKleinTask({
+						difficulty: estimateNKleinStartDifficulty(promptTokens),
+						fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
 						promptTokens,
 						outputTokens: 1_000,
 						preferredModelKey: selectedCandidate.entry.key,
@@ -1214,36 +1252,36 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						return {
 							ok: false,
 							summary: null,
-							error: formatClineTaskRoutingBlockMessage(routingDecision),
+							error: formatNKleinTaskRoutingBlockMessage(routingDecision),
 							errorCode: routingDecision.type === "decompose" ? "needs_decomposition" : "routing_escalation",
 						};
 					}
 					const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
 					if (routedCandidate) {
-						clineLaunchConfig = applyCandidateEffectiveContextWindow(
+						nkleinLaunchConfig = applyCandidateEffectiveContextWindow(
 							routedCandidate.launchConfig,
 							routedCandidate,
 						);
 					}
 					assertLocalProviderAllowed({
-						providerId: clineLaunchConfig.providerId,
-						baseUrl: clineLaunchConfig.baseUrl,
+						providerId: nkleinLaunchConfig.providerId,
+						baseUrl: nkleinLaunchConfig.baseUrl,
 					});
 					const mcsrAwareTimeouts = applyMcsrAwareLocalTimeoutScaling({
 						timeouts: effectiveTimeouts,
-						launchConfig: clineLaunchConfig,
+						launchConfig: nkleinLaunchConfig,
 						modelRegistry: modelRegistrySnapshot,
 						promptTokens,
 					});
-					const codeEmbeddingProvider = createClineCodeEmbeddingProviderFromSettings(
+					const codeEmbeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
 						scopedRuntimeConfig.effectiveCodeEmbeddingSettings,
 					);
-					const endpointDecision = scheduleClineEndpointStart({
+					const endpointDecision = scheduleNKleinEndpointStart({
 						taskId: body.taskId,
-						providerId: clineLaunchConfig.providerId,
-						modelId: clineLaunchConfig.modelId ?? "",
-						endpoint: clineLaunchConfig.baseUrl ?? null,
-						runningSessions: clineTaskSessionService.listModelEndpointSessions(),
+						providerId: nkleinLaunchConfig.providerId,
+						modelId: nkleinLaunchConfig.modelId ?? "",
+						endpoint: nkleinLaunchConfig.baseUrl ?? null,
+						runningSessions: nkleinTaskSessionService.listModelEndpointSessions(),
 						modelRegistry: modelRegistrySnapshot,
 						now: Date.now(),
 					});
@@ -1266,26 +1304,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						};
 					}
 					deps.taskStartQueue?.remove(workspaceScope.workspaceId, body.taskId);
-					const resolvedClineTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
-					const summary = await clineTaskSessionService.startTaskSession({
+					const resolvedNKleinTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
+					const summary = await nkleinTaskSessionService.startTaskSession({
 						taskId: body.taskId,
 						cwd: workspaceScope.workspacePath,
 						workspaceRoot: workspaceScope.workspacePath,
 						baseRef: body.baseRef,
 						prompt: body.prompt,
-						taskTitle: resolvedClineTitle.length > 0 ? resolvedClineTitle : undefined,
+						taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 						images: body.images,
 						filesLikelyTouched: body.filesLikelyTouched,
 						resumeFromTrash: body.resumeFromTrash,
-						providerId: clineLaunchConfig.providerId,
-						modelId: clineLaunchConfig.modelId,
-						mode: requestedClineTaskMode,
+						providerId: nkleinLaunchConfig.providerId,
+						modelId: nkleinLaunchConfig.modelId,
+						mode: requestedNKleinTaskMode,
 						startInPlanMode: body.startInPlanMode,
-						apiKey: clineLaunchConfig.apiKey,
-						baseUrl: clineLaunchConfig.baseUrl,
-						reasoningEffort: clineLaunchConfig.reasoningEffort,
-						contextScope: body.clineSettings?.contextScope,
-						contextWindow: clineLaunchConfig.contextWindow ?? null,
+						apiKey: nkleinLaunchConfig.apiKey,
+						baseUrl: nkleinLaunchConfig.baseUrl,
+						reasoningEffort: nkleinLaunchConfig.reasoningEffort,
+						contextScope: body.nkleinSettings?.contextScope,
+						contextWindow: nkleinLaunchConfig.contextWindow ?? null,
 						timeoutMode: mcsrAwareTimeouts.timeoutMode,
 						requestTimeoutMs: mcsrAwareTimeouts.requestTimeoutMs,
 						turnTimeoutMs: mcsrAwareTimeouts.agentTimeoutMs,
@@ -1379,17 +1417,17 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		stopTaskSession: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskSessionStopRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const clineSummary = await clineTaskSessionService.stopTaskSession(body.taskId);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const nkleinSummary = await nkleinTaskSessionService.stopTaskSession(body.taskId);
 				const pausedTaskIds = await setCardPaused({
 					workspacePath: workspaceScope.workspacePath,
 					taskId: body.taskId,
 					paused: false,
 				});
-				if (clineSummary) {
+				if (nkleinSummary) {
 					return {
 						ok: true,
-						summary: withTaskPausedState(clineSummary, pausedTaskIds),
+						summary: withTaskPausedState(nkleinSummary, pausedTaskIds),
 					};
 				}
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
@@ -1415,10 +1453,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					taskId: body.taskId,
 					paused: true,
 				});
-				const clineTaskSessionService = deps.getLoadedScopedClineTaskSessionService?.(workspaceScope) ?? null;
-				clineTaskSessionService?.setCardPaused(body.taskId, true);
+				const nkleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
+				nkleinTaskSessionService?.setCardPaused(body.taskId, true);
 				const summary = withTaskPausedState(
-					clineTaskSessionService?.getSummary(body.taskId) ?? null,
+					nkleinTaskSessionService?.getSummary(body.taskId) ?? null,
 					pausedTaskIds,
 				);
 				return {
@@ -1446,13 +1484,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					taskId: body.taskId,
 					paused: false,
 				});
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				clineTaskSessionService.setCardPaused(body.taskId, false);
-				const resumedSummaries = await clineTaskSessionService.resumePausedTasks();
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				nkleinTaskSessionService.setCardPaused(body.taskId, false);
+				const resumedSummaries = await nkleinTaskSessionService.resumePausedTasks();
 				let resumedSummary = resumedSummaries.find((summary) => summary.taskId === body.taskId) ?? null;
-				let fallbackSummary = clineTaskSessionService.getSummary(body.taskId);
+				let fallbackSummary = nkleinTaskSessionService.getSummary(body.taskId);
 				if (!resumedSummary && !fallbackSummary && wasTaskPaused) {
-					fallbackSummary = await clineTaskSessionService
+					fallbackSummary = await nkleinTaskSessionService
 						.rebindPersistedTaskSession(body.taskId)
 						.catch(() => null);
 				}
@@ -1461,7 +1499,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					wasTaskPaused &&
 					(fallbackSummary?.state === "paused" || fallbackSummary?.state === "awaiting_review")
 				) {
-					resumedSummary = await clineTaskSessionService.sendTaskSessionInput(
+					resumedSummary = await nkleinTaskSessionService.sendTaskSessionInput(
 						body.taskId,
 						"Continue from the paused checkpoint.",
 					);
@@ -1487,12 +1525,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			try {
 				const body = parseTaskSessionInputRequest(input);
 				const payloadText = body.appendNewline ? `${body.text}\n` : body.text;
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const clineSummary = await clineTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
-				if (clineSummary) {
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const nkleinSummary = await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
+				if (nkleinSummary) {
+					await reconcileRunningTaskBoardLane(workspaceScope, nkleinSummary);
 					return {
 						ok: true,
-						summary: clineSummary,
+						summary: nkleinSummary,
 					};
 				}
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
@@ -1504,6 +1543,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						error: "Task session is not running.",
 					};
 				}
+				await reconcileRunningTaskBoardLane(workspaceScope, summary);
 				return {
 					ok: true,
 					summary,
@@ -1520,9 +1560,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getTaskChatMessages: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatMessagesRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const summary = clineTaskSessionService.getSummary(body.taskId);
-				const messages = await clineTaskSessionService.loadTaskSessionMessages(body.taskId);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const summary = nkleinTaskSessionService.getSummary(body.taskId);
+				const messages = await nkleinTaskSessionService.loadTaskSessionMessages(body.taskId);
 				if (!summary && messages.length === 0) {
 					return {
 						ok: false,
@@ -1543,36 +1583,36 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 		},
-		getClineSlashCommands: async (workspaceScope) => {
+		getNKleinSlashCommands: async (workspaceScope) => {
 			if (!workspaceScope) {
 				return {
 					commands: [],
 				};
 			}
-			const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+			const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 			return {
-				commands: await clineTaskSessionService.listSlashCommands(workspaceScope.workspacePath),
+				commands: await nkleinTaskSessionService.listSlashCommands(workspaceScope.workspacePath),
 			};
 		},
 		reloadTaskChatSession: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatReloadRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				let summary = await clineTaskSessionService.reloadTaskSession(body.taskId);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				let summary = await nkleinTaskSessionService.reloadTaskSession(body.taskId);
 				if (!summary && isHomeAgentSessionId(body.taskId)) {
-					const clineLaunchConfig = await clineProviderService.resolveLaunchConfig();
-					summary = await clineTaskSessionService.startTaskSession({
+					const nkleinLaunchConfig = await nkleinProviderService.resolveLaunchConfig();
+					summary = await nkleinTaskSessionService.startTaskSession({
 						taskId: body.taskId,
 						cwd: workspaceScope.workspacePath,
 						workspaceRoot: workspaceScope.workspacePath,
 						prompt: "",
 						resumeFromPersistence: true,
-						providerId: clineLaunchConfig.providerId,
-						modelId: clineLaunchConfig.modelId,
-						apiKey: clineLaunchConfig.apiKey,
-						baseUrl: clineLaunchConfig.baseUrl,
-						reasoningEffort: clineLaunchConfig.reasoningEffort,
-						contextWindow: clineLaunchConfig.contextWindow ?? null,
+						providerId: nkleinLaunchConfig.providerId,
+						modelId: nkleinLaunchConfig.modelId,
+						apiKey: nkleinLaunchConfig.apiKey,
+						baseUrl: nkleinLaunchConfig.baseUrl,
+						reasoningEffort: nkleinLaunchConfig.reasoningEffort,
+						contextWindow: nkleinLaunchConfig.contextWindow ?? null,
 					});
 				}
 				if (!summary) {
@@ -1598,8 +1638,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		abortTaskChatTurn: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatAbortRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const summary = await clineTaskSessionService.abortTaskSession(body.taskId);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const summary = await nkleinTaskSessionService.abortTaskSession(body.taskId);
 				if (!summary) {
 					return {
 						ok: false,
@@ -1623,8 +1663,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		cancelTaskChatTurn: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatCancelRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const summary = await clineTaskSessionService.cancelTaskTurn(body.taskId);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const summary = await nkleinTaskSessionService.cancelTaskTurn(body.taskId);
 				if (!summary) {
 					return {
 						ok: false,
@@ -1645,45 +1685,45 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 		},
-		getClineProviderCatalog: async (_workspaceScope) => {
-			return await clineProviderService.getProviderCatalog();
+		getNKleinProviderCatalog: async (_workspaceScope) => {
+			return await nkleinProviderService.getProviderCatalog();
 		},
-		getClineAccountProfile: async (_workspaceScope) => {
-			return await clineProviderService.getClineAccountProfile();
+		getNKleinAccountProfile: async (_workspaceScope) => {
+			return await nkleinProviderService.getNKleinAccountProfile();
 		},
-		getClineKanbanAccess: async (_workspaceScope) => {
-			return await clineProviderService.getClineKanbanAccess();
+		getNKleinKanbanAccess: async (_workspaceScope) => {
+			return await nkleinProviderService.getNKleinKanbanAccess();
 		},
 		getFeaturebaseToken: async (_workspaceScope) => {
-			return await clineProviderService.getFeaturebaseToken();
+			return await nkleinProviderService.getFeaturebaseToken();
 		},
-		getClineAccountBalance: async (_workspaceScope) => {
-			return await clineProviderService.getClineAccountBalance();
+		getNKleinAccountBalance: async (_workspaceScope) => {
+			return await nkleinProviderService.getNKleinAccountBalance();
 		},
-		getClineAccountOrganizations: async (_workspaceScope) => {
-			return await clineProviderService.getClineAccountOrganizations();
+		getNKleinAccountOrganizations: async (_workspaceScope) => {
+			return await nkleinProviderService.getNKleinAccountOrganizations();
 		},
-		switchClineAccount: async (_workspaceScope, input) => {
-			const body = parseClineAccountSwitchRequest(input);
-			return await clineProviderService.switchClineAccount(body.organizationId);
+		switchNKleinAccount: async (_workspaceScope, input) => {
+			const body = parseNKleinAccountSwitchRequest(input);
+			return await nkleinProviderService.switchNKleinAccount(body.organizationId);
 		},
-		getClineProviderModels: async (_workspaceScope, input) => {
-			const body = parseClineProviderModelsRequest(input);
-			return await clineProviderService.getProviderModels(body.providerId);
+		getNKleinProviderModels: async (_workspaceScope, input) => {
+			const body = parseNKleinProviderModelsRequest(input);
+			return await nkleinProviderService.getProviderModels(body.providerId);
 		},
-		discoverClineEndpointModels: async (_workspaceScope, input) => {
-			const body = parseClineEndpointModelDiscoveryRequest(input);
-			return await clineProviderService.discoverEndpointModels(body);
+		discoverNKleinEndpointModels: async (_workspaceScope, input) => {
+			const body = parseNKleinEndpointModelDiscoveryRequest(input);
+			return await nkleinProviderService.discoverEndpointModels(body);
 		},
-		getClineModelRegistry: async (workspaceScope) => {
-			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+		getNKleinModelRegistry: async (workspaceScope) => {
+			const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
 			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
 			const launchConfig =
-				runtimeConfig?.selectedAgentId === "cline"
-					? await clineProviderService.resolveLaunchConfig().catch(() => null)
+				runtimeConfig?.selectedAgentId === "nklein"
+					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
 					: null;
 			const providerSettings =
-				runtimeConfig?.selectedAgentId === "cline" ? clineProviderService.getProviderSettingsSummary() : null;
+				runtimeConfig?.selectedAgentId === "nklein" ? nkleinProviderService.getProviderSettingsSummary() : null;
 			const models = addConfiguredLocalModelRegistryEntries({
 				models: snapshot.models,
 				runtimeConfig,
@@ -1702,29 +1742,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					}),
 			};
 		},
-		removeClineModelRegistryEntry: async (_workspaceScope, input) => {
-			const body = parseClineModelRegistryRemoveRequest(input);
-			const snapshot = await getDefaultClineModelRegistry().getSnapshot();
+		removeNKleinModelRegistryEntry: async (_workspaceScope, input) => {
+			const body = parseNKleinModelRegistryRemoveRequest(input);
+			const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
 			const entry = snapshot.models[body.key] ?? null;
 			if (entry && !isLocalProvider(entry.providerId, entry.endpoint)) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message: "Only local Cline model telemetry can be removed.",
+					message: "Only local !Klein model telemetry can be removed.",
 				});
 			}
-			const removed = await getDefaultClineModelRegistry().removeEntry(body.key);
+			const removed = await getDefaultNKleinModelRegistry().removeEntry(body.key);
 			return { removed };
 		},
-		pruneClineModelRegistry: async (workspaceScope) => {
-			const registry = getDefaultClineModelRegistry();
+		pruneNKleinModelRegistry: async (workspaceScope) => {
+			const registry = getDefaultNKleinModelRegistry();
 			const snapshot = await registry.getSnapshot();
 			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
 			const launchConfig =
-				runtimeConfig?.selectedAgentId === "cline"
-					? await clineProviderService.resolveLaunchConfig().catch(() => null)
+				runtimeConfig?.selectedAgentId === "nklein"
+					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
 					: null;
 			const providerSettings =
-				runtimeConfig?.selectedAgentId === "cline" ? clineProviderService.getProviderSettingsSummary() : null;
+				runtimeConfig?.selectedAgentId === "nklein" ? nkleinProviderService.getProviderSettingsSummary() : null;
 			const configuredModels = addConfiguredLocalModelRegistryEntries({
 				models: {},
 				runtimeConfig,
@@ -1736,10 +1776,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const providerId = providerSettings?.providerId?.trim();
 			const providerBaseUrl = providerSettings?.baseUrl ?? null;
 			if (providerId && isLocalProvider(providerId, providerBaseUrl)) {
-				const loadedModelsResponse = await clineProviderService.getProviderModels(providerId).catch(() => null);
+				const loadedModelsResponse = await nkleinProviderService.getProviderModels(providerId).catch(() => null);
 				for (const model of loadedModelsResponse?.models ?? []) {
 					keepKeys.add(
-						buildClineModelRegistryKey({
+						buildNKleinModelRegistryKey({
 							providerId,
 							modelId: model.id,
 							endpoint: providerBaseUrl,
@@ -1759,23 +1799,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const removed = await registry.removeEntries(removeKeys);
 			return { removed };
 		},
-		saveClineModelContextWindowOverride: async (_workspaceScope, input) => {
-			const body = parseClineModelContextWindowOverrideRequest(input);
+		saveNKleinModelContextWindowOverride: async (_workspaceScope, input) => {
+			const body = parseNKleinModelContextWindowOverrideRequest(input);
 			if (!isLocalProvider(body.providerId, body.endpoint)) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message: "Context window overrides are only available for local Cline models.",
+					message: "Context window overrides are only available for local !Klein models.",
 				});
 			}
 			if (body.contextWindow !== null) {
-				assertClineContextWindowPolicy({
+				assertNKleinContextWindowPolicy({
 					providerId: body.providerId,
 					modelId: body.modelId,
 					contextWindow: body.contextWindow,
 					label: "Context window override for",
 				});
 			}
-			const model = await getDefaultClineModelRegistry().setContextWindowOverride({
+			const model = await getDefaultNKleinModelRegistry().setContextWindowOverride({
 				providerId: body.providerId,
 				modelId: body.modelId,
 				endpoint: body.endpoint,
@@ -1783,7 +1823,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			});
 			return { model };
 		},
-		getClineCodeIntelligenceStatus: async (workspaceScope) => {
+		getNKleinCodeIntelligenceStatus: async (workspaceScope) => {
 			if (!workspaceScope) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -1791,12 +1831,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				});
 			}
 			const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
-			const embeddingProvider = createClineCodeEmbeddingProviderFromSettings(
+			const embeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
 				runtimeConfig.effectiveCodeEmbeddingSettings,
 			);
 			const [repoMapResult, codeIndexResult] = await Promise.allSettled([
-				buildClineRepoMap({ workspacePath: workspaceScope.workspacePath }),
-				getClineCodeIndexStatus({
+				buildNKleinRepoMap({ workspacePath: workspaceScope.workspacePath }),
+				getNKleinCodeIndexStatus({
 					workspacePath: workspaceScope.workspacePath,
 					embeddingProvider,
 				}),
@@ -1872,15 +1912,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				codeIndex,
 			};
 		},
-		buildClineModelFreshnessAdvisor: async (_workspaceScope) => {
-			return await buildClineModelFreshnessAdvisorRequest();
+		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
+			return await buildNKleinModelFreshnessAdvisorRequest();
 		},
-		buildClineAdvisor: async (workspaceScope, input) => {
-			const body = parseClineAdvisorBuildRequest(input);
+		buildNKleinAdvisor: async (workspaceScope, input) => {
+			const body = parseNKleinAdvisorBuildRequest(input);
 			if (body.kind === "model_freshness") {
-				return await buildClineModelFreshnessAdvisorRequest();
+				return await buildNKleinModelFreshnessAdvisorRequest();
 			}
-			return buildClineAdvisorRequest(body.kind, {
+			return buildNKleinAdvisorRequest(body.kind, {
 				workspacePath: workspaceScope?.workspacePath,
 				repoSummary: body.repoSummary,
 				modelRegistrySummary: body.modelRegistrySummary,
@@ -1890,10 +1930,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				userQuestion: body.userQuestion,
 			});
 		},
-		sendClineAdvisor: async (_workspaceScope, input) => {
-			const body = parseClineAdvisorSendRequest(input);
+		sendNKleinAdvisor: async (_workspaceScope, input) => {
+			const body = parseNKleinAdvisorSendRequest(input);
 			const sentAt = Date.now();
-			const launchConfig = await clineProviderService.resolveLaunchConfig({
+			const launchConfig = await nkleinProviderService.resolveLaunchConfig({
 				providerIdOverride: body.providerId,
 				modelIdOverride: body.modelId,
 			});
@@ -1913,17 +1953,17 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				receivedAt: Date.now(),
 			};
 		},
-		writeClineDogfoodBacklog: async (workspaceScope, input) => {
+		writeNKleinDogfoodBacklog: async (workspaceScope, input) => {
 			if (!workspaceScope) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "A workspace is required to write dogfood backlog artifacts.",
 				});
 			}
-			const body = parseClineDogfoodBacklogRequest(input);
-			const artifacts = await writeClineDogfoodBacklog({
+			const body = parseNKleinDogfoodBacklogRequest(input);
+			const artifacts = await writeNKleinDogfoodBacklog({
 				workspacePath: workspaceScope.workspacePath,
-				telemetryRootDir: deps.getDogfoodTelemetryRoot?.() ?? join(homedir(), ".cline", "nklein", "telemetry"),
+				telemetryRootDir: deps.getDogfoodTelemetryRoot?.() ?? join(homedir(), ".nklein", "nklein", "telemetry"),
 				slug: body.slug,
 				userSuggestions: body.suggestion?.trim() ? [body.suggestion] : undefined,
 			});
@@ -1941,10 +1981,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				nextCommand: `nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspaceScope.workspacePath}`,
 			};
 		},
-		runClineSmokeEval: async (_workspaceScope) => {
-			const launchConfig = await clineProviderService.resolveLaunchConfig();
+		runNKleinSmokeEval: async (_workspaceScope) => {
+			const launchConfig = await nkleinProviderService.resolveLaunchConfig();
 			const modelId = launchConfig.modelId?.trim() || "unknown";
-			const result = await runClineDevSmokeEval({
+			const result = await runNKleinDevSmokeEval({
 				modelObservation: {
 					providerId: launchConfig.providerId,
 					modelId,
@@ -1985,8 +2025,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						taskId: task.id,
 						baseRef: task.baseRef,
 					}).catch(() => workspaceScope.workspacePath);
-			const [clineTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
-				deps.getScopedClineTaskSessionService(workspaceScope),
+			const [nkleinTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
+				deps.getScopedNKleinTaskSessionService(workspaceScope),
 				deps.loadScopedRuntimeConfig(workspaceScope),
 				resolveGitCommit(workspaceScope.workspacePath, task.baseRef),
 				taskResultCommit
@@ -1999,7 +2039,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							.then((changes) => changes)
 							.catch(() => null),
 			]);
-			const messages = clineTaskSessionService.listMessages(task.id);
+			const messages = nkleinTaskSessionService.listMessages(task.id);
 			const diffPatch = renderWorkspaceChangesEvidence(changesResult);
 			const title = task.title?.trim() || task.id;
 			const summaryText = [
@@ -2018,8 +2058,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				outcome: task.autoReviewStatus === "failed" ? "failed" : "unknown",
 				summary: summaryText,
 				models: [
-					task.clineSettings?.providerId && task.clineSettings?.modelId
-						? `${task.clineSettings.providerId}/${task.clineSettings.modelId}`
+					task.nkleinSettings?.providerId && task.nkleinSettings?.modelId
+						? `${task.nkleinSettings.providerId}/${task.nkleinSettings.modelId}`
 						: "default",
 				],
 				metrics: [
@@ -2070,69 +2110,69 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				}),
 			};
 		},
-		getClineMcpAuthStatuses: async (_workspaceScope) => {
-			const statuses = await clineMcpRuntimeService.getAuthStatuses();
+		getNKleinMcpAuthStatuses: async (_workspaceScope) => {
+			const statuses = await nkleinMcpRuntimeService.getAuthStatuses();
 			return {
 				statuses,
 			};
 		},
-		runClineMcpServerOAuth: async (_workspaceScope, input) => {
-			const body = parseClineMcpOAuthRequest(input);
-			const response = await clineMcpRuntimeService.authorizeServer({
+		runNKleinMcpServerOAuth: async (_workspaceScope, input) => {
+			const body = parseNKleinMcpOAuthRequest(input);
+			const response = await nkleinMcpRuntimeService.authorizeServer({
 				serverName: body.serverName,
 				onAuthorizationUrl: (url: string) => {
 					openInBrowser(url);
 				},
 			});
-			deps.bumpClineSessionContextVersion?.();
+			deps.bumpNKleinSessionContextVersion?.();
 			return response;
 		},
-		getClineMcpSettings: async (_workspaceScope) => {
-			return clineMcpSettingsService.loadSettings();
+		getNKleinMcpSettings: async (_workspaceScope) => {
+			return nkleinMcpSettingsService.loadSettings();
 		},
-		saveClineMcpSettings: async (_workspaceScope, input) => {
-			const body = parseClineMcpSettingsSaveRequest(input);
-			const response = await clineMcpSettingsService.saveSettings(body);
-			deps.bumpClineSessionContextVersion?.();
+		saveNKleinMcpSettings: async (_workspaceScope, input) => {
+			const body = parseNKleinMcpSettingsSaveRequest(input);
+			const response = await nkleinMcpSettingsService.saveSettings(body);
+			deps.bumpNKleinSessionContextVersion?.();
 			return response;
 		},
-		runClineProviderOAuthLogin: async (_workspaceScope, input) => {
-			const body = parseClineOauthLoginRequest(input);
-			const response = await clineProviderService.runOauthLogin({
+		runNKleinProviderOAuthLogin: async (_workspaceScope, input) => {
+			const body = parseNKleinOauthLoginRequest(input);
+			const response = await nkleinProviderService.runOauthLogin({
 				providerId: body.provider,
 				baseUrl: body.baseUrl,
 			});
 			if (response.ok) {
-				deps.bumpClineSessionContextVersion?.();
+				deps.bumpNKleinSessionContextVersion?.();
 			}
 			return response;
 		},
-		startClineDeviceAuth: async () => {
-			return await clineProviderService.startDeviceAuth();
+		startNKleinDeviceAuth: async () => {
+			return await nkleinProviderService.startDeviceAuth();
 		},
-		completeClineDeviceAuth: async (_workspaceScope, input) => {
-			const body = parseClineDeviceAuthCompleteRequest(input);
-			const response = await clineProviderService.completeDeviceAuth({
+		completeNKleinDeviceAuth: async (_workspaceScope, input) => {
+			const body = parseNKleinDeviceAuthCompleteRequest(input);
+			const response = await nkleinProviderService.completeDeviceAuth({
 				deviceCode: body.deviceCode,
 				expiresInSeconds: body.expiresInSeconds,
 				pollIntervalSeconds: body.pollIntervalSeconds,
 				baseUrl: body.baseUrl,
 			});
 			if (response.ok) {
-				deps.bumpClineSessionContextVersion?.();
+				deps.bumpNKleinSessionContextVersion?.();
 			}
 			return response;
 		},
 		sendTaskChatMessage: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatSendRequest(input);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 				const providerIdOverride = body.providerId?.trim() || undefined;
 				const modelIdOverride = body.modelId?.trim() || undefined;
 				const hasReasoningEffortOverride = Object.hasOwn(body, "reasoningEffort");
 				const launchConfigOverrides =
 					providerIdOverride || modelIdOverride || hasReasoningEffortOverride
-						? await clineProviderService.resolveLaunchConfig({
+						? await nkleinProviderService.resolveLaunchConfig({
 								providerIdOverride,
 								modelIdOverride,
 								...(hasReasoningEffortOverride
@@ -2150,8 +2190,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							contextWindow: launchConfigOverrides.contextWindow,
 						}
 					: undefined;
-				if (isClineClearSlashCommand(body.text)) {
-					const summary = await clineTaskSessionService.clearTaskSession(body.taskId);
+				if (isNKleinClearSlashCommand(body.text)) {
+					const summary = await nkleinTaskSessionService.clearTaskSession(body.taskId);
 					deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
 					return {
 						ok: true,
@@ -2161,34 +2201,39 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				}
 				const requestedMode = body.mode;
 				let summary = sessionLaunchConfigOverrides
-					? await clineTaskSessionService.sendTaskSessionInput(
+					? await nkleinTaskSessionService.sendTaskSessionInput(
 							body.taskId,
 							body.text,
 							requestedMode,
 							body.images,
 							sessionLaunchConfigOverrides,
 						)
-					: await clineTaskSessionService.sendTaskSessionInput(body.taskId, body.text, requestedMode, body.images);
+					: await nkleinTaskSessionService.sendTaskSessionInput(
+							body.taskId,
+							body.text,
+							requestedMode,
+							body.images,
+						);
 				if (!summary) {
 					if (!isHomeAgentSessionId(body.taskId)) {
-						const reboundSummary = await clineTaskSessionService.rebindPersistedTaskSession(body.taskId);
+						const reboundSummary = await nkleinTaskSessionService.rebindPersistedTaskSession(body.taskId);
 						if (reboundSummary) {
-							const clineLaunchConfig =
-								launchConfigOverrides ?? (await clineProviderService.resolveLaunchConfig());
-							summary = await clineTaskSessionService.startTaskSession({
+							const nkleinLaunchConfig =
+								launchConfigOverrides ?? (await nkleinProviderService.resolveLaunchConfig());
+							summary = await nkleinTaskSessionService.startTaskSession({
 								taskId: body.taskId,
 								cwd: reboundSummary.workspacePath ?? workspaceScope.workspacePath,
 								workspaceRoot: workspaceScope.workspacePath,
 								prompt: body.text,
 								images: body.images,
 								resumeFromPersistence: true,
-								providerId: clineLaunchConfig.providerId,
-								modelId: clineLaunchConfig.modelId,
+								providerId: nkleinLaunchConfig.providerId,
+								modelId: nkleinLaunchConfig.modelId,
 								mode: requestedMode,
-								apiKey: clineLaunchConfig.apiKey,
-								baseUrl: clineLaunchConfig.baseUrl,
-								reasoningEffort: clineLaunchConfig.reasoningEffort,
-								contextWindow: clineLaunchConfig.contextWindow ?? null,
+								apiKey: nkleinLaunchConfig.apiKey,
+								baseUrl: nkleinLaunchConfig.baseUrl,
+								reasoningEffort: nkleinLaunchConfig.reasoningEffort,
+								contextWindow: nkleinLaunchConfig.contextWindow ?? null,
 							});
 						}
 						if (!summary) {
@@ -2199,25 +2244,27 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							};
 						}
 					} else {
-						const clineLaunchConfig = launchConfigOverrides ?? (await clineProviderService.resolveLaunchConfig());
-						summary = await clineTaskSessionService.startTaskSession({
+						const nkleinLaunchConfig =
+							launchConfigOverrides ?? (await nkleinProviderService.resolveLaunchConfig());
+						summary = await nkleinTaskSessionService.startTaskSession({
 							taskId: body.taskId,
 							cwd: workspaceScope.workspacePath,
 							workspaceRoot: workspaceScope.workspacePath,
 							prompt: body.text,
 							images: body.images,
 							resumeFromPersistence: true,
-							providerId: clineLaunchConfig.providerId,
-							modelId: clineLaunchConfig.modelId,
+							providerId: nkleinLaunchConfig.providerId,
+							modelId: nkleinLaunchConfig.modelId,
 							mode: requestedMode,
-							apiKey: clineLaunchConfig.apiKey,
-							baseUrl: clineLaunchConfig.baseUrl,
-							reasoningEffort: clineLaunchConfig.reasoningEffort,
-							contextWindow: clineLaunchConfig.contextWindow ?? null,
+							apiKey: nkleinLaunchConfig.apiKey,
+							baseUrl: nkleinLaunchConfig.baseUrl,
+							reasoningEffort: nkleinLaunchConfig.reasoningEffort,
+							contextWindow: nkleinLaunchConfig.contextWindow ?? null,
 						});
 					}
 				}
-				const latestMessage = clineTaskSessionService.listMessages(body.taskId).at(-1) ?? null;
+				const latestMessage = nkleinTaskSessionService.listMessages(body.taskId).at(-1) ?? null;
+				await reconcileRunningTaskBoardLane(workspaceScope, summary);
 				return {
 					ok: true,
 					summary,

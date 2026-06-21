@@ -3,7 +3,7 @@ import { createShortTaskId } from "@runtime-task-id";
 import * as runtimeTaskState from "@runtime-task-state";
 
 import { createInitialBoardData } from "@/data/board-data";
-import type { RuntimeAgentId, RuntimeClineReasoningEffort, RuntimeTaskClineSettings } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeNKleinReasoningEffort, RuntimeTaskNKleinSettings } from "@/runtime/types";
 import { isAllowedCrossColumnCardMove, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import {
 	type BoardCard,
@@ -27,7 +27,7 @@ export interface TaskDraft {
 	autoReviewMode?: TaskAutoReviewMode;
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
-	clineSettings?: RuntimeTaskClineSettings;
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
 	blockedKind?: TaskBlockedKind;
 	blockedReason?: string;
@@ -110,7 +110,7 @@ function normalizeTaskImages(rawImages: unknown): TaskImage[] | undefined {
 	return images.length > 0 ? images : undefined;
 }
 
-function normalizeTaskClineReasoningEffort(rawReasoningEffort: unknown): RuntimeClineReasoningEffort | undefined {
+function normalizeTaskNKleinReasoningEffort(rawReasoningEffort: unknown): RuntimeNKleinReasoningEffort | undefined {
 	if (
 		rawReasoningEffort === "low" ||
 		rawReasoningEffort === "medium" ||
@@ -122,12 +122,12 @@ function normalizeTaskClineReasoningEffort(rawReasoningEffort: unknown): Runtime
 	return undefined;
 }
 
-function normalizeTaskClineSettings(input: {
+function normalizeTaskNKleinSettings(input: {
 	rawSettings?: unknown;
 	legacyProviderId?: unknown;
 	legacyModelId?: unknown;
 	legacyReasoningEffort?: unknown;
-}): RuntimeTaskClineSettings | undefined {
+}): RuntimeTaskNKleinSettings | undefined {
 	if (input.rawSettings && typeof input.rawSettings === "object") {
 		const settings = input.rawSettings as {
 			providerId?: unknown;
@@ -143,7 +143,7 @@ function normalizeTaskClineSettings(input: {
 		};
 		const providerId = typeof settings.providerId === "string" ? settings.providerId.trim() : "";
 		const modelId = typeof settings.modelId === "string" ? settings.modelId.trim() : "";
-		const reasoningEffort = normalizeTaskClineReasoningEffort(settings.reasoningEffort);
+		const reasoningEffort = normalizeTaskNKleinReasoningEffort(settings.reasoningEffort);
 		const contextScope =
 			settings.contextScope === "full" ||
 			settings.contextScope === "smart" ||
@@ -195,7 +195,7 @@ function normalizeTaskClineSettings(input: {
 
 	const legacyProviderId = typeof input.legacyProviderId === "string" ? input.legacyProviderId.trim() : "";
 	const legacyModelId = typeof input.legacyModelId === "string" ? input.legacyModelId.trim() : "";
-	const reasoningEffort = normalizeTaskClineReasoningEffort(input.legacyReasoningEffort);
+	const reasoningEffort = normalizeTaskNKleinReasoningEffort(input.legacyReasoningEffort);
 	if (!legacyProviderId && !legacyModelId && input.legacyReasoningEffort !== "default" && !reasoningEffort) {
 		return undefined;
 	}
@@ -223,12 +223,12 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		images?: unknown;
 		baseRef?: unknown;
 		agentId?: unknown;
-		clineSettings?: unknown;
+		nkleinSettings?: unknown;
 		blockedKind?: unknown;
 		blockedReason?: unknown;
-		clineProviderId?: unknown;
-		clineModelId?: unknown;
-		clineReasoningEffort?: unknown;
+		nkleinProviderId?: unknown;
+		nkleinModelId?: unknown;
+		nkleinReasoningEffort?: unknown;
 		createdAt?: unknown;
 		updatedAt?: unknown;
 	};
@@ -244,11 +244,11 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 	if (!title) {
 		return null;
 	}
-	const clineSettings = normalizeTaskClineSettings({
-		rawSettings: card.clineSettings,
-		legacyProviderId: card.clineProviderId,
-		legacyModelId: card.clineModelId,
-		legacyReasoningEffort: card.clineReasoningEffort,
+	const nkleinSettings = normalizeTaskNKleinSettings({
+		rawSettings: card.nkleinSettings,
+		legacyProviderId: card.nkleinProviderId,
+		legacyModelId: card.nkleinModelId,
+		legacyReasoningEffort: card.nkleinReasoningEffort,
 	});
 
 	const now = Date.now();
@@ -271,7 +271,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		images: normalizeTaskImages(card.images),
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
-		...(clineSettings !== undefined ? { clineSettings } : {}),
+		...(nkleinSettings !== undefined ? { nkleinSettings } : {}),
 		...(isTaskBlockedKind(card.blockedKind) ? { blockedKind: card.blockedKind } : {}),
 		...(typeof card.blockedReason === "string" && card.blockedReason.trim()
 			? { blockedReason: card.blockedReason.trim() }
@@ -422,7 +422,7 @@ export function addTaskToColumnWithResult(
 			autoReviewMode: draft.autoReviewMode,
 			images: draft.images,
 			agentId: draft.agentId,
-			clineSettings: draft.clineSettings,
+			nkleinSettings: draft.nkleinSettings,
 			filesLikelyTouched: draft.filesLikelyTouched,
 			baseRef: draft.baseRef,
 		},
@@ -630,7 +630,7 @@ export function updateTask(board: BoardData, taskId: string, draft: TaskDraft): 
 							? draft.images.map((image) => ({ ...image }))
 							: undefined,
 				agentId: draft.agentId,
-				clineSettings: draft.clineSettings,
+				nkleinSettings: draft.nkleinSettings,
 				blockedKind: undefined,
 				blockedReason: undefined,
 				baseRef,
@@ -771,17 +771,17 @@ export function updateTaskTitle(
 		autoReviewMode: selection.card.autoReviewMode,
 		images: selection.card.images,
 		agentId: selection.card.agentId,
-		clineSettings: selection.card.clineSettings,
+		nkleinSettings: selection.card.nkleinSettings,
 		baseRef: selection.card.baseRef,
 	});
 }
 
-export function applyTaskDetailClineSettingsSelection(
+export function applyTaskDetailNKleinSettingsSelection(
 	board: BoardData,
 	taskId: string,
 	settings: {
 		agentId?: RuntimeAgentId;
-		clineSettings?: RuntimeTaskClineSettings | null;
+		nkleinSettings?: RuntimeTaskNKleinSettings | null;
 	},
 ): { board: BoardData; updated: boolean } {
 	const selection = findCardSelection(board, taskId);
@@ -790,7 +790,7 @@ export function applyTaskDetailClineSettingsSelection(
 	}
 
 	const hasExplicitTaskAgentSettings =
-		selection.card.agentId === "cline" || selection.card.clineSettings !== undefined;
+		selection.card.agentId === "nklein" || selection.card.nkleinSettings !== undefined;
 	if (!hasExplicitTaskAgentSettings) {
 		return { board, updated: false };
 	}
@@ -802,18 +802,18 @@ export function applyTaskDetailClineSettingsSelection(
 		autoReviewMode: selection.card.autoReviewMode,
 		images: selection.card.images,
 		agentId: settings.agentId,
-		clineSettings: settings.clineSettings ?? undefined,
+		nkleinSettings: settings.nkleinSettings ?? undefined,
 		baseRef: selection.card.baseRef,
 	});
 }
 
-export function applyTaskDetailClineSettingsChange(
+export function applyTaskDetailNKleinSettingsChange(
 	board: BoardData,
 	taskId: string,
 	change: {
 		providerId: string;
 		modelId: string;
-		reasoningEffort: RuntimeClineReasoningEffort | "";
+		reasoningEffort: RuntimeNKleinReasoningEffort | "";
 		contextScope?: "full" | "smart" | "minimal" | "custom";
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		requestTimeoutMs?: number;
@@ -833,7 +833,7 @@ export function applyTaskDetailClineSettingsChange(
 	}
 
 	const hasExplicitTaskAgentSettings =
-		selection.card.agentId === "cline" || selection.card.clineSettings !== undefined;
+		selection.card.agentId === "nklein" || selection.card.nkleinSettings !== undefined;
 	if (!hasExplicitTaskAgentSettings) {
 		return { board, updated: false };
 	}
@@ -844,41 +844,41 @@ export function applyTaskDetailClineSettingsChange(
 		return { board, updated: false };
 	}
 
-	const nextClineSettings: RuntimeTaskClineSettings = {
-		...(selection.card.clineSettings ?? {}),
+	const nextNKleinSettings: RuntimeTaskNKleinSettings = {
+		...(selection.card.nkleinSettings ?? {}),
 		providerId: nextTaskProviderId,
 		modelId: nextTaskModelId,
 	};
 	if (change.reasoningEffort) {
-		nextClineSettings.reasoningEffort = change.reasoningEffort;
+		nextNKleinSettings.reasoningEffort = change.reasoningEffort;
 	} else {
-		delete nextClineSettings.reasoningEffort;
+		delete nextNKleinSettings.reasoningEffort;
 	}
 	if (change.contextScope !== undefined) {
-		nextClineSettings.contextScope = change.contextScope;
+		nextNKleinSettings.contextScope = change.contextScope;
 	}
 	if (change.timeoutMode !== undefined) {
-		nextClineSettings.timeoutMode = change.timeoutMode;
+		nextNKleinSettings.timeoutMode = change.timeoutMode;
 	}
 	if (change.requestTimeoutMs !== undefined) {
-		nextClineSettings.requestTimeoutMs = change.requestTimeoutMs;
+		nextNKleinSettings.requestTimeoutMs = change.requestTimeoutMs;
 	}
 	if (change.streamTimeoutMs !== undefined) {
-		nextClineSettings.streamTimeoutMs = change.streamTimeoutMs;
+		nextNKleinSettings.streamTimeoutMs = change.streamTimeoutMs;
 	}
 	if (change.toolTimeoutMs !== undefined) {
-		nextClineSettings.toolTimeoutMs = change.toolTimeoutMs;
+		nextNKleinSettings.toolTimeoutMs = change.toolTimeoutMs;
 	}
 	if (change.agentTimeoutMs !== undefined) {
-		nextClineSettings.agentTimeoutMs = change.agentTimeoutMs;
+		nextNKleinSettings.agentTimeoutMs = change.agentTimeoutMs;
 	}
 	if (change.conversationTimeoutMs !== undefined) {
-		nextClineSettings.conversationTimeoutMs = change.conversationTimeoutMs;
+		nextNKleinSettings.conversationTimeoutMs = change.conversationTimeoutMs;
 	}
 
-	return applyTaskDetailClineSettingsSelection(board, taskId, {
-		agentId: "cline",
-		clineSettings: nextClineSettings,
+	return applyTaskDetailNKleinSettingsSelection(board, taskId, {
+		agentId: "nklein",
+		nkleinSettings: nextNKleinSettings,
 	});
 }
 
@@ -895,7 +895,7 @@ export function disableTaskAutoReview(board: BoardData, taskId: string): { board
 		autoReviewMode: DEFAULT_TASK_AUTO_REVIEW_MODE,
 		images: selection.card.images,
 		agentId: selection.card.agentId,
-		clineSettings: selection.card.clineSettings,
+		nkleinSettings: selection.card.nkleinSettings,
 		baseRef: selection.card.baseRef,
 	});
 }

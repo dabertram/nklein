@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
-import type { RuntimeClineProviderSettings } from "@/runtime/types";
+import type { RuntimeNKleinProviderSettings } from "@/runtime/types";
 
-const defaultClineProviderSettings: RuntimeClineProviderSettings = {
+const defaultNKleinProviderSettings: RuntimeNKleinProviderSettings = {
 	providerId: null,
 	modelId: null,
 	baseUrl: null,
@@ -18,16 +18,16 @@ const defaultClineProviderSettings: RuntimeClineProviderSettings = {
 	oauthExpiresAt: null,
 };
 
-const authenticatedClineSettings: RuntimeClineProviderSettings = {
-	...defaultClineProviderSettings,
-	oauthProvider: "cline",
+const authenticatedNKleinSettings: RuntimeNKleinProviderSettings = {
+	...defaultNKleinProviderSettings,
+	oauthProvider: "nklein",
 	oauthAccessTokenConfigured: true,
 	oauthRefreshTokenConfigured: true,
 	oauthAccountId: "acc-1",
 };
 
-const tokensOnlySettings: RuntimeClineProviderSettings = {
-	...defaultClineProviderSettings,
+const tokensOnlySettings: RuntimeNKleinProviderSettings = {
+	...defaultNKleinProviderSettings,
 	oauthProvider: null,
 	oauthAccessTokenConfigured: true,
 	oauthRefreshTokenConfigured: true,
@@ -74,14 +74,14 @@ describe("FeaturebaseFeedbackButton", () => {
 		return null;
 	}
 
-	it("renders nothing when selected agent is not Cline", () => {
+	it("renders nothing when selected agent is not NKlein", () => {
 		const { state: fbState } = createFeaturebaseFeedbackState("ready");
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
 					selectedAgentId={"claude"}
-					clineProviderSettings={authenticatedClineSettings}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -95,8 +95,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={defaultClineProviderSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={defaultNKleinProviderSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -104,14 +104,14 @@ describe("FeaturebaseFeedbackButton", () => {
 		expect(container.innerHTML).toBe("");
 	});
 
-	it("renders nothing when tokens exist but oauthProvider is not cline", () => {
+	it("renders nothing when tokens exist but oauthProvider is not nklein", () => {
 		const { state: fbState } = createFeaturebaseFeedbackState("ready");
 		act(() => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={tokensOnlySettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={tokensOnlySettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -125,8 +125,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={authenticatedClineSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -142,8 +142,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={authenticatedClineSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -160,8 +160,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={authenticatedClineSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -177,8 +177,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={authenticatedClineSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 				/>,
 			);
@@ -196,8 +196,8 @@ describe("FeaturebaseFeedbackButton", () => {
 			root.render(
 				<FeaturebaseFeedbackButton
 					cloudProviderSupportEnabled={true}
-					selectedAgentId={"cline"}
-					clineProviderSettings={authenticatedClineSettings}
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
 					featurebaseFeedbackState={fbState}
 					onClick={handleClick}
 				/>,
@@ -214,7 +214,10 @@ describe("FeaturebaseFeedbackButton", () => {
 	it("renders nothing when featurebaseFeedbackState is undefined", () => {
 		act(() => {
 			root.render(
-				<FeaturebaseFeedbackButton selectedAgentId={"cline"} clineProviderSettings={authenticatedClineSettings} />,
+				<FeaturebaseFeedbackButton
+					selectedAgentId={"nklein"}
+					nkleinProviderSettings={authenticatedNKleinSettings}
+				/>,
 			);
 		});
 		expect(container.innerHTML).toBe("");

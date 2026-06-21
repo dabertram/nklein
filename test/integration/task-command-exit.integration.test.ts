@@ -574,12 +574,12 @@ describe("source task commands", () => {
 	});
 
 	it("treats create-time reasoning inherit as no explicit override", { timeout: 60_000 }, async () => {
-		const { path: homeDir, cleanup: cleanupHome } = createTempDir("kanban-home-task-cline-reasoning-");
-		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-cline-reasoning-");
+		const { path: homeDir, cleanup: cleanupHome } = createTempDir("kanban-home-task-nklein-reasoning-");
+		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-task-nklein-reasoning-");
 
 		try {
 			initGitRepository(projectPath);
-			writeFileSync(join(projectPath, "README.md"), "# Task Cline Reasoning Test\n", "utf8");
+			writeFileSync(join(projectPath, "README.md"), "# Task NKlein Reasoning Test\n", "utf8");
 			commitAll(projectPath, "init");
 
 			const port = String(await getAvailablePort());
@@ -617,7 +617,7 @@ describe("source task commands", () => {
 						"Create a task that inherits workspace reasoning",
 						"--project-path",
 						projectPath,
-						"--cline-reasoning-effort",
+						"--nklein-reasoning-effort",
 						"inherit",
 					],
 					cwd: projectPath,
@@ -628,10 +628,10 @@ describe("source task commands", () => {
 
 				const inheritedPayload = JSON.parse(inheritedCreate.stdout) as {
 					ok?: boolean;
-					task?: { clineSettings?: Record<string, unknown> };
+					task?: { nkleinSettings?: Record<string, unknown> };
 				};
 				expect(inheritedPayload.ok).toBe(true);
-				expect(inheritedPayload.task?.clineSettings).toBeUndefined();
+				expect(inheritedPayload.task?.nkleinSettings).toBeUndefined();
 
 				const defaultCreate = await runCliCommandAndCollectOutput({
 					args: [
@@ -641,7 +641,7 @@ describe("source task commands", () => {
 						"Create a task that uses model default reasoning",
 						"--project-path",
 						projectPath,
-						"--cline-reasoning-effort",
+						"--nklein-reasoning-effort",
 						"default",
 					],
 					cwd: projectPath,
@@ -652,10 +652,10 @@ describe("source task commands", () => {
 
 				const defaultPayload = JSON.parse(defaultCreate.stdout) as {
 					ok?: boolean;
-					task?: { clineSettings?: Record<string, unknown> };
+					task?: { nkleinSettings?: Record<string, unknown> };
 				};
 				expect(defaultPayload.ok).toBe(true);
-				expect(defaultPayload.task?.clineSettings).toEqual({});
+				expect(defaultPayload.task?.nkleinSettings).toEqual({});
 			} finally {
 				await requestGracefulShutdown(serverProcess);
 				const stopped = await waitForExit(serverProcess, 5_000);

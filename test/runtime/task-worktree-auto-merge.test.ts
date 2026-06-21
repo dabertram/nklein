@@ -72,13 +72,13 @@ describe("task worktree auto merge", () => {
 		expect(result.ok).toBe(false);
 		expect(result.blocked?.taskId).toBeNull();
 		expect(result.blocked?.reason).toContain("uncommitted changes");
-		expect(runGit).toHaveBeenCalledWith("/repo", ["status", "--porcelain", "--", ".", ":(exclude).cline/nklein"]);
+		expect(runGit).toHaveBeenCalledWith("/repo", ["status", "--porcelain", "--", ".", ":(exclude).nklein/nklein"]);
 	});
 
 	it("ignores project-local !Klein state while checking base worktree cleanliness", async () => {
 		const runGit = vi.fn(async (cwd: string, args: string[]) => {
 			const key = `${cwd} ${args.join(" ")}`;
-			if (key === "/repo status --porcelain -- . :(exclude).cline/nklein") {
+			if (key === "/repo status --porcelain -- . :(exclude).nklein/nklein") {
 				return { ok: true, stdout: "", stderr: "", output: "", error: null, exitCode: 0 };
 			}
 			if (key === "/repo branch --show-current") {
@@ -110,7 +110,7 @@ describe("task worktree auto merge", () => {
 	it("aborts a conflicted merge and reports conflicted paths", async () => {
 		const runGit = vi.fn(async (cwd: string, args: string[]) => {
 			const key = `${cwd} ${args.join(" ")}`;
-			if (key === "/repo status --porcelain -- . :(exclude).cline/nklein") {
+			if (key === "/repo status --porcelain -- . :(exclude).nklein/nklein") {
 				return { ok: true, stdout: "", stderr: "", output: "", error: null, exitCode: 0 };
 			}
 			if (key === "/repo branch --show-current") {
@@ -169,7 +169,7 @@ describe("task worktree auto merge", () => {
 	it("merges a task result branch without resolving a legacy worktree", async () => {
 		const runGit = vi.fn(async (cwd: string, args: string[]) => {
 			const key = `${cwd} ${args.join(" ")}`;
-			if (key === "/repo status --porcelain -- . :(exclude).cline/nklein") {
+			if (key === "/repo status --porcelain -- . :(exclude).nklein/nklein") {
 				return { ok: true, stdout: "", stderr: "", output: "", error: null, exitCode: 0 };
 			}
 			if (key === "/repo branch --show-current") {

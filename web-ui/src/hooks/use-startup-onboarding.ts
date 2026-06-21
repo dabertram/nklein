@@ -24,7 +24,7 @@ export interface UseStartupOnboardingResult {
 	handleOpenStartupOnboardingDialog: () => void;
 	handleCloseStartupOnboardingDialog: () => void;
 	handleSelectOnboardingAgent: (agentId: RuntimeAgentId) => Promise<AgentSelectionResult>;
-	handleOnboardingClineSetupSaved: () => void;
+	handleOnboardingNKleinSetupSaved: () => void;
 }
 
 export function useStartupOnboarding(options: UseStartupOnboardingOptions): UseStartupOnboardingResult {
@@ -64,7 +64,7 @@ export function useStartupOnboarding(options: UseStartupOnboardingOptions): UseS
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog,
 				selectedAgentId: runtimeProjectConfig?.selectedAgentId ?? null,
-				clineProviderSettings: runtimeProjectConfig?.clineProviderSettings ?? null,
+				nkleinProviderSettings: runtimeProjectConfig?.nkleinProviderSettings ?? null,
 			}),
 		);
 	}, [
@@ -105,7 +105,7 @@ export function useStartupOnboarding(options: UseStartupOnboardingOptions): UseS
 		[currentProjectId, refreshRuntimeProjectConfig, refreshSettingsRuntimeProjectConfig],
 	);
 
-	const handleOnboardingClineSetupSaved = useCallback(() => {
+	const handleOnboardingNKleinSetupSaved = useCallback(() => {
 		refreshRuntimeProjectConfig();
 		refreshSettingsRuntimeProjectConfig();
 	}, [refreshRuntimeProjectConfig, refreshSettingsRuntimeProjectConfig]);
@@ -115,6 +115,6 @@ export function useStartupOnboarding(options: UseStartupOnboardingOptions): UseS
 		handleOpenStartupOnboardingDialog,
 		handleCloseStartupOnboardingDialog,
 		handleSelectOnboardingAgent,
-		handleOnboardingClineSetupSaved,
+		handleOnboardingNKleinSetupSaved,
 	};
 }

@@ -20,7 +20,7 @@
 
 The fork is in good shape. The hard engineering (local-only lockdown, never-overflow context guard, timeout scaling, swarm concurrency, decomposition + planning DAG, lost-session recovery, workspace-identity hardening) is **substantially implemented and tested** — see §B. The two biggest *unfinished* threads are:
 
-1. **The rename is only ~60% done.** User-visible text is mostly converted, but the **app-brand wordmark was still "Cline"** (now fixed in this pass) and **all technical identifiers** (env vars, storage keys, on-disk dir, HTTP header, cookie, Electron appId/protocol) are still `kanban`.
+1. **The rename is only ~60% done.** User-visible text is mostly converted, but the **app-brand wordmark was still "NKlein"** (now fixed in this pass) and **all technical identifiers** (env vars, storage keys, on-disk dir, HTTP header, cookie, Electron appId/protocol) are still `kanban`.
 2. **The self-improvement / evidence loop is developer-only and unintuitive.** There is real machinery (`evidence-bundle.ts`, dev-test scaffolding) but no one-click path to collect evidence and hand it to an agent — internal or external.
 
 Everything else here is incremental quality, hardening, and small-model leverage.
@@ -41,34 +41,34 @@ Three deliberate tokens (plus the keeps). If any of these isn't what you intende
 |---|---|---|
 | In-app UI display brand | `!Klein` | sidebar wordmark, dialog copy, onboarding, toasts, browser-tab title |
 | OS / packaging display where `!` is unsafe | `nKlein` | Electron `productName`, installer/bundle name, OS window title, protocol display name |
-| Technical identifiers (lowercase) | `nklein` | CLI binary, npm package, `NKLEIN_*` env, `nklein://` scheme, `~/.cline/nklein`, `x-nklein-workspace-id`, `nklein_session`, `com.cline.nklein` |
-| Keep unchanged | `kanban` / `Cline` | repo name, git marker `kanban.repositoryCreatedByKanban`, Cline engine/provider/account references |
+| Technical identifiers (lowercase) | `nklein` | CLI binary, npm package, `NKLEIN_*` env, `nklein://` scheme, `~/.nklein/nklein`, `x-nklein-workspace-id`, `nklein_session`, `com.nklein.nklein` |
+| Keep unchanged | `kanban` / `NKlein` | repo name, git marker `kanban.repositoryCreatedByKanban`, NKlein engine/provider/account references |
 
 ### 0.4 The brand-vs-engine rule (read before any rename edit)
 
-"Cline" is overloaded. Two distinct meanings must be handled differently:
+"NKlein" is overloaded. Two distinct meanings must be handled differently:
 
 - **!Klein** = this app/product (the board, the runtime, the CLI). Rename these.
-- **Cline** = the upstream agent engine / SDK (`@clinebot/core`, `@clinebot/llms`), the Cline provider, and the Cline cloud account. **Keep these as "Cline".**
+- **NKlein** = the upstream agent engine / SDK (`@nkleinbot/core`, `@nkleinbot/llms`), the NKlein provider, and the NKlein cloud account. **Keep these as "NKlein".**
 
-When in doubt, ask: "Is this the thing the user launched, or the engine running inside it?" The app is !Klein; the engine is Cline.
+When in doubt, ask: "Is this the thing the user launched, or the engine running inside it?" The app is !Klein; the engine is NKlein.
 
 ---
 
 ## A. Finish the rename to !Klein / nklein
 
 ### A1. User-visible app-brand strings (quick wins)
-- [x] **Top-left brand wordmark** — `web-ui/src/components/project-navigation-panel.tsx:345` now renders `!Klein v{__APP_VERSION__}` (was `Cline`). *(Done in this pass — the user-reported issue.)*
+- [x] **Top-left brand wordmark** — `web-ui/src/components/project-navigation-panel.tsx:345` now renders `!Klein v{__APP_VERSION__}` (was `NKlein`). *(Done in this pass — the user-reported issue.)*
 - [x] App crash screen — `web-ui/src/components/app-error-boundary.tsx:18` now "!Klein hit an unexpected UI error." *(Done.)*
 - [x] Runtime-disconnected screen — `web-ui/src/hooks/runtime-disconnected-fallback.tsx:18-19` now "Disconnected from !Klein" and "Run `nklein` again in your terminal…". *(Done.)*
 - [x] `web-ui/index.html` `<title>` → `!Klein`.
-- [x] `web-ui/public/manifest.json` `name` / `short_name` (currently `Cline`) → `!Klein`.
+- [x] `web-ui/public/manifest.json` `name` / `short_name` (currently `NKlein`) → `!Klein`.
 - [x] `packages/desktop/src/disconnected.html` page title + "Run kanban…" body → `!Klein` / `nklein`.
 - [x] `src/cli.ts` console prefixes `[kanban]` → `[nklein]` (≈ lines 481, 542).
-- [x] **Brand-vs-engine disambiguation sweep:** grep `web-ui/src` for every rendered `Cline` string and classify each (app-brand → `!Klein`; engine/provider/account → keep). Known keeps: `aria-label="Cline mode"`; "Cline context window override". The wordmark was missed once already — do this sweep deliberately. Note: the cloud sign-in surface ("Sign in to Cline", `cline-setup-section.tsx:560`) is being **removed entirely** (§G5), so it goes away regardless of this sweep.
+- [x] **Brand-vs-engine disambiguation sweep:** grep `web-ui/src` for every rendered `NKlein` string and classify each (app-brand → `!Klein`; engine/provider/account → keep). Known keeps: `aria-label="NKlein mode"`; "NKlein context window override". The wordmark was missed once already — do this sweep deliberately. Note: the cloud sign-in surface ("Sign in to NKlein", `nklein-setup-section.tsx:560`) is being **removed entirely** (§G5), so it goes away regardless of this sweep.
 
 ### A2. Electron app metadata
-- [x] `packages/desktop/electron-builder.yml`: `appId: com.cline.kanban` → `com.cline.nklein`.
+- [x] `packages/desktop/electron-builder.yml`: `appId: com.nklein.kanban` → `com.nklein.nklein`.
 - [x] `productName: Kanban` → **`nKlein`** (decided: the packaged/OS app name drops the `!`; `!Klein` stays for in-app UI only). This also governs the OS window title and installer/bundle name.
 - [x] `protocols.name` → `nKlein`; `protocols.schemes: kanban` → `nklein`.
 - [x] `packages/desktop/src/protocol-handler.ts` `KANBAN_PROTOCOL = "kanban"` → `"nklein"`.
@@ -87,29 +87,29 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 - [x] Server should **accept both** header names and **both** cookie names for one release so an open tab isn't logged out mid-rename.
 
 ### A5. On-disk directories + path constants
-- [x] `src/workspace/task-worktree-path.ts`: `KANBAN_RUNTIME_HOME_DIR_NAME = ".cline/kanban"` → `".cline/nklein"` (leave the generic `worktrees` names alone).
+- [x] `src/workspace/task-worktree-path.ts`: `KANBAN_RUNTIME_HOME_DIR_NAME = ".nklein/kanban"` → `".nklein/nklein"` (leave the generic `worktrees` names alone).
 - [x] `src/config/runtime-config.ts`: `RUNTIME_HOME_DIR` and `PROJECT_CONFIG_DIR` (`"kanban"`) → `"nklein"` (≈ lines 104, 107).
-- [x] Temp prefixes: `src/workspace/turn-checkpoints.ts` `"kanban-checkpoint-"` → `"nklein-checkpoint-"`; `src/cline-sdk/cline-dev-test-project.ts` `kanban-${slug}` → `nklein-${slug}` (≈ line 152).
-- [x] Hardcoded `.cline/kanban/*` paths: `src/trpc/runtime-api.ts`, `src/workspace/project-health.ts`, `src/cline-sdk/cline-code-index.ts`, `src/cline-sdk/cline-plan-artifacts.ts`, `web-ui/src/components/debug-dialog.tsx` (~lines 65/94), and test fixtures. Centralize through the constants above so this is one change, not dozens.
+- [x] Temp prefixes: `src/workspace/turn-checkpoints.ts` `"kanban-checkpoint-"` → `"nklein-checkpoint-"`; `src/nklein-sdk/nklein-dev-test-project.ts` `kanban-${slug}` → `nklein-${slug}` (≈ line 152).
+- [x] Hardcoded `.nklein/kanban/*` paths: `src/trpc/runtime-api.ts`, `src/workspace/project-health.ts`, `src/nklein-sdk/nklein-code-index.ts`, `src/nklein-sdk/nklein-plan-artifacts.ts`, `web-ui/src/components/debug-dialog.tsx` (~lines 65/94), and test fixtures. Centralize through the constants above so this is one change, not dozens.
 
 ### A6. Migration utility (new) — the "+ migration" half of the decision
 - [x] New `src/config/legacy-name-migration.ts`, invoked once at runtime startup:
-  - [x] If `~/.cline/kanban` exists and `~/.cline/nklein` does not, migrate (move or copy) `plans/`, `config.json`, `code-index-v1.json`, `telemetry/`, `dev-runs/`.
+  - [x] If `~/.nklein/kanban` exists and `~/.nklein/nklein` does not, migrate (move or copy) `plans/`, `config.json`, `code-index-v1.json`, `telemetry/`, `dev-runs/`.
   - [x] Write a `migrated-from-kanban` marker so it never runs twice; log a structured outcome (counts, any path it couldn't move).
   - [x] Treat failure as non-fatal but surfaced (ties into §G observability) — never silently lose data.
 - [x] `web-ui/src/storage/local-storage-store.ts`: migrate the **21** `kanban.*` keys → `nklein.*` with read-old-then-write-new fallback. Keep the enum the single source of truth so the prefix changes in one place.
-- [x] Tests: seed a fake `~/.cline/kanban` and fake localStorage, assert post-migration state, assert idempotency on a second run.
+- [x] Tests: seed a fake `~/.nklein/kanban` and fake localStorage, assert post-migration state, assert idempotency on a second run.
 
 ### A7. Intentional keeps (document; do **not** change)
 - [x] Repo name `kanban` — documented in `README.md:7`.
-- [x] Git marker `kanban.repositoryCreatedByKanban` — documented in `AGENTS.md`; `src/workspace/initialize-repo.ts:8`, `src/cline-sdk/cline-dev-test-project.ts:131`. Renaming it would orphan ownership of existing repos.
+- [x] Git marker `kanban.repositoryCreatedByKanban` — documented in `AGENTS.md`; `src/workspace/initialize-repo.ts:8`, `src/nklein-sdk/nklein-dev-test-project.ts:131`. Renaming it would orphan ownership of existing repos.
 - [x] Internal embedding model id `kanban-local-lexical-vector-v1` — kept intentionally so lexical fallback caches are not invalidated; real embedding endpoints use provider/model-specific cache keys.
 - [x] Internal component filenames `kanban-*.tsx/.ts` — no user impact; not worth the churn.
 - [x] Confirm the man page: `man/kanban.1` was deleted; ensure `man/nklein.1` exists and is the one referenced by `package.json` `man`.
 
 ### A8. Sweep + regression guard
 - [x] After the above, run a residual grep (`Kanban`, `KANBAN`, `kanban` minus documented keeps) and reconcile.
-- [x] Add a tiny test (or CI grep) that fails if a **new** user-facing `Kanban`/`Cline` (app-brand) string appears in `web-ui/src` or CLI output — so the rename can't silently regress. Allowlist the engine references.
+- [x] Add a tiny test (or CI grep) that fails if a **new** user-facing `Kanban`/`NKlein` (app-brand) string appears in `web-ui/src` or CLI output — so the rename can't silently regress. Allowlist the engine references.
 
 ---
 
@@ -118,8 +118,8 @@ When in doubt, ask: "Is this the thing the user launched, or the engine running 
 Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item mapping is reproduced from the cross-check.
 
 ### B1. plan.md L0–L4 (local swarm)
-- [x] **L0 local-only lockdown** — `src/cline-sdk/cline-local-only-policy.ts` (`CLOUD_ENABLED = false`), gated at `cline-provider-service.ts` and re-asserted at `src/trpc/runtime-api.ts`; tests in `test/runtime/cline-sdk/cline-local-only-policy.test.ts`.
-- [x] **L1 reliability** — never-overflow pre-send guard + real effective window (no 200k clamp) in `cline-task-session-service.ts`; local timeout floors + cold-start priors in `cline-timeout-scaling.ts`; acceptance gate uses non-login `/bin/sh` in `cline-acceptance-gate.ts`; context-budget bar on cards.
+- [x] **L0 local-only lockdown** — `src/nklein-sdk/nklein-local-only-policy.ts` (`CLOUD_ENABLED = false`), gated at `nklein-provider-service.ts` and re-asserted at `src/trpc/runtime-api.ts`; tests in `test/runtime/nklein-sdk/nklein-local-only-policy.test.ts`.
+- [x] **L1 reliability** — never-overflow pre-send guard + real effective window (no 200k clamp) in `nklein-task-session-service.ts`; local timeout floors + cold-start priors in `nklein-timeout-scaling.ts`; acceptance gate uses non-login `/bin/sh` in `nklein-acceptance-gate.ts`; context-budget bar on cards.
 - [x] **L2 swarm** — concurrency enforced across all start paths; per-endpoint serialization with retry/queue; per-model tool routing; swarm guardrails (`swarm-stop.json`, turn/wall-time/no-diff/mistake budgets).
 - [x] **L3 decomposition** — Planning-lane cards, recursive expand, clarifying-question intake (`questions.md`), plain-language `summary.md`, adaptive re-planning (`plan-gap`, `revisions.md`).
 - [x] **L4 operator UI** — board cockpit metrics, swarm header, MCSR panel, Planning DAG review + **approval action** + **revised-card flags**, diagnostics drawer, first-run local-model onboarding.
@@ -135,7 +135,7 @@ Short answer: **yes, ~95%.** Evidence gathered this pass below; full per-item ma
 
 ## C. Dev-test → evidence → coding-agent workflow (make it one-click)
 
-Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.cline/kanban/dev-runs/<scenario>-<ts>/` with `summary.md`, transcripts, `telemetry.jsonl`, `config-snapshot.json`, optional `diff.patch`), and dev-test scaffolding exists (`src/cline-sdk/cline-dev-test-project.ts`, `src/trpc/projects-api.ts` `createDevTestProject`/`cleanupDevTestProjects`). But getting evidence *out* means navigating the filesystem, and there's no "now go fix it" button. This is the "rather unintuitive" pain the user called out.
+Today: evidence machinery exists (`src/telemetry/evidence-bundle.ts` → `~/.nklein/kanban/dev-runs/<scenario>-<ts>/` with `summary.md`, transcripts, `telemetry.jsonl`, `config-snapshot.json`, optional `diff.patch`), and dev-test scaffolding exists (`src/nklein-sdk/nklein-dev-test-project.ts`, `src/trpc/projects-api.ts` `createDevTestProject`/`cleanupDevTestProjects`). But getting evidence *out* means navigating the filesystem, and there's no "now go fix it" button. This is the "rather unintuitive" pain the user called out.
 
 ### C1. One-click evidence hand-off (for an *external* coding agent)
 - [x] Add a **"Copy evidence for agent"** action on each task card / detail panel (and on dev-test runs).
@@ -178,7 +178,7 @@ Goal: a small model can work on !Klein's own code without silently breaking feat
   - [x] `test/protected/README.md` explains what protected means, why the suite exists, the explicit-approval rule, and how to propose a change.
   - [x] `test/protected/protected-tests.json` carries a one-line rationale per protected test group.
 - [x] **D3. Block by default** — `src/core/agent-write-guard.ts` now identifies protected-suite paths, and editor/write/apply-patch approvals plus direct write-file tools reject edits to `test/protected/**` and `vitest.protected.config.ts` without explicit human approval.
-- [x] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/cline-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
+- [x] **D4. Structured approval** — on a blocked attempt the agent must emit `{ intent, diff, reason, expectedEffects }`. Surface it via the existing clarifying-question UI (`web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx`). Only an explicit per-edit approval unlocks that specific change; default is deny.
 - [x] **D5. Audit + tests** — log every protected-test approval to telemetry (what/why); tests for both the blocked path and the approved-unblock path.
 - [x] **D6.** Make the protected suite apply *automatically* inside the §C2 self-improvement project so the guardrail is on by default when !Klein edits itself.
 
@@ -191,7 +191,7 @@ You asked whether feeding in curated guidance (UI/UX, layout, performance, secur
 ### E1. Integration mechanism
 - [x] Reuse the existing workflow-seeding path (the one that seeds `kanban-decompose.md` and is referenced as `/kanban-decompose`). Seed a set of `skills/<topic>/SKILL.md` docs into the project config.
 - [x] **On-demand loading:** the decomposition/router tags each card with a topic (`ui`, `security`, `perf`, `arch`, `ts`, `testing`, …); the matching skill loads only when that card runs. Keep an always-on digest ≤ a few hundred tokens; pull depth on demand.
-- [x] Each seeded v1 skill is **terse, copy-pasteable, and !Klein-specific** — cites the real design tokens (`globals.css @theme`), the UI primitives (`src/components/ui/`), the SDK boundary (`src/cline-sdk/`), and the repo rules (no `any`, react-use hooks, Tailwind-over-inline). Generic advice the model already knows is omitted.
+- [x] Each seeded v1 skill is **terse, copy-pasteable, and !Klein-specific** — cites the real design tokens (`globals.css @theme`), the UI primitives (`src/components/ui/`), the SDK boundary (`src/nklein-sdk/`), and the repo rules (no `any`, react-use hooks, Tailwind-over-inline). Generic advice the model already knows is omitted.
 
 ### E2. Source list to distill (do **not** paste wholesale)
 - **UI/UX & layout:** *Refactoring UI* (Wathan/Schoger); Nielsen Norman Group's 10 usability heuristics; W3C **WAI-ARIA Authoring Practices (APG)**; **WCAG 2.2** quick-ref.
@@ -212,13 +212,13 @@ You asked whether feeding in curated guidance (UI/UX, layout, performance, secur
 What the field is doing in 2026 and where !Klein already stands. !Klein is **ahead of most** on harness design; the gap is semantic retrieval and a few context-engineering polish items.
 
 ### F1. Retrieval (biggest lever)
-- [x] **AST + PageRank repo map** — `src/cline-sdk/cline-repo-map.ts` extracts TS symbols and ranks with PageRank. This is exactly Aider's approach and the right "middle ground between grep and LSP."
-- [x] **Personalized PageRank boosts** — Aider boosts identifiers mentioned in the conversation (~10×) and chat/seed files (~50×). `cline-repo-map.ts` now applies a conversation-aware personalization vector and final symbol-score boost from current session text, explicit repo-map tool queries, and seed paths.
+- [x] **AST + PageRank repo map** — `src/nklein-sdk/nklein-repo-map.ts` extracts TS symbols and ranks with PageRank. This is exactly Aider's approach and the right "middle ground between grep and LSP."
+- [x] **Personalized PageRank boosts** — Aider boosts identifiers mentioned in the conversation (~10×) and chat/seed files (~50×). `nklein-repo-map.ts` now applies a conversation-aware personalization vector and final symbol-score boost from current session text, explicit repo-map tool queries, and seed paths.
 - [x] **Real local semantic embeddings** — `openai_compatible` embedding settings support LM Studio/Ollama-style local endpoints, the code index stores provider/model-separated dense vectors, and `search_code` now merges lexical + semantic/index + repo-map results with deduplication.
 
 ### F2. Context engineering (Anthropic's framing: "smallest high-signal set of tokens")
 - [x] Compaction + structured note-taking (`decisions.md` blackboard) are present.
-- [x] **Bounded tool outputs + actionable errors** — Cline tool transcript messages now cap oversized inputs/outputs/errors, strip stack-frame noise from tool errors, and append a concise next-step hint so small models do not burn context on raw failure dumps.
+- [x] **Bounded tool outputs + actionable errors** — NKlein tool transcript messages now cap oversized inputs/outputs/errors, strip stack-frame noise from tool errors, and append a concise next-step hint so small models do not burn context on raw failure dumps.
 - [x] Prompt budgeting + `read_large_file` chunking + 1000-line write cap are present.
 
 ### F3. Decomposition + verification loops
@@ -226,7 +226,7 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] **Failing-test-as-constraint** — tightened the loop so acceptance repair extracts the failing assertion/compiler error and feeds it back as a first-class next-turn constraint before the bounded raw output.
 
 ### F4. Routing (hybrid is the 2026 default)
-- [x] Model roles + router (`src/cline-sdk/cline-task-router.ts`) route simple→small, complex→larger-local. Keep; surface the decision in the UI so the operator understands why a model was picked.
+- [x] Model roles + router (`src/nklein-sdk/nklein-task-router.ts`) route simple→small, complex→larger-local. Keep; surface the decision in the UI so the operator understands why a model was picked.
 
 ### F5. Few-shot, codebase-specific examples
 - [x] For matched topics (§E), include 1–2 concrete !Klein code examples in the prompt (a real component using the tokens/primitives). Few-shot from *this* repo beats generic instruction for small models.
@@ -252,15 +252,15 @@ What the field is doing in 2026 and where !Klein already stands. !Klein is **ahe
 - [x] Prompt-template / quick-start library (the create-task flow has none today).
 - [x] "Import context into a task" from a file, a GitHub issue (`gh issue view`), or a PR diff.
 - [x] **Endpoint reachability + model discovery** dropdowns for *both* embeddings and providers (call `/models`), removing the "what do I type here" problem.
-- [x] "Open data dir" shortcut (jumps to `~/.cline/nklein`).
+- [x] "Open data dir" shortcut (jumps to `~/.nklein/nklein`).
 - [x] Consolidated evidence/diff viewer panel (ties to §C1).
 
 ### G4. Observability
 - [x] A project-health dashboard surfacing the diagnostics already logged (accidental worktree projects, missing parents, lost sessions w/ pending artifacts, stale artifacts) — the data exists; give it a home.
 
 ### G5. Hide all cloud options (cloud is disabled) — user-prioritized
-Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/cline-sdk/cline-local-only-policy.ts`), so cloud UI is dead weight and confusing. **Decision: hide all cloud options for now** — *hide, don't delete*; keep them behind the policy flag so a future re-enable is a one-switch change.
-- [x] Hide cloud **sign-in / account** surfaces: `web-ui/src/components/shared/cline-setup-section.tsx` ("Sign in to Cline" ≈ L560) and any Cline-account menu/avatar/status.
+Cloud is hard-disabled (`CLOUD_ENABLED = false`, `src/nklein-sdk/nklein-local-only-policy.ts`), so cloud UI is dead weight and confusing. **Decision: hide all cloud options for now** — *hide, don't delete*; keep them behind the policy flag so a future re-enable is a one-switch change.
+- [x] Hide cloud **sign-in / account** surfaces: `web-ui/src/components/shared/nklein-setup-section.tsx` ("Sign in to NKlein" ≈ L560) and any NKlein-account menu/avatar/status.
 - [x] Hide cloud **providers** and cloud **model recommendations** from every picker (provider catalog, model picker, role pickers). Verify the L0 filtering already covers *all* of these surfaces, not just the main model picker.
 - [x] Hide cloud-only **settings** (managed OAuth, cloud endpoints) in `web-ui/src/components/runtime-settings-dialog.tsx`.
 - [x] Drive visibility off the single local-only policy flag — nothing hard-coded — and add a test asserting **no cloud affordance renders** while cloud is disabled.

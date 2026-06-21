@@ -1,4 +1,4 @@
-// PTY-backed runtime for non-Cline task sessions and the workspace shell terminal.
+// PTY-backed runtime for non-NKlein task sessions and the workspace shell terminal.
 // It owns process lifecycle, terminal protocol filtering, and summary updates
 // for command-driven agents such as Claude Code, Codex, Gemini, and shell sessions.
 import type {
@@ -202,7 +202,7 @@ export function applyAgentEgressRestrictionEnvironment(
 	env: Record<string, string | undefined>,
 	processEnv: NodeJS.ProcessEnv = process.env,
 ): Record<string, string | undefined> {
-	// Docker-backed Cline agent tools are isolated with `--network none`.
+	// Docker-backed NKlein agent tools are isolated with `--network none`.
 	// This best-effort proxy guard remains only for user-launched terminal agents.
 	if (processEnv[AGENT_EGRESS_RESTRICTION_ENV]?.trim() !== BEST_EFFORT_LOCAL_ONLY_EGRESS) {
 		return env;
@@ -741,7 +741,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 		}
 
 		// Preserve agentId so the server can route to the correct agent type
-		// (Cline SDK vs terminal PTY) when a task is restored from trash.
+		// (NKlein SDK vs terminal PTY) when a task is restored from trash.
 		const summary = updateSummary(entry, {
 			state: "idle",
 			workspacePath: null,

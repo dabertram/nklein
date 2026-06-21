@@ -53,7 +53,7 @@ export interface EvidenceBundleResult {
 }
 
 function getDefaultDevRunsParent(): string {
-	return join(homedir(), ".cline", "nklein", "dev-runs");
+	return join(homedir(), ".nklein", "nklein", "dev-runs");
 }
 
 function slugifyScenario(input: string): string {

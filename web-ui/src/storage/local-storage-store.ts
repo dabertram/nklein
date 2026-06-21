@@ -25,7 +25,7 @@ export enum LocalStorageKey {
 	PreferredOpenTarget = "nklein.preferred-open-target",
 	NotificationBadgeClearEvent = "nklein.notification-badge-clear.v1",
 	TabVisibilityPresence = "nklein.tab-visibility-presence.v1",
-	ClineChatTimestampsCollapsed = "nklein.cline-chat.timestamps-collapsed.v1",
+	NKleinChatTimestampsCollapsed = "nklein.chat.timestamps-collapsed.v1",
 	Theme = "nklein.theme",
 }
 
@@ -95,6 +95,10 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 		"notification-badge-clear.v1",
 	),
 	[LocalStorageKey.TabVisibilityPresence]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "tab-visibility-presence.v1"),
+	[LocalStorageKey.NKleinChatTimestampsCollapsed]: buildPrefixedKey(
+		LEGACY_LOCAL_STORAGE_PREFIX,
+		"chat.timestamps-collapsed.v1",
+	),
 	[LocalStorageKey.Theme]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "theme"),
 };
 

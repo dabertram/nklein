@@ -1,4 +1,4 @@
-import type { RuntimeClineTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeNKleinTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
 
 /**
  * Accumulates an agent's per-turn activity into a watchable timeline ("watch the agent's hands").
@@ -54,7 +54,7 @@ export function accumulateSessionActivity(
 /** Merges team-progress events into the timeline (deduped), useful for multi-agent runs. */
 export function accumulateTeamProgress(
 	existing: readonly AgentActivityEntry[],
-	events: readonly RuntimeClineTeamProgressEvent[],
+	events: readonly RuntimeNKleinTeamProgressEvent[],
 	maxEntries: number = DEFAULT_MAX_ENTRIES,
 ): AgentActivityEntry[] {
 	let timeline = existing as AgentActivityEntry[];

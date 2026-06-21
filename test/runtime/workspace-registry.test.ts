@@ -74,7 +74,7 @@ describe("collectProjectWorktreeTaskIdsForRemoval", () => {
 });
 
 describe("createWorkspaceRegistry", () => {
-	it("auto-registers the launch cwd when it is an unindexed git repository", async () => {
+	it("does not auto-register the launch cwd when it is an unindexed git repository", async () => {
 		await withTemporaryHome(async () => {
 			const repoPath = join(
 				tmpdir(),
@@ -92,10 +92,69 @@ describe("createWorkspaceRegistry", () => {
 				});
 
 				const entries = await listWorkspaceIndexEntries();
-				expect(registry.getActiveWorkspaceId()).toBe(entries[0]?.workspaceId);
-				expect(entries).toHaveLength(1);
+				expect(registry.getActiveWorkspaceId()).toBeNull();
+				expect(registry.getActiveWorkspacePath()).toBeNull();
+				expect(entries).toHaveLength(0);
+			} finally {
+				rmSync(repoPath, { recursive: true, force: true });
+			}
+		});
+	});
+
+	it("hides an indexed launch checkout until it has explicit self-project confirmation", async () => {
+		await withTemporaryHome(async () => {
+			const repoPath = join(
+				tmpdir(),
+				`kanban-registry-source-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			);
+			mkdirSync(repoPath, { recursive: true });
+			try {
+				initGitRepository(repoPath);
+				await loadWorkspaceContext(repoPath);
+
+				const registry = await createWorkspaceRegistry({
+					cwd: repoPath,
+					loadGlobalRuntimeConfig,
+					loadRuntimeConfig,
+					hasGitRepository: () => true,
+					pathIsDirectory: async () => true,
+				});
+				const payload = await registry.buildProjectsPayload(null);
+
+				expect(payload.projects.some((project) => realpathSync(project.path) === realpathSync(repoPath))).toBe(
+					false,
+				);
+				expect(registry.getActiveWorkspaceId()).toBeNull();
+			} finally {
+				rmSync(repoPath, { recursive: true, force: true });
+			}
+		});
+	});
+
+	it("shows an indexed launch checkout after explicit self-project confirmation", async () => {
+		await withTemporaryHome(async () => {
+			const repoPath = join(
+				tmpdir(),
+				`kanban-registry-source-confirmed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			);
+			mkdirSync(repoPath, { recursive: true });
+			try {
+				initGitRepository(repoPath);
+				await loadWorkspaceContext(repoPath, { selfProjectConfirmed: true });
+
+				const registry = await createWorkspaceRegistry({
+					cwd: repoPath,
+					loadGlobalRuntimeConfig,
+					loadRuntimeConfig,
+					hasGitRepository: () => true,
+					pathIsDirectory: async () => true,
+				});
+				const payload = await registry.buildProjectsPayload(null);
+
+				expect(payload.projects.some((project) => realpathSync(project.path) === realpathSync(repoPath))).toBe(
+					true,
+				);
 				expect(realpathSync(registry.getActiveWorkspacePath() ?? "")).toBe(realpathSync(repoPath));
-				expect(realpathSync(entries[0]?.repoPath ?? "")).toBe(realpathSync(repoPath));
 			} finally {
 				rmSync(repoPath, { recursive: true, force: true });
 			}
@@ -106,7 +165,13 @@ describe("createWorkspaceRegistry", () => {
 		selfObservationMocks.recordSelfObservation.mockReset();
 		await withTemporaryHome(async () => {
 			const parentPath = join(tmpdir(), `kanban-parent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-			const worktreePath = join(process.env.HOME ?? tmpdir(), ".cline", "worktrees", "source-card", "kanban-parent");
+			const worktreePath = join(
+				process.env.HOME ?? tmpdir(),
+				".nklein",
+				"worktrees",
+				"source-card",
+				"kanban-parent",
+			);
 			const cwd = join(tmpdir(), `kanban-registry-cwd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 			mkdirSync(parentPath, { recursive: true });
 			mkdirSync(worktreePath, { recursive: true });
@@ -144,7 +209,7 @@ describe("createWorkspaceRegistry", () => {
 					sessions: {},
 				});
 				await loadWorkspaceContext(worktreePath, { allowTaskWorktreeProject: true });
-				mkdirSync(join(worktreePath, ".cline", "nklein", "plans", "misplaced-plan"), { recursive: true });
+				mkdirSync(join(worktreePath, ".nklein", "nklein", "plans", "misplaced-plan"), { recursive: true });
 
 				const registry = await createWorkspaceRegistry({
 					cwd,
@@ -198,7 +263,7 @@ describe("createWorkspaceRegistry", () => {
 			try {
 				initGitRepository(repoPath);
 				await loadWorkspaceContext(repoPath);
-				const artifactPath = join(repoPath, ".cline", "nklein", "plans", "pending-plan");
+				const artifactPath = join(repoPath, ".nklein", "nklein", "plans", "pending-plan");
 				mkdirSync(artifactPath, { recursive: true });
 				writeFileSync(
 					join(artifactPath, "artifact.json"),
@@ -281,7 +346,7 @@ describe("createWorkspaceRegistry", () => {
 						"source-card": {
 							taskId: "source-card",
 							state: "running",
-							agentId: "cline",
+							agentId: "nklein",
 							workspacePath: repoPath,
 							pid: null,
 							startedAt: 1,
@@ -298,7 +363,7 @@ describe("createWorkspaceRegistry", () => {
 						},
 					},
 				});
-				const artifactPath = join(repoPath, ".cline", "nklein", "plans", "pending-plan");
+				const artifactPath = join(repoPath, ".nklein", "nklein", "plans", "pending-plan");
 				mkdirSync(artifactPath, { recursive: true });
 				writeFileSync(
 					join(artifactPath, "artifact.json"),

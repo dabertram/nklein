@@ -207,15 +207,15 @@ describe.sequential("shutdown coordinator integration", () => {
 				await saveWorkspaceState(projectPath, {
 					board: createBoard({
 						inProgress: [
-							"default-cline",
-							{ id: "explicit-cline", agentId: "cline" },
+							"default-nklein",
+							{ id: "explicit-nklein", agentId: "nklein" },
 							{ id: "legacy-codex", agentId: "codex" },
 							{ id: "legacy-card-only", agentId: "claude" },
 						],
 					}),
 					sessions: {
-						"default-cline": createSession("default-cline", "running", "cline"),
-						"explicit-cline": createSession("explicit-cline", "running", "cline"),
+						"default-nklein": createSession("default-nklein", "running", "nklein"),
+						"explicit-nklein": createSession("explicit-nklein", "running", "nklein"),
 						"legacy-codex": createSession("legacy-codex", "running", "codex"),
 					},
 					expectedRevision: initial.revision,
@@ -223,19 +223,19 @@ describe.sequential("shutdown coordinator integration", () => {
 
 				const managedTerminalManager = {
 					markInterruptedAndStopAll: () => [
-						createSession("default-cline", "running", "cline"),
+						createSession("default-nklein", "running", "nklein"),
 						createSession("legacy-codex", "running", "codex"),
 					],
 					listSummaries: () => [
-						createSession("default-cline", "running", "cline"),
+						createSession("default-nklein", "running", "nklein"),
 						createSession("legacy-codex", "running", "codex"),
 					],
 					getSummary: (taskId: string) => {
-						if (taskId === "default-cline") {
-							return createSession("default-cline", "running", "cline");
+						if (taskId === "default-nklein") {
+							return createSession("default-nklein", "running", "nklein");
 						}
-						if (taskId === "explicit-cline") {
-							return createSession("explicit-cline", "running", "cline");
+						if (taskId === "explicit-nklein") {
+							return createSession("explicit-nklein", "running", "nklein");
 						}
 						if (taskId === "legacy-codex") {
 							return createSession("legacy-codex", "running", "codex");
@@ -269,10 +269,10 @@ describe.sequential("shutdown coordinator integration", () => {
 				const after = await loadWorkspaceState(projectPath);
 				const trash = after.board.columns.find((column) => column.id === "trash")?.cards ?? [];
 				expect(trash.map((card) => card.id).sort()).toEqual(
-					["default-cline", "explicit-cline", "legacy-card-only", "legacy-codex"].sort(),
+					["default-nklein", "explicit-nklein", "legacy-card-only", "legacy-codex"].sort(),
 				);
-				expect(after.sessions["default-cline"]?.state).toBe("interrupted");
-				expect(after.sessions["explicit-cline"]?.state).toBe("interrupted");
+				expect(after.sessions["default-nklein"]?.state).toBe("interrupted");
+				expect(after.sessions["explicit-nklein"]?.state).toBe("interrupted");
 				expect(after.sessions["legacy-codex"]?.state).toBe("interrupted");
 			} finally {
 				cleanup();

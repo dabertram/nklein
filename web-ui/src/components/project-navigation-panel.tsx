@@ -45,8 +45,8 @@ import {
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeAgentId,
-	RuntimeClineProviderSettings,
 	RuntimeDevTestProjectPreset,
+	RuntimeNKleinProviderSettings,
 	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 } from "@/runtime/types";
@@ -86,7 +86,7 @@ export function ProjectNavigationPanel({
 	canShowAgentSection,
 	agentSectionContent,
 	selectedAgentId,
-	clineProviderSettings,
+	nkleinProviderSettings,
 	cloudProviderSupportEnabled = false,
 	developerModeEnabled = false,
 	featurebaseFeedbackState,
@@ -107,7 +107,7 @@ export function ProjectNavigationPanel({
 	canShowAgentSection: boolean;
 	agentSectionContent?: ReactNode;
 	selectedAgentId?: RuntimeAgentId | null;
-	clineProviderSettings?: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 	cloudProviderSupportEnabled?: boolean;
 	developerModeEnabled?: boolean;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
@@ -123,7 +123,7 @@ export function ProjectNavigationPanel({
 	const shouldShowFeaturebaseFeedback = canShowFeaturebaseFeedbackButton({
 		cloudProviderSupportEnabled,
 		selectedAgentId,
-		clineProviderSettings,
+		nkleinProviderSettings,
 		featurebaseFeedbackState,
 	});
 
@@ -525,7 +525,7 @@ export function ProjectNavigationPanel({
 											evidencePath: created.evidenceRootPath,
 										});
 										onSelectProject(created.project.id);
-										if (preset === "mid_task" || preset === "complex_dag") {
+										if (preset === "mid_task" || preset === "complex_dag" || preset === "audio_vst") {
 											if (!created.task) {
 												throw new Error("Dev test project did not include a startable task.");
 											}
@@ -538,7 +538,7 @@ export function ProjectNavigationPanel({
 												startInPlanMode: created.task.startInPlanMode,
 												baseRef: created.task.baseRef,
 												agentId: created.task.agentId,
-												clineSettings: created.task.clineSettings,
+												nkleinSettings: created.task.nkleinSettings,
 											});
 											if (!started.ok) {
 												throw new Error(started.error ?? "Dev test task could not be started.");
@@ -562,7 +562,9 @@ export function ProjectNavigationPanel({
 											message:
 												preset === "complex_dag"
 													? "Complex product test project created with one decomposition task."
-													: "Mid task test project created with one decomposition task.",
+													: preset === "audio_vst"
+														? "Audio VST test project created with one decomposition task."
+														: "Mid task test project created with one decomposition task.",
 											timeout: 5000,
 										});
 									} catch (error) {
@@ -653,7 +655,7 @@ export function ProjectNavigationPanel({
 				</>
 			) : (
 				<div className="flex flex-1 min-h-0 flex-col">
-					{cloudProviderSupportEnabled && selectedAgentId && selectedAgentId !== "cline" ? (
+					{cloudProviderSupportEnabled && selectedAgentId && selectedAgentId !== "nklein" ? (
 						<TerminalAgentHints />
 					) : null}
 					<div className="flex flex-1 min-h-0 overflow-hidden bg-surface-1 px-2 pb-2 pt-1">
@@ -904,6 +906,7 @@ function DevTestProjectCard({
 }): React.ReactElement {
 	const isRunningMidTask = runningPreset === "mid_task";
 	const isRunningComplexProject = runningPreset === "complex_dag";
+	const isRunningAudioVstProject = runningPreset === "audio_vst";
 	const isBusy = disabled || isCreatingSelfImprovementProject;
 
 	return (
@@ -980,6 +983,25 @@ function DevTestProjectCard({
 					fill
 				>
 					{isRunningComplexProject ? "Creating..." : "Create complex product project"}
+				</Button>
+				<Button
+					size="sm"
+					variant="default"
+					icon={isRunningAudioVstProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
+					disabled={isBusy}
+					onClick={() => {
+						if (
+							!window.confirm(
+								"Create a marked !Klein audio VST dev-test project and make it the active project?",
+							)
+						) {
+							return;
+						}
+						void onRun("audio_vst");
+					}}
+					fill
+				>
+					{isRunningAudioVstProject ? "Creating..." : "Create audio VST project"}
 				</Button>
 				{evidencePath ? (
 					<Button

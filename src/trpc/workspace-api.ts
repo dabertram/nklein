@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type {
 	RuntimeGitCheckoutResponse,
 	RuntimeGitDiscardResponse,
@@ -16,6 +15,7 @@ import {
 	parseWorktreeDeleteRequest,
 	parseWorktreeEnsureRequest,
 } from "../core/api-validation";
+import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import { saveWorkspaceState, WorkspaceStateConflictError } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import {
@@ -38,10 +38,10 @@ import type { RuntimeTrpcContext } from "./app-router";
 
 export interface CreateWorkspaceApiDependencies {
 	ensureTerminalManagerForWorkspace: (workspaceId: string, repoPath: string) => Promise<TerminalSessionManager>;
-	getScopedClineTaskSessionService: (scope: {
+	getScopedNKleinTaskSessionService: (scope: {
 		workspaceId: string;
 		workspacePath: string;
-	}) => Promise<ClineTaskSessionService>;
+	}) => Promise<NKleinTaskSessionService>;
 	broadcastRuntimeWorkspaceStateUpdated: (workspaceId: string, workspacePath: string) => Promise<void> | void;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
@@ -95,24 +95,24 @@ function isActiveTaskSessionState(summary: RuntimeTaskSessionSummary | null): bo
 
 function selectLastTurnSummary(
 	terminalSummary: RuntimeTaskSessionSummary | null,
-	clineSummary: RuntimeTaskSessionSummary | null,
+	nkleinSummary: RuntimeTaskSessionSummary | null,
 ): RuntimeTaskSessionSummary | null {
 	if (!terminalSummary) {
-		return clineSummary;
+		return nkleinSummary;
 	}
-	if (!clineSummary) {
+	if (!nkleinSummary) {
 		return terminalSummary;
 	}
 	const terminalIsActive = isActiveTaskSessionState(terminalSummary);
-	const clineIsActive = isActiveTaskSessionState(clineSummary);
-	if (terminalIsActive !== clineIsActive) {
-		return clineIsActive ? clineSummary : terminalSummary;
+	const nkleinIsActive = isActiveTaskSessionState(nkleinSummary);
+	if (terminalIsActive !== nkleinIsActive) {
+		return nkleinIsActive ? nkleinSummary : terminalSummary;
 	}
-	if (terminalSummary.updatedAt !== clineSummary.updatedAt) {
-		return terminalSummary.updatedAt > clineSummary.updatedAt ? terminalSummary : clineSummary;
+	if (terminalSummary.updatedAt !== nkleinSummary.updatedAt) {
+		return terminalSummary.updatedAt > nkleinSummary.updatedAt ? terminalSummary : nkleinSummary;
 	}
-	if (clineSummary.agentId === "cline" && terminalSummary.agentId !== "cline") {
-		return clineSummary;
+	if (nkleinSummary.agentId === "nklein" && terminalSummary.agentId !== "nklein") {
+		return nkleinSummary;
 	}
 	return terminalSummary;
 }
@@ -309,10 +309,10 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 					workspaceScope.workspaceId,
 					workspaceScope.workspacePath,
 				);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 				const summary = selectLastTurnSummary(
 					terminalManager.getSummary(normalizedInput.taskId),
-					clineTaskSessionService.getSummary(normalizedInput.taskId),
+					nkleinTaskSessionService.getSummary(normalizedInput.taskId),
 				);
 				const fromCheckpoint = summary?.previousTurnCheckpoint;
 				const toCheckpoint = summary?.latestTurnCheckpoint;
@@ -368,8 +368,8 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 		},
 		loadState: async (workspaceScope) => {
 			const state = await deps.buildWorkspaceStateSnapshot(workspaceScope.workspaceId, workspaceScope.workspacePath);
-			const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-			for (const summary of clineTaskSessionService.listSummaries()) {
+			const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+			for (const summary of nkleinTaskSessionService.listSummaries()) {
 				state.sessions[summary.taskId] = summary;
 			}
 			return state;

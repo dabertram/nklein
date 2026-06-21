@@ -1,12 +1,12 @@
 /**
  * Real-task strict-isolation verification (§2.C).
  *
- * Drives the REAL Cline task-session service + REAL AgentSandboxManager against a locally running
- * LM Studio / Ollama endpoint, in an isolated HOME so it never touches the user's ~/.cline/nklein.
+ * Drives the REAL NKlein task-session service + REAL AgentSandboxManager against a locally running
+ * LM Studio / Ollama endpoint, in an isolated HOME so it never touches the user's ~/.nklein/nklein.
  *
  * It asserts the strict-isolation invariants on a real session:
  *   - a Docker sandbox container (label nklein.kind=agent-sandbox) appears while the task runs;
- *   - NO host task worktree directory is created under <HOME>/.cline/nklein/worktrees;
+ *   - NO host task worktree directory is created under <HOME>/.nklein/nklein/worktrees;
  *   - the session advances (the SDK boots and at least starts working) without a host shell.
  *
  * Run:  HOME=/tmp/nklein-verify tsx scripts/verify-strict-isolation.mts
@@ -18,8 +18,8 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { AgentSandboxManager } from "../src/cline-sdk/cline-agent-sandbox";
-import { createInMemoryClineTaskSessionService } from "../src/cline-sdk/cline-task-session-service";
+import { AgentSandboxManager } from "../src/nklein-sdk/nklein-agent-sandbox";
+import { createInMemoryNKleinTaskSessionService } from "../src/nklein-sdk/nklein-task-session-service";
 import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
 
 const execFileAsync = promisify(execFile);
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 	const home = homedir();
 	if (!home.includes("nklein-verify") && process.env.NKLEIN_VERIFY_ALLOW_REAL_HOME !== "1") {
 		throw new Error(
-			`Refusing to run against HOME=${home}. Set HOME to an isolated dir (e.g. /tmp/nklein-verify) so the user's ~/.cline/nklein is not touched.`,
+			`Refusing to run against HOME=${home}. Set HOME to an isolated dir (e.g. /tmp/nklein-verify) so the user's ~/.nklein/nklein is not touched.`,
 		);
 	}
 	const modelId = await resolveModelId();
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
 	await execFileAsync("git", ["-C", project, "commit", "-q", "--allow-empty", "-m", "init"]);
 	log(`Temp project: ${project}`);
 
-	const service = createInMemoryClineTaskSessionService({ agentSandboxManager: manager });
+	const service = createInMemoryNKleinTaskSessionService({ agentSandboxManager: manager });
 	const taskId = "verify-task-1";
 	const observations = { containerSeen: false, containerName: "", advanced: false, lastState: "", error: "" };
 

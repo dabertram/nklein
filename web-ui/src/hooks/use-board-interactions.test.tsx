@@ -66,11 +66,11 @@ function createBoard(): BoardData {
 	};
 }
 
-function createRunningClineSession(taskId: string, providerId: string, modelId: string): RuntimeTaskSessionSummary {
+function createRunningNKleinSession(taskId: string, providerId: string, modelId: string): RuntimeTaskSessionSummary {
 	return {
 		taskId,
 		state: "running",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/workspace",
 		pid: null,
 		startedAt: 1,
@@ -689,7 +689,7 @@ describe("useBoardInteractions", () => {
 		expect(currentBoard.columns.find((column) => column.id === "trash")?.cards).toEqual([]);
 	});
 
-	it("prioritizes backlog cards for the already loaded Cline model during manual start-all", async () => {
+	it("prioritizes backlog cards for the already loaded NKlein model during manual start-all", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		let currentBoard: BoardData = {
 			columns: [
@@ -704,7 +704,7 @@ describe("useBoardInteractions", () => {
 							...createTask("task-loaded", "Loaded model task", 2, {
 								filesLikelyTouched: ["src/loaded.ts"],
 							}),
-							clineSettings: {
+							nkleinSettings: {
 								providerId: "lmstudio",
 								modelId: "qwen-loaded",
 							},
@@ -753,7 +753,7 @@ describe("useBoardInteractions", () => {
 					activeTaskSessionCount={1}
 					maxConcurrentTasks={2}
 					initialSessions={{
-						"running-loaded-model": createRunningClineSession("running-loaded-model", "lmstudio", "qwen-loaded"),
+						"running-loaded-model": createRunningNKleinSession("running-loaded-model", "lmstudio", "qwen-loaded"),
 					}}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1614,7 +1614,7 @@ describe("useBoardInteractions", () => {
 			autoReviewEnabled: false,
 			autoReviewMode: "commit",
 			agentId: "codex",
-			clineSettings: {
+			nkleinSettings: {
 				providerId: "my-provider",
 				modelId: "my-model",
 			},
@@ -1679,7 +1679,7 @@ describe("useBoardInteractions", () => {
 		const reviewCards = currentBoard.columns.find((col) => col.id === "review")?.cards ?? [];
 		const restoredTask = reviewCards.find((card) => card.id === "task-trash-model");
 		expect(restoredTask).toBeDefined();
-		expect(restoredTask?.clineSettings).toEqual({
+		expect(restoredTask?.nkleinSettings).toEqual({
 			providerId: "my-provider",
 			modelId: "my-model",
 		});
@@ -1885,7 +1885,7 @@ describe("useBoardInteractions", () => {
 					taskId: "task-plan",
 					state: "awaiting_review",
 					mode: "act",
-					agentId: "cline",
+					agentId: "nklein",
 					workspacePath: "/tmp/project",
 					pid: null,
 					startedAt: 1,

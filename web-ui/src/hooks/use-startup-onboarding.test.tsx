@@ -58,8 +58,8 @@ function createRuntimeConfigResponse(
 			baseUrl: null,
 		},
 		effectiveCommand: selectedAgentId,
-		globalConfigPath: "/tmp/.cline/nklein/config.json",
-		projectConfigPath: "/tmp/project/.cline/nklein/config.json",
+		globalConfigPath: "/tmp/.nklein/nklein/config.json",
+		projectConfigPath: "/tmp/project/.nklein/nklein/config.json",
 		readyForReviewNotificationsEnabled: true,
 		detectedCommands: ["codex"],
 		agents: [
@@ -75,7 +75,7 @@ function createRuntimeConfigResponse(
 		],
 		shortcuts: [],
 		modelRoles: {},
-		clineProviderSettings: {
+		nkleinProviderSettings: {
 			providerId: null,
 			modelId: null,
 			baseUrl: null,
@@ -186,7 +186,7 @@ describe("useStartupOnboarding", () => {
 			root.render(
 				<HookHarness
 					currentProjectId={null}
-					runtimeProjectConfig={createRuntimeConfigResponse("cline")}
+					runtimeProjectConfig={createRuntimeConfigResponse("nklein")}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={false}
 					onSnapshot={(snapshot) => {
@@ -234,7 +234,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("reopens once onboarding has already been shown when Cline has no local model configured", async () => {
+	it("reopens once onboarding has already been shown when NKlein has no local model configured", async () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -242,7 +242,7 @@ describe("useStartupOnboarding", () => {
 			root.render(
 				<HookHarness
 					currentProjectId={"project-1"}
-					runtimeProjectConfig={createRuntimeConfigResponse("cline")}
+					runtimeProjectConfig={createRuntimeConfigResponse("nklein")}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={false}
 					onSnapshot={(snapshot) => {
@@ -261,7 +261,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
 	});
 
-	it("stays closed once onboarding has already been shown and Cline has a local model configured", async () => {
+	it("stays closed once onboarding has already been shown and NKlein has a local model configured", async () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -269,8 +269,8 @@ describe("useStartupOnboarding", () => {
 			root.render(
 				<HookHarness
 					currentProjectId={"project-1"}
-					runtimeProjectConfig={createRuntimeConfigResponse("cline", {
-						clineProviderSettings: {
+					runtimeProjectConfig={createRuntimeConfigResponse("nklein", {
+						nkleinProviderSettings: {
 							providerId: "ollama",
 							modelId: "qwen3",
 							baseUrl: null,
@@ -300,14 +300,14 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("reopens after closing when a project still needs local Cline setup", async () => {
+	it("reopens after closing when a project still needs local NKlein setup", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 
 		await act(async () => {
 			root.render(
 				<HookHarness
 					currentProjectId={null}
-					runtimeProjectConfig={createRuntimeConfigResponse("cline")}
+					runtimeProjectConfig={createRuntimeConfigResponse("nklein")}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={false}
 					onSnapshot={(snapshot) => {
@@ -341,7 +341,7 @@ describe("useStartupOnboarding", () => {
 			root.render(
 				<HookHarness
 					currentProjectId={"project-1"}
-					runtimeProjectConfig={createRuntimeConfigResponse("cline")}
+					runtimeProjectConfig={createRuntimeConfigResponse("nklein")}
 					isRuntimeProjectConfigLoading={false}
 					isTaskAgentReady={false}
 					onSnapshot={(nextSnapshot) => {

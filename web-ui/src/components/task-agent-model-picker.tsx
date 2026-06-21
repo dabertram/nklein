@@ -4,50 +4,51 @@ import { ChevronDown } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ClineChatModelSelector } from "@/components/detail-panels/cline-chat-model-selector";
+import { NKleinChatModelSelector } from "@/components/detail-panels/nklein-chat-model-selector";
 import {
-	buildClineAgentModelPickerOptions,
-	buildClineSelectedModelButtonText,
-	getClineReasoningEnabledModelIds,
-} from "@/components/detail-panels/cline-model-picker-options";
+	buildNKleinAgentModelPickerOptions,
+	buildNKleinSelectedModelButtonText,
+	getNKleinReasoningEnabledModelIds,
+} from "@/components/detail-panels/nklein-model-picker-options";
 import { SearchSelectDropdown } from "@/components/search-select-dropdown";
 import { cn } from "@/components/ui/cn";
 import { NativeSelect } from "@/components/ui/native-select";
-import { isLmStudioProviderId } from "@/runtime/cline-context-window-policy";
-import { filterVisibleClineProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
-import { fetchClineProviderCatalog, fetchClineProviderModels } from "@/runtime/runtime-config-query";
+import { filterVisibleNKleinProviderCatalog, isKnownCloudProviderId } from "@/runtime/native-agent";
+import { isLmStudioProviderId } from "@/runtime/nklein-context-window-policy";
+import { fetchNKleinProviderCatalog, fetchNKleinProviderModels } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeAgentId,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderModel,
-	RuntimeClineReasoningEffort,
-	RuntimeTaskClineSettings,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderModel,
+	RuntimeNKleinReasoningEffort,
+	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
 
 // ---------------------------------------------------------------------------
-// Hook: manages fetch state for Cline provider catalog + model lists
+// Hook: manages fetch state for NKlein provider catalog + model lists
 // ---------------------------------------------------------------------------
 
 export interface UseTaskAgentModelPickerInput {
 	active: boolean;
 	workspaceId: string | null;
 	agentId: RuntimeAgentId | undefined;
-	clineSettings?: RuntimeTaskClineSettings;
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 	/** The default agent ID from runtimeConfig.selectedAgentId — used to build the first option label */
 	defaultAgentId?: RuntimeAgentId | null;
-	/** The default Cline provider ID from runtimeConfig.clineProviderSettings.providerId */
+	/** The default NKlein provider ID from runtimeConfig.nkleinProviderSettings.providerId */
 	defaultProviderId?: string | null;
-	/** The default Cline model ID from runtimeConfig.clineProviderSettings.modelId */
+	/** The default NKlein model ID from runtimeConfig.nkleinProviderSettings.modelId */
 	defaultModelId?: string | null;
+	/** Ignored in local-only builds; retained for older call sites/tests. */
 	cloudProviderSupportEnabled?: boolean;
 }
 
 export interface UseTaskAgentModelPickerResult {
 	agentOptions: Array<{ value: string; label: string }>;
-	clineProviderOptions: Array<{ value: string; label: string }>;
-	clineModelOptions: Array<{ value: string; label: string }>;
+	nkleinProviderOptions: Array<{ value: string; label: string }>;
+	nkleinModelOptions: Array<{ value: string; label: string }>;
 	effectiveDefaultModelId: string | null;
-	providerModels: RuntimeClineProviderModel[];
+	providerModels: RuntimeNKleinProviderModel[];
 	isLoadingProviders: boolean;
 	isLoadingModels: boolean;
 	/** Map of provider ID → its default model ID (from the provider catalog). */
@@ -58,14 +59,15 @@ export function useTaskAgentModelPicker({
 	active,
 	workspaceId,
 	agentId,
-	clineSettings,
+	nkleinSettings,
 	defaultAgentId,
 	defaultProviderId,
 	defaultModelId,
-	cloudProviderSupportEnabled = false,
+	cloudProviderSupportEnabled: _cloudProviderSupportEnabled = false,
 }: UseTaskAgentModelPickerInput): UseTaskAgentModelPickerResult {
-	const [providerCatalog, setProviderCatalog] = useState<RuntimeClineProviderCatalogItem[]>([]);
-	const [providerModels, setProviderModels] = useState<RuntimeClineProviderModel[]>([]);
+	void _cloudProviderSupportEnabled;
+	const [providerCatalog, setProviderCatalog] = useState<RuntimeNKleinProviderCatalogItem[]>([]);
+	const [providerModels, setProviderModels] = useState<RuntimeNKleinProviderModel[]>([]);
 	const [isLoadingProviders, setIsLoadingProviders] = useState(false);
 	const [isLoadingModels, setIsLoadingModels] = useState(false);
 
@@ -73,15 +75,15 @@ export function useTaskAgentModelPicker({
 	const effectiveAgentId = agentId ?? defaultAgentId ?? null;
 
 	useEffect(() => {
-		if (!active || effectiveAgentId !== "cline") {
+		if (!active || effectiveAgentId !== "nklein") {
 			return;
 		}
 		let cancelled = false;
 		setIsLoadingProviders(true);
-		void fetchClineProviderCatalog(workspaceId)
+		void fetchNKleinProviderCatalog(workspaceId)
 			.then((catalog) => {
 				if (!cancelled) {
-					setProviderCatalog(filterVisibleClineProviderCatalog(catalog, cloudProviderSupportEnabled));
+					setProviderCatalog(filterVisibleNKleinProviderCatalog(catalog, false));
 				}
 			})
 			.catch(() => {
@@ -97,20 +99,32 @@ export function useTaskAgentModelPicker({
 		return () => {
 			cancelled = true;
 		};
-	}, [active, cloudProviderSupportEnabled, effectiveAgentId, workspaceId]);
+	}, [active, effectiveAgentId, workspaceId]);
 
 	// Derive the effective provider: explicit override takes precedence, then the global default
-	const clineProviderId = clineSettings?.providerId;
-	const effectiveProviderId = (clineProviderId ?? defaultProviderId ?? "").trim() || null;
+	const nkleinProviderId = nkleinSettings?.providerId;
+	const requestedProviderId = (nkleinProviderId ?? defaultProviderId ?? "").trim();
+	const effectiveProviderId = useMemo(() => {
+		if (!requestedProviderId) {
+			return null;
+		}
+		if (providerCatalog.some((provider) => provider.id.trim().toLowerCase() === requestedProviderId.toLowerCase())) {
+			return requestedProviderId;
+		}
+		if (isKnownCloudProviderId(requestedProviderId)) {
+			return null;
+		}
+		return providerCatalog.length === 0 ? requestedProviderId : null;
+	}, [providerCatalog, requestedProviderId]);
 
 	useEffect(() => {
-		if (!active || effectiveAgentId !== "cline" || !effectiveProviderId) {
+		if (!active || effectiveAgentId !== "nklein" || !effectiveProviderId) {
 			setProviderModels([]);
 			return;
 		}
 		let cancelled = false;
 		setIsLoadingModels(true);
-		void fetchClineProviderModels(workspaceId, effectiveProviderId)
+		void fetchNKleinProviderModels(workspaceId, effectiveProviderId)
 			.then((models) => {
 				if (!cancelled) {
 					setProviderModels(models);
@@ -149,15 +163,11 @@ export function useTaskAgentModelPicker({
 		];
 	}, [defaultAgentId]);
 
-	const clineProviderOptions = useMemo(() => {
+	const nkleinProviderOptions = useMemo(() => {
 		let firstLabel = "Default";
 		if (defaultProviderId) {
 			const defaultProvider = providerCatalog.find((p) => p.id === defaultProviderId);
-			firstLabel = defaultProvider
-				? defaultProvider.name
-				: isKnownCloudProviderId(defaultProviderId)
-					? "Default"
-					: defaultProviderId;
+			firstLabel = defaultProvider ? defaultProvider.name : "Default";
 		}
 		return [
 			{ value: "", label: firstLabel },
@@ -181,37 +191,40 @@ export function useTaskAgentModelPicker({
 	// When an explicit provider override is selected, the "Default" model label should
 	// reflect that provider's default model — not the global settings model.
 	const effectiveDefaultModelId = useMemo(() => {
-		if (clineProviderId) {
-			if (isLmStudioProviderId(clineProviderId)) {
+		if (nkleinProviderId) {
+			if (isLmStudioProviderId(nkleinProviderId)) {
 				return null;
 			}
-			const provider = providerCatalog.find((p) => p.id === clineProviderId);
+			if (!effectiveProviderId) {
+				return null;
+			}
+			const provider = providerCatalog.find((p) => p.id === nkleinProviderId);
 			return provider?.defaultModelId ?? null;
 		}
 		const inheritedProviderDefaultModelId =
 			providerCatalog.find((p) => p.id === defaultProviderId)?.defaultModelId ?? null;
-		return defaultModelId ?? inheritedProviderDefaultModelId;
-	}, [clineProviderId, defaultModelId, defaultProviderId, providerCatalog]);
+		return effectiveProviderId ? (defaultModelId ?? inheritedProviderDefaultModelId) : null;
+	}, [nkleinProviderId, effectiveProviderId, defaultModelId, defaultProviderId, providerCatalog]);
 
-	const clineModelOptions = useMemo(() => {
+	const nkleinModelOptions = useMemo(() => {
 		let defaultLabel = "Default";
 		if (effectiveDefaultModelId) {
 			const defaultModel = providerModels.find((m) => m.id === effectiveDefaultModelId);
 			defaultLabel = defaultModel ? defaultModel.name : effectiveDefaultModelId;
 		}
 		const defaultOptions =
-			clineProviderId && isLmStudioProviderId(clineProviderId) ? [] : [{ value: "", label: defaultLabel }];
+			nkleinProviderId && isLmStudioProviderId(nkleinProviderId) ? [] : [{ value: "", label: defaultLabel }];
 		return [
 			...defaultOptions,
 			// Exclude the default model from the explicit list — it's already represented by the first option
 			...providerModels.filter((m) => m.id !== effectiveDefaultModelId).map((m) => ({ value: m.id, label: m.name })),
 		];
-	}, [clineProviderId, providerModels, effectiveDefaultModelId]);
+	}, [nkleinProviderId, providerModels, effectiveDefaultModelId]);
 
 	return {
 		agentOptions,
-		clineProviderOptions,
-		clineModelOptions,
+		nkleinProviderOptions,
+		nkleinModelOptions,
 		effectiveDefaultModelId,
 		providerModels,
 		isLoadingProviders,
@@ -220,7 +233,7 @@ export function useTaskAgentModelPicker({
 	};
 }
 
-function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTaskClineSettings | undefined {
+function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings | undefined {
 	if (settings === undefined) {
 		return undefined;
 	}
@@ -234,17 +247,17 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTas
 }
 
 // ---------------------------------------------------------------------------
-// Component: renders Agent, Cline provider, and Cline model pickers
+// Component: renders Agent, NKlein provider, and NKlein model pickers
 // ---------------------------------------------------------------------------
 
 export function TaskAgentModelPicker({
 	agentId,
 	onAgentIdChange,
-	clineSettings,
-	onClineSettingsChange,
+	nkleinSettings,
+	onNKleinSettingsChange,
 	agentOptions,
-	clineProviderOptions,
-	clineModelOptions,
+	nkleinProviderOptions,
+	nkleinModelOptions,
 	effectiveDefaultModelId = null,
 	providerModels = [],
 	isLoadingProviders,
@@ -257,59 +270,59 @@ export function TaskAgentModelPicker({
 }: {
 	agentId: RuntimeAgentId | undefined;
 	onAgentIdChange: (value: RuntimeAgentId | undefined) => void;
-	clineSettings?: RuntimeTaskClineSettings | undefined;
-	onClineSettingsChange?: (value: RuntimeTaskClineSettings | undefined) => void;
+	nkleinSettings?: RuntimeTaskNKleinSettings | undefined;
+	onNKleinSettingsChange?: (value: RuntimeTaskNKleinSettings | undefined) => void;
 	agentOptions: Array<{ value: string; label: string }>;
-	clineProviderOptions: Array<{ value: string; label: string }>;
-	clineModelOptions: Array<{ value: string; label: string }>;
+	nkleinProviderOptions: Array<{ value: string; label: string }>;
+	nkleinModelOptions: Array<{ value: string; label: string }>;
 	effectiveDefaultModelId?: string | null;
-	providerModels?: RuntimeClineProviderModel[];
+	providerModels?: RuntimeNKleinProviderModel[];
 	isLoadingProviders: boolean;
 	isLoadingModels: boolean;
 	onPopoverOpenChange?: (open: boolean) => void;
-	/** The default agent ID from runtimeConfig — used to decide if Cline pickers should show by default */
+	/** The default agent ID from runtimeConfig — used to decide if NKlein pickers should show by default */
 	defaultAgentId?: RuntimeAgentId | null;
-	/** The default Cline provider ID from runtimeConfig — used to decide if model picker should show by default */
+	/** The default NKlein provider ID from runtimeConfig — used to decide if model picker should show by default */
 	defaultProviderId?: string | null;
-	/** The global default reasoning effort from runtimeConfig.clineProviderSettings.reasoningEffort */
-	defaultReasoningEffort?: RuntimeClineReasoningEffort | null;
+	/** The global default reasoning effort from runtimeConfig.nkleinProviderSettings.reasoningEffort */
+	defaultReasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	/** Map of provider ID → its default model ID (from the provider catalog). */
 	providerDefaultModels?: Record<string, string>;
 }): ReactElement {
-	const clineProviderId = clineSettings?.providerId;
-	const clineModelId = clineSettings?.modelId;
-	const clineReasoningEffort = clineSettings?.reasoningEffort;
+	const nkleinProviderId = nkleinSettings?.providerId;
+	const nkleinModelId = nkleinSettings?.modelId;
+	const nkleinReasoningEffort = nkleinSettings?.reasoningEffort;
 
-	const updateTaskClineSettings = useCallback(
-		(updater: (current: RuntimeTaskClineSettings | undefined) => RuntimeTaskClineSettings | undefined) => {
-			onClineSettingsChange?.(updater(cloneTaskClineSettings(clineSettings)));
+	const updateTaskNKleinSettings = useCallback(
+		(updater: (current: RuntimeTaskNKleinSettings | undefined) => RuntimeTaskNKleinSettings | undefined) => {
+			onNKleinSettingsChange?.(updater(cloneTaskNKleinSettings(nkleinSettings)));
 		},
-		[clineSettings, onClineSettingsChange],
+		[nkleinSettings, onNKleinSettingsChange],
 	);
 
-	// Show the Cline provider picker when the effective agent is "cline"
-	// (either explicitly overridden to cline, or defaulting to cline)
+	// Show the NKlein provider picker when the effective agent is "nklein"
+	// (either explicitly overridden to nklein, or defaulting to nklein)
 	const effectiveAgentId = agentId ?? defaultAgentId ?? null;
-	const showClineProviderPicker = effectiveAgentId === "cline";
+	const showNKleinProviderPicker = effectiveAgentId === "nklein";
 
-	// Show the Cline model picker when a provider is effectively selected
+	// Show the NKlein model picker when a provider is effectively selected
 	// (either explicitly overridden, or the global default provider is set)
-	const effectiveProviderId = clineProviderId ?? defaultProviderId ?? null;
-	const hasExplicitLmStudioProviderOverride = clineProviderId !== undefined && isLmStudioProviderId(clineProviderId);
-	const showClineModelPicker = showClineProviderPicker && Boolean(effectiveProviderId);
-	const hasTaskClineSettingsOverride = clineSettings !== undefined;
-	const selectedTaskReasoningEffort = clineReasoningEffort ?? "";
+	const effectiveProviderId = nkleinProviderId ?? defaultProviderId ?? null;
+	const hasExplicitLmStudioProviderOverride = nkleinProviderId !== undefined && isLmStudioProviderId(nkleinProviderId);
+	const showNKleinModelPicker = showNKleinProviderPicker && Boolean(effectiveProviderId);
+	const hasTaskNKleinSettingsOverride = nkleinSettings !== undefined;
+	const selectedTaskReasoningEffort = nkleinReasoningEffort ?? "";
 	const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 	const [isProviderPopoverOpen, setIsProviderPopoverOpen] = useState(false);
 	const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false);
-	const [reasoningEffort, setReasoningEffort] = useState<RuntimeClineReasoningEffort | "">(
-		hasTaskClineSettingsOverride ? selectedTaskReasoningEffort : (defaultReasoningEffort ?? ""),
+	const [reasoningEffort, setReasoningEffort] = useState<RuntimeNKleinReasoningEffort | "">(
+		hasTaskNKleinSettingsOverride ? selectedTaskReasoningEffort : (defaultReasoningEffort ?? ""),
 	);
 	const setReasoningEffortWithOverride = useCallback(
-		(nextReasoningEffort: RuntimeClineReasoningEffort | "") => {
+		(nextReasoningEffort: RuntimeNKleinReasoningEffort | "") => {
 			setReasoningEffort(nextReasoningEffort);
-			updateTaskClineSettings((currentSettings) => {
-				const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
+			updateTaskNKleinSettings((currentSettings) => {
+				const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
 				if (nextReasoningEffort) {
 					nextSettings.reasoningEffort = nextReasoningEffort;
 					return nextSettings;
@@ -326,12 +339,12 @@ export function TaskAgentModelPicker({
 				return undefined;
 			});
 		},
-		[defaultReasoningEffort, updateTaskClineSettings],
+		[defaultReasoningEffort, updateTaskNKleinSettings],
 	);
 
 	const modelPickerOptions = useMemo(() => {
-		const defaultOption = clineModelOptions.find((option) => option.value === "");
-		const explicitOptions = clineModelOptions.filter((option) => option.value !== "");
+		const defaultOption = nkleinModelOptions.find((option) => option.value === "");
+		const explicitOptions = nkleinModelOptions.filter((option) => option.value !== "");
 		const providerId = (effectiveProviderId ?? "").trim();
 
 		if (!providerId || explicitOptions.length === 0) {
@@ -342,7 +355,7 @@ export function TaskAgentModelPicker({
 			};
 		}
 
-		const orderedOptions = buildClineAgentModelPickerOptions(providerId, providerModels);
+		const orderedOptions = buildNKleinAgentModelPickerOptions(providerId, providerModels);
 		const explicitOptionByValue = new Map(explicitOptions.map((option) => [option.value, option] as const));
 		const orderedExplicit = orderedOptions.options
 			.map((option) => explicitOptionByValue.get(option.value))
@@ -355,11 +368,11 @@ export function TaskAgentModelPicker({
 			recommendedModelIds: orderedOptions.recommendedModelIds,
 			shouldPinSelectedModelToTop: orderedOptions.shouldPinSelectedModelToTop,
 		};
-	}, [clineModelOptions, effectiveProviderId, providerModels]);
+	}, [nkleinModelOptions, effectiveProviderId, providerModels]);
 
-	const reasoningEnabledModelIds = useMemo(() => getClineReasoningEnabledModelIds(providerModels), [providerModels]);
+	const reasoningEnabledModelIds = useMemo(() => getNKleinReasoningEnabledModelIds(providerModels), [providerModels]);
 	const reasoningEnabledModelIdSet = useMemo(() => new Set(reasoningEnabledModelIds), [reasoningEnabledModelIds]);
-	const effectiveSelectedModelId = (clineModelId ?? effectiveDefaultModelId ?? "").trim();
+	const effectiveSelectedModelId = (nkleinModelId ?? effectiveDefaultModelId ?? "").trim();
 	const selectedModelCapabilityKnown = useMemo(
 		() => providerModels.some((model) => model.id === effectiveSelectedModelId),
 		[effectiveSelectedModelId, providerModels],
@@ -367,23 +380,23 @@ export function TaskAgentModelPicker({
 	const selectedModelSupportsReasoningEffort = reasoningEnabledModelIdSet.has(effectiveSelectedModelId);
 
 	useEffect(() => {
-		if (!hasTaskClineSettingsOverride) {
+		if (!hasTaskNKleinSettingsOverride) {
 			return;
 		}
 		if (selectedTaskReasoningEffort !== reasoningEffort) {
 			setReasoningEffort(selectedTaskReasoningEffort);
 		}
-	}, [hasTaskClineSettingsOverride, reasoningEffort, selectedTaskReasoningEffort]);
+	}, [hasTaskNKleinSettingsOverride, reasoningEffort, selectedTaskReasoningEffort]);
 
 	useEffect(() => {
-		if (hasTaskClineSettingsOverride) {
+		if (hasTaskNKleinSettingsOverride) {
 			return;
 		}
 		const inheritedReasoningEffort = defaultReasoningEffort ?? "";
 		if (reasoningEffort !== inheritedReasoningEffort) {
 			setReasoningEffort(inheritedReasoningEffort);
 		}
-	}, [defaultReasoningEffort, hasTaskClineSettingsOverride, reasoningEffort]);
+	}, [defaultReasoningEffort, hasTaskNKleinSettingsOverride, reasoningEffort]);
 
 	useEffect(() => {
 		if (!isSettingsExpanded) {
@@ -412,15 +425,15 @@ export function TaskAgentModelPicker({
 
 	const selectedModelButtonText = useMemo(
 		() =>
-			buildClineSelectedModelButtonText({
+			buildNKleinSelectedModelButtonText({
 				modelOptions: modelPickerOptions.options,
-				selectedModelId: clineModelId ?? "",
+				selectedModelId: nkleinModelId ?? "",
 				reasoningEffort,
 				showReasoningEffort: selectedModelSupportsReasoningEffort,
 				isModelLoading: isLoadingModels,
 			}),
 		[
-			clineModelId,
+			nkleinModelId,
 			isLoadingModels,
 			modelPickerOptions.options,
 			reasoningEffort,
@@ -438,16 +451,16 @@ export function TaskAgentModelPicker({
 	// effect fires on the initial render before models have been fetched —
 	// at that point isLoadingModels is still false (hasn't been set to true
 	// yet by the fetch effect) and the stale/empty options list would
-	// incorrectly clear a valid saved clineModelId.
+	// incorrectly clear a valid saved nkleinModelId.
 	useEffect(() => {
-		if (isLoadingModels || !clineModelId || modelPickerOptions.options.length <= 1) {
+		if (isLoadingModels || !nkleinModelId || modelPickerOptions.options.length <= 1) {
 			return;
 		}
-		const modelExists = modelPickerOptions.options.some((opt) => opt.value === clineModelId);
+		const modelExists = modelPickerOptions.options.some((opt) => opt.value === nkleinModelId);
 		if (!modelExists) {
 			const firstRealModel = modelPickerOptions.options.find((opt) => opt.value !== "");
-			updateTaskClineSettings((currentSettings) => {
-				const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
+			updateTaskNKleinSettings((currentSettings) => {
+				const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
 				if (firstRealModel?.value) {
 					nextSettings.modelId = firstRealModel.value;
 					return nextSettings;
@@ -459,26 +472,26 @@ export function TaskAgentModelPicker({
 					: undefined;
 			});
 		}
-	}, [clineModelId, isLoadingModels, modelPickerOptions.options, updateTaskClineSettings]);
+	}, [nkleinModelId, isLoadingModels, modelPickerOptions.options, updateTaskNKleinSettings]);
 
 	useEffect(() => {
-		if (isLoadingModels || !hasExplicitLmStudioProviderOverride || clineModelId) {
+		if (isLoadingModels || !hasExplicitLmStudioProviderOverride || nkleinModelId) {
 			return;
 		}
 		const firstLoadedModel = modelPickerOptions.options.find((option) => option.value !== "");
 		if (!firstLoadedModel) {
 			return;
 		}
-		updateTaskClineSettings((currentSettings) => ({
-			...(cloneTaskClineSettings(currentSettings) ?? {}),
+		updateTaskNKleinSettings((currentSettings) => ({
+			...(cloneTaskNKleinSettings(currentSettings) ?? {}),
 			modelId: firstLoadedModel.value,
 		}));
 	}, [
-		clineModelId,
+		nkleinModelId,
 		hasExplicitLmStudioProviderOverride,
 		isLoadingModels,
 		modelPickerOptions.options,
-		updateTaskClineSettings,
+		updateTaskNKleinSettings,
 	]);
 
 	return (
@@ -507,8 +520,8 @@ export function TaskAgentModelPicker({
 								onChange={(e) => {
 									const value = e.currentTarget.value;
 									onAgentIdChange(value ? (value as RuntimeAgentId) : undefined);
-									if (value !== "cline") {
-										onClineSettingsChange?.(undefined);
+									if (value !== "nklein") {
+										onNKleinSettingsChange?.(undefined);
 										setReasoningEffort("");
 									}
 								}}
@@ -520,23 +533,23 @@ export function TaskAgentModelPicker({
 								))}
 							</NativeSelect>
 						</div>
-						{showClineProviderPicker ? (
+						{showNKleinProviderPicker ? (
 							<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 								<div className="min-w-0">
 									<span className="text-[11px] text-text-secondary block mb-1">
 										Provider{isLoadingProviders ? " (loading\u2026)" : ""}
 									</span>
 									<SearchSelectDropdown
-										options={clineProviderOptions}
-										selectedValue={clineProviderId ?? ""}
+										options={nkleinProviderOptions}
+										selectedValue={nkleinProviderId ?? ""}
 										onSelect={(value) => {
 											const newProviderId = value || undefined;
 											const newDefaultModel =
 												newProviderId && providerDefaultModels && !isLmStudioProviderId(newProviderId)
 													? providerDefaultModels[newProviderId]
 													: undefined;
-											updateTaskClineSettings((currentSettings) => {
-												const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
+											updateTaskNKleinSettings((currentSettings) => {
+												const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
 												if (newProviderId) {
 													nextSettings.providerId = newProviderId;
 												} else {
@@ -557,7 +570,7 @@ export function TaskAgentModelPicker({
 											});
 											setReasoningEffort(
 												newProviderId ||
-													(clineSettings !== undefined && Object.keys(clineSettings).length === 0)
+													(nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0)
 													? ""
 													: (defaultReasoningEffort ?? ""),
 											);
@@ -572,20 +585,20 @@ export function TaskAgentModelPicker({
 										onPopoverOpenChange={setIsProviderPopoverOpen}
 									/>
 								</div>
-								{showClineModelPicker ? (
+								{showNKleinModelPicker ? (
 									<div className="min-w-0">
 										<span className="text-[11px] text-text-secondary block mb-1">
 											Model{isLoadingModels ? " (loading\u2026)" : ""}
 										</span>
-										<ClineChatModelSelector
+										<NKleinChatModelSelector
 											modelOptions={modelPickerOptions.options}
 											recommendedModelIds={modelPickerOptions.recommendedModelIds}
 											pinSelectedModelToTop={modelPickerOptions.shouldPinSelectedModelToTop}
-											selectedModelId={clineModelId ?? ""}
+											selectedModelId={nkleinModelId ?? ""}
 											selectedModelButtonText={selectedModelButtonText}
 											onSelectModel={(value) => {
-												updateTaskClineSettings((currentSettings) => {
-													const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
+												updateTaskNKleinSettings((currentSettings) => {
+													const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
 													if (value) {
 														nextSettings.modelId = value;
 													} else {
@@ -603,9 +616,9 @@ export function TaskAgentModelPicker({
 														? nextSettings
 														: undefined;
 												});
-												if (!value && !clineProviderId) {
+												if (!value && !nkleinProviderId) {
 													setReasoningEffort(
-														clineSettings !== undefined && Object.keys(clineSettings).length === 0
+														nkleinSettings !== undefined && Object.keys(nkleinSettings).length === 0
 															? ""
 															: (defaultReasoningEffort ?? ""),
 													);
@@ -617,7 +630,7 @@ export function TaskAgentModelPicker({
 											}}
 											reasoningEnabledModelIds={reasoningEnabledModelIds}
 											defaultOptionSupportsReasoningEffort={
-												!clineModelId && selectedModelSupportsReasoningEffort
+												!nkleinModelId && selectedModelSupportsReasoningEffort
 											}
 											selectedReasoningEffort={reasoningEffort}
 											onSelectReasoningEffort={(nextReasoningEffort) =>

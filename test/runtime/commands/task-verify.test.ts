@@ -3,20 +3,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
-import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import {
 	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,
 	addPlanGapScopeCardToBoard,
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
-	inferClinePlanSlugForTask,
+	inferNKleinPlanSlugForTask,
 	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
 } from "../../../src/commands/task";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
+import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
 
 const COLUMN_IDS: RuntimeBoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
 
@@ -59,7 +59,7 @@ function createWorkspaceState(prompt: string): RuntimeWorkspaceStateResponse {
 
 function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] = {}): RuntimeConfigState {
 	return {
-		selectedAgentId: "cline",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
@@ -122,21 +122,21 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/repo/.cline/worktrees/task-1/repo"),
+				resolveTaskCwd: vi.fn(async () => "/repo/.nklein/worktrees/task-1/repo"),
 				runAcceptanceGate,
 			},
 		);
 
 		expect(runAcceptanceGate).toHaveBeenCalledWith({
 			taskId: "task-1",
-			workspacePath: "/repo/.cline/worktrees/task-1/repo",
+			workspacePath: "/repo/.nklein/worktrees/task-1/repo",
 			taskPrompt: "Acceptance check: npm test",
 			timeoutMs: undefined,
 		});
 		expect(result).toMatchObject({
 			ok: true,
 			workspacePath: "/repo",
-			taskWorkspacePath: "/repo/.cline/worktrees/task-1/repo",
+			taskWorkspacePath: "/repo/.nklein/worktrees/task-1/repo",
 			acceptance: {
 				passed: true,
 				command: "npm test",
@@ -476,13 +476,13 @@ describe("task decompose command telemetry", () => {
 			workspacePath: "/repo",
 			slug: "checkout-rework",
 			title: "Checkout rework",
-			specPath: "/repo/.cline/nklein/plans/checkout-rework/spec.md",
-			planPath: "/repo/.cline/nklein/plans/checkout-rework/plan.md",
-			questionsPath: "/repo/.cline/nklein/plans/checkout-rework/questions.md",
-			decisionsPath: "/repo/.cline/nklein/plans/checkout-rework/decisions.md",
-			revisionsPath: "/repo/.cline/nklein/plans/checkout-rework/revisions.md",
-			summaryPath: "/repo/.cline/nklein/plans/checkout-rework/summary.md",
-			taskGraphPath: "/repo/.cline/nklein/plans/checkout-rework/tasks.json",
+			specPath: "/repo/.nklein/nklein/plans/checkout-rework/spec.md",
+			planPath: "/repo/.nklein/nklein/plans/checkout-rework/plan.md",
+			questionsPath: "/repo/.nklein/nklein/plans/checkout-rework/questions.md",
+			decisionsPath: "/repo/.nklein/nklein/plans/checkout-rework/decisions.md",
+			revisionsPath: "/repo/.nklein/nklein/plans/checkout-rework/revisions.md",
+			summaryPath: "/repo/.nklein/nklein/plans/checkout-rework/summary.md",
+			taskGraphPath: "/repo/.nklein/nklein/plans/checkout-rework/tasks.json",
 			error: new Error("Task api has complexity 90/100; split it below 75/100 before decomposing."),
 			recordObservation,
 		});
@@ -496,13 +496,13 @@ describe("task decompose command telemetry", () => {
 			metadata: {
 				slug: "checkout-rework",
 				title: "Checkout rework",
-				specPath: "/repo/.cline/nklein/plans/checkout-rework/spec.md",
-				planPath: "/repo/.cline/nklein/plans/checkout-rework/plan.md",
-				questionsPath: "/repo/.cline/nklein/plans/checkout-rework/questions.md",
-				decisionsPath: "/repo/.cline/nklein/plans/checkout-rework/decisions.md",
-				revisionsPath: "/repo/.cline/nklein/plans/checkout-rework/revisions.md",
-				summaryPath: "/repo/.cline/nklein/plans/checkout-rework/summary.md",
-				taskGraphPath: "/repo/.cline/nklein/plans/checkout-rework/tasks.json",
+				specPath: "/repo/.nklein/nklein/plans/checkout-rework/spec.md",
+				planPath: "/repo/.nklein/nklein/plans/checkout-rework/plan.md",
+				questionsPath: "/repo/.nklein/nklein/plans/checkout-rework/questions.md",
+				decisionsPath: "/repo/.nklein/nklein/plans/checkout-rework/decisions.md",
+				revisionsPath: "/repo/.nklein/nklein/plans/checkout-rework/revisions.md",
+				summaryPath: "/repo/.nklein/nklein/plans/checkout-rework/summary.md",
+				taskGraphPath: "/repo/.nklein/nklein/plans/checkout-rework/tasks.json",
 				error: "Task api has complexity 90/100; split it below 75/100 before decomposing.",
 			},
 		});
@@ -530,7 +530,7 @@ describe("task start command blocking", () => {
 describe("task plan-gap adaptation", () => {
 	it("infers the plan slug for a decomposition-created task id", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-gap-infer-"));
-		await writeClinePlanArtifacts({
+		await writeNKleinPlanArtifacts({
 			workspacePath,
 			slug: "Checkout Rework",
 			spec: "Rework checkout.",
@@ -557,7 +557,7 @@ describe("task plan-gap adaptation", () => {
 		});
 
 		await expect(
-			inferClinePlanSlugForTask({
+			inferNKleinPlanSlugForTask({
 				workspacePath,
 				taskId: "checkout-rework-api",
 			}),
@@ -566,7 +566,7 @@ describe("task plan-gap adaptation", () => {
 
 	it("infers a plan slug for collision-suffixed task ids when unambiguous", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-plan-gap-suffix-"));
-		await writeClinePlanArtifacts({
+		await writeNKleinPlanArtifacts({
 			workspacePath,
 			slug: "Checkout Rework",
 			spec: "Rework checkout.",
@@ -593,7 +593,7 @@ describe("task plan-gap adaptation", () => {
 		});
 
 		await expect(
-			inferClinePlanSlugForTask({
+			inferNKleinPlanSlugForTask({
 				workspacePath,
 				taskId: "checkout-rework-api-2",
 			}),
@@ -606,7 +606,7 @@ describe("task plan-gap adaptation", () => {
 			{ slug: "Checkout", taskId: "rework-api" },
 			{ slug: "Checkout Rework", taskId: "api" },
 		]) {
-			await writeClinePlanArtifacts({
+			await writeNKleinPlanArtifacts({
 				workspacePath,
 				slug: plan.slug,
 				spec: "Rework checkout.",
@@ -634,7 +634,7 @@ describe("task plan-gap adaptation", () => {
 		}
 
 		await expect(
-			inferClinePlanSlugForTask({
+			inferNKleinPlanSlugForTask({
 				workspacePath,
 				taskId: "checkout-rework-api",
 			}),
@@ -663,7 +663,7 @@ describe("task plan-gap adaptation", () => {
 			startInPlanMode: true,
 			autoReviewEnabled: true,
 			autoReviewMode: "commit",
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: "main",
 		});
 		expect(planningCard?.prompt).toContain('reported by task "task-1"');
@@ -730,7 +730,7 @@ describe("task plan-gap adaptation", () => {
 			title: "Resolve plan decision gap from task-1",
 			startInPlanMode: true,
 			autoReviewEnabled: false,
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: "main",
 		});
 		expect(planningCard?.prompt).toContain("Ask the user for the smallest decision");
@@ -760,7 +760,7 @@ describe("task plan-gap adaptation", () => {
 			title: "Split oversized plan gap from task-1",
 			startInPlanMode: true,
 			autoReviewEnabled: false,
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: "main",
 		});
 		expect(planningCard?.prompt).toContain("recursive expansions");

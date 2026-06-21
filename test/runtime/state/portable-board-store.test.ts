@@ -49,7 +49,7 @@ describe("portable board store", () => {
 	it("exports the board to a committed CRDT file and imports it back", async () => {
 		const original = board([{ columnId: "planning", card: card("a") }]);
 		const exported = await exportLocalBoardToPortableCrdt({ repoPath, board: original, replicaId: "m1" });
-		expect(exported.path).toContain(join(".cline", "nklein", "workspace", "board-crdt.json"));
+		expect(exported.path).toContain(join(".nklein", "nklein", "workspace", "board-crdt.json"));
 
 		const committed = await readPortableBoardCrdt(repoPath);
 		expect(committed?.cards.a).toBeTruthy();
@@ -74,20 +74,20 @@ describe("portable board store", () => {
 		expect(inProgress?.cards[0]?.prompt).toBe("new");
 	});
 
-	it("strips machine-local clineSettings on import for local re-resolution", () => {
+	it("strips machine-local nkleinSettings on import for local re-resolution", () => {
 		const withSettings = board([
 			{
 				columnId: "planning",
 				card: card("a", {
-					clineSettings: { providerId: "lmstudio", modelId: "qwen" },
+					nkleinSettings: { providerId: "lmstudio", modelId: "qwen" },
 				} as Partial<RuntimeBoardCard>),
 			},
 		]);
 		const prepared = prepareImportedBoardForLocalModels(withSettings);
 		const preparedCard = prepared.columns.flatMap((column) => column.cards).find((entry) => entry.id === "a");
 		expect(preparedCard).toBeTruthy();
-		expect("clineSettings" in (preparedCard as object)).toBe(false);
-		// agentId is preserved (always cline under local-only); only the model assignment is dropped.
+		expect("nkleinSettings" in (preparedCard as object)).toBe(false);
+		// agentId is preserved (always nklein under local-only); only the model assignment is dropped.
 		expect(preparedCard?.baseRef).toBe("main");
 	});
 

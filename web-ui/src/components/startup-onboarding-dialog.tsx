@@ -10,8 +10,8 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/
 import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
-	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
+	RuntimeNKleinProviderSettings,
 } from "@/runtime/types";
 
 export function StartupOnboardingDialog({
@@ -19,21 +19,21 @@ export function StartupOnboardingDialog({
 	onClose,
 	selectedAgentId,
 	agents,
-	clineProviderSettings,
+	nkleinProviderSettings,
 	onSelectAgent,
 	workspaceId,
 	runtimeConfig,
-	onClineSetupSaved,
+	onNKleinSetupSaved,
 }: {
 	open: boolean;
 	onClose: () => void;
 	selectedAgentId?: RuntimeAgentId | null;
 	agents?: RuntimeAgentDefinition[];
-	clineProviderSettings?: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 	onSelectAgent?: (agentId: RuntimeAgentId) => Promise<{ ok: boolean; message?: string }>;
 	workspaceId?: string | null;
 	runtimeConfig?: RuntimeConfigResponse | null;
-	onClineSetupSaved?: () => void;
+	onNKleinSetupSaved?: () => void;
 }): ReactElement {
 	const [onboardingSlideIndex, setOnboardingSlideIndex] = useState(0);
 	const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
@@ -93,10 +93,10 @@ export function StartupOnboardingDialog({
 					runtimeConfig={runtimeConfig ?? null}
 					selectedAgentId={selectedAgentId ?? null}
 					agents={agents ?? []}
-					clineProviderSettings={clineProviderSettings ?? null}
+					nkleinProviderSettings={nkleinProviderSettings ?? null}
 					activeSlideIndex={onboardingSlideIndex}
 					onSelectAgent={onSelectAgent}
-					onClineSetupSaved={onClineSetupSaved}
+					onNKleinSetupSaved={onNKleinSetupSaved}
 					onDoneActionChange={handleOnboardingDoneActionChange}
 				/>
 			</DialogBody>

@@ -288,7 +288,7 @@ export function ModelPerformanceStatsDialog({
 							{recentObservations.length === 0 ? (
 								<tr className="border-t border-border bg-surface-2">
 									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={9}>
-										Start or finish Cline cards to populate this view.
+										Start or finish NKlein cards to populate this view.
 									</td>
 								</tr>
 							) : null}
@@ -399,7 +399,7 @@ function KnowledgeToolObservationTable({
 					{observations.length === 0 ? (
 						<tr className="border-t border-border bg-surface-2">
 							<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={8}>
-								Start Cline cards that use retrieval, file, search, or knowledge tools to populate this view.
+								Start NKlein cards that use retrieval, file, search, or knowledge tools to populate this view.
 							</td>
 						</tr>
 					) : null}

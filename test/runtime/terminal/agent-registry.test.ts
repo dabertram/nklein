@@ -134,9 +134,9 @@ describe("buildRuntimeConfigResponse", () => {
 				modelId: "qwen3.5-9b",
 			},
 		});
-		expect(response.agents.map((agent) => agent.id)).toEqual(["cline"]);
-		expect(response.agents.find((agent) => agent.id === "cline")?.defaultArgs).toEqual([]);
-		expect(response.agents.find((agent) => agent.id === "cline")?.installed).toBe(true);
+		expect(response.agents.map((agent) => agent.id)).toEqual(["nklein"]);
+		expect(response.agents.find((agent) => agent.id === "nklein")?.defaultArgs).toEqual([]);
+		expect(response.agents.find((agent) => agent.id === "nklein")?.installed).toBe(true);
 	});
 
 	it("omits autonomous flags from curated agent commands when disabled", () => {
@@ -158,10 +158,10 @@ describe("buildRuntimeConfigResponse", () => {
 		});
 
 		expect(response.agentAutonomousModeEnabled).toBe(false);
-		expect(response.agents.map((agent) => agent.id)).toEqual(["cline"]);
-		expect(response.agents.find((agent) => agent.id === "cline")?.defaultArgs).toEqual([]);
-		expect(response.agents.find((agent) => agent.id === "cline")?.installed).toBe(true);
-		expect(response.agents.find((agent) => agent.id === "cline")?.command).toBe("cline");
+		expect(response.agents.map((agent) => agent.id)).toEqual(["nklein"]);
+		expect(response.agents.find((agent) => agent.id === "nklein")?.defaultArgs).toEqual([]);
+		expect(response.agents.find((agent) => agent.id === "nklein")?.installed).toBe(true);
+		expect(response.agents.find((agent) => agent.id === "nklein")?.command).toBe("nklein");
 	});
 
 	it("returns the normalized developer mode setting from runtime config", () => {

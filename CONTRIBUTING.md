@@ -1,12 +1,12 @@
 # Contributing to !Klein
 
-Thanks for your interest in contributing to !Klein. This fork is focused on making local-first coding-agent orchestration work well on limited hardware, especially with smaller local Cline-compatible models.
+Thanks for your interest in contributing to !Klein. This fork is focused on making local-first coding-agent orchestration work well on limited hardware, especially with smaller local NKlein-compatible models.
 
 For naming: use `!Klein` in user-facing copy and `nklein` for CLI references. The repository path and some compatibility internals still use `kanban`.
 
 ## What We're Looking For
 
-!Klein currently supports Claude, Codex, Gemini, OpenCode, Droid, Kiro, and Cline as runtime agents, and runs on macOS, Linux, and Windows. The surface area for cross-compatibility issues is large, and that's where contributions have the most impact.
+!Klein currently supports Claude, Codex, Gemini, OpenCode, Droid, Kiro, and NKlein as runtime agents, and runs on macOS, Linux, and Windows. The surface area for cross-compatibility issues is large, and that's where contributions have the most impact.
 
 We are actively looking for help with:
 
@@ -27,7 +27,7 @@ Before opening a new issue, search existing issues to avoid duplicates. When fil
 - Expected vs. actual behavior
 - Any relevant terminal output or screenshots
 
-If you discover a security vulnerability, please report it privately using [GitHub's security advisory tool](https://github.com/cline/kanban/security/advisories/new).
+If you discover a security vulnerability, please report it privately using [GitHub's security advisory tool](https://github.com/nklein/kanban/security/advisories/new).
 
 ## Before Contributing
 
@@ -39,7 +39,7 @@ PRs without a corresponding issue may be closed.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/cline/kanban.git
+   git clone https://github.com/nklein/kanban.git
    cd kanban
    ```
 
@@ -88,14 +88,14 @@ Look at the existing agent implementations in `src/` for reference. The agent li
 
 ## Philosophy
 
-!Klein is in fork-foundation mode. Favor clear primitives, local-model reliability, and good tooling over early complexity. Upstream Cline Kanban changes may be checked and integrated when useful, but this fork does not optimize for strict upstream parity.
+!Klein is in fork-foundation mode. Favor clear primitives, local-model reliability, and good tooling over early complexity. Upstream NKlein Kanban changes may be checked and integrated when useful, but this fork does not optimize for strict upstream parity.
 
 The main driver is making smaller local LLMs usable on limited hardware. Early fork work addressed practical blockers like the long-turn HTTP body-timeout failure path, then kept going to improve reliability, guardrails, and day-to-day usability for small-model workflows.
 
 ## Community
 
 - Use this repository's issues/discussions for fork-specific work.
-- Upstream Cline Kanban remains useful context, but !Klein may intentionally diverge.
+- Upstream NKlein Kanban remains useful context, but !Klein may intentionally diverge.
 
 ## License
 

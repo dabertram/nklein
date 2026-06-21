@@ -22,7 +22,7 @@ describe("card pause persistence", () => {
 		const workspacePath = await createWorkspace();
 
 		await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
-		expect(getPausedTasksPath(workspacePath)).toBe(join(workspacePath, ".cline", "nklein", "paused-tasks.json"));
+		expect(getPausedTasksPath(workspacePath)).toBe(join(workspacePath, ".nklein", "nklein", "paused-tasks.json"));
 
 		const pausedAfterFirstTask = await setCardPaused({
 			workspacePath,

@@ -71,7 +71,7 @@ export const runtimeSlashCommandsResponseSchema = z.object({
 });
 export type RuntimeSlashCommandsResponse = z.infer<typeof runtimeSlashCommandsResponseSchema>;
 
-export const runtimeAgentIdSchema = z.enum(["claude", "codex", "gemini", "opencode", "droid", "kiro", "cline"]);
+export const runtimeAgentIdSchema = z.enum(["claude", "codex", "gemini", "opencode", "droid", "kiro", "nklein"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
 const runtimeBoardColumnIdEnum = z.enum(["backlog", "planning", "in_progress", "review", "completed", "trash"]);
@@ -88,11 +88,11 @@ export const runtimeTaskAutoReviewModeSchema = z.preprocess(
 );
 export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewModeEnum>;
 
-export const runtimeClineReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
-export type RuntimeClineReasoningEffort = z.infer<typeof runtimeClineReasoningEffortSchema>;
-export const RUNTIME_CLINE_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
+export const runtimeNKleinReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
+export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoningEffortSchema>;
+export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 export const RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH = 12;
-export const RUNTIME_CLINE_MAX_REPEATED_TOOL_CALLS_PER_TASK = 3;
+export const RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK = 3;
 
 export function clampRuntimeSwarmCardStartBatchSize(value: number): number {
 	if (!Number.isFinite(value) || value <= 0) {
@@ -118,28 +118,28 @@ export const runtimeCodeEmbeddingSettingsSchema = z.object({
 	baseUrl: z.string().nullable(),
 });
 export type RuntimeCodeEmbeddingSettings = z.infer<typeof runtimeCodeEmbeddingSettingsSchema>;
-export const runtimeTaskClineContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
-export type RuntimeTaskClineContextScope = z.infer<typeof runtimeTaskClineContextScopeSchema>;
-export const runtimeTaskClineTimeoutModeSchema = z.preprocess(
+export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
+export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
+export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(
 	(value) => (value === "very_long" ? "extended" : value),
 	z.enum(["normal", "long", "extended", "unlimited"]),
 );
-export type RuntimeTaskClineTimeoutMode = z.infer<typeof runtimeTaskClineTimeoutModeSchema>;
+export type RuntimeTaskNKleinTimeoutMode = z.infer<typeof runtimeTaskNKleinTimeoutModeSchema>;
 export const runtimeTimeoutMsSchema = z.number().int().nonnegative().nullable();
-export const runtimeTaskClineSettingsSchema = z.object({
+export const runtimeTaskNKleinSettingsSchema = z.object({
 	providerId: z.string().optional(),
 	modelId: z.string().optional(),
-	reasoningEffort: runtimeClineReasoningEffortSchema.optional(),
-	contextScope: runtimeTaskClineContextScopeSchema.optional(),
-	timeoutMode: runtimeTaskClineTimeoutModeSchema.optional(),
+	reasoningEffort: runtimeNKleinReasoningEffortSchema.optional(),
+	contextScope: runtimeTaskNKleinContextScopeSchema.optional(),
+	timeoutMode: runtimeTaskNKleinTimeoutModeSchema.optional(),
 	requestTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	streamTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	toolTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	agentTimeoutMs: runtimeTimeoutMsSchema.optional(),
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 });
-export type RuntimeTaskClineSettings = z.infer<typeof runtimeTaskClineSettingsSchema>;
-export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeTaskClineSettingsSchema);
+export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettingsSchema>;
+export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeTaskNKleinSettingsSchema);
 export type RuntimeModelRoles = z.infer<typeof runtimeModelRolesSchema>;
 export const runtimeTaskImageSchema = z.object({
 	id: z.string(),
@@ -157,27 +157,27 @@ export const runtimeGeneratedFromPlanSchema = z.object({
 });
 export type RuntimeGeneratedFromPlan = z.infer<typeof runtimeGeneratedFromPlanSchema>;
 
-const runtimeLegacyTaskClineReasoningEffortSchema = z.enum(["default", "low", "medium", "high", "xhigh"]);
+const runtimeLegacyTaskNKleinReasoningEffortSchema = z.enum(["default", "low", "medium", "high", "xhigh"]);
 
-function normalizeRuntimeTaskClineSettings(input: {
-	clineSettings?: RuntimeTaskClineSettings;
-	clineProviderId?: string;
-	clineModelId?: string;
-	clineReasoningEffort?: z.infer<typeof runtimeLegacyTaskClineReasoningEffortSchema>;
-}): RuntimeTaskClineSettings | undefined {
-	if (input.clineSettings !== undefined) {
-		return input.clineSettings;
+function normalizeRuntimeTaskNKleinSettings(input: {
+	nkleinSettings?: RuntimeTaskNKleinSettings;
+	nkleinProviderId?: string;
+	nkleinModelId?: string;
+	nkleinReasoningEffort?: z.infer<typeof runtimeLegacyTaskNKleinReasoningEffortSchema>;
+}): RuntimeTaskNKleinSettings | undefined {
+	if (input.nkleinSettings !== undefined) {
+		return input.nkleinSettings;
 	}
-	const providerId = input.clineProviderId?.trim();
-	const modelId = input.clineModelId?.trim();
-	if (!providerId && !modelId && input.clineReasoningEffort === undefined) {
+	const providerId = input.nkleinProviderId?.trim();
+	const modelId = input.nkleinModelId?.trim();
+	if (!providerId && !modelId && input.nkleinReasoningEffort === undefined) {
 		return undefined;
 	}
 	return {
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
-		...(input.clineReasoningEffort && input.clineReasoningEffort !== "default"
-			? { reasoningEffort: input.clineReasoningEffort }
+		...(input.nkleinReasoningEffort && input.nkleinReasoningEffort !== "default"
+			? { reasoningEffort: input.nkleinReasoningEffort }
 			: {}),
 	};
 }
@@ -194,34 +194,34 @@ export const runtimeBoardCardSchema = z
 		autoReviewMessage: z.string().optional(),
 		images: z.array(runtimeTaskImageSchema).optional(),
 		agentId: runtimeAgentIdSchema.optional(),
-		clineSettings: runtimeTaskClineSettingsSchema.optional(),
+		nkleinSettings: runtimeTaskNKleinSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required", "agent_sandbox_unavailable"]).optional(),
 		blockedReason: z.string().optional(),
-		clineProviderId: z.string().optional(),
-		clineModelId: z.string().optional(),
-		clineReasoningEffort: runtimeLegacyTaskClineReasoningEffortSchema.optional(),
+		nkleinProviderId: z.string().optional(),
+		nkleinModelId: z.string().optional(),
+		nkleinReasoningEffort: runtimeLegacyTaskNKleinReasoningEffortSchema.optional(),
 		baseRef: z.string(),
 		createdAt: z.number(),
 		updatedAt: z.number(),
 	})
 	.transform(
 		({
-			clineProviderId: _legacyProviderId,
-			clineModelId: _legacyModelId,
-			clineReasoningEffort: _legacyReasoningEffort,
+			nkleinProviderId: _legacyProviderId,
+			nkleinModelId: _legacyModelId,
+			nkleinReasoningEffort: _legacyReasoningEffort,
 			...card
 		}) => {
-			const clineSettings = normalizeRuntimeTaskClineSettings({
-				clineSettings: card.clineSettings,
-				clineProviderId: _legacyProviderId,
-				clineModelId: _legacyModelId,
-				clineReasoningEffort: _legacyReasoningEffort,
+			const nkleinSettings = normalizeRuntimeTaskNKleinSettings({
+				nkleinSettings: card.nkleinSettings,
+				nkleinProviderId: _legacyProviderId,
+				nkleinModelId: _legacyModelId,
+				nkleinReasoningEffort: _legacyReasoningEffort,
 			});
 			return {
 				...card,
-				...(clineSettings !== undefined ? { clineSettings } : {}),
+				...(nkleinSettings !== undefined ? { nkleinSettings } : {}),
 				title: resolveTaskTitle(card.title, card.prompt),
 			};
 		},
@@ -641,16 +641,16 @@ export const runtimeWorkspaceMetadataSchema = z.object({
 });
 export type RuntimeWorkspaceMetadata = z.infer<typeof runtimeWorkspaceMetadataSchema>;
 
-export const runtimeClineMcpServerAuthStatusSchema = z.object({
+export const runtimeNKleinMcpServerAuthStatusSchema = z.object({
 	serverName: z.string(),
 	oauthSupported: z.boolean(),
 	oauthConfigured: z.boolean(),
 	lastError: z.string().nullable(),
 	lastAuthenticatedAt: z.number().nullable(),
 });
-export type RuntimeClineMcpServerAuthStatus = z.infer<typeof runtimeClineMcpServerAuthStatusSchema>;
+export type RuntimeNKleinMcpServerAuthStatus = z.infer<typeof runtimeNKleinMcpServerAuthStatusSchema>;
 
-export const runtimeClineTeamProgressEventSchema = z.object({
+export const runtimeNKleinTeamProgressEventSchema = z.object({
 	taskId: z.string(),
 	teamName: z.string().nullable(),
 	eventType: z.string(),
@@ -661,7 +661,7 @@ export const runtimeClineTeamProgressEventSchema = z.object({
 	message: z.string(),
 	createdAt: z.number(),
 });
-export type RuntimeClineTeamProgressEvent = z.infer<typeof runtimeClineTeamProgressEventSchema>;
+export type RuntimeNKleinTeamProgressEvent = z.infer<typeof runtimeNKleinTeamProgressEventSchema>;
 
 export const runtimeStateStreamSnapshotMessageSchema = z.object({
 	type: z.literal("snapshot"),
@@ -669,7 +669,7 @@ export const runtimeStateStreamSnapshotMessageSchema = z.object({
 	projects: z.array(runtimeProjectSummarySchema),
 	workspaceState: runtimeWorkspaceStateResponseSchema.nullable(),
 	workspaceMetadata: runtimeWorkspaceMetadataSchema.nullable(),
-	clineSessionContextVersion: z.number().int().nonnegative(),
+	nkleinSessionContextVersion: z.number().int().nonnegative(),
 });
 export type RuntimeStateStreamSnapshotMessage = z.infer<typeof runtimeStateStreamSnapshotMessageSchema>;
 
@@ -728,28 +728,28 @@ export const runtimeStateStreamTaskChatClearedMessageSchema = z.object({
 });
 export type RuntimeStateStreamTaskChatClearedMessage = z.infer<typeof runtimeStateStreamTaskChatClearedMessageSchema>;
 
-export const runtimeStateStreamClineTeamProgressMessageSchema = z.object({
-	type: z.literal("cline_team_progress"),
+export const runtimeStateStreamNKleinTeamProgressMessageSchema = z.object({
+	type: z.literal("nklein_team_progress"),
 	workspaceId: z.string(),
 	taskId: z.string(),
-	event: runtimeClineTeamProgressEventSchema,
+	event: runtimeNKleinTeamProgressEventSchema,
 });
-export type RuntimeStateStreamClineTeamProgressMessage = z.infer<
-	typeof runtimeStateStreamClineTeamProgressMessageSchema
+export type RuntimeStateStreamNKleinTeamProgressMessage = z.infer<
+	typeof runtimeStateStreamNKleinTeamProgressMessageSchema
 >;
 
 export const runtimeStateStreamMcpAuthUpdatedMessageSchema = z.object({
 	type: z.literal("mcp_auth_updated"),
-	statuses: z.array(runtimeClineMcpServerAuthStatusSchema),
+	statuses: z.array(runtimeNKleinMcpServerAuthStatusSchema),
 });
 export type RuntimeStateStreamMcpAuthUpdatedMessage = z.infer<typeof runtimeStateStreamMcpAuthUpdatedMessageSchema>;
 
-export const runtimeStateStreamClineSessionContextUpdatedMessageSchema = z.object({
-	type: z.literal("cline_session_context_updated"),
+export const runtimeStateStreamNKleinSessionContextUpdatedMessageSchema = z.object({
+	type: z.literal("nklein_session_context_updated"),
 	version: z.number().int().nonnegative(),
 });
-export type RuntimeStateStreamClineSessionContextUpdatedMessage = z.infer<
-	typeof runtimeStateStreamClineSessionContextUpdatedMessageSchema
+export type RuntimeStateStreamNKleinSessionContextUpdatedMessage = z.infer<
+	typeof runtimeStateStreamNKleinSessionContextUpdatedMessageSchema
 >;
 
 export const runtimeStateStreamErrorMessageSchema = z.object({
@@ -767,9 +767,9 @@ export const runtimeStateStreamMessageSchema = z.discriminatedUnion("type", [
 	runtimeStateStreamTaskReadyForReviewMessageSchema,
 	runtimeStateStreamTaskChatMessageSchema,
 	runtimeStateStreamTaskChatClearedMessageSchema,
-	runtimeStateStreamClineTeamProgressMessageSchema,
+	runtimeStateStreamNKleinTeamProgressMessageSchema,
 	runtimeStateStreamMcpAuthUpdatedMessageSchema,
-	runtimeStateStreamClineSessionContextUpdatedMessageSchema,
+	runtimeStateStreamNKleinSessionContextUpdatedMessageSchema,
 	runtimeStateStreamErrorMessageSchema,
 ]);
 export type RuntimeStateStreamMessage = z.infer<typeof runtimeStateStreamMessageSchema>;
@@ -785,6 +785,8 @@ export const runtimeProjectAddRequestSchema = z
 		path: z.string().optional(),
 		gitUrl: z.string().optional(),
 		ref: z.string().optional(),
+		projectName: z.string().optional(),
+		createDirectory: z.boolean().optional(),
 		initializeGit: z.boolean().optional(),
 		confirmSelfProject: z.boolean().optional(),
 		allowTaskWorktreeProject: z.boolean().optional(),
@@ -982,81 +984,81 @@ export const runtimeProjectShortcutSchema = z.object({
 });
 export type RuntimeProjectShortcut = z.infer<typeof runtimeProjectShortcutSchema>;
 
-export const runtimeClineOauthProviderSchema = z.enum(["cline", "oca", "openai-codex"]);
-export type RuntimeClineOauthProvider = z.infer<typeof runtimeClineOauthProviderSchema>;
+export const runtimeNKleinOauthProviderSchema = z.enum(["nklein", "oca", "openai-codex"]);
+export type RuntimeNKleinOauthProvider = z.infer<typeof runtimeNKleinOauthProviderSchema>;
 
-export const runtimeClineProviderSettingsSchema = z.object({
+export const runtimeNKleinProviderSettingsSchema = z.object({
 	providerId: z.string().nullable(),
 	modelId: z.string().nullable(),
 	baseUrl: z.string().nullable(),
-	reasoningEffort: runtimeClineReasoningEffortSchema.nullable().optional(),
+	reasoningEffort: runtimeNKleinReasoningEffortSchema.nullable().optional(),
 	apiKeyConfigured: z.boolean(),
-	oauthProvider: runtimeClineOauthProviderSchema.nullable(),
+	oauthProvider: runtimeNKleinOauthProviderSchema.nullable(),
 	oauthAccessTokenConfigured: z.boolean(),
 	oauthRefreshTokenConfigured: z.boolean(),
 	oauthAccountId: z.string().nullable(),
 	oauthExpiresAt: z.number().int().positive().nullable(),
 });
-export type RuntimeClineProviderSettings = z.infer<typeof runtimeClineProviderSettingsSchema>;
+export type RuntimeNKleinProviderSettings = z.infer<typeof runtimeNKleinProviderSettingsSchema>;
 
-export const runtimeClineAccountProfileSchema = z.object({
+export const runtimeNKleinAccountProfileSchema = z.object({
 	accountId: z.string().nullable(),
 	email: z.string().nullable(),
 	displayName: z.string().nullable(),
 });
-export type RuntimeClineAccountProfile = z.infer<typeof runtimeClineAccountProfileSchema>;
+export type RuntimeNKleinAccountProfile = z.infer<typeof runtimeNKleinAccountProfileSchema>;
 
-export const runtimeClineAccountProfileResponseSchema = z.object({
-	profile: runtimeClineAccountProfileSchema.nullable(),
+export const runtimeNKleinAccountProfileResponseSchema = z.object({
+	profile: runtimeNKleinAccountProfileSchema.nullable(),
 	error: z.string().optional(),
 });
-export type RuntimeClineAccountProfileResponse = z.infer<typeof runtimeClineAccountProfileResponseSchema>;
+export type RuntimeNKleinAccountProfileResponse = z.infer<typeof runtimeNKleinAccountProfileResponseSchema>;
 
-export const runtimeClineKanbanAccessResponseSchema = z.object({
+export const runtimeNKleinKanbanAccessResponseSchema = z.object({
 	enabled: z.boolean(),
 	error: z.string().optional(),
 });
-export type RuntimeClineKanbanAccessResponse = z.infer<typeof runtimeClineKanbanAccessResponseSchema>;
+export type RuntimeNKleinKanbanAccessResponse = z.infer<typeof runtimeNKleinKanbanAccessResponseSchema>;
 
-export const runtimeClineAccountOrganizationSchema = z.object({
+export const runtimeNKleinAccountOrganizationSchema = z.object({
 	organizationId: z.string(),
 	name: z.string(),
 	active: z.boolean(),
 	roles: z.array(z.string()),
 });
-export type RuntimeClineAccountOrganization = z.infer<typeof runtimeClineAccountOrganizationSchema>;
+export type RuntimeNKleinAccountOrganization = z.infer<typeof runtimeNKleinAccountOrganizationSchema>;
 
-export const runtimeClineAccountOrganizationsResponseSchema = z.object({
-	organizations: z.array(runtimeClineAccountOrganizationSchema),
+export const runtimeNKleinAccountOrganizationsResponseSchema = z.object({
+	organizations: z.array(runtimeNKleinAccountOrganizationSchema),
 	error: z.string().optional(),
 });
-export type RuntimeClineAccountOrganizationsResponse = z.infer<typeof runtimeClineAccountOrganizationsResponseSchema>;
+export type RuntimeNKleinAccountOrganizationsResponse = z.infer<typeof runtimeNKleinAccountOrganizationsResponseSchema>;
 
-export const runtimeClineAccountBalanceResponseSchema = z.object({
+export const runtimeNKleinAccountBalanceResponseSchema = z.object({
 	balance: z.number().nullable(),
 	activeAccountLabel: z.string().nullable(),
 	activeOrganizationId: z.string().nullable(),
 	error: z.string().optional(),
 });
-export type RuntimeClineAccountBalanceResponse = z.infer<typeof runtimeClineAccountBalanceResponseSchema>;
+export type RuntimeNKleinAccountBalanceResponse = z.infer<typeof runtimeNKleinAccountBalanceResponseSchema>;
 
-export const runtimeClineAccountSwitchRequestSchema = z.object({
+export const runtimeNKleinAccountSwitchRequestSchema = z.object({
 	organizationId: z.string().nullable(),
 });
-export type RuntimeClineAccountSwitchRequest = z.infer<typeof runtimeClineAccountSwitchRequestSchema>;
+export type RuntimeNKleinAccountSwitchRequest = z.infer<typeof runtimeNKleinAccountSwitchRequestSchema>;
 
-export const runtimeClineAccountSwitchResponseSchema = z.object({
+export const runtimeNKleinAccountSwitchResponseSchema = z.object({
 	ok: z.boolean(),
 	error: z.string().optional(),
 });
-export type RuntimeClineAccountSwitchResponse = z.infer<typeof runtimeClineAccountSwitchResponseSchema>;
+export type RuntimeNKleinAccountSwitchResponse = z.infer<typeof runtimeNKleinAccountSwitchResponseSchema>;
 
 export const runtimeFeaturebaseTokenResponseSchema = z.object({
 	featurebaseJwt: z.string(),
 });
 export type RuntimeFeaturebaseTokenResponse = z.infer<typeof runtimeFeaturebaseTokenResponseSchema>;
 
-export const runtimeClineProviderCatalogItemSchema = z.object({
+export const runtimeNKleinProviderCatalogItemSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	oauthSupported: z.boolean(),
@@ -1066,19 +1068,19 @@ export const runtimeClineProviderCatalogItemSchema = z.object({
 	supportsBaseUrl: z.boolean(),
 	env: z.array(z.string()).optional(),
 });
-export type RuntimeClineProviderCatalogItem = z.infer<typeof runtimeClineProviderCatalogItemSchema>;
+export type RuntimeNKleinProviderCatalogItem = z.infer<typeof runtimeNKleinProviderCatalogItemSchema>;
 
-export const runtimeClineProviderCatalogResponseSchema = z.object({
-	providers: z.array(runtimeClineProviderCatalogItemSchema),
+export const runtimeNKleinProviderCatalogResponseSchema = z.object({
+	providers: z.array(runtimeNKleinProviderCatalogItemSchema),
 });
-export type RuntimeClineProviderCatalogResponse = z.infer<typeof runtimeClineProviderCatalogResponseSchema>;
+export type RuntimeNKleinProviderCatalogResponse = z.infer<typeof runtimeNKleinProviderCatalogResponseSchema>;
 
-export const runtimeClineProviderModelsRequestSchema = z.object({
+export const runtimeNKleinProviderModelsRequestSchema = z.object({
 	providerId: z.string(),
 });
-export type RuntimeClineProviderModelsRequest = z.infer<typeof runtimeClineProviderModelsRequestSchema>;
+export type RuntimeNKleinProviderModelsRequest = z.infer<typeof runtimeNKleinProviderModelsRequestSchema>;
 
-export const runtimeClineProviderModelSchema = z.object({
+export const runtimeNKleinProviderModelSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	type: z.string().optional(),
@@ -1087,31 +1089,33 @@ export const runtimeClineProviderModelSchema = z.object({
 	supportsAttachments: z.boolean().optional(),
 	supportsReasoningEffort: z.boolean().optional(),
 });
-export type RuntimeClineProviderModel = z.infer<typeof runtimeClineProviderModelSchema>;
+export type RuntimeNKleinProviderModel = z.infer<typeof runtimeNKleinProviderModelSchema>;
 
-export const runtimeClineProviderModelsResponseSchema = z.object({
+export const runtimeNKleinProviderModelsResponseSchema = z.object({
 	providerId: z.string(),
-	models: z.array(runtimeClineProviderModelSchema),
+	models: z.array(runtimeNKleinProviderModelSchema),
 });
-export type RuntimeClineProviderModelsResponse = z.infer<typeof runtimeClineProviderModelsResponseSchema>;
+export type RuntimeNKleinProviderModelsResponse = z.infer<typeof runtimeNKleinProviderModelsResponseSchema>;
 
-export const runtimeClineEndpointModelDiscoveryRequestSchema = z.object({
+export const runtimeNKleinEndpointModelDiscoveryRequestSchema = z.object({
 	baseUrl: z.string().min(1),
 	apiKey: z.string().nullable().optional(),
 	modelsSourceUrl: z.string().nullable().optional(),
 	timeoutMs: z.number().int().positive().nullable().optional(),
 });
-export type RuntimeClineEndpointModelDiscoveryRequest = z.infer<typeof runtimeClineEndpointModelDiscoveryRequestSchema>;
-
-export const runtimeClineEndpointModelDiscoveryResponseSchema = z.object({
-	modelSourceUrl: z.string(),
-	models: z.array(runtimeClineProviderModelSchema),
-});
-export type RuntimeClineEndpointModelDiscoveryResponse = z.infer<
-	typeof runtimeClineEndpointModelDiscoveryResponseSchema
+export type RuntimeNKleinEndpointModelDiscoveryRequest = z.infer<
+	typeof runtimeNKleinEndpointModelDiscoveryRequestSchema
 >;
 
-export const runtimeClineModelRegistryEntrySchema = z.object({
+export const runtimeNKleinEndpointModelDiscoveryResponseSchema = z.object({
+	modelSourceUrl: z.string(),
+	models: z.array(runtimeNKleinProviderModelSchema),
+});
+export type RuntimeNKleinEndpointModelDiscoveryResponse = z.infer<
+	typeof runtimeNKleinEndpointModelDiscoveryResponseSchema
+>;
+
+export const runtimeNKleinModelRegistryEntrySchema = z.object({
 	key: z.string(),
 	providerId: z.string(),
 	modelId: z.string(),
@@ -1154,48 +1158,48 @@ export const runtimeClineModelRegistryEntrySchema = z.object({
 	createdAt: z.number().int().nonnegative(),
 	updatedAt: z.number().int().nonnegative(),
 });
-export type RuntimeClineModelRegistryEntry = z.infer<typeof runtimeClineModelRegistryEntrySchema>;
+export type RuntimeNKleinModelRegistryEntry = z.infer<typeof runtimeNKleinModelRegistryEntrySchema>;
 
-export const runtimeClineModelRegistryResponseSchema = z.object({
+export const runtimeNKleinModelRegistryResponseSchema = z.object({
 	schemaVersion: z.number().int().positive(),
 	updatedAt: z.number().int().nonnegative(),
-	models: z.array(runtimeClineModelRegistryEntrySchema),
+	models: z.array(runtimeNKleinModelRegistryEntrySchema),
 });
-export type RuntimeClineModelRegistryResponse = z.infer<typeof runtimeClineModelRegistryResponseSchema>;
+export type RuntimeNKleinModelRegistryResponse = z.infer<typeof runtimeNKleinModelRegistryResponseSchema>;
 
-export const runtimeClineModelContextWindowOverrideRequestSchema = z.object({
+export const runtimeNKleinModelContextWindowOverrideRequestSchema = z.object({
 	providerId: z.string().min(1),
 	modelId: z.string().min(1),
 	endpoint: z.string().nullable().optional(),
 	contextWindow: z.number().int().positive().nullable(),
 });
-export type RuntimeClineModelContextWindowOverrideRequest = z.infer<
-	typeof runtimeClineModelContextWindowOverrideRequestSchema
+export type RuntimeNKleinModelContextWindowOverrideRequest = z.infer<
+	typeof runtimeNKleinModelContextWindowOverrideRequestSchema
 >;
 
-export const runtimeClineModelContextWindowOverrideResponseSchema = z.object({
-	model: runtimeClineModelRegistryEntrySchema,
+export const runtimeNKleinModelContextWindowOverrideResponseSchema = z.object({
+	model: runtimeNKleinModelRegistryEntrySchema,
 });
-export type RuntimeClineModelContextWindowOverrideResponse = z.infer<
-	typeof runtimeClineModelContextWindowOverrideResponseSchema
+export type RuntimeNKleinModelContextWindowOverrideResponse = z.infer<
+	typeof runtimeNKleinModelContextWindowOverrideResponseSchema
 >;
 
-export const runtimeClineModelRegistryRemoveRequestSchema = z.object({
+export const runtimeNKleinModelRegistryRemoveRequestSchema = z.object({
 	key: z.string().min(1),
 });
-export type RuntimeClineModelRegistryRemoveRequest = z.infer<typeof runtimeClineModelRegistryRemoveRequestSchema>;
+export type RuntimeNKleinModelRegistryRemoveRequest = z.infer<typeof runtimeNKleinModelRegistryRemoveRequestSchema>;
 
-export const runtimeClineModelRegistryRemoveResponseSchema = z.object({
+export const runtimeNKleinModelRegistryRemoveResponseSchema = z.object({
 	removed: z.boolean(),
 });
-export type RuntimeClineModelRegistryRemoveResponse = z.infer<typeof runtimeClineModelRegistryRemoveResponseSchema>;
+export type RuntimeNKleinModelRegistryRemoveResponse = z.infer<typeof runtimeNKleinModelRegistryRemoveResponseSchema>;
 
-export const runtimeClineModelRegistryPruneResponseSchema = z.object({
+export const runtimeNKleinModelRegistryPruneResponseSchema = z.object({
 	removed: z.number().int().nonnegative(),
 });
-export type RuntimeClineModelRegistryPruneResponse = z.infer<typeof runtimeClineModelRegistryPruneResponseSchema>;
+export type RuntimeNKleinModelRegistryPruneResponse = z.infer<typeof runtimeNKleinModelRegistryPruneResponseSchema>;
 
-export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
+export const runtimeNKleinCodeIntelligenceStatusResponseSchema = z.object({
 	codeEmbeddingSettings: z.object({
 		globalDefaults: runtimeCodeEmbeddingSettingsSchema,
 		projectOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
@@ -1238,30 +1242,30 @@ export const runtimeClineCodeIntelligenceStatusResponseSchema = z.object({
 		error: z.string().nullable(),
 	}),
 });
-export type RuntimeClineCodeIntelligenceStatusResponse = z.infer<
-	typeof runtimeClineCodeIntelligenceStatusResponseSchema
+export type RuntimeNKleinCodeIntelligenceStatusResponse = z.infer<
+	typeof runtimeNKleinCodeIntelligenceStatusResponseSchema
 >;
 
-export const runtimeClineAdvisorKindSchema = z.enum([
+export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",
 	"config_explainer",
 	"log_analysis",
 	"task_failure",
 ]);
-export type RuntimeClineAdvisorKind = z.infer<typeof runtimeClineAdvisorKindSchema>;
+export type RuntimeNKleinAdvisorKind = z.infer<typeof runtimeNKleinAdvisorKindSchema>;
 
-export const runtimeClineAdvisorRequestSchema = z.object({
-	kind: runtimeClineAdvisorKindSchema,
+export const runtimeNKleinAdvisorRequestSchema = z.object({
+	kind: runtimeNKleinAdvisorKindSchema,
 	title: z.string(),
 	prompt: z.string(),
 	requiresWebResearch: z.boolean(),
 	recommendedSources: z.array(z.string()),
 });
-export type RuntimeClineAdvisorRequest = z.infer<typeof runtimeClineAdvisorRequestSchema>;
+export type RuntimeNKleinAdvisorRequest = z.infer<typeof runtimeNKleinAdvisorRequestSchema>;
 
-export const runtimeClineAdvisorBuildRequestSchema = z.object({
-	kind: runtimeClineAdvisorKindSchema,
+export const runtimeNKleinAdvisorBuildRequestSchema = z.object({
+	kind: runtimeNKleinAdvisorKindSchema,
 	repoSummary: z.string().optional(),
 	modelRegistrySummary: z.string().optional(),
 	runtimeConfigSummary: z.string().optional(),
@@ -1269,31 +1273,31 @@ export const runtimeClineAdvisorBuildRequestSchema = z.object({
 	taskSummary: z.string().optional(),
 	userQuestion: z.string().optional(),
 });
-export type RuntimeClineAdvisorBuildRequest = z.infer<typeof runtimeClineAdvisorBuildRequestSchema>;
+export type RuntimeNKleinAdvisorBuildRequest = z.infer<typeof runtimeNKleinAdvisorBuildRequestSchema>;
 
-export const runtimeClineAdvisorSendRequestSchema = z.object({
+export const runtimeNKleinAdvisorSendRequestSchema = z.object({
 	prompt: z.string().min(1),
 	providerId: z.string().min(1),
 	modelId: z.string().min(1),
 });
-export type RuntimeClineAdvisorSendRequest = z.infer<typeof runtimeClineAdvisorSendRequestSchema>;
+export type RuntimeNKleinAdvisorSendRequest = z.infer<typeof runtimeNKleinAdvisorSendRequestSchema>;
 
-export const runtimeClineAdvisorSendResponseSchema = z.object({
+export const runtimeNKleinAdvisorSendResponseSchema = z.object({
 	providerId: z.string(),
 	modelId: z.string(),
 	output: z.string(),
 	sentAt: z.number().int().nonnegative(),
 	receivedAt: z.number().int().nonnegative(),
 });
-export type RuntimeClineAdvisorSendResponse = z.infer<typeof runtimeClineAdvisorSendResponseSchema>;
+export type RuntimeNKleinAdvisorSendResponse = z.infer<typeof runtimeNKleinAdvisorSendResponseSchema>;
 
-export const runtimeClineDogfoodBacklogRequestSchema = z.object({
+export const runtimeNKleinDogfoodBacklogRequestSchema = z.object({
 	suggestion: z.string().optional(),
 	slug: z.string().optional(),
 });
-export type RuntimeClineDogfoodBacklogRequest = z.infer<typeof runtimeClineDogfoodBacklogRequestSchema>;
+export type RuntimeNKleinDogfoodBacklogRequest = z.infer<typeof runtimeNKleinDogfoodBacklogRequestSchema>;
 
-export const runtimeClineDogfoodBacklogResponseSchema = z.object({
+export const runtimeNKleinDogfoodBacklogResponseSchema = z.object({
 	rootPath: z.string(),
 	specPath: z.string(),
 	planPath: z.string(),
@@ -1306,9 +1310,9 @@ export const runtimeClineDogfoodBacklogResponseSchema = z.object({
 	taskCount: z.number().int().nonnegative(),
 	nextCommand: z.string(),
 });
-export type RuntimeClineDogfoodBacklogResponse = z.infer<typeof runtimeClineDogfoodBacklogResponseSchema>;
+export type RuntimeNKleinDogfoodBacklogResponse = z.infer<typeof runtimeNKleinDogfoodBacklogResponseSchema>;
 
-export const runtimeClineSmokeEvalResponseSchema = z.object({
+export const runtimeNKleinSmokeEvalResponseSchema = z.object({
 	workspacePath: z.string(),
 	evidenceBundlePath: z.string(),
 	acceptanceCommand: z.string(),
@@ -1319,7 +1323,7 @@ export const runtimeClineSmokeEvalResponseSchema = z.object({
 	modelId: z.string(),
 	endpoint: z.string().nullable(),
 });
-export type RuntimeClineSmokeEvalResponse = z.infer<typeof runtimeClineSmokeEvalResponseSchema>;
+export type RuntimeNKleinSmokeEvalResponse = z.infer<typeof runtimeNKleinSmokeEvalResponseSchema>;
 
 export const runtimeTaskEvidenceRequestSchema = z.object({
 	taskId: z.string().min(1),
@@ -1343,16 +1347,16 @@ export const runtimeTaskEvidenceResponseSchema = z.object({
 });
 export type RuntimeTaskEvidenceResponse = z.infer<typeof runtimeTaskEvidenceResponseSchema>;
 
-export const runtimeClineProviderCapabilitySchema = z.enum([
+export const runtimeNKleinProviderCapabilitySchema = z.enum([
 	"streaming",
 	"tools",
 	"reasoning",
 	"vision",
 	"prompt-cache",
 ]);
-export type RuntimeClineProviderCapability = z.infer<typeof runtimeClineProviderCapabilitySchema>;
+export type RuntimeNKleinProviderCapability = z.infer<typeof runtimeNKleinProviderCapabilitySchema>;
 
-export const runtimeClineAddProviderRequestSchema = z.object({
+export const runtimeNKleinAddProviderRequestSchema = z.object({
 	providerId: z.string(),
 	name: z.string(),
 	baseUrl: z.string(),
@@ -1362,14 +1366,14 @@ export const runtimeClineAddProviderRequestSchema = z.object({
 	models: z.array(z.string()),
 	defaultModelId: z.string().nullable().optional(),
 	modelsSourceUrl: z.string().nullable().optional(),
-	capabilities: z.array(runtimeClineProviderCapabilitySchema).optional(),
+	capabilities: z.array(runtimeNKleinProviderCapabilitySchema).optional(),
 });
-export type RuntimeClineAddProviderRequest = z.infer<typeof runtimeClineAddProviderRequestSchema>;
+export type RuntimeNKleinAddProviderRequest = z.infer<typeof runtimeNKleinAddProviderRequestSchema>;
 
-export const runtimeClineAddProviderResponseSchema = runtimeClineProviderSettingsSchema;
-export type RuntimeClineAddProviderResponse = z.infer<typeof runtimeClineAddProviderResponseSchema>;
+export const runtimeNKleinAddProviderResponseSchema = runtimeNKleinProviderSettingsSchema;
+export type RuntimeNKleinAddProviderResponse = z.infer<typeof runtimeNKleinAddProviderResponseSchema>;
 
-export const runtimeClineUpdateProviderRequestSchema = z.object({
+export const runtimeNKleinUpdateProviderRequestSchema = z.object({
 	providerId: z.string(),
 	name: z.string().optional(),
 	baseUrl: z.string().optional(),
@@ -1379,53 +1383,53 @@ export const runtimeClineUpdateProviderRequestSchema = z.object({
 	models: z.array(z.string()).optional(),
 	defaultModelId: z.string().nullable().optional(),
 	modelsSourceUrl: z.string().nullable().optional(),
-	capabilities: z.array(runtimeClineProviderCapabilitySchema).optional(),
+	capabilities: z.array(runtimeNKleinProviderCapabilitySchema).optional(),
 });
-export type RuntimeClineUpdateProviderRequest = z.infer<typeof runtimeClineUpdateProviderRequestSchema>;
+export type RuntimeNKleinUpdateProviderRequest = z.infer<typeof runtimeNKleinUpdateProviderRequestSchema>;
 
-export const runtimeClineUpdateProviderResponseSchema = runtimeClineProviderSettingsSchema;
-export type RuntimeClineUpdateProviderResponse = z.infer<typeof runtimeClineUpdateProviderResponseSchema>;
+export const runtimeNKleinUpdateProviderResponseSchema = runtimeNKleinProviderSettingsSchema;
+export type RuntimeNKleinUpdateProviderResponse = z.infer<typeof runtimeNKleinUpdateProviderResponseSchema>;
 
-export const runtimeClineOauthLoginRequestSchema = z.object({
-	provider: runtimeClineOauthProviderSchema,
+export const runtimeNKleinOauthLoginRequestSchema = z.object({
+	provider: runtimeNKleinOauthProviderSchema,
 	baseUrl: z.string().nullable().optional(),
 });
-export type RuntimeClineOauthLoginRequest = z.infer<typeof runtimeClineOauthLoginRequestSchema>;
+export type RuntimeNKleinOauthLoginRequest = z.infer<typeof runtimeNKleinOauthLoginRequestSchema>;
 
-export const runtimeClineOauthLoginResponseSchema = z.object({
+export const runtimeNKleinOauthLoginResponseSchema = z.object({
 	ok: z.boolean(),
-	provider: runtimeClineOauthProviderSchema,
-	settings: runtimeClineProviderSettingsSchema.optional(),
+	provider: runtimeNKleinOauthProviderSchema,
+	settings: runtimeNKleinProviderSettingsSchema.optional(),
 	error: z.string().optional(),
 });
-export type RuntimeClineOauthLoginResponse = z.infer<typeof runtimeClineOauthLoginResponseSchema>;
+export type RuntimeNKleinOauthLoginResponse = z.infer<typeof runtimeNKleinOauthLoginResponseSchema>;
 
-export const runtimeClineDeviceAuthStartResponseSchema = z.object({
+export const runtimeNKleinDeviceAuthStartResponseSchema = z.object({
 	deviceCode: z.string(),
 	userCode: z.string(),
 	verificationUrl: z.string(),
 	expiresInSeconds: z.number(),
 	pollIntervalSeconds: z.number(),
 });
-export type RuntimeClineDeviceAuthStartResponse = z.infer<typeof runtimeClineDeviceAuthStartResponseSchema>;
+export type RuntimeNKleinDeviceAuthStartResponse = z.infer<typeof runtimeNKleinDeviceAuthStartResponseSchema>;
 
-export const runtimeClineDeviceAuthCompleteRequestSchema = z.object({
+export const runtimeNKleinDeviceAuthCompleteRequestSchema = z.object({
 	deviceCode: z.string(),
 	expiresInSeconds: z.number(),
 	pollIntervalSeconds: z.number(),
 	baseUrl: z.string().nullable().optional(),
 });
-export type RuntimeClineDeviceAuthCompleteRequest = z.infer<typeof runtimeClineDeviceAuthCompleteRequestSchema>;
+export type RuntimeNKleinDeviceAuthCompleteRequest = z.infer<typeof runtimeNKleinDeviceAuthCompleteRequestSchema>;
 
-export const runtimeClineDeviceAuthCompleteResponseSchema = runtimeClineOauthLoginResponseSchema;
-export type RuntimeClineDeviceAuthCompleteResponse = z.infer<typeof runtimeClineDeviceAuthCompleteResponseSchema>;
+export const runtimeNKleinDeviceAuthCompleteResponseSchema = runtimeNKleinOauthLoginResponseSchema;
+export type RuntimeNKleinDeviceAuthCompleteResponse = z.infer<typeof runtimeNKleinDeviceAuthCompleteResponseSchema>;
 
-export const runtimeClineProviderSettingsSaveRequestSchema = z.object({
+export const runtimeNKleinProviderSettingsSaveRequestSchema = z.object({
 	providerId: z.string(),
 	modelId: z.string().nullable().optional(),
 	apiKey: z.string().nullable().optional(),
 	baseUrl: z.string().nullable().optional(),
-	reasoningEffort: runtimeClineReasoningEffortSchema.nullable().optional(),
+	reasoningEffort: runtimeNKleinReasoningEffortSchema.nullable().optional(),
 	region: z.string().nullable().optional(),
 	aws: z
 		.object({
@@ -1445,67 +1449,67 @@ export const runtimeClineProviderSettingsSaveRequestSchema = z.object({
 		})
 		.optional(),
 });
-export type RuntimeClineProviderSettingsSaveRequest = z.infer<typeof runtimeClineProviderSettingsSaveRequestSchema>;
+export type RuntimeNKleinProviderSettingsSaveRequest = z.infer<typeof runtimeNKleinProviderSettingsSaveRequestSchema>;
 
-export const runtimeClineProviderSettingsSaveResponseSchema = runtimeClineProviderSettingsSchema;
-export type RuntimeClineProviderSettingsSaveResponse = z.infer<typeof runtimeClineProviderSettingsSaveResponseSchema>;
+export const runtimeNKleinProviderSettingsSaveResponseSchema = runtimeNKleinProviderSettingsSchema;
+export type RuntimeNKleinProviderSettingsSaveResponse = z.infer<typeof runtimeNKleinProviderSettingsSaveResponseSchema>;
 
-const runtimeClineMcpServerBaseSchema = z.object({
+const runtimeNKleinMcpServerBaseSchema = z.object({
 	name: z.string(),
 	disabled: z.boolean(),
 });
 
-export const runtimeClineMcpServerSchema = z.discriminatedUnion("type", [
-	runtimeClineMcpServerBaseSchema.extend({
+export const runtimeNKleinMcpServerSchema = z.discriminatedUnion("type", [
+	runtimeNKleinMcpServerBaseSchema.extend({
 		type: z.literal("stdio"),
 		command: z.string(),
 		args: z.array(z.string()).optional(),
 		cwd: z.string().optional(),
 		env: z.record(z.string(), z.string()).optional(),
 	}),
-	runtimeClineMcpServerBaseSchema.extend({
+	runtimeNKleinMcpServerBaseSchema.extend({
 		type: z.literal("sse"),
 		url: z.string().url(),
 		headers: z.record(z.string(), z.string()).optional(),
 	}),
-	runtimeClineMcpServerBaseSchema.extend({
+	runtimeNKleinMcpServerBaseSchema.extend({
 		type: z.literal("streamableHttp"),
 		url: z.string().url(),
 		headers: z.record(z.string(), z.string()).optional(),
 	}),
 ]);
-export type RuntimeClineMcpServer = z.infer<typeof runtimeClineMcpServerSchema>;
+export type RuntimeNKleinMcpServer = z.infer<typeof runtimeNKleinMcpServerSchema>;
 
-export const runtimeClineMcpSettingsResponseSchema = z.object({
+export const runtimeNKleinMcpSettingsResponseSchema = z.object({
 	path: z.string(),
-	servers: z.array(runtimeClineMcpServerSchema),
+	servers: z.array(runtimeNKleinMcpServerSchema),
 });
-export type RuntimeClineMcpSettingsResponse = z.infer<typeof runtimeClineMcpSettingsResponseSchema>;
+export type RuntimeNKleinMcpSettingsResponse = z.infer<typeof runtimeNKleinMcpSettingsResponseSchema>;
 
-export const runtimeClineMcpSettingsSaveRequestSchema = z.object({
-	servers: z.array(runtimeClineMcpServerSchema),
+export const runtimeNKleinMcpSettingsSaveRequestSchema = z.object({
+	servers: z.array(runtimeNKleinMcpServerSchema),
 });
-export type RuntimeClineMcpSettingsSaveRequest = z.infer<typeof runtimeClineMcpSettingsSaveRequestSchema>;
+export type RuntimeNKleinMcpSettingsSaveRequest = z.infer<typeof runtimeNKleinMcpSettingsSaveRequestSchema>;
 
-export const runtimeClineMcpSettingsSaveResponseSchema = runtimeClineMcpSettingsResponseSchema;
-export type RuntimeClineMcpSettingsSaveResponse = z.infer<typeof runtimeClineMcpSettingsSaveResponseSchema>;
+export const runtimeNKleinMcpSettingsSaveResponseSchema = runtimeNKleinMcpSettingsResponseSchema;
+export type RuntimeNKleinMcpSettingsSaveResponse = z.infer<typeof runtimeNKleinMcpSettingsSaveResponseSchema>;
 
-export const runtimeClineMcpAuthStatusResponseSchema = z.object({
-	statuses: z.array(runtimeClineMcpServerAuthStatusSchema),
+export const runtimeNKleinMcpAuthStatusResponseSchema = z.object({
+	statuses: z.array(runtimeNKleinMcpServerAuthStatusSchema),
 });
-export type RuntimeClineMcpAuthStatusResponse = z.infer<typeof runtimeClineMcpAuthStatusResponseSchema>;
+export type RuntimeNKleinMcpAuthStatusResponse = z.infer<typeof runtimeNKleinMcpAuthStatusResponseSchema>;
 
-export const runtimeClineMcpOAuthRequestSchema = z.object({
+export const runtimeNKleinMcpOAuthRequestSchema = z.object({
 	serverName: z.string(),
 });
-export type RuntimeClineMcpOAuthRequest = z.infer<typeof runtimeClineMcpOAuthRequestSchema>;
+export type RuntimeNKleinMcpOAuthRequest = z.infer<typeof runtimeNKleinMcpOAuthRequestSchema>;
 
-export const runtimeClineMcpOAuthResponseSchema = z.object({
+export const runtimeNKleinMcpOAuthResponseSchema = z.object({
 	serverName: z.string(),
 	authorized: z.literal(true),
 	message: z.string(),
 });
-export type RuntimeClineMcpOAuthResponse = z.infer<typeof runtimeClineMcpOAuthResponseSchema>;
+export type RuntimeNKleinMcpOAuthResponse = z.infer<typeof runtimeNKleinMcpOAuthResponseSchema>;
 
 export const runtimeCommandRunRequestSchema = z.object({
 	command: z.string(),
@@ -1634,7 +1638,7 @@ export const runtimeConfigResponseSchema = z.object({
 	agents: z.array(runtimeAgentDefinitionSchema),
 	agentSandboxStatus: runtimeAgentSandboxStatusSchema,
 	shortcuts: z.array(runtimeProjectShortcutSchema),
-	clineProviderSettings: runtimeClineProviderSettingsSchema,
+	nkleinProviderSettings: runtimeNKleinProviderSettingsSchema,
 	modelRoles: runtimeModelRolesSchema,
 	commitPromptTemplate: z.string(),
 	openPrPromptTemplate: z.string(),
@@ -1675,7 +1679,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 });
 export type RuntimeConfigSaveRequest = z.infer<typeof runtimeConfigSaveRequestSchema>;
 
-export const runtimeClinePlanArtifactSummarySchema = z.object({
+export const runtimeNKleinPlanArtifactSummarySchema = z.object({
 	artifactId: z.string(),
 	artifactKind: z.enum(["decomposition", "buildout", "spec"]),
 	planSlug: z.string(),
@@ -1692,39 +1696,39 @@ export const runtimeClinePlanArtifactSummarySchema = z.object({
 	summaryPath: z.string(),
 	taskGraphPath: z.string(),
 });
-export type RuntimeClinePlanArtifactSummary = z.infer<typeof runtimeClinePlanArtifactSummarySchema>;
+export type RuntimeNKleinPlanArtifactSummary = z.infer<typeof runtimeNKleinPlanArtifactSummarySchema>;
 
-export const runtimeClinePlanArtifactsRequestSchema = z.object({
+export const runtimeNKleinPlanArtifactsRequestSchema = z.object({
 	taskId: z.string().min(1),
 });
-export type RuntimeClinePlanArtifactsRequest = z.infer<typeof runtimeClinePlanArtifactsRequestSchema>;
+export type RuntimeNKleinPlanArtifactsRequest = z.infer<typeof runtimeNKleinPlanArtifactsRequestSchema>;
 
-export const runtimeClinePlanArtifactsResponseSchema = z.object({
-	artifacts: z.array(runtimeClinePlanArtifactSummarySchema),
+export const runtimeNKleinPlanArtifactsResponseSchema = z.object({
+	artifacts: z.array(runtimeNKleinPlanArtifactSummarySchema),
 });
-export type RuntimeClinePlanArtifactsResponse = z.infer<typeof runtimeClinePlanArtifactsResponseSchema>;
+export type RuntimeNKleinPlanArtifactsResponse = z.infer<typeof runtimeNKleinPlanArtifactsResponseSchema>;
 
-export const runtimeClinePlanArtifactActionRequestSchema = z.object({
+export const runtimeNKleinPlanArtifactActionRequestSchema = z.object({
 	artifactId: z.string().min(1),
 });
-export type RuntimeClinePlanArtifactActionRequest = z.infer<typeof runtimeClinePlanArtifactActionRequestSchema>;
+export type RuntimeNKleinPlanArtifactActionRequest = z.infer<typeof runtimeNKleinPlanArtifactActionRequestSchema>;
 
-export const runtimeClinePlanArtifactApplyResponseSchema = z.object({
+export const runtimeNKleinPlanArtifactApplyResponseSchema = z.object({
 	ok: z.boolean(),
-	artifact: runtimeClinePlanArtifactSummarySchema,
+	artifact: runtimeNKleinPlanArtifactSummarySchema,
 	createdTaskCount: z.number().int().nonnegative(),
 	createdDependencyCount: z.number().int().nonnegative(),
 	message: z.string(),
 	workspaceState: runtimeWorkspaceStateResponseSchema,
 });
-export type RuntimeClinePlanArtifactApplyResponse = z.infer<typeof runtimeClinePlanArtifactApplyResponseSchema>;
+export type RuntimeNKleinPlanArtifactApplyResponse = z.infer<typeof runtimeNKleinPlanArtifactApplyResponseSchema>;
 
-export const runtimeClinePlanArtifactRejectResponseSchema = z.object({
+export const runtimeNKleinPlanArtifactRejectResponseSchema = z.object({
 	ok: z.boolean(),
-	artifact: runtimeClinePlanArtifactSummarySchema,
+	artifact: runtimeNKleinPlanArtifactSummarySchema,
 	message: z.string(),
 });
-export type RuntimeClinePlanArtifactRejectResponse = z.infer<typeof runtimeClinePlanArtifactRejectResponseSchema>;
+export type RuntimeNKleinPlanArtifactRejectResponse = z.infer<typeof runtimeNKleinPlanArtifactRejectResponseSchema>;
 
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
@@ -1809,7 +1813,7 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	cols: z.number().int().positive().optional(),
 	rows: z.number().int().positive().optional(),
 	agentId: runtimeAgentIdSchema.optional(),
-	clineSettings: runtimeTaskClineSettingsSchema.optional(),
+	nkleinSettings: runtimeTaskNKleinSettingsSchema.optional(),
 	queueOnEndpointBusy: z.boolean().optional(),
 });
 export type RuntimeTaskSessionStartRequest = z.infer<typeof runtimeTaskSessionStartRequestSchema>;
@@ -2000,7 +2004,7 @@ export const runtimeTaskChatSendRequestSchema = z.object({
 	mode: runtimeTaskSessionModeSchema.optional(),
 	providerId: z.string().optional(),
 	modelId: z.string().optional(),
-	reasoningEffort: runtimeClineReasoningEffortSchema.nullable().optional(),
+	reasoningEffort: runtimeNKleinReasoningEffortSchema.nullable().optional(),
 });
 export type RuntimeTaskChatSendRequest = z.infer<typeof runtimeTaskChatSendRequestSchema>;
 

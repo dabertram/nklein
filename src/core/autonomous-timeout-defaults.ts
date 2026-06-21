@@ -1,27 +1,28 @@
-import type { RuntimeTaskClineSettings } from "./api-contract";
+import type { RuntimeTaskNKleinSettings } from "./api-contract";
 
-export const AUTONOMOUS_CLINE_TIMEOUT_SETTINGS = {
+export const AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS = {
 	timeoutMode: "normal",
 	requestTimeoutMs: 30 * 60 * 1000,
 	streamTimeoutMs: 6 * 60 * 1000,
 	toolTimeoutMs: 10 * 60 * 1000,
 	agentTimeoutMs: 30 * 60 * 1000,
 	conversationTimeoutMs: 4 * 60 * 60 * 1000,
-} as const satisfies RuntimeTaskClineSettings;
+} as const satisfies RuntimeTaskNKleinSettings;
 
-export function withAutonomousClineTimeoutSettings(
-	settings?: RuntimeTaskClineSettings | null,
-): RuntimeTaskClineSettings {
+export function withAutonomousNKleinTimeoutSettings(
+	settings?: RuntimeTaskNKleinSettings | null,
+): RuntimeTaskNKleinSettings {
 	if (settings?.timeoutMode === "unlimited") {
 		return { ...settings };
 	}
 	return {
 		...settings,
-		timeoutMode: settings?.timeoutMode ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.timeoutMode,
-		requestTimeoutMs: settings?.requestTimeoutMs ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.requestTimeoutMs,
-		streamTimeoutMs: settings?.streamTimeoutMs ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.streamTimeoutMs,
-		toolTimeoutMs: settings?.toolTimeoutMs ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.toolTimeoutMs,
-		agentTimeoutMs: settings?.agentTimeoutMs ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.agentTimeoutMs,
-		conversationTimeoutMs: settings?.conversationTimeoutMs ?? AUTONOMOUS_CLINE_TIMEOUT_SETTINGS.conversationTimeoutMs,
+		timeoutMode: settings?.timeoutMode ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.timeoutMode,
+		requestTimeoutMs: settings?.requestTimeoutMs ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.requestTimeoutMs,
+		streamTimeoutMs: settings?.streamTimeoutMs ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.streamTimeoutMs,
+		toolTimeoutMs: settings?.toolTimeoutMs ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.toolTimeoutMs,
+		agentTimeoutMs: settings?.agentTimeoutMs ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.agentTimeoutMs,
+		conversationTimeoutMs:
+			settings?.conversationTimeoutMs ?? AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.conversationTimeoutMs,
 	};
 }

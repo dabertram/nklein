@@ -1,4 +1,4 @@
-import type { RuntimeClineTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeNKleinTeamProgressEvent, RuntimeTaskSessionSummary } from "@runtime-contract";
 import { Activity, FilePen, FilePlus, FileX, Terminal as TerminalIcon, Wrench } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { useAgentActivityTimeline } from "@/runtime/use-agent-activity-timeline";
@@ -40,7 +40,7 @@ export interface AgentWatchPanelProps {
 	workspaceId: string | null;
 	baseRef: string | null;
 	summary: RuntimeTaskSessionSummary | null;
-	teamProgress?: readonly RuntimeClineTeamProgressEvent[];
+	teamProgress?: readonly RuntimeNKleinTeamProgressEvent[];
 	stateVersion?: number;
 	onOpenTerminal?: () => void;
 }

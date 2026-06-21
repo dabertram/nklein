@@ -3,12 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClineModelRegistryEntry } from "../../../src/cline-sdk/cline-model-registry";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
-import { saveWorkspaceState } from "../../../src/state/workspace-state";
+import type { NKleinModelRegistryEntry } from "../../../src/nklein-sdk/nklein-model-registry";
+import { loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 
 const agentRegistryMocks = vi.hoisted(() => ({
 	resolveAgentCommand: vi.fn(),
@@ -29,20 +29,20 @@ const selfObservationMocks = vi.hoisted(() => ({
 }));
 
 const evalHarnessMocks = vi.hoisted(() => ({
-	runClineDevSmokeEval: vi.fn(),
+	runNKleinDevSmokeEval: vi.fn(),
 }));
 
 const oauthMocks = vi.hoisted(() => ({
 	addLocalProvider: vi.fn(),
 	ensureCustomProvidersLoaded: vi.fn(),
-	getValidClineCredentials: vi.fn(),
+	getValidNKleinCredentials: vi.fn(),
 	getValidOcaCredentials: vi.fn(),
 	getValidOpenAICodexCredentials: vi.fn(),
-	loginClineOAuth: vi.fn(),
+	loginNKleinOAuth: vi.fn(),
 	loginOcaOAuth: vi.fn(),
 	loginOpenAICodex: vi.fn(),
 	resolveDefaultMcpSettingsPath: vi.fn(),
-	resolveClineDataDir: vi.fn(() => "/tmp/cline"),
+	resolveNKleinDataDir: vi.fn(() => "/tmp/nklein"),
 	loadMcpSettingsFile: vi.fn(),
 	saveProviderSettings: vi.fn(),
 	getProviderSettings: vi.fn(),
@@ -60,7 +60,7 @@ const localProviderMocks = vi.hoisted(() => ({
 	getLocalProviderModels: vi.fn(),
 }));
 
-const clineAccountMocks = vi.hoisted(() => ({
+const nkleinAccountMocks = vi.hoisted(() => ({
 	fetchMe: vi.fn(),
 	fetchRemoteConfig: vi.fn(),
 	fetchOrganization: vi.fn(),
@@ -96,28 +96,28 @@ vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
 	readSelfObservationEvents: selfObservationMocks.readSelfObservationEvents,
 }));
 
-vi.mock("@clinebot/core", () => ({
+vi.mock("@nklein/core", () => ({
 	addLocalProvider: oauthMocks.addLocalProvider,
 	ensureCustomProvidersLoaded: oauthMocks.ensureCustomProvidersLoaded,
 	getLocalProviderModels: localProviderMocks.getLocalProviderModels,
-	getValidClineCredentials: oauthMocks.getValidClineCredentials,
+	getValidNKleinCredentials: oauthMocks.getValidNKleinCredentials,
 	getValidOcaCredentials: oauthMocks.getValidOcaCredentials,
 	getValidOpenAICodexCredentials: oauthMocks.getValidOpenAICodexCredentials,
-	loginClineOAuth: oauthMocks.loginClineOAuth,
+	loginNKleinOAuth: oauthMocks.loginNKleinOAuth,
 	loginOcaOAuth: oauthMocks.loginOcaOAuth,
 	loginOpenAICodex: oauthMocks.loginOpenAICodex,
 	resolveDefaultMcpSettingsPath: oauthMocks.resolveDefaultMcpSettingsPath,
-	resolveClineDataDir: oauthMocks.resolveClineDataDir,
+	resolveNKleinDataDir: oauthMocks.resolveNKleinDataDir,
 	loadMcpSettingsFile: oauthMocks.loadMcpSettingsFile,
 	resolveProviderConfig: llmsModelMocks.resolveProviderConfig,
-	ClineAccountService: class {
+	NKleinAccountService: class {
 		constructor(options: { apiBaseUrl: string; getAuthToken: () => Promise<string | undefined | null> }) {
-			clineAccountMocks.constructedOptions.push(options);
+			nkleinAccountMocks.constructedOptions.push(options);
 		}
-		fetchMe = clineAccountMocks.fetchMe;
-		fetchRemoteConfig = clineAccountMocks.fetchRemoteConfig;
-		fetchOrganization = clineAccountMocks.fetchOrganization;
-		fetchFeaturebaseToken = clineAccountMocks.fetchFeaturebaseToken;
+		fetchMe = nkleinAccountMocks.fetchMe;
+		fetchRemoteConfig = nkleinAccountMocks.fetchRemoteConfig;
+		fetchOrganization = nkleinAccountMocks.fetchOrganization;
+		fetchFeaturebaseToken = nkleinAccountMocks.fetchFeaturebaseToken;
 	},
 	ProviderSettingsManager: class {
 		saveProviderSettings = oauthMocks.saveProviderSettings;
@@ -142,7 +142,7 @@ vi.mock("@clinebot/core", () => ({
 		resolveProviderModelCatalogKeys: llmsModelMocks.resolveProviderModelCatalogKeys,
 	},
 	LlmsModels: {
-		CLINE_DEFAULT_MODEL: "anthropic/claude-sonnet-4.6",
+		NKLEIN_DEFAULT_MODEL: "anthropic/claude-sonnet-4.6",
 		getAllProviders: llmsModelMocks.getAllProviders,
 		getModelsForProvider: llmsModelMocks.getModelsForProvider,
 	},
@@ -152,10 +152,10 @@ vi.mock("../../../src/server/browser.js", () => ({
 	openInBrowser: browserMocks.openInBrowser,
 }));
 
-vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
-	buildClineModelRegistryKey: (input: { providerId: string; modelId: string; endpoint?: string | null }) =>
+vi.mock("../../../src/nklein-sdk/nklein-model-registry.js", () => ({
+	buildNKleinModelRegistryKey: (input: { providerId: string; modelId: string; endpoint?: string | null }) =>
 		`${input.providerId.trim().toLowerCase()}:${input.modelId.trim()}:${input.endpoint?.trim() || "default"}`,
-	createClineModelRegistryEntry: (input: { providerId: string; modelId: string; endpoint?: string | null }) => {
+	createNKleinModelRegistryEntry: (input: { providerId: string; modelId: string; endpoint?: string | null }) => {
 		const providerId = input.providerId.trim().toLowerCase();
 		const modelId = input.modelId.trim();
 		const endpoint = input.endpoint?.trim() || null;
@@ -204,15 +204,15 @@ vi.mock("../../../src/cline-sdk/cline-model-registry.js", () => ({
 			updatedAt: 1,
 		};
 	},
-	getDefaultClineModelRegistry: () => ({
+	getDefaultNKleinModelRegistry: () => ({
 		getSnapshot: modelRegistryMocks.getSnapshot,
 		removeEntry: modelRegistryMocks.removeEntry,
 		removeEntries: modelRegistryMocks.removeEntries,
 	}),
 }));
 
-vi.mock("../../../src/cline-sdk/cline-eval-harness.js", () => ({
-	runClineDevSmokeEval: evalHarnessMocks.runClineDevSmokeEval,
+vi.mock("../../../src/nklein-sdk/nklein-eval-harness.js", () => ({
+	runNKleinDevSmokeEval: evalHarnessMocks.runNKleinDevSmokeEval,
 }));
 
 import type { RuntimeTrpcContext } from "../../../src/trpc/app-router";
@@ -286,7 +286,7 @@ function createModelRegistryEntry(input: {
 	endpoint?: string | null;
 	contextWindow?: number;
 	capability?: number;
-}): ClineModelRegistryEntry {
+}): NKleinModelRegistryEntry {
 	const contextWindow = input.contextWindow ?? 32_000;
 	const capability = input.capability ?? 35;
 	return {
@@ -336,7 +336,7 @@ function createModelRegistryEntry(input: {
 
 function createRuntimeConfigState(): RuntimeConfigState {
 	return {
-		selectedAgentId: "cline",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
@@ -447,7 +447,7 @@ function createMockLocalProviderModels(providerId: string) {
 				contextWindow: 200_000,
 			},
 		],
-		cline: [
+		nklein: [
 			{
 				id: "claude-sonnet-4-6",
 				name: "Claude Sonnet 4.6",
@@ -503,7 +503,7 @@ function createMockLocalProviderModels(providerId: string) {
 	};
 }
 
-function restoreEnvVar(name: "CLINE_API_KEY" | "OCA_API_KEY", value: string | undefined): void {
+function restoreEnvVar(name: "NKLEIN_API_KEY" | "OCA_API_KEY", value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[name];
 		return;
@@ -511,10 +511,10 @@ function restoreEnvVar(name: "CLINE_API_KEY" | "OCA_API_KEY", value: string | un
 	process.env[name] = value;
 }
 
-function createClineTaskSessionServiceMock() {
+function createNKleinTaskSessionServiceMock() {
 	return {
 		startTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary>>(async () =>
-			createSummary({ agentId: "cline", pid: null }),
+			createSummary({ agentId: "nklein", pid: null }),
 		),
 		onMessage: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
 		onTeamProgress: vi.fn<(...args: unknown[]) => () => void>(() => () => {}),
@@ -549,11 +549,11 @@ function createClineTaskSessionServiceMock() {
 }
 
 describe("createRuntimeApi startTaskSession", () => {
-	const originalClineApiKey = process.env.CLINE_API_KEY;
+	const originalNKleinApiKey = process.env.NKLEIN_API_KEY;
 	const originalOcaApiKey = process.env.OCA_API_KEY;
-	const originalClineMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
-	const originalClineMcpOauthSettingsPath = process.env.CLINE_MCP_OAUTH_SETTINGS_PATH;
-	const originalProviderSelectionPath = process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+	const originalNKleinMcpSettingsPath = process.env.NKLEIN_MCP_SETTINGS_PATH;
+	const originalNKleinMcpOauthSettingsPath = process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH;
+	const originalProviderSelectionPath = process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH;
 	let mcpSettingsPath = "";
 	let mcpOauthSettingsPath = "";
 
@@ -561,9 +561,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		mcpSettingsPath = `/tmp/kanban-mcp-settings-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
 		mcpOauthSettingsPath = `/tmp/kanban-mcp-oauth-settings-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
 		providerSelectionPath = `/tmp/kanban-provider-selection-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
-		process.env.CLINE_MCP_SETTINGS_PATH = mcpSettingsPath;
-		process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = mcpOauthSettingsPath;
-		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = providerSelectionPath;
+		process.env.NKLEIN_MCP_SETTINGS_PATH = mcpSettingsPath;
+		process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH = mcpOauthSettingsPath;
+		process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH = providerSelectionPath;
 		agentRegistryMocks.resolveAgentCommand.mockReset();
 		agentRegistryMocks.buildRuntimeConfigResponse.mockReset();
 		taskWorktreeMocks.resolveTaskCwd.mockReset();
@@ -573,10 +573,10 @@ describe("createRuntimeApi startTaskSession", () => {
 		selfObservationMocks.readSelfObservationEvents.mockResolvedValue([]);
 		oauthMocks.addLocalProvider.mockReset();
 		oauthMocks.ensureCustomProvidersLoaded.mockReset();
-		oauthMocks.loginClineOAuth.mockReset();
+		oauthMocks.loginNKleinOAuth.mockReset();
 		oauthMocks.loginOcaOAuth.mockReset();
 		oauthMocks.loginOpenAICodex.mockReset();
-		oauthMocks.getValidClineCredentials.mockReset();
+		oauthMocks.getValidNKleinCredentials.mockReset();
 		oauthMocks.getValidOcaCredentials.mockReset();
 		oauthMocks.getValidOpenAICodexCredentials.mockReset();
 		oauthMocks.resolveDefaultMcpSettingsPath.mockReset();
@@ -584,9 +584,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		oauthMocks.saveProviderSettings.mockReset();
 		oauthMocks.getProviderSettings.mockReset();
 		oauthMocks.getLastUsedProviderSettings.mockReset();
-		clineAccountMocks.fetchMe.mockReset();
-		clineAccountMocks.fetchRemoteConfig.mockReset();
-		clineAccountMocks.constructedOptions.length = 0;
+		nkleinAccountMocks.fetchMe.mockReset();
+		nkleinAccountMocks.fetchRemoteConfig.mockReset();
+		nkleinAccountMocks.constructedOptions.length = 0;
 		localProviderMocks.getLocalProviderModels.mockReset();
 		localProviderMocks.getLocalProviderModels.mockImplementation(async (providerId: string) =>
 			createMockLocalProviderModels(providerId),
@@ -620,7 +620,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			commit: "1111111",
 			createdAt: Date.now(),
 		});
-		oauthMocks.loginClineOAuth.mockResolvedValue({
+		oauthMocks.loginNKleinOAuth.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
@@ -638,7 +638,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			expires: 1_700_000_000_000,
 			accountId: "codex-acct",
 		});
-		oauthMocks.getValidClineCredentials.mockResolvedValue({
+		oauthMocks.getValidNKleinCredentials.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
@@ -666,8 +666,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		llmsModelMocks.getAllProviders.mockResolvedValue([]);
 		llmsModelMocks.getModelsForProvider.mockResolvedValue({});
 		llmsModelMocks.resolveProviderConfig.mockResolvedValue(undefined);
-		evalHarnessMocks.runClineDevSmokeEval.mockReset();
-		evalHarnessMocks.runClineDevSmokeEval.mockResolvedValue({
+		evalHarnessMocks.runNKleinDevSmokeEval.mockReset();
+		evalHarnessMocks.runNKleinDevSmokeEval.mockResolvedValue({
 			workspacePath: "/tmp/eval-workspace",
 			evidenceBundlePath: "/tmp/eval-evidence",
 			acceptanceCommand: "npm test",
@@ -676,18 +676,18 @@ describe("createRuntimeApi startTaskSession", () => {
 			output: "ok",
 		});
 		llmsModelMocks.resolveProviderModelCatalogKeys.mockImplementation((providerId: string) =>
-			providerId === "cline" ? ["openrouter", "cline"] : [providerId],
+			providerId === "nklein" ? ["openrouter", "nklein"] : [providerId],
 		);
 		oauthMocks.resolveDefaultMcpSettingsPath.mockReturnValue(mcpSettingsPath);
 		oauthMocks.loadMcpSettingsFile.mockReturnValue({
 			mcpServers: {},
 		});
-		clineAccountMocks.fetchMe.mockResolvedValue({
+		nkleinAccountMocks.fetchMe.mockResolvedValue({
 			id: "acct-1",
 			email: "saoud@example.com",
 			displayName: "Saoud",
 		});
-		clineAccountMocks.fetchRemoteConfig.mockResolvedValue({
+		nkleinAccountMocks.fetchRemoteConfig.mockResolvedValue({
 			organizationId: "org-1",
 			enabled: true,
 			value: JSON.stringify({
@@ -697,8 +697,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		setSelectedProviderSettings(null);
 		llmsModelMocks.getAllProviders.mockResolvedValue([
 			{
-				id: "cline",
-				name: "Cline",
+				id: "nklein",
+				name: "!Klein",
 				defaultModelId: "claude-sonnet-4-6",
 				capabilities: ["oauth"],
 			},
@@ -716,7 +716,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		]);
 		llmsModelMocks.getModelsForProvider.mockImplementation(async (providerId: string) => {
-			if (providerId !== "cline") {
+			if (providerId !== "nklein") {
 				return {};
 			}
 			return {
@@ -731,22 +731,22 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	afterEach(() => {
-		restoreEnvVar("CLINE_API_KEY", originalClineApiKey);
+		restoreEnvVar("NKLEIN_API_KEY", originalNKleinApiKey);
 		restoreEnvVar("OCA_API_KEY", originalOcaApiKey);
-		if (originalClineMcpSettingsPath === undefined) {
-			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		if (originalNKleinMcpSettingsPath === undefined) {
+			delete process.env.NKLEIN_MCP_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_MCP_SETTINGS_PATH = originalClineMcpSettingsPath;
+			process.env.NKLEIN_MCP_SETTINGS_PATH = originalNKleinMcpSettingsPath;
 		}
-		if (originalClineMcpOauthSettingsPath === undefined) {
-			delete process.env.CLINE_MCP_OAUTH_SETTINGS_PATH;
+		if (originalNKleinMcpOauthSettingsPath === undefined) {
+			delete process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH;
 		} else {
-			process.env.CLINE_MCP_OAUTH_SETTINGS_PATH = originalClineMcpOauthSettingsPath;
+			process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH = originalNKleinMcpOauthSettingsPath;
 		}
 		if (originalProviderSelectionPath === undefined) {
-			delete process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+			delete process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH;
 		} else {
-			process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
+			process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
 		}
 		rmSync(mcpSettingsPath, { force: true });
 		rmSync(`${mcpSettingsPath}.lock`, { force: true });
@@ -762,7 +762,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -805,7 +805,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -828,7 +828,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		});
 	});
 
-	it("verifies task acceptance through the scoped Cline sandbox service", async () => {
+	it("verifies task acceptance through the scoped NKlein sandbox service", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-acceptance-workspace-"));
 		try {
 			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
@@ -858,8 +858,8 @@ describe("createRuntimeApi startTaskSession", () => {
 				dependencies: [],
 			};
 			await saveWorkspaceState(workspacePath, { board, sessions: {} });
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
-			clineTaskSessionService.verifyTaskAcceptanceInSandbox.mockResolvedValue({
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.verifyTaskAcceptanceInSandbox.mockResolvedValue({
 				present: true,
 				command: "npm test",
 				passed: true,
@@ -867,13 +867,13 @@ describe("createRuntimeApi startTaskSession", () => {
 				output: "ok",
 				durationMs: 25,
 			});
-			const getScopedClineTaskSessionService = vi.fn(async () => clineTaskSessionService as never);
+			const getScopedNKleinTaskSessionService = vi.fn(async () => nkleinTaskSessionService as never);
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(async () => ({}) as never),
-				getScopedClineTaskSessionService,
+				getScopedNKleinTaskSessionService,
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -883,8 +883,8 @@ describe("createRuntimeApi startTaskSession", () => {
 				{ taskId: "task-acceptance", timeoutMs: 1234 },
 			);
 
-			expect(getScopedClineTaskSessionService).toHaveBeenCalledWith({ workspaceId: "workspace-1", workspacePath });
-			expect(clineTaskSessionService.verifyTaskAcceptanceInSandbox).toHaveBeenCalledWith({
+			expect(getScopedNKleinTaskSessionService).toHaveBeenCalledWith({ workspaceId: "workspace-1", workspacePath });
+			expect(nkleinTaskSessionService.verifyTaskAcceptanceInSandbox).toHaveBeenCalledWith({
 				taskId: "task-acceptance",
 				projectRepoPath: workspacePath,
 				baseRef: "main",
@@ -902,7 +902,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		}
 	});
 
-	it("starts Cline tasks without resolving a host task worktree", async () => {
+	it("starts NKlein tasks without resolving a host task worktree", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		setSelectedProviderSettings({
 			provider: "ollama",
@@ -914,14 +914,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -940,7 +940,7 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				cwd: "/tmp/repo",
 				workspaceRoot: "/tmp/repo",
@@ -950,17 +950,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("blocks Cline starts when the agent sandbox preflight is unavailable", async () => {
+	it("blocks NKlein starts when the agent sandbox preflight is unavailable", async () => {
 		const terminalManager = {
 			listSummaries: vi.fn(() => []),
 		};
-		const getScopedClineTaskSessionService = vi.fn(async () => createClineTaskSessionServiceMock() as never);
+		const getScopedNKleinTaskSessionService = vi.fn(async () => createNKleinTaskSessionServiceMock() as never);
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService,
+			getScopedNKleinTaskSessionService,
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			refreshAgentSandboxStatus: vi.fn(async () => ({
@@ -991,10 +991,10 @@ describe("createRuntimeApi startTaskSession", () => {
 			error: "Docker is required for !Klein agent isolation, but it is unavailable.",
 			errorCode: "agent_sandbox_unavailable",
 		});
-		expect(getScopedClineTaskSessionService).not.toHaveBeenCalled();
+		expect(getScopedNKleinTaskSessionService).not.toHaveBeenCalled();
 	});
 
-	it("still avoids host worktree creation for Cline when no existing task cwd is available", async () => {
+	it("still avoids host worktree creation for NKlein when no existing task cwd is available", async () => {
 		taskWorktreeMocks.resolveTaskCwd
 			.mockRejectedValueOnce(new Error("missing"))
 			.mockResolvedValueOnce("/tmp/new-worktree");
@@ -1008,14 +1008,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1034,7 +1034,7 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				cwd: "/tmp/repo",
 				workspaceRoot: "/tmp/repo",
@@ -1053,7 +1053,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => ({
@@ -1062,7 +1062,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			})),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1101,7 +1101,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => ({
@@ -1110,7 +1110,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			})),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1134,31 +1134,31 @@ describe("createRuntimeApi startTaskSession", () => {
 		});
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("counts active Cline sessions when enforcing project task capacity", async () => {
+	it("counts active NKlein sessions when enforcing project task capacity", async () => {
 		const terminalManager = {
 			listSummaries: vi.fn(() => []),
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.listSummaries.mockReturnValue([
-			createSummary({ taskId: "task-2", state: "awaiting_review", agentId: "cline", pid: null }),
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.listSummaries.mockReturnValue([
+			createSummary({ taskId: "task-2", state: "awaiting_review", agentId: "nklein", pid: null }),
 		]);
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.maxConcurrentTasks = 1;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
-			getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			getLoadedScopedNKleinTaskSessionService: vi.fn(() => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1178,11 +1178,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.ok).toBe(false);
 		expect(response.error).toContain("Maximum concurrent task limit reached (1)");
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("routes cline start sessions to cline task session service", async () => {
+	it("routes nklein start sessions to nklein task session service", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1200,19 +1200,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1238,7 +1238,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
 				cwd: "/tmp/repo",
@@ -1263,7 +1263,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("passes the MCSR effective context window to Cline starts instead of the provider advertised window", async () => {
+	it("passes the MCSR effective context window to NKlein starts instead of the provider advertised window", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1294,19 +1294,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1324,7 +1324,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				contextWindow: 64_000,
 			}),
@@ -1332,7 +1332,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("routes Cline starts up to the smallest sufficient configured role model", async () => {
+	it("routes NKlein starts up to the smallest sufficient configured role model", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1375,13 +1375,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.modelRoles = {
 					architect: {
 						providerId: "anthropic",
@@ -1393,7 +1393,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1411,7 +1411,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
 				modelId: "claude-opus",
@@ -1420,7 +1420,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("blocks Cline starts when any configured role model is below the minimum context window", async () => {
+	it("blocks NKlein starts when any configured role model is below the minimum context window", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1449,12 +1449,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		});
 
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.modelRoles = {
 					worker: {
 						providerId: "anthropic",
@@ -1465,7 +1465,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1486,10 +1486,10 @@ describe("createRuntimeApi startTaskSession", () => {
 			ok: false,
 			error: expect.stringContaining("requires at least 32,000"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("blocks Cline starts that no configured model can fit", async () => {
+	it("blocks NKlein starts that no configured model can fit", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1525,17 +1525,17 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1555,11 +1555,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.ok).toBe(false);
 		expect(response.errorCode).toBe("routing_escalation");
 		expect(response.error).toContain("No connected model is capable enough or large enough");
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("blocks Cline starts that would contend for the same local endpoint", async () => {
+	it("blocks NKlein starts that would contend for the same local endpoint", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1572,8 +1572,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.listModelEndpointSessions.mockReturnValue([
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.listModelEndpointSessions.mockReturnValue([
 			{
 				taskId: "task-1",
 				state: "running",
@@ -1611,12 +1611,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			taskStartQueue,
@@ -1655,7 +1655,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				delayMs: expect.any(Number),
 			}),
 		);
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
@@ -1672,19 +1672,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1698,14 +1698,14 @@ describe("createRuntimeApi startTaskSession", () => {
 				taskId: "task-1",
 				baseRef: "main",
 				prompt: "Reasoning-only override task",
-				clineSettings: {
+				nkleinSettings: {
 					reasoningEffort: "medium",
 				},
 			},
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -1715,7 +1715,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("clamps stale one-second Cline timeout settings to the local timeout floor", async () => {
+	it("clamps stale one-second NKlein timeout settings to the local timeout floor", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1728,19 +1728,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1754,7 +1754,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				taskId: "task-1",
 				baseRef: "main",
 				prompt: "Timeout floor task",
-				clineSettings: {
+				nkleinSettings: {
 					requestTimeoutMs: 1_000,
 					streamTimeoutMs: 1_000,
 					toolTimeoutMs: 1_000,
@@ -1765,7 +1765,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestTimeoutMs: 60_000,
 				streamTimeoutMs: 60_000,
@@ -1777,7 +1777,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("raises positive local Cline timeouts from slow MCSR speed observations", async () => {
+	it("raises positive local NKlein timeouts from slow MCSR speed observations", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1820,18 +1820,18 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1845,7 +1845,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				taskId: "task-1",
 				baseRef: "main",
 				prompt: "Slow local model timeout task",
-				clineSettings: {
+				nkleinSettings: {
 					requestTimeoutMs: 1_000,
 					streamTimeoutMs: 1_000,
 					toolTimeoutMs: 1_000,
@@ -1856,7 +1856,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		const launchRequest = clineTaskSessionService.startTaskSession.mock.calls[0]?.[0] as
+		const launchRequest = nkleinTaskSessionService.startTaskSession.mock.calls[0]?.[0] as
 			| {
 					requestTimeoutMs?: number | null;
 					streamTimeoutMs?: number | null;
@@ -1873,7 +1873,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("keeps unlimited Cline timeouts unlimited when MCSR speed data is slow", async () => {
+	it("keeps unlimited NKlein timeouts unlimited when MCSR speed data is slow", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		setSelectedProviderSettings({
@@ -1908,19 +1908,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.agentTimeoutMode = "unlimited";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1938,7 +1938,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestTimeoutMs: null,
 				streamTimeoutMs: null,
@@ -1966,19 +1966,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -1992,14 +1992,14 @@ describe("createRuntimeApi startTaskSession", () => {
 				taskId: "task-1",
 				baseRef: "main",
 				prompt: "Task with model override",
-				clineSettings: {
+				nkleinSettings: {
 					modelId: "anthropic/claude-opus-4.6",
 				},
 			},
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
 				modelId: "anthropic/claude-opus-4.6",
@@ -2009,7 +2009,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("skips cline persisted-session probing when resumeFromTrash already has a non-cline terminal summary", async () => {
+	it("skips nklein persisted-session probing when resumeFromTrash already has a non-nklein terminal summary", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
 			agentId: "codex",
@@ -2024,19 +2024,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		const getScopedClineTaskSessionService = vi.fn(async () => clineTaskSessionService as never);
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		const getScopedNKleinTaskSessionService = vi.fn(async () => nkleinTaskSessionService as never);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService,
+			getScopedNKleinTaskSessionService,
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2056,8 +2056,8 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(terminalManager.getSummary).toHaveBeenCalledWith("task-1");
-		expect(getScopedClineTaskSessionService).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.rebindPersistedTaskSession).not.toHaveBeenCalled();
+		expect(getScopedNKleinTaskSessionService).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.rebindPersistedTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
@@ -2094,7 +2094,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			broadcastTaskChatCleared,
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
@@ -2117,7 +2117,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(broadcastTaskChatCleared).toHaveBeenCalledWith("workspace-1", "task-1");
 	});
 
-	it("probes cline persisted sessions on resumeFromTrash when no terminal agent summary exists", async () => {
+	it("probes nklein persisted sessions on resumeFromTrash when no terminal agent summary exists", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
 			agentId: "codex",
@@ -2137,11 +2137,11 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(
-			createSummary({ agentId: "cline", pid: null }),
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(
+			createSummary({ agentId: "nklein", pid: null }),
 		);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -2152,7 +2152,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2172,8 +2172,8 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(terminalManager.getSummary).toHaveBeenCalledWith("task-1");
-		expect(clineTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
 				resumeFromTrash: true,
@@ -2185,36 +2185,36 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
 	});
 
-	it("uses saved cline settings even when no last-used provider is recorded", async () => {
+	it("uses saved nklein settings even when no last-used provider is recorded", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 		oauthMocks.getLastUsedProviderSettings.mockReturnValue(undefined);
 		oauthMocks.getProviderSettings.mockImplementation((providerId: string) =>
-			providerId === "cline"
+			providerId === "nklein"
 				? {
-						provider: "cline",
+						provider: "nklein",
 						model: "anthropic/claude-opus-4.6",
-						apiKey: "saved-cline-api-key",
+						apiKey: "saved-nklein-api-key",
 					}
 				: undefined,
 		);
-		writeSelectedProviderId("cline");
+		writeSelectedProviderId("nklein");
 
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(
 				async () => ({ startTaskSession: vi.fn(), applyTurnCheckpoint: vi.fn() }) as never,
 			),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2234,17 +2234,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("ignores a persisted cline cloud provider selection", async () => {
+	it("ignores a persisted nklein cloud provider selection", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
-		delete process.env.CLINE_API_KEY;
+		delete process.env.NKLEIN_API_KEY;
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			model: "anthropic/claude-opus-4.6",
 		});
 
@@ -2252,18 +2252,18 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2282,17 +2282,17 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(false);
 		expect(response.summary).toBeNull();
-		expect(response.error).toContain("No native Cline provider is configured");
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(response.error).toContain("No native !Klein provider is configured");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("blocks the cline provider even when CLINE_API_KEY is present in the environment", async () => {
+	it("blocks the nklein provider even when NKLEIN_API_KEY is present in the environment", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
-		process.env.CLINE_API_KEY = "env-cline-api-key";
+		process.env.NKLEIN_API_KEY = "env-nklein-api-key";
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			model: "anthropic/claude-opus-4.6",
 		});
 
@@ -2300,19 +2300,19 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2332,13 +2332,13 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("starts home agent sessions in the workspace root without resolving a task worktree", async () => {
-		const homeTaskId = "__home_agent__:workspace-1:cline";
+		const homeTaskId = "__home_agent__:workspace-1:nklein";
 		setSelectedProviderSettings({
 			provider: "ollama",
 			model: "qwen3.5-9b",
@@ -2348,16 +2348,16 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary({ taskId: homeTaskId })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(
-			createSummary({ taskId: homeTaskId, agentId: "cline", pid: null }),
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(
+			createSummary({ taskId: homeTaskId, agentId: "nklein", pid: null }),
 		);
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2376,7 +2376,7 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: homeTaskId,
 				cwd: "/tmp/repo",
@@ -2400,7 +2400,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
@@ -2410,7 +2410,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2444,10 +2444,10 @@ describe("createRuntimeApi startTaskSession", () => {
 				images,
 			}),
 		);
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("does not resolve cline OAuth when starting a non-cline task session", async () => {
+	it("does not resolve nklein OAuth when starting a non-nklein task session", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
 			agentId: "codex",
@@ -2456,17 +2456,17 @@ describe("createRuntimeApi startTaskSession", () => {
 			binary: "codex",
 			args: [],
 		});
-		oauthMocks.getValidClineCredentials.mockRejectedValue(
-			new Error('OAuth credentials for provider "cline" are invalid. Re-run OAuth login.'),
+		oauthMocks.getValidNKleinCredentials.mockRejectedValue(
+			new Error('OAuth credentials for provider "nklein" are invalid. Re-run OAuth login.'),
 		);
 
 		const terminalManager = {
 			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:oauth-access",
 				refreshToken: "oauth-refresh",
@@ -2484,7 +2484,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2502,17 +2502,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
 		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				agentId: "codex",
 				cwd: "/tmp/existing-worktree",
 			}),
 		);
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("prefers OAuth api key when cline OAuth credentials are configured", async () => {
+	it("prefers OAuth api key when nklein OAuth credentials are configured", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
 
@@ -2520,16 +2520,16 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
-		oauthMocks.getValidClineCredentials.mockResolvedValue({
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		oauthMocks.getValidNKleinCredentials.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
 			accountId: "acct-1",
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			model: "claude-sonnet-4-6",
 			auth: {
 				accessToken: "oauth-access",
@@ -2543,12 +2543,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2568,11 +2568,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
-		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
 		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
 	});
 
@@ -2584,8 +2584,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			startTaskSession: vi.fn(async () => createSummary()),
 			applyTurnCheckpoint: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "cline", pid: null }));
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 		setSelectedProviderSettings({
 			provider: "anthropic",
 			apiKey: "anthropic-api-key",
@@ -2600,12 +2600,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2623,8 +2623,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
 				apiKey: "anthropic-api-key",
@@ -2633,17 +2633,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
 	});
 
-	it("routes cline task input and stop to cline task session service", async () => {
-		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-cline-task-stop-"));
+	it("routes nklein task input and stop to nklein task session service", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-nklein-task-stop-"));
 		try {
-			const summary = createSummary({ agentId: "cline", pid: null, paused: true });
+			const summary = createSummary({ agentId: "nklein", pid: null, paused: true });
 			const terminalManager = {
 				writeInput: vi.fn(),
 				stopTaskSession: vi.fn(),
 			};
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
-			clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
-			clineTaskSessionService.stopTaskSession.mockResolvedValue(summary);
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+			nkleinTaskSessionService.stopTaskSession.mockResolvedValue(summary);
 			await setCardPaused({ workspacePath, taskId: "task-1", paused: true });
 
 			const api = createTestRuntimeApi({
@@ -2651,7 +2651,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2663,15 +2663,74 @@ describe("createRuntimeApi startTaskSession", () => {
 				appendNewline: true,
 			});
 			expect(sendResponse.ok).toBe(true);
-			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello\n");
+			expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello\n");
 			expect(terminalManager.writeInput).not.toHaveBeenCalled();
 
 			const stopResponse = await api.stopTaskSession(scope, { taskId: "task-1" });
 			expect(stopResponse.ok).toBe(true);
 			expect(stopResponse.summary?.paused).toBe(false);
-			expect(clineTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
+			expect(nkleinTaskSessionService.stopTaskSession).toHaveBeenCalledWith("task-1");
 			expect(terminalManager.stopTaskSession).not.toHaveBeenCalled();
 			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
+	});
+
+	it("moves a recovered review task back to in progress after nklein input resumes it", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-nklein-review-resume-"));
+		try {
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			const board: RuntimeBoardData = {
+				columns: [
+					{ id: "backlog", title: "Backlog", cards: [] },
+					{ id: "planning", title: "Planning", cards: [] },
+					{ id: "in_progress", title: "In Progress", cards: [] },
+					{
+						id: "review",
+						title: "Review",
+						cards: [
+							{
+								id: "task-1",
+								title: "Recover task",
+								prompt: "Continue",
+								startInPlanMode: false,
+								baseRef: "main",
+								createdAt: 1,
+								updatedAt: 1,
+							},
+						],
+					},
+					{ id: "completed", title: "Completed", cards: [] },
+					{ id: "trash", title: "Trash", cards: [] },
+				],
+				dependencies: [],
+			};
+			await saveWorkspaceState(workspacePath, { board, sessions: {} });
+			const summary = createSummary({ agentId: "nklein", pid: null, taskId: "task-1", state: "running" });
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({ writeInput: vi.fn() }) as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+
+			const response = await api.sendTaskSessionInput(
+				{ workspaceId: "workspace-1", workspacePath },
+				{ taskId: "task-1", text: "continue", appendNewline: false },
+			);
+
+			expect(response.ok).toBe(true);
+			const saved = await loadWorkspaceState(workspacePath);
+			expect(saved.board.columns.find((column) => column.id === "review")?.cards).toHaveLength(0);
+			expect(saved.board.columns.find((column) => column.id === "in_progress")?.cards).toMatchObject([
+				{ id: "task-1" },
+			]);
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
 		}
@@ -2680,14 +2739,14 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("manages workspace swarm stop signal through runtime api", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-swarm-stop-api-"));
 		try {
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
-				getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+				getLoadedScopedNKleinTaskSessionService: vi.fn(() => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2701,7 +2760,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				stopped: true,
 				reason: "Operator paused from UI.",
 			});
-			expect(clineTaskSessionService.setBoardPaused).toHaveBeenCalledWith(true);
+			expect(nkleinTaskSessionService.setBoardPaused).toHaveBeenCalledWith(true);
 			await expect(api.getSwarmStop(scope)).resolves.toMatchObject({
 				ok: true,
 				signal: expect.objectContaining({
@@ -2711,8 +2770,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			});
 
 			await expect(api.clearSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
-			expect(clineTaskSessionService.setBoardPaused).toHaveBeenLastCalledWith(false);
-			expect(clineTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
+			expect(nkleinTaskSessionService.setBoardPaused).toHaveBeenLastCalledWith(false);
+			expect(nkleinTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
 			await expect(api.getSwarmStop(scope)).resolves.toEqual({ ok: true, signal: null });
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
@@ -2722,18 +2781,18 @@ describe("createRuntimeApi startTaskSession", () => {
 	it("persists and resumes per-card pause state through runtime api", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-card-pause-api-"));
 		try {
-			const runningSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
-			const resumedSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
-			clineTaskSessionService.getSummary.mockReturnValue(runningSummary);
-			clineTaskSessionService.resumePausedTasks.mockResolvedValue([resumedSummary]);
+			const runningSummary = createSummary({ agentId: "nklein", taskId: "task-1", state: "running" });
+			const resumedSummary = createSummary({ agentId: "nklein", taskId: "task-1", state: "running" });
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.getSummary.mockReturnValue(runningSummary);
+			nkleinTaskSessionService.resumePausedTasks.mockResolvedValue([resumedSummary]);
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
-				getLoadedScopedClineTaskSessionService: vi.fn(() => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+				getLoadedScopedNKleinTaskSessionService: vi.fn(() => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2748,7 +2807,7 @@ describe("createRuntimeApi startTaskSession", () => {
 					paused: true,
 				},
 			});
-			expect(clineTaskSessionService.setCardPaused).toHaveBeenCalledWith("task-1", true);
+			expect(nkleinTaskSessionService.setCardPaused).toHaveBeenCalledWith("task-1", true);
 			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set(["task-1"]));
 
 			const resumeResponse = await api.resumeTask(scope, { taskId: "task-1" });
@@ -2760,33 +2819,33 @@ describe("createRuntimeApi startTaskSession", () => {
 					paused: false,
 				},
 			});
-			expect(clineTaskSessionService.setCardPaused).toHaveBeenLastCalledWith("task-1", false);
-			expect(clineTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
+			expect(nkleinTaskSessionService.setCardPaused).toHaveBeenLastCalledWith("task-1", false);
+			expect(nkleinTaskSessionService.resumePausedTasks).toHaveBeenCalledTimes(1);
 			await expect(readPausedTasks(workspacePath)).resolves.toEqual(new Set());
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
 		}
 	});
 
-	it("rebinds a persisted paused cline session before card resume after runtime restart", async () => {
+	it("rebinds a persisted paused nklein session before card resume after runtime restart", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-card-pause-rebind-api-"));
 		try {
 			const reboundSummary = createSummary({
-				agentId: "cline",
+				agentId: "nklein",
 				taskId: "task-1",
 				state: "awaiting_review",
 			});
-			const resumedSummary = createSummary({ agentId: "cline", taskId: "task-1", state: "running" });
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
-			clineTaskSessionService.getSummary.mockReturnValue(null);
-			clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
-			clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(resumedSummary);
+			const resumedSummary = createSummary({ agentId: "nklein", taskId: "task-1", state: "running" });
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.getSummary.mockReturnValue(null);
+			nkleinTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
+			nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(resumedSummary);
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2803,8 +2862,8 @@ describe("createRuntimeApi startTaskSession", () => {
 					paused: false,
 				},
 			});
-			expect(clineTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
-			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+			expect(nkleinTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
+			expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
 				"task-1",
 				"Continue from the paused checkpoint.",
 			);
@@ -2824,13 +2883,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			const terminalManager = {
 				listSummaries: vi.fn(() => []),
 			};
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 			const api = createTestRuntimeApi({
 				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
@@ -2854,14 +2913,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			});
 			expect(response.error).toContain("Operator paused the run.");
 			expect(terminalManager.listSummaries).not.toHaveBeenCalled();
-			expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+			expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		} finally {
 			rmSync(workspacePath, { recursive: true, force: true });
 		}
 	});
 
-	it("returns cline chat messages and sends chat message through cline service", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
+	it("returns nklein chat messages and sends chat message through nklein service", async () => {
+		const summary = createSummary({ agentId: "nklein", pid: null });
 		const latestMessage = {
 			id: "message-1",
 			role: "user" as const,
@@ -2871,18 +2930,18 @@ describe("createRuntimeApi startTaskSession", () => {
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
-		clineTaskSessionService.listMessages.mockReturnValue([latestMessage]);
-		clineTaskSessionService.loadTaskSessionMessages.mockResolvedValue([latestMessage]);
-		clineTaskSessionService.getSummary.mockReturnValue(summary);
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+		nkleinTaskSessionService.listMessages.mockReturnValue([latestMessage]);
+		nkleinTaskSessionService.loadTaskSessionMessages.mockResolvedValue([latestMessage]);
+		nkleinTaskSessionService.getSummary.mockReturnValue(summary);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2892,7 +2951,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			{ taskId: "task-1", text: "hello" },
 		);
 		expect(sendResponse.ok).toBe(true);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
 			"task-1",
 			"hello",
 			undefined,
@@ -2907,24 +2966,24 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(messagesResponse.ok).toBe(true);
 		expect(messagesResponse.messages).toEqual([latestMessage]);
 
-		clineTaskSessionService.abortTaskSession.mockResolvedValue(summary);
+		nkleinTaskSessionService.abortTaskSession.mockResolvedValue(summary);
 		const abortResponse = await api.abortTaskChatTurn(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ taskId: "task-1" },
 		);
 		expect(abortResponse.ok).toBe(true);
-		expect(clineTaskSessionService.abortTaskSession).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.abortTaskSession).toHaveBeenCalledWith("task-1");
 
-		clineTaskSessionService.cancelTaskTurn.mockResolvedValue(summary);
+		nkleinTaskSessionService.cancelTaskTurn.mockResolvedValue(summary);
 		const cancelResponse = await api.cancelTaskChatTurn(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ taskId: "task-1" },
 		);
 		expect(cancelResponse.ok).toBe(true);
-		expect(clineTaskSessionService.cancelTaskTurn).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.cancelTaskTurn).toHaveBeenCalledWith("task-1");
 	});
 
-	it("forwards selected Cline model settings through chat sends", async () => {
+	it("forwards selected NKlein model settings through chat sends", async () => {
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = vi.fn(async () => ({
 			ok: true,
@@ -2947,16 +3006,16 @@ describe("createRuntimeApi startTaskSession", () => {
 				effort: "high",
 			},
 		});
-		const summary = createSummary({ agentId: "cline", pid: null });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+		const summary = createSummary({ agentId: "nklein", pid: null });
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -2974,7 +3033,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			);
 
 			expect(response.ok).toBe(true);
-			expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+			expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
 				"task-1",
 				"hello",
 				undefined,
@@ -2994,9 +3053,9 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("handles clear slash commands without sending them to the model", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null, state: "idle" });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.clearTaskSession.mockResolvedValue(summary);
+		const summary = createSummary({ agentId: "nklein", pid: null, state: "idle" });
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.clearTaskSession.mockResolvedValue(summary);
 		const broadcastTaskChatCleared = vi.fn();
 
 		const api = createTestRuntimeApi({
@@ -3004,7 +3063,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			broadcastTaskChatCleared,
@@ -3020,24 +3079,24 @@ describe("createRuntimeApi startTaskSession", () => {
 			summary,
 			message: null,
 		});
-		expect(clineTaskSessionService.clearTaskSession).toHaveBeenCalledWith("__home_agent__:workspace-1");
+		expect(nkleinTaskSessionService.clearTaskSession).toHaveBeenCalledWith("__home_agent__:workspace-1");
 		expect(broadcastTaskChatCleared).toHaveBeenCalledWith("workspace-1", "__home_agent__:workspace-1");
-		expect(clineTaskSessionService.sendTaskSessionInput).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.sendTaskSessionInput).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("forwards chat images through the cline service send path", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
-		clineTaskSessionService.listMessages.mockReturnValue([]);
+	it("forwards chat images through the nklein service send path", async () => {
+		const summary = createSummary({ agentId: "nklein", pid: null });
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(summary);
+		nkleinTaskSessionService.listMessages.mockReturnValue([]);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3058,7 +3117,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello", undefined, [
+		expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith("task-1", "hello", undefined, [
 			{
 				id: "img-1",
 				data: "abc123",
@@ -3067,23 +3126,23 @@ describe("createRuntimeApi startTaskSession", () => {
 		]);
 	});
 
-	it("hydrates persisted cline chat messages when no live in-memory session is loaded", async () => {
+	it("hydrates persisted nklein chat messages when no live in-memory session is loaded", async () => {
 		const persistedMessage = {
 			id: "message-persisted-1",
 			role: "assistant" as const,
 			content: "Recovered from SDK artifacts",
 			createdAt: Date.now(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.getSummary.mockReturnValue(null);
-		clineTaskSessionService.loadTaskSessionMessages.mockResolvedValue([persistedMessage]);
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.getSummary.mockReturnValue(null);
+		nkleinTaskSessionService.loadTaskSessionMessages.mockResolvedValue([persistedMessage]);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3095,41 +3154,41 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(response.messages).toEqual([persistedMessage]);
-		expect(clineTaskSessionService.loadTaskSessionMessages).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.loadTaskSessionMessages).toHaveBeenCalledWith("task-1");
 	});
 
-	it("reloads a chat session through the Cline task session service", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.reloadTaskSession.mockResolvedValue(summary);
+	it("reloads a chat session through the NKlein task session service", async () => {
+		const summary = createSummary({ agentId: "nklein", pid: null });
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.reloadTaskSession.mockResolvedValue(summary);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
 		const response = await api.reloadTaskChatSession(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ taskId: "__home_agent__:workspace-1:cline" },
+			{ taskId: "__home_agent__:workspace-1:nklein" },
 		);
 
 		expect(response).toEqual({
 			ok: true,
 			summary,
 		});
-		expect(clineTaskSessionService.reloadTaskSession).toHaveBeenCalledWith("__home_agent__:workspace-1:cline");
+		expect(nkleinTaskSessionService.reloadTaskSession).toHaveBeenCalledWith("__home_agent__:workspace-1:nklein");
 	});
 
 	it("restarts the home chat session from the saved launch config when reload cannot reuse cached config", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.reloadTaskSession.mockResolvedValue(null);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
+		const summary = createSummary({ agentId: "nklein", pid: null });
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.reloadTaskSession.mockResolvedValue(null);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(summary);
 		setSelectedProviderSettings({
 			provider: "openrouter",
 			model: "openrouter/auto",
@@ -3143,22 +3202,22 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
 		const response = await api.reloadTaskChatSession(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ taskId: "__home_agent__:workspace-1:cline" },
+			{ taskId: "__home_agent__:workspace-1:nklein" },
 		);
 
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("rebinds persisted non-home chat sessions before retrying the first send after restart", async () => {
@@ -3167,9 +3226,9 @@ describe("createRuntimeApi startTaskSession", () => {
 			model: "claude-sonnet-4-6",
 			apiKey: "anthropic-api-key",
 		});
-		const summary = createSummary({ agentId: "cline", pid: null });
+		const summary = createSummary({ agentId: "nklein", pid: null });
 		const reboundSummary = createSummary({
-			agentId: "cline",
+			agentId: "nklein",
 			pid: null,
 			workspacePath: "/tmp/repo/.worktrees/task-1",
 		});
@@ -3179,18 +3238,18 @@ describe("createRuntimeApi startTaskSession", () => {
 			content: "continue",
 			createdAt: Date.now(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null);
-		clineTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
-		clineTaskSessionService.listMessages.mockReturnValue([latestMessage]);
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null);
+		nkleinTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(reboundSummary);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(summary);
+		nkleinTaskSessionService.listMessages.mockReturnValue([latestMessage]);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3201,15 +3260,15 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(clineTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledTimes(1);
-		expect(clineTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledTimes(1);
+		expect(nkleinTaskSessionService.sendTaskSessionInput).toHaveBeenCalledWith(
 			"task-1",
 			"continue",
 			undefined,
 			undefined,
 		);
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
 				cwd: "/tmp/repo/.worktrees/task-1",
@@ -3224,7 +3283,7 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	it("auto-starts home chat sessions when the first message is sent", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
+		const summary = createSummary({ agentId: "nklein", pid: null });
 		const latestMessage = {
 			id: "message-home-1",
 			role: "user" as const,
@@ -3234,26 +3293,26 @@ describe("createRuntimeApi startTaskSession", () => {
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const runtimeConfigState = createRuntimeConfigState();
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "seed-token",
 				refreshToken: "seed-refresh",
 				expiresAt: Date.now() + 3_600_000,
 			},
 		});
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(null);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
-		clineTaskSessionService.listMessages.mockReturnValue([latestMessage]);
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(null);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(summary);
+		nkleinTaskSessionService.listMessages.mockReturnValue([latestMessage]);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => runtimeConfigState),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3266,26 +3325,26 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
 	});
 
 	it("starts home chat sessions from persisted history with current launch config", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
+		const summary = createSummary({ agentId: "nklein", pid: null });
 		const latestMessage = {
 			id: "message-home-rebound-1",
 			role: "user" as const,
 			content: "continue home",
 			createdAt: Date.now(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
-		clineTaskSessionService.listMessages.mockReturnValue([latestMessage]);
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValueOnce(null);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(summary);
+		nkleinTaskSessionService.listMessages.mockReturnValue([latestMessage]);
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "seed-token",
 				refreshToken: "seed-refresh",
@@ -3298,7 +3357,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3311,17 +3370,17 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response).toMatchObject({
 			ok: false,
 			summary: null,
-			error: expect.stringContaining("No native Cline provider is configured"),
+			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(clineTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("home chat auto-start keeps manual API key for non-OAuth providers", async () => {
-		const summary = createSummary({ agentId: "cline", pid: null });
+		const summary = createSummary({ agentId: "nklein", pid: null });
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		const runtimeConfigState = createRuntimeConfigState();
 		setSelectedProviderSettings({
 			provider: "anthropic",
@@ -3332,15 +3391,15 @@ describe("createRuntimeApi startTaskSession", () => {
 				expiresAt: Date.now() + 3_600_000,
 			},
 		});
-		clineTaskSessionService.sendTaskSessionInput.mockResolvedValue(null);
-		clineTaskSessionService.startTaskSession.mockResolvedValue(summary);
+		nkleinTaskSessionService.sendTaskSessionInput.mockResolvedValue(null);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(summary);
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => runtimeConfigState),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3351,8 +3410,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
-		expect(clineTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
 				apiKey: "anthropic-api-key",
@@ -3360,11 +3419,11 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("returns cline provider catalog and provider models", async () => {
+	it("returns nklein provider catalog and provider models", async () => {
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -3373,7 +3432,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -3382,14 +3441,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			model: "qwen3.5-9b",
 		});
 
-		const catalogResponse = await api.getClineProviderCatalog({
+		const catalogResponse = await api.getNKleinProviderCatalog({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
-		expect(catalogResponse.providers.some((provider) => provider.id === "cline")).toBe(false);
+		expect(catalogResponse.providers.some((provider) => provider.id === "nklein")).toBe(false);
 		expect(catalogResponse.providers.find((provider) => provider.id === "ollama")?.enabled).toBe(true);
 
-		const modelsResponse = await api.getClineProviderModels(
+		const modelsResponse = await api.getNKleinProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ providerId: "ollama" },
 		);
@@ -3453,9 +3512,9 @@ describe("createRuntimeApi startTaskSession", () => {
 					contextWindow: 32_000,
 					capability: 45,
 				}),
-				"cline:sonnet:default": {
-					key: "cline:sonnet:default",
-					providerId: "cline",
+				"nklein:sonnet:default": {
+					key: "nklein:sonnet:default",
+					providerId: "nklein",
 					modelId: "sonnet",
 					endpoint: null,
 					contextWindow: {
@@ -3489,7 +3548,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						lastObservedAt: 30,
 					},
 					constraints: {
-						sharedEndpointId: "cline:default",
+						sharedEndpointId: "nklein:default",
 						inputCostPerMillionTokens: null,
 						outputCostPerMillionTokens: null,
 					},
@@ -3511,12 +3570,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.getClineModelRegistry({
+		const response = await api.getNKleinModelRegistry({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -3527,7 +3586,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.models[1]?.contextWindow.effective).toBe(32_000);
 	});
 
-	it("includes configured local Cline models before they have registry samples", async () => {
+	it("includes configured local NKlein models before they have registry samples", async () => {
 		setSelectedProviderSettings({
 			provider: "lmstudio",
 			model: "selected-local",
@@ -3542,7 +3601,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.modelRoles = {
 					worker: {
 						providerId: "ollama",
@@ -3557,12 +3616,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.getClineModelRegistry({
+		const response = await api.getNKleinModelRegistry({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -3575,7 +3634,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.models.find((model) => model.modelId === "remote-role")).toBeUndefined();
 	});
 
-	it("removes a local Cline model registry entry", async () => {
+	it("removes a local NKlein model registry entry", async () => {
 		modelRegistryMocks.getSnapshot.mockResolvedValue({
 			schemaVersion: 1,
 			updatedAt: 40,
@@ -3594,12 +3653,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.removeClineModelRegistryEntry(null, { key: "ollama:stale:local" });
+		const response = await api.removeNKleinModelRegistryEntry(null, { key: "ollama:stale:local" });
 
 		expect(response).toEqual({ removed: true });
 		expect(modelRegistryMocks.removeEntry).toHaveBeenCalledWith("ollama:stale:local");
@@ -3640,17 +3699,17 @@ describe("createRuntimeApi startTaskSession", () => {
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => {
 				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "cline";
+				runtimeConfigState.selectedAgentId = "nklein";
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.pruneClineModelRegistry({
+		const response = await api.pruneNKleinModelRegistry({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -3662,7 +3721,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		]);
 	});
 
-	it("returns Cline code intelligence status for the workspace", async () => {
+	it("returns NKlein code intelligence status for the workspace", async () => {
 		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-code-intelligence-status-"));
 		mkdirSync(join(workspacePath, "src"), { recursive: true });
 		writeFileSync(
@@ -3675,12 +3734,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.getClineCodeIntelligenceStatus({
+		const response = await api.getNKleinCodeIntelligenceStatus({
 			workspaceId: "workspace-1",
 			workspacePath,
 		});
@@ -3731,8 +3790,8 @@ describe("createRuntimeApi startTaskSession", () => {
 				dependencies: [],
 			};
 			await saveWorkspaceState(workspacePath, { board, sessions: {} });
-			const clineTaskSessionService = createClineTaskSessionServiceMock();
-			clineTaskSessionService.listMessages.mockReturnValue([
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.listMessages.mockReturnValue([
 				{
 					id: "message-1",
 					role: "assistant",
@@ -3745,7 +3804,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(async () => ({}) as never),
-				getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 				getEvidenceBundleRoot: () => evidenceRoot,
@@ -3834,12 +3893,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.buildClineModelFreshnessAdvisor({
+		const response = await api.buildNKleinModelFreshnessAdvisor({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -3858,12 +3917,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.buildClineAdvisor(
+		const response = await api.buildNKleinAdvisor(
 			{
 				workspaceId: "workspace-1",
 				workspacePath: "/tmp/repo",
@@ -3881,7 +3940,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.prompt).toContain("TypeScript desktop app");
 	});
 
-	it("sends advisor prompts to the selected local Cline model", async () => {
+	it("sends advisor prompts to the selected local NKlein model", async () => {
 		setSelectedProviderSettings({
 			provider: "ollama",
 			model: "qwen3.5-9b",
@@ -3903,12 +3962,12 @@ describe("createRuntimeApi startTaskSession", () => {
 				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 				setActiveRuntimeConfig: vi.fn(),
 				getScopedTerminalManager: vi.fn(async () => ({}) as never),
-				getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 				resolveInteractiveShellCommand: vi.fn(),
 				runCommand: vi.fn(),
 			});
 
-			const response = await api.sendClineAdvisor(null, {
+			const response = await api.sendNKleinAdvisor(null, {
 				prompt: "Explain this config.",
 				providerId: "ollama",
 				modelId: "qwen3.5-9b",
@@ -3946,13 +4005,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			getDogfoodTelemetryRoot: vi.fn(() => telemetryRoot),
 		});
 
-		const response = await api.writeClineDogfoodBacklog(
+		const response = await api.writeNKleinDogfoodBacklog(
 			{
 				workspaceId: "workspace-1",
 				workspacePath,
@@ -3973,7 +4032,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(existsSync(response.taskGraphPath)).toBe(true);
 	});
 
-	it("runs the Cline smoke eval for the selected provider and model", async () => {
+	it("runs the NKlein smoke eval for the selected provider and model", async () => {
 		setSelectedProviderSettings({
 			provider: "ollama",
 			model: "qwen3.5-9b",
@@ -3984,17 +4043,17 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.runClineSmokeEval({
+		const response = await api.runNKleinSmokeEval({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
-		expect(evalHarnessMocks.runClineDevSmokeEval).toHaveBeenCalledWith({
+		expect(evalHarnessMocks.runNKleinDevSmokeEval).toHaveBeenCalledWith({
 			modelObservation: {
 				providerId: "ollama",
 				modelId: "qwen3.5-9b",
@@ -4015,7 +4074,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4035,7 +4094,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			],
 		});
 
-		const response = await api.getClineProviderModels(
+		const response = await api.getNKleinProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ providerId: "ollama" },
 		);
@@ -4066,7 +4125,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4095,7 +4154,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		});
 
-		const response = await api.getClineProviderModels(
+		const response = await api.getNKleinProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ providerId: "deepseek" },
 		);
@@ -4130,22 +4189,22 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("does not load managed Cline provider models in local-only mode", async () => {
+	it("does not load managed NKlein provider models in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			model: "anthropic/claude-sonnet-4.6",
 		});
 		localProviderMocks.getLocalProviderModels.mockResolvedValue({
-			providerId: "cline",
+			providerId: "nklein",
 			models: [
 				{
 					id: "anthropic/claude-sonnet-4.6",
@@ -4167,12 +4226,12 @@ describe("createRuntimeApi startTaskSession", () => {
 				: Promise.resolve(undefined),
 		);
 
-		const response = await api.getClineProviderModels(
+		const response = await api.getNKleinProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ providerId: "cline" },
+			{ providerId: "nklein" },
 		);
 
-		expect(response).toEqual({ providerId: "cline", models: [] });
+		expect(response).toEqual({ providerId: "nklein", models: [] });
 		expect(llmsModelMocks.resolveProviderModelCatalogKeys).not.toHaveBeenCalled();
 		expect(llmsModelMocks.resolveProviderConfig).not.toHaveBeenCalled();
 	});
@@ -4183,7 +4242,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4212,7 +4271,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		});
 		localProviderMocks.getLocalProviderModels.mockRejectedValue(new Error("catalog unavailable"));
 
-		const response = await api.getClineProviderModels(
+		const response = await api.getNKleinProviderModels(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{ providerId: "openrouter" },
 		);
@@ -4226,14 +4285,14 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		llmsModelMocks.getAllProviders.mockResolvedValue([
 			{
-				id: "cline",
-				name: "Cline",
+				id: "nklein",
+				name: "!Klein",
 				defaultModelId: "claude-sonnet-4-6",
 				capabilities: ["oauth"],
 			},
@@ -4257,7 +4316,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			};
 		});
 
-		const response = await api.addClineProvider(
+		const response = await api.addNKleinProvider(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{
 				providerId: "my-provider",
@@ -4305,18 +4364,18 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
-	it("does not fetch cline account profile in local-only mode", async () => {
+	it("does not fetch nklein account profile in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:oauth-access",
 				refreshToken: "oauth-refresh",
@@ -4325,36 +4384,36 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		});
 
-		const response = await api.getClineAccountProfile({
+		const response = await api.getNKleinAccountProfile({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
 		expect(response.profile).toBeNull();
-		expect(clineAccountMocks.constructedOptions).toHaveLength(0);
-		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.constructedOptions).toHaveLength(0);
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
 	});
 
-	it("does not refresh cline OAuth credentials for profile lookup in local-only mode", async () => {
+	it("does not refresh nklein OAuth credentials for profile lookup in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
-		clineAccountMocks.fetchMe
-			.mockRejectedValueOnce(new Error("Cline account request failed with status 401"))
+		nkleinAccountMocks.fetchMe
+			.mockRejectedValueOnce(new Error("NKlein account request failed with status 401"))
 			.mockResolvedValueOnce({
 				id: "acct-1",
 				email: "saoud@example.com",
 				displayName: "Saoud",
 			});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:expired-access",
 				refreshToken: "oauth-refresh",
@@ -4363,28 +4422,28 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		});
 
-		const response = await api.getClineAccountProfile({
+		const response = await api.getNKleinAccountProfile({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
 		expect(response.profile).toBeNull();
-		expect(clineAccountMocks.fetchMe).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
 	});
 
-	it("does not fetch cline remote config in local-only mode", async () => {
+	it("does not fetch nklein remote config in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:oauth-access",
 				refreshToken: "oauth-refresh",
@@ -4392,7 +4451,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				expiresAt: 1_700_000_000_000,
 			},
 		});
-		clineAccountMocks.fetchRemoteConfig.mockResolvedValueOnce({
+		nkleinAccountMocks.fetchRemoteConfig.mockResolvedValueOnce({
 			organizationId: "org-1",
 			enabled: true,
 			value: JSON.stringify({
@@ -4400,31 +4459,31 @@ describe("createRuntimeApi startTaskSession", () => {
 			}),
 		});
 
-		clineAccountMocks.fetchOrganization.mockResolvedValueOnce({
+		nkleinAccountMocks.fetchOrganization.mockResolvedValueOnce({
 			externalOrganizationId: "test",
 		});
 
-		const response = await api.getClineKanbanAccess({
+		const response = await api.getNKleinKanbanAccess({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
 		expect(response.enabled).toBe(true);
-		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
-	it("keeps kanban enabled without cline remote config in local-only mode", async () => {
+	it("keeps kanban enabled without nklein remote config in local-only mode", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:oauth-access",
 				refreshToken: "oauth-refresh",
@@ -4432,7 +4491,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				expiresAt: 1_700_000_000_000,
 			},
 		});
-		clineAccountMocks.fetchRemoteConfig
+		nkleinAccountMocks.fetchRemoteConfig
 			.mockResolvedValueOnce({
 				organizationId: "org-1",
 				enabled: true,
@@ -4442,31 +4501,31 @@ describe("createRuntimeApi startTaskSession", () => {
 			})
 			.mockRejectedValueOnce(new Error("remote config request failed"));
 
-		clineAccountMocks.fetchOrganization.mockResolvedValueOnce({
+		nkleinAccountMocks.fetchOrganization.mockResolvedValueOnce({
 			externalOrganizationId: "test",
 		});
 
-		const initialResponse = await api.getClineKanbanAccess({
+		const initialResponse = await api.getNKleinKanbanAccess({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
-		const failedFetchResponse = await api.getClineKanbanAccess({
+		const failedFetchResponse = await api.getNKleinKanbanAccess({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
 		expect(initialResponse.enabled).toBe(true);
 		expect(failedFetchResponse.enabled).toBe(true);
-		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
-	it("allows kanban by default for non-cline providers", async () => {
+	it("allows kanban by default for non-nklein providers", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4475,63 +4534,63 @@ describe("createRuntimeApi startTaskSession", () => {
 			apiKey: "anthropic-api-key",
 		});
 
-		const response = await api.getClineKanbanAccess({
+		const response = await api.getNKleinKanbanAccess({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
 
 		expect(response.enabled).toBe(true);
-		expect(clineAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchRemoteConfig).not.toHaveBeenCalled();
 	});
 
-	it("blocks cline oauth login in local-only mode", async () => {
+	it("blocks nklein oauth login in local-only mode", async () => {
 		const terminalManager = {
 			writeInput: vi.fn(),
 		};
-		const clineTaskSessionService = createClineTaskSessionServiceMock();
-		const bumpClineSessionContextVersion = vi.fn();
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		const bumpNKleinSessionContextVersion = vi.fn();
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
-			bumpClineSessionContextVersion,
+			bumpNKleinSessionContextVersion,
 		});
 
-		const response = await api.runClineProviderOAuthLogin(
+		const response = await api.runNKleinProviderOAuthLogin(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
-			{ provider: "cline" },
+			{ provider: "nklein" },
 		);
 		expect(response.ok).toBe(false);
-		expect(response.provider).toBe("cline");
+		expect(response.provider).toBe("nklein");
 		expect(response.error).toContain("Cloud models are disabled");
 		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
-		expect(oauthMocks.loginClineOAuth).not.toHaveBeenCalled();
-		expect(bumpClineSessionContextVersion).not.toHaveBeenCalled();
+		expect(oauthMocks.loginNKleinOAuth).not.toHaveBeenCalled();
+		expect(bumpNKleinSessionContextVersion).not.toHaveBeenCalled();
 	});
 
-	it("bumps cline session context when provider settings are saved", async () => {
-		const bumpClineSessionContextVersion = vi.fn();
+	it("bumps nklein session context when provider settings are saved", async () => {
+		const bumpNKleinSessionContextVersion = vi.fn();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
-			bumpClineSessionContextVersion,
+			bumpNKleinSessionContextVersion,
 		});
 		setSelectedProviderSettings({
 			provider: "ollama",
 			model: "qwen3.5-9b",
 		});
 
-		const response = await api.saveClineProviderSettings(
+		const response = await api.saveNKleinProviderSettings(
 			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
 			{
 				providerId: "ollama",
@@ -4540,10 +4599,10 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.providerId).toBe("ollama");
-		expect(bumpClineSessionContextVersion).toHaveBeenCalledTimes(1);
+		expect(bumpNKleinSessionContextVersion).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns Cline MCP settings", async () => {
+	it("returns NKlein MCP settings", async () => {
 		writeFileSync(
 			mcpSettingsPath,
 			JSON.stringify(
@@ -4566,12 +4625,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.getClineMcpSettings({
+		const response = await api.getNKleinMcpSettings({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -4587,20 +4646,20 @@ describe("createRuntimeApi startTaskSession", () => {
 		]);
 	});
 
-	it("saves Cline MCP settings", async () => {
-		const bumpClineSessionContextVersion = vi.fn();
+	it("saves NKlein MCP settings", async () => {
+		const bumpNKleinSessionContextVersion = vi.fn();
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
-			bumpClineSessionContextVersion,
+			bumpNKleinSessionContextVersion,
 		});
 
-		const response = await api.saveClineMcpSettings(
+		const response = await api.saveNKleinMcpSettings(
 			{
 				workspaceId: "workspace-1",
 				workspacePath: "/tmp/repo",
@@ -4626,7 +4685,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				url: "https://mcp.linear.app/mcp",
 			},
 		]);
-		expect(bumpClineSessionContextVersion).toHaveBeenCalledTimes(1);
+		expect(bumpNKleinSessionContextVersion).toHaveBeenCalledTimes(1);
 	});
 
 	it("returns MCP auth statuses from persisted OAuth settings", async () => {
@@ -4674,12 +4733,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
-		const response = await api.getClineMcpAuthStatuses({
+		const response = await api.getNKleinMcpAuthStatuses({
 			workspaceId: "workspace-1",
 			workspacePath: "/tmp/repo",
 		});
@@ -4725,13 +4784,13 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 
 		await expect(
-			api.runClineMcpServerOAuth(
+			api.runNKleinMcpServerOAuth(
 				{
 					workspaceId: "workspace-1",
 					workspacePath: "/tmp/repo",
@@ -4749,9 +4808,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		process.env.HOME = tempHome;
 		mkdirSync(tempHome, { recursive: true });
 		const debugPaths = [
-			join(tempHome, ".cline", "data"),
-			join(tempHome, ".cline", "nklein"),
-			join(tempHome, ".cline", "worktrees"),
+			join(tempHome, ".nklein", "data"),
+			join(tempHome, ".nklein", "nklein"),
+			join(tempHome, ".nklein", "worktrees"),
 		];
 		for (const path of debugPaths) {
 			mkdirSync(path, { recursive: true });
@@ -4767,7 +4826,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			prepareForStateReset,
@@ -4797,9 +4856,9 @@ describe("createRuntimeApi startTaskSession", () => {
 		process.env.HOME = tempHome;
 		mkdirSync(tempHome, { recursive: true });
 		const debugPaths = [
-			join(tempHome, ".cline", "data"),
-			join(tempHome, ".cline", "nklein"),
-			join(tempHome, ".cline", "worktrees"),
+			join(tempHome, ".nklein", "data"),
+			join(tempHome, ".nklein", "nklein"),
+			join(tempHome, ".nklein", "worktrees"),
 		];
 		for (const path of debugPaths) {
 			mkdirSync(path, { recursive: true });
@@ -4810,7 +4869,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			prepareForStateReset: vi.fn(async () => {
@@ -4835,28 +4894,28 @@ describe("createRuntimeApi startTaskSession", () => {
 });
 
 describe("createRuntimeApi getFeaturebaseToken", () => {
-	const originalProviderSelectionPath = process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+	const originalProviderSelectionPath = process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH;
 
 	beforeEach(() => {
 		providerSelectionPath = `/tmp/kanban-featurebase-provider-selection-${Date.now()}-${Math.random()
 			.toString(16)
 			.slice(2)}.json`;
-		process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = providerSelectionPath;
+		process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH = providerSelectionPath;
 		oauthMocks.getProviderSettings.mockReset();
 		oauthMocks.getLastUsedProviderSettings.mockReset();
-		oauthMocks.getValidClineCredentials.mockReset();
+		oauthMocks.getValidNKleinCredentials.mockReset();
 		oauthMocks.saveProviderSettings.mockReset();
-		clineAccountMocks.fetchFeaturebaseToken.mockReset();
-		clineAccountMocks.constructedOptions.length = 0;
+		nkleinAccountMocks.fetchFeaturebaseToken.mockReset();
+		nkleinAccountMocks.constructedOptions.length = 0;
 	});
 
 	afterEach(() => {
 		rmSync(providerSelectionPath, { force: true });
 		providerSelectionPath = "";
 		if (originalProviderSelectionPath === undefined) {
-			delete process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH;
+			delete process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH;
 		} else {
-			process.env.KANBAN_CLINE_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
+			process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH = originalProviderSelectionPath;
 		}
 	});
 
@@ -4866,12 +4925,12 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:oauth-access",
 				refreshToken: "oauth-refresh",
@@ -4879,7 +4938,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 				expiresAt: 1_700_000_000_000,
 			},
 		});
-		clineAccountMocks.fetchFeaturebaseToken.mockResolvedValueOnce({
+		nkleinAccountMocks.fetchFeaturebaseToken.mockResolvedValueOnce({
 			featurebaseJwt: "jwt-token-123",
 		});
 
@@ -4889,7 +4948,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 				workspacePath: "/tmp/repo",
 			}),
 		).rejects.toThrow("No provider settings configured.");
-		expect(clineAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
 	});
 
 	it("throws when no provider settings configured", async () => {
@@ -4898,7 +4957,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4912,13 +4971,13 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		).rejects.toThrow("No provider settings configured.");
 	});
 
-	it("throws when provider is not cline", async () => {
+	it("throws when provider is not nklein", async () => {
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
@@ -4944,12 +5003,12 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 		});
 		setSelectedProviderSettings({
-			provider: "cline",
+			provider: "nklein",
 			auth: {
 				accessToken: "workos:stale-access",
 				refreshToken: "oauth-refresh",
@@ -4959,10 +5018,10 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		});
 
 		// First attempt fails (e.g. expired token)
-		clineAccountMocks.fetchFeaturebaseToken.mockRejectedValueOnce(new Error("Unauthorized"));
+		nkleinAccountMocks.fetchFeaturebaseToken.mockRejectedValueOnce(new Error("Unauthorized"));
 
 		// OAuth refresh returns fresh credentials
-		oauthMocks.getValidClineCredentials.mockResolvedValueOnce({
+		oauthMocks.getValidNKleinCredentials.mockResolvedValueOnce({
 			access: "fresh-access",
 			refresh: "fresh-refresh",
 			expires: 1_800_000_000_000,
@@ -4970,7 +5029,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		});
 
 		// Second attempt succeeds with refreshed token
-		clineAccountMocks.fetchFeaturebaseToken.mockResolvedValueOnce({
+		nkleinAccountMocks.fetchFeaturebaseToken.mockResolvedValueOnce({
 			featurebaseJwt: "refreshed-jwt-456",
 		});
 
@@ -4980,8 +5039,8 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 				workspacePath: "/tmp/repo",
 			}),
 		).rejects.toThrow("No provider settings configured.");
-		expect(clineAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
 	});
 });
 
@@ -4999,7 +5058,7 @@ describe("createRuntimeApi update handlers", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			getUpdateStatus,
@@ -5027,7 +5086,7 @@ describe("createRuntimeApi update handlers", () => {
 			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 			setActiveRuntimeConfig: vi.fn(),
 			getScopedTerminalManager: vi.fn(async () => ({}) as never),
-			getScopedClineTaskSessionService: vi.fn(async () => createClineTaskSessionServiceMock() as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
 			runUpdateNow,

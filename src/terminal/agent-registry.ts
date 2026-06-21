@@ -1,5 +1,3 @@
-import { DEFAULT_AGENT_SANDBOX_IMAGE } from "../cline-sdk/cline-agent-sandbox";
-import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import { isDebugOverrideEnvEnabled } from "../config/debug-override";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { getRuntimeLaunchSupportedAgentCatalog, RUNTIME_AGENT_CATALOG } from "../core/agent-catalog";
@@ -7,9 +5,11 @@ import type {
 	RuntimeAgentDefinition,
 	RuntimeAgentId,
 	RuntimeAgentSandboxStatus,
-	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
+	RuntimeNKleinProviderSettings,
 } from "../core/api-contract";
+import { DEFAULT_AGENT_SANDBOX_IMAGE } from "../nklein-sdk/nklein-agent-sandbox";
+import { CLOUD_ENABLED } from "../nklein-sdk/nklein-local-only-policy";
 import { isBinaryAvailableOnPath } from "./command-discovery";
 
 export interface ResolvedAgentCommand {
@@ -47,8 +47,8 @@ export function isRuntimeDebugModeEnabled(): boolean {
 }
 
 function resolveSelectedAgentIdForLocalOnly(selectedAgentId: RuntimeAgentId): RuntimeAgentId {
-	if (!CLOUD_ENABLED && selectedAgentId !== "cline") {
-		return "cline";
+	if (!CLOUD_ENABLED && selectedAgentId !== "nklein") {
+		return "nklein";
 	}
 	return selectedAgentId;
 }
@@ -71,11 +71,11 @@ function getCuratedDefinitions(runtimeConfig: RuntimeConfigState, detected: stri
 	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
 	const supportedAgents = CLOUD_ENABLED
 		? getRuntimeLaunchSupportedAgentCatalog()
-		: getRuntimeLaunchSupportedAgentCatalog().filter((entry) => entry.id === "cline");
+		: getRuntimeLaunchSupportedAgentCatalog().filter((entry) => entry.id === "nklein");
 	return supportedAgents.map((entry) => {
 		const defaultArgs = getDefaultArgs(entry.id);
 		const command = joinCommand(entry.binary, defaultArgs);
-		const isInstalled = entry.id === "cline" ? true : detectedSet.has(entry.binary);
+		const isInstalled = entry.id === "nklein" ? true : detectedSet.has(entry.binary);
 		return {
 			id: entry.id,
 			label: entry.label,
@@ -110,7 +110,7 @@ export function resolveAgentCommand(runtimeConfig: RuntimeConfigState): Resolved
 
 export function buildRuntimeConfigResponse(
 	runtimeConfig: RuntimeConfigState,
-	clineProviderSettings: RuntimeClineProviderSettings,
+	nkleinProviderSettings: RuntimeNKleinProviderSettings,
 	agentSandboxStatus: RuntimeAgentSandboxStatus = {
 		state: "checking",
 		dockerAvailable: null,
@@ -160,7 +160,7 @@ export function buildRuntimeConfigResponse(
 		agents,
 		agentSandboxStatus,
 		shortcuts: runtimeConfig.shortcuts,
-		clineProviderSettings,
+		nkleinProviderSettings,
 		modelRoles: runtimeConfig.modelRoles,
 		commitPromptTemplate: runtimeConfig.commitPromptTemplate,
 		openPrPromptTemplate: runtimeConfig.openPrPromptTemplate,

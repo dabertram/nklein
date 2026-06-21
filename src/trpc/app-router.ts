@@ -5,53 +5,6 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type {
-	RuntimeClineAccountBalanceResponse,
-	RuntimeClineAccountOrganizationsResponse,
-	RuntimeClineAccountProfileResponse,
-	RuntimeClineAccountSwitchRequest,
-	RuntimeClineAccountSwitchResponse,
-	RuntimeClineAddProviderRequest,
-	RuntimeClineAddProviderResponse,
-	RuntimeClineAdvisorBuildRequest,
-	RuntimeClineAdvisorRequest,
-	RuntimeClineAdvisorSendRequest,
-	RuntimeClineAdvisorSendResponse,
-	RuntimeClineCodeIntelligenceStatusResponse,
-	RuntimeClineDeviceAuthCompleteRequest,
-	RuntimeClineDeviceAuthCompleteResponse,
-	RuntimeClineDeviceAuthStartResponse,
-	RuntimeClineDogfoodBacklogRequest,
-	RuntimeClineDogfoodBacklogResponse,
-	RuntimeClineEndpointModelDiscoveryRequest,
-	RuntimeClineEndpointModelDiscoveryResponse,
-	RuntimeClineKanbanAccessResponse,
-	RuntimeClineMcpAuthStatusResponse,
-	RuntimeClineMcpOAuthRequest,
-	RuntimeClineMcpOAuthResponse,
-	RuntimeClineMcpSettingsResponse,
-	RuntimeClineMcpSettingsSaveRequest,
-	RuntimeClineMcpSettingsSaveResponse,
-	RuntimeClineModelContextWindowOverrideRequest,
-	RuntimeClineModelContextWindowOverrideResponse,
-	RuntimeClineModelRegistryPruneResponse,
-	RuntimeClineModelRegistryRemoveRequest,
-	RuntimeClineModelRegistryRemoveResponse,
-	RuntimeClineModelRegistryResponse,
-	RuntimeClineOauthLoginRequest,
-	RuntimeClineOauthLoginResponse,
-	RuntimeClinePlanArtifactActionRequest,
-	RuntimeClinePlanArtifactApplyResponse,
-	RuntimeClinePlanArtifactRejectResponse,
-	RuntimeClinePlanArtifactsRequest,
-	RuntimeClinePlanArtifactsResponse,
-	RuntimeClineProviderCatalogResponse,
-	RuntimeClineProviderModelsRequest,
-	RuntimeClineProviderModelsResponse,
-	RuntimeClineProviderSettingsSaveRequest,
-	RuntimeClineProviderSettingsSaveResponse,
-	RuntimeClineSmokeEvalResponse,
-	RuntimeClineUpdateProviderRequest,
-	RuntimeClineUpdateProviderResponse,
 	RuntimeCommandRunRequest,
 	RuntimeCommandRunResponse,
 	RuntimeConfigResponse,
@@ -78,6 +31,53 @@ import type {
 	RuntimeHookIngestResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
+	RuntimeNKleinAccountBalanceResponse,
+	RuntimeNKleinAccountOrganizationsResponse,
+	RuntimeNKleinAccountProfileResponse,
+	RuntimeNKleinAccountSwitchRequest,
+	RuntimeNKleinAccountSwitchResponse,
+	RuntimeNKleinAddProviderRequest,
+	RuntimeNKleinAddProviderResponse,
+	RuntimeNKleinAdvisorBuildRequest,
+	RuntimeNKleinAdvisorRequest,
+	RuntimeNKleinAdvisorSendRequest,
+	RuntimeNKleinAdvisorSendResponse,
+	RuntimeNKleinCodeIntelligenceStatusResponse,
+	RuntimeNKleinDeviceAuthCompleteRequest,
+	RuntimeNKleinDeviceAuthCompleteResponse,
+	RuntimeNKleinDeviceAuthStartResponse,
+	RuntimeNKleinDogfoodBacklogRequest,
+	RuntimeNKleinDogfoodBacklogResponse,
+	RuntimeNKleinEndpointModelDiscoveryRequest,
+	RuntimeNKleinEndpointModelDiscoveryResponse,
+	RuntimeNKleinKanbanAccessResponse,
+	RuntimeNKleinMcpAuthStatusResponse,
+	RuntimeNKleinMcpOAuthRequest,
+	RuntimeNKleinMcpOAuthResponse,
+	RuntimeNKleinMcpSettingsResponse,
+	RuntimeNKleinMcpSettingsSaveRequest,
+	RuntimeNKleinMcpSettingsSaveResponse,
+	RuntimeNKleinModelContextWindowOverrideRequest,
+	RuntimeNKleinModelContextWindowOverrideResponse,
+	RuntimeNKleinModelRegistryPruneResponse,
+	RuntimeNKleinModelRegistryRemoveRequest,
+	RuntimeNKleinModelRegistryRemoveResponse,
+	RuntimeNKleinModelRegistryResponse,
+	RuntimeNKleinOauthLoginRequest,
+	RuntimeNKleinOauthLoginResponse,
+	RuntimeNKleinPlanArtifactActionRequest,
+	RuntimeNKleinPlanArtifactApplyResponse,
+	RuntimeNKleinPlanArtifactRejectResponse,
+	RuntimeNKleinPlanArtifactsRequest,
+	RuntimeNKleinPlanArtifactsResponse,
+	RuntimeNKleinProviderCatalogResponse,
+	RuntimeNKleinProviderModelsRequest,
+	RuntimeNKleinProviderModelsResponse,
+	RuntimeNKleinProviderSettingsSaveRequest,
+	RuntimeNKleinProviderSettingsSaveResponse,
+	RuntimeNKleinSmokeEvalResponse,
+	RuntimeNKleinUpdateProviderRequest,
+	RuntimeNKleinUpdateProviderResponse,
 	RuntimeOpenFileRequest,
 	RuntimeOpenFileResponse,
 	RuntimeProjectAddRequest,
@@ -142,53 +142,6 @@ import type {
 	RuntimeWorktreeEnsureResponse,
 } from "../core/api-contract";
 import {
-	runtimeClineAccountBalanceResponseSchema,
-	runtimeClineAccountOrganizationsResponseSchema,
-	runtimeClineAccountProfileResponseSchema,
-	runtimeClineAccountSwitchRequestSchema,
-	runtimeClineAccountSwitchResponseSchema,
-	runtimeClineAddProviderRequestSchema,
-	runtimeClineAddProviderResponseSchema,
-	runtimeClineAdvisorBuildRequestSchema,
-	runtimeClineAdvisorRequestSchema,
-	runtimeClineAdvisorSendRequestSchema,
-	runtimeClineAdvisorSendResponseSchema,
-	runtimeClineCodeIntelligenceStatusResponseSchema,
-	runtimeClineDeviceAuthCompleteRequestSchema,
-	runtimeClineDeviceAuthCompleteResponseSchema,
-	runtimeClineDeviceAuthStartResponseSchema,
-	runtimeClineDogfoodBacklogRequestSchema,
-	runtimeClineDogfoodBacklogResponseSchema,
-	runtimeClineEndpointModelDiscoveryRequestSchema,
-	runtimeClineEndpointModelDiscoveryResponseSchema,
-	runtimeClineKanbanAccessResponseSchema,
-	runtimeClineMcpAuthStatusResponseSchema,
-	runtimeClineMcpOAuthRequestSchema,
-	runtimeClineMcpOAuthResponseSchema,
-	runtimeClineMcpSettingsResponseSchema,
-	runtimeClineMcpSettingsSaveRequestSchema,
-	runtimeClineMcpSettingsSaveResponseSchema,
-	runtimeClineModelContextWindowOverrideRequestSchema,
-	runtimeClineModelContextWindowOverrideResponseSchema,
-	runtimeClineModelRegistryPruneResponseSchema,
-	runtimeClineModelRegistryRemoveRequestSchema,
-	runtimeClineModelRegistryRemoveResponseSchema,
-	runtimeClineModelRegistryResponseSchema,
-	runtimeClineOauthLoginRequestSchema,
-	runtimeClineOauthLoginResponseSchema,
-	runtimeClinePlanArtifactActionRequestSchema,
-	runtimeClinePlanArtifactApplyResponseSchema,
-	runtimeClinePlanArtifactRejectResponseSchema,
-	runtimeClinePlanArtifactsRequestSchema,
-	runtimeClinePlanArtifactsResponseSchema,
-	runtimeClineProviderCatalogResponseSchema,
-	runtimeClineProviderModelsRequestSchema,
-	runtimeClineProviderModelsResponseSchema,
-	runtimeClineProviderSettingsSaveRequestSchema,
-	runtimeClineProviderSettingsSaveResponseSchema,
-	runtimeClineSmokeEvalResponseSchema,
-	runtimeClineUpdateProviderRequestSchema,
-	runtimeClineUpdateProviderResponseSchema,
 	runtimeCommandRunRequestSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeConfigResponseSchema,
@@ -215,6 +168,53 @@ import {
 	runtimeHookIngestResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
+	runtimeNKleinAccountBalanceResponseSchema,
+	runtimeNKleinAccountOrganizationsResponseSchema,
+	runtimeNKleinAccountProfileResponseSchema,
+	runtimeNKleinAccountSwitchRequestSchema,
+	runtimeNKleinAccountSwitchResponseSchema,
+	runtimeNKleinAddProviderRequestSchema,
+	runtimeNKleinAddProviderResponseSchema,
+	runtimeNKleinAdvisorBuildRequestSchema,
+	runtimeNKleinAdvisorRequestSchema,
+	runtimeNKleinAdvisorSendRequestSchema,
+	runtimeNKleinAdvisorSendResponseSchema,
+	runtimeNKleinCodeIntelligenceStatusResponseSchema,
+	runtimeNKleinDeviceAuthCompleteRequestSchema,
+	runtimeNKleinDeviceAuthCompleteResponseSchema,
+	runtimeNKleinDeviceAuthStartResponseSchema,
+	runtimeNKleinDogfoodBacklogRequestSchema,
+	runtimeNKleinDogfoodBacklogResponseSchema,
+	runtimeNKleinEndpointModelDiscoveryRequestSchema,
+	runtimeNKleinEndpointModelDiscoveryResponseSchema,
+	runtimeNKleinKanbanAccessResponseSchema,
+	runtimeNKleinMcpAuthStatusResponseSchema,
+	runtimeNKleinMcpOAuthRequestSchema,
+	runtimeNKleinMcpOAuthResponseSchema,
+	runtimeNKleinMcpSettingsResponseSchema,
+	runtimeNKleinMcpSettingsSaveRequestSchema,
+	runtimeNKleinMcpSettingsSaveResponseSchema,
+	runtimeNKleinModelContextWindowOverrideRequestSchema,
+	runtimeNKleinModelContextWindowOverrideResponseSchema,
+	runtimeNKleinModelRegistryPruneResponseSchema,
+	runtimeNKleinModelRegistryRemoveRequestSchema,
+	runtimeNKleinModelRegistryRemoveResponseSchema,
+	runtimeNKleinModelRegistryResponseSchema,
+	runtimeNKleinOauthLoginRequestSchema,
+	runtimeNKleinOauthLoginResponseSchema,
+	runtimeNKleinPlanArtifactActionRequestSchema,
+	runtimeNKleinPlanArtifactApplyResponseSchema,
+	runtimeNKleinPlanArtifactRejectResponseSchema,
+	runtimeNKleinPlanArtifactsRequestSchema,
+	runtimeNKleinPlanArtifactsResponseSchema,
+	runtimeNKleinProviderCatalogResponseSchema,
+	runtimeNKleinProviderModelsRequestSchema,
+	runtimeNKleinProviderModelsResponseSchema,
+	runtimeNKleinProviderSettingsSaveRequestSchema,
+	runtimeNKleinProviderSettingsSaveResponseSchema,
+	runtimeNKleinSmokeEvalResponseSchema,
+	runtimeNKleinUpdateProviderRequestSchema,
+	runtimeNKleinUpdateProviderResponseSchema,
 	runtimeOpenFileRequestSchema,
 	runtimeOpenFileResponseSchema,
 	runtimeProjectAddRequestSchema,
@@ -300,18 +300,18 @@ export interface RuntimeTrpcContext {
 		getKnowledgeToolUsageStats: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeKnowledgeToolUsageStatsResponse>;
-		saveClineProviderSettings: (
+		saveNKleinProviderSettings: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineProviderSettingsSaveRequest,
-		) => Promise<RuntimeClineProviderSettingsSaveResponse>;
-		addClineProvider: (
+			input: RuntimeNKleinProviderSettingsSaveRequest,
+		) => Promise<RuntimeNKleinProviderSettingsSaveResponse>;
+		addNKleinProvider: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineAddProviderRequest,
-		) => Promise<RuntimeClineAddProviderResponse>;
-		updateClineProvider: (
+			input: RuntimeNKleinAddProviderRequest,
+		) => Promise<RuntimeNKleinAddProviderResponse>;
+		updateNKleinProvider: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineUpdateProviderRequest,
-		) => Promise<RuntimeClineUpdateProviderResponse>;
+			input: RuntimeNKleinUpdateProviderRequest,
+		) => Promise<RuntimeNKleinUpdateProviderResponse>;
 		startTaskSession: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskSessionStartRequest,
@@ -338,18 +338,18 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskDiagnosticsRequest,
 		) => Promise<RuntimeTaskDiagnosticsResponse>;
-		listClinePlanArtifacts: (
+		listNKleinPlanArtifacts: (
 			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeClinePlanArtifactsRequest,
-		) => Promise<RuntimeClinePlanArtifactsResponse>;
-		applyClinePlanArtifact: (
+			input: RuntimeNKleinPlanArtifactsRequest,
+		) => Promise<RuntimeNKleinPlanArtifactsResponse>;
+		applyNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeClinePlanArtifactActionRequest,
-		) => Promise<RuntimeClinePlanArtifactApplyResponse>;
-		rejectClinePlanArtifact: (
+			input: RuntimeNKleinPlanArtifactActionRequest,
+		) => Promise<RuntimeNKleinPlanArtifactApplyResponse>;
+		rejectNKleinPlanArtifact: (
 			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeClinePlanArtifactActionRequest,
-		) => Promise<RuntimeClinePlanArtifactRejectResponse>;
+			input: RuntimeNKleinPlanArtifactActionRequest,
+		) => Promise<RuntimeNKleinPlanArtifactRejectResponse>;
 		verifyTaskAcceptance: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskAcceptanceVerifyRequest,
@@ -366,7 +366,7 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskChatMessagesRequest,
 		) => Promise<RuntimeTaskChatMessagesResponse>;
-		getClineSlashCommands: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeSlashCommandsResponse>;
+		getNKleinSlashCommands: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeSlashCommandsResponse>;
 		sendTaskChatMessage: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskChatSendRequest,
@@ -391,80 +391,88 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskChatCancelRequest,
 		) => Promise<RuntimeTaskChatCancelResponse>;
-		getClineProviderCatalog: (
+		getNKleinProviderCatalog: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-		) => Promise<RuntimeClineProviderCatalogResponse>;
-		getClineAccountProfile: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineAccountProfileResponse>;
-		getClineKanbanAccess: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineKanbanAccessResponse>;
+		) => Promise<RuntimeNKleinProviderCatalogResponse>;
+		getNKleinAccountProfile: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+		) => Promise<RuntimeNKleinAccountProfileResponse>;
+		getNKleinKanbanAccess: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinKanbanAccessResponse>;
 		getFeaturebaseToken: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeFeaturebaseTokenResponse>;
-		getClineAccountBalance: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineAccountBalanceResponse>;
-		getClineAccountOrganizations: (
+		getNKleinAccountBalance: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-		) => Promise<RuntimeClineAccountOrganizationsResponse>;
-		switchClineAccount: (
+		) => Promise<RuntimeNKleinAccountBalanceResponse>;
+		getNKleinAccountOrganizations: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineAccountSwitchRequest,
-		) => Promise<RuntimeClineAccountSwitchResponse>;
-		getClineProviderModels: (
+		) => Promise<RuntimeNKleinAccountOrganizationsResponse>;
+		switchNKleinAccount: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineProviderModelsRequest,
-		) => Promise<RuntimeClineProviderModelsResponse>;
-		discoverClineEndpointModels: (
+			input: RuntimeNKleinAccountSwitchRequest,
+		) => Promise<RuntimeNKleinAccountSwitchResponse>;
+		getNKleinProviderModels: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineEndpointModelDiscoveryRequest,
-		) => Promise<RuntimeClineEndpointModelDiscoveryResponse>;
-		getClineModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineModelRegistryResponse>;
-		removeClineModelRegistryEntry: (
+			input: RuntimeNKleinProviderModelsRequest,
+		) => Promise<RuntimeNKleinProviderModelsResponse>;
+		discoverNKleinEndpointModels: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineModelRegistryRemoveRequest,
-		) => Promise<RuntimeClineModelRegistryRemoveResponse>;
-		pruneClineModelRegistry: (
+			input: RuntimeNKleinEndpointModelDiscoveryRequest,
+		) => Promise<RuntimeNKleinEndpointModelDiscoveryResponse>;
+		getNKleinModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinModelRegistryResponse>;
+		removeNKleinModelRegistryEntry: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-		) => Promise<RuntimeClineModelRegistryPruneResponse>;
-		saveClineModelContextWindowOverride: (
+			input: RuntimeNKleinModelRegistryRemoveRequest,
+		) => Promise<RuntimeNKleinModelRegistryRemoveResponse>;
+		pruneNKleinModelRegistry: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineModelContextWindowOverrideRequest,
-		) => Promise<RuntimeClineModelContextWindowOverrideResponse>;
-		getClineCodeIntelligenceStatus: (
+		) => Promise<RuntimeNKleinModelRegistryPruneResponse>;
+		saveNKleinModelContextWindowOverride: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-		) => Promise<RuntimeClineCodeIntelligenceStatusResponse>;
-		buildClineModelFreshnessAdvisor: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineAdvisorRequest>;
-		buildClineAdvisor: (
+			input: RuntimeNKleinModelContextWindowOverrideRequest,
+		) => Promise<RuntimeNKleinModelContextWindowOverrideResponse>;
+		getNKleinCodeIntelligenceStatus: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineAdvisorBuildRequest,
-		) => Promise<RuntimeClineAdvisorRequest>;
-		sendClineAdvisor: (
+		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
+		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineAdvisorSendRequest,
-		) => Promise<RuntimeClineAdvisorSendResponse>;
-		writeClineDogfoodBacklog: (
+		) => Promise<RuntimeNKleinAdvisorRequest>;
+		buildNKleinAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineDogfoodBacklogRequest,
-		) => Promise<RuntimeClineDogfoodBacklogResponse>;
-		runClineSmokeEval: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineSmokeEvalResponse>;
+			input: RuntimeNKleinAdvisorBuildRequest,
+		) => Promise<RuntimeNKleinAdvisorRequest>;
+		sendNKleinAdvisor: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeNKleinAdvisorSendRequest,
+		) => Promise<RuntimeNKleinAdvisorSendResponse>;
+		writeNKleinDogfoodBacklog: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeNKleinDogfoodBacklogRequest,
+		) => Promise<RuntimeNKleinDogfoodBacklogResponse>;
+		runNKleinSmokeEval: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinSmokeEvalResponse>;
 		collectTaskEvidence: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeTaskEvidenceRequest,
 		) => Promise<RuntimeTaskEvidenceResponse>;
-		runClineProviderOAuthLogin: (
+		runNKleinProviderOAuthLogin: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineOauthLoginRequest,
-		) => Promise<RuntimeClineOauthLoginResponse>;
-		startClineDeviceAuth: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineDeviceAuthStartResponse>;
-		completeClineDeviceAuth: (
+			input: RuntimeNKleinOauthLoginRequest,
+		) => Promise<RuntimeNKleinOauthLoginResponse>;
+		startNKleinDeviceAuth: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinDeviceAuthStartResponse>;
+		completeNKleinDeviceAuth: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineDeviceAuthCompleteRequest,
-		) => Promise<RuntimeClineDeviceAuthCompleteResponse>;
-		getClineMcpAuthStatuses: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineMcpAuthStatusResponse>;
-		runClineMcpServerOAuth: (
+			input: RuntimeNKleinDeviceAuthCompleteRequest,
+		) => Promise<RuntimeNKleinDeviceAuthCompleteResponse>;
+		getNKleinMcpAuthStatuses: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineMcpOAuthRequest,
-		) => Promise<RuntimeClineMcpOAuthResponse>;
-		getClineMcpSettings: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeClineMcpSettingsResponse>;
-		saveClineMcpSettings: (
+		) => Promise<RuntimeNKleinMcpAuthStatusResponse>;
+		runNKleinMcpServerOAuth: (
 			scope: RuntimeTrpcWorkspaceScope | null,
-			input: RuntimeClineMcpSettingsSaveRequest,
-		) => Promise<RuntimeClineMcpSettingsSaveResponse>;
+			input: RuntimeNKleinMcpOAuthRequest,
+		) => Promise<RuntimeNKleinMcpOAuthResponse>;
+		getNKleinMcpSettings: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinMcpSettingsResponse>;
+		saveNKleinMcpSettings: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeNKleinMcpSettingsSaveRequest,
+		) => Promise<RuntimeNKleinMcpSettingsSaveResponse>;
 		startShellSession: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeShellSessionStartRequest,
@@ -641,23 +649,23 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getKnowledgeToolUsageStats(ctx.workspaceScope);
 			}),
-		saveClineProviderSettings: t.procedure
-			.input(runtimeClineProviderSettingsSaveRequestSchema)
-			.output(runtimeClineProviderSettingsSaveResponseSchema)
+		saveNKleinProviderSettings: t.procedure
+			.input(runtimeNKleinProviderSettingsSaveRequestSchema)
+			.output(runtimeNKleinProviderSettingsSaveResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.saveClineProviderSettings(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.saveNKleinProviderSettings(ctx.workspaceScope, input);
 			}),
-		addClineProvider: t.procedure
-			.input(runtimeClineAddProviderRequestSchema)
-			.output(runtimeClineAddProviderResponseSchema)
+		addNKleinProvider: t.procedure
+			.input(runtimeNKleinAddProviderRequestSchema)
+			.output(runtimeNKleinAddProviderResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.addClineProvider(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.addNKleinProvider(ctx.workspaceScope, input);
 			}),
-		updateClineProvider: t.procedure
-			.input(runtimeClineUpdateProviderRequestSchema)
-			.output(runtimeClineUpdateProviderResponseSchema)
+		updateNKleinProvider: t.procedure
+			.input(runtimeNKleinUpdateProviderRequestSchema)
+			.output(runtimeNKleinUpdateProviderResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.updateClineProvider(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.updateNKleinProvider(ctx.workspaceScope, input);
 			}),
 		startTaskSession: workspaceProcedure
 			.input(runtimeTaskSessionStartRequestSchema)
@@ -701,23 +709,23 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskDiagnostics(ctx.workspaceScope, input);
 			}),
-		listClinePlanArtifacts: workspaceProcedure
-			.input(runtimeClinePlanArtifactsRequestSchema)
-			.output(runtimeClinePlanArtifactsResponseSchema)
+		listNKleinPlanArtifacts: workspaceProcedure
+			.input(runtimeNKleinPlanArtifactsRequestSchema)
+			.output(runtimeNKleinPlanArtifactsResponseSchema)
 			.query(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.listClinePlanArtifacts(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.listNKleinPlanArtifacts(ctx.workspaceScope, input);
 			}),
-		applyClinePlanArtifact: workspaceProcedure
-			.input(runtimeClinePlanArtifactActionRequestSchema)
-			.output(runtimeClinePlanArtifactApplyResponseSchema)
+		applyNKleinPlanArtifact: workspaceProcedure
+			.input(runtimeNKleinPlanArtifactActionRequestSchema)
+			.output(runtimeNKleinPlanArtifactApplyResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.applyClinePlanArtifact(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.applyNKleinPlanArtifact(ctx.workspaceScope, input);
 			}),
-		rejectClinePlanArtifact: workspaceProcedure
-			.input(runtimeClinePlanArtifactActionRequestSchema)
-			.output(runtimeClinePlanArtifactRejectResponseSchema)
+		rejectNKleinPlanArtifact: workspaceProcedure
+			.input(runtimeNKleinPlanArtifactActionRequestSchema)
+			.output(runtimeNKleinPlanArtifactRejectResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.rejectClinePlanArtifact(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.rejectNKleinPlanArtifact(ctx.workspaceScope, input);
 			}),
 		verifyTaskAcceptance: workspaceProcedure
 			.input(runtimeTaskAcceptanceVerifyRequestSchema)
@@ -743,8 +751,8 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskChatMessages(ctx.workspaceScope, input);
 			}),
-		getClineSlashCommands: t.procedure.output(runtimeSlashCommandsResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineSlashCommands(ctx.workspaceScope);
+		getNKleinSlashCommands: t.procedure.output(runtimeSlashCommandsResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinSlashCommands(ctx.workspaceScope);
 		}),
 		reloadTaskChatSession: workspaceProcedure
 			.input(runtimeTaskChatReloadRequestSchema)
@@ -782,92 +790,94 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.cancelTaskChatTurn(ctx.workspaceScope, input);
 			}),
-		getClineProviderCatalog: t.procedure.output(runtimeClineProviderCatalogResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineProviderCatalog(ctx.workspaceScope);
+		getNKleinProviderCatalog: t.procedure
+			.output(runtimeNKleinProviderCatalogResponseSchema)
+			.query(async ({ ctx }) => {
+				return await ctx.runtimeApi.getNKleinProviderCatalog(ctx.workspaceScope);
+			}),
+		getNKleinAccountProfile: t.procedure.output(runtimeNKleinAccountProfileResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinAccountProfile(ctx.workspaceScope);
 		}),
-		getClineAccountProfile: t.procedure.output(runtimeClineAccountProfileResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineAccountProfile(ctx.workspaceScope);
-		}),
-		getClineKanbanAccess: t.procedure.output(runtimeClineKanbanAccessResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineKanbanAccess(ctx.workspaceScope);
+		getNKleinKanbanAccess: t.procedure.output(runtimeNKleinKanbanAccessResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinKanbanAccess(ctx.workspaceScope);
 		}),
 		getFeaturebaseToken: t.procedure.output(runtimeFeaturebaseTokenResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getFeaturebaseToken(ctx.workspaceScope);
 		}),
-		getClineAccountBalance: t.procedure.output(runtimeClineAccountBalanceResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineAccountBalance(ctx.workspaceScope);
+		getNKleinAccountBalance: t.procedure.output(runtimeNKleinAccountBalanceResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinAccountBalance(ctx.workspaceScope);
 		}),
-		getClineAccountOrganizations: t.procedure
-			.output(runtimeClineAccountOrganizationsResponseSchema)
+		getNKleinAccountOrganizations: t.procedure
+			.output(runtimeNKleinAccountOrganizationsResponseSchema)
 			.query(async ({ ctx }) => {
-				return await ctx.runtimeApi.getClineAccountOrganizations(ctx.workspaceScope);
+				return await ctx.runtimeApi.getNKleinAccountOrganizations(ctx.workspaceScope);
 			}),
-		switchClineAccount: t.procedure
-			.input(runtimeClineAccountSwitchRequestSchema)
-			.output(runtimeClineAccountSwitchResponseSchema)
+		switchNKleinAccount: t.procedure
+			.input(runtimeNKleinAccountSwitchRequestSchema)
+			.output(runtimeNKleinAccountSwitchResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.switchClineAccount(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.switchNKleinAccount(ctx.workspaceScope, input);
 			}),
-		getClineProviderModels: t.procedure
-			.input(runtimeClineProviderModelsRequestSchema)
-			.output(runtimeClineProviderModelsResponseSchema)
+		getNKleinProviderModels: t.procedure
+			.input(runtimeNKleinProviderModelsRequestSchema)
+			.output(runtimeNKleinProviderModelsResponseSchema)
 			.query(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.getClineProviderModels(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.getNKleinProviderModels(ctx.workspaceScope, input);
 			}),
-		discoverClineEndpointModels: t.procedure
-			.input(runtimeClineEndpointModelDiscoveryRequestSchema)
-			.output(runtimeClineEndpointModelDiscoveryResponseSchema)
+		discoverNKleinEndpointModels: t.procedure
+			.input(runtimeNKleinEndpointModelDiscoveryRequestSchema)
+			.output(runtimeNKleinEndpointModelDiscoveryResponseSchema)
 			.query(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.discoverClineEndpointModels(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.discoverNKleinEndpointModels(ctx.workspaceScope, input);
 			}),
-		getClineModelRegistry: t.procedure.output(runtimeClineModelRegistryResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineModelRegistry(ctx.workspaceScope);
+		getNKleinModelRegistry: t.procedure.output(runtimeNKleinModelRegistryResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinModelRegistry(ctx.workspaceScope);
 		}),
-		removeClineModelRegistryEntry: t.procedure
-			.input(runtimeClineModelRegistryRemoveRequestSchema)
-			.output(runtimeClineModelRegistryRemoveResponseSchema)
+		removeNKleinModelRegistryEntry: t.procedure
+			.input(runtimeNKleinModelRegistryRemoveRequestSchema)
+			.output(runtimeNKleinModelRegistryRemoveResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.removeClineModelRegistryEntry(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.removeNKleinModelRegistryEntry(ctx.workspaceScope, input);
 			}),
-		pruneClineModelRegistry: t.procedure
-			.output(runtimeClineModelRegistryPruneResponseSchema)
+		pruneNKleinModelRegistry: t.procedure
+			.output(runtimeNKleinModelRegistryPruneResponseSchema)
 			.mutation(async ({ ctx }) => {
-				return await ctx.runtimeApi.pruneClineModelRegistry(ctx.workspaceScope);
+				return await ctx.runtimeApi.pruneNKleinModelRegistry(ctx.workspaceScope);
 			}),
-		saveClineModelContextWindowOverride: t.procedure
-			.input(runtimeClineModelContextWindowOverrideRequestSchema)
-			.output(runtimeClineModelContextWindowOverrideResponseSchema)
+		saveNKleinModelContextWindowOverride: t.procedure
+			.input(runtimeNKleinModelContextWindowOverrideRequestSchema)
+			.output(runtimeNKleinModelContextWindowOverrideResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.saveClineModelContextWindowOverride(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.saveNKleinModelContextWindowOverride(ctx.workspaceScope, input);
 			}),
-		getClineCodeIntelligenceStatus: t.procedure
-			.output(runtimeClineCodeIntelligenceStatusResponseSchema)
+		getNKleinCodeIntelligenceStatus: t.procedure
+			.output(runtimeNKleinCodeIntelligenceStatusResponseSchema)
 			.query(async ({ ctx }) => {
-				return await ctx.runtimeApi.getClineCodeIntelligenceStatus(ctx.workspaceScope);
+				return await ctx.runtimeApi.getNKleinCodeIntelligenceStatus(ctx.workspaceScope);
 			}),
-		buildClineModelFreshnessAdvisor: t.procedure.output(runtimeClineAdvisorRequestSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.buildClineModelFreshnessAdvisor(ctx.workspaceScope);
+		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);
 		}),
-		buildClineAdvisor: t.procedure
-			.input(runtimeClineAdvisorBuildRequestSchema)
-			.output(runtimeClineAdvisorRequestSchema)
+		buildNKleinAdvisor: t.procedure
+			.input(runtimeNKleinAdvisorBuildRequestSchema)
+			.output(runtimeNKleinAdvisorRequestSchema)
 			.query(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.buildClineAdvisor(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.buildNKleinAdvisor(ctx.workspaceScope, input);
 			}),
-		sendClineAdvisor: t.procedure
-			.input(runtimeClineAdvisorSendRequestSchema)
-			.output(runtimeClineAdvisorSendResponseSchema)
+		sendNKleinAdvisor: t.procedure
+			.input(runtimeNKleinAdvisorSendRequestSchema)
+			.output(runtimeNKleinAdvisorSendResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.sendClineAdvisor(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.sendNKleinAdvisor(ctx.workspaceScope, input);
 			}),
-		writeClineDogfoodBacklog: t.procedure
-			.input(runtimeClineDogfoodBacklogRequestSchema)
-			.output(runtimeClineDogfoodBacklogResponseSchema)
+		writeNKleinDogfoodBacklog: t.procedure
+			.input(runtimeNKleinDogfoodBacklogRequestSchema)
+			.output(runtimeNKleinDogfoodBacklogResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.writeClineDogfoodBacklog(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.writeNKleinDogfoodBacklog(ctx.workspaceScope, input);
 			}),
-		runClineSmokeEval: t.procedure.output(runtimeClineSmokeEvalResponseSchema).mutation(async ({ ctx }) => {
-			return await ctx.runtimeApi.runClineSmokeEval(ctx.workspaceScope);
+		runNKleinSmokeEval: t.procedure.output(runtimeNKleinSmokeEvalResponseSchema).mutation(async ({ ctx }) => {
+			return await ctx.runtimeApi.runNKleinSmokeEval(ctx.workspaceScope);
 		}),
 		collectTaskEvidence: t.procedure
 			.input(runtimeTaskEvidenceRequestSchema)
@@ -875,38 +885,40 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.collectTaskEvidence(ctx.workspaceScope, input);
 			}),
-		getClineMcpAuthStatuses: t.procedure.output(runtimeClineMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineMcpAuthStatuses(ctx.workspaceScope);
+		getNKleinMcpAuthStatuses: t.procedure.output(runtimeNKleinMcpAuthStatusResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinMcpAuthStatuses(ctx.workspaceScope);
 		}),
-		runClineMcpServerOAuth: t.procedure
-			.input(runtimeClineMcpOAuthRequestSchema)
-			.output(runtimeClineMcpOAuthResponseSchema)
+		runNKleinMcpServerOAuth: t.procedure
+			.input(runtimeNKleinMcpOAuthRequestSchema)
+			.output(runtimeNKleinMcpOAuthResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.runClineMcpServerOAuth(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.runNKleinMcpServerOAuth(ctx.workspaceScope, input);
 			}),
-		getClineMcpSettings: t.procedure.output(runtimeClineMcpSettingsResponseSchema).query(async ({ ctx }) => {
-			return await ctx.runtimeApi.getClineMcpSettings(ctx.workspaceScope);
+		getNKleinMcpSettings: t.procedure.output(runtimeNKleinMcpSettingsResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getNKleinMcpSettings(ctx.workspaceScope);
 		}),
-		saveClineMcpSettings: t.procedure
-			.input(runtimeClineMcpSettingsSaveRequestSchema)
-			.output(runtimeClineMcpSettingsSaveResponseSchema)
+		saveNKleinMcpSettings: t.procedure
+			.input(runtimeNKleinMcpSettingsSaveRequestSchema)
+			.output(runtimeNKleinMcpSettingsSaveResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.saveClineMcpSettings(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.saveNKleinMcpSettings(ctx.workspaceScope, input);
 			}),
-		runClineProviderOAuthLogin: t.procedure
-			.input(runtimeClineOauthLoginRequestSchema)
-			.output(runtimeClineOauthLoginResponseSchema)
+		runNKleinProviderOAuthLogin: t.procedure
+			.input(runtimeNKleinOauthLoginRequestSchema)
+			.output(runtimeNKleinOauthLoginResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.runClineProviderOAuthLogin(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.runNKleinProviderOAuthLogin(ctx.workspaceScope, input);
 			}),
-		startClineDeviceAuth: t.procedure.output(runtimeClineDeviceAuthStartResponseSchema).mutation(async ({ ctx }) => {
-			return await ctx.runtimeApi.startClineDeviceAuth(ctx.workspaceScope);
-		}),
-		completeClineDeviceAuth: t.procedure
-			.input(runtimeClineDeviceAuthCompleteRequestSchema)
-			.output(runtimeClineDeviceAuthCompleteResponseSchema)
+		startNKleinDeviceAuth: t.procedure
+			.output(runtimeNKleinDeviceAuthStartResponseSchema)
+			.mutation(async ({ ctx }) => {
+				return await ctx.runtimeApi.startNKleinDeviceAuth(ctx.workspaceScope);
+			}),
+		completeNKleinDeviceAuth: t.procedure
+			.input(runtimeNKleinDeviceAuthCompleteRequestSchema)
+			.output(runtimeNKleinDeviceAuthCompleteResponseSchema)
 			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.completeClineDeviceAuth(ctx.workspaceScope, input);
+				return await ctx.runtimeApi.completeNKleinDeviceAuth(ctx.workspaceScope, input);
 			}),
 		startShellSession: workspaceProcedure
 			.input(runtimeShellSessionStartRequestSchema)

@@ -1,4 +1,4 @@
-import type { RuntimeClineProviderCatalogItem } from "@/runtime/types";
+import type { RuntimeNKleinProviderCatalogItem } from "@/runtime/types";
 
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
@@ -72,7 +72,7 @@ export function deriveEmbeddingsEndpointUrl(baseUrl: string | null | undefined):
 export function buildSuggestedCodeEmbeddingBaseUrl(input: {
 	providerId: string | null | undefined;
 	baseUrl: string | null | undefined;
-	providerCatalog: RuntimeClineProviderCatalogItem[];
+	providerCatalog: RuntimeNKleinProviderCatalogItem[];
 }): string | null {
 	const providerId = normalizeProviderId(input.providerId);
 	if (providerId !== "lmstudio" && providerId !== "lm-studio") {

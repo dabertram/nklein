@@ -5,40 +5,9 @@ import { describe, expect, it } from "vitest";
 const repoRoot = process.cwd();
 const SCAN_ROOTS = ["web-ui/src", "web-ui/public/sw.js", "src/cli.ts"] as const;
 const FILE_EXTENSIONS = new Set([".ts", ".tsx", ".js"]);
-const BRAND_TOKEN_PATTERN = /\b(?:Cline|Kanban)\b/u;
+const BRAND_TOKEN_PATTERN = /\b(?:NKlein|Kanban)\b/u;
 
-const allowedBrandTextPatterns = [
-	/^Ask Cline to add, edit, start, or link tasks$/,
-	/^Choose a Cline provider before saving\.$/,
-	/^Choose a Cline provider before refreshing models\.$/,
-	/^Choose a Cline provider in Settings before selecting a model\.$/,
-	/^Choose a local Cline model before sending the advisor prompt\.$/,
-	/^Could not save Cline provider settings\.$/,
-	/^Could not save Cline MCP settings\.$/,
-	/^Could not save Cline model settings\.$/,
-	/^Configure a local Cline model before starting this task\.$/,
-	/^Cline$/,
-	/^Cline context window override$/,
-	/^Cline local model$/,
-	/^Cline mode$/,
-	/^Failed to refresh Cline models\.$/,
-	/^Fetching Cline models\.\.\.$/,
-	/^Fetching Cline providers\.\.\.$/,
-	/^Leaves Cline running\.$/,
-	/^Local Cline agent \(cloud disabled\)\.$/,
-	/^Moves Cline sessions to review\.$/,
-	/^Needs attention: the Cline session heartbeat was lost\./,
-	/^Parks Cline tasks after the autonomous wall-time limit\.$/,
-	/^Parks Cline tasks at the turn checkpoint limit\.$/,
-	/^Local-only mode is enabled\. Select a local Cline provider in Settings to use the !Klein Agent\.$/,
-	/^Select a local Cline provider in Settings to start a home chat session\.$/,
-	/^Select a workspace before choosing a Cline model\.$/,
-	/^Selected Cline model$/,
-	/^Sign in to Cline$/,
-	/^Stops tasks that hit Cline's mistake guardrail\.$/,
-	/^The selected Cline model may not accept image input\./,
-	/^Deprecated\. Please uninstall the legacy Kanban MCP\.$/,
-] as const;
+const allowedBrandTextPatterns = [/^Deprecated\. Please uninstall the legacy Kanban MCP\.$/] as const;
 
 function walkFiles(rootPath: string): string[] {
 	const absoluteRootPath = join(repoRoot, rootPath);
@@ -108,7 +77,7 @@ function isAllowedBrandText(text: string): boolean {
 }
 
 describe("brand regression guard", () => {
-	it("keeps user-visible app-brand strings free of accidental Cline/Kanban regressions", () => {
+	it("keeps user-visible app-brand strings free of accidental NKlein/Kanban regressions", () => {
 		const violations: string[] = [];
 		for (const filePath of collectScanFiles()) {
 			const source = readFileSync(filePath, "utf8");

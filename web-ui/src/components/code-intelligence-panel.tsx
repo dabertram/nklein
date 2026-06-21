@@ -1,8 +1,8 @@
 import { Database, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { fetchClineCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
-import type { RuntimeClineCodeIntelligenceStatusResponse } from "@/runtime/types";
+import { fetchNKleinCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
+import type { RuntimeNKleinCodeIntelligenceStatusResponse } from "@/runtime/types";
 
 function formatCodeIntelligenceUpdatedAt(updatedAt: number | null): string {
 	if (updatedAt === null) {
@@ -23,7 +23,7 @@ function formatCodeIntelligenceUpdatedAt(updatedAt: number | null): string {
 	return `${Math.floor(hours / 24)}d ago`;
 }
 
-function formatCodeIndexCoverage(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string {
+function formatCodeIndexCoverage(status: RuntimeNKleinCodeIntelligenceStatusResponse["codeIndex"]): string {
 	if (status.totalChunks === 0) {
 		return "No source chunks found";
 	}
@@ -31,7 +31,7 @@ function formatCodeIndexCoverage(status: RuntimeClineCodeIntelligenceStatusRespo
 	return `${status.indexedChunks}/${status.totalChunks} chunks (${percent}%)`;
 }
 
-function formatCodeIndexProgress(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"]): string | null {
+function formatCodeIndexProgress(status: RuntimeNKleinCodeIntelligenceStatusResponse["codeIndex"]): string | null {
 	const progress = status.progress;
 	if (progress.phase === "idle" || progress.phase === "complete") {
 		return null;
@@ -48,7 +48,7 @@ function formatCodeIndexProgress(status: RuntimeClineCodeIntelligenceStatusRespo
 	return progress.message ? `Indexing error: ${progress.message}` : "Indexing error";
 }
 
-function isCodeIndexProgressActive(status: RuntimeClineCodeIntelligenceStatusResponse["codeIndex"] | null): boolean {
+function isCodeIndexProgressActive(status: RuntimeNKleinCodeIntelligenceStatusResponse["codeIndex"] | null): boolean {
 	return (
 		status?.progress.phase === "scanning" ||
 		status?.progress.phase === "embedding" ||
@@ -67,7 +67,7 @@ function formatEmbeddingProvider(provider: string | null): string {
 }
 
 function formatEmbeddingSettings(
-	settings: RuntimeClineCodeIntelligenceStatusResponse["codeEmbeddingSettings"]["effective"],
+	settings: RuntimeNKleinCodeIntelligenceStatusResponse["codeEmbeddingSettings"]["effective"],
 ): string {
 	if (settings.provider === "local_lexical") {
 		return "Local lexical fallback";
@@ -89,7 +89,7 @@ export function CodeIntelligencePanel({
 	compact?: boolean;
 }): React.ReactElement | null {
 	const [isLoading, setIsLoading] = useState(false);
-	const [status, setStatus] = useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
+	const [status, setStatus] = useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
 	const [detailsOpen, setDetailsOpen] = useState(false);
 
 	const refreshStatus = useCallback(() => {
@@ -98,7 +98,7 @@ export function CodeIntelligencePanel({
 		}
 		onError(null);
 		setIsLoading(true);
-		void fetchClineCodeIntelligenceStatus(workspaceId)
+		void fetchNKleinCodeIntelligenceStatus(workspaceId)
 			.then((response) => {
 				setStatus(response);
 			})

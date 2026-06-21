@@ -10,7 +10,7 @@ import { TaskPromptComposer } from "@/components/task-prompt-composer";
 import { TaskPromptTemplateMenu } from "@/components/task-prompt-template-menu";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
-import type { RuntimeAgentId, RuntimeClineReasoningEffort, RuntimeTaskClineSettings } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeNKleinReasoningEffort, RuntimeTaskNKleinSettings } from "@/runtime/types";
 import type { TaskAutoReviewMode, TaskImage } from "@/types";
 import { pasteShortcutLabel } from "@/utils/platform";
 import { useDocumentEvent, useMeasure } from "@/utils/react-use";
@@ -70,8 +70,8 @@ export function TaskInlineCreateCard({
 	idPrefix = "inline-task",
 	agentId,
 	onAgentIdChange,
-	clineSettings,
-	onClineSettingsChange,
+	nkleinSettings,
+	onNKleinSettingsChange,
 	defaultAgentId,
 	defaultProviderId,
 	defaultModelId,
@@ -103,16 +103,16 @@ export function TaskInlineCreateCard({
 	idPrefix?: string;
 	agentId?: RuntimeAgentId | undefined;
 	onAgentIdChange?: (value: RuntimeAgentId | undefined) => void;
-	clineSettings?: RuntimeTaskClineSettings | undefined;
-	onClineSettingsChange?: (value: RuntimeTaskClineSettings | undefined) => void;
+	nkleinSettings?: RuntimeTaskNKleinSettings | undefined;
+	onNKleinSettingsChange?: (value: RuntimeTaskNKleinSettings | undefined) => void;
 	/** Default agent ID from runtimeConfig.selectedAgentId, used to show "Default (AgentName)" in picker */
 	defaultAgentId?: RuntimeAgentId | null;
-	/** Default Cline provider ID from runtimeConfig.clineProviderSettings.providerId */
+	/** Default NKlein provider ID from runtimeConfig.nkleinProviderSettings.providerId */
 	defaultProviderId?: string | null;
-	/** Default Cline model ID from runtimeConfig.clineProviderSettings.modelId */
+	/** Default NKlein model ID from runtimeConfig.nkleinProviderSettings.modelId */
 	defaultModelId?: string | null;
-	/** Default Cline reasoning effort from runtimeConfig.clineProviderSettings.reasoningEffort */
-	defaultReasoningEffort?: RuntimeClineReasoningEffort | null;
+	/** Default NKlein reasoning effort from runtimeConfig.nkleinProviderSettings.reasoningEffort */
+	defaultReasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	cloudProviderSupportEnabled?: boolean;
 }): ReactElement {
 	const promptId = `${idPrefix}-prompt-input`;
@@ -142,8 +142,8 @@ export function TaskInlineCreateCard({
 
 	const {
 		agentOptions,
-		clineProviderOptions,
-		clineModelOptions,
+		nkleinProviderOptions,
+		nkleinModelOptions,
 		effectiveDefaultModelId,
 		providerModels,
 		isLoadingProviders,
@@ -153,7 +153,7 @@ export function TaskInlineCreateCard({
 		active: true,
 		workspaceId,
 		agentId,
-		clineSettings,
+		nkleinSettings,
 		defaultAgentId,
 		defaultProviderId,
 		defaultModelId,
@@ -315,15 +315,15 @@ export function TaskInlineCreateCard({
 						))}
 					</NativeSelect>
 				</div>
-				{onAgentIdChange && onClineSettingsChange ? (
+				{onAgentIdChange && onNKleinSettingsChange ? (
 					<TaskAgentModelPicker
 						agentId={agentId}
 						onAgentIdChange={onAgentIdChange}
-						clineSettings={clineSettings}
-						onClineSettingsChange={onClineSettingsChange}
+						nkleinSettings={nkleinSettings}
+						onNKleinSettingsChange={onNKleinSettingsChange}
 						agentOptions={agentOptions}
-						clineProviderOptions={clineProviderOptions}
-						clineModelOptions={clineModelOptions}
+						nkleinProviderOptions={nkleinProviderOptions}
+						nkleinModelOptions={nkleinModelOptions}
 						effectiveDefaultModelId={effectiveDefaultModelId}
 						providerModels={providerModels}
 						isLoadingProviders={isLoadingProviders}

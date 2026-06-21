@@ -1,17 +1,9 @@
 // Persists !Klein-owned runtime preferences on disk.
 // This module should store !Klein settings such as selected agents,
-// shortcuts, and prompt templates, not SDK-owned Cline secrets or OAuth data.
+// shortcuts, and prompt templates, not SDK-owned NKlein secrets or OAuth data.
 import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import {
-	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-} from "../cline-sdk/cline-agent-sandbox";
-import { CLOUD_ENABLED } from "../cline-sdk/cline-local-only-policy";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
@@ -23,11 +15,23 @@ import type {
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 } from "../core/api-contract";
-import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskClineSettingsSchema } from "../core/api-contract";
+import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskNKleinSettingsSchema } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
+import {
+	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+} from "../nklein-sdk/nklein-agent-sandbox";
+import { CLOUD_ENABLED } from "../nklein-sdk/nklein-local-only-policy";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
-import { CLINE_HOME_DIR_NAME, NKLEIN_PROJECT_CONFIG_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME } from "./runtime-path-constants";
+import {
+	NKLEIN_HOME_DIR_NAME,
+	NKLEIN_PROJECT_CONFIG_DIR_NAME,
+	NKLEIN_RUNTIME_DIR_NAME,
+} from "./runtime-path-constants";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 
 interface RuntimeGlobalConfigFileShape {
@@ -131,13 +135,13 @@ export interface RuntimeConfigUpdateInput {
 	openPrPromptTemplate?: string;
 }
 
-const RUNTIME_HOME_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
 const CONFIG_FILENAME = "config.json";
-const PROJECT_CONFIG_PARENT_DIR = CLINE_HOME_DIR_NAME;
+const PROJECT_CONFIG_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const PROJECT_CONFIG_DIR = NKLEIN_PROJECT_CONFIG_DIR_NAME;
 const PROJECT_CONFIG_FILENAME = "config.json";
-const DEFAULT_AGENT_ID: RuntimeAgentId = "cline";
+const DEFAULT_AGENT_ID: RuntimeAgentId = "nklein";
 const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = [];
 const DEFAULT_DEVELOPER_MODE_ENABLED = false;
 const DEFAULT_REPLAY_CARDS_ENABLED = false;
@@ -262,10 +266,10 @@ function normalizeAgentId(agentId: RuntimeAgentId | string | null | undefined): 
 			agentId === "opencode" ||
 			agentId === "droid" ||
 			agentId === "kiro" ||
-			agentId === "cline") &&
+			agentId === "nklein") &&
 		isRuntimeAgentLaunchSupported(agentId)
 	) {
-		if (!CLOUD_ENABLED && agentId !== "cline") {
+		if (!CLOUD_ENABLED && agentId !== "nklein") {
 			return DEFAULT_AGENT_ID;
 		}
 		return agentId;
@@ -395,7 +399,7 @@ function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 		if (!role) {
 			continue;
 		}
-		const parsedSettings = runtimeTaskClineSettingsSchema.safeParse(rawSettings);
+		const parsedSettings = runtimeTaskNKleinSettingsSchema.safeParse(rawSettings);
 		if (!parsedSettings.success) {
 			continue;
 		}

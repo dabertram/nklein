@@ -14,7 +14,7 @@
     "paths": {
       "@/*": ["src/*"],
       "@runtime-agent-catalog": ["../src/core/agent-catalog.ts"],
-      "@runtime-cline-tool-call-display": ["../src/cline-sdk/cline-tool-call-display.ts"],
+      "@runtime-nklein-tool-call-display": ["../src/nklein-sdk/nklein-tool-call-display.ts"],
       "@runtime-contract": ["../src/core/api-contract.ts"],
       "@runtime-home-agent-session": ["../src/core/home-agent-session.ts"],
       "@runtime-task-context-import": ["../src/core/task-context-import.ts"],

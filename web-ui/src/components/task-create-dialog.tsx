@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
-import type { RuntimeAgentId, RuntimeClineReasoningEffort, RuntimeTaskClineSettings } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeNKleinReasoningEffort, RuntimeTaskNKleinSettings } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
 import type { TaskAutoReviewMode, TaskImage } from "@/types";
 import { isMacPlatform, pasteShortcutLabel } from "@/utils/platform";
@@ -127,8 +127,8 @@ export function TaskCreateDialog({
 	onBranchRefChange,
 	agentId,
 	onAgentIdChange,
-	clineSettings,
-	onClineSettingsChange,
+	nkleinSettings,
+	onNKleinSettingsChange,
 	defaultAgentId,
 	defaultProviderId,
 	defaultModelId,
@@ -159,16 +159,16 @@ export function TaskCreateDialog({
 	onBranchRefChange: (value: string) => void;
 	agentId?: RuntimeAgentId | undefined;
 	onAgentIdChange?: (value: RuntimeAgentId | undefined) => void;
-	clineSettings?: RuntimeTaskClineSettings | undefined;
-	onClineSettingsChange?: (value: RuntimeTaskClineSettings | undefined) => void;
+	nkleinSettings?: RuntimeTaskNKleinSettings | undefined;
+	onNKleinSettingsChange?: (value: RuntimeTaskNKleinSettings | undefined) => void;
 	/** Default agent ID from runtimeConfig.selectedAgentId, used to show "Default (AgentName)" in picker */
 	defaultAgentId?: RuntimeAgentId | null;
-	/** Default Cline provider ID from runtimeConfig.clineProviderSettings.providerId */
+	/** Default NKlein provider ID from runtimeConfig.nkleinProviderSettings.providerId */
 	defaultProviderId?: string | null;
-	/** Default Cline model ID from runtimeConfig.clineProviderSettings.modelId */
+	/** Default NKlein model ID from runtimeConfig.nkleinProviderSettings.modelId */
 	defaultModelId?: string | null;
-	/** Default Cline reasoning effort from runtimeConfig.clineProviderSettings.reasoningEffort */
-	defaultReasoningEffort?: RuntimeClineReasoningEffort | null;
+	/** Default NKlein reasoning effort from runtimeConfig.nkleinProviderSettings.reasoningEffort */
+	defaultReasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	cloudProviderSupportEnabled?: boolean;
 }): ReactElement {
 	const [mode, setMode] = useState<"single" | "multi">("single");
@@ -190,8 +190,8 @@ export function TaskCreateDialog({
 
 	const {
 		agentOptions,
-		clineProviderOptions,
-		clineModelOptions,
+		nkleinProviderOptions,
+		nkleinModelOptions,
 		effectiveDefaultModelId,
 		providerModels,
 		isLoadingProviders,
@@ -201,7 +201,7 @@ export function TaskCreateDialog({
 		active: open,
 		workspaceId,
 		agentId,
-		clineSettings,
+		nkleinSettings,
 		defaultAgentId,
 		defaultProviderId,
 		defaultModelId,
@@ -697,15 +697,15 @@ export function TaskCreateDialog({
 						</NativeSelect>
 					</div>
 
-					{onAgentIdChange && onClineSettingsChange ? (
+					{onAgentIdChange && onNKleinSettingsChange ? (
 						<TaskAgentModelPicker
 							agentId={agentId}
 							onAgentIdChange={onAgentIdChange}
-							clineSettings={clineSettings}
-							onClineSettingsChange={onClineSettingsChange}
+							nkleinSettings={nkleinSettings}
+							onNKleinSettingsChange={onNKleinSettingsChange}
 							agentOptions={agentOptions}
-							clineProviderOptions={clineProviderOptions}
-							clineModelOptions={clineModelOptions}
+							nkleinProviderOptions={nkleinProviderOptions}
+							nkleinModelOptions={nkleinModelOptions}
 							effectiveDefaultModelId={effectiveDefaultModelId}
 							providerModels={providerModels}
 							isLoadingProviders={isLoadingProviders}

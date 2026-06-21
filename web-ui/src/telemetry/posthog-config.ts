@@ -1,6 +1,6 @@
 import type { PostHogConfig } from "posthog-js";
 
-const DEFAULT_POSTHOG_HOST = "https://data.cline.bot";
+const DEFAULT_POSTHOG_HOST = "https://data.nklein.bot";
 
 function getTrimmedEnvValue(value: string | undefined): string | null {
 	const trimmed = value?.trim();

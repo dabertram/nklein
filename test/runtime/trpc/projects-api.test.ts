@@ -2,16 +2,15 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import {
-	AUDIO_VST_CLINE_DEV_TEST_SCENARIO,
-	COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO,
-} from "../../../src/cline-sdk/cline-dev-test-project";
-import { writeClinePlanArtifacts } from "../../../src/cline-sdk/cline-plan-artifacts";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
-import { AUTONOMOUS_CLINE_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
+import { AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
+import {
+	AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO,
+	COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO,
+} from "../../../src/nklein-sdk/nklein-dev-test-project";
+import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
 import {
 	getTaskWorktreesHomePath,
 	getWorkspaceDirectoryPath,
@@ -165,40 +164,192 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 
 describe("createDevTestBoard", () => {
 	it("builds scenario-specific seed task ids", () => {
-		expect(buildDevTestTaskId(COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.id)).toBe(
-			"dev-habit-product-cline-complex-decompose",
+		expect(buildDevTestTaskId(COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.id)).toBe(
+			"dev-habit-product-nklein-complex-decompose",
 		);
-		expect(buildDevTestTaskId(AUDIO_VST_CLINE_DEV_TEST_SCENARIO.id)).toBe("dev-audio-vst-psytrance-decompose");
+		expect(buildDevTestTaskId(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.id)).toBe("dev-audio-vst-psytrance-decompose");
 		expect(buildDevTestTaskId("  Weird Scenario! ")).toBe("dev-weird-scenario-decompose");
 	});
 
-	it("seeds one Cline-only decomposition task without prebuilt dependencies", () => {
+	it("seeds one NKlein-only decomposition task without prebuilt dependencies", () => {
 		const board = createDevTestBoard({
 			taskId: "dev-initial-decompose",
-			title: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.title,
-			prompt: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.prompt,
-			acceptanceCommand: COMPLEX_DAG_CLINE_DEV_TEST_SCENARIO.acceptanceCommand,
+			title: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.title,
+			prompt: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.prompt,
+			acceptanceCommand: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.acceptanceCommand,
 			now: 123,
 		});
 		const backlog = board.columns.find((column) => column.id === "backlog")?.cards ?? [];
 		expect(backlog).toHaveLength(1);
-		expect(new Set(backlog.map((card) => card.agentId))).toEqual(new Set(["cline"]));
-		expect(backlog[0]?.clineSettings).toEqual(AUTONOMOUS_CLINE_TIMEOUT_SETTINGS);
+		expect(new Set(backlog.map((card) => card.agentId))).toEqual(new Set(["nklein"]));
+		expect(backlog[0]?.nkleinSettings).toEqual(AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS);
 		expect(backlog[0]?.startInPlanMode).toBe(true);
 		expect(backlog[0]?.autoReviewEnabled).toBe(true);
 		expect(backlog[0]?.prompt).not.toContain("/kanban-decompose");
 		expect(backlog[0]?.prompt).toContain("specification.md");
-		expect(backlog[0]?.prompt).toContain("workspace-relative paths");
 		expect(backlog[0]?.prompt).toContain("authoritative product specification");
-		expect(backlog[0]?.prompt).toContain("acceptanceTestPrompt");
-		expect(backlog[0]?.prompt).toContain("minimumTaskCount: 10");
-		expect(backlog[0]?.prompt).toContain("call decompose_project immediately");
+		expect(backlog[0]?.prompt).toContain("at least ten dependent implementation cards");
+		expect(backlog[0]?.prompt).not.toContain("decompose_project");
+		expect(backlog[0]?.prompt).not.toContain("acceptanceTestPrompt");
+		expect(backlog[0]?.prompt).not.toContain("minimumTaskCount");
 		expect(backlog[0]?.prompt).toContain("Add configurable weekly goal settings with validation");
-		expect(backlog[0]?.prompt).toContain("12-leaf outline");
-		expect(backlog[0]?.prompt).toContain("do not inspect .cline/nklein plan artifact paths");
-		expect(backlog[0]?.prompt).toContain('defaultAcceptanceCommand: "npm test"');
+		expect(backlog[0]?.prompt).toContain("12-card outline");
+		expect(backlog[0]?.prompt).not.toContain(".nklein/nklein");
+		expect(backlog[0]?.prompt).toContain("Acceptance command: npm test");
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable !Klein tasks");
 		expect(board.dependencies).toHaveLength(0);
+	});
+});
+
+describe("project add", () => {
+	it("requires explicit confirmation before adding the running source checkout", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				writeFileSync(join(cleanupCwd, "README.md"), "# self\n", "utf8");
+				initGitRepository(cleanupCwd);
+				commitAll(cleanupCwd, "Initial self project");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.hasGitRepository = vi.fn((path: string) => existsSync(join(path, ".git")));
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, { path: cleanupCwd });
+
+				expect(result.ok).toBe(false);
+				expect(result.requiresSelfProjectConfirmation).toBe(true);
+				expect(deps.setActiveWorkspace).not.toHaveBeenCalled();
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("adds the running source checkout after explicit confirmation", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				writeFileSync(join(cleanupCwd, "README.md"), "# self\n", "utf8");
+				initGitRepository(cleanupCwd);
+				commitAll(cleanupCwd, "Initial self project");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.assertPathIsDirectory = vi.fn(async (path: string) => {
+					if (!existsSync(path)) {
+						throw new Error(`Missing directory: ${path}`);
+					}
+				});
+				deps.hasGitRepository = vi.fn((path: string) => existsSync(join(path, ".git")));
+				deps.createProjectSummary = vi.fn((project) => ({
+					id: project.workspaceId,
+					path: project.repoPath,
+					name: project.displayName?.trim() || basename(project.repoPath),
+					taskCounts: project.taskCounts,
+					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					healthIssues: project.healthIssues ?? [],
+				}));
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, {
+					path: cleanupCwd,
+					confirmSelfProject: true,
+					projectName: "!Klein Source",
+				});
+
+				expect(result.ok).toBe(true);
+				expect(result.project?.name).toBe("!Klein Source");
+				expect(deps.setActiveWorkspace).toHaveBeenCalled();
+				const entries = await listWorkspaceIndexEntries();
+				expect(entries.find((entry) => entry.repoPath === realpathSync(cleanupCwd))?.selfProjectConfirmed).toBe(
+					true,
+				);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("persists a custom project display name for an existing folder", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "existing-folder");
+				mkdirSync(projectPath, { recursive: true });
+				initGitRepository(projectPath);
+				commitAll(projectPath, "Initial project");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.assertPathIsDirectory = vi.fn(async (path: string) => {
+					if (!existsSync(path)) {
+						throw new Error(`Missing directory: ${path}`);
+					}
+				});
+				deps.hasGitRepository = vi.fn((path: string) => existsSync(join(path, ".git")));
+				deps.createProjectSummary = vi.fn((project) => ({
+					id: project.workspaceId,
+					path: project.repoPath,
+					name: project.displayName?.trim() || basename(project.repoPath),
+					taskCounts: project.taskCounts,
+					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					healthIssues: project.healthIssues ?? [],
+				}));
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, {
+					path: projectPath,
+					projectName: "Friendly Existing Project",
+				});
+
+				expect(result.ok).toBe(true);
+				expect(result.project?.name).toBe("Friendly Existing Project");
+				const entries = await listWorkspaceIndexEntries();
+				expect(entries.find((entry) => entry.repoPath === realpathSync(projectPath))?.displayName).toBe(
+					"Friendly Existing Project",
+				);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("creates a new project folder, initializes git, and stores the custom project name", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "psytrance-kick-bass");
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.assertPathIsDirectory = vi.fn(async (path: string) => {
+					if (!existsSync(path)) {
+						throw new Error(`Missing directory: ${path}`);
+					}
+				});
+				deps.hasGitRepository = vi.fn((path: string) => existsSync(join(path, ".git")));
+				deps.createProjectSummary = vi.fn((project) => ({
+					id: project.workspaceId,
+					path: project.repoPath,
+					name: project.displayName?.trim() || basename(project.repoPath),
+					taskCounts: project.taskCounts,
+					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					healthIssues: project.healthIssues ?? [],
+				}));
+				const api = createProjectsApi(deps);
+
+				const result = await api.addProject(null, {
+					path: projectPath,
+					projectName: "Psytrance Kick Bass",
+					createDirectory: true,
+					initializeGit: true,
+				});
+
+				expect(result.ok).toBe(true);
+				expect(result.project?.name).toBe("Psytrance Kick Bass");
+				expect(existsSync(projectPath)).toBe(true);
+				expect(existsSync(join(projectPath, ".git"))).toBe(true);
+				const entries = await listWorkspaceIndexEntries();
+				expect(entries.find((entry) => entry.repoPath === realpathSync(projectPath))?.displayName).toBe(
+					"Psytrance Kick Bass",
+				);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -235,7 +386,7 @@ describe("self-improvement project creation", () => {
 		}
 	});
 
-	it("loads the running dev checkout and seeds an evidence-backed Cline task", async () => {
+	it("loads the running dev checkout and seeds an evidence-backed NKlein task", async () => {
 		process.env.NODE_ENV = "development";
 		const cleanupCwd = createTestCwd();
 		try {
@@ -264,7 +415,7 @@ describe("self-improvement project creation", () => {
 				expect(result.ok).toBe(true);
 				expect(result.source).toBe("current_dev_checkout");
 				expect(result.workspacePath ? realpathSync(result.workspacePath) : null).toBe(realpathSync(cleanupCwd));
-				expect(result.task?.agentId).toBe("cline");
+				expect(result.task?.agentId).toBe("nklein");
 				expect(result.task?.startInPlanMode).toBe(true);
 				expect(result.task?.autoReviewEnabled).toBe(true);
 				expect(result.task?.generatedFromPlan).toEqual({
@@ -324,7 +475,7 @@ describe("dev-test project cleanup", () => {
 				initGitRepository(unmarkedPath);
 				await loadWorkspaceContext(unmarkedPath, { gitRepositoryCreatedByKanban: true });
 
-				const patchesDir = join(process.env.HOME ?? cleanupCwd, ".cline", "nklein", "trashed-task-patches");
+				const patchesDir = join(process.env.HOME ?? cleanupCwd, ".nklein", "nklein", "trashed-task-patches");
 				mkdirSync(patchesDir, { recursive: true });
 				const markedPatchPath = join(patchesDir, `stale-task.${getPatchRepoKey(markedWorkspacePath)}.abc123.patch`);
 				writeFileSync(markedPatchPath, "diff --git a/a b/a\n", "utf8");
@@ -392,7 +543,7 @@ describe("accidental task-worktree project recovery", () => {
 				const parentPath = join(cleanupCwd, "parent-project");
 				const worktreePath = join(
 					process.env.HOME ?? cleanupCwd,
-					".cline",
+					".nklein",
 					"worktrees",
 					"source-card",
 					"parent-project",
@@ -432,7 +583,7 @@ describe("accidental task-worktree project recovery", () => {
 					sessions: {},
 				});
 				const accidental = await loadWorkspaceContext(worktreePath, { allowTaskWorktreeProject: true });
-				await writeClinePlanArtifacts({
+				await writeNKleinPlanArtifacts({
 					workspacePath: worktreePath,
 					workspaceId: accidental.workspaceId,
 					sourceTaskId: "source-card",
@@ -467,7 +618,7 @@ describe("accidental task-worktree project recovery", () => {
 				expect(migrated.parentWorkspaceId).toBe(parent.workspaceId);
 				const migratedMetadataPath = join(
 					parentPath,
-					".cline",
+					".nklein",
 					"nklein",
 					"plans",
 					"misplaced-plan",

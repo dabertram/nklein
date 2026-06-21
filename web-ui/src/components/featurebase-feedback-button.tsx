@@ -1,27 +1,27 @@
 import { Button } from "@/components/ui/button";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
-import { isClineOauthAuthenticated, isNativeClineAgentSelected } from "@/runtime/native-agent";
-import type { RuntimeAgentId, RuntimeClineProviderSettings } from "@/runtime/types";
+import { isNativeNKleinAgentSelected, isNKleinOauthAuthenticated } from "@/runtime/native-agent";
+import type { RuntimeAgentId, RuntimeNKleinProviderSettings } from "@/runtime/types";
 
 interface FeaturebaseFeedbackVisibilityInput {
 	cloudProviderSupportEnabled?: boolean;
 	selectedAgentId?: RuntimeAgentId | null;
-	clineProviderSettings?: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 }
 
 export function canShowFeaturebaseFeedbackButton({
 	cloudProviderSupportEnabled = false,
 	selectedAgentId,
-	clineProviderSettings,
+	nkleinProviderSettings,
 	featurebaseFeedbackState,
 }: FeaturebaseFeedbackVisibilityInput): boolean {
 	if (!cloudProviderSupportEnabled) {
 		return false;
 	}
-	const isClineAgent = isNativeClineAgentSelected(selectedAgentId);
-	const isAuthenticated = isClineOauthAuthenticated(clineProviderSettings);
-	return isClineAgent && isAuthenticated && featurebaseFeedbackState !== undefined;
+	const isNKleinAgent = isNativeNKleinAgentSelected(selectedAgentId);
+	const isAuthenticated = isNKleinOauthAuthenticated(nkleinProviderSettings);
+	return isNKleinAgent && isAuthenticated && featurebaseFeedbackState !== undefined;
 }
 
 interface FeaturebaseFeedbackButtonProps extends FeaturebaseFeedbackVisibilityInput {
@@ -34,7 +34,7 @@ interface FeaturebaseFeedbackButtonProps extends FeaturebaseFeedbackVisibilityIn
 export function FeaturebaseFeedbackButton({
 	cloudProviderSupportEnabled,
 	selectedAgentId,
-	clineProviderSettings,
+	nkleinProviderSettings,
 	featurebaseFeedbackState,
 	size = "sm",
 	variant = "default",
@@ -45,7 +45,7 @@ export function FeaturebaseFeedbackButton({
 		!canShowFeaturebaseFeedbackButton({
 			cloudProviderSupportEnabled,
 			selectedAgentId,
-			clineProviderSettings,
+			nkleinProviderSettings,
 			featurebaseFeedbackState,
 		})
 	) {

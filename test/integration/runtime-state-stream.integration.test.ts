@@ -660,14 +660,14 @@ describe.sequential("runtime state stream integration", () => {
 			expect(addWithoutInitResponse.payload.requiresGitInitialization).toBe(true);
 			expect(existsSync(join(nonGitPath, ".git"))).toBe(false);
 
-			const projectsAfterDeclinedInit = await requestJson<RuntimeProjectsResponse>({
+			const projectsAfterDenkleindInit = await requestJson<RuntimeProjectsResponse>({
 				baseUrl: `http://127.0.0.1:${port}`,
 				procedure: "projects.list",
 				type: "query",
 				workspaceId: workspaceAId,
 			});
-			expect(projectsAfterDeclinedInit.status).toBe(200);
-			expect(projectsAfterDeclinedInit.payload.projects).toHaveLength(1);
+			expect(projectsAfterDenkleindInit.status).toBe(200);
+			expect(projectsAfterDenkleindInit.payload.projects).toHaveLength(1);
 
 			const addWithInitResponse = await requestJson<RuntimeProjectAddResponse>({
 				baseUrl: `http://127.0.0.1:${port}`,
@@ -926,7 +926,7 @@ describe.sequential("runtime state stream integration", () => {
 			expect(stateResponse.status).toBe(200);
 
 			const taskId = "metadata-stream-task";
-			const defaultClineTaskId = "metadata-default-cline-task";
+			const defaultNKleinTaskId = "metadata-default-nklein-task";
 			const trashTaskId = "metadata-trash-task";
 			const baseRef = runGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
 			const board = createReviewBoard(taskId, "Metadata stream task", trashTaskId);
@@ -938,9 +938,9 @@ describe.sequential("runtime state stream integration", () => {
 			reviewColumn.cards[0].agentId = "codex";
 			reviewColumn.cards[0].baseRef = baseRef;
 			reviewColumn.cards.push({
-				id: defaultClineTaskId,
-				title: "Default Cline metadata task",
-				prompt: "Default Cline metadata task",
+				id: defaultNKleinTaskId,
+				title: "Default NKlein metadata task",
+				prompt: "Default NKlein metadata task",
 				startInPlanMode: false,
 				baseRef,
 				createdAt: Date.now(),
@@ -991,7 +991,7 @@ describe.sequential("runtime state stream integration", () => {
 				snapshot.workspaceMetadata?.taskWorkspaces.find((task) => task.taskId === taskId) ?? null;
 			expect(initialTaskMetadata).not.toBeNull();
 			expect(initialTaskMetadata?.changedFiles ?? 0).toBe(0);
-			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === defaultClineTaskId)).toBe(
+			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === defaultNKleinTaskId)).toBe(
 				false,
 			);
 			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === trashTaskId)).toBe(false);

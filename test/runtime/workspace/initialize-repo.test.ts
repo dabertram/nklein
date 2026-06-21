@@ -45,7 +45,7 @@ describe("Git repository ownership", () => {
 	it("migrates repositories with !Klein's legacy initial commit", async () => {
 		runGitMock
 			.mockResolvedValueOnce(gitResult(false))
-			.mockResolvedValueOnce(gitResult(true, "Initial commit through Cline Kanban"))
+			.mockResolvedValueOnce(gitResult(true, "Initial commit through NKlein Kanban"))
 			.mockResolvedValueOnce(gitResult(true));
 
 		await expect(isGitRepositoryCreatedByKanban("/project")).resolves.toBe(true);

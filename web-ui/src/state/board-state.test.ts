@@ -5,8 +5,8 @@ import {
 	addTaskDependency,
 	addTaskToColumn,
 	applyDragResult,
-	applyTaskDetailClineSettingsChange,
-	applyTaskDetailClineSettingsSelection,
+	applyTaskDetailNKleinSettingsChange,
+	applyTaskDetailNKleinSettingsSelection,
 	approvePlanningTaskForExecution,
 	clearColumnTasks,
 	disableTaskAutoReview,
@@ -702,12 +702,12 @@ describe("board dependency state", () => {
 		expect(updatedTask?.baseRef).toBe("main");
 	});
 
-	it("preserves task-level cline overrides when updating the title", () => {
+	it("preserves task-level nklein overrides when updating the title", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
-			prompt: "Task with cline overrides",
-			agentId: "cline",
-			clineSettings: {
+			prompt: "Task with nklein overrides",
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "openai/gpt-5.4",
 				reasoningEffort: "low",
@@ -724,8 +724,8 @@ describe("board dependency state", () => {
 		expect(updated.updated).toBe(true);
 		const updatedTask = updated.board.columns.find((column) => column.id === "backlog")?.cards[0];
 		expect(updatedTask?.title).toBe("Updated title");
-		expect(updatedTask?.agentId).toBe("cline");
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.agentId).toBe("nklein");
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "openrouter",
 			modelId: "openai/gpt-5.4",
 			reasoningEffort: "low",
@@ -739,7 +739,7 @@ describe("board dependency state", () => {
 			autoReviewEnabled: true,
 			autoReviewMode: "commit",
 			agentId: "codex",
-			clineSettings: {
+			nkleinSettings: {
 				providerId: "my-provider",
 				modelId: "my-model",
 				reasoningEffort: "high",
@@ -752,7 +752,7 @@ describe("board dependency state", () => {
 			throw new Error("Expected review task to exist");
 		}
 		expect(task.agentId).toBe("codex");
-		expect(task.clineSettings).toEqual({
+		expect(task.nkleinSettings).toEqual({
 			providerId: "my-provider",
 			modelId: "my-model",
 			reasoningEffort: "high",
@@ -764,7 +764,7 @@ describe("board dependency state", () => {
 		const updatedTask = disabled.board.columns.find((column) => column.id === "review")?.cards[0];
 		expect(updatedTask?.autoReviewEnabled).toBe(false);
 		expect(updatedTask?.agentId).toBe("codex");
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "my-provider",
 			modelId: "my-model",
 			reasoningEffort: "high",
@@ -783,9 +783,9 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsSelection(board, task.id, {
-			agentId: "cline",
-			clineSettings: {
+		const result = applyTaskDetailNKleinSettingsSelection(board, task.id, {
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-opus-4.6",
 			},
@@ -793,15 +793,15 @@ describe("board dependency state", () => {
 		expect(result.updated).toBe(false);
 		const unchangedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
 		expect(unchangedTask?.agentId).toBeUndefined();
-		expect(unchangedTask?.clineSettings).toBeUndefined();
+		expect(unchangedTask?.nkleinSettings).toBeUndefined();
 	});
 
 	it("updates task model overrides when the task already has explicit task-level settings", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
 			prompt: "Task with explicit override",
-			agentId: "cline",
-			clineSettings: {
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-sonnet-4.6",
 				reasoningEffort: "low",
@@ -814,9 +814,9 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsSelection(board, task.id, {
-			agentId: "cline",
-			clineSettings: {
+		const result = applyTaskDetailNKleinSettingsSelection(board, task.id, {
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-opus-4.6",
 				reasoningEffort: "high",
@@ -824,8 +824,8 @@ describe("board dependency state", () => {
 		});
 		expect(result.updated).toBe(true);
 		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(updatedTask?.agentId).toBe("cline");
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.agentId).toBe("nklein");
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "openrouter",
 			modelId: "anthropic/claude-opus-4.6",
 			reasoningEffort: "high",
@@ -836,7 +836,7 @@ describe("board dependency state", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
 			prompt: "Task with reasoning-only override",
-			clineSettings: {
+			nkleinSettings: {
 				reasoningEffort: "low",
 			},
 			baseRef: "main",
@@ -847,20 +847,20 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsSelection(board, task.id, {
-			clineSettings: {
+		const result = applyTaskDetailNKleinSettingsSelection(board, task.id, {
+			nkleinSettings: {
 				reasoningEffort: "high",
 			},
 		});
 		expect(result.updated).toBe(true);
 		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
 		expect(updatedTask?.agentId).toBeUndefined();
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.nkleinSettings).toEqual({
 			reasoningEffort: "high",
 		});
 	});
 
-	it("does not treat non-cline agent overrides as explicit cline settings", () => {
+	it("does not treat non-nklein agent overrides as explicit nklein settings", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
 			prompt: "Task with codex override",
@@ -873,9 +873,9 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsSelection(board, task.id, {
-			agentId: "cline",
-			clineSettings: {
+		const result = applyTaskDetailNKleinSettingsSelection(board, task.id, {
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-opus-4.6",
 			},
@@ -883,14 +883,14 @@ describe("board dependency state", () => {
 		expect(result.updated).toBe(false);
 		const unchangedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
 		expect(unchangedTask?.agentId).toBe("codex");
-		expect(unchangedTask?.clineSettings).toBeUndefined();
+		expect(unchangedTask?.nkleinSettings).toBeUndefined();
 	});
 
-	it("materializes a concrete cline override when saving task-level chat settings", () => {
+	it("materializes a concrete nklein override when saving task-level chat settings", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
 			prompt: "Task with explicit empty override",
-			clineSettings: {},
+			nkleinSettings: {},
 			baseRef: "main",
 		});
 		const task = board.columns.find((column) => column.id === "backlog")?.cards[0];
@@ -899,7 +899,7 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsChange(
+		const result = applyTaskDetailNKleinSettingsChange(
 			board,
 			task.id,
 			{
@@ -914,19 +914,19 @@ describe("board dependency state", () => {
 		);
 		expect(result.updated).toBe(true);
 		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(updatedTask?.agentId).toBe("cline");
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.agentId).toBe("nklein");
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4.6",
 		});
 	});
 
-	it("keeps tasks pinned to cline when the global selected agent is different", () => {
+	it("keeps tasks pinned to nklein when the global selected agent is different", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
-			prompt: "Task pinned to cline",
-			agentId: "cline",
-			clineSettings: {
+			prompt: "Task pinned to nklein",
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-sonnet-4.6",
 			},
@@ -938,7 +938,7 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsChange(
+		const result = applyTaskDetailNKleinSettingsChange(
 			board,
 			task.id,
 			{
@@ -953,20 +953,20 @@ describe("board dependency state", () => {
 		);
 		expect(result.updated).toBe(true);
 		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(updatedTask?.agentId).toBe("cline");
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.agentId).toBe("nklein");
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "openrouter",
 			modelId: "anthropic/claude-opus-4.6",
 			reasoningEffort: "medium",
 		});
 	});
 
-	it("preserves existing task Cline context and timeout overrides when changing detail model settings", () => {
+	it("preserves existing task NKlein context and timeout overrides when changing detail model settings", () => {
 		let board = createInitialBoardData();
 		board = addTaskToColumn(board, "backlog", {
-			prompt: "Task with full cline overrides",
-			agentId: "cline",
-			clineSettings: {
+			prompt: "Task with full nklein overrides",
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "lmstudio",
 				modelId: "qwen3",
 				reasoningEffort: "high",
@@ -986,7 +986,7 @@ describe("board dependency state", () => {
 			throw new Error("Expected backlog task to exist");
 		}
 
-		const result = applyTaskDetailClineSettingsChange(
+		const result = applyTaskDetailNKleinSettingsChange(
 			board,
 			task.id,
 			{
@@ -1001,7 +1001,7 @@ describe("board dependency state", () => {
 		);
 		expect(result.updated).toBe(true);
 		const updatedTask = result.board.columns.find((column) => column.id === "backlog")?.cards[0];
-		expect(updatedTask?.clineSettings).toEqual({
+		expect(updatedTask?.nkleinSettings).toEqual({
 			providerId: "lmstudio",
 			modelId: "qwen3-coder",
 			contextScope: "custom",

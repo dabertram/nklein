@@ -1,6 +1,6 @@
 """Lenient fuzzy search/replace editing (aider ``editblock`` ladder; Apache-2.0 — see THIRD_PARTY_NOTICES.md).
 
-Re-implements the same fallback ladder used by the TS ``cline-fuzzy-edit`` so both runtimes behave
+Re-implements the same fallback ladder used by the TS ``nklein-fuzzy-edit`` so both runtimes behave
 identically: exact -> whitespace-flexible (dedent/re-indent) -> leading-blank tolerance -> ``...`` elision ->
 closest fuzzy match (>=0.8 similarity within +/-10% length). This is the single biggest reliability win for
 small/quantized models making edits. Pure/stdlib + unit-tested.

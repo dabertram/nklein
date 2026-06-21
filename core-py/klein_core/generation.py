@@ -2,7 +2,7 @@
 
 Two backends satisfy the same contract (decision: "both"):
   * ``ProxyBackend`` — forwards to an existing local OpenAI-compatible server (LM Studio / Ollama / llama.cpp),
-    adding the full sampling + grammar/JSON-schema fields the Cline SDK could not send.
+    adding the full sampling + grammar/JSON-schema fields the NKlein SDK could not send.
   * ``LlamaCppBackend`` — loads a GGUF directly via ``llama-cpp-python`` for full control of grammar + all
     sampling. Imported lazily inside the backend so the package imports without the heavy dependency.
 

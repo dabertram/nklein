@@ -19,7 +19,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 	return {
 		globalConfigPath: "/tmp/global.json",
 		projectConfigPath: "/tmp/project.json",
-		selectedAgentId: "cline",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
@@ -72,7 +72,7 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 		taskId: "audio-synth",
 		state: "running",
 		mode: "act",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/audio-project",
 		pid: null,
 		startedAt: 1_000,
@@ -95,7 +95,7 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 			finalMessage: null,
 			hookEventName: "tool_result",
 			notificationType: null,
-			source: "cline-sdk",
+			source: "nklein-sdk",
 		},
 		warningMessage: null,
 		latestUsage: null,
@@ -116,7 +116,7 @@ describe("knowledge tool usage stats", () => {
 		expect(classifyKnowledgeTool("search_architecture_knowledge")).toBe("architecture_knowledge");
 	});
 
-	it("builds project-scoped tool observations from Cline hook activity", () => {
+	it("builds project-scoped tool observations from NKlein hook activity", () => {
 		const observation = buildKnowledgeToolUsageObservation({
 			workspaceId: "workspace-a",
 			workspacePath: "/tmp/audio-project",
@@ -176,7 +176,7 @@ describe("knowledge tool usage stats", () => {
 					finalMessage: null,
 					hookEventName: "tool_result",
 					notificationType: null,
-					source: "cline-sdk",
+					source: "nklein-sdk",
 				},
 			}),
 			now: 6_000,

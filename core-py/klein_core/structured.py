@@ -2,7 +2,7 @@
 
 Constrained decoding via ``response_format``/grammar makes small models emit schema-valid JSON; this adds the
 post-hoc guarantee (parse + recover prose/code-fence wrapped JSON) and a single corrective retry, mirroring the
-TS ``LocalLlmClient.generateStructured`` and ``cline-tool-argument-repair``. The recovery is pure/stdlib.
+TS ``LocalLlmClient.generateStructured`` and ``nklein-tool-argument-repair``. The recovery is pure/stdlib.
 """
 
 from __future__ import annotations

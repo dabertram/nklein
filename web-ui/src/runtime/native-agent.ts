@@ -1,33 +1,43 @@
 import { isRuntimeAgentLaunchSupported } from "@runtime-agent-catalog";
 import type {
 	RuntimeAgentId,
-	RuntimeClineProviderCatalogItem,
-	RuntimeClineProviderSettings,
 	RuntimeConfigResponse,
+	RuntimeNKleinProviderCatalogItem,
+	RuntimeNKleinProviderSettings,
 	RuntimeStateStreamTaskChatMessage,
 	RuntimeTaskChatMessage,
 } from "@/runtime/types";
 
-export function isNativeClineAgentSelected(agentId: RuntimeAgentId | null | undefined): boolean {
-	return agentId === "cline";
+export function isNativeNKleinAgentSelected(agentId: RuntimeAgentId | null | undefined): boolean {
+	return agentId === "nklein";
 }
 
-// Secondary UI screen only; the backend policy in src/cline-sdk/cline-local-only-policy.ts is authoritative.
+// Secondary UI screen only; the backend policy in src/nklein-sdk/nklein-local-only-policy.ts is authoritative.
+const LOCAL_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
 const KNOWN_CLOUD_PROVIDER_IDS = new Set([
 	"anthropic",
 	"bedrock",
-	"cline",
+	"deepseek",
+	"fireworks",
+	"gemini",
+	"groq",
+	"mistral",
+	"nklein",
 	"oca",
 	"openai",
 	"openai-codex",
+	"openai-native",
 	"openrouter",
+	"together",
 	"vertex",
+	"xai",
 ]);
 
 export function isCloudProviderSupportEnabled(
 	config: Pick<RuntimeConfigResponse, "cloudProviderSupportEnabled"> | null | undefined,
 ): boolean {
-	return config?.cloudProviderSupportEnabled ?? false;
+	void config;
+	return false;
 }
 
 export function isKnownCloudProviderId(providerId: string | null | undefined): boolean {
@@ -35,21 +45,75 @@ export function isKnownCloudProviderId(providerId: string | null | undefined): b
 	return normalized ? KNOWN_CLOUD_PROVIDER_IDS.has(normalized) : false;
 }
 
-export function filterVisibleClineProviderCatalog(
-	providers: RuntimeClineProviderCatalogItem[],
-	cloudProviderSupportEnabled: boolean,
-): RuntimeClineProviderCatalogItem[] {
-	if (cloudProviderSupportEnabled) {
-		return providers;
+function normalizeHost(baseUrl: string | null | undefined): string | null {
+	const value = baseUrl?.trim();
+	if (!value) {
+		return null;
 	}
-	return providers.filter((provider) => !isKnownCloudProviderId(provider.id));
+	try {
+		const url = new URL(value.includes("://") ? value : `http://${value}`);
+		return url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+	} catch {
+		return null;
+	}
 }
 
-export function getRuntimeClineProviderSettings(
-	config: Pick<RuntimeConfigResponse, "clineProviderSettings"> | null | undefined,
-): RuntimeClineProviderSettings {
+function isLocalBaseUrl(baseUrl: string | null | undefined): boolean {
+	const host = normalizeHost(baseUrl);
+	if (!host) {
+		return false;
+	}
+	if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0") {
+		return true;
+	}
+	if (host.endsWith(".local") || host.endsWith(".localhost")) {
+		return true;
+	}
+	const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+	if (!ipv4) {
+		return false;
+	}
+	const first = Number(ipv4[1]);
+	const second = Number(ipv4[2]);
+	if (first === 10 || first === 127) {
+		return true;
+	}
+	if (first === 192 && second === 168) {
+		return true;
+	}
+	if (first === 172 && second >= 16 && second <= 31) {
+		return true;
+	}
+	if (first === 169 && second === 254) {
+		return true;
+	}
+	return first === 100 && second >= 64 && second <= 127;
+}
+
+export function isVisibleLocalNKleinProvider(provider: RuntimeNKleinProviderCatalogItem): boolean {
+	const normalizedProviderId = provider.id.trim().toLowerCase();
+	if (!normalizedProviderId || isKnownCloudProviderId(normalizedProviderId)) {
+		return false;
+	}
+	if (LOCAL_PROVIDER_IDS.has(normalizedProviderId)) {
+		return true;
+	}
+	return isLocalBaseUrl(provider.baseUrl);
+}
+
+export function filterVisibleNKleinProviderCatalog(
+	providers: RuntimeNKleinProviderCatalogItem[],
+	cloudProviderSupportEnabled: boolean,
+): RuntimeNKleinProviderCatalogItem[] {
+	void cloudProviderSupportEnabled;
+	return providers.filter(isVisibleLocalNKleinProvider);
+}
+
+export function getRuntimeNKleinProviderSettings(
+	config: Pick<RuntimeConfigResponse, "nkleinProviderSettings"> | null | undefined,
+): RuntimeNKleinProviderSettings {
 	return (
-		config?.clineProviderSettings ?? {
+		config?.nkleinProviderSettings ?? {
 			providerId: null,
 			modelId: null,
 			baseUrl: null,
@@ -64,7 +128,7 @@ export function getRuntimeClineProviderSettings(
 	);
 }
 
-export function isClineProviderAuthenticated(settings: RuntimeClineProviderSettings | null | undefined): boolean {
+export function isNKleinProviderAuthenticated(settings: RuntimeNKleinProviderSettings | null | undefined): boolean {
 	if (!settings) {
 		return false;
 	}
@@ -77,44 +141,44 @@ export function isClineProviderAuthenticated(settings: RuntimeClineProviderSetti
 }
 
 /**
- * Returns true only when the selected provider is the Cline managed OAuth
+ * Returns true only when the selected provider is the NKlein managed OAuth
  * provider **and** an access token is configured.  This is stricter than
- * {@link isClineProviderAuthenticated} which accepts any configured provider
+ * {@link isNKleinProviderAuthenticated} which accepts any configured provider
  * (Claude API key, Codex, etc.).
  *
- * Use this for features that require a Cline-issued token (e.g. Featurebase
+ * Use this for features that require a NKlein-issued token (e.g. Featurebase
  * JWT authentication).
  */
-export function isClineOauthAuthenticated(settings: RuntimeClineProviderSettings | null | undefined): boolean {
+export function isNKleinOauthAuthenticated(settings: RuntimeNKleinProviderSettings | null | undefined): boolean {
 	if (!settings) {
 		return false;
 	}
 	return (
-		settings.oauthProvider === "cline" &&
+		settings.oauthProvider === "nklein" &&
 		settings.oauthAccessTokenConfigured === true &&
 		settings.oauthRefreshTokenConfigured === true
 	);
 }
 
 export function isTaskAgentSetupSatisfied(
-	config: Pick<RuntimeConfigResponse, "selectedAgentId" | "agents" | "clineProviderSettings"> | null | undefined,
+	config: Pick<RuntimeConfigResponse, "selectedAgentId" | "agents" | "nkleinProviderSettings"> | null | undefined,
 ): boolean | null {
 	if (!config) {
 		return null;
 	}
-	if (isNativeClineAgentSelected(config.selectedAgentId)) {
-		if (isClineProviderAuthenticated(getRuntimeClineProviderSettings(config))) {
+	if (isNativeNKleinAgentSelected(config.selectedAgentId)) {
+		if (isNKleinProviderAuthenticated(getRuntimeNKleinProviderSettings(config))) {
 			return true;
 		}
 		return config.agents.some(
-			(agent) => agent.id !== "cline" && isRuntimeAgentLaunchSupported(agent.id) && agent.installed,
+			(agent) => agent.id !== "nklein" && isRuntimeAgentLaunchSupported(agent.id) && agent.installed,
 		);
 	}
 	return config.agents.some((agent) => isRuntimeAgentLaunchSupported(agent.id) && agent.installed);
 }
 
 export function getTaskAgentNavbarHint(
-	config: Pick<RuntimeConfigResponse, "selectedAgentId" | "agents" | "clineProviderSettings"> | null | undefined,
+	config: Pick<RuntimeConfigResponse, "selectedAgentId" | "agents" | "nkleinProviderSettings"> | null | undefined,
 	options?: {
 		shouldUseNavigationPath?: boolean;
 	},

@@ -1,12 +1,12 @@
 // Frontend facade for task-scoped runtime actions.
 // It owns how the board and detail view start, stop, resize, and route task
-// sessions across native Cline and PTY-backed agents.
+// sessions across native NKlein and PTY-backed agents.
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback } from "react";
 
 import { notifyError } from "@/components/app-toaster";
 import { selectNewestTaskSessionSummary } from "@/hooks/home-sidebar-agent-panel-session-summary";
-import { type ClineChatActionResult, useClineChatRuntimeActions } from "@/hooks/use-cline-chat-runtime-actions";
+import { type NKleinChatActionResult, useNKleinChatRuntimeActions } from "@/hooks/use-nklein-chat-runtime-actions";
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
@@ -75,13 +75,13 @@ export interface UseTaskSessionsResult {
 		taskId: string,
 		text: string,
 		options?: { mode?: RuntimeTaskSessionMode },
-	) => Promise<ClineChatActionResult>;
-	abortTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
-	cancelTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
+	) => Promise<NKleinChatActionResult>;
+	abortTaskChatTurn: (taskId: string) => Promise<NKleinChatActionResult>;
+	cancelTaskChatTurn: (taskId: string) => Promise<NKleinChatActionResult>;
 	grantProtectedTestApproval: (
 		taskId: string,
 		approval: RuntimeProtectedTestApprovalPayload,
-	) => Promise<ClineChatActionResult>;
+	) => Promise<NKleinChatActionResult>;
 	fetchTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
 	cleanupTaskWorkspace: (
 		taskId: string,
@@ -134,7 +134,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		abortTaskChatTurn,
 		cancelTaskChatTurn,
 		grantProtectedTestApproval,
-	} = useClineChatRuntimeActions({
+	} = useNKleinChatRuntimeActions({
 		currentProjectId,
 		onSessionSummary: upsertSession,
 	});
@@ -190,7 +190,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					cols: geometry.cols,
 					rows: geometry.rows,
 					agentId: task.agentId,
-					clineSettings: task.clineSettings,
+					nkleinSettings: task.nkleinSettings,
 					queueOnEndpointBusy: options?.queueOnEndpointBusy,
 				});
 				if (!payload.ok || !payload.summary) {

@@ -45,8 +45,8 @@ describe("TerminalSessionManager", () => {
 	});
 
 	it("builds shell kickoff command lines with quoted arguments", () => {
-		const commandLine = buildShellCommandLine("cline", ["--auto-approve-all", "hello world"]);
-		expect(commandLine).toContain("cline");
+		const commandLine = buildShellCommandLine("nklein", ["--auto-approve-all", "hello world"]);
+		expect(commandLine).toContain("nklein");
 		expect(commandLine).toContain("--auto-approve-all");
 		expect(commandLine).toContain("hello world");
 	});

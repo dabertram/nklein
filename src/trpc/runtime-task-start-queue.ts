@@ -28,7 +28,7 @@ function cloneQueuedRequest(request: RuntimeTaskSessionStartRequest): RuntimeTas
 	return {
 		...request,
 		images: request.images ? request.images.map((image) => ({ ...image })) : undefined,
-		clineSettings: request.clineSettings ? { ...request.clineSettings } : undefined,
+		nkleinSettings: request.nkleinSettings ? { ...request.nkleinSettings } : undefined,
 		queueOnEndpointBusy: true,
 	};
 }

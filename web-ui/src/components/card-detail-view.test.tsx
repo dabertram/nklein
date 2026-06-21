@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CardDetailView } from "@/components/card-detail-view";
 import type {
-	RuntimeClinePlanArtifactsResponse,
+	RuntimeNKleinPlanArtifactsResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskDiagnosticsResponse,
 	RuntimeTaskWorktreeMergeResponse,
@@ -16,27 +16,27 @@ import type { BoardCard, BoardColumn, CardSelection } from "@/types";
 const mockUseRuntimeWorkspaceChanges = vi.fn();
 const {
 	mockAgentTerminalPanel,
-	mockClineAgentChatPanel,
+	mockNKleinAgentChatPanel,
 	mockDiffViewerPanel,
-	mockClineAppendToDraft,
-	mockClineSendText,
+	mockNKleinAppendToDraft,
+	mockNKleinSendText,
 	mockFetchTaskDiagnostics,
-	mockFetchClinePlanArtifacts,
-	mockApplyClinePlanArtifact,
-	mockRejectClinePlanArtifact,
+	mockFetchNKleinPlanArtifacts,
+	mockApplyNKleinPlanArtifact,
+	mockRejectNKleinPlanArtifact,
 	mockVerifyTaskAcceptance,
 	mockMergeTaskWorktrees,
 	mockCollectTaskEvidence,
 } = vi.hoisted(() => ({
 	mockAgentTerminalPanel: vi.fn((_props: { panelBackgroundColor?: string; terminalBackgroundColor?: string }) => null),
-	mockClineAgentChatPanel: vi.fn((..._args: unknown[]) => null),
+	mockNKleinAgentChatPanel: vi.fn((..._args: unknown[]) => null),
 	mockDiffViewerPanel: vi.fn((..._args: unknown[]) => null),
-	mockClineAppendToDraft: vi.fn(),
-	mockClineSendText: vi.fn(async () => {}),
+	mockNKleinAppendToDraft: vi.fn(),
+	mockNKleinSendText: vi.fn(async () => {}),
 	mockFetchTaskDiagnostics: vi.fn(async (): Promise<RuntimeTaskDiagnosticsResponse> => ({ ok: true, events: [] })),
-	mockFetchClinePlanArtifacts: vi.fn(async (): Promise<RuntimeClinePlanArtifactsResponse> => ({ artifacts: [] })),
-	mockApplyClinePlanArtifact: vi.fn(),
-	mockRejectClinePlanArtifact: vi.fn(),
+	mockFetchNKleinPlanArtifacts: vi.fn(async (): Promise<RuntimeNKleinPlanArtifactsResponse> => ({ artifacts: [] })),
+	mockApplyNKleinPlanArtifact: vi.fn(),
+	mockRejectNKleinPlanArtifact: vi.fn(),
 	mockVerifyTaskAcceptance: vi.fn(),
 	mockMergeTaskWorktrees: vi.fn(),
 	mockCollectTaskEvidence: vi.fn(),
@@ -54,14 +54,14 @@ vi.mock("@/components/detail-panels/agent-terminal-panel", () => ({
 	AgentTerminalPanel: mockAgentTerminalPanel,
 }));
 
-vi.mock("@/components/detail-panels/cline-agent-chat-panel", () => ({
-	ClineAgentChatPanel: forwardRef((props: unknown, ref) => {
-		mockClineAgentChatPanel(props);
+vi.mock("@/components/detail-panels/nklein-agent-chat-panel", () => ({
+	NKleinAgentChatPanel: forwardRef((props: unknown, ref) => {
+		mockNKleinAgentChatPanel(props);
 		useImperativeHandle(ref, () => ({
-			appendToDraft: mockClineAppendToDraft,
-			sendText: mockClineSendText,
+			appendToDraft: mockNKleinAppendToDraft,
+			sendText: mockNKleinSendText,
 		}));
-		return <div data-testid="cline-agent-chat-panel" />;
+		return <div data-testid="nklein-agent-chat-panel" />;
 	}),
 }));
 
@@ -89,12 +89,12 @@ vi.mock("@/runtime/use-runtime-workspace-changes", () => ({
 }));
 
 vi.mock("@/runtime/runtime-config-query", () => ({
-	applyClinePlanArtifact: mockApplyClinePlanArtifact,
+	applyNKleinPlanArtifact: mockApplyNKleinPlanArtifact,
 	collectTaskEvidence: mockCollectTaskEvidence,
-	fetchClinePlanArtifacts: mockFetchClinePlanArtifacts,
+	fetchNKleinPlanArtifacts: mockFetchNKleinPlanArtifacts,
 	fetchTaskDiagnostics: mockFetchTaskDiagnostics,
 	mergeTaskWorktrees: mockMergeTaskWorktrees,
-	rejectClinePlanArtifact: mockRejectClinePlanArtifact,
+	rejectNKleinPlanArtifact: mockRejectNKleinPlanArtifact,
 	verifyTaskAcceptance: mockVerifyTaskAcceptance,
 }));
 
@@ -219,16 +219,16 @@ describe("CardDetailView", () => {
 		document.body.appendChild(container);
 		root = createRoot(container);
 		mockAgentTerminalPanel.mockClear();
-		mockClineAgentChatPanel.mockClear();
+		mockNKleinAgentChatPanel.mockClear();
 		mockDiffViewerPanel.mockClear();
-		mockClineAppendToDraft.mockClear();
-		mockClineSendText.mockClear();
+		mockNKleinAppendToDraft.mockClear();
+		mockNKleinSendText.mockClear();
 		mockFetchTaskDiagnostics.mockReset();
 		mockFetchTaskDiagnostics.mockResolvedValue({ ok: true, events: [] });
-		mockFetchClinePlanArtifacts.mockReset();
-		mockFetchClinePlanArtifacts.mockResolvedValue({ artifacts: [] });
-		mockApplyClinePlanArtifact.mockReset();
-		mockRejectClinePlanArtifact.mockReset();
+		mockFetchNKleinPlanArtifacts.mockReset();
+		mockFetchNKleinPlanArtifacts.mockResolvedValue({ artifacts: [] });
+		mockApplyNKleinPlanArtifact.mockReset();
+		mockRejectNKleinPlanArtifact.mockReset();
 		mockVerifyTaskAcceptance.mockReset();
 		mockCollectTaskEvidence.mockReset();
 		mockCollectTaskEvidence.mockResolvedValue({
@@ -307,10 +307,10 @@ describe("CardDetailView", () => {
 		});
 		mockUseRuntimeWorkspaceChanges.mockReset();
 		mockAgentTerminalPanel.mockClear();
-		mockClineAgentChatPanel.mockClear();
+		mockNKleinAgentChatPanel.mockClear();
 		mockDiffViewerPanel.mockClear();
-		mockClineAppendToDraft.mockClear();
-		mockClineSendText.mockClear();
+		mockNKleinAppendToDraft.mockClear();
+		mockNKleinSendText.mockClear();
 		vi.restoreAllMocks();
 		container.remove();
 		if (previousActEnvironment === undefined) {
@@ -547,13 +547,13 @@ describe("CardDetailView", () => {
 		expect(onCloseGitHistory).toHaveBeenCalledTimes(1);
 	});
 
-	it("renders native chat panel for cline agent", async () => {
+	it("renders native chat panel for nklein agent", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={null}
 					taskSessions={{}}
 					onSessionSummary={() => {}}
@@ -568,11 +568,11 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
+		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
 		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeNull();
 	});
 
-	it("does not render native chat panel when the task explicitly uses a non-cline agent", async () => {
+	it("does not render native chat panel when the task explicitly uses a non-nklein agent", async () => {
 		const selection = createSelection();
 		selection.card.agentId = "codex";
 
@@ -581,7 +581,7 @@ describe("CardDetailView", () => {
 				<CardDetailView
 					selection={selection}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={null}
 					taskSessions={{}}
 					onSessionSummary={() => {}}
@@ -596,10 +596,10 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
+		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeNull();
 	});
 
-	it("shows cline chat panel when task session agentId is cline even if global agent is claude", async () => {
+	it("shows nklein chat panel when task session agentId is nklein even if global agent is claude", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
@@ -609,7 +609,7 @@ describe("CardDetailView", () => {
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
-						agentId: "cline",
+						agentId: "nklein",
 						workspacePath: null,
 						pid: null,
 						startedAt: null,
@@ -634,7 +634,7 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
+		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
 	});
 
 	it("renders the live task activity surface from the session summary", async () => {
@@ -674,11 +674,11 @@ describe("CardDetailView", () => {
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
-						agentId: "cline",
+						agentId: "nklein",
 						workspacePath: null,
 						pid: null,
 						startedAt: null,
@@ -694,7 +694,7 @@ describe("CardDetailView", () => {
 							finalMessage: null,
 							hookEventName: "tool_start",
 							notificationType: null,
-							source: "cline-sdk",
+							source: "nklein-sdk",
 						},
 						warningMessage: null,
 						providerId: "lmstudio",
@@ -751,8 +751,8 @@ describe("CardDetailView", () => {
 				"Implement UI.\n\nComplexity: 45/100\n\nModel fit: validated by !Klein routing guard (lmstudio / qwen3, role worker, context 64,000, capability 70)",
 			startInPlanMode: true,
 			filesLikelyTouched: ["web-ui/src/App.tsx"],
-			agentId: "cline",
-			clineSettings: {
+			agentId: "nklein",
+			nkleinSettings: {
 				providerId: "lmstudio",
 				modelId: "qwen3",
 			},
@@ -936,7 +936,7 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("File: src/example.ts");
 	});
 
-	it("exposes a mark interrupted action for lost Cline sessions", async () => {
+	it("exposes a mark interrupted action for lost NKlein sessions", async () => {
 		const onMarkTaskInterrupted = vi.fn(async () => ({ ok: true }));
 
 		await act(async () => {
@@ -944,11 +944,11 @@ describe("CardDetailView", () => {
 				<CardDetailView
 					selection={createSelection({ columnId: "review" })}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={{
 						taskId: "task-1",
 						state: "awaiting_review",
-						agentId: "cline",
+						agentId: "nklein",
 						workspacePath: null,
 						pid: null,
 						startedAt: null,
@@ -959,7 +959,7 @@ describe("CardDetailView", () => {
 						lastHookAt: null,
 						latestHookActivity: null,
 						warningMessage:
-							"Cline session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
+							"!Klein session heartbeat was lost. Review the latest transcript, then resume the card or mark it interrupted.",
 						heartbeatStatus: "lost",
 					}}
 					taskSessions={{}}
@@ -990,13 +990,13 @@ describe("CardDetailView", () => {
 		expect(container.textContent).toContain("Marked the lost task session interrupted.");
 	});
 
-	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {
+	it("shows terminal panel when task session agentId is claude even if global agent is nklein", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={{
 						taskId: "task-1",
 						state: "running",
@@ -1025,7 +1025,7 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
+		expect(container.querySelector('[data-testid="nklein-agent-chat-panel"]')).toBeNull();
 		expect(mockAgentTerminalPanel).toHaveBeenCalled();
 	});
 
@@ -1057,7 +1057,7 @@ describe("CardDetailView", () => {
 		});
 	});
 
-	it("queues Add diff comments into the cline composer without sending them", async () => {
+	it("queues Add diff comments into the nklein composer without sending them", async () => {
 		const onAddReviewComments = vi.fn();
 
 		await act(async () => {
@@ -1065,7 +1065,7 @@ describe("CardDetailView", () => {
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={null}
 					taskSessions={{}}
 					onSessionSummary={() => {}}
@@ -1089,10 +1089,10 @@ describe("CardDetailView", () => {
 		});
 
 		expect(onAddReviewComments).not.toHaveBeenCalled();
-		expect(mockClineAppendToDraft).toHaveBeenCalledWith("src/example.ts:4 | value\n> Add tests");
+		expect(mockNKleinAppendToDraft).toHaveBeenCalledWith("src/example.ts:4 | value\n> Add tests");
 	});
 
-	it("routes Send diff comments through the mounted cline panel", async () => {
+	it("routes Send diff comments through the mounted nklein panel", async () => {
 		const onSendReviewComments = vi.fn();
 
 		await act(async () => {
@@ -1100,7 +1100,7 @@ describe("CardDetailView", () => {
 				<CardDetailView
 					selection={createSelection()}
 					currentProjectId="workspace-1"
-					selectedAgentId="cline"
+					selectedAgentId="nklein"
 					sessionSummary={null}
 					taskSessions={{}}
 					onSessionSummary={() => {}}
@@ -1125,7 +1125,7 @@ describe("CardDetailView", () => {
 		});
 
 		expect(onSendReviewComments).not.toHaveBeenCalled();
-		expect(mockClineSendText).toHaveBeenCalledWith("src/example.ts:8 | done\n> Ship this");
+		expect(mockNKleinSendText).toHaveBeenCalledWith("src/example.ts:8 | done\n> Ship this");
 	});
 
 	it("loads the saved agent-to-diff panel ratio from local storage", async () => {

@@ -1,12 +1,12 @@
-import { isClineProviderAuthenticated } from "@/runtime/native-agent";
+import { isNKleinProviderAuthenticated } from "@/runtime/native-agent";
 import type {
 	RuntimeAgentId,
-	RuntimeClineProviderSettings,
-	RuntimeClineReasoningEffort,
 	RuntimeModelRoles,
+	RuntimeNKleinProviderSettings,
+	RuntimeNKleinReasoningEffort,
 } from "@/runtime/types";
 
-const BUILT_IN_LOCAL_CLINE_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
+const BUILT_IN_LOCAL_NKLEIN_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 const FIRST_RUN_LOCAL_MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
 
@@ -40,13 +40,13 @@ function isPrivateIpv4(hostname: string): boolean {
 	);
 }
 
-export function isLocalClineProviderSettings(settings: RuntimeClineProviderSettings | null | undefined): boolean {
+export function isLocalNKleinProviderSettings(settings: RuntimeNKleinProviderSettings | null | undefined): boolean {
 	const providerId = settings?.providerId?.trim().toLowerCase() ?? "";
 	const modelId = settings?.modelId?.trim() ?? "";
 	if (!providerId || !modelId) {
 		return false;
 	}
-	if (BUILT_IN_LOCAL_CLINE_PROVIDER_IDS.has(providerId)) {
+	if (BUILT_IN_LOCAL_NKLEIN_PROVIDER_IDS.has(providerId)) {
 		return true;
 	}
 	const baseUrl = settings?.baseUrl?.trim();
@@ -66,12 +66,12 @@ export function buildFirstRunLocalModelRoles(input: {
 	providerId: string;
 	modelId: string;
 	baseUrl?: string | null;
-	reasoningEffort?: RuntimeClineReasoningEffort | "" | null;
+	reasoningEffort?: RuntimeNKleinReasoningEffort | "" | null;
 }): RuntimeModelRoles | null {
 	const providerId = input.providerId.trim();
 	const modelId = input.modelId.trim();
 	if (
-		!isLocalClineProviderSettings({
+		!isLocalNKleinProviderSettings({
 			providerId,
 			modelId,
 			baseUrl: input.baseUrl?.trim() || null,
@@ -105,23 +105,23 @@ export function buildFirstRunLocalModelRoles(input: {
 
 export function isSelectedAgentAuthenticated(
 	selectedAgentId: RuntimeAgentId | null | undefined,
-	clineProviderSettings: RuntimeClineProviderSettings | null | undefined,
+	nkleinProviderSettings: RuntimeNKleinProviderSettings | null | undefined,
 ): boolean {
-	if (selectedAgentId !== "cline") {
+	if (selectedAgentId !== "nklein") {
 		return true;
 	}
-	return isClineProviderAuthenticated(clineProviderSettings);
+	return isNKleinProviderAuthenticated(nkleinProviderSettings);
 }
 
 export function shouldShowStartupOnboardingDialog(input: {
 	hasShownOnboardingDialog: boolean;
 	selectedAgentId?: RuntimeAgentId | null;
-	clineProviderSettings?: RuntimeClineProviderSettings | null;
+	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 }): boolean {
 	if (!input.hasShownOnboardingDialog) {
 		return true;
 	}
-	if (input.selectedAgentId === "cline" && !isLocalClineProviderSettings(input.clineProviderSettings)) {
+	if (input.selectedAgentId === "nklein" && !isLocalNKleinProviderSettings(input.nkleinProviderSettings)) {
 		return true;
 	}
 	return false;

@@ -195,7 +195,7 @@ describe.sequential("task-worktree serialization", () => {
 						mkdirSync(worktreePath, { recursive: true });
 						writeFileSync(
 							join(worktreePath, ".gitmodules"),
-							'[submodule "evals/cline-bench"]\n\tpath = evals/cline-bench\n\turl = ../cline-bench\n',
+							'[submodule "evals/nklein-bench"]\n\tpath = evals/nklein-bench\n\turl = ../nklein-bench\n',
 							"utf8",
 						);
 						worktreeHeads.set(worktreePath, commit);
@@ -207,7 +207,7 @@ describe.sequential("task-worktree serialization", () => {
 
 					if (command[0] === "config" && command[1] === "--file") {
 						return {
-							stdout: "submodule.evals/cline-bench.path evals/cline-bench\n",
+							stdout: "submodule.evals/nklein-bench.path evals/nklein-bench\n",
 							stderr: "",
 						};
 					}
@@ -218,8 +218,8 @@ describe.sequential("task-worktree serialization", () => {
 						await new Promise((resolve) => {
 							setTimeout(resolve, 25);
 						});
-						mkdirSync(join(cwd, "evals", "cline-bench"), { recursive: true });
-						writeFileSync(join(cwd, "evals", "cline-bench", ".git"), "gitdir: fake\n", "utf8");
+						mkdirSync(join(cwd, "evals", "nklein-bench"), { recursive: true });
+						writeFileSync(join(cwd, "evals", "nklein-bench", ".git"), "gitdir: fake\n", "utf8");
 						activeSubmoduleUpdates -= 1;
 						return {
 							stdout: "",

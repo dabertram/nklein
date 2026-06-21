@@ -66,8 +66,8 @@ export function DebugDialog({
 					<div className="rounded-md border border-border bg-surface-2 p-3">
 						<p className="text-sm font-medium text-text-primary">Open data directory</p>
 						<p className="mt-1 text-xs text-text-secondary">
-							Open <code>~/.cline/nklein</code> so you can inspect plans, telemetry, config, and dev-run evidence
-							on disk.
+							Open <code>~/.nklein/nklein</code> so you can inspect plans, telemetry, config, and dev-run
+							evidence on disk.
 						</p>
 						{dataDirectoryPath ? (
 							<p className="mt-2 mb-0 break-all font-mono text-[11px] text-text-tertiary">{dataDirectoryPath}</p>
@@ -86,8 +86,8 @@ export function DebugDialog({
 					<div className="rounded-md border border-border bg-surface-2 p-3">
 						<p className="text-sm font-medium text-text-primary">Reset all state</p>
 						<p className="mt-1 text-xs text-text-secondary">
-							Clears browser local storage and removes <code>~/.cline/data</code>, <code>~/.cline/nklein</code>,
-							and <code>~/.cline/worktrees</code>. !Klein reloads after completion.
+							Clears browser local storage and removes <code>~/.nklein/data</code>, <code>~/.nklein/nklein</code>
+							, and <code>~/.nklein/worktrees</code>. !Klein reloads after completion.
 						</p>
 						<Button
 							variant="danger"
@@ -114,8 +114,8 @@ export function DebugDialog({
 				</AlertDialogHeader>
 				<AlertDialogBody>
 					<AlertDialogDescription>
-						This removes local browser storage and deletes <code>~/.cline/data</code>,{" "}
-						<code>~/.cline/nklein</code>, and <code>~/.cline/worktrees</code>.
+						This removes local browser storage and deletes <code>~/.nklein/data</code>,{" "}
+						<code>~/.nklein/nklein</code>, and <code>~/.nklein/worktrees</code>.
 					</AlertDialogDescription>
 					<p className="text-text-primary">This action cannot be undone.</p>
 				</AlertDialogBody>

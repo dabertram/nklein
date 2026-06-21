@@ -1,4 +1,4 @@
-import { FolderOpen, GitBranch, Search } from "lucide-react";
+import { FolderOpen, FolderPlus, GitBranch, Search } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { showAppToast } from "@/components/app-toaster";
@@ -22,7 +22,30 @@ import { Spinner } from "@/components/ui/spinner";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import { toServerAbsolute } from "@/utils/server-path";
 
-type AddProjectTab = "path" | "clone";
+type AddProjectTab = "existing" | "new" | "clone";
+
+function deriveNameFromPath(path: string): string {
+	const segments = path
+		.trim()
+		.replace(/[\\/]+$/g, "")
+		.split(/[\\/]+/g)
+		.filter(Boolean);
+	return segments[segments.length - 1] ?? "";
+}
+
+function sanitizeFolderName(value: string): string {
+	const sanitized = value
+		.trim()
+		.normalize("NFKD")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return sanitized || "project";
+}
+
+function isSafeFolderName(value: string): boolean {
+	return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(value);
+}
 
 export interface AddProjectDialogProps {
 	open: boolean;
@@ -42,12 +65,23 @@ export function AddProjectDialog({
 	initialGitInitPath,
 	initialSelfProjectPath,
 }: AddProjectDialogProps): ReactElement {
-	const [activeTab, setActiveTab] = useState<AddProjectTab>("path");
+	const [activeTab, setActiveTab] = useState<AddProjectTab>("existing");
 	const [pathInput, setPathInput] = useState("");
+	const [pathInputIsAbsolute, setPathInputIsAbsolute] = useState(false);
+	const [projectNameInput, setProjectNameInput] = useState("");
+	const [projectNameTouched, setProjectNameTouched] = useState(false);
 	const [isAddingByPath, setIsAddingByPath] = useState(false);
+	const [isPickingDirectory, setIsPickingDirectory] = useState(false);
 	const [pendingGitInitPath, setPendingGitInitPath] = useState<string | null>(null);
+	const [pendingGitInitProjectName, setPendingGitInitProjectName] = useState<string | null>(null);
 	const [pendingSelfProjectPath, setPendingSelfProjectPath] = useState<string | null>(null);
+	const [pendingSelfProjectName, setPendingSelfProjectName] = useState<string | null>(null);
 	const [isInitializingGit, setIsInitializingGit] = useState(false);
+	const [newParentInput, setNewParentInput] = useState("/");
+	const [newProjectNameInput, setNewProjectNameInput] = useState("");
+	const [newFolderNameInput, setNewFolderNameInput] = useState("");
+	const [newFolderNameTouched, setNewFolderNameTouched] = useState(false);
+	const [isCreatingDirectory, setIsCreatingDirectory] = useState(false);
 	const [gitUrlInput, setGitUrlInput] = useState("");
 	const [cloneRefInput, setCloneRefInput] = useState("");
 	const [cloneDestInput, setCloneDestInput] = useState("");
@@ -61,17 +95,28 @@ export function AddProjectDialog({
 		if (!open) {
 			return;
 		}
-		setActiveTab("path");
+		setActiveTab("existing");
 		setPathInput("/");
+		setPathInputIsAbsolute(false);
+		setProjectNameInput("");
+		setProjectNameTouched(false);
 		setGitUrlInput("");
 		setCloneRefInput("");
 		setCloneDestInput("/");
 		setCloneFolderName("");
 		setIsAddingByPath(false);
+		setIsPickingDirectory(false);
 		setIsCloning(false);
 		setPendingGitInitPath(initialGitInitPath ?? null);
+		setPendingGitInitProjectName(initialGitInitPath ? deriveNameFromPath(initialGitInitPath) : null);
 		setPendingSelfProjectPath(initialSelfProjectPath ?? null);
+		setPendingSelfProjectName(initialSelfProjectPath ? deriveNameFromPath(initialSelfProjectPath) : null);
 		setIsInitializingGit(false);
+		setNewParentInput("/");
+		setNewProjectNameInput("");
+		setNewFolderNameInput("");
+		setNewFolderNameTouched(false);
+		setIsCreatingDirectory(false);
 
 		// Fetch the server root path to display at the top of the dialog
 		const fetchRoot = async () => {
@@ -117,7 +162,13 @@ export function AddProjectDialog({
 	);
 
 	const handleAddByPath = useCallback(
-		async (path: string, initializeGit = false, confirmSelfProject = false, pathIsAlreadyAbsolute = false) => {
+		async (
+			path: string,
+			initializeGit = false,
+			confirmSelfProject = false,
+			pathIsAlreadyAbsolute = false,
+			projectName?: string,
+		) => {
 			const absolutePath = pathIsAlreadyAbsolute ? path : resolveToAbsolutePath(path);
 			if (!absolutePath) {
 				return;
@@ -132,22 +183,27 @@ export function AddProjectDialog({
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
 				const added = await trpcClient.projects.add.mutate({
 					path: trimmed,
+					projectName: projectName?.trim() || undefined,
 					initializeGit,
 					confirmSelfProject,
 				});
 				if (!added.ok || !added.project) {
 					if (added.requiresGitInitialization) {
 						setPendingGitInitPath(trimmed);
+						setPendingGitInitProjectName(projectName?.trim() || deriveNameFromPath(trimmed));
 						return;
 					}
 					if (added.requiresSelfProjectConfirmation) {
 						setPendingSelfProjectPath(trimmed);
+						setPendingSelfProjectName(projectName?.trim() || deriveNameFromPath(trimmed));
 						return;
 					}
 					throw new Error(added.error ?? "Could not add project.");
 				}
 				setPendingGitInitPath(null);
+				setPendingGitInitProjectName(null);
 				setPendingSelfProjectPath(null);
+				setPendingSelfProjectName(null);
 				onProjectAdded(added.project.id);
 				onOpenChange(false);
 			} catch (error) {
@@ -166,15 +222,20 @@ export function AddProjectDialog({
 	// handleAddByPath or provided via initialGitInitPath from the native
 	// OS picker), so it must not go through resolveToAbsolutePath again.
 	const handleInitializeGit = useCallback(
-		async (absolutePath: string) => {
+		async (absolutePath: string, projectName?: string | null) => {
 			setIsInitializingGit(true);
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const added = await trpcClient.projects.add.mutate({ path: absolutePath, initializeGit: true });
+				const added = await trpcClient.projects.add.mutate({
+					path: absolutePath,
+					projectName: projectName?.trim() || undefined,
+					initializeGit: true,
+				});
 				if (!added.ok || !added.project) {
 					throw new Error(added.error ?? "Could not add project.");
 				}
 				setPendingGitInitPath(null);
+				setPendingGitInitProjectName(null);
 				onProjectAdded(added.project.id);
 				onOpenChange(false);
 			} catch (error) {
@@ -186,6 +247,82 @@ export function AddProjectDialog({
 		},
 		[currentProjectId, onOpenChange, onProjectAdded],
 	);
+
+	const handlePickExistingDirectory = useCallback(async () => {
+		if (isPickingDirectory) {
+			return;
+		}
+		setIsPickingDirectory(true);
+		try {
+			const trpcClient = getRuntimeTrpcClient(currentProjectId);
+			const picked = await trpcClient.projects.pickDirectory.mutate();
+			if (picked.ok && picked.path) {
+				const derivedName = deriveNameFromPath(picked.path);
+				setPathInput(picked.path);
+				setPathInputIsAbsolute(true);
+				setPendingGitInitPath(null);
+				setPendingGitInitProjectName(null);
+				setPendingSelfProjectPath(null);
+				setPendingSelfProjectName(null);
+				if (!projectNameTouched) {
+					setProjectNameInput(derivedName);
+				}
+				return;
+			}
+			if (!picked.ok && picked.error !== "No directory was selected.") {
+				throw new Error(picked.error ?? "Could not pick project directory.");
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsPickingDirectory(false);
+		}
+	}, [currentProjectId, isPickingDirectory, projectNameTouched]);
+
+	const handleCreateNewFolder = useCallback(async () => {
+		const folderName = newFolderNameInput.trim() || sanitizeFolderName(newProjectNameInput);
+		if (!isSafeFolderName(folderName)) {
+			showAppToast({
+				intent: "danger",
+				icon: "warning-sign",
+				message: "Folder name may only use lowercase letters, numbers, and hyphens.",
+				timeout: 7000,
+			});
+			return;
+		}
+		const parentPath = newParentInput.trim() || "/";
+		const resolvedParent = resolveToAbsolutePath(parentPath);
+		const absolutePath = toServerAbsolute(resolvedParent, folderName);
+		setIsCreatingDirectory(true);
+		try {
+			const trpcClient = getRuntimeTrpcClient(currentProjectId);
+			const added = await trpcClient.projects.add.mutate({
+				path: absolutePath,
+				projectName: newProjectNameInput.trim() || folderName,
+				createDirectory: true,
+				initializeGit: true,
+			});
+			if (!added.ok || !added.project) {
+				throw new Error(added.error ?? "Could not create project.");
+			}
+			onProjectAdded(added.project.id);
+			onOpenChange(false);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+		} finally {
+			setIsCreatingDirectory(false);
+		}
+	}, [
+		currentProjectId,
+		newFolderNameInput,
+		newParentInput,
+		newProjectNameInput,
+		onOpenChange,
+		onProjectAdded,
+		resolveToAbsolutePath,
+	]);
 
 	const handleClone = useCallback(async () => {
 		const trimmedUrl = gitUrlInput.trim();
@@ -251,7 +388,12 @@ export function AddProjectDialog({
 		}
 	}, []);
 
-	const isBusy = isAddingByPath || isCloning || isInitializingGit;
+	const isBusy = isAddingByPath || isPickingDirectory || isCreatingDirectory || isCloning || isInitializingGit;
+	const resolvedNewFolderName = newFolderNameInput.trim() || sanitizeFolderName(newProjectNameInput);
+	const canCreateNewProject =
+		newProjectNameInput.trim().length > 0 &&
+		resolvedNewFolderName.length > 0 &&
+		isSafeFolderName(resolvedNewFolderName);
 
 	return (
 		<>
@@ -273,24 +415,42 @@ export function AddProjectDialog({
 				<div className="flex flex-col gap-4 p-4 bg-surface-1">
 					{/* Tab switcher */}
 					<div className="rounded-md bg-surface-2 p-1">
-						<div className="grid grid-cols-2 gap-1">
+						<div className="grid grid-cols-3 gap-1">
 							<button
 								type="button"
 								onClick={() => {
-									setActiveTab("path");
+									setActiveTab("existing");
 									setPendingGitInitPath(null);
 								}}
 								disabled={isBusy}
 								className={cn(
 									"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium inline-flex items-center justify-center gap-1.5",
-									activeTab === "path"
+									activeTab === "existing"
 										? "bg-surface-4 text-text-primary"
 										: "text-text-secondary hover:text-text-primary",
 									isBusy && "cursor-not-allowed opacity-50",
 								)}
 							>
 								<Search size={12} />
-								Server Path
+								Existing
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setActiveTab("new");
+									setPendingGitInitPath(null);
+								}}
+								disabled={isBusy}
+								className={cn(
+									"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium inline-flex items-center justify-center gap-1.5",
+									activeTab === "new"
+										? "bg-surface-4 text-text-primary"
+										: "text-text-secondary hover:text-text-primary",
+									isBusy && "cursor-not-allowed opacity-50",
+								)}
+							>
+								<FolderPlus size={12} />
+								New
 							</button>
 							<button
 								type="button"
@@ -313,22 +473,57 @@ export function AddProjectDialog({
 						</div>
 					</div>
 
-					{activeTab === "path" ? (
+					{activeTab === "existing" ? (
 						<PathTabContent
 							pathInput={pathInput}
 							setPathInput={(v) => {
 								setPathInput(v);
+								setPathInputIsAbsolute(false);
 								setPendingGitInitPath(null);
+								setPendingGitInitProjectName(null);
 								setPendingSelfProjectPath(null);
+								setPendingSelfProjectName(null);
+								if (!projectNameTouched) {
+									setProjectNameInput(deriveNameFromPath(v));
+								}
+							}}
+							projectNameInput={projectNameInput}
+							setProjectNameInput={(value) => {
+								setProjectNameInput(value);
+								setProjectNameTouched(true);
 							}}
 							pathInputRef={pathInputRef}
 							isAddingByPath={isAddingByPath}
+							isPickingDirectory={isPickingDirectory}
 							isInitializingGit={isInitializingGit}
 							pendingGitInitPath={pendingGitInitPath}
-							onSubmitPath={() => void handleAddByPath(pathInput)}
+							onBrowse={() => void handlePickExistingDirectory()}
+							onSubmitPath={() =>
+								void handleAddByPath(pathInput, false, false, pathInputIsAbsolute, projectNameInput)
+							}
 							onSubmitGitInit={() => {
-								if (pendingGitInitPath) void handleInitializeGit(pendingGitInitPath);
+								if (pendingGitInitPath) void handleInitializeGit(pendingGitInitPath, pendingGitInitProjectName);
 							}}
+							currentProjectId={currentProjectId}
+						/>
+					) : activeTab === "new" ? (
+						<NewFolderTabContent
+							parentInput={newParentInput}
+							setParentInput={setNewParentInput}
+							projectNameInput={newProjectNameInput}
+							setProjectNameInput={(value) => {
+								setNewProjectNameInput(value);
+								if (!newFolderNameTouched) {
+									setNewFolderNameInput(sanitizeFolderName(value));
+								}
+							}}
+							folderNameInput={newFolderNameInput}
+							setFolderNameInput={(value) => {
+								setNewFolderNameTouched(true);
+								setNewFolderNameInput(sanitizeFolderName(value));
+							}}
+							isCreating={isCreatingDirectory}
+							onSubmitCreate={() => void handleCreateNewFolder()}
 							currentProjectId={currentProjectId}
 						/>
 					) : (
@@ -352,11 +547,13 @@ export function AddProjectDialog({
 					<Button variant="default" onClick={() => onOpenChange(false)} disabled={isBusy}>
 						Cancel
 					</Button>
-					{activeTab === "path" ? (
+					{activeTab === "existing" ? (
 						pendingGitInitPath === null ? (
 							<Button
 								variant="primary"
-								onClick={() => void handleAddByPath(pathInput)}
+								onClick={() =>
+									void handleAddByPath(pathInput, false, false, pathInputIsAbsolute, projectNameInput)
+								}
 								disabled={pathInput.trim() === "/" || isAddingByPath}
 							>
 								{isAddingByPath ? (
@@ -372,7 +569,8 @@ export function AddProjectDialog({
 							<Button
 								variant="primary"
 								onClick={() => {
-									if (pendingGitInitPath) void handleInitializeGit(pendingGitInitPath);
+									if (pendingGitInitPath)
+										void handleInitializeGit(pendingGitInitPath, pendingGitInitProjectName);
 								}}
 								disabled={isInitializingGit}
 							>
@@ -386,6 +584,21 @@ export function AddProjectDialog({
 								)}
 							</Button>
 						)
+					) : activeTab === "new" ? (
+						<Button
+							variant="primary"
+							onClick={() => void handleCreateNewFolder()}
+							disabled={!canCreateNewProject || isCreatingDirectory}
+						>
+							{isCreatingDirectory ? (
+								<>
+									<Spinner size={14} />
+									Creating...
+								</>
+							) : (
+								"Create Project"
+							)}
+						</Button>
 					) : (
 						<Button
 							variant="primary"
@@ -409,6 +622,7 @@ export function AddProjectDialog({
 				onOpenChange={(isOpen) => {
 					if (!isOpen) {
 						setPendingSelfProjectPath(null);
+						setPendingSelfProjectName(null);
 					}
 				}}
 			>
@@ -430,7 +644,13 @@ export function AddProjectDialog({
 							variant="primary"
 							onClick={() => {
 								if (pendingSelfProjectPath) {
-									void handleAddByPath(pendingSelfProjectPath, false, true, true);
+									void handleAddByPath(
+										pendingSelfProjectPath,
+										false,
+										true,
+										true,
+										pendingSelfProjectName ?? undefined,
+									);
 								}
 							}}
 						>
@@ -446,20 +666,28 @@ export function AddProjectDialog({
 function PathTabContent({
 	pathInput,
 	setPathInput,
+	projectNameInput,
+	setProjectNameInput,
 	pathInputRef,
 	isAddingByPath,
+	isPickingDirectory,
 	isInitializingGit,
 	pendingGitInitPath,
+	onBrowse,
 	onSubmitPath,
 	onSubmitGitInit,
 	currentProjectId,
 }: {
 	pathInput: string;
 	setPathInput: (value: string) => void;
+	projectNameInput: string;
+	setProjectNameInput: (value: string) => void;
 	pathInputRef: React.RefObject<HTMLInputElement>;
 	isAddingByPath: boolean;
+	isPickingDirectory: boolean;
 	isInitializingGit: boolean;
 	pendingGitInitPath: string | null;
+	onBrowse: () => void;
 	onSubmitPath: () => void;
 	onSubmitGitInit: () => void;
 	currentProjectId: string | null;
@@ -476,16 +704,50 @@ function PathTabContent({
 	return (
 		<form onSubmit={handleSubmit} className="flex flex-col gap-3">
 			<div>
-				<span className="block text-[12px] text-text-secondary mb-1.5">Directory path</span>
-				<DirectoryAutocomplete
-					inputRef={pathInputRef}
-					value={pathInput}
-					onChange={setPathInput}
-					placeholder="Search directories…"
-					disabled={isAddingByPath || isInitializingGit}
-					id="add-project-path-input"
-					ariaLabel="Server path input"
-					workspaceId={currentProjectId}
+				<span className="block text-[12px] text-text-secondary mb-1.5">Project folder</span>
+				<div className="flex gap-2">
+					<div className="min-w-0 flex-1">
+						<DirectoryAutocomplete
+							inputRef={pathInputRef}
+							value={pathInput}
+							onChange={setPathInput}
+							placeholder="Search directories…"
+							disabled={isAddingByPath || isPickingDirectory || isInitializingGit}
+							id="add-project-path-input"
+							ariaLabel="Server path input"
+							workspaceId={currentProjectId}
+						/>
+					</div>
+					<Button
+						type="button"
+						variant="default"
+						size="sm"
+						onClick={onBrowse}
+						disabled={isAddingByPath || isPickingDirectory || isInitializingGit}
+					>
+						{isPickingDirectory ? (
+							<>
+								<Spinner size={14} />
+								Browsing...
+							</>
+						) : (
+							"Browse"
+						)}
+					</Button>
+				</div>
+			</div>
+			<div>
+				<label htmlFor="add-project-name-input" className="block text-[12px] text-text-secondary mb-1.5">
+					Project name
+				</label>
+				<input
+					type="text"
+					id="add-project-name-input"
+					value={projectNameInput}
+					onChange={(event) => setProjectNameInput(event.target.value)}
+					placeholder={deriveNameFromPath(pathInput) || "Project name"}
+					className="w-full h-8 px-2.5 text-[13px] rounded-md border border-border bg-surface-2 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
+					disabled={isAddingByPath || isPickingDirectory || isInitializingGit}
 				/>
 			</div>
 			{pendingGitInitPath !== null ? (
@@ -509,6 +771,87 @@ function PathTabContent({
 			<p id="add-project-dialog-description" className="sr-only">
 				Add a project by entering a server path, browsing the remote filesystem, or cloning a git repository.
 			</p>
+		</form>
+	);
+}
+
+function NewFolderTabContent({
+	parentInput,
+	setParentInput,
+	projectNameInput,
+	setProjectNameInput,
+	folderNameInput,
+	setFolderNameInput,
+	isCreating,
+	onSubmitCreate,
+	currentProjectId,
+}: {
+	parentInput: string;
+	setParentInput: (value: string) => void;
+	projectNameInput: string;
+	setProjectNameInput: (value: string) => void;
+	folderNameInput: string;
+	setFolderNameInput: (value: string) => void;
+	isCreating: boolean;
+	onSubmitCreate: () => void;
+	currentProjectId: string | null;
+}): ReactElement {
+	const handleSubmit = (event: React.FormEvent) => {
+		event.preventDefault();
+		onSubmitCreate();
+	};
+
+	return (
+		<form onSubmit={handleSubmit} className="flex flex-col gap-3">
+			<div>
+				<span className="block text-[12px] text-text-secondary mb-1.5">Create inside</span>
+				<DirectoryAutocomplete
+					value={parentInput}
+					onChange={setParentInput}
+					placeholder="Search directories…"
+					disabled={isCreating}
+					id="add-project-new-parent-input"
+					ariaLabel="New project parent directory"
+					workspaceId={currentProjectId}
+				/>
+			</div>
+			<div>
+				<label htmlFor="add-project-new-name-input" className="block text-[12px] text-text-secondary mb-1.5">
+					Project name
+				</label>
+				<input
+					type="text"
+					id="add-project-new-name-input"
+					value={projectNameInput}
+					onChange={(event) => setProjectNameInput(event.target.value)}
+					placeholder="Project name"
+					className="w-full h-8 px-2.5 text-[13px] rounded-md border border-border bg-surface-2 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
+					disabled={isCreating}
+				/>
+			</div>
+			<div>
+				<label htmlFor="add-project-new-folder-input" className="block text-[12px] text-text-secondary mb-1.5">
+					Folder name
+				</label>
+				<input
+					type="text"
+					id="add-project-new-folder-input"
+					value={folderNameInput}
+					onChange={(event) => setFolderNameInput(event.target.value)}
+					placeholder={sanitizeFolderName(projectNameInput)}
+					className="w-full h-8 px-2.5 text-[13px] font-mono rounded-md border border-border bg-surface-2 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent"
+					disabled={isCreating}
+				/>
+				<p className="mt-1 text-[11px] text-text-tertiary">
+					Use lowercase letters, numbers, and hyphens. Spaces and punctuation are converted to hyphens.
+				</p>
+			</div>
+			{isCreating ? (
+				<div className="flex items-center gap-2 text-[13px] text-text-secondary">
+					<Spinner size={14} />
+					Creating folder and initializing git...
+				</div>
+			) : null}
 		</form>
 	);
 }

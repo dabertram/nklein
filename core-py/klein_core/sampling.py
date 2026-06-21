@@ -1,6 +1,6 @@
 """Sampling normalization for the !Klein Python core.
 
-Mirrors the TypeScript ``LocalLlmSamplingOptions`` and ``cline-sampling-policy.ts``. Small/quantized models
+Mirrors the TypeScript ``LocalLlmSamplingOptions`` and ``nklein-sampling-policy.ts``. Small/quantized models
 run far more reliably with deterministic, loop-resistant sampling: low temperature, ``min_p`` to keep the
 distribution coherent (arXiv:2407.01082), and a light ``repetition_penalty`` to suppress degenerate loops.
 
@@ -41,7 +41,7 @@ class SamplingOptions:
     stop: tuple[str, ...] | None = None
 
 
-# Role baselines mirror cline-sampling-policy.ts.
+# Role baselines mirror nklein-sampling-policy.ts.
 _CODING = SamplingOptions(temperature=0.15, top_p=0.95, min_p=0.05, repetition_penalty=1.05)
 _PLANNING = SamplingOptions(temperature=0.3, top_p=0.95, min_p=0.05, repetition_penalty=1.05)
 _STRUCTURED = SamplingOptions(temperature=0.1, top_p=0.9, min_p=0.05, repetition_penalty=1.05)

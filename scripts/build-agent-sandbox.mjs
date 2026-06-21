@@ -12,7 +12,7 @@ const imageName = process.env.NKLEIN_AGENT_SANDBOX_IMAGE?.trim() || `nklein/agen
 
 await mkdir(dockerContextDir, { recursive: true });
 await esbuild.build({
-	entryPoints: [join(rootDir, "src", "cline-sdk", "agent-sandbox", "tool-runner.ts")],
+	entryPoints: [join(rootDir, "src", "nklein-sdk", "agent-sandbox", "tool-runner.ts")],
 	outfile: bundledToolRunnerPath,
 	bundle: true,
 	format: "cjs",

@@ -1,26 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const evalHarnessMocks = vi.hoisted(() => ({
-	buildClineAdvisorRequest: vi.fn(),
-	buildClineModelFreshnessAdvisorRequest: vi.fn(),
-	runClineDevSmokeEval: vi.fn(),
-	writeClineDogfoodBacklog: vi.fn(),
+	buildNKleinAdvisorRequest: vi.fn(),
+	buildNKleinModelFreshnessAdvisorRequest: vi.fn(),
+	runNKleinDevSmokeEval: vi.fn(),
+	writeNKleinDogfoodBacklog: vi.fn(),
 }));
 
-vi.mock("../../../src/cline-sdk/cline-advisor", () => ({
-	buildClineAdvisorRequest: evalHarnessMocks.buildClineAdvisorRequest,
+vi.mock("../../../src/nklein-sdk/nklein-advisor", () => ({
+	buildNKleinAdvisorRequest: evalHarnessMocks.buildNKleinAdvisorRequest,
 }));
 
-vi.mock("../../../src/cline-sdk/cline-eval-harness", () => ({
-	runClineDevSmokeEval: evalHarnessMocks.runClineDevSmokeEval,
+vi.mock("../../../src/nklein-sdk/nklein-eval-harness", () => ({
+	runNKleinDevSmokeEval: evalHarnessMocks.runNKleinDevSmokeEval,
 }));
 
-vi.mock("../../../src/cline-sdk/cline-dogfood-engine", () => ({
-	writeClineDogfoodBacklog: evalHarnessMocks.writeClineDogfoodBacklog,
+vi.mock("../../../src/nklein-sdk/nklein-dogfood-engine", () => ({
+	writeNKleinDogfoodBacklog: evalHarnessMocks.writeNKleinDogfoodBacklog,
 }));
 
-vi.mock("../../../src/cline-sdk/cline-model-research", () => ({
-	buildClineModelFreshnessAdvisorRequest: evalHarnessMocks.buildClineModelFreshnessAdvisorRequest,
+vi.mock("../../../src/nklein-sdk/nklein-model-research", () => ({
+	buildNKleinModelFreshnessAdvisorRequest: evalHarnessMocks.buildNKleinModelFreshnessAdvisorRequest,
 }));
 
 import {
@@ -34,14 +34,14 @@ import {
 describe("dev command", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
-		evalHarnessMocks.buildClineAdvisorRequest.mockReset();
-		evalHarnessMocks.buildClineModelFreshnessAdvisorRequest.mockReset();
-		evalHarnessMocks.runClineDevSmokeEval.mockReset();
-		evalHarnessMocks.writeClineDogfoodBacklog.mockReset();
+		evalHarnessMocks.buildNKleinAdvisorRequest.mockReset();
+		evalHarnessMocks.buildNKleinModelFreshnessAdvisorRequest.mockReset();
+		evalHarnessMocks.runNKleinDevSmokeEval.mockReset();
+		evalHarnessMocks.writeNKleinDogfoodBacklog.mockReset();
 	});
 
 	it("runs the smoke eval and prints human-readable output", async () => {
-		evalHarnessMocks.runClineDevSmokeEval.mockResolvedValue({
+		evalHarnessMocks.runNKleinDevSmokeEval.mockResolvedValue({
 			workspacePath: "/tmp/workspace",
 			evidenceBundlePath: "/tmp/evidence",
 			acceptanceCommand: "npm test",
@@ -64,7 +64,7 @@ describe("dev command", () => {
 			},
 		});
 
-		expect(evalHarnessMocks.runClineDevSmokeEval).toHaveBeenCalledWith({
+		expect(evalHarnessMocks.runNKleinDevSmokeEval).toHaveBeenCalledWith({
 			parentDir: "/tmp/workspaces",
 			evidenceRootDir: "/tmp/evidence-root",
 			telemetryRootDir: "/tmp/telemetry-root",
@@ -86,18 +86,18 @@ describe("dev command", () => {
 				modelId: "claude-sonnet",
 			}),
 		).rejects.toThrow("local-only mode");
-		expect(evalHarnessMocks.runClineDevSmokeEval).not.toHaveBeenCalled();
+		expect(evalHarnessMocks.runNKleinDevSmokeEval).not.toHaveBeenCalled();
 	});
 
 	it("requires provider and model together when scoring a smoke eval", async () => {
 		await expect(runDevSmokeEvalCommand({ providerId: "ollama" })).rejects.toThrow(
 			"--provider-id and --model-id are required together",
 		);
-		expect(evalHarnessMocks.runClineDevSmokeEval).not.toHaveBeenCalled();
+		expect(evalHarnessMocks.runNKleinDevSmokeEval).not.toHaveBeenCalled();
 	});
 
 	it("prints JSON output for automation", async () => {
-		evalHarnessMocks.runClineDevSmokeEval.mockResolvedValue({
+		evalHarnessMocks.runNKleinDevSmokeEval.mockResolvedValue({
 			workspacePath: "/tmp/workspace",
 			evidenceBundlePath: "/tmp/evidence",
 			acceptanceCommand: "npm test",
@@ -122,8 +122,8 @@ describe("dev command", () => {
 	});
 
 	it("writes dogfood backlog artifacts", async () => {
-		evalHarnessMocks.writeClineDogfoodBacklog.mockResolvedValue({
-			rootPath: "/repo/.cline/nklein/plans/dogfood",
+		evalHarnessMocks.writeNKleinDogfoodBacklog.mockResolvedValue({
+			rootPath: "/repo/.nklein/nklein/plans/dogfood",
 			taskGraph: {
 				slug: "dogfood",
 				tasks: [{ id: "task-1" }],
@@ -142,7 +142,7 @@ describe("dev command", () => {
 			},
 		});
 
-		expect(evalHarnessMocks.writeClineDogfoodBacklog).toHaveBeenCalledWith({
+		expect(evalHarnessMocks.writeNKleinDogfoodBacklog).toHaveBeenCalledWith({
 			workspacePath: "/repo",
 			telemetryRootDir: "/telemetry",
 			slug: "dogfood",
@@ -152,7 +152,7 @@ describe("dev command", () => {
 	});
 
 	it("prints advisor prompt JSON", async () => {
-		evalHarnessMocks.buildClineAdvisorRequest.mockReturnValue({
+		evalHarnessMocks.buildNKleinAdvisorRequest.mockReturnValue({
 			kind: "model_freshness",
 			title: "Check For Better Models",
 			prompt: "Compare models",
@@ -170,7 +170,7 @@ describe("dev command", () => {
 			},
 		});
 
-		expect(evalHarnessMocks.buildClineAdvisorRequest).toHaveBeenCalledWith("model_freshness", {
+		expect(evalHarnessMocks.buildNKleinAdvisorRequest).toHaveBeenCalledWith("model_freshness", {
 			workspacePath: undefined,
 			repoSummary: undefined,
 			modelRegistrySummary: "worker qwen",
@@ -186,7 +186,7 @@ describe("dev command", () => {
 	});
 
 	it("prints check-models prompt JSON", async () => {
-		evalHarnessMocks.buildClineModelFreshnessAdvisorRequest.mockResolvedValue({
+		evalHarnessMocks.buildNKleinModelFreshnessAdvisorRequest.mockResolvedValue({
 			kind: "model_freshness",
 			title: "Check For Better Models",
 			prompt: "Compare current roster",
@@ -202,7 +202,7 @@ describe("dev command", () => {
 			},
 		});
 
-		expect(evalHarnessMocks.buildClineModelFreshnessAdvisorRequest).toHaveBeenCalledTimes(1);
+		expect(evalHarnessMocks.buildNKleinModelFreshnessAdvisorRequest).toHaveBeenCalledTimes(1);
 		expect(JSON.parse(writes[0] ?? "{}")).toMatchObject({
 			title: "Check For Better Models",
 			prompt: "Compare current roster",
@@ -210,7 +210,7 @@ describe("dev command", () => {
 	});
 
 	it("prints explicit advisor shortcut prompts", async () => {
-		evalHarnessMocks.buildClineAdvisorRequest.mockReturnValue({
+		evalHarnessMocks.buildNKleinAdvisorRequest.mockReturnValue({
 			kind: "mcp_discovery",
 			title: "Find Useful MCP Plugins",
 			prompt: "Research MCP",
@@ -227,7 +227,7 @@ describe("dev command", () => {
 			},
 		});
 
-		expect(evalHarnessMocks.buildClineAdvisorRequest).toHaveBeenCalledWith("mcp_discovery", {
+		expect(evalHarnessMocks.buildNKleinAdvisorRequest).toHaveBeenCalledWith("mcp_discovery", {
 			workspacePath: undefined,
 			repoSummary: "TypeScript app",
 			modelRegistrySummary: undefined,

@@ -1,12 +1,12 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { buildClineAdvisorRequest, type ClineAdvisorKind } from "../cline-sdk/cline-advisor";
-import { writeClineDogfoodBacklog } from "../cline-sdk/cline-dogfood-engine";
-import { runClineDevSmokeEval } from "../cline-sdk/cline-eval-harness";
-import { assertLocalProviderAllowed } from "../cline-sdk/cline-local-only-policy";
-import { buildClineModelFreshnessAdvisorRequest } from "../cline-sdk/cline-model-research";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-sdk/nklein-advisor";
+import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
+import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
+import { assertLocalProviderAllowed } from "../nklein-sdk/nklein-local-only-policy";
+import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 
 interface DevSmokeEvalOptions {
@@ -33,7 +33,7 @@ interface DevDogfoodBacklogOptions {
 
 interface DevAdvisorPromptOptions {
 	json?: boolean;
-	kind: ClineAdvisorKind;
+	kind: NKleinAdvisorKind;
 	workspacePath?: string;
 	repoSummary?: string;
 	modelRegistrySummary?: string;
@@ -66,7 +66,7 @@ function buildDevSmokeEvalModelObservation(options: DevSmokeEvalOptions) {
 	};
 }
 
-function parseAdvisorKind(value: string): ClineAdvisorKind {
+function parseAdvisorKind(value: string): NKleinAdvisorKind {
 	if (
 		value === "model_freshness" ||
 		value === "mcp_discovery" ||
@@ -83,7 +83,7 @@ function parseAdvisorKind(value: string): ClineAdvisorKind {
 
 export async function runDevSmokeEvalCommand(options: DevSmokeEvalOptions = {}): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const result = await runClineDevSmokeEval({
+	const result = await runNKleinDevSmokeEval({
 		parentDir: options.parentDir,
 		evidenceRootDir: options.evidenceRoot,
 		telemetryRootDir: options.telemetryRoot ?? DEFAULT_TELEMETRY_ROOT,
@@ -107,7 +107,7 @@ export async function runDevDogfoodBacklogCommand(options: DevDogfoodBacklogOpti
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const cwd = options.cwd ?? process.cwd();
 	const workspacePath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
-	const result = await writeClineDogfoodBacklog({
+	const result = await writeNKleinDogfoodBacklog({
 		workspacePath,
 		telemetryRootDir: options.telemetryRoot ?? DEFAULT_TELEMETRY_ROOT,
 		slug: options.slug,
@@ -125,7 +125,7 @@ export async function runDevDogfoodBacklogCommand(options: DevDogfoodBacklogOpti
 
 export async function runDevAdvisorPromptCommand(options: DevAdvisorPromptOptions): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const request = buildClineAdvisorRequest(options.kind, {
+	const request = buildNKleinAdvisorRequest(options.kind, {
 		workspacePath: options.workspacePath,
 		repoSummary: options.repoSummary,
 		modelRegistrySummary: options.modelRegistrySummary,
@@ -142,7 +142,7 @@ export async function runDevAdvisorPromptCommand(options: DevAdvisorPromptOption
 }
 
 export async function runDevAdvisorShortcutCommand(
-	kind: ClineAdvisorKind,
+	kind: NKleinAdvisorKind,
 	options: DevAdvisorShortcutOptions = {},
 ): Promise<void> {
 	await runDevAdvisorPromptCommand({
@@ -155,7 +155,7 @@ export async function runDevCheckModelsCommand(
 	options: { json?: boolean; write?: (text: string) => void } = {},
 ): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const request = await buildClineModelFreshnessAdvisorRequest();
+	const request = await buildNKleinModelFreshnessAdvisorRequest();
 	if (options.json) {
 		write(`${JSON.stringify(request, null, 2)}\n`);
 		return;
@@ -195,9 +195,9 @@ export function registerDevCommand(program: Command): void {
 	dev.command("dogfood-backlog")
 		.description("Generate dogfood improvement plan artifacts from local self-observation telemetry.")
 		.option("--json", "Print machine-readable JSON.")
-		.option("--project-path <path>", "!Klein repo path where .cline/nklein/plans should be written.")
-		.option("--telemetry-root <path>", "Telemetry JSONL root. Defaults to ~/.cline/nklein/telemetry.")
-		.option("--slug <slug>", "Plan slug under .cline/nklein/plans/<slug>.")
+		.option("--project-path <path>", "!Klein repo path where .nklein/nklein/plans should be written.")
+		.option("--telemetry-root <path>", "Telemetry JSONL root. Defaults to ~/.nklein/nklein/telemetry.")
+		.option("--slug <slug>", "Plan slug under .nklein/nklein/plans/<slug>.")
 		.option("--suggestion <text>", "Seed the dogfood backlog with a user-described improvement.")
 		.action(async (options: DevDogfoodBacklogOptions) => {
 			await runDevDogfoodBacklogCommand(options);

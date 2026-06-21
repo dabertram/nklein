@@ -4,18 +4,6 @@ import { createServer as createHttpsServer } from "node:https";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import {
-	AgentSandboxManager,
-	type AgentSandboxPoolConfig,
-	resolveAgentSandboxImageName,
-} from "../cline-sdk/cline-agent-sandbox";
-import type { ClineDecompositionAppliedEvent } from "../cline-sdk/cline-decomposition-tool";
-import { handleClineMcpOauthCallback } from "../cline-sdk/cline-mcp-runtime-service";
-import {
-	type ClineTaskSessionService,
-	createInMemoryClineTaskSessionService,
-} from "../cline-sdk/cline-task-session-service";
-import { createClineWatcherRegistry } from "../cline-sdk/cline-watcher-registry";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import type {
 	RuntimeAgentSandboxStatus,
@@ -38,6 +26,18 @@ import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import { completeTaskAndGetReadyLinkedTaskIds, getTaskColumnId, moveTaskToColumn } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
+import {
+	AgentSandboxManager,
+	type AgentSandboxPoolConfig,
+	resolveAgentSandboxImageName,
+} from "../nklein-sdk/nklein-agent-sandbox";
+import type { NKleinDecompositionAppliedEvent } from "../nklein-sdk/nklein-decomposition-tool";
+import { handleNKleinMcpOauthCallback } from "../nklein-sdk/nklein-mcp-runtime-service";
+import {
+	createInMemoryNKleinTaskSessionService,
+	type NKleinTaskSessionService,
+} from "../nklein-sdk/nklein-task-session-service";
+import { createNKleinWatcherRegistry } from "../nklein-sdk/nklein-watcher-registry";
 import {
 	buildSessionCookieHeader,
 	checkRateLimit,
@@ -153,7 +153,7 @@ function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): 
 
 async function resolveReviewSandboxResult(options: {
 	repoPath: string;
-	service: ClineTaskSessionService;
+	service: NKleinTaskSessionService;
 	taskId: string;
 }): Promise<"result_branch" | "empty_patch" | "unknown"> {
 	for (const delayMs of [0, ...SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS]) {
@@ -261,9 +261,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
-	const clineTaskSessionServiceByWorkspaceId = new Map<string, ClineTaskSessionService>();
+	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
 	const queuedStartDrainUnsubscribeByWorkspaceId = new Map<string, () => void>();
-	const clineWatcherRegistry = createClineWatcherRegistry();
+	const nkleinWatcherRegistry = createNKleinWatcherRegistry();
 	const taskStartQueue = createRuntimeTaskStartQueue();
 	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
@@ -289,11 +289,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				if (!task) {
 					continue;
 				}
-				const liveClineSessions =
-					clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId)?.listSummaries() ?? [];
+				const liveNKleinSessions =
+					nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId)?.listSummaries() ?? [];
 				const sessions = {
 					...state.sessions,
-					...Object.fromEntries(liveClineSessions.map((summary) => [summary.taskId, summary])),
+					...Object.fromEntries(liveNKleinSessions.map((summary) => [summary.taskId, summary])),
 				};
 				const overlappingTask = findActiveTaskLikelyTouchedFileOverlap({
 					board: state.board,
@@ -316,7 +316,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					startInPlanMode: task.startInPlanMode,
 					baseRef: task.baseRef,
 					agentId: task.agentId,
-					clineSettings: task.clineSettings,
+					nkleinSettings: task.nkleinSettings,
 					queueOnEndpointBusy: true,
 				});
 				if (!started.ok && !started.queued) {
@@ -346,7 +346,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 	const autoStartDecompositionRootTasks = async (
 		scope: RuntimeTrpcWorkspaceScope,
-		event: ClineDecompositionAppliedEvent,
+		event: NKleinDecompositionAppliedEvent,
 	): Promise<void> => {
 		await autoStartTaskIds(scope, event.rootTaskIds);
 	};
@@ -366,7 +366,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 	const completeDecompositionSourceTask = (
 		scope: RuntimeTrpcWorkspaceScope,
-		event: ClineDecompositionAppliedEvent,
+		event: NKleinDecompositionAppliedEvent,
 	): void => {
 		const sourceTaskId = event.sourceTaskId?.trim();
 		if (!sourceTaskId) {
@@ -374,7 +374,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		setTimeout(() => {
 			void (async () => {
-				const service = clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+				const service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 				await service?.completeTaskSessionAfterDecomposition(sourceTaskId);
 				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
 					const movement = moveTaskToColumn(latestState.board, sourceTaskId, "completed");
@@ -393,13 +393,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			});
 		}, 250);
 	};
-	const isReviewableClineSummary = (summary: RuntimeTaskSessionSummary): boolean =>
+	const isReviewableNKleinSummary = (summary: RuntimeTaskSessionSummary): boolean =>
 		summary.state === "awaiting_review" &&
 		(summary.reviewReason === "hook" ||
 			summary.reviewReason === "exit" ||
 			summary.reviewReason === "attention" ||
 			summary.reviewReason === "error");
-	const recordClineModelPerformance = (scope: RuntimeTrpcWorkspaceScope, summary: RuntimeTaskSessionSummary): void => {
+	const recordNKleinModelPerformance = (
+		scope: RuntimeTrpcWorkspaceScope,
+		summary: RuntimeTaskSessionSummary,
+	): void => {
 		void (async () => {
 			const [workspaceState, runtimeConfig] = await Promise.all([
 				loadWorkspaceState(scope.workspacePath).catch(() => null),
@@ -419,7 +422,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			deps.warn(`Could not record model performance for ${summary.taskId}: ${message}`);
 		});
 	};
-	const recordClineKnowledgeToolUsage = (
+	const recordNKleinKnowledgeToolUsage = (
 		scope: RuntimeTrpcWorkspaceScope,
 		summary: RuntimeTaskSessionSummary,
 	): void => {
@@ -444,7 +447,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 	const finalizeHeadlessAutoReviewTask = (
 		scope: RuntimeTrpcWorkspaceScope,
-		service: ClineTaskSessionService,
+		service: NKleinTaskSessionService,
 		taskId: string,
 	): void => {
 		const inFlightKey = `${scope.workspaceId}:${taskId}`;
@@ -530,7 +533,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 	const reconcileCapturedHeadlessAutoReviewTasks = (
 		scope: RuntimeTrpcWorkspaceScope,
-		service: ClineTaskSessionService,
+		service: NKleinTaskSessionService,
 	): void => {
 		void (async () => {
 			const state = await loadWorkspaceState(scope.workspacePath);
@@ -615,15 +618,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		clearWorkspace: (workspaceId) => taskStartQueue.clearWorkspace(workspaceId),
 		size: (workspaceId) => taskStartQueue.size(workspaceId),
 	};
-	const getScopedClineTaskSessionService = async (
+	const getScopedNKleinTaskSessionService = async (
 		scope: RuntimeTrpcWorkspaceScope,
-	): Promise<ClineTaskSessionService> => {
+	): Promise<NKleinTaskSessionService> => {
 		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
 		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig);
-		let service = clineTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+		let service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {
-			service = createInMemoryClineTaskSessionService({
-				watcherRegistry: clineWatcherRegistry,
+			service = createInMemoryNKleinTaskSessionService({
+				watcherRegistry: nkleinWatcherRegistry,
 				agentSandboxManager: new AgentSandboxManager({ poolConfig: sandboxPoolConfig }),
 				onDecompositionApplied: async (event) => {
 					if (event.workspacePath !== scope.workspacePath) {
@@ -638,12 +641,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				service.setCardPaused(taskId, true);
 			}
 			const trackedService = service;
-			clineTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
-			deps.runtimeStateHub.trackClineTaskSessionService(scope.workspaceId, scope.workspacePath, service);
+			nkleinTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
+			deps.runtimeStateHub.trackNKleinTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
-				recordClineKnowledgeToolUsage(scope, summary);
-				recordClineModelPerformance(scope, summary);
-				if (isReviewableClineSummary(summary)) {
+				recordNKleinKnowledgeToolUsage(scope, summary);
+				recordNKleinModelPerformance(scope, summary);
+				if (isReviewableNKleinSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);
 				}
 				if (summary.state !== "queued" && summary.state !== "running") {
@@ -657,12 +660,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		return service;
 	};
-	const disposeClineTaskSessionServiceAsync = async (workspaceId: string): Promise<void> => {
-		const service = clineTaskSessionServiceByWorkspaceId.get(workspaceId);
+	const disposeNKleinTaskSessionServiceAsync = async (workspaceId: string): Promise<void> => {
+		const service = nkleinTaskSessionServiceByWorkspaceId.get(workspaceId);
 		if (!service) {
 			return;
 		}
-		clineTaskSessionServiceByWorkspaceId.delete(workspaceId);
+		nkleinTaskSessionServiceByWorkspaceId.delete(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
 		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);
@@ -673,15 +676,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		taskStartQueue.clearWorkspace(workspaceId);
 		await service.dispose();
 	};
-	const disposeClineTaskSessionService = (workspaceId: string): void => {
-		void disposeClineTaskSessionServiceAsync(workspaceId);
+	const disposeNKleinTaskSessionService = (workspaceId: string): void => {
+		void disposeNKleinTaskSessionServiceAsync(workspaceId);
 	};
 	const prepareForStateReset = async (): Promise<void> => {
 		const workspaceIds = new Set<string>();
 		for (const { workspaceId } of deps.workspaceRegistry.listManagedWorkspaces()) {
 			workspaceIds.add(workspaceId);
 		}
-		for (const workspaceId of clineTaskSessionServiceByWorkspaceId.keys()) {
+		for (const workspaceId of nkleinTaskSessionServiceByWorkspaceId.keys()) {
 			workspaceIds.add(workspaceId);
 		}
 		const activeWorkspaceId = deps.workspaceRegistry.getActiveWorkspaceId();
@@ -689,7 +692,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			workspaceIds.add(activeWorkspaceId);
 		}
 		for (const workspaceId of workspaceIds) {
-			await disposeClineTaskSessionServiceAsync(workspaceId);
+			await disposeNKleinTaskSessionServiceAsync(workspaceId);
 			deps.disposeWorkspace(workspaceId, {
 				stopTerminalSessions: true,
 			});
@@ -703,14 +706,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
 		setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,
 		getScopedTerminalManager,
-		getScopedClineTaskSessionService,
-		getLoadedScopedClineTaskSessionService: (workspaceScope) =>
-			clineTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
+		getScopedNKleinTaskSessionService,
+		getLoadedScopedNKleinTaskSessionService: (workspaceScope) =>
+			nkleinTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
 		resolveInteractiveShellCommand: deps.resolveInteractiveShellCommand,
 		runCommand: deps.runCommand,
-		broadcastClineMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastClineMcpAuthStatusesUpdated,
+		broadcastNKleinMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastNKleinMcpAuthStatusesUpdated,
 		broadcastTaskChatCleared: deps.runtimeStateHub.broadcastTaskChatCleared,
-		bumpClineSessionContextVersion: deps.runtimeStateHub.bumpClineSessionContextVersion,
+		bumpNKleinSessionContextVersion: deps.runtimeStateHub.bumpNKleinSessionContextVersion,
 		prepareForStateReset,
 		taskStartQueue: scheduledTaskStartQueue,
 		getUpdateStatus: deps.getUpdateStatus,
@@ -728,7 +731,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			runtimeApi,
 			workspaceApi: createWorkspaceApi({
 				ensureTerminalManagerForWorkspace: deps.ensureTerminalManagerForWorkspace,
-				getScopedClineTaskSessionService,
+				getScopedNKleinTaskSessionService,
 				broadcastRuntimeWorkspaceStateUpdated: deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated,
 				broadcastRuntimeProjectsUpdated: deps.runtimeStateHub.broadcastRuntimeProjectsUpdated,
 				buildWorkspaceStateSnapshot: deps.workspaceRegistry.buildWorkspaceStateSnapshot,
@@ -747,7 +750,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				broadcastRuntimeProjectsUpdated: deps.runtimeStateHub.broadcastRuntimeProjectsUpdated,
 				getTerminalManagerForWorkspace: deps.workspaceRegistry.getTerminalManagerForWorkspace,
 				disposeWorkspace: (workspaceId, options) => {
-					disposeClineTaskSessionService(workspaceId);
+					disposeNKleinTaskSessionService(workspaceId);
 					return deps.disposeWorkspace(workspaceId, options);
 				},
 				collectProjectWorktreeTaskIdsForRemoval: deps.collectProjectWorktreeTaskIdsForRemoval,
@@ -897,7 +900,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			// ── End passcode gate ──────────────────────────────────────────────
 
-			const oauthCallbackResponse = await handleClineMcpOauthCallback(requestUrl);
+			const oauthCallbackResponse = await handleNKleinMcpOauthCallback(requestUrl);
 			if (oauthCallbackResponse) {
 				res.writeHead(oauthCallbackResponse.statusCode, {
 					"Content-Type": "text/html; charset=utf-8",
@@ -1013,12 +1016,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			queuedStartDrainUnsubscribeByWorkspaceId.clear();
 			await Promise.all(
-				Array.from(clineTaskSessionServiceByWorkspaceId.values()).map(async (service) => {
+				Array.from(nkleinTaskSessionServiceByWorkspaceId.values()).map(async (service) => {
 					await service.dispose();
 				}),
 			);
-			clineTaskSessionServiceByWorkspaceId.clear();
-			await clineWatcherRegistry.close();
+			nkleinTaskSessionServiceByWorkspaceId.clear();
+			await nkleinWatcherRegistry.close();
 			await deps.runtimeStateHub.close();
 			await terminalWebSocketBridge.close();
 			await new Promise<void>((resolveClose, rejectClose) => {

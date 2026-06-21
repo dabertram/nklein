@@ -1,5 +1,9 @@
-import type { LocalLlmChatMessage, LocalLlmClient, LocalLlmSamplingOptions } from "../cline-sdk/cline-local-llm-client";
-import { resolveLocalSamplingOptions } from "../cline-sdk/cline-sampling-policy";
+import type {
+	LocalLlmChatMessage,
+	LocalLlmClient,
+	LocalLlmSamplingOptions,
+} from "../nklein-sdk/nklein-local-llm-client";
+import { resolveLocalSamplingOptions } from "../nklein-sdk/nklein-sampling-policy";
 import type { AgentAction, AgentCoreTool, DecideAction, DecideActionInput } from "./agent-loop";
 
 /**

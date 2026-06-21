@@ -1,16 +1,16 @@
 import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry, usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
-import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
+import { formatNKleinToolCallLabel } from "@runtime-nklein-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
 import { AlertCircle, AlertTriangle, Bot, Clipboard, GitBranch, Pause, Pencil, Play, RotateCcw } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-	formatClineReasoningEffortLabel,
-	formatClineSelectedModelButtonText,
-	resolveClineModelDisplayName,
-} from "@/components/detail-panels/cline-model-picker-options";
+	formatNKleinReasoningEffortLabel,
+	formatNKleinSelectedModelButtonText,
+	resolveNKleinModelDisplayName,
+} from "@/components/detail-panels/nklein-model-picker-options";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
@@ -235,7 +235,7 @@ function resolveToolCallLabel(
 		if (!toolInputSummary && !parsedSummary) {
 			return null;
 		}
-		return formatClineToolCallLabel(toolName, toolInputSummary ?? parsedSummary);
+		return formatNKleinToolCallLabel(toolName, toolInputSummary ?? parsedSummary);
 	}
 	if (!activityText) {
 		return null;
@@ -244,7 +244,7 @@ function resolveToolCallLabel(
 	if (!parsed) {
 		return null;
 	}
-	return formatClineToolCallLabel(parsed.toolName, parsed.toolInputSummary);
+	return formatNKleinToolCallLabel(parsed.toolName, parsed.toolInputSummary);
 }
 
 function isCardCreditLimitError(summary: RuntimeTaskSessionSummary | undefined): boolean {
@@ -288,7 +288,7 @@ function getPlainLanguageIssueText(summary: RuntimeTaskSessionSummary): string |
 		return "Parked: the same failure repeated. Fix the cause shown in the transcript, then send a new message.";
 	}
 	if (rawText.includes("heartbeat was lost")) {
-		return "Needs attention: the Cline session heartbeat was lost. Review the transcript, then resume or mark interrupted.";
+		return "Needs attention: the !Klein session heartbeat was lost. Review the transcript, then resume or mark interrupted.";
 	}
 	if (summary.state === "failed") {
 		return "Parked: this card failed repeatedly. Open it for the error and next recovery step.";
@@ -406,7 +406,7 @@ export function BoardCard({
 	isDependencyTarget = false,
 	isDependencyLinking = false,
 	workspacePath,
-	defaultClineModelId = null,
+	defaultNKleinModelId = null,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -438,7 +438,7 @@ export function BoardCard({
 	isDependencyTarget?: boolean;
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
-	defaultClineModelId?: string | null;
+	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -627,33 +627,33 @@ export function BoardCard({
 		[card.agentId],
 	);
 	const modelOverrideLabel = useMemo(() => {
-		if (card.clineSettings === undefined) {
+		if (card.nkleinSettings === undefined) {
 			return null;
 		}
-		const explicitReasoningLabel = card.clineSettings.reasoningEffort
-			? formatClineReasoningEffortLabel(card.clineSettings.reasoningEffort)
-			: !card.clineSettings.providerId && !card.clineSettings.modelId
+		const explicitReasoningLabel = card.nkleinSettings.reasoningEffort
+			? formatNKleinReasoningEffortLabel(card.nkleinSettings.reasoningEffort)
+			: !card.nkleinSettings.providerId && !card.nkleinSettings.modelId
 				? "Default"
 				: null;
-		if (card.clineSettings.providerId && !card.clineSettings.modelId) {
-			const providerLabel = `Provider: ${card.clineSettings.providerId}`;
+		if (card.nkleinSettings.providerId && !card.nkleinSettings.modelId) {
+			const providerLabel = `Provider: ${card.nkleinSettings.providerId}`;
 			return explicitReasoningLabel ? `${providerLabel} (${explicitReasoningLabel})` : providerLabel;
 		}
-		const effectiveModelId = card.clineSettings.modelId ?? defaultClineModelId;
+		const effectiveModelId = card.nkleinSettings.modelId ?? defaultNKleinModelId;
 		if (!effectiveModelId) {
 			return explicitReasoningLabel ? `Default model (${explicitReasoningLabel})` : null;
 		}
-		const modelName = resolveClineModelDisplayName(effectiveModelId);
+		const modelName = resolveNKleinModelDisplayName(effectiveModelId);
 		if (explicitReasoningLabel) {
 			return `${modelName} (${explicitReasoningLabel})`;
 		}
 		const inheritedReasoningEffort = "";
-		return formatClineSelectedModelButtonText({
+		return formatNKleinSelectedModelButtonText({
 			modelName,
 			reasoningEffort: inheritedReasoningEffort,
 			showReasoningEffort: Boolean(inheritedReasoningEffort),
 		});
-	}, [card.clineSettings, defaultClineModelId]);
+	}, [card.nkleinSettings, defaultNKleinModelId]);
 	const taskAgentSettingsLabel = useMemo(() => {
 		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;
@@ -662,7 +662,7 @@ export function BoardCard({
 		card.blockedKind === "needs_decomposition"
 			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
 			: card.blockedKind === "local_model_required"
-				? (card.blockedReason ?? "Configure a local Cline model before starting this task.")
+				? (card.blockedReason ?? "Configure a local !Klein model before starting this task.")
 				: card.blockedKind === "agent_sandbox_unavailable"
 					? (card.blockedReason ?? "Docker agent isolation must be ready before starting this task.")
 					: null;

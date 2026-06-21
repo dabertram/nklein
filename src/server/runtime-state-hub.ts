@@ -1,18 +1,16 @@
 // Streams live runtime state to browser clients over websocket.
-// It listens to terminal and native Cline updates, normalizes them into the
+// It listens to terminal and native NKlein updates, normalizes them into the
 // shared API contract, and fans out workspace-scoped snapshots and deltas.
 import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
-import { runClineAcceptanceAutoRepair } from "../cline-sdk/cline-acceptance-auto-repair";
-import type { ClineTaskMessage, ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type {
-	RuntimeClineMcpServerAuthStatus,
-	RuntimeClineTeamProgressEvent,
-	RuntimeStateStreamClineSessionContextUpdatedMessage,
-	RuntimeStateStreamClineTeamProgressMessage,
+	RuntimeNKleinMcpServerAuthStatus,
+	RuntimeNKleinTeamProgressEvent,
 	RuntimeStateStreamErrorMessage,
 	RuntimeStateStreamMcpAuthUpdatedMessage,
 	RuntimeStateStreamMessage,
+	RuntimeStateStreamNKleinSessionContextUpdatedMessage,
+	RuntimeStateStreamNKleinTeamProgressMessage,
 	RuntimeStateStreamProjectsMessage,
 	RuntimeStateStreamSnapshotMessage,
 	RuntimeStateStreamTaskChatClearedMessage,
@@ -23,6 +21,8 @@ import type {
 	RuntimeStateStreamWorkspaceStateMessage,
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
+import { runNKleinAcceptanceAutoRepair } from "../nklein-sdk/nklein-acceptance-auto-repair";
+import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createWorkspaceMetadataMonitor } from "./workspace-metadata-monitor";
 import type { ResolvedWorkspaceStreamTarget, WorkspaceRegistry } from "./workspace-registry";
@@ -43,8 +43,12 @@ export interface CreateRuntimeStateHubDependencies {
 
 export interface RuntimeStateHub {
 	trackTerminalManager: (workspaceId: string, manager: TerminalSessionManager) => void;
-	trackClineTaskSessionService: (workspaceId: string, workspacePath: string, service: ClineTaskSessionService) => void;
-	broadcastTaskChatMessage: (workspaceId: string, taskId: string, message: ClineTaskMessage) => void;
+	trackNKleinTaskSessionService: (
+		workspaceId: string,
+		workspacePath: string,
+		service: NKleinTaskSessionService,
+	) => void;
+	broadcastTaskChatMessage: (workspaceId: string, taskId: string, message: NKleinTaskMessage) => void;
 	broadcastTaskChatCleared: (workspaceId: string, taskId: string) => void;
 	handleUpgrade: (
 		request: IncomingMessage,
@@ -57,25 +61,25 @@ export interface RuntimeStateHub {
 	disposeWorkspace: (workspaceId: string, options?: DisposeRuntimeStateWorkspaceOptions) => void;
 	broadcastRuntimeWorkspaceStateUpdated: (workspaceId: string, workspacePath: string) => Promise<void>;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void>;
-	broadcastClineMcpAuthStatusesUpdated: (statuses: RuntimeClineMcpServerAuthStatus[]) => void;
-	bumpClineSessionContextVersion: () => void;
+	broadcastNKleinMcpAuthStatusesUpdated: (statuses: RuntimeNKleinMcpServerAuthStatus[]) => void;
+	bumpNKleinSessionContextVersion: () => void;
 	broadcastTaskReadyForReview: (workspaceId: string, taskId: string) => void;
 	close: () => Promise<void>;
 }
 
 export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): RuntimeStateHub {
 	const terminalSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
-	const clineSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
-	const clineMessageUnsubscribeByWorkspaceId = new Map<string, () => void>();
-	const clineTeamProgressUnsubscribeByWorkspaceId = new Map<string, () => void>();
-	const clinePreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
+	const nkleinSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
+	const nkleinMessageUnsubscribeByWorkspaceId = new Map<string, () => void>();
+	const nkleinTeamProgressUnsubscribeByWorkspaceId = new Map<string, () => void>();
+	const nkleinPreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const pendingTaskSessionSummariesByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const taskSessionBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
 	const acceptanceRepairAttemptStoreByWorkspaceId = new Map<string, Map<string, number>>();
 	const runtimeStateClientsByWorkspaceId = new Map<string, Set<WebSocket>>();
 	const runtimeStateClients = new Set<WebSocket>();
 	const runtimeStateWorkspaceIdByClient = new Map<WebSocket, string>();
-	let clineSessionContextVersion = 0;
+	let nkleinSessionContextVersion = 0;
 	const runtimeStateWebSocketServer = new WebSocketServer({ noServer: true });
 	const workspaceMetadataMonitor = createWorkspaceMetadataMonitor({
 		onMetadataUpdated: (workspaceId, workspaceMetadata) => {
@@ -123,7 +127,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 	};
 
-	const broadcastClineMcpAuthStatusesUpdated = (statuses: RuntimeClineMcpServerAuthStatus[]) => {
+	const broadcastNKleinMcpAuthStatusesUpdated = (statuses: RuntimeNKleinMcpServerAuthStatus[]) => {
 		if (runtimeStateClients.size === 0) {
 			return;
 		}
@@ -136,14 +140,14 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 	};
 
-	const bumpClineSessionContextVersion = () => {
-		clineSessionContextVersion += 1;
+	const bumpNKleinSessionContextVersion = () => {
+		nkleinSessionContextVersion += 1;
 		if (runtimeStateClients.size === 0) {
 			return;
 		}
-		const payload: RuntimeStateStreamClineSessionContextUpdatedMessage = {
-			type: "cline_session_context_updated",
-			version: clineSessionContextVersion,
+		const payload: RuntimeStateStreamNKleinSessionContextUpdatedMessage = {
+			type: "nklein_session_context_updated",
+			version: nkleinSessionContextVersion,
 		};
 		for (const client of runtimeStateClients) {
 			sendRuntimeStateMessage(client, payload);
@@ -187,7 +191,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		taskSessionBroadcastTimersByWorkspaceId.set(workspaceId, timer);
 	};
 
-	const broadcastTaskChatMessage = (workspaceId: string, taskId: string, message: ClineTaskMessage) => {
+	const broadcastTaskChatMessage = (workspaceId: string, taskId: string, message: NKleinTaskMessage) => {
 		const runtimeClients = runtimeStateClientsByWorkspaceId.get(workspaceId);
 		if (!runtimeClients || runtimeClients.size === 0) {
 			return;
@@ -218,13 +222,13 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 	};
 
-	const broadcastClineTeamProgress = (workspaceId: string, taskId: string, event: RuntimeClineTeamProgressEvent) => {
+	const broadcastNKleinTeamProgress = (workspaceId: string, taskId: string, event: RuntimeNKleinTeamProgressEvent) => {
 		const runtimeClients = runtimeStateClientsByWorkspaceId.get(workspaceId);
 		if (!runtimeClients || runtimeClients.size === 0) {
 			return;
 		}
-		const payload: RuntimeStateStreamClineTeamProgressMessage = {
-			type: "cline_team_progress",
+		const payload: RuntimeStateStreamNKleinTeamProgressMessage = {
+			type: "nklein_team_progress",
 			workspaceId,
 			taskId,
 			event,
@@ -269,35 +273,35 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			}
 		}
 		terminalSummaryUnsubscribeByWorkspaceId.delete(workspaceId);
-		const unsubscribeClineSummary = clineSummaryUnsubscribeByWorkspaceId.get(workspaceId);
-		if (unsubscribeClineSummary) {
+		const unsubscribeNKleinSummary = nkleinSummaryUnsubscribeByWorkspaceId.get(workspaceId);
+		if (unsubscribeNKleinSummary) {
 			try {
-				unsubscribeClineSummary();
+				unsubscribeNKleinSummary();
 			} catch {
 				// Ignore listener cleanup errors during project removal.
 			}
 		}
-		clineSummaryUnsubscribeByWorkspaceId.delete(workspaceId);
-		clinePreviousSummaryByWorkspaceId.delete(workspaceId);
+		nkleinSummaryUnsubscribeByWorkspaceId.delete(workspaceId);
+		nkleinPreviousSummaryByWorkspaceId.delete(workspaceId);
 		acceptanceRepairAttemptStoreByWorkspaceId.delete(workspaceId);
-		const unsubscribeClineMessage = clineMessageUnsubscribeByWorkspaceId.get(workspaceId);
-		if (unsubscribeClineMessage) {
+		const unsubscribeNKleinMessage = nkleinMessageUnsubscribeByWorkspaceId.get(workspaceId);
+		if (unsubscribeNKleinMessage) {
 			try {
-				unsubscribeClineMessage();
+				unsubscribeNKleinMessage();
 			} catch {
 				// Ignore listener cleanup errors during project removal.
 			}
 		}
-		clineMessageUnsubscribeByWorkspaceId.delete(workspaceId);
-		const unsubscribeClineTeamProgress = clineTeamProgressUnsubscribeByWorkspaceId.get(workspaceId);
-		if (unsubscribeClineTeamProgress) {
+		nkleinMessageUnsubscribeByWorkspaceId.delete(workspaceId);
+		const unsubscribeNKleinTeamProgress = nkleinTeamProgressUnsubscribeByWorkspaceId.get(workspaceId);
+		if (unsubscribeNKleinTeamProgress) {
 			try {
-				unsubscribeClineTeamProgress();
+				unsubscribeNKleinTeamProgress();
 			} catch {
 				// Ignore listener cleanup errors during project removal.
 			}
 		}
-		clineTeamProgressUnsubscribeByWorkspaceId.delete(workspaceId);
+		nkleinTeamProgressUnsubscribeByWorkspaceId.delete(workspaceId);
 		disposeTaskSessionSummaryBroadcast(workspaceId);
 		workspaceMetadataMonitor.disposeWorkspace(workspaceId);
 
@@ -386,13 +390,13 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		};
 	};
 
-	const verifyClineTaskBeforeReady = (
+	const verifyNKleinTaskBeforeReady = (
 		workspaceId: string,
 		workspacePath: string,
-		service: ClineTaskSessionService,
+		service: NKleinTaskSessionService,
 		summary: RuntimeTaskSessionSummary,
 	) => {
-		void runClineAcceptanceAutoRepair({
+		void runNKleinAcceptanceAutoRepair({
 			workspacePath,
 			taskId: summary.taskId,
 			summary,
@@ -409,7 +413,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			});
 	};
 
-	const isReviewableClineSummary = (summary: RuntimeTaskSessionSummary): boolean =>
+	const isReviewableNKleinSummary = (summary: RuntimeTaskSessionSummary): boolean =>
 		summary.state === "awaiting_review" &&
 		(summary.reviewReason === "hook" ||
 			summary.reviewReason === "exit" ||
@@ -515,7 +519,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 					projects: projectsPayload.projects,
 					workspaceState,
 					workspaceMetadata,
-					clineSessionContextVersion,
+					nkleinSessionContextVersion,
 				} satisfies RuntimeStateStreamSnapshotMessage);
 				if (client.readyState !== WebSocket.OPEN) {
 					if (monitorWorkspaceId) {
@@ -530,14 +534,14 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 					workspaceClients.add(client);
 					runtimeStateClientsByWorkspaceId.set(monitorWorkspaceId, workspaceClients);
 					runtimeStateWorkspaceIdByClient.set(client, monitorWorkspaceId);
-					const clineSummaries = Array.from(
-						clinePreviousSummaryByWorkspaceId.get(monitorWorkspaceId)?.values() ?? [],
+					const nkleinSummaries = Array.from(
+						nkleinPreviousSummaryByWorkspaceId.get(monitorWorkspaceId)?.values() ?? [],
 					);
-					if (clineSummaries.length > 0) {
+					if (nkleinSummaries.length > 0) {
 						sendRuntimeStateMessage(client, {
 							type: "task_sessions_updated",
 							workspaceId: monitorWorkspaceId,
-							summaries: clineSummaries,
+							summaries: nkleinSummaries,
 						} satisfies RuntimeStateStreamTaskSessionsMessage);
 					}
 				}
@@ -580,17 +584,21 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			});
 			terminalSummaryUnsubscribeByWorkspaceId.set(workspaceId, unsubscribe);
 		},
-		trackClineTaskSessionService: (workspaceId: string, workspacePath: string, service: ClineTaskSessionService) => {
-			if (clineSummaryUnsubscribeByWorkspaceId.has(workspaceId)) {
+		trackNKleinTaskSessionService: (
+			workspaceId: string,
+			workspacePath: string,
+			service: NKleinTaskSessionService,
+		) => {
+			if (nkleinSummaryUnsubscribeByWorkspaceId.has(workspaceId)) {
 				return;
 			}
 			const previousSummariesByTaskId = new Map<string, RuntimeTaskSessionSummary>();
-			clinePreviousSummaryByWorkspaceId.set(workspaceId, previousSummariesByTaskId);
+			nkleinPreviousSummaryByWorkspaceId.set(workspaceId, previousSummariesByTaskId);
 			for (const summary of service.listSummaries()) {
 				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
-				if (isReviewableClineSummary(summary)) {
-					verifyClineTaskBeforeReady(workspaceId, workspacePath, service, summary);
+				if (isReviewableNKleinSummary(summary)) {
+					verifyNKleinTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
 			}
 			const unsubscribe = service.onSummary((summary) => {
@@ -603,19 +611,19 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				if (didCheckpointChange) {
 					void broadcastRuntimeWorkspaceStateUpdated(workspaceId, workspacePath);
 				}
-				if (previousSummary && previousSummary.state !== "awaiting_review" && isReviewableClineSummary(summary)) {
-					verifyClineTaskBeforeReady(workspaceId, workspacePath, service, summary);
+				if (previousSummary && previousSummary.state !== "awaiting_review" && isReviewableNKleinSummary(summary)) {
+					verifyNKleinTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
 			});
-			clineSummaryUnsubscribeByWorkspaceId.set(workspaceId, unsubscribe);
+			nkleinSummaryUnsubscribeByWorkspaceId.set(workspaceId, unsubscribe);
 			const unsubscribeMessage = service.onMessage((taskId, message) => {
 				broadcastTaskChatMessage(workspaceId, taskId, message);
 			});
-			clineMessageUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeMessage);
+			nkleinMessageUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeMessage);
 			const unsubscribeTeamProgress = service.onTeamProgress((taskId, event) => {
-				broadcastClineTeamProgress(workspaceId, taskId, event);
+				broadcastNKleinTeamProgress(workspaceId, taskId, event);
 			});
-			clineTeamProgressUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeTeamProgress);
+			nkleinTeamProgressUnsubscribeByWorkspaceId.set(workspaceId, unsubscribeTeamProgress);
 		},
 		broadcastTaskChatMessage,
 		broadcastTaskChatCleared,
@@ -627,8 +635,8 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		disposeWorkspace,
 		broadcastRuntimeWorkspaceStateUpdated,
 		broadcastRuntimeProjectsUpdated,
-		broadcastClineMcpAuthStatusesUpdated,
-		bumpClineSessionContextVersion,
+		broadcastNKleinMcpAuthStatusesUpdated,
+		bumpNKleinSessionContextVersion,
 		broadcastTaskReadyForReview,
 		close: async () => {
 			for (const timer of taskSessionBroadcastTimersByWorkspaceId.values()) {
@@ -644,32 +652,32 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				}
 			}
 			terminalSummaryUnsubscribeByWorkspaceId.clear();
-			for (const unsubscribe of clineSummaryUnsubscribeByWorkspaceId.values()) {
+			for (const unsubscribe of nkleinSummaryUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();
 				} catch {
 					// Ignore listener cleanup errors during shutdown.
 				}
 			}
-			clineSummaryUnsubscribeByWorkspaceId.clear();
-			clinePreviousSummaryByWorkspaceId.clear();
-			for (const unsubscribe of clineTeamProgressUnsubscribeByWorkspaceId.values()) {
+			nkleinSummaryUnsubscribeByWorkspaceId.clear();
+			nkleinPreviousSummaryByWorkspaceId.clear();
+			for (const unsubscribe of nkleinTeamProgressUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();
 				} catch {
 					// Ignore listener cleanup errors during shutdown.
 				}
 			}
-			clineTeamProgressUnsubscribeByWorkspaceId.clear();
+			nkleinTeamProgressUnsubscribeByWorkspaceId.clear();
 			acceptanceRepairAttemptStoreByWorkspaceId.clear();
-			for (const unsubscribe of clineMessageUnsubscribeByWorkspaceId.values()) {
+			for (const unsubscribe of nkleinMessageUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();
 				} catch {
 					// Ignore listener cleanup errors during shutdown.
 				}
 			}
-			clineMessageUnsubscribeByWorkspaceId.clear();
+			nkleinMessageUnsubscribeByWorkspaceId.clear();
 			workspaceMetadataMonitor.close();
 			for (const client of runtimeStateClients) {
 				try {

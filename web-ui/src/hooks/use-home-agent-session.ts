@@ -8,7 +8,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
 import { notifyError } from "@/components/app-toaster";
-import { getRuntimeClineProviderSettings, isNativeClineAgentSelected } from "@/runtime/native-agent";
+import { getRuntimeNKleinProviderSettings, isNativeNKleinAgentSelected } from "@/runtime/native-agent";
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type { RuntimeConfigResponse, RuntimeGitRepositoryInfo, RuntimeTaskSessionSummary } from "@/runtime/types";
@@ -25,7 +25,7 @@ interface UseHomeAgentSessionInput {
 	currentProjectId: string | null;
 	runtimeProjectConfig: RuntimeConfigResponse | null;
 	workspaceGit: RuntimeGitRepositoryInfo | null;
-	clineSessionContextVersion: number;
+	nkleinSessionContextVersion: number;
 	sessionSummaries: Record<string, RuntimeTaskSessionSummary>;
 	setSessionSummaries: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
 	upsertSessionSummary: (summary: RuntimeTaskSessionSummary) => void;
@@ -47,14 +47,14 @@ interface HomeAgentWorkspaceDescriptor {
 	taskId: string;
 }
 
-function buildClineDescriptor(config: RuntimeConfigResponse): string {
-	const clineProviderSettings = getRuntimeClineProviderSettings(config);
+function buildNKleinDescriptor(config: RuntimeConfigResponse): string {
+	const nkleinProviderSettings = getRuntimeNKleinProviderSettings(config);
 	return JSON.stringify({
 		agentId: config.selectedAgentId,
-		providerId: clineProviderSettings.providerId ?? clineProviderSettings.oauthProvider ?? "",
-		modelId: clineProviderSettings.modelId ?? "",
-		baseUrl: clineProviderSettings.baseUrl ?? "",
-		reasoningEffort: clineProviderSettings.reasoningEffort ?? null,
+		providerId: nkleinProviderSettings.providerId ?? nkleinProviderSettings.oauthProvider ?? "",
+		modelId: nkleinProviderSettings.modelId ?? "",
+		baseUrl: nkleinProviderSettings.baseUrl ?? "",
+		reasoningEffort: nkleinProviderSettings.reasoningEffort ?? null,
 	});
 }
 
@@ -111,7 +111,7 @@ export function useHomeAgentSession({
 	currentProjectId,
 	runtimeProjectConfig,
 	workspaceGit,
-	clineSessionContextVersion,
+	nkleinSessionContextVersion,
 	sessionSummaries,
 	setSessionSummaries,
 	upsertSessionSummary,
@@ -121,10 +121,10 @@ export function useHomeAgentSession({
 	const desiredTaskIdByWorkspaceRef = useRef(new Map<string, string>());
 	const startedSessionKeysRef = useRef(new Set<string>());
 	const pendingStartRequestIdsRef = useRef(new Map<string, number>());
-	const previousClineSessionContextVersionByWorkspaceRef = useRef(new Map<string, number>());
+	const previousNKleinSessionContextVersionByWorkspaceRef = useRef(new Map<string, number>());
 	const nextStartRequestIdRef = useRef(0);
 	const disposedRef = useRef(false);
-	const clineProviderSettings = getRuntimeClineProviderSettings(runtimeProjectConfig);
+	const nkleinProviderSettings = getRuntimeNKleinProviderSettings(runtimeProjectConfig);
 
 	useEffect(() => {
 		latestBaseRefRef.current = resolveHomeAgentBaseRef(workspaceGit);
@@ -137,9 +137,9 @@ export function useHomeAgentSession({
 
 		let panelMode: HomeAgentPanelMode;
 		let descriptorKey: string;
-		if (isNativeClineAgentSelected(runtimeProjectConfig.selectedAgentId)) {
+		if (isNativeNKleinAgentSelected(runtimeProjectConfig.selectedAgentId)) {
 			panelMode = "chat";
-			descriptorKey = buildClineDescriptor(runtimeProjectConfig);
+			descriptorKey = buildNKleinDescriptor(runtimeProjectConfig);
 		} else {
 			if (runtimeProjectConfig.cloudProviderSupportEnabled !== true) {
 				return null;
@@ -177,11 +177,11 @@ export function useHomeAgentSession({
 		};
 	}, [
 		currentProjectId,
-		clineProviderSettings.baseUrl,
-		clineProviderSettings.modelId,
-		clineProviderSettings.reasoningEffort,
-		clineProviderSettings.oauthProvider,
-		clineProviderSettings.providerId,
+		nkleinProviderSettings.baseUrl,
+		nkleinProviderSettings.modelId,
+		nkleinProviderSettings.reasoningEffort,
+		nkleinProviderSettings.oauthProvider,
+		nkleinProviderSettings.providerId,
 		runtimeProjectConfig?.cloudProviderSupportEnabled,
 		runtimeProjectConfig?.effectiveCommand,
 		runtimeProjectConfig?.selectedAgentId,
@@ -241,18 +241,18 @@ export function useHomeAgentSession({
 		});
 	}, [currentProjectId, descriptorTaskId, hasLoadedRuntimeProjectConfig, setSessionSummaries]);
 
-	// When MCP settings or auth change, the runtime bumps the Cline session context version.
+	// When MCP settings or auth change, the runtime bumps the NKlein session context version.
 	// Reload the existing home chat in place so it keeps the same sidebar task id and messages,
-	// but restarts the underlying Cline session with a fresh MCP tool bundle.
+	// but restarts the underlying NKlein session with a fresh MCP tool bundle.
 	useEffect(() => {
 		if (!currentProjectId || !descriptor || descriptor.panelMode !== "chat") {
 			return;
 		}
 
-		const previousVersion = previousClineSessionContextVersionByWorkspaceRef.current.get(currentProjectId);
-		previousClineSessionContextVersionByWorkspaceRef.current.set(currentProjectId, clineSessionContextVersion);
+		const previousVersion = previousNKleinSessionContextVersionByWorkspaceRef.current.get(currentProjectId);
+		previousNKleinSessionContextVersionByWorkspaceRef.current.set(currentProjectId, nkleinSessionContextVersion);
 
-		if (previousVersion === undefined || previousVersion === clineSessionContextVersion) {
+		if (previousVersion === undefined || previousVersion === nkleinSessionContextVersion) {
 			return;
 		}
 
@@ -285,7 +285,7 @@ export function useHomeAgentSession({
 		return () => {
 			cancelled = true;
 		};
-	}, [clineSessionContextVersion, currentProjectId, descriptor, sessionSummaries, upsertSessionSummary]);
+	}, [nkleinSessionContextVersion, currentProjectId, descriptor, sessionSummaries, upsertSessionSummary]);
 
 	useEffect(() => {
 		if (!currentProjectId || !descriptor || descriptor.panelMode !== "terminal") {
@@ -370,7 +370,7 @@ export function useHomeAgentSession({
 			homeDescriptorByWorkspaceRef.current.clear();
 			startedSessionKeysRef.current.clear();
 			pendingStartRequestIdsRef.current.clear();
-			previousClineSessionContextVersionByWorkspaceRef.current.clear();
+			previousNKleinSessionContextVersionByWorkspaceRef.current.clear();
 		};
 	}, []);
 

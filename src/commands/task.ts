@@ -3,24 +3,6 @@ import { join } from "node:path";
 
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
-
-import type { runClineAcceptanceGate } from "../cline-sdk/cline-acceptance-gate";
-import { buildClineAcceptanceRepairPlan, type ClineAcceptanceRepairAction } from "../cline-sdk/cline-acceptance-repair";
-import {
-	applyClinePlanTaskGraphToBoard,
-	applyClinePlanTaskReplacementArtifacts,
-} from "../cline-sdk/cline-decomposition-tool";
-import { getDefaultClineModelRegistry } from "../cline-sdk/cline-model-registry";
-import {
-	appendClinePlanRevision,
-	type ClinePlanTask,
-	clinePlanTaskSchema,
-	readClinePlanArtifacts,
-	updateClinePlanArtifactApplicationStatus,
-} from "../cline-sdk/cline-plan-artifacts";
-import { createClineProviderService } from "../cline-sdk/cline-provider-service";
-import type { ClineTaskRoutingCandidate } from "../cline-sdk/cline-task-router";
-import { buildClineStartGuardCandidate } from "../cline-sdk/cline-task-start-guard";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
@@ -28,16 +10,16 @@ import type {
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
 	RuntimeBoardDependency,
-	RuntimeClineReasoningEffort,
+	RuntimeNKleinReasoningEffort,
 	RuntimeTaskAcceptanceVerifyRequest,
 	RuntimeTaskAcceptanceVerifyResponse,
-	RuntimeTaskClineSettings,
+	RuntimeTaskNKleinSettings,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import {
 	clampRuntimeSwarmCardStartBatchSize,
 	runtimeAgentIdSchema,
-	runtimeClineReasoningEffortSchema,
+	runtimeNKleinReasoningEffortSchema,
 } from "../core/api-contract";
 import { type PlanGapKind, planGapKindSchema, recordPlanGap } from "../core/plan-gap";
 import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
@@ -56,6 +38,26 @@ import {
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
+import type { runNKleinAcceptanceGate } from "../nklein-sdk/nklein-acceptance-gate";
+import {
+	buildNKleinAcceptanceRepairPlan,
+	type NKleinAcceptanceRepairAction,
+} from "../nklein-sdk/nklein-acceptance-repair";
+import {
+	applyNKleinPlanTaskGraphToBoard,
+	applyNKleinPlanTaskReplacementArtifacts,
+} from "../nklein-sdk/nklein-decomposition-tool";
+import { getDefaultNKleinModelRegistry } from "../nklein-sdk/nklein-model-registry";
+import {
+	appendNKleinPlanRevision,
+	type NKleinPlanTask,
+	nkleinPlanTaskSchema,
+	readNKleinPlanArtifacts,
+	updateNKleinPlanArtifactApplicationStatus,
+} from "../nklein-sdk/nklein-plan-artifacts";
+import { createNKleinProviderService } from "../nklein-sdk/nklein-provider-service";
+import type { NKleinTaskRoutingCandidate } from "../nklein-sdk/nklein-task-router";
+import { buildNKleinStartGuardCandidate } from "../nklein-sdk/nklein-task-start-guard";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -141,7 +143,7 @@ interface VerifyTaskAcceptanceDependencies {
 	resolveWorkspaceRepoPath?: typeof resolveWorkspaceRepoPath;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	resolveTaskCwd?: typeof resolveTaskCwd;
-	runAcceptanceGate?: typeof runClineAcceptanceGate;
+	runAcceptanceGate?: typeof runNKleinAcceptanceGate;
 	ensureRuntimeWorkspace?: typeof ensureRuntimeWorkspace;
 	createRuntimeTrpcClient?: (workspaceId: string | null) => RuntimeTaskAcceptanceVerifyMutationClient;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
@@ -157,7 +159,7 @@ function toErrorMessage(error: unknown): string {
 
 function shouldRecordAcceptancePlanGap(input: {
 	acceptancePresent: boolean;
-	repairAction: ClineAcceptanceRepairAction | null;
+	repairAction: NKleinAcceptanceRepairAction | null;
 }): boolean {
 	return (
 		input.acceptancePresent === false || input.repairAction === "escalate" || input.repairAction === "human_review"
@@ -226,7 +228,7 @@ const ACCEPTANCE_PLAN_GAP_CLASSIFIERS: readonly {
 
 function classifyAcceptanceFailurePlanGap(input: {
 	acceptancePresent: boolean;
-	repairAction: ClineAcceptanceRepairAction | null;
+	repairAction: NKleinAcceptanceRepairAction | null;
 	command: string | null;
 	output: string;
 	taskPrompt: string;
@@ -273,19 +275,19 @@ function printJson(payload: unknown): void {
 
 async function buildDecompositionRoutingCandidates(
 	runtimeConfig: RuntimeConfigState,
-): Promise<ClineTaskRoutingCandidate[]> {
-	const clineProviderService = createClineProviderService();
-	const modelRegistry = await getDefaultClineModelRegistry()
+): Promise<NKleinTaskRoutingCandidate[]> {
+	const nkleinProviderService = createNKleinProviderService();
+	const modelRegistry = await getDefaultNKleinModelRegistry()
 		.getSnapshot()
 		.catch(() => ({
 			schemaVersion: 1 as const,
 			updatedAt: 0,
 			models: {},
 		}));
-	const candidates = new Map<string, ClineTaskRoutingCandidate>();
+	const candidates = new Map<string, NKleinTaskRoutingCandidate>();
 	try {
-		const launchConfig = await clineProviderService.resolveLaunchConfig({});
-		const candidate = buildClineStartGuardCandidate({
+		const launchConfig = await nkleinProviderService.resolveLaunchConfig({});
+		const candidate = buildNKleinStartGuardCandidate({
 			launchConfig,
 			role: null,
 			modelRegistry,
@@ -295,7 +297,7 @@ async function buildDecompositionRoutingCandidates(
 			role: candidate.role,
 		});
 	} catch {
-		// A workspace without a runnable default Cline provider can still decompose from explicit role models.
+		// A workspace without a runnable default NKlein provider can still decompose from explicit role models.
 	}
 
 	for (const [role, settings] of Object.entries(runtimeConfig.modelRoles)) {
@@ -303,12 +305,12 @@ async function buildDecompositionRoutingCandidates(
 			continue;
 		}
 		try {
-			const launchConfig = await clineProviderService.resolveLaunchConfig({
+			const launchConfig = await nkleinProviderService.resolveLaunchConfig({
 				providerIdOverride: settings.providerId ?? undefined,
 				modelIdOverride: settings.modelId ?? undefined,
 				reasoningEffortOverride: settings.reasoningEffort ?? null,
 			});
-			const candidate = buildClineStartGuardCandidate({
+			const candidate = buildNKleinStartGuardCandidate({
 				launchConfig,
 				role,
 				modelRegistry,
@@ -430,9 +432,9 @@ function parseOptionalStringOrDefault(value: string | undefined): string | null 
 	return value;
 }
 
-type ParsedTaskClineReasoningEffort = RuntimeClineReasoningEffort | "default" | null | undefined;
+type ParsedTaskNKleinReasoningEffort = RuntimeNKleinReasoningEffort | "default" | null | undefined;
 
-function parseTaskClineReasoningEffort(value: string | undefined): ParsedTaskClineReasoningEffort {
+function parseTaskNKleinReasoningEffort(value: string | undefined): ParsedTaskNKleinReasoningEffort {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -442,14 +444,14 @@ function parseTaskClineReasoningEffort(value: string | undefined): ParsedTaskCli
 	if (value === "default") {
 		return "default";
 	}
-	const result = runtimeClineReasoningEffortSchema.safeParse(value);
+	const result = runtimeNKleinReasoningEffortSchema.safeParse(value);
 	if (result.success) {
 		return result.data;
 	}
-	throw new Error("Invalid Cline reasoning effort. Expected one of: default, low, medium, high, xhigh, inherit.");
+	throw new Error("Invalid !Klein reasoning effort. Expected one of: default, low, medium, high, xhigh, inherit.");
 }
 
-function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTaskClineSettings | undefined {
+function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings | undefined {
 	if (settings === undefined) {
 		return undefined;
 	}
@@ -471,20 +473,20 @@ function cloneTaskClineSettings(settings?: RuntimeTaskClineSettings): RuntimeTas
 	};
 }
 
-function formatTaskClineSettings(settings?: RuntimeTaskClineSettings): JsonRecord {
+function formatTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): JsonRecord {
 	if (settings === undefined) {
 		return {};
 	}
 	return {
-		clineSettings: cloneTaskClineSettings(settings) ?? {},
+		nkleinSettings: cloneTaskNKleinSettings(settings) ?? {},
 	};
 }
 
-function buildTaskClineSettingsForCreate(input: {
+function buildTaskNKleinSettingsForCreate(input: {
 	providerId?: string;
 	modelId?: string;
-	reasoningEffort?: ParsedTaskClineReasoningEffort;
-}): RuntimeTaskClineSettings | undefined {
+	reasoningEffort?: ParsedTaskNKleinReasoningEffort;
+}): RuntimeTaskNKleinSettings | undefined {
 	const providerId = input.providerId?.trim();
 	const modelId = input.modelId?.trim();
 	const reasoningEffort = input.reasoningEffort === null ? undefined : input.reasoningEffort;
@@ -498,18 +500,18 @@ function buildTaskClineSettingsForCreate(input: {
 	};
 }
 
-function buildTaskClineSettingsForUpdate(
-	currentSettings: RuntimeTaskClineSettings | undefined,
+function buildTaskNKleinSettingsForUpdate(
+	currentSettings: RuntimeTaskNKleinSettings | undefined,
 	input: {
 		providerId?: string | null;
 		modelId?: string | null;
-		reasoningEffort?: ParsedTaskClineReasoningEffort;
+		reasoningEffort?: ParsedTaskNKleinReasoningEffort;
 	},
-): RuntimeTaskClineSettings | null | undefined {
+): RuntimeTaskNKleinSettings | null | undefined {
 	if (input.providerId === undefined && input.modelId === undefined && input.reasoningEffort === undefined) {
 		return undefined;
 	}
-	const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
+	const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
 	let preserveEmptyOverride = currentSettings !== undefined && Object.keys(currentSettings).length === 0;
 
 	if (input.providerId !== undefined) {
@@ -690,7 +692,7 @@ function formatTaskRecord(
 		autoReviewEnabled: task.autoReviewEnabled === true,
 		autoReviewMode: task.autoReviewMode ?? "commit",
 		...(task.agentId ? { agentId: task.agentId } : {}),
-		...formatTaskClineSettings(task.clineSettings),
+		...formatTaskNKleinSettings(task.nkleinSettings),
 		createdAt: task.createdAt,
 		updatedAt: task.updatedAt,
 		session: session
@@ -822,7 +824,7 @@ async function createTask(input: {
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: "commit" | "pr";
 	agentId?: RuntimeAgentId;
-	clineSettings?: RuntimeTaskClineSettings;
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 }): Promise<JsonRecord> {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
@@ -842,7 +844,7 @@ async function createTask(input: {
 				autoReviewEnabled: input.autoReviewEnabled,
 				autoReviewMode: input.autoReviewMode,
 				agentId: input.agentId,
-				clineSettings: input.clineSettings,
+				nkleinSettings: input.nkleinSettings,
 				baseRef: resolvedBaseRef,
 			},
 			() => globalThis.crypto.randomUUID(),
@@ -866,7 +868,7 @@ async function createTask(input: {
 			autoReviewEnabled: created.autoReviewEnabled === true,
 			autoReviewMode: created.autoReviewMode ?? "commit",
 			...(created.agentId ? { agentId: created.agentId } : {}),
-			...formatTaskClineSettings(created.clineSettings),
+			...formatTaskNKleinSettings(created.nkleinSettings),
 		},
 	};
 }
@@ -882,9 +884,9 @@ async function updateTaskCommand(input: {
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: "commit" | "pr";
 	agentId?: RuntimeAgentId | null;
-	clineProviderId?: string | null;
-	clineModelId?: string | null;
-	clineReasoningEffort?: ParsedTaskClineReasoningEffort;
+	nkleinProviderId?: string | null;
+	nkleinModelId?: string | null;
+	nkleinReasoningEffort?: ParsedTaskNKleinReasoningEffort;
 }): Promise<JsonRecord> {
 	if (
 		input.title === undefined &&
@@ -894,9 +896,9 @@ async function updateTaskCommand(input: {
 		input.autoReviewEnabled === undefined &&
 		input.autoReviewMode === undefined &&
 		input.agentId === undefined &&
-		input.clineProviderId === undefined &&
-		input.clineModelId === undefined &&
-		input.clineReasoningEffort === undefined
+		input.nkleinProviderId === undefined &&
+		input.nkleinModelId === undefined &&
+		input.nkleinReasoningEffort === undefined
 	) {
 		throw new Error("task update requires at least one field to change.");
 	}
@@ -909,10 +911,10 @@ async function updateTaskCommand(input: {
 		if (!taskRecord) {
 			throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
 		}
-		const nextTaskClineSettings = buildTaskClineSettingsForUpdate(taskRecord.task.clineSettings, {
-			providerId: input.clineProviderId,
-			modelId: input.clineModelId,
-			reasoningEffort: input.clineReasoningEffort,
+		const nextTaskNKleinSettings = buildTaskNKleinSettingsForUpdate(taskRecord.task.nkleinSettings, {
+			providerId: input.nkleinProviderId,
+			modelId: input.nkleinModelId,
+			reasoningEffort: input.nkleinReasoningEffort,
 		});
 
 		const updatedTask = updateTask(runtimeState.board, input.taskId, {
@@ -923,7 +925,7 @@ async function updateTaskCommand(input: {
 			autoReviewEnabled: input.autoReviewEnabled ?? taskRecord.task.autoReviewEnabled === true,
 			autoReviewMode: input.autoReviewMode ?? taskRecord.task.autoReviewMode ?? "commit",
 			agentId: input.agentId,
-			clineSettings: nextTaskClineSettings,
+			nkleinSettings: nextTaskNKleinSettings,
 		});
 		if (!updatedTask.updated || !updatedTask.task) {
 			throw new Error(`Task "${input.taskId}" could not be updated.`);
@@ -987,7 +989,7 @@ async function decomposeTaskGraph(input: {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
 	const runtimeClient = createRuntimeTrpcClient(workspaceId);
-	const artifacts = await readClinePlanArtifacts(workspaceRepoPath, input.slug);
+	const artifacts = await readNKleinPlanArtifacts(workspaceRepoPath, input.slug);
 	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
 	const routingCandidates = await buildDecompositionRoutingCandidates(runtimeConfig);
 	let applied: {
@@ -1002,7 +1004,7 @@ async function decomposeTaskGraph(input: {
 			if (!resolvedBaseRef) {
 				throw new Error("Could not determine task base branch for this workspace.");
 			}
-			const result = applyClinePlanTaskGraphToBoard({
+			const result = applyNKleinPlanTaskGraphToBoard({
 				board: runtimeState.board,
 				taskGraph: artifacts.taskGraph,
 				baseRef: resolvedBaseRef,
@@ -1046,7 +1048,7 @@ async function decomposeTaskGraph(input: {
 		});
 		throw error;
 	}
-	await updateClinePlanArtifactApplicationStatus({
+	await updateNKleinPlanArtifactApplicationStatus({
 		workspacePath: workspaceRepoPath,
 		slug: artifacts.taskGraph.slug,
 		applicationStatus: "applied",
@@ -1075,9 +1077,9 @@ async function decomposeTaskGraph(input: {
 	};
 }
 
-function parseReplacementTasksJson(value: string): ClinePlanTask[] {
+function parseReplacementTasksJson(value: string): NKleinPlanTask[] {
 	const parsed: unknown = JSON.parse(value);
-	return clinePlanTaskSchema.array().parse(parsed);
+	return nkleinPlanTaskSchema.array().parse(parsed);
 }
 
 export async function expandSavedPlanTaskCommand(input: {
@@ -1093,7 +1095,7 @@ export async function expandSavedPlanTaskCommand(input: {
 		autoCreateIfMissing: false,
 	});
 	const replacements = parseReplacementTasksJson(input.replacementsJson);
-	const result = await applyClinePlanTaskReplacementArtifacts({
+	const result = await applyNKleinPlanTaskReplacementArtifacts({
 		workspacePath: workspaceRepoPath,
 		slug: input.planSlug,
 		taskId: input.taskId,
@@ -1179,7 +1181,7 @@ export async function runVerifyTaskAcceptanceCommand(
 	const ok = result.present === true && result.passed === true;
 	const repair = ok
 		? null
-		: buildClineAcceptanceRepairPlan({
+		: buildNKleinAcceptanceRepairPlan({
 				taskId: input.taskId,
 				taskTitle: taskRecord.task.title,
 				taskPrompt: taskRecord.task.prompt,
@@ -1314,7 +1316,7 @@ async function startTask(input: {
 			startInPlanMode: task.startInPlanMode,
 			baseRef: task.baseRef,
 			agentId: task.agentId,
-			clineSettings: task.clineSettings,
+			nkleinSettings: task.nkleinSettings,
 			queueOnEndpointBusy: input.queueOnEndpointBusy,
 		});
 		if (!started.ok || !started.summary) {
@@ -1776,7 +1778,7 @@ export function addPlanGapIntegrationCardToBoard(input: {
 			startInPlanMode: true,
 			autoReviewEnabled: true,
 			autoReviewMode: "commit",
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: input.baseRef,
 		},
 		input.createId ?? (() => globalThis.crypto.randomUUID()),
@@ -1860,7 +1862,7 @@ export function addPlanGapDecisionCardToBoard(input: {
 			startInPlanMode: true,
 			autoReviewEnabled: false,
 			autoReviewMode: "commit",
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: input.baseRef,
 		},
 		input.createId ?? (() => globalThis.crypto.randomUUID()),
@@ -1907,7 +1909,7 @@ export function addPlanGapScopeCardToBoard(input: {
 			startInPlanMode: true,
 			autoReviewEnabled: false,
 			autoReviewMode: "commit",
-			agentId: "cline",
+			agentId: "nklein",
 			baseRef: input.baseRef,
 		},
 		input.createId ?? (() => globalThis.crypto.randomUUID()),
@@ -1984,17 +1986,17 @@ function matchesPlanBoardTaskId(input: { taskId: string; planSlug: string; planT
 	};
 }
 
-export async function inferClinePlanSlugForTask(input: {
+export async function inferNKleinPlanSlugForTask(input: {
 	workspacePath: string;
 	taskId: string;
 }): Promise<string | null> {
-	const plansRoot = join(input.workspacePath, ".cline", "nklein", "plans");
+	const plansRoot = join(input.workspacePath, ".nklein", "nklein", "plans");
 	const entries = await readdir(plansRoot, { withFileTypes: true }).catch(() => []);
 	const matches: { slug: string; exact: boolean }[] = [];
 	for (const entry of entries
 		.filter((candidate) => candidate.isDirectory())
 		.sort((left, right) => left.name.localeCompare(right.name))) {
-		const artifacts = await readClinePlanArtifacts(input.workspacePath, entry.name).catch(() => null);
+		const artifacts = await readNKleinPlanArtifacts(input.workspacePath, entry.name).catch(() => null);
 		if (!artifacts) {
 			continue;
 		}
@@ -2035,7 +2037,7 @@ async function createIntegrationCardForMergeConflict(input: {
 				startInPlanMode: true,
 				autoReviewEnabled: true,
 				autoReviewMode: "commit",
-				agentId: "cline",
+				agentId: "nklein",
 				baseRef: input.baseRef,
 				filesLikelyTouched: input.conflict.conflictedPaths,
 			},
@@ -2137,7 +2139,7 @@ async function recordTaskPlanGapCommand(input: {
 	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
 	const planSlug =
 		input.planSlug?.trim() ||
-		(await inferClinePlanSlugForTask({
+		(await inferNKleinPlanSlugForTask({
 			workspacePath: workspaceRepoPath,
 			taskId: input.taskId,
 		}));
@@ -2149,7 +2151,7 @@ async function recordTaskPlanGapCommand(input: {
 		evidence: input.evidence,
 	});
 	let revisionsPath = planSlug
-		? await appendClinePlanRevision({
+		? await appendNKleinPlanRevision({
 				workspacePath: workspaceRepoPath,
 				slug: planSlug,
 				taskId: input.taskId,
@@ -2202,7 +2204,7 @@ async function recordTaskPlanGapCommand(input: {
 				description: input.description,
 				evidence: input.evidence,
 			});
-			revisionsPath = await appendClinePlanRevision({
+			revisionsPath = await appendNKleinPlanRevision({
 				workspacePath: workspaceRepoPath,
 				slug: planSlug,
 				taskId: input.taskId,
@@ -2270,7 +2272,7 @@ async function recordTaskPlanGapCommand(input: {
 				description: input.description,
 				evidence: input.evidence,
 			});
-			revisionsPath = await appendClinePlanRevision({
+			revisionsPath = await appendNKleinPlanRevision({
 				workspacePath: workspaceRepoPath,
 				slug: planSlug,
 				taskId: input.taskId,
@@ -2464,18 +2466,18 @@ export function registerTaskCommand(program: Command): void {
 		.option("--start-in-plan-mode [value]", "Set plan mode (true|false). Flag-only implies true.")
 		.option("--auto-review-enabled [value]", "Enable auto-review behavior (true|false). Flag-only implies true.")
 		.option("--auto-review-mode <mode>", "Auto-review mode: commit | pr.", parseAutoReviewMode)
-		.option("--agent-id <id>", "Agent override: cline | claude | codex | droid | gemini | opencode | default.")
+		.option("--agent-id <id>", "Agent override: nklein | claude | codex | droid | gemini | opencode | default.")
 		.option(
-			"--cline-provider <id>",
-			'Cline provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" for workspace default.',
+			"--nklein-provider <id>",
+			'!Klein provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" for workspace default.',
 		)
 		.option(
-			"--cline-model <id>",
-			'Cline model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" for workspace default.',
+			"--nklein-model <id>",
+			'!Klein model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" for workspace default.',
 		)
 		.option(
-			"--cline-reasoning-effort <level>",
-			"Cline reasoning effort override: default | low | medium | high | xhigh.",
+			"--nklein-reasoning-effort <level>",
+			"!Klein reasoning effort override: default | low | medium | high | xhigh.",
 		)
 		.action(
 			async (options: {
@@ -2487,9 +2489,9 @@ export function registerTaskCommand(program: Command): void {
 				autoReviewEnabled?: unknown;
 				autoReviewMode?: "commit" | "pr";
 				agentId?: string;
-				clineProvider?: string;
-				clineModel?: string;
-				clineReasoningEffort?: string;
+				nkleinProvider?: string;
+				nkleinModel?: string;
+				nkleinReasoningEffort?: string;
 			}) => {
 				await runTaskCommand(
 					async () =>
@@ -2503,10 +2505,10 @@ export function registerTaskCommand(program: Command): void {
 							autoReviewEnabled: parseOptionalBooleanOption(options.autoReviewEnabled, "--auto-review-enabled"),
 							autoReviewMode: options.autoReviewMode,
 							agentId: parseAgentId(options.agentId) ?? undefined,
-							clineSettings: buildTaskClineSettingsForCreate({
-								providerId: parseOptionalStringOrDefault(options.clineProvider) ?? undefined,
-								modelId: parseOptionalStringOrDefault(options.clineModel) ?? undefined,
-								reasoningEffort: parseTaskClineReasoningEffort(options.clineReasoningEffort),
+							nkleinSettings: buildTaskNKleinSettingsForCreate({
+								providerId: parseOptionalStringOrDefault(options.nkleinProvider) ?? undefined,
+								modelId: parseOptionalStringOrDefault(options.nkleinModel) ?? undefined,
+								reasoningEffort: parseTaskNKleinReasoningEffort(options.nkleinReasoningEffort),
 							}),
 						}),
 				);
@@ -2526,16 +2528,16 @@ export function registerTaskCommand(program: Command): void {
 		.option("--auto-review-mode <mode>", "Auto-review mode: commit | pr.", parseAutoReviewMode)
 		.option(
 			"--agent-id <id>",
-			'Agent override: cline | claude | codex | droid | gemini | opencode. Use "default" to clear.',
+			'Agent override: nklein | claude | codex | droid | gemini | opencode. Use "default" to clear.',
 		)
 		.option(
-			"--cline-provider <id>",
-			'Cline provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" to clear.',
+			"--nklein-provider <id>",
+			'!Klein provider override (e.g. ollama, lmstudio, openai-compatible with a local endpoint). Use "default" to clear.',
 		)
-		.option("--cline-model <id>", 'Cline model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" to clear.')
+		.option("--nklein-model <id>", '!Klein model override (e.g. qwen3.5:9b, llama3.1:8b). Use "default" to clear.')
 		.option(
-			"--cline-reasoning-effort <level>",
-			'Cline reasoning effort override: default | low | medium | high | xhigh. Use "inherit" to clear.',
+			"--nklein-reasoning-effort <level>",
+			'!Klein reasoning effort override: default | low | medium | high | xhigh. Use "inherit" to clear.',
 		)
 		.action(
 			async (options: {
@@ -2548,9 +2550,9 @@ export function registerTaskCommand(program: Command): void {
 				autoReviewEnabled?: unknown;
 				autoReviewMode?: "commit" | "pr";
 				agentId?: string;
-				clineProvider?: string;
-				clineModel?: string;
-				clineReasoningEffort?: string;
+				nkleinProvider?: string;
+				nkleinModel?: string;
+				nkleinReasoningEffort?: string;
 			}) => {
 				await runTaskCommand(
 					async () =>
@@ -2565,9 +2567,9 @@ export function registerTaskCommand(program: Command): void {
 							autoReviewEnabled: parseOptionalBooleanOption(options.autoReviewEnabled, "--auto-review-enabled"),
 							autoReviewMode: options.autoReviewMode,
 							agentId: parseAgentId(options.agentId),
-							clineProviderId: parseOptionalStringOrDefault(options.clineProvider),
-							clineModelId: parseOptionalStringOrDefault(options.clineModel),
-							clineReasoningEffort: parseTaskClineReasoningEffort(options.clineReasoningEffort),
+							nkleinProviderId: parseOptionalStringOrDefault(options.nkleinProvider),
+							nkleinModelId: parseOptionalStringOrDefault(options.nkleinModel),
+							nkleinReasoningEffort: parseTaskNKleinReasoningEffort(options.nkleinReasoningEffort),
 						}),
 				);
 			},
@@ -2664,7 +2666,7 @@ export function registerTaskCommand(program: Command): void {
 	task
 		.command("expand-plan-task")
 		.description("Apply approved replacement tasks to a saved plan DAG and re-link dependencies.")
-		.requiredOption("--plan-slug <slug>", "Saved plan slug under .cline/nklein/plans/<slug>.")
+		.requiredOption("--plan-slug <slug>", "Saved plan slug under .nklein/nklein/plans/<slug>.")
 		.requiredOption("--task-id <id>", "Plan task ID to replace.")
 		.requiredOption(
 			"--replacements-json <json>",
@@ -2801,8 +2803,8 @@ export function registerTaskCommand(program: Command): void {
 
 	task
 		.command("decompose")
-		.description("Create backlog tasks and dependency links from a saved Cline plan task graph.")
-		.requiredOption("--slug <slug>", "Plan slug under .cline/nklein/plans/<slug>.")
+		.description("Create backlog tasks and dependency links from a saved !Klein plan task graph.")
+		.requiredOption("--slug <slug>", "Plan slug under .nklein/nklein/plans/<slug>.")
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option("--base-ref <branch>", "Task base branch/ref. Defaults to the workspace branch.")
 		.action(async (options: { slug: string; projectPath?: string; baseRef?: string }) => {

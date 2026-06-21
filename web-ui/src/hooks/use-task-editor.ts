@@ -8,7 +8,7 @@ import {
 	TASK_AUTO_REVIEW_MODE_STORAGE_KEY,
 	TASK_START_IN_PLAN_MODE_STORAGE_KEY,
 } from "@/hooks/app-utils";
-import type { RuntimeAgentId, RuntimeTaskClineSettings } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeTaskNKleinSettings } from "@/runtime/types";
 import { addTaskToColumnWithResult, findCardSelection, updateTask, updateTaskTitle } from "@/state/board-state";
 import { toTelemetrySelectedAgentId, trackTaskCreated } from "@/telemetry/events";
 import type { BoardCard, BoardData, TaskAutoReviewMode, TaskImage } from "@/types";
@@ -51,8 +51,8 @@ export interface UseTaskEditorResult {
 	setNewTaskBranchRef: Dispatch<SetStateAction<string>>;
 	newTaskAgentId: RuntimeAgentId | undefined;
 	setNewTaskAgentId: Dispatch<SetStateAction<RuntimeAgentId | undefined>>;
-	newTaskClineSettings: RuntimeTaskClineSettings | undefined;
-	setNewTaskClineSettings: Dispatch<SetStateAction<RuntimeTaskClineSettings | undefined>>;
+	newTaskNKleinSettings: RuntimeTaskNKleinSettings | undefined;
+	setNewTaskNKleinSettings: Dispatch<SetStateAction<RuntimeTaskNKleinSettings | undefined>>;
 	editingTaskId: string | null;
 	editTaskPrompt: string;
 	setEditTaskPrompt: Dispatch<SetStateAction<string>>;
@@ -69,8 +69,8 @@ export interface UseTaskEditorResult {
 	setEditTaskBranchRef: Dispatch<SetStateAction<string>>;
 	editTaskAgentId: RuntimeAgentId | undefined;
 	setEditTaskAgentId: Dispatch<SetStateAction<RuntimeAgentId | undefined>>;
-	editTaskClineSettings: RuntimeTaskClineSettings | undefined;
-	setEditTaskClineSettings: Dispatch<SetStateAction<RuntimeTaskClineSettings | undefined>>;
+	editTaskNKleinSettings: RuntimeTaskNKleinSettings | undefined;
+	setEditTaskNKleinSettings: Dispatch<SetStateAction<RuntimeTaskNKleinSettings | undefined>>;
 	handleOpenCreateTask: () => void;
 	handleCancelCreateTask: () => void;
 	handleOpenEditTask: (task: BoardCard, options?: OpenEditTaskOptions) => void;
@@ -122,9 +122,11 @@ export function useTaskEditor({
 	const [editTaskBranchRef, setEditTaskBranchRef] = useState("");
 
 	const [newTaskAgentId, setNewTaskAgentId] = useState<RuntimeAgentId | undefined>(undefined);
-	const [newTaskClineSettings, setNewTaskClineSettings] = useState<RuntimeTaskClineSettings | undefined>(undefined);
+	const [newTaskNKleinSettings, setNewTaskNKleinSettings] = useState<RuntimeTaskNKleinSettings | undefined>(undefined);
 	const [editTaskAgentId, setEditTaskAgentId] = useState<RuntimeAgentId | undefined>(undefined);
-	const [editTaskClineSettings, setEditTaskClineSettings] = useState<RuntimeTaskClineSettings | undefined>(undefined);
+	const [editTaskNKleinSettings, setEditTaskNKleinSettings] = useState<RuntimeTaskNKleinSettings | undefined>(
+		undefined,
+	);
 
 	const lastCreatedTaskBranchRef = useMemo(() => {
 		if (!currentProjectId) {
@@ -208,7 +210,7 @@ export function useTaskEditor({
 		setEditTaskImages([]);
 
 		setNewTaskAgentId(undefined);
-		setNewTaskClineSettings(undefined);
+		setNewTaskNKleinSettings(undefined);
 		setIsInlineTaskCreateOpen(true);
 	}, []);
 
@@ -219,7 +221,7 @@ export function useTaskEditor({
 		setNewTaskImages([]);
 		setNewTaskBranchRef(resolvedDefaultTaskBranchRef);
 		setNewTaskAgentId(undefined);
-		setNewTaskClineSettings(undefined);
+		setNewTaskNKleinSettings(undefined);
 	}, [resolvedDefaultTaskBranchRef]);
 
 	const handleOpenEditTask = useCallback(
@@ -242,7 +244,7 @@ export function useTaskEditor({
 			const fallbackBranch = task.baseRef || resolvedDefaultTaskBranchRef;
 			setEditTaskBranchRef(fallbackBranch);
 			setEditTaskAgentId(task.agentId);
-			setEditTaskClineSettings(task.clineSettings);
+			setEditTaskNKleinSettings(task.nkleinSettings);
 		},
 		[resolvedDefaultTaskBranchRef, setSelectedTaskId],
 	);
@@ -284,7 +286,7 @@ export function useTaskEditor({
 				autoReviewMode: editTaskAutoReviewMode,
 				images: editTaskImages,
 				agentId: editTaskAgentId,
-				clineSettings: editTaskClineSettings,
+				nkleinSettings: editTaskNKleinSettings,
 				baseRef,
 			});
 			return updated.updated ? updated.board : currentBoard;
@@ -298,14 +300,14 @@ export function useTaskEditor({
 		setEditTaskImages([]);
 		setEditTaskBranchRef("");
 		setEditTaskAgentId(undefined);
-		setEditTaskClineSettings(undefined);
+		setEditTaskNKleinSettings(undefined);
 		return savedTaskId;
 	}, [
 		editTaskAgentId,
 		editTaskAutoReviewEnabled,
 		editTaskAutoReviewMode,
 		editTaskBranchRef,
-		editTaskClineSettings,
+		editTaskNKleinSettings,
 		editTaskPrompt,
 		editTaskImages,
 		editTaskStartInPlanMode,
@@ -351,7 +353,7 @@ export function useTaskEditor({
 				autoReviewMode: newTaskAutoReviewMode,
 				images: newTaskImages,
 				agentId: newTaskAgentId,
-				clineSettings: newTaskClineSettings,
+				nkleinSettings: newTaskNKleinSettings,
 				baseRef,
 			});
 			setBoard(created.board);
@@ -372,7 +374,7 @@ export function useTaskEditor({
 			setNewTaskImages([]);
 			setNewTaskBranchRef(baseRef);
 			setNewTaskAgentId(undefined);
-			setNewTaskClineSettings(undefined);
+			setNewTaskNKleinSettings(undefined);
 			if (!options?.keepDialogOpen) {
 				setIsInlineTaskCreateOpen(false);
 			}
@@ -385,7 +387,7 @@ export function useTaskEditor({
 			newTaskAutoReviewEnabled,
 			newTaskAutoReviewMode,
 			newTaskBranchRef,
-			newTaskClineSettings,
+			newTaskNKleinSettings,
 			newTaskImages,
 			newTaskPrompt,
 			newTaskStartInPlanMode,
@@ -393,7 +395,7 @@ export function useTaskEditor({
 			selectedAgentId,
 			setBoard,
 			setNewTaskAgentId,
-			setNewTaskClineSettings,
+			setNewTaskNKleinSettings,
 		],
 	);
 
@@ -417,7 +419,7 @@ export function useTaskEditor({
 					autoReviewMode: newTaskAutoReviewMode,
 					images: newTaskImages,
 					agentId: newTaskAgentId,
-					clineSettings: newTaskClineSettings,
+					nkleinSettings: newTaskNKleinSettings,
 					baseRef,
 				});
 				updatedBoard = created.board;
@@ -443,7 +445,7 @@ export function useTaskEditor({
 			setNewTaskImages([]);
 			setNewTaskBranchRef(baseRef);
 			setNewTaskAgentId(undefined);
-			setNewTaskClineSettings(undefined);
+			setNewTaskNKleinSettings(undefined);
 			if (!options?.keepDialogOpen) {
 				setIsInlineTaskCreateOpen(false);
 			}
@@ -456,14 +458,14 @@ export function useTaskEditor({
 			newTaskAutoReviewEnabled,
 			newTaskAutoReviewMode,
 			newTaskBranchRef,
-			newTaskClineSettings,
+			newTaskNKleinSettings,
 			newTaskImages,
 			newTaskStartInPlanMode,
 			resolvedDefaultTaskBranchRef,
 			selectedAgentId,
 			setBoard,
 			setNewTaskAgentId,
-			setNewTaskClineSettings,
+			setNewTaskNKleinSettings,
 		],
 	);
 
@@ -480,10 +482,10 @@ export function useTaskEditor({
 		setEditTaskImages([]);
 		setEditTaskBranchRef("");
 		setEditTaskAgentId(undefined);
-		setEditTaskClineSettings(undefined);
+		setEditTaskNKleinSettings(undefined);
 		setNewTaskImages([]);
 		setNewTaskAgentId(undefined);
-		setNewTaskClineSettings(undefined);
+		setNewTaskNKleinSettings(undefined);
 	}, []);
 
 	return {
@@ -503,8 +505,8 @@ export function useTaskEditor({
 		setNewTaskBranchRef,
 		newTaskAgentId,
 		setNewTaskAgentId,
-		newTaskClineSettings,
-		setNewTaskClineSettings,
+		newTaskNKleinSettings,
+		setNewTaskNKleinSettings,
 		editingTaskId,
 		editTaskPrompt,
 		setEditTaskPrompt,
@@ -521,8 +523,8 @@ export function useTaskEditor({
 		setEditTaskBranchRef,
 		editTaskAgentId,
 		setEditTaskAgentId,
-		editTaskClineSettings,
-		setEditTaskClineSettings,
+		editTaskNKleinSettings,
+		setEditTaskNKleinSettings,
 		handleOpenCreateTask,
 		handleCancelCreateTask,
 		handleOpenEditTask,

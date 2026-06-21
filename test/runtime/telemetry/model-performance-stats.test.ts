@@ -18,7 +18,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 	return {
 		globalConfigPath: "/tmp/global.json",
 		projectConfigPath: "/tmp/project.json",
-		selectedAgentId: "cline",
+		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
@@ -72,7 +72,7 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 		taskId: "habit-trends",
 		state: "awaiting_review",
 		mode: "act",
-		agentId: "cline",
+		agentId: "nklein",
 		workspacePath: "/tmp/project-a",
 		pid: null,
 		startedAt: 1_000,

@@ -3,8 +3,8 @@ import type {
 	RuntimeBoardColumnId,
 	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
-	RuntimeTaskClineSettings,
 	RuntimeTaskImage,
+	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
 
 export type BoardColumnId = RuntimeBoardColumnId;
@@ -49,7 +49,7 @@ export interface BoardCard {
 	autoReviewMessage?: string;
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
-	clineSettings?: RuntimeTaskClineSettings;
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
 	blockedKind?: TaskBlockedKind;

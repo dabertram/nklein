@@ -20,15 +20,15 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
 	collectTaskEvidence,
-	fetchClineCodeIntelligenceStatus,
+	fetchNKleinCodeIntelligenceStatus,
 	pauseTask,
 	resumeTask,
 	saveRuntimeConfig,
 } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
-	RuntimeClineCodeIntelligenceStatusResponse,
 	RuntimeConfigResponse,
+	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeSwarmStopSignal,
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
@@ -40,7 +40,7 @@ const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress
 
 export type RequestProgrammaticCardMove = (move: ProgrammaticCardMoveInFlight) => boolean;
 
-function formatCodeIntelligenceChip(status: RuntimeClineCodeIntelligenceStatusResponse | null): string {
+function formatCodeIntelligenceChip(status: RuntimeNKleinCodeIntelligenceStatusResponse | null): string {
 	if (!status) {
 		return "Code intel ...";
 	}
@@ -119,7 +119,7 @@ export function KanbanBoard({
 	onRuntimeConfigChanged,
 	onTaskSessionSummary,
 	replayCardsEnabled = false,
-	defaultClineModelId,
+	defaultNKleinModelId,
 }: {
 	data: BoardData;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -154,7 +154,7 @@ export function KanbanBoard({
 	onRuntimeConfigChanged?: () => void;
 	onTaskSessionSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	replayCardsEnabled?: boolean;
-	defaultClineModelId?: string | null;
+	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
 	const boardRef = useRef<HTMLElement>(null);
@@ -174,7 +174,7 @@ export function KanbanBoard({
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
-		useState<RuntimeClineCodeIntelligenceStatusResponse | null>(null);
+		useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
 	const displayTaskSessions = useMemo(() => {
 		if (pausedTaskIds.size === 0) {
 			return taskSessions;
@@ -258,7 +258,7 @@ export function KanbanBoard({
 				}
 			},
 		);
-		void fetchClineCodeIntelligenceStatus(currentProjectId).then(
+		void fetchNKleinCodeIntelligenceStatus(currentProjectId).then(
 			(response) => {
 				if (!cancelled) {
 					setCodeIntelligenceStatus(response);
@@ -812,7 +812,7 @@ export function KanbanBoard({
 							isDependencyLinking={dependencyLinking.draft !== null}
 							workspacePath={workspacePath}
 							replayCardsEnabled={replayCardsEnabled}
-							defaultClineModelId={defaultClineModelId}
+							defaultNKleinModelId={defaultNKleinModelId}
 							onCardClick={(card) => {
 								if (!dragOccurredRef.current) {
 									onCardSelect(card.id);

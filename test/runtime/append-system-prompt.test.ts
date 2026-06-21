@@ -67,7 +67,7 @@ describe("renderAppendSystemPrompt", () => {
 		expect(rendered).toContain("task delete --column done");
 		expect(rendered).toContain("nklein task link");
 		expect(rendered).toContain("nklein task decompose --slug");
-		expect(rendered).toContain(".cline/nklein/plans/<slug>");
+		expect(rendered).toContain(".nklein/nklein/plans/<slug>");
 		expect(rendered).toContain("If a task command fails because the runtime is unavailable");
 		expect(rendered).toContain("If the user asks for GitHub work");
 		expect(rendered).toContain("gh issue view");

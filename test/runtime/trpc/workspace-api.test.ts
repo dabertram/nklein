@@ -185,7 +185,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -217,7 +217,7 @@ describe("createWorkspaceApi loadChanges", () => {
 		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockResolvedValue(response);
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(),
-			getScopedClineTaskSessionService: vi.fn(),
+			getScopedNKleinTaskSessionService: vi.fn(),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -273,7 +273,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -298,11 +298,11 @@ describe("createWorkspaceApi loadChanges", () => {
 		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).not.toHaveBeenCalled();
 	});
 
-	it("uses native cline session checkpoints when terminal summaries are unavailable", async () => {
+	it("uses native nklein session checkpoints when terminal summaries are unavailable", async () => {
 		const terminalManager = {
 			getSummary: vi.fn(() => null),
 		};
-		const clineTaskSessionService = {
+		const nkleinTaskSessionService = {
 			getSummary: vi.fn(() =>
 				createSummary({
 					state: "awaiting_review",
@@ -324,7 +324,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -342,7 +342,7 @@ describe("createWorkspaceApi loadChanges", () => {
 			},
 		);
 
-		expect(clineTaskSessionService.getSummary).toHaveBeenCalledWith("task-1");
+		expect(nkleinTaskSessionService.getSummary).toHaveBeenCalledWith("task-1");
 		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
 			cwd: "/tmp/worktree",
 			fromRef: "2222222",
@@ -350,7 +350,7 @@ describe("createWorkspaceApi loadChanges", () => {
 		});
 	});
 
-	it("prefers the newer live cline summary over a stale terminal summary", async () => {
+	it("prefers the newer live nklein summary over a stale terminal summary", async () => {
 		const terminalManager = {
 			getSummary: vi.fn(() =>
 				createSummary({
@@ -372,22 +372,22 @@ describe("createWorkspaceApi loadChanges", () => {
 				}),
 			),
 		};
-		const clineTaskSessionService = {
+		const nkleinTaskSessionService = {
 			getSummary: vi.fn(() =>
 				createSummary({
 					state: "awaiting_review",
-					agentId: "cline",
+					agentId: "nklein",
 					updatedAt: 20,
 					latestTurnCheckpoint: {
 						turn: 3,
 						ref: "refs/kanban/checkpoints/task-1/turn/3",
-						commit: "cline-3",
+						commit: "nklein-3",
 						createdAt: 3,
 					},
 					previousTurnCheckpoint: {
 						turn: 2,
 						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "cline-2",
+						commit: "nklein-2",
 						createdAt: 2,
 					},
 				}),
@@ -396,7 +396,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedClineTaskSessionService: vi.fn(async () => clineTaskSessionService as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -416,8 +416,8 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
 			cwd: "/tmp/worktree",
-			fromRef: "cline-2",
-			toRef: "cline-3",
+			fromRef: "nklein-2",
+			toRef: "nklein-3",
 		});
 	});
 
@@ -431,7 +431,7 @@ describe("createWorkspaceApi loadChanges", () => {
 
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(),
-			getScopedClineTaskSessionService: vi.fn(),
+			getScopedNKleinTaskSessionService: vi.fn(),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -457,7 +457,7 @@ describe("createWorkspaceApi loadChanges", () => {
 	it("passes discard semantics to task workspace deletion", async () => {
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(),
-			getScopedClineTaskSessionService: vi.fn(),
+			getScopedNKleinTaskSessionService: vi.fn(),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
@@ -485,11 +485,11 @@ describe("createWorkspaceApi loadChanges", () => {
 });
 
 describe("createWorkspaceApi loadState", () => {
-	it("merges live Cline summaries into workspace state snapshots", async () => {
+	it("merges live NKlein summaries into workspace state snapshots", async () => {
 		const snapshot = {
 			repoPath: "/tmp/project",
-			statePath: "/tmp/project/.cline/nklein/workspace/board.json",
-			board: createBoard("Run Cline task"),
+			statePath: "/tmp/project/.nklein/nklein/workspace/board.json",
+			board: createBoard("Run NKlein task"),
 			sessions: {},
 			git: {
 				currentBranch: "main",
@@ -498,15 +498,17 @@ describe("createWorkspaceApi loadState", () => {
 			},
 			revision: 1,
 		};
-		const clineSummary = createSummary({
+		const nkleinSummary = createSummary({
 			taskId: "task-1",
-			agentId: "cline",
+			agentId: "nklein",
 			state: "running",
 			workspacePath: "/tmp/project",
 		});
 		const api = createWorkspaceApi({
 			ensureTerminalManagerForWorkspace: vi.fn(),
-			getScopedClineTaskSessionService: vi.fn(async () => ({ listSummaries: vi.fn(() => [clineSummary]) }) as never),
+			getScopedNKleinTaskSessionService: vi.fn(
+				async () => ({ listSummaries: vi.fn(() => [nkleinSummary]) }) as never,
+			),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(async () => snapshot),
@@ -517,7 +519,7 @@ describe("createWorkspaceApi loadState", () => {
 			workspacePath: "/tmp/project",
 		});
 
-		expect(loaded.sessions["task-1"]).toEqual(clineSummary);
+		expect(loaded.sessions["task-1"]).toEqual(nkleinSummary);
 	});
 });
 
@@ -534,7 +536,7 @@ describe("createWorkspaceApi saveState", () => {
 				const context = await loadWorkspaceContext(repoPath);
 				const runtimeSummary = createSummary({
 					state: "awaiting_review",
-					agentId: "cline",
+					agentId: "nklein",
 					updatedAt: 200,
 					workspacePath: repoPath,
 				});
@@ -547,7 +549,7 @@ describe("createWorkspaceApi saveState", () => {
 				const latest = await loadWorkspaceState(repoPath);
 				const staleUiSummary = createSummary({
 					state: "running",
-					agentId: "cline",
+					agentId: "nklein",
 					updatedAt: 10,
 					workspacePath: repoPath,
 				});
@@ -558,7 +560,7 @@ describe("createWorkspaceApi saveState", () => {
 				const buildWorkspaceStateSnapshot = vi.fn(async () => await loadWorkspaceState(repoPath));
 				const api = createWorkspaceApi({
 					ensureTerminalManagerForWorkspace: vi.fn(),
-					getScopedClineTaskSessionService: vi.fn(),
+					getScopedNKleinTaskSessionService: vi.fn(),
 					broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 					broadcastRuntimeProjectsUpdated: vi.fn(),
 					buildWorkspaceStateSnapshot,

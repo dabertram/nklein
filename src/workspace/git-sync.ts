@@ -112,7 +112,7 @@ function parseStatusPath(line: string): string | null {
 
 function isPortableWorkspaceStatePath(path: string): boolean {
 	const normalized = path.replaceAll("\\", "/");
-	return normalized === ".cline/nklein/workspace" || normalized.startsWith(".cline/nklein/workspace/");
+	return normalized === ".nklein/nklein/workspace" || normalized.startsWith(".nklein/nklein/workspace/");
 }
 
 export async function probeGitWorkspaceState(cwd: string): Promise<GitWorkspaceProbe> {

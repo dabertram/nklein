@@ -3,7 +3,7 @@
 Compression is token classification: keep the highest-information tokens to hit a target ratio. The scorer is
 pluggable:
   * ``heuristic_token_scores`` (default, dependency-free) — best for limited hardware; mirrors the TS
-    ``cline-prompt-compression`` heuristic so both runtimes behave consistently.
+    ``nklein-prompt-compression`` heuristic so both runtimes behave consistently.
   * a real LLMLingua-2 scorer (XLM-RoBERTa) behind the ``ml`` extra, loaded lazily.
 
 Pure/stdlib so it is unit-testable without the heavy ML dependency.
