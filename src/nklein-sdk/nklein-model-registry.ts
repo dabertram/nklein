@@ -156,8 +156,49 @@ function normalizeModelId(modelId: string): string {
 	return normalized.length > 0 ? normalized : "unknown";
 }
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
+
 function normalizeEndpoint(endpoint: string | null | undefined): string | null {
-	return normalizeNullableString(endpoint);
+	const trimmed = normalizeNullableString(endpoint);
+	if (!trimmed) {
+		return null;
+	}
+	let parsed: URL;
+	try {
+		parsed = new URL(trimmed);
+	} catch {
+		return trimmed;
+	}
+	// All loopback spellings address the same local server, so canonicalize the host and
+	// drop any trailing slash. Otherwise the same local model observed as `localhost` and
+	// configured as `127.0.0.1` (or vice versa) gets two registry keys and shows up twice —
+	// once with telemetry and once blank.
+	if (LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+		parsed.hostname = "localhost";
+	}
+	const path = parsed.pathname.replace(/\/+$/, "");
+	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}`;
+}
+
+function registryEntryObservationCount(entry: NKleinModelRegistryEntry): number {
+	return entry.speed.samples + entry.capability.samples;
+}
+
+/**
+ * Two persisted records can canonicalize to the same key (e.g. a `127.0.0.1` config and a
+ * `localhost` observation). Keep the one carrying real observations so its telemetry survives
+ * the merge instead of being clobbered by a blank duplicate.
+ */
+function mergeDuplicateRegistryEntries(
+	existing: NKleinModelRegistryEntry,
+	incoming: NKleinModelRegistryEntry,
+): NKleinModelRegistryEntry {
+	const existingCount = registryEntryObservationCount(existing);
+	const incomingCount = registryEntryObservationCount(incoming);
+	if (existingCount !== incomingCount) {
+		return incomingCount > existingCount ? incoming : existing;
+	}
+	return incoming.updatedAt >= existing.updatedAt ? incoming : existing;
 }
 
 function getDefaultSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
@@ -403,7 +444,8 @@ function normalizeSnapshot(value: unknown, fallbackNow: number): NKleinModelRegi
 		for (const model of Object.values(rawModels)) {
 			const entry = normalizeEntry(model, fallbackNow);
 			if (entry) {
-				models[entry.key] = entry;
+				const existing = models[entry.key];
+				models[entry.key] = existing ? mergeDuplicateRegistryEntries(existing, entry) : entry;
 			}
 		}
 	}

@@ -25,6 +25,49 @@ describe("nklein model registry", () => {
 		).toBe("ollama:qwen3.5-9b:http://localhost:11434");
 	});
 
+	it("canonicalizes loopback endpoint spellings into one registry key", () => {
+		const viaLoopbackIp = buildNKleinModelRegistryKey({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:1234/v1",
+		});
+		expect(viaLoopbackIp).toBe("lmstudio:qwen:http://localhost:1234/v1");
+		// The localhost spelling and a trailing slash collapse to the same key.
+		expect(
+			buildNKleinModelRegistryKey({
+				providerId: "lmstudio",
+				modelId: "qwen",
+				endpoint: "http://localhost:1234/v1/",
+			}),
+		).toBe(viaLoopbackIp);
+	});
+
+	it("treats loopback endpoint spellings as the same local model", async () => {
+		const registry = new NKleinModelRegistry({
+			registryPath: await createRegistryPath(),
+			ewmaAlpha: 0.5,
+			now: () => 1_000,
+		});
+		const baseObservation = {
+			providerId: "lmstudio",
+			modelId: "qwen",
+			contextWindow: 80_000,
+			promptTokens: 100,
+			outputTokens: 10,
+			wallTimeMs: 1_000,
+			ttftMs: 100,
+			promptEvalMs: 500,
+			decodeMs: 500,
+		};
+		// Configured as 127.0.0.1, observed as localhost: must be one model, not two.
+		await registry.recordRequest({ ...baseObservation, endpoint: "http://127.0.0.1:1234/v1" });
+		const entry = await registry.recordRequest({ ...baseObservation, endpoint: "http://localhost:1234/v1" });
+		expect(entry.key).toBe("lmstudio:qwen:http://localhost:1234/v1");
+		expect(entry.speed.samples).toBe(2);
+		const snapshot = await registry.getSnapshot();
+		expect(Object.keys(snapshot.models)).toEqual(["lmstudio:qwen:http://localhost:1234/v1"]);
+	});
+
 	it("records request speed using EWMA and persists the registry", async () => {
 		let now = 1_000;
 		const registryPath = await createRegistryPath();
@@ -214,7 +257,7 @@ describe("nklein model registry", () => {
 		const freshEntry = await registry.recordCapability({
 			providerId: "ollama",
 			modelId: "qwen",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			passed: true,
 			score: 95,
 		});
@@ -222,12 +265,12 @@ describe("nklein model registry", () => {
 
 		now += 30 * 24 * 60 * 60 * 1000;
 		const halfLifeSnapshot = await registry.getSnapshot();
-		const halfLifeEntry = halfLifeSnapshot.models["ollama:qwen:http://127.0.0.1:11434"];
+		const halfLifeEntry = halfLifeSnapshot.models["ollama:qwen:http://localhost:11434"];
 		expect(halfLifeEntry?.capability.effectiveScore).toBe(60);
 
 		now += 30 * 24 * 60 * 60 * 1000;
 		const twoHalfLivesSnapshot = await registry.getSnapshot();
-		const twoHalfLivesEntry = twoHalfLivesSnapshot.models["ollama:qwen:http://127.0.0.1:11434"];
+		const twoHalfLivesEntry = twoHalfLivesSnapshot.models["ollama:qwen:http://localhost:11434"];
 		expect(twoHalfLivesEntry?.capability.effectiveScore).toBe(48);
 	});
 
@@ -242,7 +285,7 @@ describe("nklein model registry", () => {
 		const advertisedEntry = await registry.recordContextWindow({
 			providerId: "lmstudio",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:1234/v1",
+			endpoint: "http://localhost:1234/v1",
 			advertisedContextWindow: 80_000,
 		});
 		expect(advertisedEntry.contextWindow).toMatchObject({
@@ -255,7 +298,7 @@ describe("nklein model registry", () => {
 		const observedEntry = await registry.recordContextWindow({
 			providerId: "lmstudio",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:1234/v1",
+			endpoint: "http://localhost:1234/v1",
 			observedContextWindow: 64_000,
 		});
 		expect(observedEntry.contextWindow.effective).toBe(64_000);
@@ -263,7 +306,7 @@ describe("nklein model registry", () => {
 		const overrideEntry = await registry.recordContextWindow({
 			providerId: "lmstudio",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:1234/v1",
+			endpoint: "http://localhost:1234/v1",
 			userOverrideContextWindow: 96_000,
 		});
 		expect(overrideEntry.contextWindow.effective).toBe(96_000);
@@ -272,7 +315,7 @@ describe("nklein model registry", () => {
 		const persisted = JSON.parse(await readFile(registryPath, "utf8")) as {
 			models: Record<string, { contextWindow: { advertised: number; observed: number; userOverride: number } }>;
 		};
-		expect(persisted.models["lmstudio:qwen-ctx80k:http://127.0.0.1:1234/v1"]?.contextWindow).toMatchObject({
+		expect(persisted.models["lmstudio:qwen-ctx80k:http://localhost:1234/v1"]?.contextWindow).toMatchObject({
 			advertised: 80_000,
 			observed: 64_000,
 			userOverride: 96_000,
@@ -289,7 +332,7 @@ describe("nklein model registry", () => {
 		await registry.recordContextWindow({
 			providerId: "ollama",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			advertisedContextWindow: 80_000,
 			observedContextWindow: 64_000,
 		});
@@ -297,7 +340,7 @@ describe("nklein model registry", () => {
 		const overrideEntry = await registry.setContextWindowOverride({
 			providerId: "ollama",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			contextWindow: 96_000,
 		});
 		expect(overrideEntry.contextWindow).toMatchObject({
@@ -310,7 +353,7 @@ describe("nklein model registry", () => {
 		const clearedEntry = await registry.setContextWindowOverride({
 			providerId: "ollama",
 			modelId: "qwen-ctx80k",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			contextWindow: null,
 		});
 		expect(clearedEntry.contextWindow).toMatchObject({
@@ -331,19 +374,19 @@ describe("nklein model registry", () => {
 		const first = await registry.recordContextWindow({
 			providerId: "ollama",
 			modelId: "stale-a",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			advertisedContextWindow: 32_000,
 		});
 		const second = await registry.recordContextWindow({
 			providerId: "ollama",
 			modelId: "stale-b",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			advertisedContextWindow: 64_000,
 		});
 		const third = await registry.recordContextWindow({
 			providerId: "lmstudio",
 			modelId: "keep",
-			endpoint: "http://127.0.0.1:1234/v1",
+			endpoint: "http://localhost:1234/v1",
 			advertisedContextWindow: 128_000,
 		});
 
@@ -381,7 +424,7 @@ describe("nklein model registry", () => {
 		const localEntry = await registry.recordRequest({
 			providerId: "ollama",
 			modelId: "qwen",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			contextWindow: 16_000,
 			promptTokens: 1_000,
 			outputTokens: 100,
@@ -390,7 +433,7 @@ describe("nklein model registry", () => {
 		const customLocalEntry = await registry.recordRequest({
 			providerId: "openai-compatible",
 			modelId: "local-qwen",
-			endpoint: "http://127.0.0.1:1234/v1",
+			endpoint: "http://localhost:1234/v1",
 			contextWindow: 16_000,
 			promptTokens: 1_000,
 			outputTokens: 100,
@@ -398,8 +441,8 @@ describe("nklein model registry", () => {
 		});
 
 		expect(cloudEntry.constraints.sharedEndpointId).toBeNull();
-		expect(localEntry.constraints.sharedEndpointId).toBe("http://127.0.0.1:11434");
-		expect(customLocalEntry.constraints.sharedEndpointId).toBe("http://127.0.0.1:1234/v1");
+		expect(localEntry.constraints.sharedEndpointId).toBe("http://localhost:11434");
+		expect(customLocalEntry.constraints.sharedEndpointId).toBe("http://localhost:1234/v1");
 	});
 });
 

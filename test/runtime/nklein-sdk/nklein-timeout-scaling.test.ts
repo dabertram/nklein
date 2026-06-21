@@ -20,11 +20,11 @@ function createSnapshot(contextWindow: number, samples: number): NKleinModelRegi
 		schemaVersion: 1,
 		updatedAt: 1,
 		models: {
-			"lmstudio:qwen:http://127.0.0.1:1234/v1": {
-				key: "lmstudio:qwen:http://127.0.0.1:1234/v1",
+			"lmstudio:qwen:http://localhost:1234/v1": {
+				key: "lmstudio:qwen:http://localhost:1234/v1",
 				providerId: "lmstudio",
 				modelId: "qwen",
-				endpoint: "http://127.0.0.1:1234/v1",
+				endpoint: "http://localhost:1234/v1",
 				contextWindow: {
 					advertised: contextWindow,
 					observed: null,
@@ -56,7 +56,7 @@ function createSnapshot(contextWindow: number, samples: number): NKleinModelRegi
 					lastObservedAt: null,
 				},
 				constraints: {
-					sharedEndpointId: "lmstudio:http://127.0.0.1:1234/v1",
+					sharedEndpointId: "lmstudio:http://localhost:1234/v1",
 					inputCostPerMillionTokens: null,
 					outputCostPerMillionTokens: null,
 				},
@@ -74,7 +74,7 @@ describe("applyMcsrAwareLocalTimeoutScaling", () => {
 			launchConfig: {
 				providerId: "lmstudio",
 				modelId: "qwen",
-				baseUrl: "http://127.0.0.1:1234/v1",
+				baseUrl: "http://localhost:1234/v1",
 			},
 			modelRegistry: createSnapshot(1_000_000, 0),
 			promptTokens: 32_000,
@@ -104,7 +104,7 @@ describe("applyMcsrAwareLocalTimeoutScaling", () => {
 				launchConfig: {
 					providerId: "lmstudio",
 					modelId: "qwen",
-					baseUrl: "http://127.0.0.1:1234/v1",
+					baseUrl: "http://localhost:1234/v1",
 				},
 				modelRegistry: createSnapshot(1_000_000, 0),
 				promptTokens: 32_000,
