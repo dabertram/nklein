@@ -61,6 +61,33 @@ function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardCol
 	return summary.mode === "plan" ? "planning" : "in_progress";
 }
 
+/**
+ * Decide whether dragging a card into `in_progress` should launch an agent session.
+ *
+ * Backlog cards always kick off. A card dragged out of `planning` only needs a
+ * fresh kickoff when it is an approved act-mode card (`startInPlanMode === false`)
+ * that never ran a plan session — i.e. a seeded or decomposition-generated
+ * implementation card whose only start gesture is this drag (planning cards have
+ * no Start button). Without it the card changes columns but no session is created,
+ * so the task silently never runs. Plan-mode cards and cards that already have a
+ * session keep their existing approve/continue flow and must not be restarted here.
+ */
+function shouldKickoffOnMoveIntoProgress(input: {
+	card: Pick<BoardCard, "startInPlanMode">;
+	fromColumnId: BoardColumnId;
+	toColumnId: BoardColumnId;
+	hasExistingSession: boolean;
+	skipKickoff: boolean;
+}): boolean {
+	if (input.toColumnId !== "in_progress" || input.skipKickoff) {
+		return false;
+	}
+	if (input.fromColumnId === "backlog") {
+		return true;
+	}
+	return input.fromColumnId === "planning" && input.card.startInPlanMode === false && !input.hasExistingSession;
+}
+
 function getStartBlockedKind(
 	errorCode: Awaited<ReturnType<UseTaskSessionsResult["startTaskSession"]>>["errorCode"],
 ): TaskBlockedKind | null {
@@ -763,26 +790,27 @@ export function useBoardInteractions({
 
 			setBoard(applied.board);
 
+			const movedSelection = findCardSelection(applied.board, moveEvent.taskId);
 			if (
-				moveEvent.toColumnId === "in_progress" &&
-				moveEvent.fromColumnId === "backlog" &&
-				!programmaticMoveBehavior?.skipKickoff
+				movedSelection &&
+				shouldKickoffOnMoveIntoProgress({
+					card: movedSelection.card,
+					fromColumnId: moveEvent.fromColumnId,
+					toColumnId: moveEvent.toColumnId,
+					hasExistingSession: Boolean(sessions[moveEvent.taskId]),
+					skipKickoff: programmaticMoveBehavior?.skipKickoff ?? false,
+				})
 			) {
 				maybeRequestNotificationPermissionForTaskStart();
-				const movedSelection = findCardSelection(applied.board, moveEvent.taskId);
-				if (movedSelection) {
-					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, {
-						queueOnEndpointBusy: true,
+				void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, {
+					queueOnEndpointBusy: true,
+				})
+					.then((started) => {
+						resolvePendingProgrammaticStartMove(moveEvent.taskId, started);
 					})
-						.then((started) => {
-							resolvePendingProgrammaticStartMove(moveEvent.taskId, started);
-						})
-						.catch(() => {
-							resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
-						});
-					return;
-				}
-				resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
+					.catch(() => {
+						resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
+					});
 				return;
 			}
 			resolvePendingProgrammaticStartMove(moveEvent.taskId, false);

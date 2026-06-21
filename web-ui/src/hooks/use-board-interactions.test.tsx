@@ -1,3 +1,4 @@
+import type { DropResult } from "@hello-pangea/dnd";
 import { act, type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,6 +86,55 @@ function createRunningNKleinSession(taskId: string, providerId: string, modelId:
 	};
 }
 
+function createBoardWithPlanningCard(options?: { startInPlanMode?: boolean }): { board: BoardData; card: BoardCard } {
+	const card = createTask("task-plan", "Approved planning card", 1, {
+		startInPlanMode: options?.startInPlanMode ?? false,
+	});
+	const board: BoardData = {
+		columns: [
+			{ id: "backlog", title: "Backlog", cards: [] },
+			{ id: "planning", title: "Planning", cards: [card] },
+			{ id: "in_progress", title: "In Progress", cards: [] },
+			{ id: "review", title: "Review", cards: [] },
+			{ id: "trash", title: "Done", cards: [] },
+		],
+		dependencies: [],
+	};
+	return { board, card };
+}
+
+function buildPlanningToInProgressDrop(taskId: string): DropResult {
+	return {
+		draggableId: taskId,
+		type: "CARD",
+		reason: "DROP",
+		mode: "FLUID",
+		source: { droppableId: "planning", index: 0 },
+		destination: { droppableId: "in_progress", index: 0 },
+		combine: null,
+	} as DropResult;
+}
+
+function setupDefaultBoardInteractionMocks(): void {
+	useProgrammaticCardMovesMock.mockReturnValue({
+		handleProgrammaticCardMoveReady: () => {},
+		setRequestMoveTaskToTrashHandler: () => {},
+		tryProgrammaticCardMove: () => "unavailable" as const,
+		consumeProgrammaticCardMove: () => ({}),
+		resolvePendingProgrammaticTrashMove: () => {},
+		waitForProgrammaticCardMoveAvailability: async () => {},
+		resetProgrammaticCardMoves: () => {},
+		requestMoveTaskToTrashWithAnimation: async () => {},
+		programmaticCardMoveCycle: 0,
+	});
+	useLinkedBacklogTaskActionsMock.mockReturnValue({
+		handleCreateDependency: () => {},
+		handleDeleteDependency: () => {},
+		confirmMoveTaskToTrash: async () => {},
+		requestMoveTaskToTrash: async () => {},
+	});
+}
+
 const NOOP_STOP_SESSION = async (): Promise<void> => {};
 const NOOP_CLEANUP_WORKSPACE = async (): Promise<null> => null;
 const NOOP_FETCH_WORKSPACE_INFO = async (): Promise<null> => null;
@@ -99,6 +149,7 @@ interface HookSnapshot {
 	handleReplayTask: (taskId: string) => void;
 	handleCardSelect: (taskId: string) => void;
 	handleConfirmClearTrash: () => void;
+	handleDragEnd: (result: DropResult, options?: { selectDroppedTask?: boolean }) => void;
 	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
 }
 
@@ -184,12 +235,14 @@ function HookHarness({
 			handleReplayTask: actions.handleReplayTask,
 			handleCardSelect: actions.handleCardSelect,
 			handleConfirmClearTrash: actions.handleConfirmClearTrash,
+			handleDragEnd: actions.handleDragEnd,
 			setSessions,
 		});
 	}, [
 		actions.handleCardSelect,
 		actions.handleConfirmClearTrash,
 		actions.handleDecomposeTask,
+		actions.handleDragEnd,
 		actions.handleRestoreTaskFromTrash,
 		actions.handleStartAllBacklogTasks,
 		actions.handleStartTask,
@@ -315,6 +368,139 @@ describe("useBoardInteractions", () => {
 		expect(started).toBe(true);
 		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).toHaveBeenCalledWith(backlogTask, { queueOnEndpointBusy: true });
+	});
+
+	it("kicks off a session when an approved planning card is dragged into in_progress", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		const { board } = createBoardWithPlanningCard({ startInPlanMode: false });
+		let currentBoard = board;
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
+		}));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleDragEnd(buildPlanningToInProgressDrop("task-plan"));
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// The approved act-mode planning card has no Start button, so this drag is its only
+		// kickoff path; it must launch a session and land in `in_progress`.
+		expect(startTaskSession).toHaveBeenCalledWith(expect.objectContaining({ id: "task-plan" }), {
+			queueOnEndpointBusy: true,
+		});
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards.map((card) => card.id)).toEqual([
+			"task-plan",
+		]);
+		expect(currentBoard.columns.find((column) => column.id === "planning")?.cards).toEqual([]);
+	});
+
+	it("does not restart a planning card that already has a session when dragged into in_progress", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		const { board } = createBoardWithPlanningCard({ startInPlanMode: false });
+		let currentBoard = board;
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
+		}));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					initialSessions={{ "task-plan": createRunningNKleinSession("task-plan", "nklein", "model") }}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleDragEnd(buildPlanningToInProgressDrop("task-plan"));
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// A card that already owns a live session keeps its existing continue/approve flow
+		// and must not be relaunched (which would restart it from scratch) by the drag.
+		expect(startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("does not kick off a plan-mode planning card dragged into in_progress", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		const { board } = createBoardWithPlanningCard({ startInPlanMode: true });
+		let currentBoard = board;
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const ensureTaskWorkspace = vi.fn(async () => ({
+			ok: true as const,
+			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
+		}));
+		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					ensureTaskWorkspace={ensureTaskWorkspace}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+
+		await act(async () => {
+			latestSnapshot!.handleDragEnd(buildPlanningToInProgressDrop("task-plan"));
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		// Plan-mode cards run their plan session before execution; dragging one into
+		// in_progress must not silently launch it as an act-mode task.
+		expect(startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("marks backlog tasks as needing decomposition when the start guard blocks them", async () => {

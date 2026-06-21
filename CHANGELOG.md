@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Fixed approved act-mode planning cards never running: a card sitting in **Planning** with `startInPlanMode: false` (a seeded or decomposition-generated implementation card, which has no Start button) is only startable by dragging it into **In Progress**, but that drag moved the card without launching an agent session, so the task silently never ran. The `planning → in_progress` drag now kicks off the session for such cards, while plan-mode cards and cards that already own a live session keep their existing approve/continue flow.
+
 - Separated hidden !Klein planning/decomposition guidance from visible task prompts: dev-test seed cards now show product-focused user requests, runtime decomposition guardrails are delivered as system guidance, and chat transcripts collapse those system prompts behind an explicit “Show system prompt” control.
 - Standardized user-facing app branding on `!Klein` across settings, card/chat copy, onboarding, CLI help, and surfaced runtime errors, and tightened the brand regression guard so visible `NKlein` text cannot be reintroduced accidentally.
 - Added an OpenHands-inspired "watch the agent's hands" view: a per-card **Watch** tab that shows, in one place, the agent's live state/model/elapsed/current-tool, an accumulated **activity timeline** (every tool/step it takes, streamed from the data the runtime already broadcasts), and the **files it is changing this run** — plus a jump to its interactive terminal. Built on a new client-side activity-timeline accumulator (unit-tested) with no backend changes.
