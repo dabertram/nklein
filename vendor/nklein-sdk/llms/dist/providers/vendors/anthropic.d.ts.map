@@ -1,0 +1,1 @@
+{"version":3,"file":"anthropic.d.ts","sourceRoot":"","sources":["../../../src/providers/vendors/anthropic.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EACX,sBAAsB,EACtB,6BAA6B,EAC7B,MAAM,kBAAkB,CAAC;AAE1B,OAAO,KAAK,EAAE,qBAAqB,EAAE,MAAM,SAAS,CAAC;AAErD,wBAAsB,6BAA6B,CAClD,MAAM,EAAE,6BAA6B,EACrC,OAAO,EAAE,sBAAsB,GAC7B,OAAO,CAAC,qBAAqB,CAAC,CAWhC"}

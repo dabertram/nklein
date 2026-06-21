@@ -33,6 +33,7 @@
 			"!dist/**/*",
 			"!node_modules/**/*",
 			"!core-py/**/*",
+			"!vendor/**/*",
 			"!!**/node_modules",
 			"!.worktrees/**/*"
 		]

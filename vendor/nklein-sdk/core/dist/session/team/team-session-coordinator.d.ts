@@ -1,0 +1,13 @@
+import { type AgentMode, type AgentResult } from "@nklein/shared";
+import type { TeamEvent } from "../../extensions/tools/team";
+import type { CoreSessionEvent } from "../../types/events";
+import type { ActiveSession, TeamRunUpdate } from "../../types/session";
+export declare function trackTeamRunState(session: ActiveSession, event: TeamEvent): void;
+export declare function dispatchTeamEventToBackend(rootSessionId: string, event: TeamEvent, invokeOptional: (method: string, ...args: unknown[]) => Promise<void>): Promise<void>;
+export declare function emitTeamProgress(session: ActiveSession, rootSessionId: string, event: TeamEvent, emit: (event: CoreSessionEvent) => void): void;
+export declare function hasPendingTeamRunWork(session: ActiveSession): boolean;
+export declare function shouldAutoContinueTeamRuns(session: ActiveSession, finishReason: AgentResult["finishReason"]): boolean;
+export declare function notifyTeamRunWaiters(session: ActiveSession): void;
+export declare function waitForTeamRunUpdates(session: ActiveSession): Promise<TeamRunUpdate[]>;
+export declare function buildTeamRunContinuationPrompt(session: ActiveSession, updates: TeamRunUpdate[]): string;
+export declare function formatModePrompt(prompt: string, mode: AgentMode | undefined): string;
