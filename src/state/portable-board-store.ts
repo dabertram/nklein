@@ -10,6 +10,7 @@ import {
 	boardToPortableBoardCrdt,
 	markCardDeleted,
 	mergePortableBoardCrdt,
+	migratePortableBoardCrdt,
 	type PortableBoardCrdt,
 	portableBoardCrdtToBoard,
 } from "./portable-board-crdt";
@@ -43,11 +44,9 @@ export function getPortableBoardCrdtPath(repoPath: string): string {
 export async function readPortableBoardCrdt(repoPath: string): Promise<PortableBoardCrdt | null> {
 	try {
 		const raw = await readFile(getPortableBoardCrdtPath(repoPath), "utf8");
-		const parsed = JSON.parse(raw) as PortableBoardCrdt;
-		if (parsed?.schemaVersion !== 1 || typeof parsed.cards !== "object") {
-			return null;
-		}
-		return { schemaVersion: 1, cards: parsed.cards ?? {}, dependencies: parsed.dependencies ?? {} };
+		// Migrate older committed CRDTs forward on read (e.g. a file pushed by a machine on a prior schema),
+		// and refuse files written by a newer schema this build cannot safely downgrade.
+		return migratePortableBoardCrdt(JSON.parse(raw));
 	} catch {
 		return null;
 	}

@@ -50,6 +50,67 @@ export interface PortableBoardCrdt {
 	dependencies: Record<string, CrdtDependency>;
 }
 
+/** The schema version this build writes and reads as current. Bump when the on-disk CRDT shape changes. */
+export const CURRENT_PORTABLE_BOARD_SCHEMA_VERSION = 1;
+
+/** A step migration transforming a committed board-CRDT object from one schema version to the next. */
+export type PortableBoardCrdtMigration = (input: Record<string, unknown>) => Record<string, unknown>;
+
+/**
+ * Forward migrations keyed by the version they migrate *from* (producing version+1). Empty today because only
+ * v1 exists; when the schema advances, add a `{ [N]: (v) => ({ ...vNplus1 }) }` entry and bump
+ * `CURRENT_PORTABLE_BOARD_SCHEMA_VERSION` — `readPortableBoardCrdt` will then upgrade older committed files
+ * (e.g. fetched from another machine that pushed before this one upgraded) in place on read.
+ */
+export const PORTABLE_BOARD_CRDT_MIGRATIONS: Readonly<Record<number, PortableBoardCrdtMigration>> = {};
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Reads a parsed committed board CRDT of any known version up to the current one, applying the forward
+ * migration chain. Returns `null` when the object is malformed, written by a *newer* schema this build cannot
+ * safely downgrade, or stranded at a version with no registered migration path forward.
+ */
+export function migratePortableBoardCrdt(
+	raw: unknown,
+	migrations: Readonly<Record<number, PortableBoardCrdtMigration>> = PORTABLE_BOARD_CRDT_MIGRATIONS,
+): PortableBoardCrdt | null {
+	if (!isPlainObject(raw)) {
+		return null;
+	}
+	let current = raw;
+	let version = typeof current.schemaVersion === "number" ? current.schemaVersion : 0;
+	// A newer schema than this build understands must not be silently coerced — refuse it.
+	if (version > CURRENT_PORTABLE_BOARD_SCHEMA_VERSION) {
+		return null;
+	}
+	while (version < CURRENT_PORTABLE_BOARD_SCHEMA_VERSION) {
+		const migration = migrations[version];
+		if (!migration) {
+			return null;
+		}
+		current = migration(current);
+		const next = typeof current.schemaVersion === "number" ? current.schemaVersion : version + 1;
+		// Guard against a migration that fails to advance the version (would loop forever otherwise).
+		if (next <= version) {
+			return null;
+		}
+		version = next;
+	}
+	if (version !== CURRENT_PORTABLE_BOARD_SCHEMA_VERSION || !isPlainObject(current.cards)) {
+		return null;
+	}
+	return {
+		schemaVersion: CURRENT_PORTABLE_BOARD_SCHEMA_VERSION,
+		cards: current.cards as PortableBoardCrdt["cards"],
+		dependencies: isPlainObject(current.dependencies)
+			? (current.dependencies as PortableBoardCrdt["dependencies"])
+			: {},
+	};
+}
+
 /** The card field that records column placement. Prefixed to avoid colliding with real card properties. */
 const COLUMN_FIELD = "__column";
 

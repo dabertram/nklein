@@ -204,8 +204,12 @@ deep analysis:
 ### 5.F — Portable "project state in the repository" (cross-machine continuation)
 > Conflict model chosen: **CRDT** (automatic merge, no manual rebase UI). Board CRDT, committed store,
 > export/import with local model re-resolution, and live wiring into save/load are shipped (see §6). What's left:
-- [ ] **Schema migration** when `schemaVersion` advances on the committed
-      `<repo>/.nklein/nklein/workspace/board-crdt.json`.
+- [x] **Schema migration** when `schemaVersion` advances on the committed
+      `<repo>/.nklein/nklein/workspace/board-crdt.json` *(2026-06-22)*. `readPortableBoardCrdt` now goes through
+      `migratePortableBoardCrdt` ([src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts)): a
+      forward-migration registry (keyed by source version, empty today) upgrades older committed files up to
+      `CURRENT_PORTABLE_BOARD_SCHEMA_VERSION`, refuses newer-than-known versions instead of coercing them, and
+      guards against non-advancing migrations. A future bump is a one-line registry entry + the version constant.
 - [ ] **BLOCKED (browser): verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI.
 - [ ] **Confirm WITH THE USER before extending** (open clarifications): exactly which state is repo-committed vs
       machine-local (machine-local must stay: model registry/measured speeds, endpoint URLs, container/sandbox

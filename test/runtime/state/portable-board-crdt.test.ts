@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { RuntimeBoardCard, RuntimeBoardData } from "../../../src/core/api-contract";
 import {
 	boardToPortableBoardCrdt,
+	CURRENT_PORTABLE_BOARD_SCHEMA_VERSION,
 	markCardDeleted,
 	mergePortableBoardCrdt,
+	migratePortableBoardCrdt,
+	type PortableBoardCrdtMigration,
 	portableBoardCrdtToBoard,
 } from "../../../src/state/portable-board-crdt";
 
@@ -112,5 +115,50 @@ describe("portable board CRDT merge", () => {
 		);
 		const projected = portableBoardCrdtToBoard(markCardDeleted(base, "a", "m1"));
 		expect(projected.dependencies).toEqual([]);
+	});
+});
+
+describe("migratePortableBoardCrdt", () => {
+	const currentCrdt = boardToPortableBoardCrdt(board([{ columnId: "backlog", card: card("a") }]), "m1");
+
+	it("returns a well-formed current-version CRDT unchanged in shape", () => {
+		const migrated = migratePortableBoardCrdt(JSON.parse(JSON.stringify(currentCrdt)));
+		expect(migrated?.schemaVersion).toBe(CURRENT_PORTABLE_BOARD_SCHEMA_VERSION);
+		expect(Object.keys(migrated?.cards ?? {})).toContain("a");
+	});
+
+	it("rejects malformed input and a missing cards map", () => {
+		expect(migratePortableBoardCrdt(null)).toBeNull();
+		expect(migratePortableBoardCrdt([])).toBeNull();
+		expect(migratePortableBoardCrdt({ schemaVersion: CURRENT_PORTABLE_BOARD_SCHEMA_VERSION })).toBeNull();
+	});
+
+	it("refuses a CRDT written by a newer schema this build cannot downgrade", () => {
+		expect(
+			migratePortableBoardCrdt({ schemaVersion: CURRENT_PORTABLE_BOARD_SCHEMA_VERSION + 1, cards: {} }),
+		).toBeNull();
+	});
+
+	it("returns null when an older version has no registered migration path forward", () => {
+		// A legacy unversioned file (treated as version 0) with no migration registered.
+		expect(migratePortableBoardCrdt({ cards: {} })).toBeNull();
+	});
+
+	it("applies the forward migration chain up to the current version", () => {
+		// Simulate a legacy version-0 file plus an injected 0->current migration to exercise the chain mechanism.
+		const upgrade: PortableBoardCrdtMigration = (input) => ({
+			...input,
+			schemaVersion: CURRENT_PORTABLE_BOARD_SCHEMA_VERSION,
+			cards: currentCrdt.cards,
+			dependencies: currentCrdt.dependencies,
+		});
+		const migrated = migratePortableBoardCrdt({ cards: { legacy: {} } }, { 0: upgrade });
+		expect(migrated?.schemaVersion).toBe(CURRENT_PORTABLE_BOARD_SCHEMA_VERSION);
+		expect(Object.keys(migrated?.cards ?? {})).toContain("a");
+	});
+
+	it("rejects a migration that fails to advance the version", () => {
+		const nonAdvancing: PortableBoardCrdtMigration = (input) => input;
+		expect(migratePortableBoardCrdt({ schemaVersion: 0, cards: {} }, { 0: nonAdvancing })).toBeNull();
 	});
 });
