@@ -40,6 +40,22 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Clear trash",
 		description: "Permanently delete every task in Trash. This cannot be undone.",
 	},
+	"board-card.resume": {
+		name: "Resume task",
+		description: "Continue this paused task from where its agent left off.",
+	},
+	"board-card.pause": {
+		name: "Pause task",
+		description: "Stop the agent at the next safe point; you can resume later.",
+	},
+	"board-card.start": {
+		name: "Start task",
+		description: "Launch an agent on this task (decomposes first if it's a planning card).",
+	},
+	"board-card.replay": {
+		name: "Replay task",
+		description: "Re-run this finished task from scratch on a fresh attempt.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

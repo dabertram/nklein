@@ -13,6 +13,7 @@ import {
 } from "@/components/detail-panels/nklein-model-picker-options";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
@@ -856,41 +857,47 @@ export function BoardCard({
 									</Tooltip>
 								) : null}
 								{isPausedSession ? (
-									<Button
-										icon={<Play size={14} />}
-										variant="ghost"
-										size="sm"
-										aria-label="Resume task"
-										onMouseDown={stopEvent}
-										onClick={(event) => {
-											stopEvent(event);
-											onResumeTask?.(card.id);
-										}}
-									/>
+									<ElementTooltip id="board-card.resume" side="bottom">
+										<Button
+											icon={<Play size={14} />}
+											variant="ghost"
+											size="sm"
+											aria-label="Resume task"
+											onMouseDown={stopEvent}
+											onClick={(event) => {
+												stopEvent(event);
+												onResumeTask?.(card.id);
+											}}
+										/>
+									</ElementTooltip>
 								) : sessionSummary?.state === "running" ? (
-									<Button
-										icon={<Pause size={14} />}
-										variant="ghost"
-										size="sm"
-										aria-label="Pause task"
-										onMouseDown={stopEvent}
-										onClick={(event) => {
-											stopEvent(event);
-											onPauseTask?.(card.id);
-										}}
-									/>
+									<ElementTooltip id="board-card.pause" side="bottom">
+										<Button
+											icon={<Pause size={14} />}
+											variant="ghost"
+											size="sm"
+											aria-label="Pause task"
+											onMouseDown={stopEvent}
+											onClick={(event) => {
+												stopEvent(event);
+												onPauseTask?.(card.id);
+											}}
+										/>
+									</ElementTooltip>
 								) : columnId === "backlog" || columnId === "planning" ? (
-									<Button
-										icon={<Play size={14} />}
-										variant="ghost"
-										size="sm"
-										aria-label="Start task"
-										onMouseDown={stopEvent}
-										onClick={(event) => {
-											stopEvent(event);
-											onStart?.(card.id);
-										}}
-									/>
+									<ElementTooltip id="board-card.start" side="bottom">
+										<Button
+											icon={<Play size={14} />}
+											variant="ghost"
+											size="sm"
+											aria-label="Start task"
+											onMouseDown={stopEvent}
+											onClick={(event) => {
+												stopEvent(event);
+												onStart?.(card.id);
+											}}
+										/>
+									</ElementTooltip>
 								) : isFinishedCard ? (
 									replayCardsEnabled ? (
 										<Button
