@@ -105,8 +105,12 @@ export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } fro
 export type { NKleinTaskMessage } from "./nklein-session-state";
 
 const DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS = 80_000;
-/** Time budget for one second-opinion reviewer turn before it is abandoned (todo §5.K). */
+/** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
 const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
+/** Re-prompt budget when a reviewer turn ends without calling `submit_review` (small models often forget). */
+const MAX_SECOND_OPINION_REVIEW_NUDGES = 2;
+const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
+	"You ended your turn without calling `submit_review`, so no review was recorded. Your verdict is delivered ONLY by that tool. Call `submit_review` now: `approve`, or `request_changes` with concrete, actionable feedback. Do not answer in prose.";
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
@@ -2785,40 +2789,60 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxRepoPathByTaskId.set(reviewTaskId, input.projectRepoPath);
 		this.sandboxBaseRefByTaskId.set(reviewTaskId, (resultCommit ?? input.baseRef)?.trim() || "HEAD");
 		let verdict: NKleinReviewResult | null = null;
-		try {
-			// startRuntimeTaskSessionFromLaunchConfig awaits the full turn (sessionHost.send), so the submit_review
-			// tool — which fires during the turn — has reported its verdict by the time the run promise settles.
-			const run = this.startRuntimeTaskSessionFromLaunchConfig({
+		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS);
+		const recordReviewSessionError = (error: unknown): void => {
+			recordSelfObservation({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Second-opinion reviewer session failed: ${error instanceof Error ? error.message : String(error)}`,
 				taskId: reviewTaskId,
-				cwd: workspace.workdir,
-				workspaceRoot: input.projectRepoPath,
-				prompt: input.seedPrompt,
-				launchConfig,
-				contextScope: "minimal",
-				onReviewSubmitted: (result) => {
-					verdict = result;
-				},
-			}).then(
-				() => undefined,
-				(error) => {
-					recordSelfObservation({
-						signal: "runtime_error",
-						severity: "warning",
-						message: `Second-opinion reviewer session failed: ${error instanceof Error ? error.message : String(error)}`,
-						taskId: reviewTaskId,
-						workspacePath: input.projectRepoPath,
-						createdAt: Date.now(),
-					});
-				},
-			);
-			const timeoutMs = input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS;
+				workspacePath: input.projectRepoPath,
+				createdAt: Date.now(),
+			});
+		};
+		// Awaits one reviewer turn, bounded by the remaining overall budget (an SDK turn can hang); turn errors are
+		// recorded, not thrown, so they fall through to a null verdict (the caller then fail-safe-delivers).
+		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
+			const remainingMs = deadlineMs - Date.now();
+			if (remainingMs <= 0) {
+				return;
+			}
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			const timeout = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, timeoutMs);
+				timer = setTimeout(resolve, remainingMs);
 			});
-			await Promise.race([run, timeout]);
+			await Promise.race([turn.then(() => undefined, recordReviewSessionError), timeout]);
 			if (timer) {
 				clearTimeout(timer);
+			}
+		};
+		try {
+			// First turn: seed prompt + the submit_review tool. startRuntimeTaskSessionFromLaunchConfig awaits the
+			// turn, so the tool's verdict (if emitted) is captured by the time it settles.
+			await runBoundedTurn(
+				this.startRuntimeTaskSessionFromLaunchConfig({
+					taskId: reviewTaskId,
+					cwd: workspace.workdir,
+					workspaceRoot: input.projectRepoPath,
+					prompt: input.seedPrompt,
+					launchConfig,
+					contextScope: "minimal",
+					onReviewSubmitted: (result) => {
+						verdict = result;
+					},
+				}),
+			);
+			// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
+			// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
+			// small budget and the overall deadline.
+			for (
+				let nudge = 0;
+				verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
+				nudge += 1
+			) {
+				await runBoundedTurn(
+					this.sessionRuntime.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT),
+				);
 			}
 			return verdict;
 		} finally {
