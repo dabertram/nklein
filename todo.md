@@ -417,10 +417,17 @@ deep analysis:
 - [x] **Reviewer interface** ([src/nklein-sdk/nklein-review-tool.ts](src/nklein-sdk/nklein-review-tool.ts)) —
       a `submit_review` tool (the reviewer's structured output, like `decompose_project`): `verdict`
       (`approve`/`request_changes`), `summary`, `feedback` (required on changes), optional `insight`. Unit-tested.
-- [ ] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
+- [~] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
       session (reviewer model, fallback to the worker model) seeded with the card objective + diff + acceptance
       result + the `submit_review` tool; on `submit_review`, run `decideReviewLoopAction`. Guard against recursion
       (a reviewer card is not itself reviewed) and skip planning cards. Reuse the sandbox/data-plane isolation.
+      **Pure core done** ([src/core/review-orchestration.ts](src/core/review-orchestration.ts), unit-tested):
+      `shouldReviewCard` gate (enabled + in `review` + not a reviewer/planning card + has a diff),
+      `fingerprintReviewArtifact` (stall/identical-loop hashing), `buildReviewSeedPrompt` (objective + acceptance
+      summary + prior change request + truncated diff → single `submit_review` call), `buildReviewBouncePrompt`,
+      `buildReviewSignOff`, and `resolveReviewTransition` (verdict + round + history → deliver/bounce/park + the
+      `ReviewRoundRecord` to persist). **Remaining (live):** start the reviewer session with the review tool
+      wired to the verdict handler, then call the transition + apply it (next item) + broadcast.
 - [ ] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
       fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
       back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing

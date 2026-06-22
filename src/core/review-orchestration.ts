@@ -1,0 +1,205 @@
+/**
+ * Second-opinion review orchestration core (todo.md §5.K).
+ *
+ * Pure helpers that turn a reviewer-role verdict into a concrete board action, sitting between the
+ * stateless {@link decideReviewLoopAction} decision and the live runtime that starts reviewer sessions and
+ * mutates the board. Keeping prompt-building, work/feedback fingerprinting, and the verdict→transition mapping
+ * here (no SDK, no I/O) makes the whole review flow unit-testable without a live model or workspace.
+ *
+ * The live orchestrator (runtime-state-hub) is then mechanical: read the card's review history → compute the
+ * round → {@link buildReviewSeedPrompt} → start a reviewer session with the `submit_review` tool → on the
+ * verdict call {@link resolveReviewTransition} → apply the returned board mutation + drive sessions.
+ */
+
+import { createHash } from "node:crypto";
+import {
+	DEFAULT_MAX_REVIEW_ROUNDS,
+	decideReviewLoopAction,
+	type ReviewRoundRecord,
+	type ReviewVerdict,
+} from "./review-loop.js";
+
+/** A reviewer's structured verdict, mirroring `NKleinReviewSubmission` without the SDK/zod dependency. */
+export interface ReviewSubmissionInput {
+	verdict: ReviewVerdict;
+	summary: string;
+	feedback: string | null;
+	insight: string | null;
+}
+
+/**
+ * Stable short fingerprint of a review artifact (a diff, or a feedback string), used for stall / identical-loop
+ * detection. Trimmed-empty input fingerprints to `null` so "no work" / "no feedback" never matches another.
+ */
+export function fingerprintReviewArtifact(value: string | null | undefined): string | null {
+	const text = value?.trim();
+	if (!text) {
+		return null;
+	}
+	return createHash("sha256").update(text).digest("hex").slice(0, 16);
+}
+
+export interface ShouldReviewCardInput {
+	/** The second-opinion-review setting (default on); false skips review entirely. */
+	enabled: boolean;
+	/** Board column the card is in when it became reviewable. Only `review` cards get a second opinion. */
+	columnId: string;
+	/** True when this card is itself a reviewer card — never review a review (recursion guard). */
+	isReviewerCard: boolean;
+	/** True when the worker produced a real diff to review; an empty diff has nothing to second-opinion. */
+	hasReviewableDiff: boolean;
+	/** True for planning/decomposition cards, which are not worker output and are skipped. */
+	isPlanningCard: boolean;
+}
+
+/** Whether a card that just became reviewable should get a second-opinion review pass. */
+export function shouldReviewCard(input: ShouldReviewCardInput): boolean {
+	return (
+		input.enabled &&
+		input.columnId === "review" &&
+		!input.isReviewerCard &&
+		!input.isPlanningCard &&
+		input.hasReviewableDiff
+	);
+}
+
+export interface ReviewSeedPromptInput {
+	taskTitle: string;
+	/** The card objective (its prompt) so the reviewer judges against intent, not just the diff. */
+	taskObjective: string;
+	/** The worker's diff to review. */
+	diff: string;
+	/** Human acceptance-gate summary, when an acceptance check ran (e.g. "Acceptance check passed: npm test."). */
+	acceptanceSummary?: string | null;
+	/** 1-based current review round. */
+	round: number;
+	/** The previous round's change-request feedback, included when re-reviewing so the reviewer can verify it. */
+	priorFeedback?: string | null;
+}
+
+const REVIEW_DIFF_BUDGET = 24_000;
+
+function clampDiffForReview(diff: string): string {
+	const trimmed = diff.trim();
+	if (trimmed.length <= REVIEW_DIFF_BUDGET) {
+		return trimmed;
+	}
+	return `${trimmed.slice(0, REVIEW_DIFF_BUDGET)}\n… diff truncated (${trimmed.length - REVIEW_DIFF_BUDGET} more characters); review what is shown and the stated objective.`;
+}
+
+/**
+ * The reviewer-role seed prompt: a focused, second-opinion review brief that ends by requiring a single
+ * `submit_review` tool call. Brevity is emphasized for the same local-model context-budget reasons as the
+ * decomposition/efficiency prompts elsewhere.
+ */
+export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
+	const lines: string[] = [
+		`You are the second-opinion reviewer for the card "${input.taskTitle}" (review round ${input.round}).`,
+		"A different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.",
+		"",
+		"## Card objective",
+		input.taskObjective.trim() || "(no objective recorded)",
+	];
+	if (input.acceptanceSummary?.trim()) {
+		lines.push("", "## Acceptance check", input.acceptanceSummary.trim());
+	}
+	if (input.priorFeedback?.trim()) {
+		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
+	}
+	lines.push(
+		"",
+		"## Diff under review",
+		"```diff",
+		clampDiffForReview(input.diff),
+		"```",
+		"",
+		"## How to review",
+		"- Inspect the diff against the objective; read surrounding code only as needed for context.",
+		"- Keep your thinking and any prose brief — a short focused pass, then the tool call. Long output wastes the context budget.",
+		"- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation, even with no changes), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",
+		"Do not implement changes yourself and do not answer in prose; the review is delivered only by the `submit_review` tool call.",
+	);
+	return lines.join("\n");
+}
+
+/** Worker bounce-back prompt carrying the reviewer's change request as the worker's next turn. */
+export function buildReviewBouncePrompt(input: { round: number; summary: string; feedback: string }): string {
+	return [
+		`The second-opinion reviewer requested changes (review round ${input.round}).`,
+		"",
+		"## Reviewer summary",
+		input.summary.trim(),
+		"",
+		"## Requested changes",
+		input.feedback.trim(),
+		"",
+		"Address this feedback directly, then finish as usual so the card can be re-reviewed. If you believe the request is mistaken, make the smallest change that resolves the concern or explain precisely why the current code is correct in your final message.",
+	].join("\n");
+}
+
+/** The reviewer's sign-off, recorded on the card when an approval proceeds to delivery. */
+export function buildReviewSignOff(input: { summary: string; insight: string | null }): string {
+	const insight = input.insight?.trim();
+	return insight ? `${input.summary.trim()}\n\nInsight: ${insight}` : input.summary.trim();
+}
+
+export type ReviewTransition =
+	| { action: "deliver"; reason: string; signOff: string; record: ReviewRoundRecord }
+	| { action: "bounce_to_worker"; reason: string; workerPrompt: string; record: ReviewRoundRecord }
+	| { action: "park"; reason: string; record: ReviewRoundRecord };
+
+export interface ResolveReviewTransitionInput {
+	submission: ReviewSubmissionInput;
+	/** 1-based current review round (the round that just produced this verdict). */
+	round: number;
+	/** Fingerprint of the worker diff reviewed this round (from {@link fingerprintReviewArtifact}). */
+	workFingerprint: string | null;
+	/** Prior review rounds for this card, oldest first. */
+	history: readonly ReviewRoundRecord[];
+	maxRounds?: number;
+}
+
+/**
+ * Map a reviewer verdict to a concrete board transition: deliver (with sign-off), bounce to the worker (with a
+ * prompt carrying the feedback), or park (round limit / stall / identical loop). Also returns the
+ * {@link ReviewRoundRecord} the caller should append to the card's review history.
+ */
+export function resolveReviewTransition(input: ResolveReviewTransitionInput): ReviewTransition {
+	const feedbackFingerprint =
+		input.submission.verdict === "request_changes" ? fingerprintReviewArtifact(input.submission.feedback) : null;
+	const record: ReviewRoundRecord = {
+		round: input.round,
+		verdict: input.submission.verdict,
+		feedbackFingerprint,
+		workFingerprint: input.workFingerprint,
+	};
+	const decision = decideReviewLoopAction({
+		verdict: input.submission.verdict,
+		round: input.round,
+		maxRounds: input.maxRounds ?? DEFAULT_MAX_REVIEW_ROUNDS,
+		feedbackFingerprint,
+		workFingerprint: input.workFingerprint,
+		history: input.history,
+	});
+	if (decision.action === "deliver") {
+		return {
+			action: "deliver",
+			reason: decision.reason,
+			signOff: buildReviewSignOff({ summary: input.submission.summary, insight: input.submission.insight }),
+			record,
+		};
+	}
+	if (decision.action === "bounce_to_worker") {
+		return {
+			action: "bounce_to_worker",
+			reason: decision.reason,
+			workerPrompt: buildReviewBouncePrompt({
+				round: input.round,
+				summary: input.submission.summary,
+				feedback: input.submission.feedback ?? "",
+			}),
+			record,
+		};
+	}
+	return { action: "park", reason: decision.reason, record };
+}
