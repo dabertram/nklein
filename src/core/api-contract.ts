@@ -110,7 +110,7 @@ export const runtimeAgentTimeoutProfileSchema = z.enum(["cloud", "local", "custo
 export type RuntimeAgentTimeoutProfile = z.infer<typeof runtimeAgentTimeoutProfileSchema>;
 export const runtimeLostHeartbeatPolicySchema = z.enum(["park", "keep_running"]);
 export type RuntimeLostHeartbeatPolicy = z.infer<typeof runtimeLostHeartbeatPolicySchema>;
-export const runtimeCodeEmbeddingProviderSchema = z.enum(["local_lexical", "openai_compatible"]);
+export const runtimeCodeEmbeddingProviderSchema = z.enum(["local_lexical", "openai_compatible", "local_gguf"]);
 export type RuntimeCodeEmbeddingProvider = z.infer<typeof runtimeCodeEmbeddingProviderSchema>;
 export const runtimeCodeEmbeddingSettingsSchema = z.object({
 	provider: runtimeCodeEmbeddingProviderSchema,

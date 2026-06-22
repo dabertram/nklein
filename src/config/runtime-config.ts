@@ -152,8 +152,11 @@ const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
 const DEFAULT_LOST_HEARTBEAT_POLICY: RuntimeLostHeartbeatPolicy = "park";
 const DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED = true;
 export const DEFAULT_CODE_EMBEDDING_SETTINGS: RuntimeCodeEmbeddingSettings = {
-	provider: "local_lexical",
-	model: "kanban-local-lexical-vector-v1",
+	// Zero-config default: an in-process GGUF embedder served by the Python core. It auto-downloads on first
+	// use and degrades to the lexical embedding when the core is disabled/unreachable, so behavior is unchanged
+	// until the core is enabled. `local_lexical` stays selectable as the explicit no-download fallback.
+	provider: "local_gguf",
+	model: "nomic-embed-text-v1.5",
 	baseUrl: null,
 };
 const DEFAULT_MAX_CONCURRENT_TASKS = 3;

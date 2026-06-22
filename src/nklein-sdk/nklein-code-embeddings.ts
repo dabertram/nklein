@@ -1,4 +1,13 @@
-export type NKleinCodeEmbeddingProviderKind = "local_lexical" | "openai_compatible";
+import { resolveKleinCorePyConfig } from "../config/klein-core-config";
+import {
+	DEFAULT_EMBEDDING_MODEL_MANIFEST,
+	type EmbeddingModelManagerOptions,
+	type EmbeddingModelManifest,
+	type EnsureEmbeddingModelResult,
+	ensureEmbeddingModel,
+} from "./nklein-embedding-model-manager";
+
+export type NKleinCodeEmbeddingProviderKind = "local_lexical" | "openai_compatible" | "local_gguf";
 export interface NKleinCodeEmbeddingSettings {
 	provider: NKleinCodeEmbeddingProviderKind;
 	model: string | null;
@@ -120,6 +129,83 @@ function createOpenAiCompatibleEmbeddingProvider(input: {
 	};
 }
 
+function readKleinCoreEmbedResponse(value: unknown): number[] | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const embeddings = (value as Record<string, unknown>).embeddings;
+	if (!Array.isArray(embeddings)) {
+		return null;
+	}
+	const first = embeddings[0];
+	if (!Array.isArray(first) || !first.every((entry) => typeof entry === "number")) {
+		return null;
+	}
+	return first;
+}
+
+/**
+ * Built-in zero-config code embedding: an in-process quantized GGUF model served by the Python core
+ * (`/v1/embed` with a host-downloaded `gguf_path`). The model is auto-downloaded on first use (one sanctioned
+ * fetch, lazily, once) and the dense vector is sparsified for the index. Any failure — sidecar unreachable,
+ * download/integrity failure, bad response — degrades to the lexical embedding for that call so indexing never
+ * hard-fails. Only constructed when the Python core is enabled; otherwise the lexical provider is used directly
+ * so the index's vectors and cache key stay consistently lexical.
+ */
+export function createLocalGgufEmbeddingProvider(input: {
+	sidecarUrl: string;
+	manifest?: EmbeddingModelManifest;
+	nThreads?: number | null;
+	fetchImpl?: typeof fetch;
+	ensureModel?: (
+		manifest: EmbeddingModelManifest,
+		options?: EmbeddingModelManagerOptions,
+	) => Promise<EnsureEmbeddingModelResult>;
+	managerOptions?: EmbeddingModelManagerOptions;
+}): NKleinCodeEmbeddingProvider {
+	const manifest = input.manifest ?? DEFAULT_EMBEDDING_MODEL_MANIFEST;
+	const sidecarUrl = input.sidecarUrl.replace(/\/+$/u, "");
+	const fetchImpl = input.fetchImpl ?? fetch;
+	const ensureModel = input.ensureModel ?? ensureEmbeddingModel;
+	let modelPathPromise: Promise<string> | null = null;
+	const ensureModelOnce = (): Promise<string> => {
+		if (!modelPathPromise) {
+			modelPathPromise = ensureModel(manifest, input.managerOptions).then((result) => result.modelPath);
+		}
+		return modelPathPromise;
+	};
+	return {
+		kind: "local_gguf",
+		model: manifest.id,
+		cacheKey: `local-gguf:${manifest.id}:${manifest.version}`,
+		async embed(text) {
+			try {
+				const ggufPath = await ensureModelOnce();
+				const response = await fetchImpl(`${sidecarUrl}/v1/embed`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						texts: [text],
+						gguf_path: ggufPath,
+						...(typeof input.nThreads === "number" ? { n_threads: input.nThreads } : {}),
+					}),
+				});
+				if (!response.ok) {
+					throw new Error(`Klein core /v1/embed failed with HTTP ${response.status}.`);
+				}
+				const embedding = readKleinCoreEmbedResponse(await response.json());
+				if (!embedding) {
+					throw new Error("Klein core /v1/embed returned an invalid embedding response.");
+				}
+				return vectorizeDenseEmbedding(embedding);
+			} catch {
+				// Degrade to lexical so indexing keeps working when the core/model is unavailable.
+				return vectorizeSparseTokens(text);
+			}
+		},
+	};
+}
+
 export function createNKleinCodeEmbeddingProvider(env: NodeJS.ProcessEnv = process.env): NKleinCodeEmbeddingProvider {
 	if (env.KANBAN_CODE_EMBEDDING_PROVIDER?.trim() === "openai-compatible") {
 		return (
@@ -129,6 +215,12 @@ export function createNKleinCodeEmbeddingProvider(env: NodeJS.ProcessEnv = proce
 				apiKey: env.KANBAN_CODE_EMBEDDING_API_KEY,
 			}) ?? createLocalLexicalEmbeddingProvider()
 		);
+	}
+	if (env.KANBAN_CODE_EMBEDDING_PROVIDER?.trim() === "local-gguf") {
+		const core = resolveKleinCorePyConfig(env);
+		if (core.enabled) {
+			return createLocalGgufEmbeddingProvider({ sidecarUrl: core.sidecarUrl });
+		}
 	}
 	return createLocalLexicalEmbeddingProvider();
 }
@@ -145,6 +237,14 @@ export function createNKleinCodeEmbeddingProviderFromSettings(
 				apiKey: env.KANBAN_CODE_EMBEDDING_API_KEY,
 			}) ?? createLocalLexicalEmbeddingProvider()
 		);
+	}
+	if (settings.provider === "local_gguf") {
+		const core = resolveKleinCorePyConfig(env);
+		// The dense GGUF path needs the Python core; without it, stay honestly lexical (consistent vectors/key).
+		if (!core.enabled) {
+			return createLocalLexicalEmbeddingProvider();
+		}
+		return createLocalGgufEmbeddingProvider({ sidecarUrl: core.sidecarUrl });
 	}
 	return createLocalLexicalEmbeddingProvider();
 }
