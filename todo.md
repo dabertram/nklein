@@ -531,10 +531,14 @@ deep analysis:
 > global/cross-project AND a **full host-access mode**, etc. (the §5.M execution modes become selectable session
 > modes). **Messenger routing = one session per thread.** **Messenger scope:** Signal first (signal-cli), then
 > **WhatsApp** once the base works + is polished; transport-agnostic bridge so both (and more later) plug in.
-> **Use-case preset menu — being chosen now (chat 2026-06-23, multi-select):** access scopes {project-sandboxed
-> coder (default), all-loaded-projects pilot, host-access power session, mobile (Signal/WhatsApp) thread} + roles
-> {planner/architect, reviewer (reuse §5.K), debugger/incident, researcher (web/browser per §5.L tiers)}; base
-> always-on = coding + board operation. Finalize the selected set, then build the unified agent + presets.
+> **Use-case presets — SELECTED (user, 2026-06-23):** base always-on = coding + board operation. **Access scopes:**
+> (1) project-sandboxed coder (default), (2) all-loaded-projects pilot, (3) host-access power session (typed-confirm,
+> logged). [Mobile is a *transport*, not a scope — the bridge routes to sessions regardless.] **Roles:**
+> planner/architect (can spin board cards via decompose_project), reviewer (reuse §5.K), debugger/incident,
+> researcher (web/browser per §5.L tiers), and **system operator** — a host-level persona that analyzes machine
+> issues, optimizes/configures "things", and can drive apps/tools (pairs with the host-access scope; gated behind
+> the typed host-mode confirmation; always logged; the autonomous swarm never gets it). Presets compose scope ×
+> role; build the unified agent so a session turns these on/off.
 - [ ] **Chat session model & store (decoupled from the board).** Board-independent chat sessions with persisted
       transcripts and stable ids; **multiple concurrent sessions**; not represented as kanban cards. New session
       store + lifecycle, separate from the task/board state.
