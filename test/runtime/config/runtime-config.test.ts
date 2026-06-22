@@ -237,6 +237,48 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("preserves a role's additionalModels pool across load/save (#4 model pools)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-pool-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-pool-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
+				mkdirSync(runtimeConfigDir, { recursive: true });
+				writeFileSync(
+					join(runtimeConfigDir, "config.json"),
+					JSON.stringify({
+						modelRoles: {
+							worker: {
+								providerId: "lmstudio",
+								modelId: "qwen3.5-9b",
+								additionalModels: [
+									{ providerId: "lmstudio", modelId: "qwen3.6-35b" },
+									{ providerId: "lmstudio", modelId: "gemma-4-26b" },
+								],
+							},
+						},
+					}),
+					"utf8",
+				);
+				const loaded = await loadRuntimeConfig(tempProject);
+				expect(loaded.modelRoles.worker?.modelId).toBe("qwen3.5-9b");
+				expect(loaded.modelRoles.worker?.additionalModels?.map((entry) => entry.modelId)).toEqual([
+					"qwen3.6-35b",
+					"gemma-4-26b",
+				]);
+
+				// Updating an unrelated field preserves the pool.
+				await updateRuntimeConfig(tempProject, { maxConcurrentTasks: 4 });
+				const after = await loadRuntimeConfig(tempProject);
+				expect(after.modelRoles.worker?.additionalModels).toHaveLength(2);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults agentRulesets to fully_open and preserves a persisted ruleset across config updates", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-rulesets-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-rulesets-");

@@ -1243,31 +1243,41 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
 					guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
 					for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
-						if (!settings.providerId && !settings.modelId) {
-							continue;
-						}
-						try {
-							const roleLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
-								providerIdOverride: settings.providerId ?? undefined,
-								modelIdOverride: settings.modelId ?? undefined,
-								reasoningEffortOverride: settings.reasoningEffort ?? null,
-							});
-							const roleCandidate = buildNKleinStartGuardCandidate({
-								launchConfig: roleLaunchConfig,
-								role,
-								modelRegistry: modelRegistrySnapshot,
-							});
-							guardCandidates.set(roleCandidate.entry.key, roleCandidate);
-						} catch (error) {
-							if (isNKleinContextWindowPolicyError(error)) {
-								return {
-									ok: false,
-									summary: null,
-									error: error.message,
-									errorCode: "routing_escalation",
-								};
+						// #4 model pools: a role contributes its primary model plus every member of its additionalModels
+						// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.
+						const roleModels = [
+							{ model: settings, primary: true },
+							...(settings.additionalModels ?? []).map((model) => ({ model, primary: false })),
+						];
+						for (const { model, primary } of roleModels) {
+							if (!model.providerId && !model.modelId) {
+								continue;
 							}
-							// Ignore roles that are not currently runnable; the configured default still participates.
+							try {
+								const roleLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
+									providerIdOverride: model.providerId ?? undefined,
+									modelIdOverride: model.modelId ?? undefined,
+									reasoningEffortOverride: model.reasoningEffort ?? null,
+								});
+								const roleCandidate = buildNKleinStartGuardCandidate({
+									launchConfig: roleLaunchConfig,
+									role,
+									modelRegistry: modelRegistrySnapshot,
+								});
+								guardCandidates.set(roleCandidate.entry.key, roleCandidate);
+							} catch (error) {
+								// The primary role model keeps the fatal-on-context-policy behavior; an over-budget or
+								// unrunnable *pool* member is skipped so the rest of the role's models still participate.
+								if (primary && isNKleinContextWindowPolicyError(error)) {
+									return {
+										ok: false,
+										summary: null,
+										error: error.message,
+										errorCode: "routing_escalation",
+									};
+								}
+								// Ignore role models that are not currently runnable; the configured default still participates.
+							}
 						}
 					}
 					const preferredCandidate = body.startInPlanMode

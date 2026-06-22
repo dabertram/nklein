@@ -16,10 +16,12 @@ import type {
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
+	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	agentRulesetsConfigSchema,
 	runtimeCodeEmbeddingSettingsSchema,
+	runtimeRoleModelSettingsSchema,
 	runtimeTaskNKleinSettingsSchema,
 } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
@@ -411,29 +413,41 @@ function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 		if (!role) {
 			continue;
 		}
-		const parsedSettings = runtimeTaskNKleinSettingsSchema.safeParse(rawSettings);
+		const parsedSettings = runtimeRoleModelSettingsSchema.safeParse(rawSettings);
 		if (!parsedSettings.success) {
 			continue;
 		}
 		const settings = parsedSettings.data;
-		const providerId = settings.providerId?.trim();
-		const modelId = settings.modelId?.trim();
+		const additionalModels = (settings.additionalModels ?? [])
+			.map((entry) => pickNKleinSettingsFields(entry))
+			.filter((entry) => entry.providerId || entry.modelId);
 		normalized[role] = {
-			...(providerId ? { providerId } : {}),
-			...(modelId ? { modelId } : {}),
-			...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
-			...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
-			...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
-			...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
-			...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
-			...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
-			...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
-			...(settings.conversationTimeoutMs !== undefined
-				? { conversationTimeoutMs: settings.conversationTimeoutMs }
-				: {}),
+			...pickNKleinSettingsFields(settings),
+			...(additionalModels.length > 0 ? { additionalModels } : {}),
 		};
 	}
 	return normalized;
+}
+
+// Rebuild a NKlein settings object keeping only the known fields with truthy/defined values, so persisted
+// config never carries stray keys. Shared by a role's primary model and each of its pool members.
+function pickNKleinSettingsFields(settings: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings {
+	const providerId = settings.providerId?.trim();
+	const modelId = settings.modelId?.trim();
+	return {
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
+		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
+		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
+		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
+		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
+		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
+		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
+		...(settings.conversationTimeoutMs !== undefined
+			? { conversationTimeoutMs: settings.conversationTimeoutMs }
+			: {}),
+	};
 }
 
 function areModelRolesEqual(left: RuntimeModelRoles, right: RuntimeModelRoles): boolean {

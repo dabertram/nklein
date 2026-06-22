@@ -140,7 +140,14 @@ export const runtimeTaskNKleinSettingsSchema = z.object({
 	conversationTimeoutMs: runtimeTimeoutMsSchema.optional(),
 });
 export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettingsSchema>;
-export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeTaskNKleinSettingsSchema);
+// A role's model config = its primary model settings plus an optional pool of `additionalModels`. When the pool
+// is non-empty the role can run on more than one model; task-start fans out across the free, capability-feasible
+// members (see #4). Empty/absent `additionalModels` = the historical single-model-per-role behavior, unchanged.
+export const runtimeRoleModelSettingsSchema = runtimeTaskNKleinSettingsSchema.extend({
+	additionalModels: z.array(runtimeTaskNKleinSettingsSchema).optional(),
+});
+export type RuntimeRoleModelSettings = z.infer<typeof runtimeRoleModelSettingsSchema>;
+export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeRoleModelSettingsSchema);
 export type RuntimeModelRoles = z.infer<typeof runtimeModelRolesSchema>;
 
 // Per-role agent rulesets — two independent tiered dials (capability + delivery autonomy). Tier enums are
