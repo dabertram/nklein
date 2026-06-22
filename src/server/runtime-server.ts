@@ -8,7 +8,8 @@ import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-co
 import {
 	capabilitiesForTier,
 	DEFAULT_AGENT_CAPABILITY_TIER,
-	resolveEffectiveAgentRuleset,
+	deliveryPolicyForTier,
+	resolveEffectiveDeliveryTier,
 } from "../core/agent-rulesets";
 import type {
 	RuntimeAgentSandboxStatus,
@@ -544,7 +545,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							.then((changes) => changes.files.map((file) => file.path))
 							.catch(() => [] as string[]);
 						const deliveryDecision = decideDeliveryAction(
-							resolveEffectiveAgentRuleset(deliveryConfig?.agentRulesets, "worker").delivery,
+							deliveryPolicyForTier(
+								resolveEffectiveDeliveryTier(deliveryConfig?.agentRulesets?.delivery, "worker", {
+									cardTier: deliveryCard?.deliveryTierOverride ?? null,
+								}),
+							),
 							{
 								reviewApproved: true,
 								testsPassed: true,

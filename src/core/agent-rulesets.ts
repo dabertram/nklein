@@ -200,6 +200,34 @@ export function resolveDeliveryTier(config: AgentDeliveryRulesetConfig | undefin
 	return resolveTier(config, role, DEFAULT_AGENT_DELIVERY_TIER);
 }
 
+/** Narrower-scope delivery-tier overrides layered above the global/role resolution. Each is a full tier pick. */
+export interface DeliveryTierScopeOverrides {
+	/** Project-level override: applies to every card in the project unless the card overrides it. */
+	projectTier?: AgentDeliveryTier | null;
+	/** Card-level override: the narrowest scope, wins over project and global/role. */
+	cardTier?: AgentDeliveryTier | null;
+}
+
+/**
+ * Resolve the effective delivery tier with scope precedence: **card > project > (role override > global preset >
+ * default)** (todo §5.L: "user can adapt in global settings and per project and per card"). Card and project
+ * overrides are whole-tier picks; when both are absent the existing global/role resolution
+ * ({@link resolveDeliveryTier}) applies unchanged, so a config with no scope overrides behaves exactly as before.
+ */
+export function resolveEffectiveDeliveryTier(
+	config: AgentDeliveryRulesetConfig | undefined,
+	role: string,
+	overrides?: DeliveryTierScopeOverrides,
+): AgentDeliveryTier {
+	if (overrides?.cardTier) {
+		return overrides.cardTier;
+	}
+	if (overrides?.projectTier) {
+		return overrides.projectTier;
+	}
+	return resolveDeliveryTier(config, role);
+}
+
 export interface EffectiveAgentRuleset {
 	role: string;
 	capabilityTier: AgentCapabilityTier;

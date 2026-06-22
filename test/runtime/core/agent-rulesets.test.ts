@@ -14,6 +14,7 @@ import {
 	resolveCapabilityTier,
 	resolveDeliveryTier,
 	resolveEffectiveAgentRuleset,
+	resolveEffectiveDeliveryTier,
 	sandboxNetworkHasEgress,
 } from "../../../src/core/agent-rulesets";
 import { agentRulesetsConfigSchema } from "../../../src/core/api-contract";
@@ -179,5 +180,42 @@ describe("agent-rulesets egress + tool access", () => {
 			headlessBrowser: false,
 			mcp: "local",
 		});
+	});
+});
+
+describe("resolveEffectiveDeliveryTier (card > project > global/role precedence)", () => {
+	const config: AgentRulesetsConfig = {
+		capability: { globalPreset: "medium" },
+		delivery: { globalPreset: "medium", roleOverrides: { worker: "less_strict" } },
+	};
+
+	it("falls back to the global/role resolution when no scope overrides are given", () => {
+		expect(resolveEffectiveDeliveryTier(config.delivery, "worker")).toBe("less_strict");
+		expect(resolveEffectiveDeliveryTier(config.delivery, "reviewer")).toBe("medium");
+		expect(resolveEffectiveDeliveryTier(config.delivery, "worker", {})).toBe("less_strict");
+	});
+
+	it("lets a project override win over the global/role tier", () => {
+		expect(resolveEffectiveDeliveryTier(config.delivery, "worker", { projectTier: "strict" })).toBe("strict");
+	});
+
+	it("lets a card override win over project and global/role", () => {
+		expect(
+			resolveEffectiveDeliveryTier(config.delivery, "worker", { projectTier: "strict", cardTier: "fully_open" }),
+		).toBe("fully_open");
+	});
+
+	it("treats null/absent scope overrides as unset", () => {
+		expect(resolveEffectiveDeliveryTier(config.delivery, "worker", { projectTier: null, cardTier: null })).toBe(
+			"less_strict",
+		);
+		expect(resolveEffectiveDeliveryTier(config.delivery, "worker", { cardTier: null, projectTier: "strict" })).toBe(
+			"strict",
+		);
+	});
+
+	it("uses the built-in default when config is undefined and no override applies", () => {
+		expect(resolveEffectiveDeliveryTier(undefined, "worker")).toBe(DEFAULT_AGENT_DELIVERY_TIER);
+		expect(resolveEffectiveDeliveryTier(undefined, "worker", { cardTier: "strict" })).toBe("strict");
 	});
 });

@@ -275,6 +275,9 @@ export const runtimeBoardCardSchema = z
 		startInPlanMode: z.boolean(),
 		review: runtimeCardReviewSchema.optional(),
 		focusChain: runtimeFocusChainSchema.optional(),
+		// Per-card delivery-autonomy override (todo §5.L): when set, wins over the project + global/role delivery
+		// tier at the auto-delivery gate. Additive optional field (CRDT whole-object LWW), so older boards load as-is.
+		deliveryTierOverride: agentDeliveryTierSchema.optional(),
 		autoReviewEnabled: z.boolean().optional(),
 		autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
 		autoReviewStatus: z.enum(["running", "failed"]).optional(),
