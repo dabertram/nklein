@@ -5,7 +5,11 @@ import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
-import { capabilitiesForTier, DEFAULT_AGENT_CAPABILITY_TIER } from "../core/agent-rulesets";
+import {
+	capabilitiesForTier,
+	DEFAULT_AGENT_CAPABILITY_TIER,
+	resolveEffectiveAgentRuleset,
+} from "../core/agent-rulesets";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
@@ -15,6 +19,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { readPausedTasks } from "../core/card-pause";
+import { decideDeliveryAction } from "../core/delivery-decision";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -38,6 +43,7 @@ import {
 	createInMemoryNKleinTaskSessionService,
 	type NKleinTaskSessionService,
 } from "../nklein-sdk/nklein-task-session-service";
+import { isTrustedAutoMergeProtectedPath } from "../nklein-sdk/nklein-trusted-auto-merge";
 import { createNKleinWatcherRegistry } from "../nklein-sdk/nklein-watcher-registry";
 import {
 	buildSessionCookieHeader,
@@ -63,7 +69,8 @@ import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
 import { createRuntimeTaskStartQueue, type RuntimeTaskStartQueue } from "../trpc/runtime-task-start-queue";
 import { createWorkspaceApi } from "../trpc/workspace-api";
-import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
+import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
+import { createTaskResultBranchRef, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
@@ -518,6 +525,39 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					}
 
 					if (sandboxResult !== "empty_patch") {
+						// Delivery-autonomy gate (todo §5.L): the resolved delivery tier + safety gates decide whether
+						// this card auto-merges. Self-merge IS allowed (2026-06-23 decision) at the open tiers; a diff that
+						// touches protected safety paths always holds. Acceptance ran upstream (hub auto-repair) and the
+						// review didn't bounce/park, so tests + review are treated as passed here; regression delta is not
+						// yet measured (null → self-merge only at the most-open tier). Any non-merge action (manual / commit
+						// / open_pr) leaves the card in Review for now; auto-commit/PR + regression + per-project/card
+						// overrides are follow-ups. On any resolution error we fall through to the prior merge behavior.
+						const deliveryConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+						const deliveryCard = reviewState.board.columns
+							.flatMap((column) => column.cards)
+							.find((c) => c.id === taskId);
+						const changedFiles = await getWorkspaceChangesBetweenRefs({
+							cwd: scope.workspacePath,
+							fromRef: deliveryCard?.baseRef ?? "HEAD",
+							toRef: createTaskResultBranchRef(taskId),
+						})
+							.then((changes) => changes.files.map((file) => file.path))
+							.catch(() => [] as string[]);
+						const deliveryDecision = decideDeliveryAction(
+							resolveEffectiveAgentRuleset(deliveryConfig?.agentRulesets, "worker").delivery,
+							{
+								reviewApproved: true,
+								testsPassed: true,
+								regressionDelta: null,
+								hasProtectedPathChanges: changedFiles.some(isTrustedAutoMergeProtectedPath),
+							},
+						);
+						if (deliveryDecision.action !== "merge") {
+							deps.warn(
+								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,
+							);
+							return;
+						}
 						const mergeResult = await mergeTaskWorktreesInDependencyOrder({
 							repoPath: scope.workspacePath,
 							board: reviewState.board,

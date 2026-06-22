@@ -501,12 +501,14 @@ deep analysis:
 - [~] **Delivery gate:** `decideDeliveryAction` core built + tested (tier × gates → commit/PR/merge/self-merge).
       **DECISION (user, 2026-06-23): self-merge is ALLOWED.** This resolves the old §5.J "self-merge stays off"
       tension — self-merge is on at the open tiers, and the user can adapt it in **global settings, per project,
-      and per card**. **Remaining:** (1) wire `decideDeliveryAction` at the live delivery point
-      (`finalizeHeadlessAutoReviewTask` — it currently merges unconditionally; gate it on the resolved policy +
-      gates: review-approved [from §5.K], tests/acceptance green, protected-path-free via `evaluateTrustedAutoMerge`,
-      regression delta), performing manual / commit-to-branch / open-PR / merge(+self-merge) accordingly; (2) the
-      **per-project + per-card** delivery-tier overrides (config plumbing + UI), on top of the existing global
-      preset. Verifiable live.
+      and per card**. **WIRED (core):** `finalizeHeadlessAutoReviewTask` resolves the delivery policy
+      (`resolveEffectiveAgentRuleset(...).delivery`) and calls `decideDeliveryAction` before auto-merging — gates:
+      review-approved (true here since review didn't bounce/park), tests (acceptance ran upstream), protected-path
+      (via `isTrustedAutoMergeProtectedPath` over the result-branch changed files), regression (null for now). Only
+      `merge` proceeds to the auto-merge; `manual`/`commit`/`open_pr` hold the card in Review with the reason logged.
+      Default `fully_open` → merge (incl. self-merge); a protected-path change holds. **Remaining:** (1) auto-perform
+      `commit`-to-branch / `open_pr` (today they hold in Review); (2) a measured **regression delta**; (3)
+      **per-project + per-card** delivery-tier overrides (config plumbing + UI) on top of the global preset.
 - [ ] **Settings UI + config write-path:** global preset picker + per-role tier overrides for both dials (default
       fully_open), + thread `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` so the UI can
       save tier changes (read/preserve already work). Make clear Docker isolation + cloud lockdown never relax.
