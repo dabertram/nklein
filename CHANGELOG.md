@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Swarm fan-out across free models (todo §5.L / #4): when a task starts and its preferred model is already busy running another task, the runtime now routes it to a free, capability- and context-feasible alternative instead of queueing — so parallel tasks spread across the available local models. Single-model setups and the configured per-role preference (e.g. the architect model for plan-mode) are unchanged whenever the preferred model is free; the fan-out only triggers under contention. Built on the unit-tested `selectRoleModel` core (free-first, difficulty/context-gated).
+
 - Settings → Tasks now has an **Agent Capabilities & Autonomy** section: pick the capability tier (sandbox network/tools) and the delivery-autonomy tier (how far commit→PR→merge proceeds), each with a plain-language description of the selected tier. Saves through the runtime config and is read back on reload. Both default to **fully open**; the section notes that Docker isolation and the local-models-only lockdown never relax at any tier. (Per-role overrides — already supported by the config/core — are a follow-up; this exposes the global presets.)
 
 - When a weak local model repeatedly calls `decompose_project` with **empty arguments** (it plans the whole decomposition in its reasoning channel but never emits it as the tool's JSON arguments, so nothing decomposes), the repeated-tool-call guard now parks with a **diagnostic** message naming the real cause and remedy — switch the Architect/planning role to a more capable model, or reduce scope — instead of the generic "same input" notice. (Observed live with a 26B local model that reasoned a full plan, then emitted `{}` three times.)

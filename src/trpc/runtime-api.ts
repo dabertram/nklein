@@ -62,6 +62,7 @@ import {
 import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { selectRoleModel } from "../core/role-model-selection";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { moveTaskToColumn } from "../core/task-board-mutations";
 import {
@@ -1283,12 +1284,46 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
 							.filter((contextWindow) => contextWindow > 0)
 							.sort((left, right) => right - left)[0] ?? null;
+					// #4 swarm fan-out: when several candidates are feasible, prefer one that is not currently busy so
+					// parallel tasks spread across free models instead of all queueing on the single smallest-sufficient
+					// one. Fully fallback-safe — with a single candidate this resolves to that candidate (no change), and
+					// when no free feasible candidate exists the preferred candidate below is used unchanged.
+					const runningModelKeys = new Set(
+						nkleinTaskSessionService
+							.listModelEndpointSessions()
+							.filter((session) => session.state === "running")
+							.map((session) =>
+								buildNKleinModelRegistryKey({
+									providerId: session.providerId,
+									modelId: session.modelId,
+									endpoint: session.endpoint,
+								}),
+							),
+					);
+					const freeFirstSelection = selectRoleModel({
+						candidates: [...guardCandidates.values()].map((candidate) => ({
+							modelKey: candidate.entry.key,
+							capability: candidate.entry.capability.effectiveScore,
+							contextWindow: candidate.entry.contextWindow.effective ?? 0,
+							predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+							isFree: !runningModelKeys.has(candidate.entry.key),
+						})),
+						difficulty: estimateNKleinStartDifficulty(promptTokens),
+						requiredContextTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+						weighting: "efficient",
+					});
+					const freeFirstModelKey =
+						runningModelKeys.has(preferredCandidate.entry.key) &&
+						freeFirstSelection.type === "assign" &&
+						!freeFirstSelection.busyFallback
+							? freeFirstSelection.modelKey
+							: null;
 					const routingDecision = routeNKleinTask({
 						difficulty: estimateNKleinStartDifficulty(promptTokens),
 						fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
 						promptTokens,
 						outputTokens: 1_000,
-						preferredModelKey: preferredCandidate.entry.key,
+						preferredModelKey: freeFirstModelKey ?? preferredCandidate.entry.key,
 						candidates: [...guardCandidates.values()].map((candidate) => ({
 							entry: candidate.entry,
 							role: candidate.role,
