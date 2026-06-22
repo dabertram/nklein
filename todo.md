@@ -554,6 +554,37 @@ deep analysis:
       action, and the Signal access-control are first-class and tested. No host action without the user's explicit
       (double / typed) confirmation; the autonomous swarm path can never reach these host capabilities.
 
+### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
+> **Goal (user):** give **every** agent a *focus chain* — an agent-authored, ordered checklist it creates at the
+> **start of each task** and then works through step by step, like the latest Cline bot and similar agents. It
+> keeps a (small) model on-task across long runs, makes the plan-of-attack and live progress legible to the user,
+> and survives turn/compaction boundaries. Applies to **all roles** (Architect/planning, Worker, Reviewer), the
+> **native kanban agent**, and the planned **chat agents** (§5.M). Needs a **nice visual representation — a todo
+> list** (checklist with done / in-progress / pending), not just text in the transcript.
+> **Distinction:** this is *intra-task* self-direction (the agent's own steps for one card/turn-loop), distinct
+> from `decompose_project` (which splits a project into multiple **board cards**). A focus chain lives inside a
+> single task/chat session.
+- [ ] **Focus-chain model & store.** A persisted, ordered list of steps per task (and per chat session) — each
+      step has text + status (`pending`/`in_progress`/`done`, maybe `skipped`) + ordering. Persist it (board card
+      field and/or a sibling store) so it survives turns, restarts, and context compaction, and round-trips in the
+      workspace state contract. Keep it cheap (small models, ≥32k floor).
+- [ ] **Agent tool to create/update the chain.** A structured tool (à la `decompose_project` / `submit_review`)
+      the agent calls to **create** the chain at task start and **update** it as it works (check off a step, add /
+      reorder / revise steps, mark the current one in-progress). Reuse the relaxed-input-schema + short-directive
+      error handling proven for the other NKlein tools so small models use it reliably. Consider a re-prompt nudge
+      (like decomposition) if a task starts without one.
+- [ ] **Wire into every agent surface.** Seed the create-a-focus-chain expectation into the per-task system/seed
+      prompts for **Architect, Worker, Reviewer**, the **native kanban agent**, and the **chat agents** (§5.M).
+      Each begins a task by drafting its chain, then works it; the reviewer can also check whether the worker
+      actually followed/owned its chain. Cohere with the existing efficiency/brevity rules.
+- [ ] **Visual representation (todo list).** A clear checklist UI: on the card detail / Watch panel for board
+      tasks (live updates as steps flip to done), and in the chat surface for chat agents. Use the design-system
+      checklist styling (done/in-progress/pending states), with per-control tooltips (§5.L-style). Should read at a
+      glance like a todo list, updating in real time.
+- [ ] **Reference & parity.** Mirror the ergonomics of Cline's "focus chain" / markdown task-list and comparable
+      agent todo lists (Claude Code / Cursor): the agent maintains and visibly works through the list; the user can
+      follow progress and (later, optional) nudge/edit it.
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
   operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed
