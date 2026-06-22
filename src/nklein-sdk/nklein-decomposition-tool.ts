@@ -173,6 +173,50 @@ const decomposeProjectStringifiedExpansionsJsonSchema = {
 		"JSON-stringified recursive replacement map; accepted for small models that stringify nested expansion objects.",
 } as const;
 
+function relaxJsonSchemaNode(node: unknown): unknown {
+	if (Array.isArray(node)) {
+		return node.map(relaxJsonSchemaNode);
+	}
+	if (node === null || typeof node !== "object") {
+		return node;
+	}
+	const result: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+		if (key === "required") {
+			continue;
+		}
+		if (key === "additionalProperties") {
+			// Drop the closed-object boolean form; relax a schema-valued additionalProperties (e.g. the
+			// expansions map's task-array value schema) in place rather than dropping it.
+			if (typeof value !== "boolean") {
+				result[key] = relaxJsonSchemaNode(value);
+			}
+			continue;
+		}
+		result[key] = relaxJsonSchemaNode(value);
+	}
+	if (result.type === "object" && result.additionalProperties === undefined) {
+		result.additionalProperties = true;
+	}
+	return result;
+}
+
+/**
+ * Deep-relax a JSON Schema for the SDK tool boundary so the SDK never pre-rejects a model's call before our
+ * handler runs. The SDK validates the WHOLE inputSchema tree up front and answers ANY violation — a typo'd or
+ * missing key at any depth (e.g. `acceptenceCommand` on a task, or an omitted `title`) — with a multi-KB raw
+ * Zod dump that small local models cannot recover from (they spiral into empty `{}` retries) and that bypasses
+ * our in-handler JSON repair + compact errors. We keep the strict literals above as documentation of intent but
+ * strip every `required` and open `additionalProperties` on every object node before handing the schema to the
+ * SDK; the in-handler zod schemas (`decomposeProjectToolInputSchema` / `nkleinPlanTaskSchema`) are the real
+ * validators (they require id/title/prompt with compact errors and strip unknown keys, so a typo'd
+ * `acceptanceCommand` simply falls back to `defaultAcceptanceCommand`). The `properties` descriptions are
+ * preserved, so the model still gets schema guidance.
+ */
+function toPermissiveAgentInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
+	return relaxJsonSchemaNode(schema) as Record<string, unknown>;
+}
+
 const decomposeProjectToolInputSchema = nkleinPlanTaskGraphSchema
 	.pick({
 		title: true,
@@ -1137,7 +1181,10 @@ function createDecomposeProjectTool(
 		name: "decompose_project",
 		description:
 			"Validate and persist !Klein decomposition artifacts for a project-scale idea. Use this instead of editing .nklein/nklein plan files or tasks.json directly.",
-		inputSchema: {
+		// The strict JSON Schema below documents the intended shape; toPermissiveAgentInputSchema relaxes it
+		// (strips `required`, opens `additionalProperties`) so the SDK never pre-rejects a small model's call
+		// before our handler can return a compact, recoverable error. See toPermissiveAgentInputSchema.
+		inputSchema: toPermissiveAgentInputSchema({
 			type: "object",
 			properties: {
 				slug: { type: "string", description: "Short stable plan slug, for example habit-insights." },
@@ -1200,16 +1247,9 @@ function createDecomposeProjectTool(
 						"Optional recursive replacement map. May be an object or a JSON-stringified object. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. !Klein expands these before validation and rewrites dependencies to terminal replacement leaves.",
 				},
 			},
-			// Intentionally permissive at the SDK boundary: NO `required` and `additionalProperties: true`.
-			// The SDK validates inputSchema *before* execute() runs and answers a violation with a multi-KB
-			// raw Zod dump that small local models cannot recover from (they spiral into empty `{}` retries) and
-			// that burns the context budget — and it bypasses our in-handler JSON repair. We instead let every
-			// call reach execute() and validate in `normalizeDecomposeProjectToolInput`, which throws a short,
-			// directive message. Do not re-add `required`/`additionalProperties: false` here. The `properties`
-			// descriptions still guide the model.
-			required: [],
-			additionalProperties: true,
-		},
+			required: ["slug", "spec", "plan", "title", "tasks"],
+			additionalProperties: false,
+		}),
 		async execute(input) {
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(input);

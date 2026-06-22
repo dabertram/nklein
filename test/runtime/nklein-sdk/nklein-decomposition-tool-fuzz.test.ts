@@ -173,3 +173,49 @@ describe("decompose_project malformed-call recovery", () => {
 		await expectShortRejection(basePayload({ slug: "   " }), /missing required fields[\s\S]*slug/i);
 	});
 });
+
+/**
+ * The SDK validates the tool's inputSchema BEFORE our handler runs. If any node in that tree is a closed object
+ * (`additionalProperties: false`) or has `required`, the SDK pre-rejects a slightly-malformed call with a raw
+ * Zod dump that bypasses our recoverable in-handler errors. So the *wired* boundary schema must be permissive at
+ * every depth — top-level, task items, and questions — while preserving the expansions map's value schema.
+ */
+describe("decompose_project SDK boundary schema is permissive at every depth", () => {
+	function getInputSchema(): Record<string, any> {
+		const tool = createNKleinDecompositionTools({ workspacePath: "/tmp/nklein-schema-probe" }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) {
+			throw new Error("Missing decompose_project tool");
+		}
+		return tool.inputSchema as Record<string, any>;
+	}
+
+	function expectOpenObject(node: Record<string, any> | undefined): void {
+		expect(node).toBeDefined();
+		expect(node?.type).toBe("object");
+		expect(node?.required).toBeUndefined();
+		expect(node?.additionalProperties).not.toBe(false);
+	}
+
+	it("leaves the top-level object open", () => {
+		expectOpenObject(getInputSchema());
+	});
+
+	it("leaves nested task items open (so a typo'd or missing task field cannot pre-reject)", () => {
+		const taskItems = getInputSchema().properties.tasks.anyOf[0].items;
+		expectOpenObject(taskItems);
+		// Descriptions are preserved so the model still gets guidance.
+		expect(taskItems.properties.id).toBeDefined();
+	});
+
+	it("leaves nested questions items open", () => {
+		expectOpenObject(getInputSchema().properties.questions.items);
+	});
+
+	it("preserves the expansions map's value schema rather than dropping it", () => {
+		const expansions = getInputSchema().properties.expansions.anyOf[0];
+		// `additionalProperties` here is the map's VALUE schema (a task array), not a closed-object flag.
+		expect(typeof expansions.additionalProperties).toBe("object");
+	});
+});
