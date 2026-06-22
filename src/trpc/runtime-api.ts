@@ -5,11 +5,12 @@
 
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
+import { resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
@@ -79,6 +80,11 @@ import {
 } from "../nklein-sdk/nklein-context-window-policy";
 import { applyNKleinPlanTaskGraphToBoard } from "../nklein-sdk/nklein-decomposition-tool";
 import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
+import {
+	DEFAULT_EMBEDDING_MODEL_MANIFEST,
+	getEmbeddingModelPath,
+	isEmbeddingModelInstalled,
+} from "../nklein-sdk/nklein-embedding-model-manager";
 import { scheduleNKleinEndpointStart } from "../nklein-sdk/nklein-endpoint-scheduler";
 import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
 import {
@@ -1944,6 +1950,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									? codeIndexResult.reason.message
 									: String(codeIndexResult.reason),
 						};
+			let embeddingModelFile: {
+				modelId: string;
+				label: string;
+				installed: boolean;
+				sizeBytes: number | null;
+				coreEnabled: boolean;
+			} | null = null;
+			if (runtimeConfig.effectiveCodeEmbeddingSettings.provider === "local_gguf") {
+				const manifest = DEFAULT_EMBEDDING_MODEL_MANIFEST;
+				const installed = await isEmbeddingModelInstalled(manifest);
+				const sizeBytes = installed
+					? await stat(getEmbeddingModelPath(manifest))
+							.then((info) => info.size)
+							.catch(() => null)
+					: null;
+				embeddingModelFile = {
+					modelId: manifest.id,
+					label: manifest.label,
+					installed,
+					sizeBytes,
+					coreEnabled: resolveKleinCorePyConfig().enabled,
+				};
+			}
 			return {
 				codeEmbeddingSettings: {
 					globalDefaults: runtimeConfig.codeEmbeddingDefaults,
@@ -1951,6 +1980,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					effective: runtimeConfig.effectiveCodeEmbeddingSettings,
 					source: runtimeConfig.codeEmbeddingOverride ? ("project" as const) : ("global" as const),
 				},
+				embeddingModelFile,
 				repoMap,
 				codeIndex,
 			};

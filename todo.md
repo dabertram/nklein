@@ -236,11 +236,10 @@ deep analysis:
 > Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a
 > local-only Python core sidecar (`core-py/`, FastAPI) and a TS-native agent core (`src/agent-core/`). Shipped so
 > far (see §6.10); the open edges:
-- [ ] **Decide the embedding story end-to-end (ties to §5.I-1).** Today code embeddings are only `local_lexical`
-      (in-process lexical hashing) or `openai_compatible` (external endpoint). The Python core's `/v1/embed` is
-      lexical-or-`sentence-transformers`, and is **not** wired as the app's code-embedding provider. There is no
-      llama.cpp embedding and no GGUF embedding auto-download. Pick the target (see §5.I-1) and wire it through
-      `runtimeCodeEmbeddingProviderSchema` ([src/core/api-contract.ts](src/core/api-contract.ts)).
+- [x] **Decide the embedding story end-to-end (ties to §5.I-1)** *(2026-06-22)*. Resolved: `local_gguf`
+      (nomic-embed-text-v1.5) served in-process by the Python core's `llama-cpp-python` `embedding=True` backend,
+      auto-downloaded host-side, wired through `runtimeCodeEmbeddingProviderSchema` as the default, degrading to
+      `local_lexical` when the core is off. See §5.I-1 for the shipped detail.
 - [ ] **Promote the native agent core path** (`src/agent-core/`) from "one supported runtime" toward a
       first-class local option, keeping strict isolation for its data-plane tools. Define when the runtime picks
       native-core vs the vendored SDK host.
@@ -249,7 +248,22 @@ deep analysis:
       health surfaces in Settings.
 
 ### 5.I — Newly raised in chat (2026-06-22) — spec'd, not yet built
-- [ ] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process, batteries-included).**
+- [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process, batteries-included)** *(2026-06-22)*.
+      **Shipped (user chose nomic-embed-text-v1.5 via the Python core):** the Python core embeds via an in-process
+      quantized GGUF (`llama-cpp-python`, `embedding=True`) on `/v1/embed` with a host-provided `gguf_path` + a
+      CPU-thread cap, caches it across batches, and frees it via `/v1/embed/unload`. A host-side download manager
+      ([src/nklein-sdk/nklein-embedding-model-manager.ts](src/nklein-sdk/nklein-embedding-model-manager.ts)) streams
+      the GGUF to the runtime home with progress + integrity/version checks (the one sanctioned, explicit fetch). A
+      `local_gguf` code-embedding provider ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts))
+      lazily ensures the model once, embeds through the core, and degrades to `local_lexical` on any failure;
+      `local_gguf` is now the default in `runtimeCodeEmbeddingProviderSchema` but only activates the dense path when
+      the Python core is enabled. The Code-intelligence panel surfaces model/download/idle status.
+      **Remaining (small, follow-ups):** a real idle-unload *timer* on the host calling `/v1/embed/unload` (the
+      endpoint + lazy-load exist; auto-trigger on cache-key change is not yet a background scheduler), a verified
+      `sha256` in the default manifest, and an in-panel model-override picker. The min-spec fallback decision
+      (dedicated GGUF vs main LLM) is resolved: ship the GGUF default, lexical stays the zero-download floor.
+      *(Superseded the original "NOT implemented" investigation note below.)*
+- [ ] **#1 (original spec, now superseded by the shipped work above; kept for the detailed acceptance intent).**
       *Investigated 2026-06-22: NOT implemented today* — code embeddings are only `local_lexical` (in-process
       lexical hashing, not real semantic) or `openai_compatible` (an external LM Studio/Ollama endpoint the user
       must run themselves); the Python core's `/v1/embed` is lexical-or-`sentence-transformers` and is **not**

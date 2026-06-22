@@ -63,7 +63,33 @@ function formatEmbeddingProvider(provider: string | null): string {
 	if (provider === "openai_compatible") {
 		return "OpenAI-compatible embeddings";
 	}
+	if (provider === "local_gguf") {
+		return "Built-in GGUF model";
+	}
 	return provider ?? "none";
+}
+
+function formatBytes(bytes: number | null): string {
+	if (bytes === null || bytes <= 0) {
+		return "unknown size";
+	}
+	const mib = bytes / (1024 * 1024);
+	return mib >= 1024 ? `${(mib / 1024).toFixed(1)} GiB` : `${Math.round(mib)} MiB`;
+}
+
+function formatEmbeddingModelFile(
+	file: RuntimeNKleinCodeIntelligenceStatusResponse["embeddingModelFile"],
+): string | null {
+	if (!file) {
+		return null;
+	}
+	if (!file.coreEnabled) {
+		return `${file.label}: running as lexical fallback (enable the Python core for in-process semantic embeddings)`;
+	}
+	if (!file.installed) {
+		return `${file.label}: downloads on first index`;
+	}
+	return `${file.label}: ready (${formatBytes(file.sizeBytes)})`;
 }
 
 function formatEmbeddingSettings(
@@ -192,6 +218,9 @@ export function CodeIntelligencePanel({
 						</div>
 						<div>Updated {formatCodeIntelligenceUpdatedAt(codeIndex?.updatedAt ?? null)}</div>
 						<div>{formatEmbeddingProvider(codeIndex?.embeddingProvider ?? null)}</div>
+						{formatEmbeddingModelFile(status.embeddingModelFile) ? (
+							<div>{formatEmbeddingModelFile(status.embeddingModelFile)}</div>
+						) : null}
 						<div>
 							Config: {status.codeEmbeddingSettings.source === "project" ? "Project override" : "Global default"}
 						</div>

@@ -1206,6 +1206,17 @@ export const runtimeNKleinCodeIntelligenceStatusResponseSchema = z.object({
 		effective: runtimeCodeEmbeddingSettingsSchema,
 		source: z.enum(["global", "project"]),
 	}),
+	/** Status of the built-in GGUF embedding model file, when the effective provider is `local_gguf`. */
+	embeddingModelFile: z
+		.object({
+			modelId: z.string(),
+			label: z.string(),
+			installed: z.boolean(),
+			sizeBytes: z.number().int().nonnegative().nullable(),
+			/** True when the Python core that serves this model is enabled; otherwise it runs as lexical. */
+			coreEnabled: z.boolean(),
+		})
+		.nullable(),
 	repoMap: z.object({
 		filesScanned: z.number().int().nonnegative(),
 		symbols: z.number().int().nonnegative(),
