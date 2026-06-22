@@ -174,13 +174,17 @@ deep analysis:
       dev-test scenario field, so a by-role/scenario view needs either those fields plumbed onto the record or
       `timeoutSource` mirrored onto the model-performance observation (which already carries role attribution).
 
-### 5.D — Dev-test harness real wiring
-- [ ] **Thin real wiring for `runDevTestProject`.** The harness + outcome classifier + observer fallback +
-      cleanup summarizer are built and unit-tested ([src/nklein-sdk/nklein-dev-test-harness.ts](src/nklein-sdk/nklein-dev-test-harness.ts),
-      [src/core/dev-test-outcome.ts](src/core/dev-test-outcome.ts), [src/core/dev-test-cleanup.ts](src/core/dev-test-cleanup.ts)).
-      Remaining: a real tRPC-client + persisted-state-fallback reader behind the injected `readState` contract,
-      and the filesystem/`docker`/`du` discovery wrapper behind the cleanup summarizer. (The `nklein dev` CLI
-      command already exists — [src/commands/dev.ts](src/commands/dev.ts).)
+- [x] **Thin real wiring for `runDevTestProject`** *(2026-06-22)*. The harness + outcome classifier + observer
+      fallback + cleanup summarizer were already built and unit-tested. Added the side-effecting seams in
+      [src/nklein-sdk/nklein-dev-test-runner.ts](src/nklein-sdk/nklein-dev-test-runner.ts): `createDevTestStateReader`
+      (live tRPC `workspace.getState` → persisted `loadWorkspaceBoardById` fallback → null, with the fallback
+      semantics unit-tested) and `discoverDevTestCleanupEntries` (active/retained classification unit-tested).
+      Wired both into real CLI commands ([src/commands/dev.ts](src/commands/dev.ts)): `nklein dev test-project`
+      (starts a scenario seed via `runtime.startTaskSession` and monitors to a classified outcome) and
+      `nklein dev cleanup-report` (marker-scan + `du` + `docker volume ls` discovery feeding the summarizer).
+      **Manual-verification debt (live path):** the tRPC/docker/du glue runs against a live runtime + Docker and
+      is not unit-covered — verify `dev test-project` end-to-end and `dev cleanup-report` sizing in the
+      Docker-enabled session noted in §5.A.
 
 ### 5.E — Cache-key hygiene & fuzz coverage
 - [x] **Audit telemetry/session caches for task-id-only keys** *(2026-06-22)*. Dev-test task ids repeat across

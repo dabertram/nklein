@@ -1,13 +1,34 @@
-import { homedir } from "node:os";
+import { execFile } from "node:child_process";
+import { readdir, stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { runtimeAgentIdSchema } from "../core/api-contract";
+import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
+import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
+import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-sdk/nklein-advisor";
+import { runDevTestProject } from "../nklein-sdk/nklein-dev-test-harness";
+import {
+	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
+	type NKleinDevTestProjectPreset,
+	resolveNKleinDevTestProjectScenario,
+} from "../nklein-sdk/nklein-dev-test-project";
+import {
+	createDevTestStateReader,
+	type DevTestCleanupCandidate,
+	discoverDevTestCleanupEntries,
+} from "../nklein-sdk/nklein-dev-test-runner";
 import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-sdk/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
+import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
+import type { RuntimeAppRouter } from "../trpc/app-router";
 
 interface DevSmokeEvalOptions {
 	json?: boolean;
@@ -163,6 +184,186 @@ export async function runDevCheckModelsCommand(
 	write(`# ${request.title}\n\n${request.prompt}\n`);
 }
 
+const execFileAsync = promisify(execFile);
+
+interface DevTestProjectOptions {
+	preset?: string;
+	projectPath?: string;
+	baseRef?: string;
+	pollIntervalMs?: number;
+	maxWaitMs?: number;
+	json?: boolean;
+	cwd?: string;
+	write?: (text: string) => void;
+}
+
+function parseDevTestPreset(value: string | undefined): NKleinDevTestProjectPreset {
+	if (value === undefined) {
+		return "mid_task";
+	}
+	if (value === "mid_task" || value === "complex_dag" || value === "audio_vst" || value === "daw_foundation") {
+		return value;
+	}
+	throw new Error("Invalid preset. Expected one of: mid_task, complex_dag, audio_vst, daw_foundation.");
+}
+
+function createDevRuntimeClient(workspaceId: string | null) {
+	return createTRPCProxyClient<RuntimeAppRouter>({
+		links: [
+			httpBatchLink({
+				url: buildKanbanRuntimeUrl("/api/trpc"),
+				headers: () => buildWorkspaceScopeHeaders(workspaceId),
+				fetch: async (url, options) => {
+					const runtimeFetch = await getRuntimeFetch();
+					return runtimeFetch(url, options);
+				},
+			}),
+		],
+	});
+}
+
+export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const cwd = options.cwd ?? process.cwd();
+	const preset = parseDevTestPreset(options.preset);
+	const scenario = resolveNKleinDevTestProjectScenario(preset);
+	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
+	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
+	const client = createDevRuntimeClient(workspace.workspaceId);
+	const baseRef = options.baseRef ?? "main";
+	const seedTaskId = `devtest-${scenario.id}-${Date.now()}`;
+
+	const readState = createDevTestStateReader({
+		readLiveBoard: async () => (await client.workspace.getState.query()).board,
+		readPersistedBoard: async () => await loadWorkspaceBoardById(workspace.workspaceId),
+	});
+
+	const result = await runDevTestProject(
+		{
+			scenario,
+			seedTaskId,
+			baseRef,
+			...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
+			...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+		},
+		{
+			startSeedTask: async (payload) => {
+				const started = await client.runtime.startTaskSession.mutate({
+					taskId: payload.taskId,
+					prompt: payload.prompt,
+					taskTitle: payload.taskTitle,
+					startInPlanMode: payload.startInPlanMode,
+					baseRef: payload.baseRef,
+					agentId: runtimeAgentIdSchema.catch("nklein").parse(payload.agentId),
+					...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
+				});
+				return { ok: started.ok, ...(started.error ? { message: started.error } : {}) };
+			},
+			readState,
+			sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+			now: () => Date.now(),
+		},
+	);
+
+	if (options.json) {
+		write(`${JSON.stringify(result, null, 2)}\n`);
+		return;
+	}
+	write(`Dev-test scenario: ${scenario.title} (${preset})\n`);
+	write(
+		`Seed start: ${
+			result.started ? "ok" : `failed${result.startMessage ? ` — ${result.startMessage}` : ""}`
+		} after ${result.polls} poll(s)\n`,
+	);
+	write(`${result.classification.summary}\n`);
+}
+
+interface DevCleanupReportOptions {
+	scanDir?: string;
+	activeWorkspacePath?: string;
+	json?: boolean;
+	cwd?: string;
+	write?: (text: string) => void;
+}
+
+/** Directory size in bytes via `du -sk`; best-effort, returns 0 when `du` is unavailable. */
+async function directorySizeBytes(path: string): Promise<number> {
+	try {
+		const { stdout } = await execFileAsync("du", ["-sk", path]);
+		const kib = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? "0", 10);
+		return Number.isFinite(kib) ? kib * 1024 : 0;
+	} catch {
+		return 0;
+	}
+}
+
+/** Scan a parent directory for scaffolded dev-test project workspaces (identified by their marker file). */
+async function discoverDevTestWorkspacesInDir(scanDir: string): Promise<DevTestCleanupCandidate[]> {
+	let entries: string[];
+	try {
+		entries = await readdir(scanDir);
+	} catch {
+		return [];
+	}
+	const candidates: DevTestCleanupCandidate[] = [];
+	for (const entry of entries) {
+		const workspacePath = join(scanDir, entry);
+		try {
+			const markerStat = await stat(join(workspacePath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH));
+			if (!markerStat.isFile()) {
+				continue;
+			}
+		} catch {
+			continue;
+		}
+		candidates.push({
+			path: workspacePath,
+			kind: "dev_test_workspace",
+			sizeBytes: await directorySizeBytes(workspacePath),
+		});
+	}
+	return candidates;
+}
+
+/** Docker sandbox named volumes created for agent isolation (`nklein`-prefixed); size is best-effort. */
+async function discoverSandboxVolumes(): Promise<DevTestCleanupCandidate[]> {
+	try {
+		const { stdout } = await execFileAsync("docker", ["volume", "ls", "--format", "{{.Name}}"]);
+		return stdout
+			.split("\n")
+			.map((name) => name.trim())
+			.filter((name) => name.startsWith("nklein"))
+			.map((name) => ({ path: name, kind: "sandbox_volume" as const, sizeBytes: 0 }));
+	} catch {
+		return [];
+	}
+}
+
+export async function runDevCleanupReportCommand(options: DevCleanupReportOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const scanDir = options.scanDir ?? tmpdir();
+	const activeWorkspacePath = options.activeWorkspacePath
+		? resolveProjectInputPath(options.activeWorkspacePath, options.cwd ?? process.cwd())
+		: null;
+
+	const entries = await discoverDevTestCleanupEntries({
+		listDevTestWorkspaces: () => discoverDevTestWorkspacesInDir(scanDir),
+		listSandboxVolumes: discoverSandboxVolumes,
+		activeWorkspacePath,
+	});
+	const report = summarizeDevTestCleanup(entries);
+
+	if (options.json) {
+		write(`${JSON.stringify(report, null, 2)}\n`);
+		return;
+	}
+	write(`Scanned dev-test workspaces under: ${scanDir}\n`);
+	write(`${report.summary}\n`);
+	for (const entry of report.reclaimable) {
+		write(`  reclaimable [${entry.kind}] ${entry.path}\n`);
+	}
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
@@ -251,5 +452,31 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevCheckModelsCommand(options);
+		});
+
+	dev.command("test-project")
+		.description(
+			"Start a dev-test scenario seed card against the running runtime and monitor it to a classified outcome.",
+		)
+		.option("--preset <preset>", "Scenario preset: mid_task | complex_dag | audio_vst | daw_foundation.")
+		.option("--project-path <path>", "Workspace path to run the dev-test scenario in. Defaults to the cwd.")
+		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")
+		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
+		.option("--max-wait-ms <ms>", "Maximum monitor duration in milliseconds.", (value) => Number.parseInt(value, 10))
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: DevTestProjectOptions) => {
+			await runDevTestProjectCommand(options);
+		});
+
+	dev.command("cleanup-report")
+		.description("Report reclaimable dev-test workspaces and sandbox volumes, retaining the active run.")
+		.option(
+			"--scan-dir <path>",
+			"Parent directory to scan for scaffolded dev-test workspaces. Defaults to the OS temp dir.",
+		)
+		.option("--active-workspace-path <path>", "Path of the active run's workspace to retain.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: DevCleanupReportOptions) => {
+			await runDevCleanupReportCommand(options);
 		});
 }
