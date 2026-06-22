@@ -666,6 +666,21 @@ deep analysis:
       config matrix unattended, captures evidence per run, and summarizes outcomes — living in the Developer Tools
       section or as side-helper tooling. **Discuss the exact shape together when we begin the sweeps.**
 
+### 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*
+> **Goal (user):** verify and fix the **model telemetry / performance-stats collection**. The user saw the **same
+> model listed multiple times** in the stats — these must be **consistent, global** per-model stats. **Phase note
+> (user):** clarify the exact details together once we pick this up. This underpins §5.O (evidence-driven sweeps
+> rely on trustworthy per-model/per-config stats) and the shipped stats view (§6.6).
+- [ ] **Audit the stats pipeline for model-identity fragmentation.** Find why one model appears as several rows —
+      likely an inconsistent **model-identity key** across the telemetry/aggregation path (e.g. provider-prefixed
+      vs bare id, casing, a stale/loaded-vs-catalog id, per-endpoint or per-session variance, or quant/context
+      variants counted separately). Establish a single **canonical model-identity** used everywhere stats are keyed
+      and aggregated, and dedupe/merge existing rows on it so the global view is one consistent entry per model.
+- [ ] **Verify global vs per-scope aggregation.** Confirm performance stats aggregate **globally per model** (not
+      siloed by workspace/session/run in a way that splits one model), while still allowing intended breakdowns
+      (project/role/tool/category/outcome per §6.6). Add coverage for the dedupe/aggregation core. *(Clarify the
+      precise desired groupings with the user before building.)*
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
   operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed

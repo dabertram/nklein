@@ -15,6 +15,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
+import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -1272,44 +1273,68 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	/**
-	 * When an explicit decomposition turn ends without a `decompose_project` tool call — e.g. a reasoning model
-	 * (deepseek-r1) spent the whole turn in its reasoning channel and emitted no content/tool call, or its
-	 * reasoning was cut off mid-think — the task would otherwise sit in the Review lane (`awaiting_review`) or as
-	 * `interrupted`, having never decomposed (and a planning card has no reviewer to pick it up). Re-prompt it to
-	 * emit the tool call now, bounded by the same nudge budget as the chat-only nudge. Fires only on a clean,
-	 * still-live stop (no tool this turn, not a pending user question); a torn-down interrupt is left for restart.
+	 * When an explicit decomposition turn ends without a `decompose_project` tool call the planning card would
+	 * otherwise sit in Review having never decomposed (and a planning card has no reviewer to pick it up).
+	 * {@link decideDecompositionStallRecovery} classifies the two stall shapes and the side effects happen here:
+	 *
+	 *  - `decompose`: a reasoning-only / chat-only turn (no tool call) — re-prompt to emit the tool call now.
+	 *  - `continue_read`: the turn stopped right after a `read_large_file` chunk (e.g. the model narrated the next
+	 *    read as a `<tool_call>` text block in its reasoning instead of emitting a real call), so the read workflow's
+	 *    `beforeModel` continuation guidance never re-fired — re-prompt to make a real call and finish reading.
+	 *
+	 * Both fire only on a clean, still-live stop (`awaiting_review`/"hook", not a pending user question) and share
+	 * the chat-only nudge budget; a torn-down interrupt or real error/credit stop is left for restart.
 	 */
 	private maybeContinueStalledDecomposition(taskId: string): void {
-		if (!this.explicitDecompositionTaskIds.has(taskId)) {
-			return;
-		}
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return;
 		}
 		const summary = entry.summary;
-		// Only a clean model-stop end (awaiting_review/"hook"): the reasoning model emitted no content/tool call,
-		// but the session is still live and can be re-prompted. An aborted/torn-down turn (interrupted) cannot be
-		// continued with sendTaskSessionInput and is left for restart/recovery; never fight a real error/credit stop.
-		if (summary.state !== "awaiting_review" || summary.reviewReason !== "hook") {
-			return;
-		}
 		const activity = summary.latestHookActivity;
-		// A tool ran this turn (decompose_project would have completed the task; ask_followup is a real question),
-		// or it actually decomposed — not a stalled empty turn.
-		if (activity?.toolName || activity?.hookEventName === "decomposition_applied") {
-			return;
-		}
-		// A turn that ended on a genuine clarifying question to the user should not be overridden.
 		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
-		if (finalText.endsWith("?")) {
-			return;
-		}
 		const nudgeCount = this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0;
-		if (nudgeCount >= NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT) {
+		const recovery = decideDecompositionStallRecovery({
+			isDecompositionTask: this.explicitDecompositionTaskIds.has(taskId),
+			state: summary.state,
+			reviewReason: summary.reviewReason ?? null,
+			decomposed: activity?.hookEventName === "decomposition_applied",
+			lastToolName: activity?.toolName ?? null,
+			endedOnQuestion: finalText.endsWith("?"),
+			nudgeCount,
+			nudgeLimit: NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT,
+		});
+		if (recovery.action === "none") {
 			return;
 		}
 		this.decompositionChatNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
+		if (recovery.action === "continue_read") {
+			recordSelfObservation({
+				signal: "budget_wall",
+				severity: "warning",
+				message: "!Klein continued a decomposition turn that stalled mid read_large_file workflow.",
+				taskId,
+				workspacePath: summary.workspacePath ?? null,
+				providerId: this.resolveProviderIdForTask(taskId),
+				modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+				metadata: {
+					category: "decomposition_read_workflow_stall",
+					lastActivity: activity?.activityText ?? null,
+					lastTool: activity?.toolName ?? null,
+				},
+			});
+			void this.sendTaskSessionInput(
+				taskId,
+				[
+					"Your previous turn ran read_large_file and then stopped without making another real tool call.",
+					"Writing a tool call as text — for example a `<tool_call>{...}</tool_call>` block in your reasoning — does NOT execute anything; you must emit it as an actual tool call.",
+					"If specification.md is not fully read yet, call read_large_file again now with the `nextCursor` value from your last read_large_file result to continue. Do not summarize or decompose until the file is fully read.",
+					"Once the spec is fully read, call `decompose_project` with the full task graph.",
+				].join(" "),
+				"act",
+			).catch(() => undefined);
+			return;
+		}
 		recordSelfObservation({
 			signal: "budget_wall",
 			severity: "warning",
