@@ -437,19 +437,26 @@ deep analysis:
 - [ ] **Granularity:** one **global preset** as baseline (default fully_open) + **per-role override**
       (Architect/Worker/Reviewer) for BOTH dials. Schema in `src/core/api-contract.ts`; persisted in runtime
       settings.
-- [ ] **Pure core first** (mirror `review-loop.ts`/`acceptance-failure-taxonomy.ts`): a module defining both tier
-      enums, their capability/autonomy matrices, and `resolveEffectiveRuleset(globalPreset, roleOverride, role)`.
-      Fully unit-tested. Everything else wires into it.
-- [ ] **Sandbox wiring:** map the resolved capability tier to the Docker `--network` flag (none / allowlist /
-      full) in `nklein-agent-sandbox.ts`; because containers are pooled, route network-enabled tasks to
-      network-enabled container pools (don't mix tiers in one container). Allowlist mode needs an egress proxy or
-      `--network` + firewall rules.
-- [ ] **Tool gating + new tools:** gate the tool registry by tier — un-park `nklein-web-research-tool.ts`, add a
-      **headless browser tool** (sandbox-side), gate MCP. New capabilities are data-plane (sandboxed), never host.
-- [ ] **Delivery gate wiring:** thread the delivery-autonomy tier through the commit/PR/merge path + the
-      second-opinion review (§5.K) and the regression-delta self-merge gate.
-- [ ] **Settings UI:** global preset picker + per-role tier overrides for both dials, with each tier's effects
-      shown; default fully_open. Make clear Docker isolation + cloud lockdown never relax.
+- [x] **Pure core** (`src/core/agent-rulesets.ts`): both tier enums + capability/delivery matrices +
+      `resolveEffectiveAgentRuleset`/`resolveAgentToolAccess`/`sandboxNetworkHasEgress`. Unit-tested.
+- [x] **Schema + config** : `agentRulesetsConfigSchema` in `api-contract.ts`; `agentRulesets` loads/exposes/
+      preserves through `runtime-config.ts` (default fully_open), round-trip tested.
+- [x] **Sandbox wiring + ACTIVATION (VERIFIED LIVE 2026-06-22):** `resolveAgentSandboxNetworkArgs` maps the tier
+      to `--network` (full→bridge, none/allowlist→none, allowlist fail-closed); `AgentSandboxManager` applies the
+      GLOBAL capability preset's policy to its pool, wired from `runtime-server`. **Verified with the real image:
+      `--network none` → fetch blocked, `--network bridge` → HTTP 200, both under `--cap-drop ALL --read-only
+      --security-opt no-new-privileges`.** **Remaining:** per-role network override needs policy-keyed pools (a
+      pooled container's `--network` is fixed at creation); allowlist needs a real egress proxy.
+- [~] **Tool gating:** `resolveAgentToolAccess` (egress-gated) is built + tested. In-sandbox agents already have
+      egress via the activation above. **Remaining (lower value, host-egress):** thread tool access into
+      `nklein-session-runtime` to drive the host-side `nklein-web-research-tool` enable; a sandbox-side headless
+      browser tool; MCP gating. Env supports verifying these live (Docker + LM Studio + runtime all present).
+- [~] **Delivery gate:** `decideDeliveryAction` core built + tested (tier × gates → commit/PR/merge/self-merge).
+      **Remaining:** wire it at the live delivery point (runtime-server merge flow + `evaluateTrustedAutoMerge` +
+      §5.K review). Verifiable live.
+- [ ] **Settings UI + config write-path:** global preset picker + per-role tier overrides for both dials (default
+      fully_open), + thread `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` so the UI can
+      save tier changes (read/preserve already work). Make clear Docker isolation + cloud lockdown never relax.
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
