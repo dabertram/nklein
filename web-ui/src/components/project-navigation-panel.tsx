@@ -525,7 +525,12 @@ export function ProjectNavigationPanel({
 											evidencePath: created.evidenceRootPath,
 										});
 										onSelectProject(created.project.id);
-										if (preset === "mid_task" || preset === "complex_dag" || preset === "audio_vst") {
+										if (
+											preset === "mid_task" ||
+											preset === "complex_dag" ||
+											preset === "audio_vst" ||
+											preset === "daw_foundation"
+										) {
 											if (!created.task) {
 												throw new Error("Dev test project did not include a startable task.");
 											}
@@ -564,7 +569,9 @@ export function ProjectNavigationPanel({
 													? "Complex product test project created with one decomposition task."
 													: preset === "audio_vst"
 														? "Audio VST test project created with one decomposition task."
-														: "Mid task test project created with one decomposition task.",
+														: preset === "daw_foundation"
+															? "DAW foundation test project created with one decomposition task."
+															: "Mid task test project created with one decomposition task.",
 											timeout: 5000,
 										});
 									} catch (error) {
@@ -907,6 +914,7 @@ function DevTestProjectCard({
 	const isRunningMidTask = runningPreset === "mid_task";
 	const isRunningComplexProject = runningPreset === "complex_dag";
 	const isRunningAudioVstProject = runningPreset === "audio_vst";
+	const isRunningDawFoundationProject = runningPreset === "daw_foundation";
 	const isBusy = disabled || isCreatingSelfImprovementProject;
 
 	return (
@@ -1002,6 +1010,25 @@ function DevTestProjectCard({
 					fill
 				>
 					{isRunningAudioVstProject ? "Creating..." : "Create audio VST project"}
+				</Button>
+				<Button
+					size="sm"
+					variant="default"
+					icon={isRunningDawFoundationProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
+					disabled={isBusy}
+					onClick={() => {
+						if (
+							!window.confirm(
+								"Create a marked !Klein DAW foundation dev-test project and make it the active project?",
+							)
+						) {
+							return;
+						}
+						void onRun("daw_foundation");
+					}}
+					fill
+				>
+					{isRunningDawFoundationProject ? "Creating..." : "Create DAW foundation project"}
 				</Button>
 				{evidencePath ? (
 					<Button

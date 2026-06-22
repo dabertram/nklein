@@ -1420,6 +1420,165 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
+	it("prefers the configured architect role model for plan-mode NKlein starts", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "small-model",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:small-model:default": createModelRegistryEntry({
+					key: "anthropic:small-model:default",
+					providerId: "anthropic",
+					modelId: "small-model",
+					contextWindow: 80_000,
+					capability: 90,
+				}),
+				"anthropic:claude-opus:default": createModelRegistryEntry({
+					key: "anthropic:claude-opus:default",
+					providerId: "anthropic",
+					modelId: "claude-opus",
+					contextWindow: 200_000,
+					capability: 90,
+				}),
+			},
+		});
+
+		const terminalManager = {
+			startTaskSession: vi.fn(async () => createSummary()),
+			applyTurnCheckpoint: vi.fn(),
+		};
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: {
+						providerId: "anthropic",
+						modelId: "claude-opus",
+						reasoningEffort: "high",
+					},
+				};
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Plan a task graph.",
+				startInPlanMode: true,
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "claude-opus",
+				reasoningEffort: "high",
+			}),
+		);
+		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("uses the configured architect role model for plan-mode starts with stale task model settings", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "small-model",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:small-model:default": createModelRegistryEntry({
+					key: "anthropic:small-model:default",
+					providerId: "anthropic",
+					modelId: "small-model",
+					contextWindow: 80_000,
+					capability: 90,
+				}),
+				"anthropic:claude-opus:default": createModelRegistryEntry({
+					key: "anthropic:claude-opus:default",
+					providerId: "anthropic",
+					modelId: "claude-opus",
+					contextWindow: 200_000,
+					capability: 90,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					architect: {
+						providerId: "anthropic",
+						modelId: "claude-opus",
+						reasoningEffort: "high",
+					},
+				};
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{
+				workspaceId: "workspace-1",
+				workspacePath: "/tmp/repo",
+			},
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Plan with an explicit model.",
+				startInPlanMode: true,
+				nkleinSettings: {
+					providerId: "anthropic",
+					modelId: "small-model",
+				},
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "claude-opus",
+				reasoningEffort: "high",
+			}),
+		);
+	});
+
 	it("blocks NKlein starts when any configured role model is below the minimum context window", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);

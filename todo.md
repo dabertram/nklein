@@ -201,6 +201,13 @@ deep analysis:
 - [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
       execution → merge cycle on a tiny local model, as a CI gate.
 - [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
+- [ ] **Main-board role/agent visibility.** Add a compact board-header strip that groups active work by role
+      (`Architect`, `Worker`, later `Reviewer`) and shows which card each role is currently running/queued on,
+      with click-to-focus behavior. Cards now show an inferred role chip, but the fuller UI should persist and
+      expose the resolved launch role on session summaries so the view can show planned role, active role,
+      model override, and route-up/down decisions without relying only on `startInPlanMode` inference. Keep the
+      distinction visible: plan-mode decomposition cards are architect work, while implementation cards waiting
+      in Planning with `startInPlanMode: false` are worker work.
 - [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
 - [ ] **Richer acceptance-failure classification taxonomy** in the diagnostics drawer.
 
@@ -411,6 +418,16 @@ deep analysis:
 - [x] **Audio-VST / psytrance autonomous dev-test preset** (left-sidebar Dev Test Scenarios, same
       create-and-start flow) + DSP benchmark harness (first successful autonomous run recorded). *(Rubric scoring
       still open — §5.B.)*
+- [x] **Modern DAW Foundation dev-test preset** *(2026-06-22)* — the maximal stress fixture: a `daw_foundation`
+      preset that scaffolds a project from a comprehensive, full-modern-DAW-parity spec
+      ([scripts/dev-fixtures/daw-foundation-spec.md](scripts/dev-fixtures/daw-foundation-spec.md) — Ableton/FL/
+      Bitwig/Logic/Cubase/Studio One/Reason/Reaper signature workflows, modular environment, MCP control, linked
+      multi-window/web, SOTA quality bar) plus a real tested `timebase` seed
+      ([scripts/dev-fixtures/daw-foundation/](scripts/dev-fixtures/daw-foundation/)). Scenario uses a new
+      `specificationPath` so the full spec is a real file (not crammed into the prompt); the seed prompt is
+      realistic ambitious-user voice demanding deep decomposition, explicit knowledge debt, heavy external-
+      knowledge fetching, real DSP + golden tests, and a release-quality SOTA bar. Intended to push 9B local
+      models to their limits and showcase 120B+ models. *(Domain rubric scoring still open — §5.B.)*
 - [x] **`THIRD_PARTY_NOTICES.md`** documenting re-implementation-with-attribution of ecosystem techniques
       (aider, Roo Code, Continue — Apache-2.0; OpenHands — MIT), excluding AGPL-3.0 to keep !Klein Apache-2.0.
 

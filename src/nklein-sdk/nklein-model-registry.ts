@@ -201,8 +201,16 @@ function mergeDuplicateRegistryEntries(
 	return incoming.updatedAt >= existing.updatedAt ? incoming : existing;
 }
 
-function getDefaultSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
-	return isLocalProvider(input.providerId, input.endpoint) ? (input.endpoint ?? `${input.providerId}:default`) : null;
+function getDefaultSharedEndpointId(input: {
+	providerId: string;
+	modelId: string;
+	endpoint: string | null;
+}): string | null {
+	if (!isLocalProvider(input.providerId, input.endpoint)) {
+		return null;
+	}
+	const endpoint = input.endpoint ?? `${input.providerId}:default`;
+	return input.modelId ? `${endpoint}#${input.modelId}` : endpoint;
 }
 
 export function buildNKleinModelRegistryKey(input: NKleinModelRegistryKeyInput): string {
@@ -270,7 +278,7 @@ export function createNKleinModelRegistryEntry(
 		speed: createEmptySpeedStats(),
 		capability: createEmptyCapabilityStats(),
 		constraints: {
-			sharedEndpointId: getDefaultSharedEndpointId({ providerId, endpoint }),
+			sharedEndpointId: getDefaultSharedEndpointId({ providerId, modelId, endpoint }),
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
 		},

@@ -199,6 +199,38 @@ describe("createDevTestBoard", () => {
 		expect(backlog[0]?.prompt).not.toContain("Create reviewable !Klein tasks");
 		expect(board.dependencies).toHaveLength(0);
 	});
+
+	it("seeds plan-mode dev-test cards with the architect role model when configured", () => {
+		const board = createDevTestBoard({
+			taskId: "dev-initial-decompose",
+			title: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.title,
+			prompt: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.prompt,
+			acceptanceCommand: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.acceptanceCommand,
+			modelRoles: {
+				architect: {
+					providerId: "lmstudio",
+					modelId: "architect-model",
+					reasoningEffort: "high",
+				},
+				worker: {
+					providerId: "lmstudio",
+					modelId: "worker-model",
+					reasoningEffort: "low",
+				},
+			},
+			now: 123,
+		});
+		const card = board.columns.find((column) => column.id === "backlog")?.cards[0];
+
+		expect(card).toMatchObject({
+			startInPlanMode: true,
+			nkleinSettings: expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "architect-model",
+				reasoningEffort: "high",
+			}),
+		});
+	});
 });
 
 describe("project add", () => {

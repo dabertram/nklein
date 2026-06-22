@@ -563,6 +563,21 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
 	});
 
+	it("records model-specific shared endpoint ids for local task sessions", async () => {
+		const { service } = createTrackedService();
+
+		const summary = await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+			providerId: "lmstudio",
+			modelId: "qwen3.5",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		});
+
+		expect(summary.sharedEndpointId).toBe("http://127.0.0.1:1234/v1#qwen3.5");
+	});
+
 	it("passes the decomposition-applied callback into NKlein session runtime starts", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
@@ -670,7 +685,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				// The host workspace root must be forwarded distinctly from the container cwd so the trusted
 				// control-plane decomposition tools resolve board/plan artifacts to the host owning workspace.
 				workspaceRoot: "/tmp/project",
-				systemPrompt: expect.stringContaining("!Klein decomposition is available during planning"),
+				systemPrompt: expect.stringContaining("!Klein decomposition workflow rules are applied by the runtime"),
 				toolExecutors: expect.objectContaining({
 					bash: expect.any(Function),
 					applyPatch: expect.any(Function),
@@ -1767,17 +1782,17 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expect.stringContaining("!Klein decomposition is available during planning"),
+				systemPrompt: expect.stringContaining("!Klein decomposition workflow rules are applied by the runtime"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expect.stringContaining("use the `/kanban-decompose` workflow command"),
+				systemPrompt: expect.stringContaining("Do not call workflow names or slash commands as tools"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				systemPrompt: expect.stringContaining("workspace's overridable !Klein workflow rules"),
+				systemPrompt: expect.stringContaining("call the `decompose_project` tool directly"),
 			}),
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
@@ -1794,8 +1809,11 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			service.listMessages("task-1").find((message) => message.meta?.messageKind === "system_prompt"),
 		).toMatchObject({
 			role: "system",
-			content: expect.stringContaining("!Klein decomposition is available during planning"),
+			content: expect.stringContaining("!Klein decomposition workflow rules are applied by the runtime"),
 		});
+		expect(
+			service.listMessages("task-1").find((message) => message.meta?.messageKind === "system_prompt")?.content,
+		).not.toContain("/kanban-decompose");
 		expect(service.listMessages("task-1").find((message) => message.role === "user")).toMatchObject({
 			content: "Investigate startup",
 		});
@@ -1853,6 +1871,43 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				systemPrompt: expect.not.stringContaining("produce a clear implementation plan only"),
 			}),
 		);
+		expect(
+			service.listMessages("task-1").find((message) => message.meta?.messageKind === "system_prompt")?.content,
+		).not.toContain("/kanban-decompose");
+	});
+
+	it("uses tool-first decomposition guidance for implementation-card graph prompts", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt:
+				"Create a deeply decomposed, dependency-linked implementation-card graph for the modern cross-platform DAW foundation release described in specification.md.",
+			startInPlanMode: true,
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining("then call the `decompose_project` tool"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining("Do not answer with a chat-only markdown plan"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.not.stringContaining("produce a clear implementation plan only"),
+			}),
+		);
+		expect(
+			service.listMessages("task-1").find((message) => message.meta?.messageKind === "system_prompt")?.content,
+		).not.toContain("/kanban-decompose");
 	});
 
 	it("interrupts chat-only decomposition reports and restarts with a tool-call correction", async () => {

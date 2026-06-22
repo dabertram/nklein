@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,13 +14,14 @@ export interface NKleinDevTestProjectScenario {
 	title: string;
 	prompt: string;
 	specification: string;
+	specificationPath?: string;
 	acceptanceCommand: string;
 	complexity?: number;
 	filesLikelyTouched?: string[];
 	templateName?: string;
 }
 
-export type NKleinDevTestProjectPreset = "mid_task" | "complex_dag" | "audio_vst";
+export type NKleinDevTestProjectPreset = "mid_task" | "complex_dag" | "audio_vst" | "daw_foundation";
 
 export interface ScaffoldNKleinDevTestProjectOptions {
 	scenario?: NKleinDevTestProjectScenario;
@@ -145,6 +146,27 @@ export const AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = 
 	filesLikelyTouched: ["src/plugin.ts", "src/index.ts", "test/plugin.test.js"],
 };
 
+export const DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = {
+	id: "daw-foundation-platform",
+	title: "Modern DAW foundation buildout",
+	templateName: "daw-foundation",
+	specification:
+		"Build the professional, cross-platform DAW foundation release described by scripts/dev-fixtures/daw-foundation-spec.md.",
+	specificationPath: join("scripts", "dev-fixtures", "daw-foundation-spec.md"),
+	prompt: [
+		"I want to build a genuinely professional, modern cross-platform DAW — one I would actually choose over Ableton Live, FL Studio, or Bitwig Studio — and I am dead serious about it being release-quality, not a toy and not a fake MVP.",
+		"The complete product and engineering specification is in specification.md. Read all of it: it is the authoritative source of truth, and it is intentionally enormous and domain-heavy (real-time audio, DSP and synthesis, psychoacoustics, music theory, VST3 hosting, Web Audio/AudioWorklet, WebGPU, MIDI/MPE, MCP control, linked multi-window/multi-screen workspaces, plugin sandboxing, and cross-platform packaging).",
+		"I want this deeply decomposed, like the platform it is — a real, dependency-linked plan across every architecture layer in the spec (domain core, musical engines, DSP/devices, platform adapters, session/control, presentation, automation/MCP), not a small CRUD-style task list. Keep the existing timebase as a real, tested core primitive and build outward from it.",
+		"Do the homework: wherever the spec points at a standard, SDK, or algorithm, go learn it properly instead of guessing, and track your knowledge debt explicitly — write down what you do not yet know for the hard domains so it can be filled in.",
+		"Build real DSP and real engine code with deterministic, golden tests — no stubs, no hardcoded fakes, and no shallow result pretending to be a DAW. Tests and documentation must depend on the implementation they validate or describe.",
+		"I would much rather have fewer parts built to a true state-of-the-art, release-quality bar than a wide layer of placeholders. Take the time and compute you need, and impress me.",
+		PRODUCT_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 100,
+	filesLikelyTouched: ["src/timebase.ts", "src/index.ts", "test/timebase.test.js"],
+};
+
 export function resolveNKleinDevTestProjectScenario(
 	preset: NKleinDevTestProjectPreset = "mid_task",
 ): NKleinDevTestProjectScenario {
@@ -153,6 +175,9 @@ export function resolveNKleinDevTestProjectScenario(
 	}
 	if (preset === "audio_vst") {
 		return AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO;
+	}
+	if (preset === "daw_foundation") {
+		return DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO;
 	}
 	return MID_COMPLEXITY_NKLEIN_DEV_TEST_SCENARIO;
 }
@@ -199,6 +224,9 @@ export async function scaffoldNKleinDevTestProject(
 	const createdAt = now();
 	const workspacePath = await mkdtemp(join(parentDir, `nklein-${slugify(scenario.id)}-${createdAt}-`));
 	const templatePath = resolveNKleinDevTestTemplatePath(options.templateName ?? scenario.templateName);
+	const specification = scenario.specificationPath
+		? await readFile(join(getRepoRootFromCurrentModule(), scenario.specificationPath), "utf8")
+		: scenario.specification;
 	await cp(templatePath, workspacePath, {
 		recursive: true,
 		errorOnExist: false,
@@ -209,7 +237,7 @@ export async function scaffoldNKleinDevTestProject(
 		[
 			`# ${scenario.title}`,
 			"",
-			scenario.specification.trim(),
+			specification.trim(),
 			"",
 			"## Acceptance",
 			"",

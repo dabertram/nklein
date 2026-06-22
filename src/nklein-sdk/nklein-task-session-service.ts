@@ -165,7 +165,7 @@ function isExplicitDecompositionPrompt(prompt: string): boolean {
 
 function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSummary): boolean {
 	const activity = summary.latestHookActivity;
-	if (!activity || activity.source !== "nklein-sdk" || activity.hookEventName !== "assistant_delta") {
+	if (activity?.source !== "nklein-sdk" || activity.hookEventName !== "assistant_delta") {
 		return false;
 	}
 	const toolName = activity.toolName?.trim().toLowerCase();
@@ -569,6 +569,7 @@ function formatStartWarnings(warnings: readonly string[] | undefined): string | 
 interface NKleinStartPromptParts {
 	userPrompt: string;
 	systemPrompt: string | null;
+	systemWorkflowCommand: string | null;
 }
 
 const WORD_NUMBER_BY_TEXT: Record<string, number> = {
@@ -611,6 +612,9 @@ function isDecompositionPlanningPrompt(prompt: string): boolean {
 	return (
 		/\bdecompose_project\b/.test(prompt) ||
 		/\bminimumTaskCount\b/.test(prompt) ||
+		/\bdecompos(?:e|ed|es|ing|ition)\b/i.test(prompt) ||
+		/\btask\s+graph\b/i.test(prompt) ||
+		/\bimplementation[- ]card\s+graph\b/i.test(prompt) ||
 		/\bimplementation[- ]card breakdown\b/i.test(prompt) ||
 		/\bdependent implementation cards?\b/i.test(prompt) ||
 		/\bat least\s+(?:\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:dependent\s+)?(?:implementation\s+)?cards?\b/i.test(
@@ -628,14 +632,13 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 	const minimumTaskCount = parseRequestedMinimumTaskCount(trimmedPrompt);
 	const acceptanceCommand = parseAcceptanceCommand(trimmedPrompt);
 	// Decomposition / board / plan tools are trusted control-plane and remain available even under strict
-	// Docker isolation (they touch only !Klein-owned state, never the user's working tree), so planning
-	// agents can always split a task into dependent cards via the overridable `/kanban-decompose` workflow.
+	// Docker isolation (they touch only !Klein-owned state, never the user's working tree). The overridable
+	// workflow is loaded separately; avoid surfacing slash-command syntax because local models may try to call
+	// it as an unavailable tool.
 	const decompositionInstruction =
-		"!Klein decomposition is available during planning; when the task should be split into dependent cards, use the `/kanban-decompose` workflow command so the workspace's overridable !Klein workflow rules are applied.";
+		"!Klein decomposition workflow rules are applied by the runtime. Do not call workflow names or slash commands as tools. When the task should be split into dependent cards, call the `decompose_project` tool directly.";
 	if (isDecompositionTask) {
 		return [
-			"/kanban-decompose",
-			"",
 			"Inspect the codebase only as needed for one focused planning pass, then call the `decompose_project` tool.",
 			decompositionInstruction,
 			minimumTaskCount !== null
@@ -656,8 +659,6 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 			.join("\n");
 	}
 	return [
-		"/kanban-decompose",
-		"",
 		"First, inspect the codebase and produce a clear implementation plan only.",
 		decompositionInstruction,
 		"Do not modify implementation files, do not use write tools outside !Klein planning artifacts, and do not implement product code yet.",
@@ -670,6 +671,7 @@ function buildNKleinStartPromptParts(prompt: string, startInPlanMode?: boolean):
 	return {
 		userPrompt: prompt,
 		systemPrompt: buildNKleinPlanningSystemPrompt(prompt, startInPlanMode),
+		systemWorkflowCommand: startInPlanMode ? "/kanban-decompose" : null,
 	};
 }
 
@@ -1135,7 +1137,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private async handleDecompositionChatNudge(taskId: string): Promise<void> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!entry || entry.summary.state !== "running" || !isChatOnlyDecompositionActivity(entry.summary)) {
+		if (entry?.summary.state !== "running" || !isChatOnlyDecompositionActivity(entry.summary)) {
 			return;
 		}
 		const nudgeCount = this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0;
@@ -1739,7 +1741,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
 		const endpoint = request.baseUrl?.trim() || null;
-		const sharedEndpointId = this.resolveSharedEndpointId({ providerId, endpoint });
+		const sharedEndpointId = this.resolveSharedEndpointId({ providerId, modelId, endpoint });
 		this.endpointByTaskId.set(request.taskId, endpoint);
 		this.recordLaunchContextWindow({
 			providerId,
@@ -1897,8 +1899,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			try {
 				const runtimeSetup = await this.ensureRuntimeSetup(request.cwd);
 				const runtimePrompt = runtimeSetup.resolvePrompt(startPromptParts.userPrompt);
+				const planningWorkflowPrompt = startPromptParts.systemWorkflowCommand
+					? runtimeSetup.resolvePrompt(startPromptParts.systemWorkflowCommand)
+					: null;
 				const planningSystemPrompt = startPromptParts.systemPrompt
-					? runtimeSetup.resolvePrompt(startPromptParts.systemPrompt)
+					? planningWorkflowPrompt
+						? appendSystemPrompt(planningWorkflowPrompt, startPromptParts.systemPrompt)
+						: startPromptParts.systemPrompt
 					: null;
 				let systemPrompt =
 					request.systemPrompt?.trim() ||
@@ -3425,11 +3432,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			.catch(() => undefined);
 	}
 
-	private resolveSharedEndpointId(input: { providerId: string; endpoint: string | null }): string | null {
+	private resolveSharedEndpointId(input: {
+		providerId: string;
+		modelId: string;
+		endpoint: string | null;
+	}): string | null {
 		if (!isLocalProvider(input.providerId, input.endpoint)) {
 			return null;
 		}
-		return input.endpoint ?? `${input.providerId}:default`;
+		const endpoint = input.endpoint ?? `${input.providerId}:default`;
+		const modelId = input.modelId.trim();
+		return modelId.length > 0 ? `${endpoint}#${modelId}` : endpoint;
 	}
 
 	private markModelRequestStarted(taskId: string): void {

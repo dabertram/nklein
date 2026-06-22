@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
 	AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO,
+	DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO,
 	DEFAULT_NKLEIN_DEV_TEST_SCENARIO,
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	resolveNKleinDevTestProjectScenario,
@@ -91,6 +92,24 @@ describe("nklein dev test project", () => {
 		expect(specification).toContain("phase-aligned kick/bass pattern");
 	});
 
+	it("scaffolds the DAW foundation fixture for the DAW preset", async () => {
+		const parentDir = await createParentDir();
+		const scenario = resolveNKleinDevTestProjectScenario("daw_foundation");
+		const project = await scaffoldNKleinDevTestProject({
+			parentDir,
+			scenario,
+			initializeGit: false,
+		});
+
+		expect(project.scenario).toEqual(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO);
+		await expect(readFile(join(project.workspacePath, "src", "timebase.ts"), "utf8")).resolves.toContain("TempoMap");
+		const packageJson = await readFile(join(project.workspacePath, "package.json"), "utf8");
+		expect(packageJson).toContain("nklein-daw-foundation-fixture");
+		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(specification).toContain("Modern Cross-Platform DAW Foundation Release Specification");
+		expect(specification).toContain("VST3-compatible plugin hosting");
+	});
+
 	it("keeps the audio VST seed prompt focused on user-level project intent", () => {
 		expect(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("at least ten dependent implementation cards");
 		expect(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("knowledge assumptions explicit");
@@ -98,5 +117,14 @@ describe("nklein dev test project", () => {
 		expect(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("decompose_project");
 		expect(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("read_files");
 		expect(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain(".nklein/nklein");
+	});
+
+	it("keeps the DAW foundation seed prompt focused on user-level project intent", () => {
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("deeply decomposed");
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("knowledge debt explicitly");
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("Acceptance command: npm test");
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("decompose_project");
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("read_files");
+		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain(".nklein/nklein");
 	});
 });

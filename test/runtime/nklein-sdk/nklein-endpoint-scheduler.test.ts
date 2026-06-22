@@ -191,7 +191,7 @@ describe("nklein endpoint scheduler", () => {
 					taskId: "task-1",
 					state: "running",
 					providerId: "ollama",
-					modelId: "llama",
+					modelId: "qwen",
 					endpoint: "http://127.0.0.1:11434",
 				},
 			],
@@ -200,11 +200,36 @@ describe("nklein endpoint scheduler", () => {
 		expect(decision).toMatchObject({
 			ok: false,
 			blockedByTaskId: "task-1",
-			sharedEndpointId: "http://127.0.0.1:11434",
+			sharedEndpointId: "http://127.0.0.1:11434#qwen",
 		});
 	});
 
-	it("serializes custom local providers by endpoint when registry data is cold", () => {
+	it("allows different local models on one endpoint when registry data is cold", () => {
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-2",
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:11434",
+			modelRegistry: {
+				schemaVersion: 1,
+				updatedAt: 0,
+				models: {},
+			},
+			runningSessions: [
+				{
+					taskId: "task-1",
+					state: "running",
+					providerId: "ollama",
+					modelId: "llama",
+					endpoint: "http://127.0.0.1:11434",
+				},
+			],
+		});
+
+		expect(decision).toEqual({ ok: true });
+	});
+
+	it("serializes the same custom local provider model when registry data is cold", () => {
 		const decision = scheduleNKleinEndpointStart({
 			taskId: "task-2",
 			providerId: "openai-compatible",
@@ -220,7 +245,7 @@ describe("nklein endpoint scheduler", () => {
 					taskId: "task-1",
 					state: "running",
 					providerId: "openai-compatible",
-					modelId: "llama",
+					modelId: "qwen",
 					endpoint: "http://127.0.0.1:1234/v1",
 				},
 			],
@@ -229,7 +254,7 @@ describe("nklein endpoint scheduler", () => {
 		expect(decision).toMatchObject({
 			ok: false,
 			blockedByTaskId: "task-1",
-			sharedEndpointId: "http://127.0.0.1:1234/v1",
+			sharedEndpointId: "http://127.0.0.1:1234/v1#qwen",
 		});
 	});
 

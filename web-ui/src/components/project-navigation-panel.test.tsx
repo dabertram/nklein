@@ -384,6 +384,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).toContain("Create mid task project");
 		expect(container.textContent).toContain("Create complex product project");
 		expect(container.textContent).toContain("Create audio VST project");
+		expect(container.textContent).toContain("Create DAW foundation project");
 		expect(container.textContent).toContain("Create self-improvement project");
 	});
 
@@ -443,6 +444,49 @@ describe("ProjectNavigationPanel width persistence", () => {
 			});
 
 			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { preset: "audio_vst" });
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("requires confirmation before creating DAW foundation dev-test projects", () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+		try {
+			renderPanel({ developerModeEnabled: true });
+
+			act(() => {
+				getButtonByText(container, "Create DAW foundation project").click();
+			});
+
+			expect(confirmSpy).toHaveBeenCalledWith(
+				"Create a marked !Klein DAW foundation dev-test project and make it the active project?",
+			);
+			expect(createDevTestProjectMock).not.toHaveBeenCalled();
+		} finally {
+			confirmSpy.mockRestore();
+		}
+	});
+
+	it("creates DAW foundation dev-test projects with the DAW preset", async () => {
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		createDevTestProjectMock.mockResolvedValue({
+			ok: false,
+			error: "stop after mutation for test",
+			project: null,
+			task: null,
+			workspacePath: null,
+			scenario: null,
+			evidenceRootPath: null,
+		});
+		try {
+			renderPanel({ developerModeEnabled: true });
+
+			await act(async () => {
+				getButtonByText(container, "Create DAW foundation project").click();
+				await Promise.resolve();
+			});
+
+			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { preset: "daw_foundation" });
 		} finally {
 			confirmSpy.mockRestore();
 		}

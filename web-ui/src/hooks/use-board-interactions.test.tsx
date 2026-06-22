@@ -2050,9 +2050,13 @@ describe("useBoardInteractions", () => {
 			expect.objectContaining({
 				mode: "plan",
 				startInPlanMode: true,
-				promptOverride: expect.stringContaining("/kanban-decompose"),
+				promptOverride: expect.stringContaining("Project-scale task to decompose:"),
 			}),
 		);
+		const startOptions = (
+			startTaskSession.mock.calls as unknown as Array<[unknown, { promptOverride?: string }]>
+		)[0]?.[1];
+		expect(startOptions?.promptOverride).not.toContain("/kanban-decompose");
 		const planningTask = currentBoard.columns.find((column) => column.id === "planning")?.cards[0];
 		expect(planningTask?.id).toBe("task-1");
 		expect(planningTask?.blockedKind).toBeUndefined();

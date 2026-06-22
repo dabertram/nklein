@@ -106,11 +106,11 @@ export function createDevTestBoard(input: {
 	modelRoles?: RuntimeModelRoles;
 	now: number;
 }): RuntimeBoardData {
-	const workerSettings = input.modelRoles?.worker;
+	const architectSettings = input.modelRoles?.architect;
 	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
 		(settings): settings is RuntimeTaskNKleinSettings => Boolean(settings.providerId || settings.modelId),
 	);
-	const nkleinSettings = withAutonomousNKleinTimeoutSettings(workerSettings ?? firstRoleSettings);
+	const nkleinSettings = withAutonomousNKleinTimeoutSettings(architectSettings ?? firstRoleSettings);
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,

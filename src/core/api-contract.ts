@@ -814,7 +814,7 @@ export const runtimeDevTestProjectScenarioSchema = z.object({
 });
 export type RuntimeDevTestProjectScenario = z.infer<typeof runtimeDevTestProjectScenarioSchema>;
 
-export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag", "audio_vst"]);
+export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag", "audio_vst", "daw_foundation"]);
 export type RuntimeDevTestProjectPreset = z.infer<typeof runtimeDevTestProjectPresetSchema>;
 
 export const runtimeDevTestProjectRequestSchema = z

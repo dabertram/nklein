@@ -201,6 +201,39 @@ describe("BoardCard", () => {
 		expect(nextCancelButton).toBeUndefined();
 	});
 
+	it("shows the architect role on plan-mode cards", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard({ startInPlanMode: true })} index={0} columnId="planning" />);
+		});
+
+		expect(container.textContent).toContain("Architect");
+		expect(container.textContent).not.toContain("Worker");
+	});
+
+	it("shows the worker role for execution cards waiting in Planning", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard({ startInPlanMode: false })} index={0} columnId="planning" />);
+		});
+
+		expect(container.textContent).toContain("Worker");
+		expect(container.textContent).not.toContain("Architect");
+	});
+
+	it("shows when a role is actively working", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({ startInPlanMode: true })}
+					index={0}
+					columnId="planning"
+					sessionSummary={createSummary("running")}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Architect working");
+	});
+
 	it("shows a recovery message for lost NKlein heartbeats", async () => {
 		await act(async () => {
 			root.render(

@@ -44,13 +44,22 @@ function normalizeEndpoint(endpoint: string | null | undefined): string | null {
 	return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-function getFallbackSharedEndpointId(input: NKleinModelRegistryKeyInput): string | null {
+function getLegacySharedEndpointId(input: NKleinModelRegistryKeyInput): string | null {
 	const providerId = normalizeProviderId(input.providerId);
 	const endpoint = normalizeEndpoint(input.endpoint);
 	if (!isLocalProvider(providerId, endpoint)) {
 		return null;
 	}
 	return endpoint ?? `${providerId}:default`;
+}
+
+function getFallbackSharedEndpointId(input: NKleinModelRegistryKeyInput): string | null {
+	const modelId = normalizeModelId(input.modelId);
+	const legacyEndpointId = getLegacySharedEndpointId(input);
+	if (!legacyEndpointId || !modelId) {
+		return legacyEndpointId;
+	}
+	return `${legacyEndpointId}#${modelId}`;
 }
 
 function getSharedEndpointId(snapshot: NKleinModelRegistrySnapshot, input: NKleinModelRegistryKeyInput): string | null {
@@ -65,7 +74,11 @@ function getSharedEndpointId(snapshot: NKleinModelRegistrySnapshot, input: NKlei
 	}
 	const key = buildNKleinModelRegistryKey({ providerId, modelId, endpoint });
 	const registrySharedEndpointId = snapshot.models[key]?.constraints.sharedEndpointId?.trim() ?? "";
-	return registrySharedEndpointId.length > 0 ? registrySharedEndpointId : getFallbackSharedEndpointId(input);
+	const legacySharedEndpointId = getLegacySharedEndpointId(input);
+	if (registrySharedEndpointId.length > 0 && registrySharedEndpointId !== legacySharedEndpointId) {
+		return registrySharedEndpointId;
+	}
+	return getFallbackSharedEndpointId(input);
 }
 
 function getObservedWallTimeMs(

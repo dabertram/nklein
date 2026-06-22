@@ -1227,6 +1227,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							// Ignore roles that are not currently runnable; the configured default still participates.
 						}
 					}
+					const preferredCandidate = body.startInPlanMode
+						? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ??
+							selectedCandidate)
+						: selectedCandidate;
 					const promptTokens = estimateNKleinStartPromptTokens({
 						prompt: body.prompt,
 						taskTitle: body.taskTitle,
@@ -1242,7 +1246,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
 						promptTokens,
 						outputTokens: 1_000,
-						preferredModelKey: selectedCandidate.entry.key,
+						preferredModelKey: preferredCandidate.entry.key,
 						candidates: [...guardCandidates.values()].map((candidate) => ({
 							entry: candidate.entry,
 							role: candidate.role,

@@ -156,14 +156,7 @@ function sortTaskIdsByLoadedNKleinModel(
 }
 
 function buildDecompositionPlanningPrompt(task: BoardCard): string {
-	return [
-		"/kanban-decompose",
-		"",
-		"Project-scale task to decompose:",
-		`Title: ${task.title}`,
-		"",
-		task.prompt.trim(),
-	].join("\n");
+	return ["Project-scale task to decompose:", `Title: ${task.title}`, "", task.prompt.trim()].join("\n");
 }
 
 interface UseBoardInteractionsInput {

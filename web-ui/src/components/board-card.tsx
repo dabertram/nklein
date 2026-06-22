@@ -41,6 +41,12 @@ interface ContextBudgetMiniStatus {
 	barClassName: string;
 }
 
+interface CardRoleBadge {
+	label: string;
+	tooltip: string;
+	isActive: boolean;
+}
+
 function formatShortAge(timestamp: number | null | undefined): string | null {
 	if (timestamp == null) {
 		return null;
@@ -148,6 +154,27 @@ function buildSessionTelemetryLine(summary: RuntimeTaskSessionSummary | undefine
 		parts.push(`HB ${summary.heartbeatStatus}`);
 	}
 	return parts.length > 0 ? parts.join(" • ") : null;
+}
+
+function buildCardRoleBadge(card: BoardCardModel, summary: RuntimeTaskSessionSummary | undefined): CardRoleBadge {
+	const roleLabel = card.startInPlanMode ? "Architect" : "Worker";
+	const statusLabel =
+		summary?.state === "running"
+			? "working"
+			: summary?.state === "queued"
+				? "queued"
+				: summary?.state === "paused" || summary?.paused === true
+					? "paused"
+					: null;
+	const explicitModelOverride =
+		card.nkleinSettings?.providerId || card.nkleinSettings?.modelId ? " Task model override is set." : "";
+	return {
+		label: statusLabel ? `${roleLabel} ${statusLabel}` : roleLabel,
+		tooltip: card.startInPlanMode
+			? `Architect role handles planning and decomposition starts.${explicitModelOverride}`
+			: `Worker role handles implementation and execution starts.${explicitModelOverride}`,
+		isActive: summary?.state === "running" || summary?.state === "queued" || summary?.state === "paused",
+	};
 }
 
 const SESSION_ACTIVITY_COLOR = {
@@ -658,6 +685,7 @@ export function BoardCard({
 		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;
 	}, [agentOverrideLabel, modelOverrideLabel]);
+	const roleBadge = useMemo(() => buildCardRoleBadge(card, sessionSummary), [card, sessionSummary]);
 	const blockedReason =
 		card.blockedKind === "needs_decomposition"
 			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
@@ -938,8 +966,24 @@ export function BoardCard({
 									</p>
 								</div>
 							) : null}
-							{taskAgentSettingsLabel ? (
-								<div className="mt-1">
+							<div className="mt-1 flex flex-wrap items-center gap-1.5">
+								<span
+									title={roleBadge.tooltip}
+									className={cn(
+										"inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+										isTrashCard
+											? "border-border bg-surface-1 text-text-tertiary"
+											: roleBadge.isActive
+												? "border-status-green/30 bg-status-green/10 text-status-green"
+												: card.startInPlanMode
+													? "border-status-purple/30 bg-status-purple/10 text-status-purple"
+													: "border-border-bright bg-surface-1 text-text-secondary",
+									)}
+								>
+									<Bot size={12} className="shrink-0" />
+									<span className="truncate">{roleBadge.label}</span>
+								</span>
+								{taskAgentSettingsLabel ? (
 									<span
 										className={cn(
 											"inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
@@ -951,8 +995,8 @@ export function BoardCard({
 										<Bot size={12} className="shrink-0" />
 										<span className="truncate">{taskAgentSettingsLabel}</span>
 									</span>
-								</div>
-							) : null}
+								) : null}
+							</div>
 							{blockedReason ? (
 								<div className="mt-2 flex items-start gap-1.5 rounded-md border border-status-orange/40 bg-status-orange/10 px-2 py-1.5 text-[11px] leading-snug text-status-orange">
 									<AlertTriangle size={12} className="mt-0.5 shrink-0" />

@@ -441,8 +441,8 @@ describe("nklein model registry", () => {
 		});
 
 		expect(cloudEntry.constraints.sharedEndpointId).toBeNull();
-		expect(localEntry.constraints.sharedEndpointId).toBe("http://localhost:11434");
-		expect(customLocalEntry.constraints.sharedEndpointId).toBe("http://localhost:1234/v1");
+		expect(localEntry.constraints.sharedEndpointId).toBe("http://localhost:11434#qwen");
+		expect(customLocalEntry.constraints.sharedEndpointId).toBe("http://localhost:1234/v1#local-qwen");
 	});
 });
 
