@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
-
 import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_CAPABILITY_TIERS,
 	AGENT_DELIVERY_TIER_INFO,
 	AGENT_DELIVERY_TIERS,
+	type AgentRulesetsConfig,
 	capabilitiesForTier,
 	DEFAULT_AGENT_CAPABILITY_TIER,
 	DEFAULT_AGENT_DELIVERY_TIER,
+	DEFAULT_AGENT_RULESETS_CONFIG,
 	deliveryPolicyForTier,
 	resolveCapabilityTier,
 	resolveDeliveryTier,
 	resolveEffectiveAgentRuleset,
 } from "../../../src/core/agent-rulesets";
+import { agentRulesetsConfigSchema } from "../../../src/core/api-contract";
 
 describe("agent-rulesets capability matrix", () => {
 	it("defaults to the most open tier", () => {
@@ -121,5 +123,32 @@ describe("agent-rulesets resolution", () => {
 		expect(effective.capabilities.network).toBe("allowlist");
 		expect(effective.deliveryTier).toBe("fully_open");
 		expect(effective.delivery.allowSelfMergeOnUnknownDelta).toBe(true);
+	});
+});
+
+describe("agent-rulesets api-contract schema agrees with the core", () => {
+	it("accepts the core default config", () => {
+		expect(agentRulesetsConfigSchema.parse(DEFAULT_AGENT_RULESETS_CONFIG)).toEqual(DEFAULT_AGENT_RULESETS_CONFIG);
+	});
+
+	it("accepts per-role overrides and a parsed payload feeds the core resolver", () => {
+		const parsed = agentRulesetsConfigSchema.parse({
+			capability: { globalPreset: "strict", roleOverrides: { worker: "more_open" } },
+			delivery: { globalPreset: "medium" },
+		});
+		// The parsed contract payload must be usable as the core config type without conversion.
+		const config: AgentRulesetsConfig = parsed;
+		expect(resolveEffectiveAgentRuleset(config, "worker").capabilities.headlessBrowser).toBe(true);
+		expect(resolveEffectiveAgentRuleset(config, "architect").capabilityTier).toBe("strict");
+		expect(resolveEffectiveAgentRuleset(config, "worker").delivery.autoMerge).toBe(false);
+	});
+
+	it("rejects an unknown tier value", () => {
+		expect(() =>
+			agentRulesetsConfigSchema.parse({
+				capability: { globalPreset: "wide-open" },
+				delivery: { globalPreset: "strict" },
+			}),
+		).toThrow();
 	});
 });

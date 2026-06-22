@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } from "./agent-rulesets.js";
 import { resolveTaskTitle } from "./task-title.js";
 
 export const runtimeWorkspaceFileStatusSchema = z.enum([
@@ -141,6 +142,27 @@ export const runtimeTaskNKleinSettingsSchema = z.object({
 export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettingsSchema>;
 export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeTaskNKleinSettingsSchema);
 export type RuntimeModelRoles = z.infer<typeof runtimeModelRolesSchema>;
+
+// Per-role agent rulesets — two independent tiered dials (capability + delivery autonomy). Tier enums are
+// derived from the pure core (src/core/agent-rulesets.ts) so the list lives in one place. `roleOverrides` keys
+// are plain strings (the core resolver applies only known roles and ignores the rest), which sidesteps zod's
+// exhaustive-enum-record requirement and stays forward-compatible if roles expand.
+export const agentCapabilityTierSchema = z.enum(AGENT_CAPABILITY_TIERS);
+export const agentDeliveryTierSchema = z.enum(AGENT_DELIVERY_TIERS);
+export const agentRulesetRoleSchema = z.enum(AGENT_RULESET_ROLES);
+export const agentCapabilityRulesetConfigSchema = z.object({
+	globalPreset: agentCapabilityTierSchema,
+	roleOverrides: z.record(z.string().min(1), agentCapabilityTierSchema).optional(),
+});
+export const agentDeliveryRulesetConfigSchema = z.object({
+	globalPreset: agentDeliveryTierSchema,
+	roleOverrides: z.record(z.string().min(1), agentDeliveryTierSchema).optional(),
+});
+export const agentRulesetsConfigSchema = z.object({
+	capability: agentCapabilityRulesetConfigSchema,
+	delivery: agentDeliveryRulesetConfigSchema,
+});
+export type AgentRulesetsConfigPayload = z.infer<typeof agentRulesetsConfigSchema>;
 export const runtimeTaskImageSchema = z.object({
 	id: z.string(),
 	data: z.string(),
@@ -1651,6 +1673,9 @@ export const runtimeConfigResponseSchema = z.object({
 	shortcuts: z.array(runtimeProjectShortcutSchema),
 	nkleinProviderSettings: runtimeNKleinProviderSettingsSchema,
 	modelRoles: runtimeModelRolesSchema,
+	// Optional during rollout: the runtime omits it until the config loader populates it (consumers default to
+	// DEFAULT_AGENT_RULESETS_CONFIG). See src/core/agent-rulesets.ts.
+	agentRulesets: agentRulesetsConfigSchema.optional(),
 	commitPromptTemplate: z.string(),
 	openPrPromptTemplate: z.string(),
 	commitPromptTemplateDefault: z.string(),
@@ -1684,6 +1709,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
+	agentRulesets: agentRulesetsConfigSchema.optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),
 	openPrPromptTemplate: z.string().optional(),
