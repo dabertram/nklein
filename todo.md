@@ -417,10 +417,14 @@ deep analysis:
 - [x] **Reviewer interface** ([src/nklein-sdk/nklein-review-tool.ts](src/nklein-sdk/nklein-review-tool.ts)) —
       a `submit_review` tool (the reviewer's structured output, like `decompose_project`): `verdict`
       (`approve`/`request_changes`), `summary`, `feedback` (required on changes), optional `insight`. Unit-tested.
-- [~] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
+- [x] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
       session (reviewer model, fallback to the worker model) seeded with the card objective + diff + acceptance
       result + the `submit_review` tool; on `submit_review`, run `decideReviewLoopAction`. Guard against recursion
       (a reviewer card is not itself reviewed) and skip planning cards. Reuse the sandbox/data-plane isolation.
+      **WIRED (live; needs model+Docker to exercise end-to-end):** service `runSecondOpinionReviewSession`
+      (synthetic `<taskId>::review` session prepared from the result branch, reviewer model, await verdict via the
+      tool with a timeout, teardown via `clearTaskSessions` + `disposeWorkspace`) + state-hub call to
+      `runSecondOpinionReviewForTask` after acceptance, gated + fail-safe (→ ready-for-review on any error).
       **Pure core done** ([src/core/review-orchestration.ts](src/core/review-orchestration.ts), unit-tested):
       `shouldReviewCard` gate (enabled + in `review` + not a reviewer/planning card + has a diff),
       `fingerprintReviewArtifact` (stall/identical-loop hashing), `buildReviewSeedPrompt` (objective + acceptance
@@ -433,18 +437,17 @@ deep analysis:
       onDeliver/onBounce/onPark) like the acceptance auto-repair, so the gate→diff→verdict→transition→persist flow
       is tested with mocks. **Live adapters started:** `getTaskResultBranchDiff` (the worker-diff input, tested) and
       session-runtime `onReviewSubmitted` threading (attaches the `submit_review` tool only for reviewer turns).
-      **Remaining (live, needs model+Docker to verify):** a service `runSecondOpinionReviewSession` (isolated
-      synthetic-id session prepared from the result branch, reviewer model, await verdict via the tool with a
-      timeout, teardown via `clearTaskSessions` + `disposeWorkspace`) and the state-hub call to
-      `runNKleinSecondOpinionReview` (gated + fail-safe → falls through to ready-for-review on any error).
-- [~] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
+      **Now wired live** via `runSecondOpinionReviewSession` + the state-hub runner (see above); needs a local
+      model + Docker to exercise end-to-end.
+- [x] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
       fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
       back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing
       commit/PR delivery with the sign-off attached; `park` → needs-attention with the reason.
-      **Schema done:** the card carries an optional `review` object (`runtimeCardReviewSchema` in api-contract:
-      status/round/history/last-verdict/summary/feedback/insight/sign-off/parkedReason) — additive +
-      CRDT-compatible (whole-object LWW), so old boards load unchanged. **Remaining (live):** the hub applies the
-      transition to the board + drives the worker/delivery sessions.
+      **Done:** the card carries an optional `review` object (`runtimeCardReviewSchema`, CRDT-compatible), and
+      `runSecondOpinionReviewForTask` ([src/server/second-opinion-review-runner.ts](src/server/second-opinion-review-runner.ts),
+      unit-tested) persists the review round via `applyCardReviewToBoard` and, on bounce, moves the card to
+      In Progress + re-drives the worker with the feedback. (deliver → ready-for-review/delivery; park → review
+      column with parked status surfaced on the card.)
 - [~] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
       the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
       second perspective is visible even on a clean approve.

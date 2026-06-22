@@ -58,6 +58,7 @@ import {
 } from "./nklein-message-repository";
 import { extractNKleinModelRegistryObservationFromEvent, getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { NKleinPauseController } from "./nklein-pause-controller";
+import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
@@ -104,6 +105,8 @@ export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } fro
 export type { NKleinTaskMessage } from "./nklein-session-state";
 
 const DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS = 80_000;
+/** Time budget for one second-opinion reviewer turn before it is abandoned (todo §5.K). */
+const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
@@ -474,6 +477,14 @@ export interface NKleinTaskSessionService {
 		taskPrompt: string;
 		timeoutMs?: number;
 	}): Promise<RuntimeTaskAcceptanceResult>;
+	runSecondOpinionReviewSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		seedPrompt: string;
+		reviewer?: { providerId: string; modelId: string } | null;
+		timeoutMs?: number;
+	}): Promise<NKleinReviewResult | null>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -946,6 +957,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		contextScope?: "full" | "smart" | "minimal" | "custom";
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
+		onReviewSubmitted?: NKleinReviewSubmittedHandler;
 	}): Promise<{ result: unknown; warnings?: string[] }> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
 		assertLocalProviderAllowed({
@@ -1002,6 +1014,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}),
 			toolPolicies: runtimeSetup.toolPolicies,
 			onDecompositionApplied: this.onDecompositionApplied,
+			onReviewSubmitted: input.onReviewSubmitted,
 			onTeamEvent: (event, teamName) => {
 				this.emitTeamProgress(input.taskId, event, teamName);
 			},
@@ -2726,6 +2739,89 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			sandboxManager: this.agentSandboxManager,
 			pauseController: this.pauseController,
 		});
+	}
+
+	/**
+	 * Runs one isolated second-opinion reviewer turn (todo §5.K): a fresh sandbox session under a synthetic
+	 * `<taskId>::review` id (so it never collides with the worker session), prepared from the task's result
+	 * branch, on the reviewer model, seeded with the review brief and given the `submit_review` tool. Resolves to
+	 * the reviewer's structured verdict, or null if the turn ends without one (or the sandbox is unavailable).
+	 * Bounded by a timeout and always tears its synthetic session + workspace down.
+	 */
+	async runSecondOpinionReviewSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		seedPrompt: string;
+		reviewer?: { providerId: string; modelId: string } | null;
+		timeoutMs?: number;
+	}): Promise<NKleinReviewResult | null> {
+		if (!this.agentSandboxManager) {
+			return null;
+		}
+		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
+		const providerId = (input.reviewer?.providerId ?? workerLaunch?.providerId ?? "").trim();
+		const modelId = (input.reviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
+		if (!providerId || !modelId) {
+			return null;
+		}
+		const launchConfig: NKleinTaskRestartLaunchConfig = {
+			...(workerLaunch ?? {}),
+			providerId,
+			modelId,
+			workspaceRoot: input.projectRepoPath,
+		};
+		const reviewTaskId = `${input.taskId}::review`;
+		await this.agentSandboxManager.assertAvailable();
+		const resultCommit = await resolveTaskResultBranchCommit({
+			repoPath: input.projectRepoPath,
+			taskId: input.taskId,
+		}).catch(() => null);
+		const workspace = await this.agentSandboxManager.prepareWorkspace({
+			taskId: reviewTaskId,
+			projectRepoPath: input.projectRepoPath,
+			baseRef: resultCommit ?? input.baseRef ?? null,
+		});
+		this.sandboxRepoPathByTaskId.set(reviewTaskId, input.projectRepoPath);
+		this.sandboxBaseRefByTaskId.set(reviewTaskId, (resultCommit ?? input.baseRef)?.trim() || "HEAD");
+		let verdict: NKleinReviewResult | null = null;
+		try {
+			// startRuntimeTaskSessionFromLaunchConfig awaits the full turn (sessionHost.send), so the submit_review
+			// tool — which fires during the turn — has reported its verdict by the time the run promise settles.
+			const run = this.startRuntimeTaskSessionFromLaunchConfig({
+				taskId: reviewTaskId,
+				cwd: workspace.workdir,
+				workspaceRoot: input.projectRepoPath,
+				prompt: input.seedPrompt,
+				launchConfig,
+				contextScope: "minimal",
+				onReviewSubmitted: (result) => {
+					verdict = result;
+				},
+			}).then(
+				() => undefined,
+				() => undefined,
+			);
+			const timeoutMs = input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const timeout = new Promise<void>((resolve) => {
+				timer = setTimeout(resolve, timeoutMs);
+			});
+			await Promise.race([run, timeout]);
+			if (timer) {
+				clearTimeout(timer);
+			}
+			return verdict;
+		} finally {
+			await this.sessionRuntime.clearTaskSessions(reviewTaskId).catch(() => undefined);
+			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
+			this.launchConfigByTaskId.delete(reviewTaskId);
+			this.providerIdByTaskId.delete(reviewTaskId);
+			this.modelIdByTaskId.delete(reviewTaskId);
+			this.endpointByTaskId.delete(reviewTaskId);
+			this.sandboxRepoPathByTaskId.delete(reviewTaskId);
+			this.sandboxBaseRefByTaskId.delete(reviewTaskId);
+		}
 	}
 
 	async updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
