@@ -221,6 +221,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		autoReviewStatus?: unknown;
 		autoReviewMessage?: unknown;
 		review?: unknown;
+		focusChain?: unknown;
 		images?: unknown;
 		baseRef?: unknown;
 		agentId?: unknown;
@@ -270,6 +271,9 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 			? { autoReviewMessage: card.autoReviewMessage.trim() }
 			: {}),
 		...(card.review && typeof card.review === "object" ? { review: card.review as BoardCard["review"] } : {}),
+		...(card.focusChain && typeof card.focusChain === "object"
+			? { focusChain: card.focusChain as BoardCard["focusChain"] }
+			: {}),
 		images: normalizeTaskImages(card.images),
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),

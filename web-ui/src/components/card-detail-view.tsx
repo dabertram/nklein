@@ -52,6 +52,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeCardReview,
 	RuntimeConfigResponse,
+	RuntimeFocusChain,
 	RuntimeNKleinPlanArtifactSummary,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -940,6 +941,54 @@ const REVIEW_STATUS_META: Record<RuntimeCardReview["status"], { label: string; c
 	approved: { label: "Approved", className: "text-status-green" },
 	parked: { label: "Parked", className: "text-status-red" },
 };
+
+const FOCUS_CHAIN_STATUS_META: Record<
+	RuntimeFocusChain["steps"][number]["status"],
+	{ mark: string; className: string }
+> = {
+	done: { mark: "✓", className: "text-status-green" },
+	in_progress: { mark: "▸", className: "text-status-blue" },
+	pending: { mark: "○", className: "text-text-tertiary" },
+	skipped: { mark: "–", className: "text-text-tertiary" },
+};
+
+/** Renders an agent's focus chain (todo §5.N) as a live todo list on the card, when one has been drafted. */
+function FocusChainPanel({ selection }: { selection: CardSelection }): React.ReactElement | null {
+	const chain = selection.card.focusChain;
+	if (!chain || chain.steps.length === 0) {
+		return null;
+	}
+	const completed = chain.steps.filter((step) => step.status === "done" || step.status === "skipped").length;
+	return (
+		<div className="rounded-lg border border-border bg-surface-1 px-4 py-3">
+			<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+				<span>Focus chain</span>
+				<span className="font-normal text-text-tertiary">
+					{completed}/{chain.steps.length}
+				</span>
+			</div>
+			<ul className="mt-2 flex list-none flex-col gap-1 p-0">
+				{chain.steps.map((step, index) => {
+					const meta = FOCUS_CHAIN_STATUS_META[step.status];
+					return (
+						<li key={`${index}-${step.text}`} className="flex items-start gap-2 text-[13px]">
+							<span className={cn("mt-px", meta.className)}>{meta.mark}</span>
+							<span
+								className={cn(
+									"text-text-primary",
+									step.status === "skipped" && "text-text-tertiary line-through",
+									step.status === "in_progress" && "font-medium",
+								)}
+							>
+								{step.text}
+							</span>
+						</li>
+					);
+				})}
+			</ul>
+		</div>
+	);
+}
 
 /** Surfaces the second-opinion reviewer's verdict/round/feedback for a card (todo §5.K), when a review has run. */
 function SecondOpinionReviewPanel({ selection }: { selection: CardSelection }): React.ReactElement | null {
@@ -1940,6 +1989,7 @@ export function CardDetailView({
 								sessionSummary={sessionSummary}
 								onMarkTaskInterrupted={onMarkTaskInterrupted}
 							/>
+							<FocusChainPanel selection={selection} />
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -2102,6 +2152,7 @@ export function CardDetailView({
 									sessionSummary={sessionSummary}
 									onMarkTaskInterrupted={onMarkTaskInterrupted}
 								/>
+								<FocusChainPanel selection={selection} />
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

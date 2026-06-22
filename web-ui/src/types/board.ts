@@ -2,6 +2,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeBoardColumnId,
 	RuntimeCardReview,
+	RuntimeFocusChain,
 	RuntimeGeneratedFromPlan,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskImage,
@@ -49,6 +50,7 @@ export interface BoardCard {
 	autoReviewStatus?: "running" | "failed";
 	autoReviewMessage?: string;
 	review?: RuntimeCardReview;
+	focusChain?: RuntimeFocusChain;
 	images?: TaskImage[];
 	agentId?: RuntimeAgentId;
 	nkleinSettings?: RuntimeTaskNKleinSettings;

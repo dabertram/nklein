@@ -600,10 +600,13 @@ deep analysis:
       `update_focus_chain` attached in the session runtime (when a persist handler is wired), and the state hub
       persists each update onto `card.focusChain` + broadcasts. **Remaining:** chat-agent surface (§5.M) + an
       optional re-prompt nudge if a task runs without drafting a chain.
-- [ ] **Visual representation (todo list).** A clear checklist UI: on the card detail / Watch panel for board
+- [~] **Visual representation (todo list).** A clear checklist UI: on the card detail / Watch panel for board
       tasks (live updates as steps flip to done), and in the chat surface for chat agents. Use the design-system
       checklist styling (done/in-progress/pending states), with per-control tooltips (§5.L-style). Should read at a
       glance like a todo list, updating in real time.
+      **Done (board):** a `FocusChainPanel` in the card detail view renders `card.focusChain` as a todo list
+      (✓/▸/○/– marks + x/total), threaded through the web-ui `BoardCard` type + board-state normalizer.
+      **Remaining:** the chat surface (§5.M).
 - [ ] **Reference & parity.** Mirror the ergonomics of Cline's "focus chain" / markdown task-list and comparable
       agent todo lists (Claude Code / Cursor): the agent maintains and visibly works through the list; the user can
       follow progress and (later, optional) nudge/edit it.
