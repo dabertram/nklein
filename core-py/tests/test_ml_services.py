@@ -50,6 +50,31 @@ def test_embed_texts_falls_back_when_model_missing() -> None:
     assert len(embeddings) == 1
 
 
+def test_embed_texts_falls_back_when_gguf_unavailable() -> None:
+    # A missing GGUF (or missing native dep) must degrade to lexical, never raise, so indexing always works.
+    embeddings = embed_texts(["x", "y"], gguf_path="/definitely/not/a/real/model.gguf")
+    assert len(embeddings) == 2
+    assert len(embeddings[0]) == 256
+
+
+def test_embed_endpoint_accepts_gguf_path_and_degrades() -> None:
+    response = client.post(
+        "/v1/embed",
+        json={"texts": ["alpha beta"], "gguf_path": "/definitely/not/a/real/model.gguf"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    # The requested backend is llama_cpp even though the load degraded to lexical vectors under the hood.
+    assert body["backend"] == "llama_cpp"
+    assert len(body["embeddings"]) == 1
+
+
+def test_embed_unload_endpoint_reports_zero_when_nothing_loaded() -> None:
+    response = client.post("/v1/embed/unload", json={})
+    assert response.status_code == 200
+    assert response.json()["unloaded"] >= 0
+
+
 def test_repomap_ranks_referenced_symbols() -> None:
     files = [
         RepoFile(path="core.ts", content="export function computeScore() { return 1 }"),

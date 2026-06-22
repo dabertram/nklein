@@ -102,12 +102,24 @@ class EmbedRequest(BaseModel):
     texts: list[str]
     dim: int = 256
     model: str | None = None  # opt-in sentence-transformers model id; None = lexical
+    gguf_path: str | None = None  # local GGUF embedding model (host-downloaded); in-process llama.cpp
+    n_threads: int | None = None  # cap CPU threads so the embedder does not compete with the main LLM
 
 
 class EmbedResponse(BaseModel):
     contract_version: int = CONTRACT_VERSION
     embeddings: list[list[float]]
     backend: str
+
+
+class EmbedUnloadRequest(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    gguf_path: str | None = None  # specific model to free; None = all loaded GGUF embedding models
+
+
+class EmbedUnloadResponse(BaseModel):
+    contract_version: int = CONTRACT_VERSION
+    unloaded: int
 
 
 class RepoFilePayload(BaseModel):

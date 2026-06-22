@@ -20,6 +20,8 @@ from .contract import (
     CompressResponse,
     EmbedRequest,
     EmbedResponse,
+    EmbedUnloadRequest,
+    EmbedUnloadResponse,
     GenerateRequest,
     GenerateResponse,
     GenerateStructuredRequest,
@@ -32,7 +34,7 @@ from .contract import (
     SelectGraphResponse,
 )
 from .decomposition import PlanTask, select_best_graph
-from .embeddings import embed_texts
+from .embeddings import embed_texts, unload_gguf_embedding
 from .generation import ChatMessage, GenerationBackend, ProxyBackend, StructuredFormat
 from .local_only import CloudProviderDisabledError
 from .repomap import RepoFile, rank_symbols, render_repo_map
@@ -142,8 +144,20 @@ async def compress(request: CompressRequest) -> CompressResponse:
 
 @app.post("/v1/embed", response_model=EmbedResponse)
 async def embed(request: EmbedRequest) -> EmbedResponse:
-    embeddings = embed_texts(request.texts, dim=request.dim, model=request.model)
-    return EmbedResponse(embeddings=embeddings, backend=request.model or "lexical")
+    embeddings = embed_texts(
+        request.texts,
+        dim=request.dim,
+        model=request.model,
+        gguf_path=request.gguf_path,
+        n_threads=request.n_threads,
+    )
+    backend = "llama_cpp" if request.gguf_path else (request.model or "lexical")
+    return EmbedResponse(embeddings=embeddings, backend=backend)
+
+
+@app.post("/v1/embed/unload", response_model=EmbedUnloadResponse)
+async def embed_unload(request: EmbedUnloadRequest) -> EmbedUnloadResponse:
+    return EmbedUnloadResponse(unloaded=unload_gguf_embedding(request.gguf_path))
 
 
 @app.post("/v1/repomap", response_model=RepoMapResponse)

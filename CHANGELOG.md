@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Python core can now embed via an in-process quantized GGUF model (`llama-cpp-python`, `embedding=True`): `/v1/embed` accepts a host-provided `gguf_path` (+ a CPU-thread cap so it never competes with the main LLM), caches the loaded model across index batches, and a new `/v1/embed/unload` frees it when idle. Any load/embed failure degrades to the dependency-free lexical embedding so indexing never hard-fails. This is the in-process, no-external-runtime backend for the upcoming zero-config code-embedding default (nomic-embed-text-v1.5); the host-side GGUF download + provider wiring follow.
+
 - Instruct local models to keep responses and reasoning short, and to act with tools instead of writing long prose. Added a prominent "Response Length And Reasoning Discipline" section to the per-task efficiency rules (applied to every task) and a brevity directive to the decomposition planning prompt. Oversized outputs/reasoning waste the context budget and can crash a local model host under memory pressure — reasoning models like deepseek-r1 are especially prone to emitting very long chains of thought — so this both reduces crashes and saves budget.
 
 - When a local model host (LM Studio/Ollama) crashes or unloads its model mid-run — a real failure mode under memory pressure, e.g. a reasoning model at a large context window on limited hardware — !Klein now recognizes the resulting dropped-connection / model-not-loaded errors, parks the task fast (after a single transient retry instead of the generic three) instead of retry-storming a model that is gone, and shows an actionable card warning: reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume.
