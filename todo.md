@@ -257,6 +257,17 @@ deep analysis:
 > Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a
 > local-only Python core sidecar (`core-py/`, FastAPI) and a TS-native agent core (`src/agent-core/`). Shipped so
 > far (see §6.10); the open edges:
+> **ENGINEERING REALITY (found 2026-06-22 while wiring):** both "default-now" decisions below are NOT safe
+> flag-flips and were NOT flipped:
+> - **Native-core default** has nothing to flip — `src/agent-core/` is only `agent-action-decider.ts` +
+>   `agent-loop.ts` (~285 lines) and is **not imported by any runtime/session code**. There is no
+>   runtime-selection switch; defaulting to it would require first building the native-core→task-execution
+>   integration (sandboxed tools, session lifecycle), which needs a live/Docker session to verify. Prerequisite,
+>   not a flip.
+> - **Python-core default-on** would make every install attempt the (absent) sidecar and rely entirely on the
+>   fallback on every call — *worse* default behavior than opt-in *until* the sidecar is bundled + auto-started.
+>   The decided "flip + auto-start + bundle + Settings health" needs the auto-start/bundle (live verification)
+>   to land first. Safe additive piece available without flipping: the read-only **Settings health line**.
 - [x] **Decide the embedding story end-to-end (ties to §5.I-1)** *(2026-06-22)*. Resolved: `local_gguf`
       (nomic-embed-text-v1.5) served in-process by the Python core's `llama-cpp-python` `embedding=True` backend,
       auto-downloaded host-side, wired through `runtimeCodeEmbeddingProviderSchema` as the default, degrading to
