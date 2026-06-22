@@ -152,13 +152,23 @@ function normalizeTemplateForComparison(value: string): string {
 	return value.replaceAll("\r\n", "\n").trim();
 }
 
-function normalizeModelRoleSettings(settings: RuntimeTaskNKleinSettings | undefined): RuntimeTaskNKleinSettings {
+function normalizeModelRoleTaskSettings(settings: RuntimeTaskNKleinSettings | undefined): RuntimeTaskNKleinSettings {
 	const providerId = settings?.providerId?.trim();
 	const modelId = settings?.modelId?.trim();
 	return {
 		...(providerId ? { providerId } : {}),
 		...(modelId ? { modelId } : {}),
 		...(settings?.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
+	};
+}
+
+function normalizeModelRoleSettings(settings: RuntimeModelRoles[string] | undefined): RuntimeModelRoles[string] {
+	const additionalModels = (settings?.additionalModels ?? [])
+		.map((entry) => normalizeModelRoleTaskSettings(entry))
+		.filter((entry) => entry.providerId || entry.modelId);
+	return {
+		...normalizeModelRoleTaskSettings(settings),
+		...(additionalModels.length > 0 ? { additionalModels } : {}),
 	};
 }
 
@@ -2562,6 +2572,23 @@ export function RuntimeSettingsDialog({
 		});
 	};
 
+	const handleModelRolePoolToggle = (roleId: ModelRoleId, providerId: string, modelId: string) => {
+		setModelRoles((current) => {
+			const nextRole = { ...current[roleId] };
+			const existing = nextRole.additionalModels ?? [];
+			const isInPool = existing.some((entry) => entry.modelId === modelId);
+			const additionalModels = isInPool
+				? existing.filter((entry) => entry.modelId !== modelId)
+				: [...existing, { ...(providerId ? { providerId } : {}), modelId }];
+			if (additionalModels.length > 0) {
+				nextRole.additionalModels = additionalModels;
+			} else {
+				delete nextRole.additionalModels;
+			}
+			return { ...current, [roleId]: nextRole };
+		});
+	};
+
 	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeNKleinReasoningEffort | "inherit") => {
 		setModelRoles((current) => {
 			const nextRole = { ...current[roleId] };
@@ -3752,6 +3779,44 @@ export function RuntimeSettingsDialog({
 																}}
 															/>
 														</div>
+														{roleModels.length > 1 ? (
+															<div className="lg:ml-[118px]">
+																<span className="mb-1 block text-[11px] text-text-tertiary">
+																	Additional models — pool; tasks fan out across the free ones
+																</span>
+																<div className="flex flex-wrap gap-1">
+																	{roleModels
+																		.filter((model) => model.id !== selectedRoleModelId)
+																		.map((model) => {
+																			const inPool = (roleSettings.additionalModels ?? []).some(
+																				(entry) => entry.modelId === model.id,
+																			);
+																			return (
+																				<button
+																					type="button"
+																					key={model.id}
+																					disabled={controlsDisabled}
+																					onClick={() =>
+																						handleModelRolePoolToggle(
+																							roleId,
+																							roleProviderId,
+																							model.id,
+																						)
+																					}
+																					className={cn(
+																						"rounded border px-1.5 py-0.5 text-[11px] transition-colors disabled:opacity-50",
+																						inPool
+																							? "border-accent bg-accent/15 text-text-primary"
+																							: "border-border bg-surface-2 text-text-secondary hover:bg-surface-3",
+																					)}
+																				>
+																					{formatModelOptionLabel(model)}
+																				</button>
+																			);
+																		})}
+																</div>
+															</div>
+														) : null}
 														{roleAvailabilityWarning ? (
 															<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
 																{roleAvailabilityWarning}
