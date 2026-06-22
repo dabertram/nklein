@@ -220,6 +220,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		autoReviewMode?: unknown;
 		autoReviewStatus?: unknown;
 		autoReviewMessage?: unknown;
+		review?: unknown;
 		images?: unknown;
 		baseRef?: unknown;
 		agentId?: unknown;
@@ -268,6 +269,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		...(typeof card.autoReviewMessage === "string" && card.autoReviewMessage.trim()
 			? { autoReviewMessage: card.autoReviewMessage.trim() }
 			: {}),
+		...(card.review && typeof card.review === "object" ? { review: card.review as BoardCard["review"] } : {}),
 		images: normalizeTaskImages(card.images),
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
