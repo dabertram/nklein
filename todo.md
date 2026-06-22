@@ -428,6 +428,11 @@ deep analysis:
       `buildReviewSignOff`, and `resolveReviewTransition` (verdict + round + history → deliver/bounce/park + the
       `ReviewRoundRecord` to persist). **Remaining (live):** start the reviewer session with the review tool
       wired to the verdict handler, then call the transition + apply it (next item) + broadcast.
+      **Orchestrator done** ([src/nklein-sdk/nklein-second-opinion-review.ts](src/nklein-sdk/nklein-second-opinion-review.ts),
+      unit-tested): `runNKleinSecondOpinionReview` injects all I/O (getCard, getTaskDiff, runReviewSession,
+      onDeliver/onBounce/onPark) like the acceptance auto-repair, so the gate→diff→verdict→transition→persist flow
+      is tested with mocks. **Remaining (live):** the hub implements those injected deps (real diff extraction,
+      reviewer session with the review tool + reviewer model, board mutation + broadcast).
 - [~] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
       fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
       back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing
