@@ -431,8 +431,12 @@ deep analysis:
       **Orchestrator done** ([src/nklein-sdk/nklein-second-opinion-review.ts](src/nklein-sdk/nklein-second-opinion-review.ts),
       unit-tested): `runNKleinSecondOpinionReview` injects all I/O (getCard, getTaskDiff, runReviewSession,
       onDeliver/onBounce/onPark) like the acceptance auto-repair, so the gate→diff→verdict→transition→persist flow
-      is tested with mocks. **Remaining (live):** the hub implements those injected deps (real diff extraction,
-      reviewer session with the review tool + reviewer model, board mutation + broadcast).
+      is tested with mocks. **Live adapters started:** `getTaskResultBranchDiff` (the worker-diff input, tested) and
+      session-runtime `onReviewSubmitted` threading (attaches the `submit_review` tool only for reviewer turns).
+      **Remaining (live, needs model+Docker to verify):** a service `runSecondOpinionReviewSession` (isolated
+      synthetic-id session prepared from the result branch, reviewer model, await verdict via the tool with a
+      timeout, teardown via `clearTaskSessions` + `disposeWorkspace`) and the state-hub call to
+      `runNKleinSecondOpinionReview` (gated + fail-safe → falls through to ready-for-review on any error).
 - [~] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
       fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
       back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing

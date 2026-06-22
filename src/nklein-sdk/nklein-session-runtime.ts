@@ -41,6 +41,7 @@ import {
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
+import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
@@ -492,6 +493,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	toolExecutors?: Partial<ToolExecutors>;
 	extraTools?: AgentTool[];
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
+	/** When provided, this is a second-opinion review turn: the `submit_review` tool is attached and its verdict is reported here. */
+	onReviewSubmitted?: NKleinReviewSubmittedHandler;
 	onTeamEvent?: (event: NKleinSdkTeamEvent, teamName: string | null) => void;
 }
 
@@ -811,6 +814,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...createWebResearchTool({
 				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
 			}),
+			// Second-opinion review turns get the structured `submit_review` verdict tool (todo §5.K). Only attached
+			// when a verdict handler is provided, so ordinary worker/planning turns never see it.
+			...(request.onReviewSubmitted ? [createNKleinReviewTool({ onSubmitted: request.onReviewSubmitted })] : []),
 			...(mcpToolBundle?.tools ?? []),
 		];
 
