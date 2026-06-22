@@ -130,11 +130,13 @@ deep analysis:
       `usesLegacyHostTaskWorkspace(agentId)` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts)) — keep it
       as THE source of truth (invariant-tested). **Deletion is BLOCKED on two UI-verifiable changes:**
       (1) remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` / launch-support and the web-ui legacy path;
-      (2) decide the shell-terminal-on-task story (it still legitimately ensures a host checkout via
-      `startShellSession` → `resolveTaskCwd({ ensure: true })`). The saved-host-patch retirement and the
-      project-health "accidental worktree" re-validation ride along with (1). Do this where the review/diff/merge
-      + shell UI can be visually verified. Files: `src/workspace/task-worktree*.ts`,
-      `src/workspace/task-result-branches.ts`.
+      (2) ~~decide the shell-terminal-on-task story~~ **DECIDED 2026-06-22 (user): shell-on-task = `docker exec`
+      into that task's hardened sandbox container** (drop into the sandbox working copy; no host checkout, no
+      legacy worktree — the user shell is as isolated as the agent). `startShellSession` /
+      `resolveTaskCwd({ ensure: true })` is reworked to attach to the task's container instead of ensuring a host
+      checkout. The saved-host-patch retirement and the project-health "accidental worktree" re-validation ride
+      along with (1). Do this where the review/diff/merge + shell UI can be visually verified. Files:
+      `src/workspace/task-worktree*.ts`, `src/workspace/task-result-branches.ts`, `src/terminal/session-manager.ts`.
 - [ ] **BLOCKED (needs a Docker-enabled interactive browser session): UI live-verification debts.** The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
@@ -153,6 +155,19 @@ deep analysis:
       container-primary + result-branch model.)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
+- [ ] **FIX (live bug, evidence 2026-06-22T12-09): `decompose_project` malformed/empty-call recovery.** A small
+      local model (gemma-4-26b) called `decompose_project` 3× and all 3 were rejected *before* our handler ran:
+      call 1 had typo'd task fields (`tasks_id`, `plant`); calls 2–3 arrived as empty `{}`. The tool's SDK-level
+      `inputSchema` (`required: [slug,spec,plan,title,tasks]`, `additionalProperties: false`) makes the **SDK
+      pre-reject** with a 4 KB raw Zod dump that (a) small models can't recover from, (b) bloats context, and
+      (c) bypasses our in-handler `repairJsonStringValue`. The model then spiraled to empty calls and decomposed
+      nothing. **Fix:** relax the boundary `inputSchema` (drop `required`, allow extra props) so `execute` always
+      runs; validate in-handler and **return a compact, directive message** (name missing fields; nudge a small
+      first payload: "3–6 tasks, keep spec/plan to a few sentences — they're truncated; don't resend empty")
+      instead of throwing the dump; detect the empty `{}` case explicitly. Files:
+      [src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts). Distinct from
+      the shipped "re-prompt a turn that ends with NO tool call" — here the model *did* call the tool, with bad
+      args.
 - [ ] **Knowledge-tool usage as a decomposition-quality signal.** Correlate whether retrieval / code-index /
       architecture-knowledge tools were actually used in a planning session *before* `decompose_project`, and
       surface "decomposition used / did not use knowledge tools" in the Settings stats view — not just a usage
@@ -211,12 +226,13 @@ deep analysis:
       `CURRENT_PORTABLE_BOARD_SCHEMA_VERSION`, refuses newer-than-known versions instead of coercing them, and
       guards against non-advancing migrations. A future bump is a one-line registry entry + the version constant.
 - [ ] **BLOCKED (browser): verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI.
-- [ ] **Confirm WITH THE USER before extending** (open clarifications): exactly which state is repo-committed vs
-      machine-local (machine-local must stay: model registry/measured speeds, endpoint URLs, container/sandbox
-      state, telemetry, secrets); human-readable vs compact on-disk schema; how worktree/result-branch artifacts
-      and in-flight sandbox work map across machines (they don't — only plan/graph/progress moves); card
-      provenance/link survival across a different checkout; that no secrets/absolute host paths leak into
-      committed state; and re-resolving roles/fit against the *target* machine's local models on load.
+- [x] ~~**Confirm WITH THE USER before extending**~~ **DECIDED 2026-06-22 (user):** **repo-committed** =
+      board/CRDT, DAG, card progress, `knowledgeDebt`, decomposition — stored as **human-readable (pretty-printed)
+      JSON** like `board-crdt.json` today. **Machine-local (never committed):** model registry/measured speeds,
+      endpoint URLs, container/sandbox state, telemetry, secrets, absolute host paths, worktree/result-branch
+      artifacts, and in-flight sandbox work (these don't move — only plan/graph/progress does). No secrets or
+      absolute host paths may leak into committed state; card provenance/links must survive a different checkout;
+      roles/fit **re-resolve against the target machine's local models on load**.
 
 ### 5.G — Backlog (promote into a worked item when picked up)
 - [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
@@ -246,11 +262,15 @@ deep analysis:
       auto-downloaded host-side, wired through `runtimeCodeEmbeddingProviderSchema` as the default, degrading to
       `local_lexical` when the core is off. See §5.I-1 for the shipped detail.
 - [ ] **Promote the native agent core path** (`src/agent-core/`) from "one supported runtime" toward a
-      first-class local option, keeping strict isolation for its data-plane tools. Define when the runtime picks
-      native-core vs the vendored SDK host.
+      first-class local option, keeping strict isolation for its data-plane tools. **DECIDED 2026-06-22 (user):
+      make native-core the DEFAULT runtime now**, with the vendored SDK host as automatic fallback. Switch the
+      default selection, keep the SDK reachable on failure, and assert strict isolation still holds for
+      native-core data-plane tools. (Bigger blast radius — land behind thorough tests + a clean fallback path.)
 - [ ] **Python core production wiring & gating.** It's opt-in via `NKLEIN_CORE_PY` (default off) and falls back
-      automatically when unreachable. Decide the default-on criteria, packaging of the sidecar, and how its
-      health surfaces in Settings.
+      automatically when unreachable. **DECIDED 2026-06-22 (user): flip default-ON now** (auto-start the
+      `core-py` sidecar, still auto-fallback when unreachable) **and surface health in Settings** (running, model
+      loaded, port). Bundle/package the sidecar so automatic startup is reliable; degrade cleanly if it can't
+      start.
 
 ### 5.I — Newly raised in chat (2026-06-22) — spec'd, not yet built
 - [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process, batteries-included)** *(2026-06-22)*.
@@ -320,6 +340,44 @@ deep analysis:
       overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
       **project settings modal reachable from the project selector** (a button that opens a modal listing every
       project-specific override/setting). Keep global settings strictly global.
+- [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
+      design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
+      Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role
+      so the swarm can truly run many tasks in parallel, and when several models are available **and free** for a
+      role, automatically pick the **best-fit** model for each individual task — favoring the fastest and most
+      capable that suits the task (context size, model size, model capabilities). **This needs real reasoning, not
+      a greedy heuristic:** we likely must introduce a **task difficulty / complexity / size** estimate (e.g. from
+      objective text, expected diff scope, file/context footprint, acceptance-command shape, prior-round history)
+      and match it against per-model metrics so a small/fast model takes easy cards while a larger/more-capable
+      model is reserved for hard ones — and so we never block on a busy model when a free, adequate one exists.
+      **Build on what exists:** the **Model Capability & Speed Registry (MCSR, §6.4)** already tracks per-model
+      capability/speed and should be the source of per-model metrics (extend it if metrics are missing rather than
+      duplicating); the **parallel local swarm executor (§6.5)** is where free-vs-busy model accounting and
+      assignment live; role→model config is where the one-to-many binding changes. Respect the prime directives
+      (local-only; ≥32k context floor — never select a model that can't hold the task's budget).
+      **User override (required):** the user must be able to override the **model-selection priorities** — e.g.
+      pin a model to a role, set a preference ordering, or weight speed-vs-capability — so the automatic best-fit
+      is a smart default, never a cage. **Acceptance intent:** with ≥2 free models on a role and a mix of
+      easy/hard cards, easy cards land on the fast/small model and hard cards on the capable one; no card waits on
+      a busy model when a suitable free one exists; user priority overrides are honored end-to-end; selection
+      reasoning is inspectable (why this model for this task). **DECIDED 2026-06-22 (user):** default selection
+      = **estimate task difficulty → match to MCSR capability/speed, capability-weighted** (prefer the most
+      capable free model that fits the ≥32k/context budget; speed is the tiebreaker, and easy cards still take a
+      fast/small model). Difficulty signals: objective text length/complexity, expected file/context footprint,
+      acceptance-command shape, and prior-round bounce history. User can override the selection priorities
+      (pin/prefer/weight speed-vs-capability) per role.
+- [ ] **#5 — Universal hover tooltips across the UI (name + short description for every element).** **Goal:** the
+      user can always discover what any UI element is by hovering — every meaningful control, button, icon, field,
+      badge, panel header, and status indicator shows a tooltip containing the element's **name** and a **short,
+      comprehensive description** of what it is / does, so details are always one hover away. Use the existing
+      `Tooltip` primitive ([web-ui/src/components/ui/tooltip.tsx](web-ui/src/components/ui/tooltip.tsx)) per
+      AGENTS.md (Radix-backed) rather than ad-hoc `title=` attributes, so styling and accessibility stay
+      consistent. Prefer a single source of truth for the copy (a name+description map keyed per element) over
+      scattering strings, to keep it maintainable and reviewable. Cover icon-only buttons first (highest
+      discoverability win), then fields/badges/headers; ensure tooltips are keyboard/focus-accessible, not
+      mouse-only. **Acceptance:** hovering (or focusing) any interactive element across the main board, cards,
+      drawers, settings, and project surfaces shows a name + concise description; no meaningful control is left
+      unexplained; tooltips don't obscure the element or trap focus.
 
 ### 5.K — Second-opinion reviewer workflow *(active; raised 2026-06-22)*
 > **Goal (user):** every worker card gets a real second-opinion review from the **reviewer role** (a potentially
@@ -346,6 +404,41 @@ deep analysis:
 - [ ] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
       the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
       second perspective is visible even on a clean approve.
+
+### 5.L — Per-role capability rulesets + agent web/browser access *(active; raised + decided 2026-06-22)*
+> **Goal (user):** unleash the swarm by giving agents real capabilities (incl. web/browser access for the
+> domain-knowledge the spec demands), governed by **per-agent-role rulesets** in global settings. Today the
+> `nklein-web-research-tool.ts` is parked because the sandbox runs `--network none`. **All decisions below are
+> FINAL (user, 2026-06-22).**
+> **HARD INVARIANTS — unchanged at every tier (never violated by any ruleset):** Docker isolation stays mandatory
+> and fail-closed (prime directive #2) — tiers NEVER run agents on the host; `--cap-drop ALL`, `no-new-privileges`,
+> read-only rootfs, project mounts read-only all stay. Cloud-LLM lockdown stays absolute (prime directive #1) —
+> "open" grants web/data egress + tools, **never** a cloud/paid model provider. ≥32k context floor stays.
+- [ ] **Capability tiers (5, monotonic), all inside the mandatory sandbox.** `strict` (network none, no web,
+      no browser, no MCP) → `less_strict` (network none, MCP local-only) → `medium` (domain-allowlist egress,
+      web research on, no browser) → `more_open` (full internet, web + headless browser, MCP) → `fully_open`
+      (full internet, all tools, new tools auto-enabled). **Default preset = `fully_open`.**
+- [ ] **Delivery-autonomy tiers (5, SEPARATE parallel dial — user: "its own trait of rules").** `strict`
+      (manual commit/PR/merge) → `less_strict` (auto-commit to task branch) → `medium` (auto-commit + auto-open
+      PR, manual merge) → `more_open` (auto-merge when review ✓ AND regression delta ≤0; self-merge on null delta
+      blocked) → `fully_open` (auto-merge incl. self-merge on green gates). **Default = `fully_open`** (turns on
+      `nklein-trusted-auto-merge` self-merge — wire the gates carefully). Keep separate from the capability dial.
+- [ ] **Granularity:** one **global preset** as baseline (default fully_open) + **per-role override**
+      (Architect/Worker/Reviewer) for BOTH dials. Schema in `src/core/api-contract.ts`; persisted in runtime
+      settings.
+- [ ] **Pure core first** (mirror `review-loop.ts`/`acceptance-failure-taxonomy.ts`): a module defining both tier
+      enums, their capability/autonomy matrices, and `resolveEffectiveRuleset(globalPreset, roleOverride, role)`.
+      Fully unit-tested. Everything else wires into it.
+- [ ] **Sandbox wiring:** map the resolved capability tier to the Docker `--network` flag (none / allowlist /
+      full) in `nklein-agent-sandbox.ts`; because containers are pooled, route network-enabled tasks to
+      network-enabled container pools (don't mix tiers in one container). Allowlist mode needs an egress proxy or
+      `--network` + firewall rules.
+- [ ] **Tool gating + new tools:** gate the tool registry by tier — un-park `nklein-web-research-tool.ts`, add a
+      **headless browser tool** (sandbox-side), gate MCP. New capabilities are data-plane (sandboxed), never host.
+- [ ] **Delivery gate wiring:** thread the delivery-autonomy tier through the commit/PR/merge path + the
+      second-opinion review (§5.K) and the regression-delta self-merge gate.
+- [ ] **Settings UI:** global preset picker + per-role tier overrides for both dials, with each tier's effects
+      shown; default fully_open. Make clear Docker isolation + cloud lockdown never relax.
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
