@@ -499,8 +499,14 @@ deep analysis:
       `nklein-session-runtime` to drive the host-side `nklein-web-research-tool` enable; a sandbox-side headless
       browser tool; MCP gating. Env supports verifying these live (Docker + LM Studio + runtime all present).
 - [~] **Delivery gate:** `decideDeliveryAction` core built + tested (tier × gates → commit/PR/merge/self-merge).
-      **Remaining:** wire it at the live delivery point (runtime-server merge flow + `evaluateTrustedAutoMerge` +
-      §5.K review). Verifiable live.
+      **DECISION (user, 2026-06-23): self-merge is ALLOWED.** This resolves the old §5.J "self-merge stays off"
+      tension — self-merge is on at the open tiers, and the user can adapt it in **global settings, per project,
+      and per card**. **Remaining:** (1) wire `decideDeliveryAction` at the live delivery point
+      (`finalizeHeadlessAutoReviewTask` — it currently merges unconditionally; gate it on the resolved policy +
+      gates: review-approved [from §5.K], tests/acceptance green, protected-path-free via `evaluateTrustedAutoMerge`,
+      regression delta), performing manual / commit-to-branch / open-PR / merge(+self-merge) accordingly; (2) the
+      **per-project + per-card** delivery-tier overrides (config plumbing + UI), on top of the existing global
+      preset. Verifiable live.
 - [ ] **Settings UI + config write-path:** global preset picker + per-role tier overrides for both dials (default
       fully_open), + thread `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` so the UI can
       save tier changes (read/preserve already work). Make clear Docker isolation + cloud lockdown never relax.
@@ -518,6 +524,12 @@ deep analysis:
 > govern the **autonomous card swarm unchanged**. The chat mode is a **separate, user-driven** surface where the
 > user may authorize host access. Host access is NEVER default, always explicit, always logged, and the autonomous
 > swarm never gains it. Cloud-LLM lockdown (#1) and ≥32k floor still apply everywhere.
+> **DIRECTION (user, 2026-06-23 — finalize before building):** the existing **kanban (home) agent** (the assistant
+> that sat right of the project tab in the left sidebar) is a strong starting point — likely **grow it into** this
+> chat mode, or add a close sibling surface. Reason deeply + agree the direction first (see the suggestions/
+> questions raised in chat 2026-06-23). **Messenger scope:** Signal first (signal-cli), then **WhatsApp** once the
+> base feature works + is polished; the bridge stays transport-agnostic so both (and more later) plug in. The user
+> connects Signal and/or WhatsApp.
 - [ ] **Chat session model & store (decoupled from the board).** Board-independent chat sessions with persisted
       transcripts and stable ids; **multiple concurrent sessions**; not represented as kanban cards. New session
       store + lifecycle, separate from the task/board state.
@@ -610,6 +622,38 @@ deep analysis:
 - [ ] **Reference & parity.** Mirror the ergonomics of Cline's "focus chain" / markdown task-list and comparable
       agent todo lists (Claude Code / Cursor): the agent maintains and visibly works through the list; the user can
       follow progress and (later, optional) nudge/edit it.
+- [ ] **More focus-chain ideas (user: "maybe even more ideas, lets rock this").** Candidates to scope when we
+      pick this up: user can view/edit/reorder/add steps from the UI; the reviewer (§5.K) checks whether the worker
+      actually owned/followed its chain; re-anchor the chain into the model's context on long runs / after
+      compaction (we already have `formatFocusChainForPrompt`); per-step timing/telemetry; carry the chain into the
+      run summary; let a step link to the file(s)/card(s) it touched.
+
+### 5.O — Robustness sweeps: harden across model sizes / families / quants + parallelism *(raised 2026-06-23)*
+> **Goal (user):** make !Klein robust on **as many small local LLMs as possible** (low weight quant — at least
+> down to 4-bit, lower if models exist — and low **K/V-cache** quant, e.g. q8 / q5.1 which stay strong but very
+> memory-efficient) AND optimized for the **large** models we can now run — "successful and efficient on any kind
+> of model that gets connected." The method is evidence-driven: the user makes models available, we **sweep the
+> dev-test projects across configs, collect evidence, and harden** !Klein against the common failure modes that
+> surface. Also harden for **parallel multi-agent** work with dev-test projects that genuinely exercise + benefit
+> from parallelism. **Phase note (user):** we're still "punching through" the early phase; the heavy sweep
+> automation is designed/built **when we start the sweeps** — discuss then.
+- [ ] **Model-matrix robustness (small → large).** Sweep representative models across **size × family × weight
+      quant (≤4-bit and lower) × K/V-cache quant (q8/q5.1/…) × context window**, run the dev-test presets, and use
+      `collect evidence` to catalog the failure taxonomy per config (tool-call malformation, no-tool-call stalls,
+      structured-output misses like decompose/submit_review/update_focus_chain, context-overflow, host
+      crash/unload under memory pressure, reasoning runaways). Feed findings back into guardrails/prompts/budgets so
+      a given config "just works." Equally: ensure **large** models run efficiently (no needless small-model
+      hedging when the model is capable). Capability-tier the hardening off the live model, not catalog defaults.
+- [ ] **Parallel multi-agent dev-test coverage.** Define a small set of dev-test projects whose DAGs **fan out
+      widely** (many independent implementation cards with a few join points) so parallel execution is both
+      exercised and clearly beneficial — to harden the swarm executor, sandbox pool, result-branch merges, and the
+      §5.K review/§5.L delivery flow under real concurrency. Cover the spread: a wide-fan-out feature build, a
+      deep-dependency chain, a mixed DAG, and a "lots of tiny cards" stress case.
+- [ ] **Autonomous sweep tooling (designed when we start sweeps).** An efficient way to sweep configs **with as
+      little cloud-agent involvement as possible** (there are long waits): build on the existing `nklein dev
+      test-project` + `collect evidence` + `cleanup-report`, adding orchestration that iterates the model/quant/
+      config matrix unattended, captures evidence per run, and summarizes outcomes — living in the Developer Tools
+      section or as side-helper tooling. **Discuss the exact shape together when we begin the sweeps.**
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
@@ -622,9 +666,10 @@ deep analysis:
   strict-isolation invariant. *(A dev-only `start.bat` Windows launcher exists.)*
 - **PARKED (cloud-dependent; re-enable only when cloud is revisited or a strong local model is proven):**
   `nklein-advisor.ts` (config/log/MCP advisor buttons), `nklein-model-research.ts` (model-freshness research),
-  `nklein-team-delegation.ts`/`nklein-team-progress.ts` (native team delegation UI), `nklein-trusted-auto-merge.ts`
-  (self-merge — stays off; `null` regression delta blocks), `nklein-web-research-tool.ts` (host web research —
-  also incompatible with `--network none`). These compile as parked helpers and render no local-only UI.
+  `nklein-team-delegation.ts`/`nklein-team-progress.ts` (native team delegation UI),
+  `nklein-web-research-tool.ts` (host web research — also incompatible with `--network none`). These compile as
+  parked helpers and render no local-only UI. *(NOTE: `nklein-trusted-auto-merge.ts` self-merge is no longer
+  parked — per the 2026-06-23 decision it is ALLOWED and configurable; see §5.L delivery gate.)*
 
 ---
 
