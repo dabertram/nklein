@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@nklein/core";
+import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -54,6 +55,12 @@ export interface AgentSandboxDockerRunOptions {
 	image: string;
 	projectMounts: readonly AgentSandboxProjectMount[];
 	config: AgentSandboxPoolConfig;
+	/**
+	 * Sandbox network posture from the resolved capability ruleset. Defaults to `"none"` (the historical,
+	 * fully-isolated behavior). Docker isolation itself (cap-drop, read-only rootfs, etc.) is unconditional and
+	 * NEVER affected by this value — only outbound network reachability changes.
+	 */
+	networkPolicy?: SandboxNetworkPolicy;
 }
 
 export interface AgentSandboxExecResult {
@@ -169,6 +176,27 @@ export function createAgentSandboxTaskUid(taskId: string): number {
 	return TASK_UID_BASE + offset;
 }
 
+/**
+ * Map a resolved {@link SandboxNetworkPolicy} to Docker `--network` arguments.
+ *
+ *  - `none`  → `--network none` (no outbound reachability; the historical default).
+ *  - `full`  → `--network bridge` (default bridge network with NAT egress).
+ *  - `allowlist` → **fail-closed to `none` for now.** A real per-domain egress allowlist needs an egress proxy
+ *    or firewalled network that does not yet exist; granting full egress under an "allowlist" label would be a
+ *    security lie, so until the proxy lands we deny rather than over-grant. Tracked as a follow-up.
+ *
+ * Hard invariant: this only changes outbound reachability. The container's other isolation flags
+ * (`--cap-drop ALL`, `--read-only`, `no-new-privileges`, tmpfs, read-only mounts) are unconditional.
+ */
+export function resolveAgentSandboxNetworkArgs(policy: SandboxNetworkPolicy): string[] {
+	switch (policy) {
+		case "full":
+			return ["--network", "bridge"];
+		default:
+			return ["--network", "none"];
+	}
+}
+
 export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOptions): string[] {
 	const containerName = createAgentSandboxContainerName(options.slot);
 	const volumeName = createAgentSandboxVolumeName(options.slot);
@@ -183,8 +211,7 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 		AGENT_SANDBOX_CONTAINER_LABEL,
 		"--label",
 		`nklein.slot=${options.slot}`,
-		"--network",
-		"none",
+		...resolveAgentSandboxNetworkArgs(options.networkPolicy ?? "none"),
 		"--cap-drop",
 		"ALL",
 		"--security-opt",

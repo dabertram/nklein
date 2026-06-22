@@ -12,6 +12,7 @@ import {
 	createAgentSandboxToolExecutors,
 	DEFAULT_AGENT_SANDBOX_IMAGE,
 	normalizeAgentSandboxPoolConfig,
+	resolveAgentSandboxNetworkArgs,
 } from "../../../src/nklein-sdk/nklein-agent-sandbox";
 import { NKleinPauseController } from "../../../src/nklein-sdk/nklein-pause-controller";
 
@@ -130,6 +131,33 @@ describe("AgentSandboxManager", () => {
 		expect(args).toContain("type=volume,src=nklein-agent-ws-1,dst=/workspaces");
 		expect(args).toContain("type=bind,src=/repo,dst=/repos/abc123,readonly");
 		expect(args.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
+	});
+
+	it("maps the capability network policy to docker --network args (allowlist fails closed)", () => {
+		expect(resolveAgentSandboxNetworkArgs("none")).toEqual(["--network", "none"]);
+		expect(resolveAgentSandboxNetworkArgs("full")).toEqual(["--network", "bridge"]);
+		// allowlist has no real egress filter yet, so it denies rather than over-grants.
+		expect(resolveAgentSandboxNetworkArgs("allowlist")).toEqual(["--network", "none"]);
+	});
+
+	it("defaults to an isolated network and opens egress only for the full policy, keeping isolation flags", () => {
+		const base = {
+			slot: 1,
+			image: "test-image",
+			projectMounts: [],
+			config: normalizeAgentSandboxPoolConfig({ maxContainers: 1, agentsPerContainer: 1 }),
+		} as const;
+
+		const defaulted = buildAgentSandboxDockerRunArgs(base);
+		expect(defaulted.join(" ")).toContain("--network none");
+
+		const full = buildAgentSandboxDockerRunArgs({ ...base, networkPolicy: "full" });
+		expect(full.join(" ")).toContain("--network bridge");
+		expect(full.join(" ")).not.toContain("--network none");
+		// Opening egress must not drop any other isolation flag.
+		for (const flag of ["--cap-drop", "ALL", "--read-only", "no-new-privileges"]) {
+			expect(full).toContain(flag);
+		}
 	});
 
 	it("fails closed when docker is unavailable", async () => {
