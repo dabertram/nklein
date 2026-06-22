@@ -321,6 +321,32 @@ deep analysis:
       **project settings modal reachable from the project selector** (a button that opens a modal listing every
       project-specific override/setting). Keep global settings strictly global.
 
+### 5.K — Second-opinion reviewer workflow *(active; raised 2026-06-22)*
+> **Goal (user):** every worker card gets a real second-opinion review from the **reviewer role** (a potentially
+> different local LLM), just like a good human dev team. Bouncing back with added insight/feedback is a *normal*
+> part of the flow; a clean confirmation from a second perspective is itself valuable. Today the "reviewer" role
+> exists in config but **never starts a review session** — `autoReview` is only a *delivery* decision
+> (`commit` vs `pr`) + trustworthiness checks, not a peer review. Decisions (2026-06-22): **full loop**; **up to
+> 20 rounds** with **stall + identical-loop detection**.
+- [x] **Decision core** ([src/core/review-loop.ts](src/core/review-loop.ts)) — pure `decideReviewLoopAction`:
+      approve→deliver, request_changes→bounce_to_worker, and **park** on the round limit (default 20), a **stall**
+      (worker made no change since the last round), or an **identical loop** (same feedback on unchanged work).
+      Fully unit-tested.
+- [x] **Reviewer interface** ([src/nklein-sdk/nklein-review-tool.ts](src/nklein-sdk/nklein-review-tool.ts)) —
+      a `submit_review` tool (the reviewer's structured output, like `decompose_project`): `verdict`
+      (`approve`/`request_changes`), `summary`, `feedback` (required on changes), optional `insight`. Unit-tested.
+- [ ] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
+      session (reviewer model, fallback to the worker model) seeded with the card objective + diff + acceptance
+      result + the `submit_review` tool; on `submit_review`, run `decideReviewLoopAction`. Guard against recursion
+      (a reviewer card is not itself reviewed) and skip planning cards. Reuse the sandbox/data-plane isolation.
+- [ ] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
+      fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
+      back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing
+      commit/PR delivery with the sign-off attached; `park` → needs-attention with the reason.
+- [ ] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
+      the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
+      second perspective is visible even on a clean approve.
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
   operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed

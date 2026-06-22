@@ -1,0 +1,89 @@
+import type { AgentTool } from "@nklein/shared";
+import { z } from "zod";
+import type { ReviewVerdict } from "../core/review-loop";
+
+/**
+ * `submit_review` — the reviewer role's structured output, mirroring how `decompose_project` is the architect's
+ * structured output. A reviewer-role agent reviews a completed worker card (objective + diff + acceptance
+ * result) and calls this tool exactly once with its verdict, instead of writing prose we have to parse. A
+ * small/local model emitting a single tool call is far more reliable than free-text we then classify.
+ *
+ * `approve` is a real, valued outcome — a second-perspective sign-off even when no changes are needed.
+ * `request_changes` must carry concrete, actionable feedback so the worker can act on it.
+ */
+
+export const nkleinReviewSubmissionSchema = z
+	.object({
+		verdict: z.enum(["approve", "request_changes"]),
+		/** A short second-opinion summary: what was checked and the headline judgment. */
+		summary: z.string().min(1),
+		/** Concrete, actionable change requests; required (non-empty) when requesting changes. */
+		feedback: z.string().nullable().optional(),
+		/** Optional positive observations / insight worth recording even on approval. */
+		insight: z.string().nullable().optional(),
+	})
+	.refine((value) => value.verdict === "approve" || Boolean(value.feedback?.trim()), {
+		message: "feedback is required when verdict is request_changes",
+		path: ["feedback"],
+	});
+
+export type NKleinReviewSubmission = z.infer<typeof nkleinReviewSubmissionSchema>;
+
+export interface NKleinReviewResult {
+	verdict: ReviewVerdict;
+	summary: string;
+	feedback: string | null;
+	insight: string | null;
+}
+
+export type NKleinReviewSubmittedHandler = (result: NKleinReviewResult) => void | Promise<void>;
+
+export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubmittedHandler }): AgentTool {
+	return {
+		name: "submit_review",
+		description:
+			"Submit your second-opinion review of this card's completed work. Call this exactly once with a verdict of `approve` (a valued sign-off even when no changes are needed) or `request_changes` with concrete, actionable feedback. Do not answer in prose; the review is delivered by this tool call.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				verdict: {
+					type: "string",
+					enum: ["approve", "request_changes"],
+					description: "`approve` to sign off, or `request_changes` to send it back to the worker.",
+				},
+				summary: {
+					type: "string",
+					description: "A short summary of what you reviewed and your headline judgment.",
+				},
+				feedback: {
+					type: "string",
+					description: "Concrete, actionable change requests. Required when verdict is `request_changes`.",
+				},
+				insight: {
+					type: "string",
+					description: "Optional positive observations or insight worth recording even on approval.",
+				},
+			},
+			required: ["verdict", "summary"],
+			additionalProperties: false,
+		},
+		async execute(input) {
+			const parsed = nkleinReviewSubmissionSchema.parse(input);
+			const result: NKleinReviewResult = {
+				verdict: parsed.verdict,
+				summary: parsed.summary.trim(),
+				feedback: parsed.feedback?.trim() || null,
+				insight: parsed.insight?.trim() || null,
+			};
+			await options.onSubmitted?.(result);
+			return {
+				ok: true,
+				verdict: result.verdict,
+				instruction:
+					result.verdict === "approve"
+						? "Review submitted: approved. Stop now; do not make further tool calls."
+						: "Review submitted: changes requested. Stop now; !Klein will send your feedback to the worker.",
+			};
+		},
+	};
+}
