@@ -204,4 +204,58 @@ describe("knowledge tool usage stats", () => {
 			),
 		).toBe(true);
 	});
+
+	it("keeps the same repeated task id distinct across workspaces (dev-test ids collide otherwise)", async () => {
+		const rootDir = await createStatsRoot();
+		const runtimeConfig = createRuntimeConfig();
+		// Dev-test scenarios reuse the same task id across projects; a task-id-only key would merge them.
+		const sharedSummary = createSummary({ taskId: "dev-audio-vst-complex" });
+		const first = buildKnowledgeToolUsageObservation({
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project-a",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/audio-project-a" },
+			now: 4_000,
+		});
+		const second = buildKnowledgeToolUsageObservation({
+			workspaceId: "workspace-b",
+			workspacePath: "/tmp/audio-project-b",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/audio-project-b" },
+			now: 4_000,
+		});
+		expect(first?.id).toBeTruthy();
+		expect(first?.id).not.toBe(second?.id);
+
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project-a",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/audio-project-a" },
+			now: 4_000,
+		});
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-b",
+			workspacePath: "/tmp/audio-project-b",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/audio-project-b" },
+			now: 4_000,
+		});
+
+		const allStats = await readKnowledgeToolUsageStats({ rootDir, now: 7_000 });
+		expect(allStats.observations).toHaveLength(2);
+		const scopedToA = await readKnowledgeToolUsageStats({
+			rootDir,
+			workspacePath: "/tmp/audio-project-a",
+			now: 7_000,
+		});
+		expect(scopedToA.observations).toHaveLength(1);
+		expect(scopedToA.observations[0]?.projectName).toBe("audio-project-a");
+	});
 });

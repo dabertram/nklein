@@ -1243,7 +1243,9 @@ function createExpandTaskTool(): AgentTool {
 		},
 		async execute(input) {
 			const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-			const taskGraph = nkleinPlanTaskGraphSchema.parse(record.taskGraph);
+			// Small local models routinely stringify the nested graph object; recover it the same way
+			// decompose_project recovers stringified `tasks`/`expansions` before schema validation.
+			const taskGraph = nkleinPlanTaskGraphSchema.parse(repairJsonStringValue(record.taskGraph));
 			const validation = validateNKleinPlanTaskGraph({ taskGraph });
 			return {
 				ok: true,

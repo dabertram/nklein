@@ -6,6 +6,8 @@ import {
 	type RecordTaskRunSummaryInput,
 	readTaskRunSummaries,
 	recordTaskRunSummary,
+	summarizeTimeoutOutcomes,
+	type TaskRunSummaryRecord,
 } from "../../../src/state/task-run-summary-store";
 
 function baseInput(overrides: Partial<RecordTaskRunSummaryInput> = {}): RecordTaskRunSummaryInput {
@@ -70,5 +72,74 @@ describe("task-run-summary-store", () => {
 
 	it("returns an empty list when no runs exist", async () => {
 		expect(await readTaskRunSummaries({ workspacePath: "/missing", rootDir })).toEqual([]);
+	});
+});
+
+function record(overrides: Partial<TaskRunSummaryRecord> = {}): TaskRunSummaryRecord {
+	return {
+		schemaVersion: 1,
+		taskId: "task",
+		workspacePath: "/repo",
+		state: "awaiting_review",
+		reviewReason: null,
+		providerId: "lmstudio",
+		modelId: "qwen",
+		endpoint: null,
+		lastActivity: null,
+		warningMessage: null,
+		exitCode: null,
+		startedAt: 1,
+		endedAt: 10,
+		promptTokens: null,
+		completionTokens: null,
+		totalTokens: null,
+		timeoutReason: null,
+		timeoutSource: null,
+		patchCaptureStatus: null,
+		...overrides,
+	};
+}
+
+describe("summarizeTimeoutOutcomes", () => {
+	it("ignores runs that did not end on a timeout", () => {
+		expect(summarizeTimeoutOutcomes([record({ timeoutReason: null })])).toEqual([]);
+	});
+
+	it("groups timeout-triggered runs by model and timeout source and counts outcomes", () => {
+		const summary = summarizeTimeoutOutcomes([
+			record({
+				timeoutReason: "stream inactivity timeout after 600s",
+				timeoutSource: "global_config",
+				state: "awaiting_review",
+				endedAt: 30,
+			}),
+			record({
+				timeoutReason: "conversation timeout after 1200s",
+				timeoutSource: "global_config",
+				state: "failed",
+				endedAt: 40,
+			}),
+			record({
+				modelId: "deepseek",
+				timeoutReason: "tool execution timeout after 600s",
+				timeoutSource: "role_override",
+				state: "interrupted",
+				endedAt: 20,
+			}),
+		]);
+
+		expect(summary).toHaveLength(2);
+		const global = summary.find((entry) => entry.timeoutSource === "global_config");
+		expect(global).toMatchObject({
+			modelId: "qwen",
+			timeoutRuns: 2,
+			awaitingReviewRuns: 1,
+			failedRuns: 1,
+			lastEndedAt: 40,
+		});
+		const roleOverride = summary.find((entry) => entry.timeoutSource === "role_override");
+		expect(roleOverride).toMatchObject({ modelId: "deepseek", timeoutRuns: 1, interruptedRuns: 1 });
+		// Most-frequent timeout grouping is ordered first.
+		expect(summary[0]?.timeoutSource).toBe("global_config");
 	});
 });

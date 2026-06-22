@@ -164,10 +164,15 @@ deep analysis:
       control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)
 
 ### 5.C — Run summaries & timeout diagnostics
-- [ ] **Timeout provenance + stats.** Terminal run summaries already carry a structured `timeoutReason`. Add
-      `timeoutSource` provenance (global config vs role override vs autonomous default) from the launch config,
-      and stats for timeout-triggered review outcomes by model/role/scenario.
-      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts) reserves the fields.)
+- [~] **Timeout provenance + stats** *(2026-06-22)*. Terminal run summaries now populate `timeoutSource`
+      (`role_override` vs `global_config` vs `autonomous_default`), resolved per-kind from the launch-config
+      precedence in `resolveEffectiveTaskTimeoutSettings`, threaded through the start request, stored per task,
+      and stamped with the source of the timeout that actually fired. Added `summarizeTimeoutOutcomes`
+      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts)) grouping timeout-triggered runs
+      by model + source + terminal outcome.
+      **Remaining (small):** role/scenario breakdowns of timeout outcomes — the run-summary record has no role or
+      dev-test scenario field, so a by-role/scenario view needs either those fields plumbed onto the record or
+      `timeoutSource` mirrored onto the model-performance observation (which already carries role attribution).
 
 ### 5.D — Dev-test harness real wiring
 - [ ] **Thin real wiring for `runDevTestProject`.** The harness + outcome classifier + observer fallback +
@@ -178,11 +183,19 @@ deep analysis:
       command already exists — [src/commands/dev.ts](src/commands/dev.ts).)
 
 ### 5.E — Cache-key hygiene & fuzz coverage
-- [ ] **Audit telemetry/session caches for task-id-only keys.** Dev-test task ids repeat across projects. The
-      self-observation sink, task-diagnostics, and run-summary store are workspace-scoped; sweep the remaining
-      **model-performance** and **knowledge-tool-usage** caches for the same workspace scoping.
-- [ ] **Extend the near-valid tool-payload fuzz suite** beyond `decompose_project` to `expand_task`,
-      `write_file(s)`, the discovery tools, and `run_command`.
+- [x] **Audit telemetry/session caches for task-id-only keys** *(2026-06-22)*. Dev-test task ids repeat across
+      projects. The self-observation sink, task-diagnostics, and run-summary store are workspace-scoped; the
+      **model-performance** and **knowledge-tool-usage** caches were verified to already include
+      `workspacePathHash` in their observation id / aggregate keys / read filters — and that invariant is now
+      locked by regression tests asserting the same repeated task id across two workspaces stays as two distinct
+      observations. (The live `*ByTaskId` maps in the session service/runtime are single-process and keyed by the
+      unique live task id — not a cross-project persisted cache.)
+- [x] **Extend the near-valid tool-payload fuzz suite** *(2026-06-22)* beyond `decompose_project` to
+      `expand_task`, `write_file(s)`, and the discovery tools (`test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts`).
+      Found + fixed a real gap: `expand_task` parsed its `taskGraph` raw, so a stringified graph (common from
+      small models) failed — it now uses the same `repairJsonStringValue` recovery as `decompose_project`.
+      (`run_command` is the SDK-owned sandboxed bash bridge with no local schema-recovery surface, so it is out of
+      scope for a near-valid-payload fuzz.)
 
 ### 5.F — Portable "project state in the repository" (cross-machine continuation)
 > Conflict model chosen: **CRDT** (automatic merge, no manual rebase UI). Board CRDT, committed store,

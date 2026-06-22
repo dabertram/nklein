@@ -120,7 +120,7 @@ import {
 } from "../nklein-sdk/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../nklein-sdk/nklein-timeout-scaling";
 import { openInBrowser } from "../server/browser";
-import { readTaskRunSummaries } from "../state/task-run-summary-store";
+import { readTaskRunSummaries, type TaskRunTimeoutSource } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
@@ -523,6 +523,24 @@ function enforceLocalNKleinTimeoutFloor(value: number | null): number | null {
 	return Math.max(MIN_POSITIVE_NKLEIN_TIMEOUT_MS, value);
 }
 
+/**
+ * Provenance of a resolved timeout value, mirroring the precedence in `resolveEffectiveTaskTimeoutSettings`:
+ * a per-task/role override wins, then the global runtime config, then the autonomous profile default. Surfaced
+ * on terminal run summaries so a timeout-triggered review records *where* the bound that fired came from.
+ */
+function resolveTimeoutSource(
+	taskValue: number | null | undefined,
+	globalValue: number | null | undefined,
+): TaskRunTimeoutSource {
+	if (taskValue !== null && taskValue !== undefined) {
+		return "role_override";
+	}
+	if (globalValue !== null && globalValue !== undefined) {
+		return "global_config";
+	}
+	return "autonomous_default";
+}
+
 function resolveEffectiveTaskTimeoutSettings(input: {
 	runtimeConfig: RuntimeConfigState;
 	taskSettings?: {
@@ -541,6 +559,9 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 	agentTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
 	timeoutProfile: "cloud" | "local" | "custom";
+	streamTimeoutSource: TaskRunTimeoutSource;
+	toolTimeoutSource: TaskRunTimeoutSource;
+	conversationTimeoutSource: TaskRunTimeoutSource;
 } {
 	const timeoutProfile = input.runtimeConfig.agentTimeoutProfile;
 	const timeoutMode = input.taskSettings?.timeoutMode ?? input.runtimeConfig.agentTimeoutMode;
@@ -557,6 +578,15 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 		input.taskSettings?.conversationTimeoutMs ??
 		input.runtimeConfig.conversationTimeoutMs ??
 		profileDefaults.conversationTimeoutMs;
+	const streamTimeoutSource = resolveTimeoutSource(
+		input.taskSettings?.streamTimeoutMs,
+		input.runtimeConfig.streamTimeoutMs,
+	);
+	const toolTimeoutSource = resolveTimeoutSource(input.taskSettings?.toolTimeoutMs, input.runtimeConfig.toolTimeoutMs);
+	const conversationTimeoutSource = resolveTimeoutSource(
+		input.taskSettings?.conversationTimeoutMs,
+		input.runtimeConfig.conversationTimeoutMs,
+	);
 
 	if (timeoutMode === "unlimited") {
 		return {
@@ -567,6 +597,9 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 			toolTimeoutMs: null,
 			agentTimeoutMs: null,
 			conversationTimeoutMs: null,
+			streamTimeoutSource,
+			toolTimeoutSource,
+			conversationTimeoutSource,
 		};
 	}
 
@@ -579,6 +612,9 @@ function resolveEffectiveTaskTimeoutSettings(input: {
 		toolTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(toolTimeoutMs, scale)),
 		agentTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(agentTimeoutMs, scale)),
 		conversationTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(conversationTimeoutMs, scale)),
+		streamTimeoutSource,
+		toolTimeoutSource,
+		conversationTimeoutSource,
 	};
 }
 
@@ -1334,6 +1370,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						streamTimeoutMs: mcsrAwareTimeouts.streamTimeoutMs,
 						toolTimeoutMs: mcsrAwareTimeouts.toolTimeoutMs,
 						conversationTimeoutMs: mcsrAwareTimeouts.conversationTimeoutMs,
+						streamTimeoutSource: mcsrAwareTimeouts.streamTimeoutSource,
+						toolTimeoutSource: mcsrAwareTimeouts.toolTimeoutSource,
+						conversationTimeoutSource: mcsrAwareTimeouts.conversationTimeoutSource,
 						maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
 						codeEmbeddingProvider,
 					});

@@ -17,7 +17,11 @@ import type {
 import { RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
+import {
+	recordTaskRunSummary,
+	type TaskRunTerminalState,
+	type TaskRunTimeoutSource,
+} from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import {
@@ -118,6 +122,9 @@ interface NKleinTaskTimeoutSettings {
 	streamTimeoutMs: number | null;
 	toolTimeoutMs: number | null;
 	conversationTimeoutMs: number | null;
+	streamTimeoutSource: TaskRunTimeoutSource;
+	toolTimeoutSource: TaskRunTimeoutSource;
+	conversationTimeoutSource: TaskRunTimeoutSource;
 }
 
 interface ContextHistoryTokenSegments {
@@ -227,6 +234,10 @@ export interface StartNKleinTaskSessionRequest {
 	streamTimeoutMs?: number | null;
 	toolTimeoutMs?: number | null;
 	conversationTimeoutMs?: number | null;
+	/** Provenance of each bounded timeout, recorded on the terminal run summary if that timeout fires. */
+	streamTimeoutSource?: TaskRunTimeoutSource;
+	toolTimeoutSource?: TaskRunTimeoutSource;
+	conversationTimeoutSource?: TaskRunTimeoutSource;
 	maxAgentWritableFileLines?: number | null;
 	codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 	systemPrompt?: string | null;
@@ -728,6 +739,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
 	private readonly pendingTimeoutReasonByTaskId = new Map<string, string>();
+	private readonly pendingTimeoutSourceByTaskId = new Map<string, TaskRunTimeoutSource>();
 	private readonly noDiffCheckpointByTaskId = new Map<string, NKleinTaskNoDiffState>();
 	private readonly repeatedToolCallByTaskId = new Map<string, NKleinTaskRepeatedToolState>();
 	private readonly repeatedFailureTargetByTaskId = new Map<string, NKleinTaskRepeatedFailureTargetState>();
@@ -1223,6 +1235,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const timeoutLabel =
 			kind === "stream" ? "stream inactivity" : kind === "tool" ? "tool execution" : "conversation";
 		this.pendingTimeoutReasonByTaskId.set(taskId, `${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)}s`);
+		const timeoutSettings = this.timeoutSettingsByTaskId.get(taskId);
+		const timeoutSource =
+			kind === "stream"
+				? timeoutSettings?.streamTimeoutSource
+				: kind === "tool"
+					? timeoutSettings?.toolTimeoutSource
+					: timeoutSettings?.conversationTimeoutSource;
+		this.pendingTimeoutSourceByTaskId.set(taskId, timeoutSource ?? null);
 		// follow-up-6 §3.5: a stream/tool inactivity timeout should leave a structured note on the card —
 		// what the model was last doing, the last tool, whether any work was captured, and whether resuming is
 		// safe — so a review caused by a stall is diagnosable instead of just "timeout after N seconds".
@@ -1816,6 +1836,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			streamTimeoutMs: request.streamTimeoutMs ?? null,
 			toolTimeoutMs: request.toolTimeoutMs ?? null,
 			conversationTimeoutMs: request.conversationTimeoutMs ?? null,
+			streamTimeoutSource: request.streamTimeoutSource ?? null,
+			toolTimeoutSource: request.toolTimeoutSource ?? null,
+			conversationTimeoutSource: request.conversationTimeoutSource ?? null,
 		});
 		let sandboxWorkspace: { manager: AgentSandboxManager; workdir: string } | null;
 		let queuedForSandboxCapacity = false;
@@ -3041,6 +3064,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const completionTokens = usage?.outputTokens ?? null;
 		const timeoutReason = this.pendingTimeoutReasonByTaskId.get(taskId) ?? null;
 		this.pendingTimeoutReasonByTaskId.delete(taskId);
+		const timeoutSource = this.pendingTimeoutSourceByTaskId.get(taskId) ?? null;
+		this.pendingTimeoutSourceByTaskId.delete(taskId);
 		void recordTaskRunSummary({
 			taskId,
 			workspacePath: summary.workspacePath ?? null,
@@ -3058,7 +3083,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			completionTokens,
 			totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null,
 			timeoutReason,
-			timeoutSource: null,
+			timeoutSource,
 			patchCaptureStatus: null,
 		});
 	}

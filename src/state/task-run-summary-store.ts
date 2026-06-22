@@ -86,6 +86,64 @@ export async function recordTaskRunSummary(
 	}
 }
 
+/**
+ * Aggregated view of the runs that ended on a bounded turn/stream/tool timeout, grouped by model and the
+ * provenance of the timeout that fired (global config vs role override vs autonomous default), with the
+ * terminal outcome each timeout produced. This makes "which model/timeout-source combinations keep timing out,
+ * and what happens when they do" answerable from the durable run log. (Role/scenario breakdowns are surfaced
+ * via the model-performance stats, which already carry role attribution.)
+ */
+export interface TimeoutOutcomeAggregate {
+	key: string;
+	providerId: string | null;
+	modelId: string | null;
+	timeoutSource: TaskRunTimeoutSource;
+	timeoutRuns: number;
+	awaitingReviewRuns: number;
+	failedRuns: number;
+	interruptedRuns: number;
+	lastEndedAt: number;
+}
+
+export function summarizeTimeoutOutcomes(records: readonly TaskRunSummaryRecord[]): TimeoutOutcomeAggregate[] {
+	const groups = new Map<string, TimeoutOutcomeAggregate>();
+	for (const record of records) {
+		// Only runs whose terminal transition carried a timeout reason were timeout-triggered.
+		if (!record.timeoutReason) {
+			continue;
+		}
+		const key = [
+			record.providerId ?? "unknown_provider",
+			record.modelId ?? "unknown_model",
+			record.timeoutSource ?? "unknown_source",
+		].join("\0");
+		const existing = groups.get(key) ?? {
+			key,
+			providerId: record.providerId,
+			modelId: record.modelId,
+			timeoutSource: record.timeoutSource,
+			timeoutRuns: 0,
+			awaitingReviewRuns: 0,
+			failedRuns: 0,
+			interruptedRuns: 0,
+			lastEndedAt: 0,
+		};
+		existing.timeoutRuns += 1;
+		if (record.state === "awaiting_review") {
+			existing.awaitingReviewRuns += 1;
+		} else if (record.state === "failed") {
+			existing.failedRuns += 1;
+		} else if (record.state === "interrupted") {
+			existing.interruptedRuns += 1;
+		}
+		existing.lastEndedAt = Math.max(existing.lastEndedAt, record.endedAt);
+		groups.set(key, existing);
+	}
+	return [...groups.values()].sort(
+		(left, right) => right.timeoutRuns - left.timeoutRuns || right.lastEndedAt - left.lastEndedAt,
+	);
+}
+
 export async function readTaskRunSummaries(options: ReadTaskRunSummariesOptions): Promise<TaskRunSummaryRecord[]> {
 	const logPath = resolveLogPath(options.workspacePath, options.rootDir);
 	let raw: string;

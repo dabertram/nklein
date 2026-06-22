@@ -251,4 +251,58 @@ describe("model performance stats", () => {
 		expect(scopedStats.observations).toHaveLength(1);
 		expect(scopedStats.observations[0]?.projectName).toBe("project-a");
 	});
+
+	it("keeps the same repeated task id distinct across workspaces (dev-test ids collide otherwise)", async () => {
+		const rootDir = await createStatsRoot();
+		const runtimeConfig = createRuntimeConfig();
+		// Dev-test scenarios reuse the same task id (e.g. `dev-habit-insights-mid`) across projects.
+		// A task-id-only cache key would dedup these two distinct runs into one.
+		const sharedSummary = createSummary({ taskId: "dev-habit-insights-mid" });
+		const first = buildModelPerformanceObservation({
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/project-a",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: sharedSummary,
+			now: 20_000,
+		});
+		const second = buildModelPerformanceObservation({
+			workspaceId: "workspace-b",
+			workspacePath: "/tmp/project-b",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/project-b" },
+			now: 20_000,
+		});
+		expect(first?.id).toBeTruthy();
+		expect(first?.id).not.toBe(second?.id);
+
+		await recordModelPerformanceObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/project-a",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: sharedSummary,
+			now: 20_000,
+		});
+		await recordModelPerformanceObservation({
+			rootDir,
+			workspaceId: "workspace-b",
+			workspacePath: "/tmp/project-b",
+			card: createCard(sharedSummary.taskId),
+			runtimeConfig,
+			summary: { ...sharedSummary, workspacePath: "/tmp/project-b" },
+			now: 20_000,
+		});
+
+		const allStats = await readModelPerformanceStats({ rootDir, now: 30_000 });
+		expect(allStats.observations).toHaveLength(2);
+		const scopedToA = await readModelPerformanceStats({ rootDir, workspacePath: "/tmp/project-a", now: 30_000 });
+		expect(scopedToA.observations).toHaveLength(1);
+		expect(scopedToA.observations[0]?.projectName).toBe("project-a");
+		expect(
+			allStats.aggregates.filter((aggregate) => aggregate.scope === "project" && aggregate.runs === 1),
+		).toHaveLength(2);
+	});
 });
