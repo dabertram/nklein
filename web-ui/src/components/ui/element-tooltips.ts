@@ -32,6 +32,14 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Toggle sidebar",
 		description: "Show or hide the project navigation sidebar.",
 	},
+	"board-column.start-all": {
+		name: "Start all backlog tasks",
+		description: "Launch every task in this column at once (subject to the swarm concurrency limit).",
+	},
+	"board-column.clear-trash": {
+		name: "Clear trash",
+		description: "Permanently delete every task in Trash. This cannot be undone.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

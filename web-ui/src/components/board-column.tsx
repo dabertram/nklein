@@ -5,6 +5,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { BoardCard } from "@/components/board-card";
 import { Button } from "@/components/ui/button";
 import { ColumnIndicator } from "@/components/ui/column-indicator";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { isCardDropDisabled, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import type { BoardCard as BoardCardModel, BoardColumnId, BoardColumn as BoardColumnModel } from "@/types";
@@ -125,27 +126,29 @@ export function BoardColumn({
 						<span className="text-text-secondary text-xs">{column.cards.length}</span>
 					</div>
 					{canStartAllTasks ? (
-						<Button
-							icon={<Play size={14} />}
-							variant="ghost"
-							size="sm"
-							onClick={onStartAllTasks}
-							disabled={column.cards.length === 0}
-							aria-label="Start all backlog tasks"
-							title={column.cards.length > 0 ? "Start all backlog tasks" : "Backlog is empty"}
-						/>
+						<ElementTooltip id="board-column.start-all" side="bottom">
+							<Button
+								icon={<Play size={14} />}
+								variant="ghost"
+								size="sm"
+								onClick={onStartAllTasks}
+								disabled={column.cards.length === 0}
+								aria-label="Start all backlog tasks"
+							/>
+						</ElementTooltip>
 					) : null}
 					{canClearTrash ? (
-						<Button
-							icon={<Trash2 size={14} />}
-							variant="ghost"
-							size="sm"
-							className="text-status-red hover:text-status-red"
-							onClick={onClearTrash}
-							disabled={column.cards.length === 0}
-							aria-label="Clear trash"
-							title={column.cards.length > 0 ? "Clear trash permanently" : "Trash is empty"}
-						/>
+						<ElementTooltip id="board-column.clear-trash" side="bottom">
+							<Button
+								icon={<Trash2 size={14} />}
+								variant="ghost"
+								size="sm"
+								className="text-status-red hover:text-status-red"
+								onClick={onClearTrash}
+								disabled={column.cards.length === 0}
+								aria-label="Clear trash"
+							/>
+						</ElementTooltip>
 					) : null}
 				</div>
 
