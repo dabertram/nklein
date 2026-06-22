@@ -524,12 +524,17 @@ deep analysis:
 > govern the **autonomous card swarm unchanged**. The chat mode is a **separate, user-driven** surface where the
 > user may authorize host access. Host access is NEVER default, always explicit, always logged, and the autonomous
 > swarm never gains it. Cloud-LLM lockdown (#1) and ≥32k floor still apply everywhere.
-> **DIRECTION (user, 2026-06-23 — finalize before building):** the existing **kanban (home) agent** (the assistant
-> that sat right of the project tab in the left sidebar) is a strong starting point — likely **grow it into** this
-> chat mode, or add a close sibling surface. Reason deeply + agree the direction first (see the suggestions/
-> questions raised in chat 2026-06-23). **Messenger scope:** Signal first (signal-cli), then **WhatsApp** once the
-> base feature works + is polished; the bridge stays transport-agnostic so both (and more later) plug in. The user
-> connects Signal and/or WhatsApp.
+> **DIRECTION (user, 2026-06-23 — agreed):** build **ONE unified agent**, not separate surfaces — the existing
+> kanban (home) agent folds into it (likely just a selectable **scope/role**, not its own UI; avoid bloating with
+> multiple ways to chat). The single chat session is configured by **selectable "targeted use-case" presets**
+> (scope/role/tools) the user turns on per session. **Session scope = "both and more":** workspace-scoped AND
+> global/cross-project AND a **full host-access mode**, etc. (the §5.M execution modes become selectable session
+> modes). **Messenger routing = one session per thread.** **Messenger scope:** Signal first (signal-cli), then
+> **WhatsApp** once the base works + is polished; transport-agnostic bridge so both (and more later) plug in.
+> **Use-case preset menu — being chosen now (chat 2026-06-23, multi-select):** access scopes {project-sandboxed
+> coder (default), all-loaded-projects pilot, host-access power session, mobile (Signal/WhatsApp) thread} + roles
+> {planner/architect, reviewer (reuse §5.K), debugger/incident, researcher (web/browser per §5.L tiers)}; base
+> always-on = coding + board operation. Finalize the selected set, then build the unified agent + presets.
 - [ ] **Chat session model & store (decoupled from the board).** Board-independent chat sessions with persisted
       transcripts and stable ids; **multiple concurrent sessions**; not represented as kanban cards. New session
       store + lifecycle, separate from the task/board state.
@@ -670,6 +675,20 @@ deep analysis:
   `nklein-web-research-tool.ts` (host web research — also incompatible with `--network none`). These compile as
   parked helpers and render no local-only UI. *(NOTE: `nklein-trusted-auto-merge.ts` self-merge is no longer
   parked — per the 2026-06-23 decision it is ALLOWED and configurable; see §5.L delivery gate.)*
+
+### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
+> **Goal (user, tentative):** port the backend to Python so that **practically no TypeScript remains in the
+> backend**. **Status: explicitly the very late / likely final task** — do NOT start until nearly everything else
+> is done. The user is **not** locked to a strict "zero TS" target: there may be good reasons to keep some TS
+> (web-ui stays TS regardless; some boundaries/SDKs may be cheaper to keep), and we'll go through **a lot of
+> clarifying questions** before committing. Rationale for deferring + then doing it fast: porting a **battle-proven
+> tool with strong test coverage** is close to a mechanical, well-specified job (the test suite is the spec), so it
+> can plausibly be a largely **autonomous overnight** effort once we get there. **Revisit scope when we reach it;**
+> for now it just sits at the bottom and we'll know much more by then.
+> Open questions to settle then (non-exhaustive): exact TS/Python boundary (does the NKlein SDK boundary, the
+> Docker sandbox manager, the tRPC contract, the runtime server all move? what does web-ui talk to?); reuse the
+> existing `core-py` FastAPI sidecar as the seed vs. a fresh service; how the strong test suite ports/maps to keep
+> it the spec; migration strategy (strangler vs. big-bang); perf/packaging/Docker-delivery implications.
 
 ---
 
