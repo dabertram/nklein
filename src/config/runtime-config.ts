@@ -23,6 +23,7 @@ import {
 	runtimeCodeEmbeddingSettingsSchema,
 	runtimeRoleModelSettingsSchema,
 } from "../core/api-contract";
+import { DEFAULT_MAX_REVIEW_ROUNDS } from "../core/review-loop";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -63,6 +64,8 @@ interface RuntimeGlobalConfigFileShape {
 	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
+	secondOpinionReviewEnabled?: boolean;
+	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelRoles?: RuntimeModelRoles;
@@ -100,6 +103,8 @@ export interface RuntimeConfigState {
 	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
+	secondOpinionReviewEnabled: boolean;
+	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
@@ -135,6 +140,8 @@ export interface RuntimeConfigUpdateInput {
 	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
+	secondOpinionReviewEnabled?: boolean;
+	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
@@ -161,6 +168,8 @@ const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
 const DEFAULT_LOST_HEARTBEAT_POLICY: RuntimeLostHeartbeatPolicy = "park";
 const DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED = true;
+const DEFAULT_SECOND_OPINION_REVIEW_ENABLED = true;
+const DEFAULT_REVIEW_MAX_ROUNDS = DEFAULT_MAX_REVIEW_ROUNDS;
 export const DEFAULT_CODE_EMBEDDING_SETTINGS: RuntimeCodeEmbeddingSettings = {
 	// Zero-config default: an in-process GGUF embedder served by the Python core. It auto-downloads on first
 	// use and degrades to the lexical embedding when the core is disabled/unreachable, so behavior is unchanged
@@ -686,6 +695,11 @@ function toRuntimeConfigState({
 			globalConfig?.decompositionAutoApplyEnabled,
 			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 		),
+		secondOpinionReviewEnabled: normalizeBoolean(
+			globalConfig?.secondOpinionReviewEnabled,
+			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+		),
+		reviewMaxRounds: normalizePositiveInteger(globalConfig?.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			globalConfig?.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -744,6 +758,8 @@ async function writeRuntimeGlobalConfigFile(
 		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
+		secondOpinionReviewEnabled?: boolean;
+		reviewMaxRounds?: number;
 		readyForReviewNotificationsEnabled?: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		modelRoles?: RuntimeModelRoles;
@@ -839,6 +855,14 @@ async function writeRuntimeGlobalConfigFile(
 		config.decompositionAutoApplyEnabled === undefined
 			? DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
 			: normalizeBoolean(config.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED);
+	const secondOpinionReviewEnabled =
+		config.secondOpinionReviewEnabled === undefined
+			? DEFAULT_SECOND_OPINION_REVIEW_ENABLED
+			: normalizeBoolean(config.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED);
+	const reviewMaxRounds =
+		config.reviewMaxRounds === undefined
+			? DEFAULT_REVIEW_MAX_ROUNDS
+			: normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
 	const readyForReviewNotificationsEnabled =
 		config.readyForReviewNotificationsEnabled === undefined
 			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
@@ -973,6 +997,15 @@ async function writeRuntimeGlobalConfigFile(
 		payload.decompositionAutoApplyEnabled = decompositionAutoApplyEnabled;
 	}
 	if (
+		hasOwnKey(existing, "secondOpinionReviewEnabled") ||
+		secondOpinionReviewEnabled !== DEFAULT_SECOND_OPINION_REVIEW_ENABLED
+	) {
+		payload.secondOpinionReviewEnabled = secondOpinionReviewEnabled;
+	}
+	if (hasOwnKey(existing, "reviewMaxRounds") || reviewMaxRounds !== DEFAULT_REVIEW_MAX_ROUNDS) {
+		payload.reviewMaxRounds = reviewMaxRounds;
+	}
+	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
 		readyForReviewNotificationsEnabled !== DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
 	) {
@@ -1097,6 +1130,8 @@ function createRuntimeConfigStateFromValues(input: {
 	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
+	secondOpinionReviewEnabled: boolean;
+	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
@@ -1148,6 +1183,11 @@ function createRuntimeConfigStateFromValues(input: {
 			input.decompositionAutoApplyEnabled,
 			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 		),
+		secondOpinionReviewEnabled: normalizeBoolean(
+			input.secondOpinionReviewEnabled,
+			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+		),
+		reviewMaxRounds: normalizePositiveInteger(input.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 		readyForReviewNotificationsEnabled: normalizeBoolean(
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -1203,6 +1243,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxIdleTimeoutMinutes: current.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
+		secondOpinionReviewEnabled: current.secondOpinionReviewEnabled,
+		reviewMaxRounds: current.reviewMaxRounds,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		codeEmbeddingDefaults: current.codeEmbeddingDefaults,
 		codeEmbeddingOverride: null,
@@ -1260,6 +1302,8 @@ export async function saveRuntimeConfig(
 		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
+		secondOpinionReviewEnabled?: boolean;
+		reviewMaxRounds?: number;
 		readyForReviewNotificationsEnabled: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
@@ -1312,6 +1356,11 @@ export async function saveRuntimeConfig(
 				config.decompositionAutoApplyEnabled,
 				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 			),
+			secondOpinionReviewEnabled: normalizeBoolean(
+				config.secondOpinionReviewEnabled,
+				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+			),
+			reviewMaxRounds: normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
 			modelRoles: config.modelRoles,
@@ -1365,6 +1414,11 @@ export async function saveRuntimeConfig(
 				config.decompositionAutoApplyEnabled,
 				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 			),
+			secondOpinionReviewEnabled: normalizeBoolean(
+				config.secondOpinionReviewEnabled,
+				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+			),
+			reviewMaxRounds: normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults ?? DEFAULT_CODE_EMBEDDING_SETTINGS,
 			codeEmbeddingOverride: config.codeEmbeddingOverride ?? null,
@@ -1450,6 +1504,14 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				updates.decompositionAutoApplyEnabled === undefined
 					? current.decompositionAutoApplyEnabled
 					: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
+			secondOpinionReviewEnabled:
+				updates.secondOpinionReviewEnabled === undefined
+					? current.secondOpinionReviewEnabled
+					: normalizeBoolean(updates.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
+			reviewMaxRounds:
+				updates.reviewMaxRounds === undefined
+					? current.reviewMaxRounds
+					: normalizePositiveInteger(updates.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults:
@@ -1490,6 +1552,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
 			nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
 			nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
+			nextConfig.secondOpinionReviewEnabled !== current.secondOpinionReviewEnabled ||
+			nextConfig.reviewMaxRounds !== current.reviewMaxRounds ||
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingOverride, current.codeEmbeddingOverride) ||
@@ -1525,6 +1589,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
+			secondOpinionReviewEnabled: nextConfig.secondOpinionReviewEnabled,
+			reviewMaxRounds: nextConfig.reviewMaxRounds,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			modelRoles: nextConfig.modelRoles,
@@ -1560,6 +1626,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
+			secondOpinionReviewEnabled: nextConfig.secondOpinionReviewEnabled,
+			reviewMaxRounds: nextConfig.reviewMaxRounds,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
@@ -1656,6 +1724,14 @@ export async function updateGlobalRuntimeConfig(
 					updates.decompositionAutoApplyEnabled === undefined
 						? current.decompositionAutoApplyEnabled
 						: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
+				secondOpinionReviewEnabled:
+					updates.secondOpinionReviewEnabled === undefined
+						? current.secondOpinionReviewEnabled
+						: normalizeBoolean(updates.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
+				reviewMaxRounds:
+					updates.reviewMaxRounds === undefined
+						? current.reviewMaxRounds
+						: normalizePositiveInteger(updates.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 				readyForReviewNotificationsEnabled:
 					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults:
@@ -1695,6 +1771,8 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
 				nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
 				nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
+				nextConfig.secondOpinionReviewEnabled !== current.secondOpinionReviewEnabled ||
+				nextConfig.reviewMaxRounds !== current.reviewMaxRounds ||
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 				!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
@@ -1728,6 +1806,8 @@ export async function updateGlobalRuntimeConfig(
 				sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
+				secondOpinionReviewEnabled: nextConfig.secondOpinionReviewEnabled,
+				reviewMaxRounds: nextConfig.reviewMaxRounds,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				modelRoles: nextConfig.modelRoles,
@@ -1760,6 +1840,8 @@ export async function updateGlobalRuntimeConfig(
 				sandboxIdleTimeoutMinutes: nextConfig.sandboxIdleTimeoutMinutes,
 				lostHeartbeatPolicy: nextConfig.lostHeartbeatPolicy,
 				decompositionAutoApplyEnabled: nextConfig.decompositionAutoApplyEnabled,
+				secondOpinionReviewEnabled: nextConfig.secondOpinionReviewEnabled,
+				reviewMaxRounds: nextConfig.reviewMaxRounds,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				codeEmbeddingOverride: null,

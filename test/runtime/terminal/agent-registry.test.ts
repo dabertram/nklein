@@ -40,6 +40,8 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
+		secondOpinionReviewEnabled: true,
+		reviewMaxRounds: 20,
 		readyForReviewNotificationsEnabled: true,
 		codeEmbeddingDefaults: {
 			provider: "local_lexical",

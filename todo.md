@@ -428,13 +428,20 @@ deep analysis:
       `buildReviewSignOff`, and `resolveReviewTransition` (verdict + round + history → deliver/bounce/park + the
       `ReviewRoundRecord` to persist). **Remaining (live):** start the reviewer session with the review tool
       wired to the verdict handler, then call the transition + apply it (next item) + broadcast.
-- [ ] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
+- [~] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
       fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
       back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing
       commit/PR delivery with the sign-off attached; `park` → needs-attention with the reason.
-- [ ] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
+      **Schema done:** the card carries an optional `review` object (`runtimeCardReviewSchema` in api-contract:
+      status/round/history/last-verdict/summary/feedback/insight/sign-off/parkedReason) — additive +
+      CRDT-compatible (whole-object LWW), so old boards load unchanged. **Remaining (live):** the hub applies the
+      transition to the board + drives the worker/delivery sessions.
+- [~] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
       the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
       second perspective is visible even on a clean approve.
+      **Config done:** `secondOpinionReviewEnabled` (default on) + `reviewMaxRounds` (default 20) round-trip through
+      `runtime-config.ts` (load/normalize/persist/update + change-detection), unit-tested. **Remaining:** the
+      Settings dialog controls + the card review display.
 
 ### 5.L — Per-role capability rulesets + agent web/browser access *(active; raised + decided 2026-06-22)*
 > **Goal (user):** unleash the swarm by giving agents real capabilities (incl. web/browser access for the

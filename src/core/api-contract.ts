@@ -221,12 +221,45 @@ function normalizeRuntimeTaskNKleinSettings(input: {
 	};
 }
 
+export const runtimeReviewVerdictSchema = z.enum(["approve", "request_changes"]);
+export type RuntimeReviewVerdict = z.infer<typeof runtimeReviewVerdictSchema>;
+
+/** One second-opinion review round, persisted on the card for stall/identical-loop detection + display. */
+export const runtimeReviewRoundRecordSchema = z.object({
+	round: z.number().int().positive(),
+	verdict: runtimeReviewVerdictSchema,
+	feedbackFingerprint: z.string().nullable(),
+	workFingerprint: z.string().nullable(),
+});
+export type RuntimeReviewRoundRecord = z.infer<typeof runtimeReviewRoundRecordSchema>;
+
+/** Persisted second-opinion review state for a worker card (todo §5.K). Whole-object LWW on the board CRDT. */
+export const runtimeCardReviewSchema = z.object({
+	/** Lifecycle of the review loop for this card. */
+	status: z.enum(["in_review", "changes_requested", "approved", "parked"]),
+	/** Highest review round reached (0 before the first review starts). */
+	round: z.number().int().nonnegative(),
+	/** All review rounds so far, oldest first. */
+	history: z.array(runtimeReviewRoundRecordSchema).default([]),
+	lastVerdict: runtimeReviewVerdictSchema.nullable().default(null),
+	lastSummary: z.string().nullable().default(null),
+	lastFeedback: z.string().nullable().default(null),
+	lastInsight: z.string().nullable().default(null),
+	/** Reviewer sign-off recorded on approval (summary + optional insight). */
+	signOff: z.string().nullable().default(null),
+	/** Reason the loop parked, when status is `parked`. */
+	parkedReason: z.string().nullable().default(null),
+	updatedAt: z.number(),
+});
+export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;
+
 export const runtimeBoardCardSchema = z
 	.object({
 		id: z.string(),
 		title: z.string().optional(),
 		prompt: z.string(),
 		startInPlanMode: z.boolean(),
+		review: runtimeCardReviewSchema.optional(),
 		autoReviewEnabled: z.boolean().optional(),
 		autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
 		autoReviewStatus: z.enum(["running", "failed"]).optional(),
@@ -1675,6 +1708,8 @@ export const runtimeConfigResponseSchema = z.object({
 	sandboxIdleTimeoutMinutes: z.number().int().positive(),
 	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema,
 	decompositionAutoApplyEnabled: z.boolean(),
+	secondOpinionReviewEnabled: z.boolean(),
+	reviewMaxRounds: z.number().int().positive(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
 	effectiveCodeEmbeddingSettings: runtimeCodeEmbeddingSettingsSchema,
@@ -1722,6 +1757,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	sandboxIdleTimeoutMinutes: z.number().int().positive().optional(),
 	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema.optional(),
 	decompositionAutoApplyEnabled: z.boolean().optional(),
+	secondOpinionReviewEnabled: z.boolean().optional(),
+	reviewMaxRounds: z.number().int().positive().optional(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),

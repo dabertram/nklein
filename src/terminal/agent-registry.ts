@@ -147,6 +147,8 @@ export function buildRuntimeConfigResponse(
 		sandboxIdleTimeoutMinutes: runtimeConfig.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: runtimeConfig.decompositionAutoApplyEnabled,
+		secondOpinionReviewEnabled: runtimeConfig.secondOpinionReviewEnabled,
+		reviewMaxRounds: runtimeConfig.reviewMaxRounds,
 		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
 		codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,

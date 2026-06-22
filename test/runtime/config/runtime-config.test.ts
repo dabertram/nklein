@@ -237,6 +237,26 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("defaults second-opinion review on (max 20 rounds) and round-trips overrides (§5.K)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-review-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-review-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.secondOpinionReviewEnabled).toBe(true);
+				expect(defaults.reviewMaxRounds).toBe(20);
+
+				await updateRuntimeConfig(tempProject, { secondOpinionReviewEnabled: false, reviewMaxRounds: 5 });
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.secondOpinionReviewEnabled).toBe(false);
+				expect(reloaded.reviewMaxRounds).toBe(5);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("preserves a role's additionalModels pool across load/save (#4 model pools)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-pool-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-pool-");
