@@ -5,8 +5,10 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
+import { DEFAULT_AGENT_RULESETS_CONFIG } from "../core/agent-rulesets";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
+	AgentRulesetsConfigPayload,
 	RuntimeAgentId,
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
@@ -15,7 +17,11 @@ import type {
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 } from "../core/api-contract";
-import { runtimeCodeEmbeddingSettingsSchema, runtimeTaskNKleinSettingsSchema } from "../core/api-contract";
+import {
+	agentRulesetsConfigSchema,
+	runtimeCodeEmbeddingSettingsSchema,
+	runtimeTaskNKleinSettingsSchema,
+} from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -59,6 +65,7 @@ interface RuntimeGlobalConfigFileShape {
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelRoles?: RuntimeModelRoles;
+	agentRulesets?: AgentRulesetsConfigPayload;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 }
@@ -97,6 +104,7 @@ export interface RuntimeConfigState {
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
 	modelRoles: RuntimeModelRoles;
+	agentRulesets?: AgentRulesetsConfigPayload;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -431,6 +439,15 @@ function areModelRolesEqual(left: RuntimeModelRoles, right: RuntimeModelRoles): 
 	return JSON.stringify(normalizeModelRoles(left)) === JSON.stringify(normalizeModelRoles(right));
 }
 
+function normalizeAgentRulesets(value: unknown): AgentRulesetsConfigPayload {
+	const parsed = agentRulesetsConfigSchema.safeParse(value);
+	return parsed.success ? parsed.data : DEFAULT_AGENT_RULESETS_CONFIG;
+}
+
+function areAgentRulesetsEqual(left: AgentRulesetsConfigPayload, right: AgentRulesetsConfigPayload): boolean {
+	return JSON.stringify(normalizeAgentRulesets(left)) === JSON.stringify(normalizeAgentRulesets(right));
+}
+
 function normalizePromptTemplate(value: unknown, fallback: string): string {
 	if (typeof value !== "string") {
 		return fallback;
@@ -660,6 +677,7 @@ function toRuntimeConfigState({
 		codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
+		agentRulesets: normalizeAgentRulesets(globalConfig?.agentRulesets),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			globalConfig?.commitPromptTemplate,
@@ -712,6 +730,7 @@ async function writeRuntimeGlobalConfigFile(
 		readyForReviewNotificationsEnabled?: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		modelRoles?: RuntimeModelRoles;
+		agentRulesets?: AgentRulesetsConfigPayload;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
 	},
@@ -815,6 +834,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.modelRoles === undefined
 			? normalizeModelRoles(existing?.modelRoles)
 			: normalizeModelRoles(config.modelRoles);
+	const agentRulesets =
+		config.agentRulesets === undefined
+			? normalizeAgentRulesets(existing?.agentRulesets)
+			: normalizeAgentRulesets(config.agentRulesets);
 	const commitPromptTemplate =
 		config.commitPromptTemplate === undefined
 			? DEFAULT_COMMIT_PROMPT_TEMPLATE
@@ -947,6 +970,9 @@ async function writeRuntimeGlobalConfigFile(
 	if (hasOwnKey(existing, "modelRoles") || Object.keys(modelRoles).length > 0) {
 		payload.modelRoles = modelRoles;
 	}
+	if (hasOwnKey(existing, "agentRulesets") || !areAgentRulesetsEqual(agentRulesets, DEFAULT_AGENT_RULESETS_CONFIG)) {
+		payload.agentRulesets = agentRulesets;
+	}
 	if (hasOwnKey(existing, "commitPromptTemplate") || commitPromptTemplate !== DEFAULT_COMMIT_PROMPT_TEMPLATE) {
 		payload.commitPromptTemplate = commitPromptTemplate;
 	}
@@ -1058,6 +1084,7 @@ function createRuntimeConfigStateFromValues(input: {
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	modelRoles: RuntimeModelRoles;
+	agentRulesets?: AgentRulesetsConfigPayload;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -1117,6 +1144,7 @@ function createRuntimeConfigStateFromValues(input: {
 			normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride) ??
 			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 		modelRoles: normalizeModelRoles(input.modelRoles),
+		agentRulesets: normalizeAgentRulesets(input.agentRulesets),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			input.commitPromptTemplate,
@@ -1162,6 +1190,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		codeEmbeddingDefaults: current.codeEmbeddingDefaults,
 		codeEmbeddingOverride: null,
 		modelRoles: current.modelRoles,
+		agentRulesets: current.agentRulesets,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
 		openPrPromptTemplate: current.openPrPromptTemplate,
@@ -1218,6 +1247,7 @@ export async function saveRuntimeConfig(
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelRoles?: RuntimeModelRoles;
+		agentRulesets?: AgentRulesetsConfigPayload;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
 		openPrPromptTemplate: string;
@@ -1268,6 +1298,7 @@ export async function saveRuntimeConfig(
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
 			modelRoles: config.modelRoles,
+			agentRulesets: config.agentRulesets,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
@@ -1321,6 +1352,7 @@ export async function saveRuntimeConfig(
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults ?? DEFAULT_CODE_EMBEDDING_SETTINGS,
 			codeEmbeddingOverride: config.codeEmbeddingOverride ?? null,
 			modelRoles: normalizeModelRoles(config.modelRoles),
+			agentRulesets: normalizeAgentRulesets(config.agentRulesets),
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
@@ -1511,6 +1543,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelRoles: nextConfig.modelRoles,
+			agentRulesets: current.agentRulesets,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -1704,6 +1737,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				codeEmbeddingOverride: null,
 				modelRoles: nextConfig.modelRoles,
+				agentRulesets: current.agentRulesets,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,

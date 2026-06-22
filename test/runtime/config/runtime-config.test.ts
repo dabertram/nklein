@@ -237,6 +237,49 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("defaults agentRulesets to fully_open and preserves a persisted ruleset across config updates", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-rulesets-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-rulesets-");
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const fresh = await loadRuntimeConfig(tempProject);
+				expect(fresh.agentRulesets?.capability.globalPreset).toBe("fully_open");
+				expect(fresh.agentRulesets?.delivery.globalPreset).toBe("fully_open");
+
+				const runtimeConfigDir = join(tempHome, ".nklein", "nklein");
+				mkdirSync(runtimeConfigDir, { recursive: true });
+				writeFileSync(
+					join(runtimeConfigDir, "config.json"),
+					JSON.stringify(
+						{
+							agentRulesets: {
+								capability: { globalPreset: "strict", roleOverrides: { worker: "medium" } },
+								delivery: { globalPreset: "more_open" },
+							},
+						},
+						null,
+						2,
+					),
+					"utf8",
+				);
+				const loaded = await loadRuntimeConfig(tempProject);
+				expect(loaded.agentRulesets?.capability.globalPreset).toBe("strict");
+				expect(loaded.agentRulesets?.capability.roleOverrides?.worker).toBe("medium");
+				expect(loaded.agentRulesets?.delivery.globalPreset).toBe("more_open");
+
+				// Updating an unrelated field must not drop the persisted ruleset.
+				await updateRuntimeConfig(tempProject, { maxConcurrentTasks: 5 });
+				const after = await loadRuntimeConfig(tempProject);
+				expect(after.agentRulesets?.capability.globalPreset).toBe("strict");
+				expect(after.maxConcurrentTasks).toBe(5);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("uses the debug env override only when developer mode is unset", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-debug-env-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-debug-env-");
