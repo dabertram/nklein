@@ -421,10 +421,14 @@ deep analysis:
       session (reviewer model, fallback to the worker model) seeded with the card objective + diff + acceptance
       result + the `submit_review` tool; on `submit_review`, run `decideReviewLoopAction`. Guard against recursion
       (a reviewer card is not itself reviewed) and skip planning cards. Reuse the sandbox/data-plane isolation.
-      **WIRED (live; needs model+Docker to exercise end-to-end):** service `runSecondOpinionReviewSession`
-      (synthetic `<taskId>::review` session prepared from the result branch, reviewer model, await verdict via the
-      tool with a timeout, teardown via `clearTaskSessions` + `disposeWorkspace`) + state-hub call to
-      `runSecondOpinionReviewForTask` after acceptance, gated + fail-safe (→ ready-for-review on any error).
+      **WIRED in the delivery-gating seam** (corrected after live verification — see §6 note): service
+      `runSecondOpinionReviewSession` (synthetic `<taskId>::review` session prepared from the result branch,
+      reviewer model, await verdict via the tool with a timeout, teardown via `clearTaskSessions` +
+      `disposeWorkspace`) is invoked from `finalizeHeadlessAutoReviewTask` (runtime-server) right after the card
+      moves to Review and **before** the auto-merge/complete, so the verdict gates delivery: approve → deliver;
+      request_changes → bounced back to In Progress (no delivery); park → stays in Review. Gated + fail-safe
+      (review error/skip → prior auto-complete behavior). Live: runtime boots clean on it; worker→sandbox→
+      result-branch verified end-to-end.
       **Pure core done** ([src/core/review-orchestration.ts](src/core/review-orchestration.ts), unit-tested):
       `shouldReviewCard` gate (enabled + in `review` + not a reviewer/planning card + has a diff),
       `fingerprintReviewArtifact` (stall/identical-loop hashing), `buildReviewSeedPrompt` (objective + acceptance

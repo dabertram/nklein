@@ -24,7 +24,6 @@ import type {
 import { runNKleinAcceptanceAutoRepair } from "../nklein-sdk/nklein-acceptance-auto-repair";
 import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import { createWorkspaceMetadataMonitor } from "./workspace-metadata-monitor";
 import type { ResolvedWorkspaceStreamTarget, WorkspaceRegistry } from "./workspace-registry";
 
@@ -405,22 +404,9 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			attemptStore: getAcceptanceRepairAttemptStore(workspaceId),
 		})
 			.then((outcome) => {
-				if (outcome.type === "repair_sent") {
-					return;
+				if (outcome.type !== "repair_sent") {
+					broadcastTaskReadyForReview(workspaceId, summary.taskId);
 				}
-				// Acceptance is satisfied; offer the card for a second-opinion review (todo §5.K). The runner is
-				// gated on the setting and fully fail-safe: any error falls through to ready-for-review (the prior
-				// behavior). Only a `bounced` outcome suppresses the ready broadcast — the card was sent back to the
-				// worker and is no longer awaiting review.
-				void runSecondOpinionReviewForTask({ workspacePath, taskId: summary.taskId, service })
-					.then((review) => {
-						if (review.type !== "bounced") {
-							broadcastTaskReadyForReview(workspaceId, summary.taskId);
-						}
-					})
-					.catch(() => {
-						broadcastTaskReadyForReview(workspaceId, summary.taskId);
-					});
 			})
 			.catch(() => {
 				broadcastTaskReadyForReview(workspaceId, summary.taskId);

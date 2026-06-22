@@ -68,6 +68,7 @@ import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
+import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import type { WorkspaceRegistry } from "./workspace-registry";
 
 interface DisposeTrackedWorkspaceResult {
@@ -485,6 +486,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							value: null,
 						};
 					});
+					// Second-opinion review gate (todo §5.K): the card is now in Review; give it a peer review before
+					// any auto-delivery. A `bounced` outcome already moved it back to In Progress and re-drove the
+					// worker; a `parked` outcome left it in Review for a human — either way, do not auto-complete.
+					// Any error (or a skip when review is disabled / there is no diff) falls through to the prior
+					// auto-complete behavior, so the review can never block delivery on its own failure.
+					const reviewOutcome = await runSecondOpinionReviewForTask({
+						workspacePath: scope.workspacePath,
+						taskId,
+						service,
+					}).catch(() => ({ type: "skipped" as const, reason: "card_not_found" as const }));
+					if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
+						return;
+					}
 					if (!shouldAutoComplete) {
 						return;
 					}
