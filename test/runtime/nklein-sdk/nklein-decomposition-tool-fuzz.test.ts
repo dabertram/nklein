@@ -86,6 +86,18 @@ describe("decompose_project near-valid payload tolerance", () => {
 				tasks: VALID_TASKS.map((task) => ({ ...task, startLine: 1, endLine: 9, note: "from read tool" })),
 			}),
 		],
+		[
+			// Live evidence (2026-06-22T13-07): the model typo'd `acceptanceCommand` as `acceptenceCommand`.
+			// The unknown key is stripped and the task falls back to the top-level defaultAcceptanceCommand.
+			"a typo'd acceptance-command key falling back to defaultAcceptanceCommand",
+			basePayload({
+				defaultAcceptanceCommand: "npm test",
+				tasks: VALID_TASKS.map(({ acceptanceCommand: _dropped, ...rest }) => ({
+					...rest,
+					acceptenceCommand: "npm test",
+				})),
+			}),
+		],
 	];
 
 	for (const [name, payload] of tolerated) {
