@@ -1863,6 +1863,11 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
+				systemPrompt: expect.stringContaining("Reasoning or thinking alone is not an answer"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
 				systemPrompt: expect.stringContaining("Keep every response short and to the point"),
 			}),
 		);
@@ -2613,6 +2618,47 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		expect(service.getSummary("task-1")?.previousTurnCheckpoint?.commit).toBe("commit-1");
 		expect(service.getSummary("task-1")?.latestTurnCheckpoint?.commit).toBe("commit-2");
+	});
+
+	it("re-prompts an explicit decomposition turn that ended with no decompose_project tool call", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Plan this. When calling decompose_project, pass minimumTaskCount: 5.",
+			startInPlanMode: true,
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		// A reasoning model ends its turn with no content and no tool call.
+		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "" });
+
+		await vi.waitFor(() => {
+			expect(runtime.sendTaskSessionInputMock).toHaveBeenCalledWith(
+				"task-1",
+				expect.stringContaining("Your previous turn ended without calling a tool"),
+				"act",
+				undefined,
+			);
+		});
+	});
+
+	it("does not re-prompt a non-decomposition turn that ended with no tool call", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Just answer in chat.",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+		runtime.sendTaskSessionInputMock.mockClear();
+
+		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "" });
+
+		// Give any async continuation a tick; it must not fire for a non-decomposition task.
+		await Promise.resolve();
+		expect(runtime.sendTaskSessionInputMock).not.toHaveBeenCalled();
 	});
 
 	it("moves to awaiting_review when SDK emits aborted done with a final message and no user cancel", async () => {

@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Fixed decomposition tasks silently stalling when a reasoning model (e.g. deepseek-r1) spends its whole turn in the reasoning channel and ends without emitting a `decompose_project` tool call. The turn previously went to `awaiting_review` with nothing decomposed and no error (the self-review hook bails on empty output). !Klein now re-prompts such a turn to emit the tool call now (bounded by the same nudge budget as the chat-only nudge, and only on a clean stop with no tool call and no pending user question), and the decomposition prompt tells the model explicitly that reasoning alone is not an answer and a tool call is mandatory.
+
 - Acceptance-command failures are now classified into a small taxonomy (command-not-found, missing-script, missing-dependency, type-error, lint-error, compile/syntax-error, test-failures, timeout, or unknown) with a human label and a next-step hint, instead of just an exit code and raw output. The acceptance gate stamps the category on its result so the diagnostics drawer, auto-repair, and run summaries can show *why* a check failed at a glance.
 
 - The project Code-intelligence panel now shows the built-in embedding model's status: which provider is effective, whether the GGUF is downloaded (and its size) or will download on first index, and a clear note when it is running as the lexical fallback because the Python core is disabled.

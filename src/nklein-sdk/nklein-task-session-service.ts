@@ -662,6 +662,7 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 		return [
 			"Inspect the codebase only as needed for one focused planning pass, then call the `decompose_project` tool.",
 			"Keep your thinking and any prose brief: a short focused pass, then the tool call. Do not write a long analysis, reasoning dump, or running commentary before calling `decompose_project` — long output wastes the context budget and can crash a local model host.",
+			"Reasoning or thinking alone is not an answer and does not make progress. After your brief think, you MUST emit a tool call in your output — never end your turn with only reasoning and no tool call. The decomposition is delivered by calling `decompose_project`, not by describing it.",
 			decompositionInstruction,
 			minimumTaskCount !== null
 				? `When calling decompose_project, pass \`minimumTaskCount: ${minimumTaskCount}\`.`
@@ -1213,6 +1214,68 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			].join(" "),
 			canceled.mode ?? "act",
 		);
+	}
+
+	/**
+	 * When an explicit decomposition turn ends cleanly but produced no `decompose_project` tool call — e.g. a
+	 * reasoning model spent the whole turn in its reasoning channel and emitted no content/tool call (observed
+	 * with deepseek-r1) — the task would otherwise sit in `awaiting_review` having never decomposed. Re-prompt it
+	 * once (bounded by the same nudge budget as the chat-only nudge) to emit the tool call now, instead of
+	 * stalling silently. Only fires on a clean stop with no tool this turn and not a user-question end.
+	 */
+	private maybeContinueStalledDecomposition(taskId: string): void {
+		if (!this.explicitDecompositionTaskIds.has(taskId)) {
+			return;
+		}
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (!entry) {
+			return;
+		}
+		const summary = entry.summary;
+		// Only a clean model-stop end (reviewReason "hook"); never fight a real error/interrupt/credit stop.
+		if (summary.state !== "awaiting_review" || summary.reviewReason !== "hook") {
+			return;
+		}
+		const activity = summary.latestHookActivity;
+		// A tool ran this turn (decompose_project would have completed the task; ask_followup is a real question),
+		// or it actually decomposed — not a stalled empty turn.
+		if (activity?.toolName || activity?.hookEventName === "decomposition_applied") {
+			return;
+		}
+		// A turn that ended on a genuine clarifying question to the user should not be overridden.
+		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
+		if (finalText.endsWith("?")) {
+			return;
+		}
+		const nudgeCount = this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0;
+		if (nudgeCount >= NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT) {
+			return;
+		}
+		this.decompositionChatNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
+		recordSelfObservation({
+			signal: "budget_wall",
+			severity: "warning",
+			message: "!Klein continued a decomposition turn that ended with no decompose_project tool call.",
+			taskId,
+			workspacePath: summary.workspacePath ?? null,
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			metadata: {
+				category: "decomposition_no_tool_call_stall",
+				lastActivity: activity?.activityText ?? null,
+				hookEventName: activity?.hookEventName ?? null,
+			},
+		});
+		void this.sendTaskSessionInput(
+			taskId,
+			[
+				"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
+				"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
+				"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
+				"specification.md is the authoritative spec; read only what you still need, then call the tool now.",
+			].join(" "),
+			"act",
+		).catch(() => undefined);
 	}
 
 	private scheduleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number | null): void {
@@ -3412,6 +3475,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.clearTaskTimeout(taskId, "conversation");
 			this.clearDecompositionChatNudge(taskId);
 			this.activeToolTaskIds.delete(taskId);
+			this.maybeContinueStalledDecomposition(taskId);
 		} else if (hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
 			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
 				this.clearDecompositionChatNudge(taskId);
