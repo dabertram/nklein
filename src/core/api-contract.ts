@@ -253,6 +253,20 @@ export const runtimeCardReviewSchema = z.object({
 });
 export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;
 
+/** A single step of an agent's focus chain (todo §5.N). */
+export const runtimeFocusChainStepSchema = z.object({
+	text: z.string(),
+	status: z.enum(["pending", "in_progress", "done", "skipped"]),
+});
+export type RuntimeFocusChainStep = z.infer<typeof runtimeFocusChainStepSchema>;
+
+/** An agent's self-authored task checklist (focus chain), persisted on the card for display + re-anchoring. */
+export const runtimeFocusChainSchema = z.object({
+	steps: z.array(runtimeFocusChainStepSchema).default([]),
+	updatedAt: z.number(),
+});
+export type RuntimeFocusChain = z.infer<typeof runtimeFocusChainSchema>;
+
 export const runtimeBoardCardSchema = z
 	.object({
 		id: z.string(),
@@ -260,6 +274,7 @@ export const runtimeBoardCardSchema = z
 		prompt: z.string(),
 		startInPlanMode: z.boolean(),
 		review: runtimeCardReviewSchema.optional(),
+		focusChain: runtimeFocusChainSchema.optional(),
 		autoReviewEnabled: z.boolean().optional(),
 		autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
 		autoReviewStatus: z.enum(["running", "failed"]).optional(),

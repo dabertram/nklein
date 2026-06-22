@@ -575,10 +575,14 @@ deep analysis:
 > **Distinction:** this is *intra-task* self-direction (the agent's own steps for one card/turn-loop), distinct
 > from `decompose_project` (which splits a project into multiple **board cards**). A focus chain lives inside a
 > single task/chat session.
-- [ ] **Focus-chain model & store.** A persisted, ordered list of steps per task (and per chat session) — each
+- [~] **Focus-chain model & store.** A persisted, ordered list of steps per task (and per chat session) — each
       step has text + status (`pending`/`in_progress`/`done`, maybe `skipped`) + ordering. Persist it (board card
       field and/or a sibling store) so it survives turns, restarts, and context compaction, and round-trips in the
       workspace state contract. Keep it cheap (small models, ≥32k floor).
+      **Done:** pure core ([src/core/focus-chain.ts](src/core/focus-chain.ts)) — `normalizeFocusChain` (trim/clamp,
+      drop empties, coerce status, cap 30 steps), `summarizeFocusChain`, `formatFocusChainForPrompt`; +
+      `runtimeFocusChainSchema` on the card (`focusChain?`), unit-tested. **Remaining:** per-chat-session store
+      (§5.M) + CRDT round-trip check (additive optional field, same as `review`).
 - [ ] **Agent tool to create/update the chain.** A structured tool (à la `decompose_project` / `submit_review`)
       the agent calls to **create** the chain at task start and **update** it as it works (check off a step, add /
       reorder / revise steps, mark the current one in-progress). Reuse the relaxed-input-schema + short-directive
