@@ -75,6 +75,7 @@ import {
 	createMessageWithMeta,
 	createSessionId,
 	isCreditLimitError,
+	isLocalModelRuntimeUnavailableError,
 	isNKleinUserAttentionTool,
 	type NKleinTaskMessage,
 	type NKleinTaskSessionEntry,
@@ -159,6 +160,9 @@ interface NKleinTaskRepeatedFailureTargetState {
 }
 
 const NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
+// A crashed/unloaded local model won't recover by retrying the dead endpoint, so park after a single
+// transient retry (instead of the generic 3) with reload guidance rather than storming a model that is gone.
+const NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD = 2;
 const NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD = 4;
 const NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD = 6;
 const NKLEIN_DECOMPOSITION_CHAT_NUDGE_MS = 25_000;
@@ -993,6 +997,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.activeToolTaskIds.delete(taskId);
 		const errorMessage = toErrorMessage(error);
 		const creditLimitError = this.isNKleinProviderForTask(taskId) && isCreditLimitError(errorMessage);
+		const providerId = this.resolveProviderIdForTask(taskId);
+		const modelId = this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID;
+		const endpoint = this.endpointByTaskId.get(taskId) ?? null;
+		// A local model host (LM Studio/Ollama) that crashed or unloaded its model won't recover by retrying the
+		// dead endpoint; classify it so the task parks fast with reload guidance instead of storming a gone model.
+		const localModelUnavailable =
+			!creditLimitError &&
+			isLocalProvider(providerId, endpoint) &&
+			isLocalModelRuntimeUnavailableError(errorMessage);
 		const failureFingerprint = `${context}:${errorMessage}`;
 		const previousFailure = this.failureBackoffByTaskId.get(taskId);
 		const consecutiveFailures = previousFailure?.fingerprint === failureFingerprint ? previousFailure.count + 1 : 1;
@@ -1000,35 +1013,43 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (alreadyParked) {
 			return;
 		}
-		const shouldPark = consecutiveFailures >= NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD;
+		const parkThreshold = localModelUnavailable
+			? NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD
+			: NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD;
+		const shouldPark = consecutiveFailures >= parkThreshold;
+		const localModelUnavailableGuidance = localModelUnavailable
+			? `Local model "${modelId}" on ${endpoint ?? "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`
+			: null;
 		this.failureBackoffByTaskId.set(taskId, {
 			fingerprint: failureFingerprint,
 			count: consecutiveFailures,
 			parked: shouldPark,
 		});
 		recordSelfObservation({
-			signal: creditLimitError ? "provider_error" : "runtime_error",
+			signal: creditLimitError ? "provider_error" : localModelUnavailable ? "provider_error" : "runtime_error",
 			severity: "error",
 			message: shouldPark
 				? `NKlein SDK ${context} failed ${consecutiveFailures} consecutive times; parking task: ${errorMessage}`
 				: `NKlein SDK ${context} failed: ${errorMessage}`,
 			taskId,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			providerId,
+			modelId,
 			metadata: {
 				context,
 				creditLimitError,
+				localModelUnavailable,
 				consecutiveFailures,
 				parked: shouldPark,
 			},
 		});
 		if (!creditLimitError) {
+			const baseMessage = shouldPark
+				? `NKlein SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so !Klein parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
+				: `NKlein SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`;
 			const systemMessage = createMessage(
 				taskId,
 				"system",
-				shouldPark
-					? `NKlein SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so !Klein parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
-					: `NKlein SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`,
+				localModelUnavailableGuidance ? `${localModelUnavailableGuidance}\n\n${baseMessage}` : baseMessage,
 			);
 			entry.messages.push(systemMessage);
 			this.emitMessage(taskId, systemMessage);
@@ -1039,7 +1060,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			reviewReason: "error",
 			lastOutputAt: now(),
 			lastHookAt: now(),
-			warningMessage: creditLimitError ? null : errorMessage,
+			warningMessage: creditLimitError ? null : (localModelUnavailableGuidance ?? errorMessage),
 			latestHookActivity: {
 				activityText: shouldPark
 					? `${context === "start" ? "Start" : "Send"} parked after repeated failures: ${errorMessage}`

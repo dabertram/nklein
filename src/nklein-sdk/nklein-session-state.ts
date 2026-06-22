@@ -48,6 +48,47 @@ export function isCreditLimitError(errorMessage: string | null): boolean {
 	return normalized.includes("402") && (normalized.includes("balance") || normalized.includes("credit"));
 }
 
+/**
+ * Detect that a *local* model host (LM Studio / Ollama) became unavailable mid-run — either the loaded model
+ * crashed/unloaded (a real failure mode under memory pressure: a reasoning model at a large context window on
+ * limited hardware), or the connection to the local server dropped. The caller must already know the provider
+ * is local; these patterns also appear for unrelated network blips, so they are only actionable for a local
+ * endpoint. Used to park the task with reload guidance instead of retry-storming a dead model.
+ *
+ * String matching is used because neither the SDK nor the OpenAI-compatible local servers expose a structured
+ * "model unloaded" code; prefer a structured signal if one is ever added and keep this as the fallback.
+ */
+const LOCAL_MODEL_UNAVAILABLE_PATTERNS = [
+	// Model is no longer loaded on the host (LM Studio unloads a model after a crash).
+	"model not found",
+	"model_not_found",
+	"no models loaded",
+	"no model loaded",
+	"no model is loaded",
+	"model is not loaded",
+	"failed to load model",
+	"model has crashed",
+	"model unloaded",
+	// The local server connection dropped (process died mid-stream, or the server is down).
+	"econnreset",
+	"econnrefused",
+	"socket hang up",
+	"fetch failed",
+	"premature close",
+	"terminated",
+	"connection refused",
+	"connection reset",
+	"network error",
+] as const;
+
+export function isLocalModelRuntimeUnavailableError(errorMessage: string | null): boolean {
+	if (!errorMessage) {
+		return false;
+	}
+	const normalized = errorMessage.toLowerCase();
+	return LOCAL_MODEL_UNAVAILABLE_PATTERNS.some((pattern) => normalized.includes(pattern));
+}
+
 const WINDOWS_INVALID_SESSION_ID_CHARS = /[<>:"/\\|?*]/g;
 
 export interface NKleinTaskSessionEntry {
