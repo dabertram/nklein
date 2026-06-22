@@ -128,3 +128,48 @@ describe("decompose_project near-valid payload tolerance", () => {
 		).rejects.toThrow(/acceptanceCommand/);
 	});
 });
+
+/**
+ * Live-bug regression (evidence 2026-06-22T12-09): a small model called decompose_project with
+ * typo'd task fields, then degraded into empty `{}` calls. The SDK used to pre-reject these against a
+ * strict inputSchema with a multi-KB Zod dump the model could not recover from. The boundary schema is
+ * now permissive and this handler must answer with a SHORT, directive message naming what is missing —
+ * never an empty-arg success and never a giant dump.
+ */
+describe("decompose_project malformed-call recovery", () => {
+	async function expectShortRejection(payload: Record<string, unknown>, pattern: RegExp): Promise<void> {
+		let thrown: unknown;
+		try {
+			await runDecompose(payload);
+		} catch (error) {
+			thrown = error;
+		}
+		expect(thrown, "decompose_project should reject malformed input").toBeInstanceOf(Error);
+		const message = (thrown as Error).message;
+		expect(message).toMatch(pattern);
+		// Must stay short and directive — not the SDK's multi-KB raw validation dump.
+		expect(message.length).toBeLessThan(600);
+	}
+
+	it("rejects an empty {} call by naming the required fields", async () => {
+		await expectShortRejection({}, /no arguments[\s\S]*slug[\s\S]*tasks/i);
+	});
+
+	it("rejects a call missing the tasks field", async () => {
+		const { tasks: _tasks, ...withoutTasks } = basePayload();
+		await expectShortRejection(withoutTasks, /missing required fields[\s\S]*tasks/i);
+	});
+
+	it("rejects a task with a typo'd id field (tasks_id instead of id) with a compact message", async () => {
+		await expectShortRejection(
+			basePayload({
+				tasks: [{ tasks_id: "storage", title: "Create storage", prompt: "Implement persistent storage." }],
+			}),
+			/id|failed validation/i,
+		);
+	});
+
+	it("rejects blank-string required fields rather than treating them as present", async () => {
+		await expectShortRejection(basePayload({ slug: "   " }), /missing required fields[\s\S]*slug/i);
+	});
+});

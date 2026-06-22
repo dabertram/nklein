@@ -673,11 +673,71 @@ export function validateNKleinPlanTaskGraph(input: {
 	};
 }
 
+const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "title", "spec", "plan", "tasks"] as const;
+
+const DECOMPOSE_PROJECT_RECOVERY_HINT =
+	"Call decompose_project once with: slug (short string), title (string), spec (brief markdown), " +
+	"plan (brief markdown), and tasks (a JSON array of objects, each with id, title, prompt). Start small — " +
+	"3 to 6 top-level tasks is fine and you can expand later; keep spec and plan to a few sentences (longer " +
+	"text is truncated). Do not resend an empty or partial call.";
+
+function decomposeProjectFieldIsUsable(value: unknown): boolean {
+	if (typeof value === "string") {
+		return value.trim().length > 0;
+	}
+	return value !== undefined && value !== null;
+}
+
+/**
+ * Small local models routinely emit a malformed decompose_project call — typo'd or extra keys, or
+ * (after one failure) an empty `{}` — and then spiral. The SDK validates the tool's inputSchema
+ * BEFORE execute() runs and answers a violation with a multi-KB raw Zod dump that such models cannot
+ * recover from and that burns the context budget. The boundary schema is therefore permissive (see
+ * createDecomposeProjectTool) and this is where validation actually happens: throw a SHORT, directive
+ * message naming the missing fields so the model has a tractable path back.
+ */
+function assertUsableDecomposeProjectInput(input: unknown): void {
+	const record = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+	const missing = DECOMPOSE_PROJECT_REQUIRED_FIELDS.filter((field) => {
+		if (field === "tasks") {
+			return !(Array.isArray(record.tasks) || typeof record.tasks === "string");
+		}
+		return !decomposeProjectFieldIsUsable(record[field]);
+	});
+	if (missing.length === 0) {
+		return;
+	}
+	const lead =
+		Object.keys(record).length === 0
+			? "decompose_project was called with no arguments."
+			: `decompose_project is missing required fields: ${missing.join(", ")}.`;
+	throw new Error(`${lead} ${DECOMPOSE_PROJECT_RECOVERY_HINT}`);
+}
+
+function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string {
+	const issues = error.issues
+		.slice(0, limit)
+		.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+		.join("; ");
+	const remaining = error.issues.length - limit;
+	return remaining > 0 ? `${issues} (+${remaining} more)` : issues;
+}
+
 function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
-	const parsed = decomposeProjectToolInputSchema.parse(input);
+	assertUsableDecomposeProjectInput(input);
+	const result = decomposeProjectToolInputSchema.safeParse(input);
+	if (!result.success) {
+		throw new Error(
+			`decompose_project input failed validation — ${formatCompactSchemaIssues(result.error)}. ` +
+				"Each task needs id, title, and prompt (strings); remove any other keys. Fix these and resubmit the whole call.",
+		);
+	}
+	const parsed = result.data;
 	const defaultAcceptanceCommand = parsed.defaultAcceptanceCommand?.trim() || null;
 	if (parsed.tasks.length === 0) {
-		throw new Error("decompose_project requires at least one task.");
+		throw new Error(
+			"decompose_project requires at least one task. Add 3 to 6 task objects (id, title, prompt) to tasks and resubmit.",
+		);
 	}
 	const questions = parsed.questions ?? [];
 	validatePlanQuestions(questions);
@@ -1140,8 +1200,15 @@ function createDecomposeProjectTool(
 						"Optional recursive replacement map. May be an object or a JSON-stringified object. Keys are oversized task ids from tasks or another expansion; values are smaller replacement tasks. !Klein expands these before validation and rewrites dependencies to terminal replacement leaves.",
 				},
 			},
-			required: ["slug", "spec", "plan", "title", "tasks"],
-			additionalProperties: false,
+			// Intentionally permissive at the SDK boundary: NO `required` and `additionalProperties: true`.
+			// The SDK validates inputSchema *before* execute() runs and answers a violation with a multi-KB
+			// raw Zod dump that small local models cannot recover from (they spiral into empty `{}` retries) and
+			// that burns the context budget — and it bypasses our in-handler JSON repair. We instead let every
+			// call reach execute() and validate in `normalizeDecomposeProjectToolInput`, which throws a short,
+			// directive message. Do not re-add `required`/`additionalProperties: false` here. The `properties`
+			// descriptions still guide the model.
+			required: [],
+			additionalProperties: true,
 		},
 		async execute(input) {
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
