@@ -11,7 +11,9 @@
 > **Status legend:** `[x]` shipped & verified · `[~]` partial / shipped-but-degraded · `[ ]` open ·
 > `LATER:` deferred by decision · `BLOCKED:` needs the user or an environment we don't have.
 >
-> **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain).
+> **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain —
+> including a line-by-line re-verification pass over all 10 source docs: follow-up-1/2/3 are 100% shipped,
+> follow-up-4/5 open items map to §5.A, and the distinct follow-up-2 hardening features are itemized in §6.13).
 
 ---
 
@@ -144,6 +146,11 @@ deep analysis:
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
       docs so the planning ("L3") story isn't overstated.
+- [ ] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
+      preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
+      the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /
+      provider-error events. *(AGENTS.md worktree tribal-knowledge is already reconciled to the
+      container-primary + result-branch model.)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
 - [ ] **Knowledge-tool usage as a decomposition-quality signal.** Correlate whether retrieval / code-index /
@@ -214,19 +221,52 @@ deep analysis:
       health surfaces in Settings.
 
 ### 5.I — Newly raised in chat (2026-06-22) — spec'd, not yet built
-- [ ] **#1 — llama.cpp embedding model, fully integrated (auto-download + direct connect, no external runtime).**
-      *Investigated 2026-06-22: NOT implemented.* The user wants an embedding model served via llama.cpp that
-      !Klein auto-downloads (a GGUF) and connects to directly — no LM Studio/Ollama/openai-compatible endpoint
-      required. Current state: `embeddings.py` does lexical (default) or `sentence-transformers` (optional);
-      `llama_backend.py` (llama-cpp-python) is **generation-only** (`complete()`), no `embedding=True`, no
-      download; the app exposes only `local_lexical` + `openai_compatible`. **To build:** add a llama.cpp
-      embedding backend (llama-cpp-python supports `embedding=True`) with a model-download/cache manager (mirror
-      the existing ONNX compression-scorer download manager pattern,
-      [src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts)),
-      expose it via `/v1/embed`, route the app's code-embedding path through the Python core, and add a
-      `local_llama`/`local_gguf` option to the embedding provider enum + Settings picker. **Confirm the model
-      choice with the user** (e.g. nomic-embed/bge/e5 GGUF) and the local-only + no-egress implications of the
-      download.
+- [ ] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process, batteries-included).**
+      *Investigated 2026-06-22: NOT implemented today* — code embeddings are only `local_lexical` (in-process
+      lexical hashing, not real semantic) or `openai_compatible` (an external LM Studio/Ollama endpoint the user
+      must run themselves); the Python core's `/v1/embed` is lexical-or-`sentence-transformers` and is **not**
+      wired as the app's code-embedding provider; `llama_backend.py` is **generation-only** (`complete()`, no
+      `embedding=True`, no download).
+      **Goal:** a *premium, zero-config* local code-embedding model that works out of the box on **minimum
+      hardware**, served via llama.cpp **in-process** — no external model runtime to install or start, no cheap
+      disposable shortcuts.
+      **Hard requirements (verbatim intent):**
+      - **Auto-download** a quantized GGUF on first need; cache under the runtime home; integrity-verify;
+        resumable; progress shown in the code-intelligence panel. The download is the one sanctioned fetch
+        (respect local-only/no-egress) and must be explicit/visible — never a silent fetch during a sandboxed
+        agent run.
+      - **Direct connect, NO external model runtime** — embed in-process via llama.cpp (the Python core's own
+        `llama-cpp-python` with `embedding=True`, or a TS `node-llama-cpp` binding if we keep it out of the
+        sidecar). Must not depend on the user running LM Studio/Ollama.
+      - **Small but strong enough for codebase indexing.** Confirm the default with the user — candidates:
+        `nomic-embed-text-v1.5` (~137M, code-capable, 8k ctx) for quality, or `bge-small-en-v1.5` /
+        `all-MiniLM-L6-v2` (~22–33M, tens-of-MB RAM) for the absolute-minimum-hardware floor. Ship one strong
+        default; allow override.
+      - **Low RAM + never hogs the machine.** Quantized (Q4/Q8) + mmap; cap CPU threads and run at low priority
+        so it never competes with the main LLM; **lazy-load on demand** (load only when there is something to
+        index) and **unload after an idle timeout** so it consumes nothing at rest.
+      - **Auto-load when there's work.** Trigger model-load + (re)indexing automatically when a project needs it
+        (new/changed files, cache-key change), in the background, throttled — must not block or degrade a
+        concurrent main-LLM task.
+      **Implementation sketch:** add the llama.cpp embedding backend to the Python core (`embeddings.py` +
+      `llama_backend.py` with `embedding=True`) + a model-download/cache manager mirroring the existing ONNX
+      compression-scorer download manager
+      ([src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts));
+      expose on `/v1/embed`; route the app's code-embedding path
+      ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts)) through the Python
+      core; add a `local_gguf` option to `runtimeCodeEmbeddingProviderSchema`
+      ([src/core/api-contract.ts](src/core/api-contract.ts)) as the **new default**, with `local_lexical`
+      staying the honest no-download fallback; surface model/download/idle status in the code-intelligence panel
+      (which is already project-scoped — §6.13). When an agent is sandboxed, the embedder runs **host-side as
+      trusted control-plane** over plan/index data, never inside the agent's data-plane.
+      **Fallback (if a dedicated embedder isn't worth it on min-spec):** index with the **main/default local
+      LLM** instead — its embedding endpoint if it exposes one, or a pooled/throttled generation-based embedding —
+      reusing the same provider plumbing. Decide this only after measuring the small-GGUF path on minimum hardware.
+      **Acceptance:** a fresh install with **no LM Studio/Ollama running** indexes a repo end-to-end using the
+      auto-downloaded in-process model; RAM stays within a small budget; the model unloads when idle; indexing
+      never stalls or degrades a concurrent main-LLM task; `local_lexical` still works with zero download.
+      **Confirm with the user:** the default model + quant, the RAM/idle budgets, and sidecar (`llama-cpp-python`)
+      vs TS (`node-llama-cpp`) hosting.
 - [ ] **#3 — Move per-project overrides out of Global Settings.** Today the global runtime-settings dialog shows
       an "Override for this project" affordance ([web-ui/src/components/runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx)
       ~line 3466), which is poor UX (project-scoped state polluting global settings). Move all per-project
@@ -409,6 +449,46 @@ deep analysis:
 - [x] **Hub-daemon crash fix:** the SDK session host runs on the in-process `local` backend, so the SDK's broken
       cron/automation hub daemon (an upstream defect) is never spawned. !Klein doesn't use scheduled-agent
       features.
+
+### 6.13 Recovery, artifact application, review actions, settings clarity & diagnostics *(follow-up-2 hardening)*
+> These distinct shipped features were under-represented in earlier passes of this doc; itemized here so they're
+> not mistaken for open work or rebuilt.
+- [x] **Lost-session recovery.** Heartbeat-`lost` sessions are detected and parked into a needs-attention /
+      review-style state when useful output/artifacts exist, exposing **Resume / Mark interrupted / Apply pending
+      artifacts** actions, preserving transcript + artifact refs, and showing a human-readable reason on the card.
+      A **lost-heartbeat policy** setting chooses **Park + Actions** (default) vs **Keep running** for manual
+      operators. *(Confirmed live: the captured task config carries `lostHeartbeatPolicy: "park"`.)*
+- [x] **Decomposition artifact application & review.** Generated graphs are **workspace-owned artifacts**
+      (artifact id, owning workspace id, source-task provenance, validation status), applied idempotently by
+      `{workspaceId, artifactId}` (never by slug/cwd). A global **auto-apply** setting (default on) + a **per-card
+      override**; when auto-apply is off, an **inline pending-artifact review** (kind / task count / dependency
+      count / validation / timestamp, with **Apply / Reject**) on the source card. Fixed the "chat says 10 tasks
+      generated but the parent board has none" accidental-task-worktree bug class, with regression coverage.
+- [x] **Auto-review trustworthiness.** Auto-review runs when cards reach Review; if it can't run, or *claims
+      success with no commit/PR/branch effect*, the card is flagged with a specific reason + recovery action;
+      review-checkpoint capture failures that affect recovery are surfaced (harmless cleanup noise stays out of
+      the UI but is recorded).
+- [x] **Verify & Merge card actions.** A **Verify** action on Review/Planning cards when an `Acceptance check:`
+      line is detected (runs in the right workspace; shows status / output summary / failure reason); a
+      Review-lane **Merge** action showing progress, conflicts, skipped tasks, and cleanup status.
+- [x] **Settings clarity & safety.** "Effective context" + "Context override" labels with token **units** and
+      visually-distinct inherited/default/effective values; full `RuntimeTaskNKleinSettings` exposed with **human
+      labels** (context scope, timeouts) instead of raw keys like `requestTimeoutMs`; model-role overrides
+      preserve provider/model/reasoning/context-scope/timeout; fixture model ids (`small-local-model`, etc.)
+      guarded from leaking into user-facing selectors.
+- [x] **Project/workspace health diagnostics.** Checks for accidental worktree projects, missing parent
+      workspaces, lost sessions with pending artifacts, and stale never-applied/rejected artifacts — surfaced in
+      Developer Tools / a project-health area — plus telemetry for workspace-resolver decisions (explicit id /
+      path / parent-worktree / existing-index / rejected auto-registration) and artifact lifecycle events.
+- [x] **Code-intelligence is project-scoped.** Moved out of Global Settings into the selected-project sidebar
+      panel (indexing status, embedding provider/model, last-indexed, errors; hidden when no project is selected),
+      with global default + per-project embedding override. **This is the precedent for §5.I-3** (move the
+      remaining per-project overrides off Global Settings).
+- [x] **Reliability/robustness/UX details** *(follow-up-1)*: graceful single-oversized-prompt degrade;
+      `route_up`/router reason-string accuracy; plain-language park reasons; decomposition DAG **dry-run
+      preview**; **test-first decomposition** default for suitable cards; prompt-prefix caching + multi-endpoint
+      parallelism nudges + aggressive tool-schema trimming for weak models; app icon/logo; endpoint reachability
+      + model discovery.
 
 ---
 
