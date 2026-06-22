@@ -163,6 +163,14 @@ export const agentRulesetsConfigSchema = z.object({
 	delivery: agentDeliveryRulesetConfigSchema,
 });
 export type AgentRulesetsConfigPayload = z.infer<typeof agentRulesetsConfigSchema>;
+// Re-export the ruleset value helpers so the web-ui (which reaches this module via the @runtime-contract alias)
+// can render tier pickers without importing the runtime core directly.
+export {
+	AGENT_CAPABILITY_TIER_INFO,
+	AGENT_DELIVERY_TIER_INFO,
+	AGENT_RULESET_ROLES,
+	DEFAULT_AGENT_RULESETS_CONFIG,
+} from "./agent-rulesets.js";
 export const runtimeTaskImageSchema = z.object({
 	id: z.string(),
 	data: z.string(),

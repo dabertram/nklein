@@ -7,6 +7,9 @@ import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
 import {
+	AGENT_CAPABILITY_TIER_INFO,
+	AGENT_DELIVERY_TIER_INFO,
+	DEFAULT_AGENT_RULESETS_CONFIG,
 	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 } from "@runtime-contract";
@@ -90,6 +93,7 @@ import {
 	writeNKleinDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
+	AgentRulesetsConfigPayload,
 	RuntimeAgentId,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
@@ -1698,6 +1702,7 @@ export function RuntimeSettingsDialog({
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
+	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
 	const [modelPerformanceStatsOpen, setModelPerformanceStatsOpen] = useState(false);
 	const [modelRoleModelsByProviderId, setModelRoleModelsByProviderId] = useState<
 		Record<string, RuntimeNKleinProviderModel[]>
@@ -1829,6 +1834,10 @@ export function RuntimeSettingsDialog({
 	const initialCodeEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
+	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
+		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
+		[config?.agentRulesets],
+	);
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
 	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
 	const nkleinSettings = useRuntimeSettingsNKleinController({
@@ -2060,6 +2069,9 @@ export function RuntimeSettingsDialog({
 		if (serializeModelRoles(modelRoles) !== serializeModelRoles(initialModelRoles)) {
 			return true;
 		}
+		if (JSON.stringify(agentRulesets) !== JSON.stringify(initialAgentRulesets)) {
+			return true;
+		}
 		if (draftThemeId !== initialThemeId) {
 			return true;
 		}
@@ -2110,6 +2122,8 @@ export function RuntimeSettingsDialog({
 		initialSandboxMemoryPerContainerMb,
 		initialLostHeartbeatPolicy,
 		initialModelRoles,
+		initialAgentRulesets,
+		agentRulesets,
 		initialOpenPrPromptTemplate,
 		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
@@ -2193,6 +2207,7 @@ export function RuntimeSettingsDialog({
 		setInitialTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
 		setShortcuts(config?.shortcuts ?? []);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
+		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
 		setOpenPrPromptTemplate(config?.openPrPromptTemplate ?? "");
 		setSaveError(null);
@@ -2737,6 +2752,7 @@ export function RuntimeSettingsDialog({
 			...(workspaceId ? { codeEmbeddingOverride: draftCodeEmbeddingOverride } : {}),
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
+			agentRulesets,
 			shortcuts,
 			commitPromptTemplate,
 			openPrPromptTemplate,
@@ -3337,6 +3353,72 @@ export function RuntimeSettingsDialog({
 											</option>
 										))}
 									</NativeSelect>
+								</div>
+							</div>
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+								Agent Capabilities & Autonomy
+							</h6>
+							<p className="text-text-secondary text-[12px] mt-0 mb-3">
+								Tiers for what agents can reach (network &amp; tools) and how far delivery proceeds without you.
+								Docker isolation and the local-models-only lockdown never relax at any tier.
+							</p>
+							<div className="grid gap-4">
+								<div>
+									<p className="text-text-primary text-[12px] font-medium mt-0 mb-1">Capabilities</p>
+									<NativeSelect
+										fill
+										value={agentRulesets.capability.globalPreset}
+										onChange={(event) =>
+											setAgentRulesets((prev) => ({
+												...prev,
+												capability: {
+													...prev.capability,
+													globalPreset: event.target
+														.value as AgentRulesetsConfigPayload["capability"]["globalPreset"],
+												},
+											}))
+										}
+										disabled={controlsDisabled}
+									>
+										{Object.entries(AGENT_CAPABILITY_TIER_INFO).map(([tier, info]) => (
+											<option key={tier} value={tier}>
+												{info.label}
+											</option>
+										))}
+									</NativeSelect>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										{AGENT_CAPABILITY_TIER_INFO[agentRulesets.capability.globalPreset].description}
+									</p>
+								</div>
+								<div>
+									<p className="text-text-primary text-[12px] font-medium mt-0 mb-1">Delivery autonomy</p>
+									<NativeSelect
+										fill
+										value={agentRulesets.delivery.globalPreset}
+										onChange={(event) =>
+											setAgentRulesets((prev) => ({
+												...prev,
+												delivery: {
+													...prev.delivery,
+													globalPreset: event.target
+														.value as AgentRulesetsConfigPayload["delivery"]["globalPreset"],
+												},
+											}))
+										}
+										disabled={controlsDisabled}
+									>
+										{Object.entries(AGENT_DELIVERY_TIER_INFO).map(([tier, info]) => (
+											<option key={tier} value={tier}>
+												{info.label}
+											</option>
+										))}
+									</NativeSelect>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										{AGENT_DELIVERY_TIER_INFO[agentRulesets.delivery.globalPreset].description}
+									</p>
 								</div>
 							</div>
 						</div>

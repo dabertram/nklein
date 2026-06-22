@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Settings → Tasks now has an **Agent Capabilities & Autonomy** section: pick the capability tier (sandbox network/tools) and the delivery-autonomy tier (how far commit→PR→merge proceeds), each with a plain-language description of the selected tier. Saves through the runtime config and is read back on reload. Both default to **fully open**; the section notes that Docker isolation and the local-models-only lockdown never relax at any tier. (Per-role overrides — already supported by the config/core — are a follow-up; this exposes the global presets.)
+
 - When a weak local model repeatedly calls `decompose_project` with **empty arguments** (it plans the whole decomposition in its reasoning channel but never emits it as the tool's JSON arguments, so nothing decomposes), the repeated-tool-call guard now parks with a **diagnostic** message naming the real cause and remedy — switch the Architect/planning role to a more capable model, or reduce scope — instead of the generic "same input" notice. (Observed live with a 26B local model that reasoned a full plan, then emitted `{}` three times.)
 
 - Began universal hover/focus tooltips so any control is self-explanatory: a new single-source-of-truth copy registry (`element-tooltips.ts`) + an `ElementTooltip` helper render a control's **name** plus a one-line **description** from a typed id (a missing entry is a compile error), and carry their own tooltip provider so they drop in anywhere. First batch wired the top-bar icon buttons (Settings, Debug, Back to board, sidebar toggle); the rest of the UI follows.
