@@ -458,6 +458,50 @@ deep analysis:
       fully_open), + thread `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` so the UI can
       save tier changes (read/preserve already work). Make clear Docker isolation + cloud lockdown never relax.
 
+### 5.M — Decoupled agentic coding chat mode + private Signal bridge *(raised + decided 2026-06-22)*
+> **Goal (user):** a board-independent **agentic coding chat** — a strong coding agent on par with Claude /
+> Codex / Cline (real coding tasks, not just chat), runnable on small local models (qwen3.5-9b and smaller)
+> through sophisticated memory management, reachable privately from the user's own phone via a messenger, and
+> able to work on the host **only** under explicit user authorization. **Decisions (FINAL 2026-06-22):**
+> messenger = **Signal via signal-cli** (linked device, local, private); chat agent = **reuse the NKlein agent
+> core + full tool suite** with a new decoupled session/UI; memory = **vector store of the whole conversation +
+> human-like short/long-term memory** (long-term "wakes up" on associated topics); execution access = **three
+> user-selectable modes** (below).
+> **PRIME-DIRECTIVE NOTE:** directive #2 (Docker isolation mandatory/fail-closed, no host execution) continues to
+> govern the **autonomous card swarm unchanged**. The chat mode is a **separate, user-driven** surface where the
+> user may authorize host access. Host access is NEVER default, always explicit, always logged, and the autonomous
+> swarm never gains it. Cloud-LLM lockdown (#1) and ≥32k floor still apply everywhere.
+- [ ] **Chat session model & store (decoupled from the board).** Board-independent chat sessions with persisted
+      transcripts and stable ids; **multiple concurrent sessions**; not represented as kanban cards. New session
+      store + lifecycle, separate from the task/board state.
+- [ ] **Chat agent runtime (reuse NKlein core).** An interactive multi-turn chat loop built on the existing NKlein
+      agent core + tool suite (read/edit/search/run, retrieval, etc.) and provider plumbing, so it has real coding
+      capability. New chat entry point + streaming; board-independent.
+- [ ] **Execution-access modes (3, user-controlled; default = most isolated).** (a) **Docker-isolated** with
+      read-only — and, only if the user explicitly enables it, write — access to **explicitly user-mounted files/
+      folders** (nothing else reachable); (b) **sandbox-by-default + double-confirmed per-action host escape hatch**
+      (each individual host command/edit needs a fresh confirmation and is audit-logged); (c) **host-mode toggle**
+      that runs the agent directly on the host for the session, gated behind an **explicitly typed** confirmation
+      phrase. All host access is logged; none is ever the default.
+- [ ] **Memory system — human-like short/long-term (the hard part).** Embed every turn into a local vector store
+      (reuse the in-process code-embedding model). **Short-term** = small live window (so small models sustain very
+      long sessions) kept lean via rolling summarization/consolidation; **long-term** = persisted memories that are
+      semantically **recalled ("woken up") when associated/similar topics arise** and surfaced back into context.
+      Consolidate short→long-term over time. **Multi-session memory scope:** each session is **isolated by default**;
+      user opt-in to **shared memory across sessions**; user opt-in to let a session **access all !Klein-loaded
+      projects** (filesystem, branches, logs — everything) as retrievable context. Must stay within the ≥32k floor
+      and degrade gracefully when the embedding backend is the lexical fallback.
+- [ ] **Private Signal bridge.** Link the running instance as a Signal **linked device** via `signal-cli` (pair by
+      QR from the user's phone). **Only the paired user** can interact (hard access control — reject all other
+      senders); inbound messages route to a chat session and replies go back over Signal. Local, no cloud broker.
+      Transport-agnostic bridge interface so WhatsApp/Telegram could be added later, Signal first.
+- [ ] **Chat UI (web-ui, separate surface).** A chat surface distinct from the board: session list, transcript,
+      streaming, the execution-mode selector, and the memory-scope toggles (shared-memory, project-access). Surface
+      the Signal pairing/status. Tooltips per §5.L-style.
+- [ ] **Safety, permissions & audit.** The per-action and typed host confirmations, an audit log of every host
+      action, and the Signal access-control are first-class and tested. No host action without the user's explicit
+      (double / typed) confirmation; the autonomous swarm path can never reach these host capabilities.
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
   operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed
