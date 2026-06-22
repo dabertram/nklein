@@ -63,6 +63,35 @@ export async function resolveTaskResultBranchCommit(input: {
 	return result.ok && result.stdout.trim() ? result.stdout.trim() : null;
 }
 
+/**
+ * The unified diff of a task's result branch against its base ref — the worker's completed change, used as the
+ * input to the second-opinion review (todo §5.K). Returns null when the result branch is absent or empty.
+ */
+export async function getTaskResultBranchDiff(input: {
+	repoPath: string;
+	taskId: string;
+	baseRef: string;
+	runGit?: RunGit;
+}): Promise<string | null> {
+	const runGit = input.runGit ?? defaultRunGit;
+	const headCommit = await resolveTaskResultBranchCommit({
+		repoPath: input.repoPath,
+		taskId: input.taskId,
+		runGit,
+	});
+	if (!headCommit) {
+		return null;
+	}
+	const baseCommit = await runGit(input.repoPath, ["rev-parse", "--verify", `${input.baseRef}^{commit}`]);
+	const fromRef = baseCommit.ok && baseCommit.stdout.trim() ? baseCommit.stdout.trim() : input.baseRef;
+	const diff = await runGit(input.repoPath, ["diff", fromRef, headCommit]);
+	if (!diff.ok) {
+		return null;
+	}
+	const text = diff.stdout.trim();
+	return text ? text : null;
+}
+
 export async function deleteTaskResultBranch(input: {
 	repoPath: string;
 	taskId: string;

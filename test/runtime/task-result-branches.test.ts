@@ -9,6 +9,7 @@ import {
 	createTaskResultBranchName,
 	deleteTaskResultBranch,
 	deleteTaskResultBranchesForRepo,
+	getTaskResultBranchDiff,
 	resolveTaskResultBranchCommit,
 } from "../../src/workspace/task-result-branches";
 
@@ -63,6 +64,27 @@ describe("task result branches", () => {
 			expect(runGit(repo.path, ["status", "--porcelain"])).toBe("");
 			expect(runGit(repo.path, ["show", `${result?.headCommit}:README.md`])).toBe("changed");
 			expect(runGit(repo.path, ["show", `${result?.headCommit}:new.txt`])).toBe("new");
+		} finally {
+			repo.cleanup();
+		}
+	});
+
+	it("returns the result branch diff against the base ref, and null when absent", async () => {
+		const repo = createRepo();
+		try {
+			await expect(
+				getTaskResultBranchDiff({ repoPath: repo.path, taskId: "diff-task", baseRef: "main" }),
+			).resolves.toBeNull();
+
+			writeFileSync(join(repo.path, "README.md"), "changed\n", "utf8");
+			const patch = runGit(repo.path, ["diff", "--binary", "HEAD", "--"]);
+			runGit(repo.path, ["reset", "--hard", "HEAD"]);
+			await applyTaskPatchToResultBranch({ repoPath: repo.path, taskId: "diff-task", baseRef: "main", patch });
+
+			const diff = await getTaskResultBranchDiff({ repoPath: repo.path, taskId: "diff-task", baseRef: "main" });
+			expect(diff).toContain("README.md");
+			expect(diff).toContain("+changed");
+			expect(diff).toContain("-base");
 		} finally {
 			repo.cleanup();
 		}
