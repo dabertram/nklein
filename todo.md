@@ -254,12 +254,17 @@ deep analysis:
       distinction visible: plan-mode decomposition cards are architect work, while implementation cards waiting
       in Planning with `startInPlanMode: false` are worker work.
 - [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
-- [~] **Richer acceptance-failure classification taxonomy** *(2026-06-22)*. Built the pure classifier
+- [x] **Richer acceptance-failure classification taxonomy** *(2026-06-22)*. Built the pure classifier
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) — command-not-found,
       missing-script, missing-dependency, type-error, lint-error, compile/syntax-error, test-failures, timeout,
       unknown — each with a label + next-step hint, and wired it onto the acceptance-gate result
-      (`failureCategory`). **Remaining (UI):** render the category/hint in the diagnostics drawer (the data is now
-      available on the gate result + can be carried on run summaries).
+      (`failureCategory` + `failureHint`, both now required on `NKleinAcceptanceGateResult`). The category list is a
+      single source-of-truth const tuple (`ACCEPTANCE_FAILURE_CATEGORIES`) feeding both the TS union and the wire
+      zod enum; labels live in one map (`ACCEPTANCE_FAILURE_LABELS` / `acceptanceFailureCategoryLabel`) reused by the
+      classifier and the UI. **UI done:** the contract round-trips `failureCategory`/`failureHint`, and the card
+      detail view's Verify-acceptance result renders the classified label + next-step hint on failure
+      (`whitespace-pre-line` so it sits on its own line). Tests: gate/taxonomy/auto-repair/task-verify + web-ui
+      card-detail all green.
 
 ### 5.H — Polyglot / native-agent-core workstream *(active; postdates the predecessor planning chain)*
 > Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a

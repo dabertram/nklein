@@ -136,6 +136,8 @@ describe("nklein acceptance auto repair", () => {
 				exitCode: 0,
 				output: "ok",
 				durationMs: 20,
+				failureCategory: null,
+				failureHint: null,
 			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
@@ -163,6 +165,8 @@ describe("nklein acceptance auto repair", () => {
 				exitCode: 1,
 				output: "failed",
 				durationMs: 20,
+				failureCategory: null,
+				failureHint: null,
 			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
@@ -191,6 +195,8 @@ describe("nklein acceptance auto repair", () => {
 			exitCode: 1,
 			output: "failed",
 			durationMs: 20,
+			failureCategory: null,
+			failureHint: null,
 		}));
 
 		const outcome = await runNKleinAcceptanceAutoRepair({
@@ -249,6 +255,8 @@ describe("nklein acceptance auto repair", () => {
 				exitCode: 1,
 				output: "failed",
 				durationMs: 20,
+				failureCategory: null,
+				failureHint: null,
 			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});

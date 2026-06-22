@@ -39,6 +39,8 @@ describe("nklein acceptance gate", () => {
 			exitCode: null,
 			output: "",
 			durationMs: 0,
+			failureCategory: null,
+			failureHint: null,
 		});
 	});
 

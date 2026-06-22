@@ -25,7 +25,9 @@ export interface NKleinAcceptanceGateResult {
 	output: string;
 	durationMs: number;
 	/** Classified failure category when the gate ran and failed; null when not present or passed. */
-	failureCategory?: AcceptanceFailureCategory | null;
+	failureCategory: AcceptanceFailureCategory | null;
+	/** One-line next-step hint for the classified failure; null when not present or passed. */
+	failureHint: string | null;
 }
 
 export interface RunNKleinAcceptanceGateOptions {
@@ -121,6 +123,8 @@ export async function runNKleinAcceptanceGate(
 			exitCode: null,
 			output: "",
 			durationMs: 0,
+			failureCategory: null,
+			failureHint: null,
 		};
 	}
 
@@ -154,6 +158,7 @@ export async function runNKleinAcceptanceGate(
 			createdAt: finishedAt,
 		});
 	}
+	const classification = passed ? null : classifyAcceptanceFailure({ exitCode: execution.exitCode, output });
 	return {
 		present: true,
 		command,
@@ -161,7 +166,8 @@ export async function runNKleinAcceptanceGate(
 		exitCode: execution.exitCode,
 		output,
 		durationMs: Math.max(0, finishedAt - startedAt),
-		failureCategory: passed ? null : classifyAcceptanceFailure({ exitCode: execution.exitCode, output }).category,
+		failureCategory: classification?.category ?? null,
+		failureHint: classification?.hint ?? null,
 	};
 }
 

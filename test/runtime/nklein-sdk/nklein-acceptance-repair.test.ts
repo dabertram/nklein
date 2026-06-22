@@ -12,6 +12,8 @@ const failedAcceptance = {
 	exitCode: 1,
 	output: "Expected 100, received 101",
 	durationMs: 20,
+	failureCategory: null,
+	failureHint: null,
 };
 
 describe("nklein acceptance repair", () => {
@@ -111,6 +113,8 @@ describe("nklein acceptance repair", () => {
 					exitCode: null,
 					output: "",
 					durationMs: 0,
+					failureCategory: null,
+					failureHint: null,
 				},
 				attempt: 1,
 			}),

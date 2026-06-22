@@ -1,4 +1,5 @@
 import type { DropResult } from "@hello-pangea/dnd";
+import { acceptanceFailureCategoryLabel } from "@runtime-contract";
 import {
 	Activity,
 	Check,
@@ -914,9 +915,14 @@ function hasAcceptanceCheck(prompt: string): boolean {
 }
 
 function formatVerifyResult(response: RuntimeTaskAcceptanceVerifyResponse): string {
-	const output = response.acceptance.output.trim();
+	const { acceptance } = response;
+	const output = acceptance.output.trim();
 	const outputPreview = output ? ` ${output.slice(0, 240)}` : "";
-	return `${response.message}${outputPreview}`;
+	const failureLine =
+		acceptance.passed === false && (acceptance.failureCategory || acceptance.failureHint)
+			? `\n${acceptanceFailureCategoryLabel(acceptance.failureCategory)}${acceptance.failureHint ? ` — ${acceptance.failureHint}` : ""}`
+			: "";
+	return `${response.message}${failureLine}${outputPreview}`;
 }
 
 function formatMergeResult(response: RuntimeTaskWorktreeMergeResponse): string {
@@ -1125,7 +1131,9 @@ function TaskRecoveryActionsPanel({
 					</Button>
 				) : null}
 			</div>
-			{verifyResult ? <div className="mt-2 text-[12px] text-text-secondary">{verifyResult}</div> : null}
+			{verifyResult ? (
+				<div className="mt-2 whitespace-pre-line text-[12px] text-text-secondary">{verifyResult}</div>
+			) : null}
 			{mergeResult ? <div className="mt-2 text-[12px] text-text-secondary">{mergeResult}</div> : null}
 			{interruptResult ? <div className="mt-2 text-[12px] text-text-secondary">{interruptResult}</div> : null}
 			{evidenceResult ? (

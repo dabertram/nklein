@@ -263,6 +263,8 @@ describe("CardDetailView", () => {
 				exitCode: 0,
 				output: "ok",
 				durationMs: 10,
+				failureCategory: null,
+				failureHint: null,
 			},
 			message: "Acceptance check passed: npm test.",
 		} satisfies RuntimeTaskAcceptanceVerifyResponse);

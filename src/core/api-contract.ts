@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ACCEPTANCE_FAILURE_CATEGORIES } from "./acceptance-failure-taxonomy.js";
 import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } from "./agent-rulesets.js";
 import { resolveTaskTitle } from "./task-title.js";
 
@@ -170,6 +171,7 @@ export const agentRulesetsConfigSchema = z.object({
 	delivery: agentDeliveryRulesetConfigSchema,
 });
 export type AgentRulesetsConfigPayload = z.infer<typeof agentRulesetsConfigSchema>;
+export { ACCEPTANCE_FAILURE_LABELS, acceptanceFailureCategoryLabel } from "./acceptance-failure-taxonomy.js";
 // Re-export the ruleset value helpers so the web-ui (which reaches this module via the @runtime-contract alias)
 // can render tier pickers without importing the runtime core directly.
 export {
@@ -1796,6 +1798,8 @@ export const runtimeTaskAcceptanceResultSchema = z.object({
 	exitCode: z.number().nullable(),
 	output: z.string(),
 	durationMs: z.number().int().nonnegative(),
+	failureCategory: z.enum(ACCEPTANCE_FAILURE_CATEGORIES).nullable().default(null),
+	failureHint: z.string().nullable().default(null),
 });
 export type RuntimeTaskAcceptanceResult = z.infer<typeof runtimeTaskAcceptanceResultSchema>;
 
