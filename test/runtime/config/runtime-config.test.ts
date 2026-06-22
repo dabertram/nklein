@@ -273,6 +273,14 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const after = await loadRuntimeConfig(tempProject);
 				expect(after.agentRulesets?.capability.globalPreset).toBe("strict");
 				expect(after.maxConcurrentTasks).toBe(5);
+
+				// The write path: updating agentRulesets persists and reloads.
+				await updateRuntimeConfig(tempProject, {
+					agentRulesets: { capability: { globalPreset: "more_open" }, delivery: { globalPreset: "medium" } },
+				});
+				const tuned = await loadRuntimeConfig(tempProject);
+				expect(tuned.agentRulesets?.capability.globalPreset).toBe("more_open");
+				expect(tuned.agentRulesets?.delivery.globalPreset).toBe("medium");
 			});
 		} finally {
 			cleanupProject();

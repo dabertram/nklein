@@ -138,6 +138,7 @@ export interface RuntimeConfigUpdateInput {
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelRoles?: RuntimeModelRoles;
+	agentRulesets?: AgentRulesetsConfigPayload;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -444,7 +445,10 @@ function normalizeAgentRulesets(value: unknown): AgentRulesetsConfigPayload {
 	return parsed.success ? parsed.data : DEFAULT_AGENT_RULESETS_CONFIG;
 }
 
-function areAgentRulesetsEqual(left: AgentRulesetsConfigPayload, right: AgentRulesetsConfigPayload): boolean {
+function areAgentRulesetsEqual(
+	left: AgentRulesetsConfigPayload | undefined,
+	right: AgentRulesetsConfigPayload | undefined,
+): boolean {
 	return JSON.stringify(normalizeAgentRulesets(left)) === JSON.stringify(normalizeAgentRulesets(right));
 }
 
@@ -1444,6 +1448,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 					? current.codeEmbeddingOverride
 					: normalizeCodeEmbeddingOverride(updates.codeEmbeddingOverride),
 			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
+			agentRulesets:
+				updates.agentRulesets === undefined ? current.agentRulesets : normalizeAgentRulesets(updates.agentRulesets),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -1475,6 +1481,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingOverride, current.codeEmbeddingOverride) ||
 			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
+			!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
 			!areRuntimeProjectShortcutsEqual(nextConfig.shortcuts, current.shortcuts);
@@ -1508,6 +1515,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			modelRoles: nextConfig.modelRoles,
+			agentRulesets: nextConfig.agentRulesets,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 		});
@@ -1543,7 +1551,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelRoles: nextConfig.modelRoles,
-			agentRulesets: current.agentRulesets,
+			agentRulesets: nextConfig.agentRulesets,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -1643,6 +1651,10 @@ export async function updateGlobalRuntimeConfig(
 						: normalizeCodeEmbeddingSettings(updates.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 				codeEmbeddingOverride: null,
 				modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
+				agentRulesets:
+					updates.agentRulesets === undefined
+						? current.agentRulesets
+						: normalizeAgentRulesets(updates.agentRulesets),
 				shortcuts: current.shortcuts,
 				commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 				openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -1673,6 +1685,7 @@ export async function updateGlobalRuntimeConfig(
 				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 				!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
+				!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
 
@@ -1705,6 +1718,7 @@ export async function updateGlobalRuntimeConfig(
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				modelRoles: nextConfig.modelRoles,
+				agentRulesets: nextConfig.agentRulesets,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 			});
@@ -1737,7 +1751,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				codeEmbeddingOverride: null,
 				modelRoles: nextConfig.modelRoles,
-				agentRulesets: current.agentRulesets,
+				agentRulesets: nextConfig.agentRulesets,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
