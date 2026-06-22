@@ -553,6 +553,17 @@ deep analysis:
 - [ ] **Safety, permissions & audit.** The per-action and typed host confirmations, an audit log of every host
       action, and the Signal access-control are first-class and tested. No host action without the user's explicit
       (double / typed) confirmation; the autonomous swarm path can never reach these host capabilities.
+- [ ] **Settable session goal (like Codex — user: "they hit the nail with this").** Let the user set an explicit
+      **goal/objective** for a chat session that the agent keeps in focus and works toward across turns (persisted
+      with the session, editable, shown in the UI + over the Signal bridge). It anchors the agent's planning
+      (pairs naturally with the §5.N focus chain — the goal is the chain's north star) and is surfaced back so the
+      user always sees what the agent is driving at. Codex's goal UX is the bar to match.
+- [ ] **Steering messages (mid-task course-correction).** Let the user send a message **while the agent is
+      working** that adjusts/redirects without cancelling the turn — the agent folds the steer into its current
+      work (re-prioritize, add a constraint, correct course) rather than dropping everything. Distinct from a
+      normal next-turn message: it lands mid-flight. Wire through the chat UI and the Signal bridge; reuse the
+      SDK's steering/queue delivery semantics where available (the session runtime already exposes a
+      `"queue" | "steer"` delivery mode on `sendTaskSessionInput`). Match the ergonomics users like in Codex/Cline.
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
 > **Goal (user):** give **every** agent a *focus chain* — an agent-authored, ordered checklist it creates at the
