@@ -103,12 +103,20 @@ describe("local_gguf code-embedding provider", () => {
 });
 
 describe("createNKleinCodeEmbeddingProviderFromSettings local_gguf gating", () => {
-	it("stays lexical when the Python core is disabled", () => {
+	it("stays lexical when the Python core is explicitly disabled", () => {
+		const provider = createNKleinCodeEmbeddingProviderFromSettings(
+			{ provider: "local_gguf", model: "nomic-embed-text-v1.5", baseUrl: null },
+			{ NKLEIN_CORE_PY: "0" } as NodeJS.ProcessEnv,
+		);
+		expect(provider.kind).toBe("local_lexical");
+	});
+
+	it("activates the dense GGUF path by default now that the Python core is opt-out", () => {
 		const provider = createNKleinCodeEmbeddingProviderFromSettings(
 			{ provider: "local_gguf", model: "nomic-embed-text-v1.5", baseUrl: null },
 			{ NKLEIN_CORE_PY: undefined } as NodeJS.ProcessEnv,
 		);
-		expect(provider.kind).toBe("local_lexical");
+		expect(provider.kind).toBe("local_gguf");
 	});
 
 	it("uses the gguf provider when the Python core is enabled", () => {
