@@ -235,6 +235,14 @@ deep analysis:
       roles/fit **re-resolve against the target machine's local models on load**.
 
 ### 5.G — Backlog (promote into a worked item when picked up)
+- [ ] **Plug-and-play Docker delivery.** Wrap the whole !Klein app (runtime + built web-ui) into a Docker image so
+      it's a ready-to-use deliverable, and add a **`docker-compose` example to the README** so anyone can
+      `docker compose up` to build the image and get a running, ready-to-use container. **Must handle the
+      Docker-in-the-loop wrinkle:** !Klein itself launches hardened Docker sandboxes for agents, so the container
+      needs Docker access (mount the host `docker.sock` or document DinD) for agent tasks to run — call this out
+      explicitly in the compose example. Persist the runtime home (`~/.nklein`) and project mounts as volumes;
+      expose the runtime + web-ui ports; keep local-only/no-cloud defaults. Document local-model endpoint reachability
+      from inside the container (host LM Studio/Ollama via `host.docker.internal`).
 - [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
       execution → merge cycle on a tiny local model, as a CI gate.
 - [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
