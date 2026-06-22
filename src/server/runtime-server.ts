@@ -486,19 +486,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							value: null,
 						};
 					});
-					// Second-opinion review gate (todo §5.K): the card is now in Review; give it a peer review before
-					// any auto-delivery. A `bounced` outcome already moved it back to In Progress and re-drove the
-					// worker; a `parked` outcome left it in Review for a human — either way, do not auto-complete.
-					// Any error (or a skip when review is disabled / there is no diff) falls through to the prior
-					// auto-complete behavior, so the review can never block delivery on its own failure.
-					const reviewOutcome = await runSecondOpinionReviewForTask({
-						workspacePath: scope.workspacePath,
-						taskId,
-						service,
-					}).catch(() => ({ type: "skipped" as const, reason: "card_not_found" as const }));
-					if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
-						return;
-					}
 					if (!shouldAutoComplete) {
 						return;
 					}
@@ -509,6 +496,25 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						taskId,
 					});
 					if (sandboxResult !== "empty_patch") {
+						// Second-opinion review gate (todo §5.K): the result branch now exists, so the worker diff is
+						// available. Peer-review the card before auto-merging/completing it. bounced → already back in In
+						// Progress with the worker re-driven; parked → left in Review — either way skip delivery. Any error
+						// (or a skip when review is disabled) falls through to the prior auto-merge/complete.
+						const reviewOutcome = await runSecondOpinionReviewForTask({
+							workspacePath: scope.workspacePath,
+							taskId,
+							service,
+						}).catch((error) => {
+							const message = error instanceof Error ? error.message : String(error);
+							deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
+							return { type: "skipped" as const, reason: "card_not_found" as const };
+						});
+						const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
+						deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+						if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
+							return;
+						}
+
 						const mergeResult = await mergeTaskWorktreesInDependencyOrder({
 							repoPath: scope.workspacePath,
 							board: reviewState.board,

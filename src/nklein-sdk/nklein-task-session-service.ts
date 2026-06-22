@@ -2800,7 +2800,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				},
 			}).then(
 				() => undefined,
-				() => undefined,
+				(error) => {
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Second-opinion reviewer session failed: ${error instanceof Error ? error.message : String(error)}`,
+						taskId: reviewTaskId,
+						workspacePath: input.projectRepoPath,
+						createdAt: Date.now(),
+					});
+				},
 			);
 			const timeoutMs = input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS;
 			let timer: ReturnType<typeof setTimeout> | undefined;
