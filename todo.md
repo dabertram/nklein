@@ -583,11 +583,15 @@ deep analysis:
       drop empties, coerce status, cap 30 steps), `summarizeFocusChain`, `formatFocusChainForPrompt`; +
       `runtimeFocusChainSchema` on the card (`focusChain?`), unit-tested. **Remaining:** per-chat-session store
       (§5.M) + CRDT round-trip check (additive optional field, same as `review`).
-- [ ] **Agent tool to create/update the chain.** A structured tool (à la `decompose_project` / `submit_review`)
+- [x] **Agent tool to create/update the chain.** A structured tool (à la `decompose_project` / `submit_review`)
       the agent calls to **create** the chain at task start and **update** it as it works (check off a step, add /
       reorder / revise steps, mark the current one in-progress). Reuse the relaxed-input-schema + short-directive
       error handling proven for the other NKlein tools so small models use it reliably. Consider a re-prompt nudge
       (like decomposition) if a task starts without one.
+      **Done:** `update_focus_chain` ([src/nklein-sdk/nklein-focus-chain-tool.ts](src/nklein-sdk/nklein-focus-chain-tool.ts))
+      — full-list re-emit shape (small-model-reliable), normalizes via the core, fires an `onUpdated` handler,
+      unit-tested. **Remaining:** attach it in the session runtime (like the decompose/review tools) + the
+      re-prompt nudge.
 - [ ] **Wire into every agent surface.** Seed the create-a-focus-chain expectation into the per-task system/seed
       prompts for **Architect, Worker, Reviewer**, the **native kanban agent**, and the **chat agents** (§5.M).
       Each begins a task by drafting its chain, then works it; the reviewer can also check whether the worker
