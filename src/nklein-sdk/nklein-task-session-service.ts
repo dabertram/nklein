@@ -1217,11 +1217,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	/**
-	 * When an explicit decomposition turn ends cleanly but produced no `decompose_project` tool call — e.g. a
-	 * reasoning model spent the whole turn in its reasoning channel and emitted no content/tool call (observed
-	 * with deepseek-r1) — the task would otherwise sit in `awaiting_review` having never decomposed. Re-prompt it
-	 * once (bounded by the same nudge budget as the chat-only nudge) to emit the tool call now, instead of
-	 * stalling silently. Only fires on a clean stop with no tool this turn and not a user-question end.
+	 * When an explicit decomposition turn ends without a `decompose_project` tool call — e.g. a reasoning model
+	 * (deepseek-r1) spent the whole turn in its reasoning channel and emitted no content/tool call, or its
+	 * reasoning was cut off mid-think — the task would otherwise sit in the Review lane (`awaiting_review`) or as
+	 * `interrupted`, having never decomposed (and a planning card has no reviewer to pick it up). Re-prompt it to
+	 * emit the tool call now, bounded by the same nudge budget as the chat-only nudge. Fires only on a clean,
+	 * still-live stop (no tool this turn, not a pending user question); a torn-down interrupt is left for restart.
 	 */
 	private maybeContinueStalledDecomposition(taskId: string): void {
 		if (!this.explicitDecompositionTaskIds.has(taskId)) {
@@ -1232,7 +1233,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return;
 		}
 		const summary = entry.summary;
-		// Only a clean model-stop end (reviewReason "hook"); never fight a real error/interrupt/credit stop.
+		// Only a clean model-stop end (awaiting_review/"hook"): the reasoning model emitted no content/tool call,
+		// but the session is still live and can be re-prompted. An aborted/torn-down turn (interrupted) cannot be
+		// continued with sendTaskSessionInput and is left for restart/recovery; never fight a real error/credit stop.
 		if (summary.state !== "awaiting_review" || summary.reviewReason !== "hook") {
 			return;
 		}
