@@ -81,6 +81,13 @@ export interface AgentSandboxAvailabilityStatus {
 export interface AgentSandboxManagerOptions {
 	image?: string;
 	poolConfig?: Partial<AgentSandboxPoolConfig>;
+	/**
+	 * Outbound network posture for this pool's containers, from the resolved GLOBAL capability ruleset preset.
+	 * Defaults to `"none"`. Per-role network overrides would require keying the container pool by policy (a
+	 * pooled container's `--network` is fixed at creation); that is a documented follow-up — today the pool is
+	 * uniform, so the global preset governs egress for every container.
+	 */
+	networkPolicy?: SandboxNetworkPolicy;
 	execFile?: typeof execFile;
 	setTimeout?: typeof setTimeout;
 	clearTimeout?: typeof clearTimeout;
@@ -263,6 +270,7 @@ export function createAgentSandboxToolExecutors(
 export class AgentSandboxManager {
 	private readonly image: string;
 	private poolConfig: AgentSandboxPoolConfig;
+	private readonly networkPolicy: SandboxNetworkPolicy;
 	private readonly execFileImpl: typeof execFile;
 	private readonly setTimeoutImpl: typeof setTimeout;
 	private readonly clearTimeoutImpl: typeof clearTimeout;
@@ -274,6 +282,7 @@ export class AgentSandboxManager {
 	constructor(options: AgentSandboxManagerOptions = {}) {
 		this.image = options.image ?? resolveAgentSandboxImageName();
 		this.poolConfig = normalizeAgentSandboxPoolConfig(options.poolConfig);
+		this.networkPolicy = options.networkPolicy ?? "none";
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
@@ -568,6 +577,7 @@ export class AgentSandboxManager {
 				image: this.image,
 				projectMounts: [...this.projectMountsByKey.values()],
 				config: this.poolConfig,
+				networkPolicy: this.networkPolicy,
 			}),
 			{ timeoutMs: 30_000 },
 		);

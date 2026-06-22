@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { capabilitiesForTier, DEFAULT_AGENT_CAPABILITY_TIER } from "../core/agent-rulesets";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
@@ -623,11 +624,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	): Promise<NKleinTaskSessionService> => {
 		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
 		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig);
+		// The shared container pool's egress is governed by the GLOBAL capability ruleset preset (default
+		// fully_open -> full egress). Per-role network overrides would need policy-keyed pools (follow-up).
+		const sandboxNetworkPolicy = capabilitiesForTier(
+			runtimeConfig.agentRulesets?.capability.globalPreset ?? DEFAULT_AGENT_CAPABILITY_TIER,
+		).network;
 		let service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {
 			service = createInMemoryNKleinTaskSessionService({
 				watcherRegistry: nkleinWatcherRegistry,
-				agentSandboxManager: new AgentSandboxManager({ poolConfig: sandboxPoolConfig }),
+				agentSandboxManager: new AgentSandboxManager({
+					poolConfig: sandboxPoolConfig,
+					networkPolicy: sandboxNetworkPolicy,
+				}),
 				onDecompositionApplied: async (event) => {
 					if (event.workspacePath !== scope.workspacePath) {
 						return;
