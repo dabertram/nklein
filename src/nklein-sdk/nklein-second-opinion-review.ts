@@ -28,7 +28,7 @@ export interface SecondOpinionReviewCard {
 }
 
 export type NKleinSecondOpinionReviewOutcome =
-	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "no_diff" | "card_not_found" | "no_verdict" }
+	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "card_not_found" | "no_verdict" }
 	| { type: "delivered"; round: number; signOff: string }
 	| { type: "bounced"; round: number }
 	| { type: "parked"; round: number; reason: string };
@@ -108,13 +108,9 @@ export async function runNKleinSecondOpinionReview(
 			columnId: input.columnId,
 			isReviewerCard: input.isReviewerCard === true,
 			isPlanningCard: input.isPlanningCard === true,
-			hasReviewableDiff: diff.length > 0,
 		})
 	) {
-		if (!input.enabled || input.columnId !== "review" || input.isReviewerCard || input.isPlanningCard) {
-			return { type: "skipped", reason: input.enabled ? "not_reviewable" : "disabled" };
-		}
-		return { type: "skipped", reason: "no_diff" };
+		return { type: "skipped", reason: input.enabled ? "not_reviewable" : "disabled" };
 	}
 
 	const history = card.review?.history ?? [];
@@ -132,7 +128,9 @@ export async function runNKleinSecondOpinionReview(
 		return { type: "skipped", reason: "no_verdict" };
 	}
 
-	const workFingerprint = fingerprintReviewArtifact(diff);
+	// A no-change result still gets a stable work fingerprint so the stall / identical-loop guards engage when a
+	// card keeps coming back with nothing done (a common bad-planning symptom), rather than bouncing to the cap.
+	const workFingerprint = fingerprintReviewArtifact(diff || "(no file changes)");
 	const transition = resolveReviewTransition({
 		submission,
 		round,

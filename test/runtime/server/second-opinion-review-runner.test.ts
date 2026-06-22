@@ -156,8 +156,16 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(call?.[2]).toBe("act");
 	});
 
-	it("skips with no_diff when the result branch has no diff", async () => {
-		const deps = makeDeps({ diff: "" });
+	it("still reviews a no-change result (a no-op result is reviewed, not silently delivered)", async () => {
+		const deps = makeDeps({
+			diff: "",
+			submission: {
+				verdict: "request_changes",
+				summary: "Nothing was done",
+				feedback: "Implement it",
+				insight: null,
+			},
+		});
 		const outcome = await runSecondOpinionReviewForTask({
 			workspacePath: "/repo",
 			taskId: "task-1",
@@ -167,7 +175,7 @@ describe("runSecondOpinionReviewForTask", () => {
 			mutateWorkspaceState: deps.mutateWorkspaceState,
 			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
 		});
-		expect(outcome).toEqual({ type: "skipped", reason: "no_diff" });
-		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(outcome).toEqual({ type: "bounced", round: 1 });
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledTimes(1);
 	});
 });

@@ -495,26 +495,29 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						service,
 						taskId,
 					});
-					if (sandboxResult !== "empty_patch") {
-						// Second-opinion review gate (todo §5.K): the result branch now exists, so the worker diff is
-						// available. Peer-review the card before auto-merging/completing it. bounced → already back in In
-						// Progress with the worker re-driven; parked → left in Review — either way skip delivery. Any error
-						// (or a skip when review is disabled) falls through to the prior auto-merge/complete.
-						const reviewOutcome = await runSecondOpinionReviewForTask({
-							workspacePath: scope.workspacePath,
-							taskId,
-							service,
-						}).catch((error) => {
-							const message = error instanceof Error ? error.message : String(error);
-							deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
-							return { type: "skipped" as const, reason: "card_not_found" as const };
-						});
-						const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
-						deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
-						if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
-							return;
-						}
+					// Second-opinion review gate (todo §5.K). Runs for EVERY reviewable result — including an
+					// `empty_patch` (no file changes), since a no-op is usually a red flag (bad planning / mis-processed
+					// task) that deserves judgment, not a silent auto-complete. The result branch (when there is one) is
+					// ready by now, so the reviewer has the diff. bounced → already back in In Progress with the worker
+					// re-driven; parked → left in Review — either way skip delivery. Any error (or a skip when review is
+					// disabled) falls through to the prior auto-merge/complete, so the review can't block delivery on a
+					// failure of its own.
+					const reviewOutcome = await runSecondOpinionReviewForTask({
+						workspacePath: scope.workspacePath,
+						taskId,
+						service,
+					}).catch((error) => {
+						const message = error instanceof Error ? error.message : String(error);
+						deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
+						return { type: "skipped" as const, reason: "card_not_found" as const };
+					});
+					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
+					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
+						return;
+					}
 
+					if (sandboxResult !== "empty_patch") {
 						const mergeResult = await mergeTaskWorktreesInDependencyOrder({
 							repoPath: scope.workspacePath,
 							board: reviewState.board,

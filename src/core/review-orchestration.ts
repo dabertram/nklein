@@ -46,21 +46,17 @@ export interface ShouldReviewCardInput {
 	columnId: string;
 	/** True when this card is itself a reviewer card — never review a review (recursion guard). */
 	isReviewerCard: boolean;
-	/** True when the worker produced a real diff to review; an empty diff has nothing to second-opinion. */
-	hasReviewableDiff: boolean;
 	/** True for planning/decomposition cards, which are not worker output and are skipped. */
 	isPlanningCard: boolean;
 }
 
-/** Whether a card that just became reviewable should get a second-opinion review pass. */
+/**
+ * Whether a card that just became reviewable should get a second-opinion review pass. A card with **no file
+ * changes** is still reviewed on purpose: a no-op result usually signals bad planning or a mis-processed task,
+ * so the reviewer should judge whether "no change" is genuinely valid rather than letting it silently deliver.
+ */
 export function shouldReviewCard(input: ShouldReviewCardInput): boolean {
-	return (
-		input.enabled &&
-		input.columnId === "review" &&
-		!input.isReviewerCard &&
-		!input.isPlanningCard &&
-		input.hasReviewableDiff
-	);
+	return input.enabled && input.columnId === "review" && !input.isReviewerCard && !input.isPlanningCard;
 }
 
 export interface ReviewSeedPromptInput {
@@ -106,17 +102,24 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	if (input.priorFeedback?.trim()) {
 		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
 	}
+	const hasDiff = input.diff.trim().length > 0;
+	if (hasDiff) {
+		lines.push("", "## Diff under review", "```diff", clampDiffForReview(input.diff), "```");
+	} else {
+		lines.push(
+			"",
+			"## No file changes",
+			"The worker reported this card complete but made **no file changes**. A no-op result is usually a red flag — it often means the task was misunderstood, mis-scoped, already done, or not actually performed (bad planning or wrong task processing) — not a correct outcome. Judge against the objective: `approve` only if doing nothing is genuinely the right result here; otherwise `request_changes` explaining what the implementer should actually do.",
+		);
+	}
 	lines.push(
 		"",
-		"## Diff under review",
-		"```diff",
-		clampDiffForReview(input.diff),
-		"```",
-		"",
 		"## How to review",
-		"- Inspect the diff against the objective; read surrounding code only as needed for context.",
+		hasDiff
+			? "- Inspect the diff against the objective; read surrounding code only as needed for context."
+			: "- Decide whether 'no changes' can possibly satisfy the objective; read the relevant files to confirm the work isn't actually needed before approving.",
 		"- Keep your thinking and any prose brief — a short focused pass, then the tool call. Long output wastes the context budget.",
-		"- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation, even with no changes), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",
+		"- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",
 		"Do not implement changes yourself and do not answer in prose; the review is delivered only by the `submit_review` tool call.",
 	);
 	return lines.join("\n");

@@ -28,20 +28,18 @@ describe("shouldReviewCard", () => {
 		enabled: true,
 		columnId: "review",
 		isReviewerCard: false,
-		hasReviewableDiff: true,
 		isPlanningCard: false,
 	};
 
-	it("reviews a worker card in review with a diff", () => {
+	it("reviews a worker card in review (including a no-change result)", () => {
 		expect(shouldReviewCard(base)).toBe(true);
 	});
 
-	it("skips when disabled, not in review, a reviewer card, a planning card, or no diff", () => {
+	it("skips when disabled, not in review, a reviewer card, or a planning card", () => {
 		expect(shouldReviewCard({ ...base, enabled: false })).toBe(false);
 		expect(shouldReviewCard({ ...base, columnId: "in_progress" })).toBe(false);
 		expect(shouldReviewCard({ ...base, isReviewerCard: true })).toBe(false);
 		expect(shouldReviewCard({ ...base, isPlanningCard: true })).toBe(false);
-		expect(shouldReviewCard({ ...base, hasReviewableDiff: false })).toBe(false);
 	});
 });
 

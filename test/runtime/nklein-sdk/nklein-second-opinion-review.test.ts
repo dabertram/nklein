@@ -75,11 +75,19 @@ describe("runNKleinSecondOpinionReview", () => {
 		});
 	});
 
-	it("skips when there is no diff and when the card is gone", async () => {
-		expect(await runNKleinSecondOpinionReview({ ...base, deps: makeDeps({ diff: "" }) })).toEqual({
-			type: "skipped",
-			reason: "no_diff",
+	it("still reviews a no-change result (a no-op is a red flag, not a silent pass)", async () => {
+		const deps = makeDeps({
+			diff: "",
+			submission: { verdict: "approve", summary: "ok", feedback: null, insight: null },
 		});
+		const outcome = await runNKleinSecondOpinionReview({ ...base, deps });
+		expect(outcome.type).toBe("delivered");
+		expect(deps.runReviewSession).toHaveBeenCalledTimes(1);
+		const seed = firstArg<{ seedPrompt: string }>(deps.runReviewSession).seedPrompt;
+		expect(seed).toContain("No file changes");
+	});
+
+	it("skips when the card is gone", async () => {
 		expect(await runNKleinSecondOpinionReview({ ...base, deps: makeDeps({ card: null }) })).toEqual({
 			type: "skipped",
 			reason: "card_not_found",
