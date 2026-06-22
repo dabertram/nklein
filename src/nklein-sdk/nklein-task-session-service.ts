@@ -282,6 +282,12 @@ export function buildKanbanEfficiencyRules(options: {
 	return [
 		"# !Klein Efficiency Rules",
 		"",
+		"## Response Length And Reasoning Discipline",
+		"Keep every response short and to the point. Do not write long, exhaustive, or repetitive answers. Prefer the smallest reply that does the job: take the next tool action or give a brief result, not an essay.",
+		"Do the work with tools instead of narrating it. Do not restate the task, pre-explain a long plan in prose, dump large excerpts back to the user, or re-summarize what you already said.",
+		"If you are a reasoning model, keep your thinking brief and focused on the immediate next step. Do not produce long chains of thought; a few lines of reasoning are enough before you act. Long outputs and long reasoning waste the context budget and can crash a local model host under memory pressure.",
+		"When you have enough to act, act. When a step is done, stop — a short confirmation beats a long recap.",
+		"",
 		"## Adaptive Prompt Selection",
 		"Before acting, briefly decide which optional rule packs fit the user's task. Apply a pack only when its description matches the requested work; ignore packs that do not fit. Do not keyword-match mechanically: reason from the task intent, source shape, and expected output.",
 		"Available optional pack: Requirements Extraction Rules. Use it when the task asks you to reconstruct, consolidate, summarize, or derive requirements/specifications/plans from discussions, prior drafts, logs, notes, or other evolving source material.",
@@ -655,6 +661,7 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 	if (isDecompositionTask) {
 		return [
 			"Inspect the codebase only as needed for one focused planning pass, then call the `decompose_project` tool.",
+			"Keep your thinking and any prose brief: a short focused pass, then the tool call. Do not write a long analysis, reasoning dump, or running commentary before calling `decompose_project` — long output wastes the context budget and can crash a local model host.",
 			decompositionInstruction,
 			minimumTaskCount !== null
 				? `When calling decompose_project, pass \`minimumTaskCount: ${minimumTaskCount}\`.`

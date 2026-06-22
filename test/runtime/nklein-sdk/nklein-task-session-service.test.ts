@@ -1858,6 +1858,16 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
+				systemPrompt: expect.stringContaining("Keep your thinking and any prose brief"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				systemPrompt: expect.stringContaining("Keep every response short and to the point"),
+			}),
+		);
+		expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
 				systemPrompt: expect.stringContaining("put the summary, assumptions, plan, and task graph"),
 			}),
 		);
