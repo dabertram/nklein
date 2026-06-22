@@ -1,5 +1,5 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
-import { Check, Copy, ExternalLink, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Pencil, Plus, X } from "lucide-react";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -14,7 +14,6 @@ import {
 } from "@/components/shared/nklein-add-provider-dialog";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Tooltip } from "@/components/ui/tooltip";
 import type {
 	AddNKleinProviderInput,
 	UpdateNKleinProviderInput,
@@ -333,17 +332,6 @@ export function NKleinSetupSection({
 		copyDeviceCode(code);
 	};
 
-	const handleRefreshProviderModels = () => {
-		void (async () => {
-			onError?.(null);
-			const result = await controller.refreshProviderModels();
-			if (!result.ok) {
-				onError?.(result.message ?? "Failed to refresh !Klein models.");
-				return;
-			}
-		})();
-	};
-
 	return (
 		<>
 			<div className="mt-2">
@@ -642,7 +630,12 @@ export function NKleinSetupSection({
 			{cloudProviderUiEnabled && accountSection ? <div className="mt-4">{accountSection}</div> : null}
 
 			<div className="mt-4">
-				<p className="text-text-primary font-semibold text-[12px] mt-0 mb-2">Model</p>
+				<p className="text-text-primary font-semibold text-[12px] mt-0 mb-1">Default model</p>
+				<p className="text-text-secondary text-[12px] mt-0 mb-2">
+					Used for all !Klein work unless a role below (Architect / Worker / Reviewer) sets its own model. Use{" "}
+					<span className="text-text-primary">Refresh</span> in Model context windows below to reload the model
+					lists.
+				</p>
 				<div
 					className="grid gap-2"
 					style={{ gridTemplateColumns: controller.selectedModelSupportsReasoningEffort ? "1fr 1fr" : "1fr" }}
@@ -650,27 +643,6 @@ export function NKleinSetupSection({
 					<div className="min-w-0">
 						<div className="mb-1 flex items-center justify-between gap-2 h-7">
 							<p className="text-text-secondary text-[12px] m-0">Model ID</p>
-							{shouldShowBaseUrlField ? (
-								<Tooltip side="bottom" content="Save settings and refresh models">
-									<Button
-										variant="ghost"
-										size="sm"
-										icon={
-											<RefreshCw
-												size={14}
-												className={controller.isLoadingProviderModels ? "animate-spin" : undefined}
-											/>
-										}
-										aria-label="Save settings and refresh models"
-										disabled={
-											controlsDisabled ||
-											controller.isLoadingProviderModels ||
-											controller.providerId.trim().length === 0
-										}
-										onClick={handleRefreshProviderModels}
-									/>
-								</Tooltip>
-							) : null}
 						</div>
 						<SearchSelectDropdown
 							options={nkleinModelOptions}

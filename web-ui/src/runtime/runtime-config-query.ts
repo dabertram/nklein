@@ -176,12 +176,22 @@ export async function fetchFeaturebaseToken(workspaceId: string | null): Promise
 	return await trpcClient.runtime.getFeaturebaseToken.query();
 }
 
+/**
+ * Discovering live provider models (e.g. LM Studio `/v1/models`) can hang if the local endpoint is slow or
+ * unreachable. Bound it so the settings spinner can never spin forever — on timeout the caller surfaces an
+ * error and stops loading instead of stalling.
+ */
+const NKLEIN_PROVIDER_MODELS_TIMEOUT_MS = 15_000;
+
 export async function fetchNKleinProviderModels(
 	workspaceId: string | null,
 	providerId: string,
 ): Promise<RuntimeNKleinProviderModel[]> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
-	const response = await trpcClient.runtime.getNKleinProviderModels.query({ providerId });
+	const response = await trpcClient.runtime.getNKleinProviderModels.query(
+		{ providerId },
+		{ signal: AbortSignal.timeout(NKLEIN_PROVIDER_MODELS_TIMEOUT_MS) },
+	);
 	return response.models;
 }
 
