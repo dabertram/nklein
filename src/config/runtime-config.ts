@@ -22,7 +22,6 @@ import {
 	agentRulesetsConfigSchema,
 	runtimeCodeEmbeddingSettingsSchema,
 	runtimeRoleModelSettingsSchema,
-	runtimeTaskNKleinSettingsSchema,
 } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import {
