@@ -195,6 +195,29 @@ function getRepeatedToolCallLimit(toolName: string): number {
 	return RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK;
 }
 
+/**
+ * Park message for the repeated-identical-tool-call guard. Repeated *empty* `decompose_project` calls are a
+ * specific, common weak-local-model failure: the model reasons the whole plan in its thinking channel but emits
+ * the tool call with no arguments (so nothing decomposes). Give that case a diagnostic message naming the cause
+ * and the remedy, instead of the generic "same input" notice.
+ */
+export function formatRepeatedToolCallParkMessage(state: {
+	toolName: string;
+	count: number;
+	toolInputSummary: string | null;
+}): string {
+	if (state.toolName.trim().toLowerCase() === "decompose_project" && !state.toolInputSummary) {
+		return (
+			`!Klein paused this task: the model called decompose_project ${state.count}× with empty arguments. ` +
+			"It planned the decomposition in its reasoning but did not emit it as the tool's JSON arguments — a " +
+			"common limitation of weaker local models. Switch the Architect/planning role to a more capable model " +
+			"(or reduce the project scope), then resume."
+		);
+	}
+	const toolInputText = state.toolInputSummary ? ` (${state.toolInputSummary})` : "";
+	return `!Klein paused this task after ${state.count} repeated ${state.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`;
+}
+
 function normalizePlanArtifactFailureTarget(value: string | null | undefined): string | null {
 	const normalized = value?.trim();
 	if (!normalized) {
@@ -2895,11 +2918,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry || entry.summary.reviewReason === "attention") {
 			return null;
 		}
-		const toolInputText = nextState.toolInputSummary ? ` (${nextState.toolInputSummary})` : "";
 		return this.parkTaskForAutonomyBudget({
 			taskId: summary.taskId,
 			entry,
-			message: `!Klein paused this task after ${nextState.count} repeated ${nextState.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`,
+			message: formatRepeatedToolCallParkMessage(nextState),
 			metadata: {
 				guardrail: "repeated_tool_calls",
 				count: nextState.count,

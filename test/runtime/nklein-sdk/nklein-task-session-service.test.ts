@@ -22,6 +22,7 @@ import type {
 import {
 	buildKanbanEfficiencyRules,
 	createInMemoryNKleinTaskSessionService,
+	formatRepeatedToolCallParkMessage,
 } from "../../../src/nklein-sdk/nklein-task-session-service";
 import { createNKleinWatcherRegistry } from "../../../src/nklein-sdk/nklein-watcher-registry";
 import type { NKleinSdkPersistedMessage } from "../../../src/nklein-sdk/sdk-runtime-boundary";
@@ -4093,5 +4094,35 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			.filter((message) => message.role === "assistant")
 			.map((message) => message.content);
 		expect(assistantMessages).toEqual(["Done."]);
+	});
+});
+
+describe("formatRepeatedToolCallParkMessage", () => {
+	it("gives a diagnostic, remedy-oriented message for repeated empty decompose_project calls", () => {
+		const message = formatRepeatedToolCallParkMessage({
+			toolName: "decompose_project",
+			count: 3,
+			toolInputSummary: null,
+		});
+		expect(message).toMatch(/empty arguments/i);
+		expect(message).toMatch(/reasoning/i);
+		expect(message).toMatch(/more capable model|Architect/i);
+		// Not the generic "same input" notice.
+		expect(message).not.toMatch(/same input/i);
+	});
+
+	it("uses the generic message when decompose_project repeats with non-empty input", () => {
+		const message = formatRepeatedToolCallParkMessage({
+			toolName: "decompose_project",
+			count: 3,
+			toolInputSummary: "slug=daw",
+		});
+		expect(message).toMatch(/same input/i);
+		expect(message).toMatch(/slug=daw/);
+	});
+
+	it("uses the generic message for other repeated tools", () => {
+		const message = formatRepeatedToolCallParkMessage({ toolName: "read_files", count: 6, toolInputSummary: null });
+		expect(message).toMatch(/repeated read_files tool calls/i);
 	});
 });
