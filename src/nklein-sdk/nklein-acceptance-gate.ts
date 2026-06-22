@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { type AcceptanceFailureCategory, classifyAcceptanceFailure } from "../core/acceptance-failure-taxonomy";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
@@ -23,6 +24,8 @@ export interface NKleinAcceptanceGateResult {
 	exitCode: number | null;
 	output: string;
 	durationMs: number;
+	/** Classified failure category when the gate ran and failed; null when not present or passed. */
+	failureCategory?: AcceptanceFailureCategory | null;
 }
 
 export interface RunNKleinAcceptanceGateOptions {
@@ -158,6 +161,7 @@ export async function runNKleinAcceptanceGate(
 		exitCode: execution.exitCode,
 		output,
 		durationMs: Math.max(0, finishedAt - startedAt),
+		failureCategory: passed ? null : classifyAcceptanceFailure({ exitCode: execution.exitCode, output }).category,
 	};
 }
 

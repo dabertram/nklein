@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Acceptance-command failures are now classified into a small taxonomy (command-not-found, missing-script, missing-dependency, type-error, lint-error, compile/syntax-error, test-failures, timeout, or unknown) with a human label and a next-step hint, instead of just an exit code and raw output. The acceptance gate stamps the category on its result so the diagnostics drawer, auto-repair, and run summaries can show *why* a check failed at a glance.
+
 - The project Code-intelligence panel now shows the built-in embedding model's status: which provider is effective, whether the GGUF is downloaded (and its size) or will download on first index, and a clear note when it is running as the lexical fallback because the Python core is disabled.
 
 - Added the built-in, zero-config code-embedding model (`local_gguf`, now the default): a quantized GGUF (nomic-embed-text-v1.5) is auto-downloaded on first use to the runtime home (streamed to disk with progress + integrity/version checks, the one sanctioned host-side fetch), then embedded in-process by the Python core — no LM Studio/Ollama required. The model loads lazily on first embed and frees on idle. If the Python core is disabled or the model/sidecar is unavailable, embeddings degrade cleanly to the existing `local_lexical` provider, so a fresh install behaves exactly as before until the core is enabled and indexing never hard-fails.

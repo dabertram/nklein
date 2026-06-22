@@ -230,7 +230,12 @@ deep analysis:
       distinction visible: plan-mode decomposition cards are architect work, while implementation cards waiting
       in Planning with `startInPlanMode: false` are worker work.
 - [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
-- [ ] **Richer acceptance-failure classification taxonomy** in the diagnostics drawer.
+- [~] **Richer acceptance-failure classification taxonomy** *(2026-06-22)*. Built the pure classifier
+      ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) — command-not-found,
+      missing-script, missing-dependency, type-error, lint-error, compile/syntax-error, test-failures, timeout,
+      unknown — each with a label + next-step hint, and wired it onto the acceptance-gate result
+      (`failureCategory`). **Remaining (UI):** render the category/hint in the diagnostics drawer (the data is now
+      available on the gate result + can be carried on run summaries).
 
 ### 5.H — Polyglot / native-agent-core workstream *(active; postdates the predecessor planning chain)*
 > Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a
