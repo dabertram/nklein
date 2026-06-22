@@ -445,8 +445,10 @@ deep analysis:
       the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
       second perspective is visible even on a clean approve.
       **Config done:** `secondOpinionReviewEnabled` (default on) + `reviewMaxRounds` (default 20) round-trip through
-      `runtime-config.ts` (load/normalize/persist/update + change-detection), unit-tested. **Remaining:** the
-      Settings dialog controls + the card review display.
+      `runtime-config.ts` (load/normalize/persist/update + change-detection), unit-tested. **Settings toggle done:**
+      Settings → Tasks has a "Second-opinion review of completed cards" switch wired to the config (threaded through
+      the dialog's state/dirty-check/save). **Remaining:** the card review display (verdict/summary/feedback/round)
+      and (optionally) a round-cap input.
 
 ### 5.L — Per-role capability rulesets + agent web/browser access *(active; raised + decided 2026-06-22)*
 > **Goal (user):** unleash the swarm by giving agents real capabilities (incl. web/browser access for the

@@ -333,6 +333,8 @@ const savedNKleinOauthConfig = {
 	agentAutonomousModeEnabled: true,
 	lostHeartbeatPolicy: "park",
 	decompositionAutoApplyEnabled: true,
+	secondOpinionReviewEnabled: true,
+	reviewMaxRounds: 20,
 	readyForReviewNotificationsEnabled: false,
 	replayCardsEnabled: false,
 	maxConcurrentTasks: 3,

@@ -168,6 +168,8 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		},
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
+		secondOpinionReviewEnabled: true,
+		reviewMaxRounds: 20,
 		codeEmbeddingDefaults: {
 			provider: "local_lexical",
 			model: "kanban-local-lexical-vector-v1",

@@ -1681,6 +1681,7 @@ export function RuntimeSettingsDialog({
 	const [sandboxIdleTimeoutMinutes, setSandboxIdleTimeoutMinutes] = useState("10");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
+	const [secondOpinionReviewEnabled, setSecondOpinionReviewEnabled] = useState(true);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
@@ -1754,6 +1755,7 @@ export function RuntimeSettingsDialog({
 	const taskDefaultStartInPlanModeId = "runtime-settings-task-default-start-in-plan-mode";
 	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
+	const secondOpinionReviewLabelId = "runtime-settings-second-opinion-review-label";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -1833,6 +1835,7 @@ export function RuntimeSettingsDialog({
 	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
+	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
@@ -1901,6 +1904,7 @@ export function RuntimeSettingsDialog({
 				`sandboxIdleTimeoutMinutes=${sandboxIdleTimeoutMinutes}`,
 				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
 				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
+				`secondOpinionReview=${secondOpinionReviewEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
 				`nkleinProvider=${nkleinSettings.providerId || "default"}`,
 				`nkleinModel=${nkleinSettings.modelId || "default"}`,
@@ -1914,6 +1918,7 @@ export function RuntimeSettingsDialog({
 			nkleinSettings.modelId,
 			nkleinSettings.providerId,
 			decompositionAutoApplyEnabled,
+			secondOpinionReviewEnabled,
 			lostHeartbeatPolicy,
 			maxConcurrentTasks,
 			sandboxAgentsPerContainer,
@@ -2048,6 +2053,9 @@ export function RuntimeSettingsDialog({
 		if (decompositionAutoApplyEnabled !== initialDecompositionAutoApplyEnabled) {
 			return true;
 		}
+		if (secondOpinionReviewEnabled !== initialSecondOpinionReviewEnabled) {
+			return true;
+		}
 		if (developerModeEnabled !== initialDeveloperModeEnabled) {
 			return true;
 		}
@@ -2109,6 +2117,7 @@ export function RuntimeSettingsDialog({
 		conversationTimeoutMs,
 		config,
 		decompositionAutoApplyEnabled,
+		secondOpinionReviewEnabled,
 		developerModeEnabled,
 		draftCodeEmbeddingDefaults,
 		draftCodeEmbeddingOverride,
@@ -2122,6 +2131,7 @@ export function RuntimeSettingsDialog({
 		initialCommitPromptTemplate,
 		initialConversationTimeoutMs,
 		initialDecompositionAutoApplyEnabled,
+		initialSecondOpinionReviewEnabled,
 		initialDeveloperModeEnabled,
 		initialMaxAgentWritableFileLines,
 		initialMaxConcurrentTasks,
@@ -2190,6 +2200,7 @@ export function RuntimeSettingsDialog({
 		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
+		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
@@ -2232,6 +2243,7 @@ export function RuntimeSettingsDialog({
 		config?.codeEmbeddingDefaults,
 		config?.codeEmbeddingOverride,
 		config?.decompositionAutoApplyEnabled,
+		config?.secondOpinionReviewEnabled,
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
 		config?.maxAgentWritableFileLines,
@@ -2773,6 +2785,7 @@ export function RuntimeSettingsDialog({
 			sandboxIdleTimeoutMinutes: parsedSandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
+			secondOpinionReviewEnabled,
 			developerModeEnabled,
 			replayCardsEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
@@ -3232,6 +3245,26 @@ export function RuntimeSettingsDialog({
 									</div>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
 										When disabled, valid task graphs stay pending on the source card for manual review.
+									</p>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<div className="flex items-center gap-2 text-[13px] text-text-primary">
+										<RadixSwitch.Root
+											checked={secondOpinionReviewEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setSecondOpinionReviewEnabled}
+											aria-labelledby={secondOpinionReviewLabelId}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span id={secondOpinionReviewLabelId}>Second-opinion review of completed cards</span>
+									</div>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										When on, each completed worker card gets a peer review from the Reviewer role before
+										delivery: the reviewer approves (a valued sign-off) or sends concrete feedback back to the
+										worker, bounded by a round cap with stall/loop detection. When off, cards go straight to
+										review/delivery.
 									</p>
 								</div>
 								<div
