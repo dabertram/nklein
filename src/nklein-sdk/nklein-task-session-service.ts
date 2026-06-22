@@ -962,6 +962,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 		onReviewSubmitted?: NKleinReviewSubmittedHandler;
+		toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
+		extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
 	}): Promise<{ result: unknown; warnings?: string[] }> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
 		assertLocalProviderAllowed({
@@ -1009,6 +1011,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			apiTimeoutMs: launchConfig.apiTimeoutMs,
 			turnTimeoutMs: launchConfig.turnTimeoutMs,
 			systemPrompt,
+			...(input.toolExecutors ? { toolExecutors: input.toolExecutors } : {}),
+			...(input.extraTools ? { extraTools: input.extraTools } : {}),
 			userInstructionService: runtimeSetup.userInstructionService,
 			requestToolApproval: runtimeSetup.createToolApproval({
 				taskId: input.taskId,
@@ -2830,6 +2834,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					onReviewSubmitted: (result) => {
 						verdict = result;
 					},
+					// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
+					// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
+					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, reviewTaskId, {
+						pauseController: this.pauseController,
+					}),
+					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, reviewTaskId, {
+						sessionId: createSessionId(reviewTaskId),
+						contextWindow: launchConfig.contextWindow ?? undefined,
+						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					}),
 				}),
 			);
 			// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
