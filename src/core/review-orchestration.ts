@@ -59,18 +59,79 @@ export function shouldReviewCard(input: ShouldReviewCardInput): boolean {
 	return input.enabled && input.columnId === "review" && !input.isReviewerCard && !input.isPlanningCard;
 }
 
+/** A related card surfaced to the reviewer for board-context judgment (dependency / sibling). */
+export interface ReviewRelatedCard {
+	title: string;
+	/** Current board column (e.g. "completed", "in_progress"), so the reviewer knows what's actually done. */
+	column: string;
+}
+
+/** The card's place in the wider board/plan, so the reviewer can judge it in context, not in isolation. */
+export interface ReviewBoardContext {
+	/** The overall plan/project objective this card serves (its decomposition plan), when known. */
+	planObjective?: string | null;
+	/** Cards this card depends on — its prerequisites / upstream work it should build on. */
+	dependsOn?: ReviewRelatedCard[];
+	/** Cards that depend on this one — downstream work that will build on its result. */
+	dependedOnBy?: ReviewRelatedCard[];
+	/** Other cards from the same decomposition plan (siblings), for whole-plan coherence. */
+	siblings?: ReviewRelatedCard[];
+}
+
 export interface ReviewSeedPromptInput {
 	taskTitle: string;
 	/** The card objective (its prompt) so the reviewer judges against intent, not just the diff. */
 	taskObjective: string;
 	/** The worker's diff to review. */
 	diff: string;
+	/** The worker's own final summary of what it did and why — so the reviewer judges the reasoning, not just the diff. */
+	workerReasoning?: string | null;
+	/** The card's place in the wider board/plan, so the reviewer can judge fit, scope, and coherence. */
+	boardContext?: ReviewBoardContext | null;
 	/** Human acceptance-gate summary, when an acceptance check ran (e.g. "Acceptance check passed: npm test."). */
 	acceptanceSummary?: string | null;
 	/** 1-based current review round. */
 	round: number;
 	/** The previous round's change-request feedback, included when re-reviewing so the reviewer can verify it. */
 	priorFeedback?: string | null;
+}
+
+const REVIEW_REASONING_BUDGET = 6_000;
+
+function formatRelatedCards(cards: ReviewRelatedCard[] | undefined): string | null {
+	if (!cards || cards.length === 0) {
+		return null;
+	}
+	return cards.map((card) => `- ${card.title} [${card.column}]`).join("\n");
+}
+
+function formatBoardContext(context: ReviewBoardContext | null | undefined): string[] {
+	if (!context) {
+		return [];
+	}
+	const lines: string[] = [];
+	if (context.planObjective?.trim()) {
+		lines.push("", "## Plan objective (what this card serves)", context.planObjective.trim());
+	}
+	const dependsOn = formatRelatedCards(context.dependsOn);
+	const dependedOnBy = formatRelatedCards(context.dependedOnBy);
+	const siblings = formatRelatedCards(context.siblings);
+	if (dependsOn || dependedOnBy || siblings) {
+		lines.push("", "## Board context (judge this card in the whole plan, not in isolation)");
+		if (dependsOn) {
+			lines.push("Depends on (prerequisites this work should build on):", dependsOn);
+		}
+		if (dependedOnBy) {
+			lines.push("Depended on by (downstream cards that will build on this):", dependedOnBy);
+		}
+		if (siblings) {
+			lines.push("Sibling cards in the same plan:", siblings);
+		}
+		lines.push(
+			"Flag scope drift, duplication of a sibling's work, work that belongs in another card, or output that won't satisfy what downstream cards need.",
+		);
+	}
+	return lines;
 }
 
 const REVIEW_DIFF_BUDGET = 24_000;
@@ -96,6 +157,7 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 		"## Card objective",
 		input.taskObjective.trim() || "(no objective recorded)",
 	];
+	lines.push(...formatBoardContext(input.boardContext));
 	if (input.acceptanceSummary?.trim()) {
 		lines.push("", "## Acceptance check", input.acceptanceSummary.trim());
 	}
@@ -112,11 +174,24 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"The worker reported this card complete but made **no file changes**. A no-op result is usually a red flag — it often means the task was misunderstood, mis-scoped, already done, or not actually performed (bad planning or wrong task processing) — not a correct outcome. Judge against the objective: `approve` only if doing nothing is genuinely the right result here; otherwise `request_changes` explaining what the implementer should actually do.",
 		);
 	}
+	if (input.workerReasoning?.trim()) {
+		const reasoning = input.workerReasoning.trim();
+		const clamped =
+			reasoning.length > REVIEW_REASONING_BUDGET
+				? `${reasoning.slice(0, REVIEW_REASONING_BUDGET)}\n… reasoning truncated.`
+				: reasoning;
+		lines.push(
+			"",
+			"## Worker's reasoning",
+			"The implementer's own account of what it did and why. Judge the *reasoning*, not just the diff: a tidy-looking change built on a wrong assumption, or a 'no changes' justified by faulty reasoning, still warrants `request_changes`.",
+			clamped,
+		);
+	}
 	lines.push(
 		"",
 		"## How to review",
 		hasDiff
-			? "- Inspect the diff against the objective; read surrounding code only as needed for context."
+			? "- Inspect the diff against the objective and the board context; read surrounding code only as needed."
 			: "- Decide whether 'no changes' can possibly satisfy the objective; read the relevant files to confirm the work isn't actually needed before approving.",
 		"- Keep your thinking and any prose brief — a short focused pass, then the tool call. Long output wastes the context budget.",
 		"- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",

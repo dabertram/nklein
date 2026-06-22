@@ -10,7 +10,8 @@
  */
 
 import { loadRuntimeConfig } from "../config/runtime-config";
-import type { RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
 import {
 	type NKleinSecondOpinionReviewOutcome,
 	runNKleinSecondOpinionReview,
@@ -58,12 +59,64 @@ export function applyCardReviewToBoard(
 export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
-	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput">;
+	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary">;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	mutateWorkspaceState?: typeof mutateWorkspaceState;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 	getTaskResultBranchDiff?: typeof getTaskResultBranchDiff;
 	now?: () => number;
+}
+
+const REVIEW_PLAN_OBJECTIVE_BUDGET = 2_000;
+
+/**
+ * Derives the card's board/plan context for the reviewer: the plan objective it serves, its prerequisites
+ * (cards it depends on), its dependents (cards depending on it), and its sibling cards from the same plan — so
+ * the reviewer judges fit, scope, and coherence across the board, not the card in isolation. A dependency edge
+ * `fromTaskId → toTaskId` means `fromTaskId` depends on `toTaskId`.
+ */
+export function buildReviewBoardContext(board: RuntimeBoardData, card: RuntimeBoardCard): ReviewBoardContext {
+	const byId = new Map<string, ReviewRelatedCard>();
+	for (const column of board.columns) {
+		for (const entry of column.cards) {
+			byId.set(entry.id, { title: entry.title ?? entry.id, column: column.id });
+		}
+	}
+	const dependsOn: ReviewRelatedCard[] = [];
+	const dependedOnBy: ReviewRelatedCard[] = [];
+	for (const dependency of board.dependencies) {
+		if (dependency.fromTaskId === card.id) {
+			const related = byId.get(dependency.toTaskId);
+			if (related) {
+				dependsOn.push(related);
+			}
+		} else if (dependency.toTaskId === card.id) {
+			const related = byId.get(dependency.fromTaskId);
+			if (related) {
+				dependedOnBy.push(related);
+			}
+		}
+	}
+	const planTaskId = card.generatedFromPlan?.planTaskId ?? null;
+	const siblings: ReviewRelatedCard[] = [];
+	let planObjective: string | null = null;
+	if (planTaskId) {
+		for (const column of board.columns) {
+			for (const entry of column.cards) {
+				if (entry.id === planTaskId) {
+					planObjective = entry.prompt.slice(0, REVIEW_PLAN_OBJECTIVE_BUDGET);
+				} else if (entry.id !== card.id && entry.generatedFromPlan?.planTaskId === planTaskId) {
+					siblings.push({ title: entry.title ?? entry.id, column: column.id });
+				}
+			}
+		}
+	}
+	return {
+		planObjective,
+		...(dependsOn.length > 0 ? { dependsOn } : {}),
+		...(dependedOnBy.length > 0 ? { dependedOnBy } : {}),
+		...(siblings.length > 0 ? { siblings } : {}),
+	};
 }
 
 export async function runSecondOpinionReviewForTask(
@@ -113,6 +166,10 @@ export async function runSecondOpinionReviewForTask(
 			}),
 			getTaskDiff: async () =>
 				getDiff({ repoPath: input.workspacePath, taskId: input.taskId, baseRef: card.baseRef }),
+			getReviewContext: async () => ({
+				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
+				boardContext: buildReviewBoardContext(state.board, card),
+			}),
 			runReviewSession: async ({ seedPrompt }) =>
 				input.service.runSecondOpinionReviewSession({
 					taskId: input.taskId,

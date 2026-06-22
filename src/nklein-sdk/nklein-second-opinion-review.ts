@@ -14,10 +14,17 @@ import type { RuntimeCardReview, RuntimeReviewRoundRecord } from "../core/api-co
 import {
 	buildReviewSeedPrompt,
 	fingerprintReviewArtifact,
+	type ReviewBoardContext,
 	type ReviewSubmissionInput,
 	resolveReviewTransition,
 	shouldReviewCard,
 } from "../core/review-orchestration";
+
+/** Extra context the reviewer should judge against: the worker's reasoning + the card's place in the board/plan. */
+export interface ReviewContext {
+	workerReasoning: string | null;
+	boardContext: ReviewBoardContext | null;
+}
 
 /** Minimal card shape the orchestrator needs (a subset of `RuntimeBoardCard`). */
 export interface SecondOpinionReviewCard {
@@ -53,6 +60,8 @@ export interface RunNKleinSecondOpinionReviewInput {
 		getCard(taskId: string): Promise<SecondOpinionReviewCard | null>;
 		/** The worker's diff under review; null/empty means nothing to review. */
 		getTaskDiff(taskId: string): Promise<string | null>;
+		/** The worker's reasoning + the card's board/plan context, so the reviewer judges approach + fit, not just files. */
+		getReviewContext?(taskId: string): Promise<ReviewContext>;
 		/** Start a reviewer-role session with the seed prompt + `submit_review` tool; resolve to its verdict. */
 		runReviewSession(input: {
 			taskId: string;
@@ -115,10 +124,13 @@ export async function runNKleinSecondOpinionReview(
 
 	const history = card.review?.history ?? [];
 	const round = history.length + 1;
+	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
 	const seedPrompt = buildReviewSeedPrompt({
 		taskTitle: card.title,
 		taskObjective: card.prompt,
 		diff,
+		workerReasoning: reviewContext?.workerReasoning ?? null,
+		boardContext: reviewContext?.boardContext ?? null,
 		acceptanceSummary: input.acceptanceSummary ?? null,
 		round,
 		priorFeedback: card.review?.lastFeedback ?? null,

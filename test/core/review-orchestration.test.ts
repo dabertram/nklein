@@ -78,6 +78,31 @@ describe("buildReviewSeedPrompt", () => {
 		expect(prompt).toContain("diff truncated");
 		expect(prompt.length).toBeLessThan(huge.length);
 	});
+
+	it("surfaces the worker's reasoning and the board/plan context", () => {
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "Parse goals",
+			taskObjective: "Parse --goal flags.",
+			diff: "diff --git a/x b/x",
+			round: 1,
+			workerReasoning: "I added a parser and chose to ignore empty flags because the spec implies it.",
+			boardContext: {
+				planObjective: "Build the habit insights CLI.",
+				dependsOn: [{ title: "Define domain model", column: "completed" }],
+				dependedOnBy: [{ title: "Integrate goals into insights", column: "in_progress" }],
+				siblings: [{ title: "Classify trends", column: "review" }],
+			},
+		});
+		expect(prompt).toContain("Worker's reasoning");
+		expect(prompt).toContain("ignore empty flags");
+		expect(prompt).toContain("Plan objective");
+		expect(prompt).toContain("Build the habit insights CLI.");
+		expect(prompt).toContain("Depends on");
+		expect(prompt).toContain("Define domain model [completed]");
+		expect(prompt).toContain("Depended on by");
+		expect(prompt).toContain("Sibling cards");
+		expect(prompt).toContain("Classify trends [review]");
+	});
 });
 
 describe("buildReviewBouncePrompt / buildReviewSignOff", () => {

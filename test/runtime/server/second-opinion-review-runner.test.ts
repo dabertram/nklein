@@ -3,6 +3,7 @@ import type { RuntimeBoardData, RuntimeCardReview } from "../../../src/core/api-
 import type { ReviewSubmissionInput } from "../../../src/core/review-orchestration";
 import {
 	applyCardReviewToBoard,
+	buildReviewBoardContext,
 	runSecondOpinionReviewForTask,
 } from "../../../src/server/second-opinion-review-runner";
 
@@ -93,11 +94,77 @@ describe("applyCardReviewToBoard", () => {
 	});
 });
 
+describe("buildReviewBoardContext", () => {
+	it("derives dependencies, dependents, siblings, and the plan objective", () => {
+		const card = {
+			id: "impl-b",
+			title: "Implement B",
+			prompt: "Do B.",
+			startInPlanMode: false,
+			baseRef: "main",
+			createdAt: 1,
+			updatedAt: 1,
+			generatedFromPlan: { artifactKind: "decomposition" as const, planSlug: "plan-x", planTaskId: "plan-1" },
+		};
+		const board: RuntimeBoardData = {
+			columns: [
+				{
+					id: "planning",
+					title: "Planning",
+					cards: [{ ...card, id: "plan-1", title: "Plan", prompt: "Build X end to end." }],
+				},
+				{
+					id: "completed",
+					title: "Completed",
+					cards: [
+						{
+							...card,
+							id: "impl-a",
+							title: "Implement A",
+							generatedFromPlan: { artifactKind: "decomposition", planSlug: "plan-x", planTaskId: "plan-1" },
+						},
+					],
+				},
+				{ id: "review", title: "Review", cards: [card] },
+				{
+					id: "in_progress",
+					title: "In Progress",
+					cards: [
+						{
+							...card,
+							id: "impl-c",
+							title: "Implement C",
+							generatedFromPlan: { artifactKind: "decomposition", planSlug: "plan-x", planTaskId: "plan-1" },
+						},
+					],
+				},
+			],
+			// impl-b depends on impl-a (from→to = depends-on); impl-c depends on impl-b.
+			dependencies: [
+				{ id: "d1", fromTaskId: "impl-b", toTaskId: "impl-a", createdAt: 1 },
+				{ id: "d2", fromTaskId: "impl-c", toTaskId: "impl-b", createdAt: 1 },
+			],
+		};
+		const context = buildReviewBoardContext(board, card);
+		expect(context.planObjective).toBe("Build X end to end.");
+		expect(context.dependsOn).toEqual([{ title: "Implement A", column: "completed" }]);
+		expect(context.dependedOnBy).toEqual([{ title: "Implement C", column: "in_progress" }]);
+		expect(context.siblings).toEqual(
+			expect.arrayContaining([
+				{ title: "Implement A", column: "completed" },
+				{ title: "Implement C", column: "in_progress" },
+			]),
+		);
+		expect(context.siblings?.some((s) => s.title === "Implement B")).toBe(false);
+	});
+});
+
 describe("runSecondOpinionReviewForTask", () => {
 	const service = (deps: ReturnType<typeof makeDeps>) =>
 		({
 			runSecondOpinionReviewSession: deps.runSecondOpinionReviewSession,
 			sendTaskSessionInput: deps.sendTaskSessionInput,
+			getSummary: () => null,
 		}) as unknown as never;
 
 	it("skips and never starts a session when review is disabled", async () => {
