@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path";
 import type { LockOptions } from "proper-lockfile";
 import * as lockfile from "proper-lockfile";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 
 const DEFAULT_LOCK_STALE_MS = 10_000;
 const DEFAULT_LOCK_RETRIES: NonNullable<LockOptions["retries"]> = {
@@ -44,17 +45,36 @@ export interface AtomicTextWriteOptions {
 	executable?: boolean;
 }
 
+function defaultOnCompromised(lockfilePath: string): NonNullable<LockOptions["onCompromised"]> {
+	return (error) => {
+		// proper-lockfile invokes this from its mtime-refresh timer when it can no
+		// longer guarantee the lock — e.g. a busy event loop (heavy local-model
+		// startup, SDK host boot) let the lock go stale and another holder reclaimed
+		// it, so utimes/stat on the lockfile fails with ENOENT. The library's built-in
+		// default rethrows, but it does so from inside a setTimeout callback, which
+		// becomes an uncaught exception and kills the entire runtime process.
+		// Record it as an anomaly instead of crashing: every write here is atomic
+		// (temp file + rename), so the worst case of a momentarily lost lock is a
+		// lost update, never a corrupt file — vastly preferable to taking down the
+		// runtime mid-task.
+		const message = error instanceof Error ? error.message : String(error);
+		recordSelfObservation({
+			signal: "runtime_error",
+			severity: "warning",
+			message: `Lock compromised for ${lockfilePath}: ${message}`,
+			metadata: { lockfilePath },
+		});
+	};
+}
+
 function createLockOptions(request: LockRequest, lockfilePath: string): LockOptions {
-	const options: LockOptions = {
+	return {
 		stale: request.staleMs ?? DEFAULT_LOCK_STALE_MS,
 		retries: request.retries ?? DEFAULT_LOCK_RETRIES,
 		realpath: false,
 		lockfilePath,
+		onCompromised: request.onCompromised ?? defaultOnCompromised(lockfilePath),
 	};
-	if (typeof request.onCompromised === "function") {
-		options.onCompromised = request.onCompromised;
-	}
-	return options;
 }
 
 async function readFileIfExists(path: string): Promise<string | null> {
@@ -108,7 +128,21 @@ export class LockedFileSystem {
 			return await operation();
 		} finally {
 			for (const release of releases.reverse()) {
-				await release();
+				try {
+					await release();
+				} catch (error) {
+					// A lock can be compromised mid-operation (see defaultOnCompromised);
+					// proper-lockfile then rejects the release with ERELEASED because the
+					// lock is already gone. There is nothing left to clean up, so swallow
+					// it — letting one release rejection escape would mask the operation's
+					// own result and leave sibling locks unreleased.
+					const message = error instanceof Error ? error.message : String(error);
+					recordSelfObservation({
+						signal: "runtime_error",
+						severity: "warning",
+						message: `Failed to release file lock: ${message}`,
+					});
+				}
 			}
 		}
 	}
