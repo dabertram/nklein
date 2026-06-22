@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@nklein/core";
-import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
+import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -189,12 +189,7 @@ export function createAgentSandboxTaskUid(taskId: string): number {
  * (`--cap-drop ALL`, `--read-only`, `no-new-privileges`, tmpfs, read-only mounts) are unconditional.
  */
 export function resolveAgentSandboxNetworkArgs(policy: SandboxNetworkPolicy): string[] {
-	switch (policy) {
-		case "full":
-			return ["--network", "bridge"];
-		default:
-			return ["--network", "none"];
-	}
+	return sandboxNetworkHasEgress(policy) ? ["--network", "bridge"] : ["--network", "none"];
 }
 
 export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOptions): string[] {

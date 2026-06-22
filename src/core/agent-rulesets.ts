@@ -116,6 +116,38 @@ export function deliveryPolicyForTier(tier: AgentDeliveryTier): AgentDeliveryPol
 	return DELIVERY_MATRIX[tier];
 }
 
+/**
+ * Whether a network policy grants REAL outbound egress. Single source of truth shared by the sandbox
+ * `--network` mapping and tool gating, so they can never disagree. Only `full` grants egress today; `allowlist`
+ * is fail-closed (denied) until a per-domain egress proxy exists — granting egress under an "allowlist" label
+ * without enforcement would be a security lie.
+ */
+export function sandboxNetworkHasEgress(policy: SandboxNetworkPolicy): boolean {
+	return policy === "full";
+}
+
+export interface AgentToolAccess {
+	/** Web research / fetch tool. */
+	webResearch: boolean;
+	/** Headless browser tool. */
+	headlessBrowser: boolean;
+	mcp: McpAccess;
+}
+
+/**
+ * Resolve which optional agent tools a capability set actually grants. Web tools are ANDed with real egress:
+ * a tier may *list* a web tool, but it is only handed to the agent when the sandbox truly has outbound network,
+ * so a tool can never be "enabled" while it would silently fail (or imply egress the sandbox does not provide).
+ */
+export function resolveAgentToolAccess(capabilities: AgentCapabilities): AgentToolAccess {
+	const egress = sandboxNetworkHasEgress(capabilities.network);
+	return {
+		webResearch: capabilities.webResearch && egress,
+		headlessBrowser: capabilities.headlessBrowser && egress,
+		mcp: capabilities.mcp,
+	};
+}
+
 export interface AgentRulesetConfig<Tier extends string> {
 	/** Global baseline applied to every role unless overridden. */
 	globalPreset: Tier;

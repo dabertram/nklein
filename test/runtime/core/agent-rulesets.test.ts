@@ -10,9 +10,11 @@ import {
 	DEFAULT_AGENT_DELIVERY_TIER,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 	deliveryPolicyForTier,
+	resolveAgentToolAccess,
 	resolveCapabilityTier,
 	resolveDeliveryTier,
 	resolveEffectiveAgentRuleset,
+	sandboxNetworkHasEgress,
 } from "../../../src/core/agent-rulesets";
 import { agentRulesetsConfigSchema } from "../../../src/core/api-contract";
 
@@ -150,5 +152,32 @@ describe("agent-rulesets api-contract schema agrees with the core", () => {
 				delivery: { globalPreset: "strict" },
 			}),
 		).toThrow();
+	});
+});
+
+describe("agent-rulesets egress + tool access", () => {
+	it("grants real egress only for the full policy (allowlist fails closed for now)", () => {
+		expect(sandboxNetworkHasEgress("full")).toBe(true);
+		expect(sandboxNetworkHasEgress("allowlist")).toBe(false);
+		expect(sandboxNetworkHasEgress("none")).toBe(false);
+	});
+
+	it("enables web tools only when the capability tier actually has egress", () => {
+		// fully_open: full egress -> web + browser on.
+		expect(resolveAgentToolAccess(capabilitiesForTier("fully_open"))).toEqual({
+			webResearch: true,
+			headlessBrowser: true,
+			mcp: "on",
+		});
+		// medium: allowlist (no real egress yet) -> web tools suppressed even though the matrix lists webResearch.
+		const medium = resolveAgentToolAccess(capabilitiesForTier("medium"));
+		expect(medium.webResearch).toBe(false);
+		expect(medium.headlessBrowser).toBe(false);
+		// less_strict: no network -> no web tools, MCP local still allowed.
+		expect(resolveAgentToolAccess(capabilitiesForTier("less_strict"))).toEqual({
+			webResearch: false,
+			headlessBrowser: false,
+			mcp: "local",
+		});
 	});
 });
