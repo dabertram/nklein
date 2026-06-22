@@ -667,6 +667,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					await autoStartDecompositionRootTasks(scope, event);
 					completeDecompositionSourceTask(scope, event);
 				},
+				onFocusChainUpdated: async (taskId, chain) => {
+					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.
+					await mutateWorkspaceState(scope.workspacePath, (state) => ({
+						board: {
+							...state.board,
+							columns: state.board.columns.map((column) => ({
+								...column,
+								cards: column.cards.map((card) =>
+									card.id === taskId ? { ...card, focusChain: chain, updatedAt: Date.now() } : card,
+								),
+							})),
+						},
+						value: null,
+					})).catch(() => undefined);
+					void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(scope.workspaceId, scope.workspacePath);
+				},
 			});
 			service.setBoardPaused((await readSwarmStopSignal(scope.workspacePath)) !== null);
 			for (const taskId of await readPausedTasks(scope.workspacePath)) {

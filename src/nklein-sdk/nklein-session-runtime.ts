@@ -25,6 +25,7 @@ import { createNKleinDecompositionTools, type NKleinDecompositionAppliedHandler 
 import { createEditFileTool } from "./nklein-edit-file-tool";
 import { extractNKleinSessionId } from "./nklein-event-adapter";
 import { createFileDiscoveryTools } from "./nklein-file-discovery-tools";
+import { createNKleinFocusChainTool, type NKleinFocusChainSubmittedHandler } from "./nklein-focus-chain-tool";
 import {
 	createReadLargeFileTool,
 	getNKleinLargeFileWorkflow,
@@ -495,6 +496,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** When provided, this is a second-opinion review turn: the `submit_review` tool is attached and its verdict is reported here. */
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;
+	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */
+	onFocusChainUpdated?: NKleinFocusChainSubmittedHandler;
 	onTeamEvent?: (event: NKleinSdkTeamEvent, teamName: string | null) => void;
 }
 
@@ -817,6 +820,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// Second-opinion review turns get the structured `submit_review` verdict tool (todo §5.K). Only attached
 			// when a verdict handler is provided, so ordinary worker/planning turns never see it.
 			...(request.onReviewSubmitted ? [createNKleinReviewTool({ onSubmitted: request.onReviewSubmitted })] : []),
+			// Focus-chain checklist tool (todo §5.N): attached whenever the runtime wires a persistence handler.
+			...(request.onFocusChainUpdated
+				? [createNKleinFocusChainTool({ onUpdated: request.onFocusChainUpdated })]
+				: []),
 			...(mcpToolBundle?.tools ?? []),
 		];
 

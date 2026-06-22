@@ -15,6 +15,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
+import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import {
@@ -318,6 +319,9 @@ export function buildKanbanEfficiencyRules(options: {
 		"If you are a reasoning model, keep your thinking brief and focused on the immediate next step. Do not produce long chains of thought; a few lines of reasoning are enough before you act. Long outputs and long reasoning waste the context budget and can crash a local model host under memory pressure.",
 		"When you have enough to act, act. When a step is done, stop — a short confirmation beats a long recap.",
 		"",
+		"## Focus Chain (plan your steps and track them)",
+		"At the very start of the task, call `update_focus_chain` once to lay out your plan: a handful of concrete, ordered steps for completing this task. Then, as you work, call it again to update the list — mark the current step `in_progress`, completed steps `done`, and re-send the FULL list each time (keep exactly one step in progress). This keeps you on-task and shows the user your progress. It is lightweight bookkeeping, not the work itself; keep the steps short.",
+		"",
 		"## Adaptive Prompt Selection",
 		"Before acting, briefly decide which optional rule packs fit the user's task. Apply a pack only when its description matches the requested work; ignore packs that do not fit. Do not keyword-match mechanically: reason from the task intent, source shape, and expected output.",
 		"Available optional pack: Requirements Extraction Rules. Use it when the task asks you to reconstruct, consolidate, summarize, or derive requirements/specifications/plans from discussions, prior drafts, logs, notes, or other evolving source material.",
@@ -501,6 +505,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	watcherRegistry?: NKleinWatcherRegistry;
 	pauseController?: NKleinPauseController;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
+	/** Persist an agent's focus chain (todo §5.N) when it calls `update_focus_chain`. */
+	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
 }
 
 export type CreateInMemoryNKleinTaskSessionServiceOptions =
@@ -809,6 +815,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly pauseController: NKleinPauseController;
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
+	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<NKleinRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeNKleinTeamProgressEvent) => void>();
 
@@ -834,6 +841,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.onDecompositionApplied = options.onDecompositionApplied;
+		this.onFocusChainUpdated = options.onFocusChainUpdated;
 	}
 
 	private async prepareSandboxWorkspace(
@@ -1023,6 +1031,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			toolPolicies: runtimeSetup.toolPolicies,
 			onDecompositionApplied: this.onDecompositionApplied,
 			onReviewSubmitted: input.onReviewSubmitted,
+			onFocusChainUpdated: this.onFocusChainUpdated
+				? (chain) => this.onFocusChainUpdated?.(input.taskId, chain)
+				: undefined,
 			onTeamEvent: (event, teamName) => {
 				this.emitTeamProgress(input.taskId, event, teamName);
 			},
@@ -2158,6 +2169,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
+					onFocusChainUpdated: this.onFocusChainUpdated
+						? (chain) => this.onFocusChainUpdated?.(request.taskId, chain)
+						: undefined,
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);
 					},

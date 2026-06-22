@@ -592,10 +592,14 @@ deep analysis:
       — full-list re-emit shape (small-model-reliable), normalizes via the core, fires an `onUpdated` handler,
       unit-tested. **Remaining:** attach it in the session runtime (like the decompose/review tools) + the
       re-prompt nudge.
-- [ ] **Wire into every agent surface.** Seed the create-a-focus-chain expectation into the per-task system/seed
+- [~] **Wire into every agent surface.** Seed the create-a-focus-chain expectation into the per-task system/seed
       prompts for **Architect, Worker, Reviewer**, the **native kanban agent**, and the **chat agents** (§5.M).
       Each begins a task by drafting its chain, then works it; the reviewer can also check whether the worker
       actually followed/owned its chain. Cohere with the existing efficiency/brevity rules.
+      **Done (board agents):** a "Focus Chain" rule pack in `buildKanbanEfficiencyRules` (applied to every task),
+      `update_focus_chain` attached in the session runtime (when a persist handler is wired), and the state hub
+      persists each update onto `card.focusChain` + broadcasts. **Remaining:** chat-agent surface (§5.M) + an
+      optional re-prompt nudge if a task runs without drafting a chain.
 - [ ] **Visual representation (todo list).** A clear checklist UI: on the card detail / Watch panel for board
       tasks (live updates as steps flip to done), and in the chat surface for chat agents. Use the design-system
       checklist styling (done/in-progress/pending states), with per-control tooltips (§5.L-style). Should read at a
