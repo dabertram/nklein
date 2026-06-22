@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -409,25 +410,29 @@ export function TopBar({
 				{/* ---- Left side: hamburger/back, path, hints, git ---- */}
 				<div className="flex flex-nowrap items-center h-10 flex-1 min-w-0 overflow-hidden gap-1.5">
 					{isMobile && onToggleSidebar ? (
-						<Button
-							variant="ghost"
-							size="sm"
-							icon={<Menu size={16} />}
-							onClick={onToggleSidebar}
-							aria-label="Toggle sidebar"
-							className={cn("shrink-0", MOBILE_TOUCH_TARGET)}
-						/>
-					) : null}
-					{onBack ? (
-						<div className="flex items-center shrink-0 overflow-visible">
+						<ElementTooltip id="top-bar.toggle-sidebar" side="bottom">
 							<Button
 								variant="ghost"
 								size="sm"
-								icon={<ArrowLeft size={16} />}
-								onClick={onBack}
-								aria-label="Back to board"
-								className={cn("mr-1 shrink-0", isMobile && MOBILE_TOUCH_TARGET)}
+								icon={<Menu size={16} />}
+								onClick={onToggleSidebar}
+								aria-label="Toggle sidebar"
+								className={cn("shrink-0", MOBILE_TOUCH_TARGET)}
 							/>
+						</ElementTooltip>
+					) : null}
+					{onBack ? (
+						<div className="flex items-center shrink-0 overflow-visible">
+							<ElementTooltip id="top-bar.back-to-board" side="bottom">
+								<Button
+									variant="ghost"
+									size="sm"
+									icon={<ArrowLeft size={16} />}
+									onClick={onBack}
+									aria-label="Back to board"
+									className={cn("mr-1 shrink-0", isMobile && MOBILE_TOUCH_TARGET)}
+								/>
+							</ElementTooltip>
 						</div>
 					) : null}
 
@@ -632,15 +637,17 @@ export function TopBar({
 								</Tooltip>
 							) : null}
 							{showDebugButton && onOpenDebugDialog ? (
-								<Button
-									variant="ghost"
-									size="sm"
-									icon={<Bug size={16} />}
-									onClick={onOpenDebugDialog}
-									aria-label="Debug"
-									data-testid="open-debug-dialog-button"
-									className="ml-0.5 mr-0.5"
-								/>
+								<ElementTooltip id="top-bar.debug" side="bottom">
+									<Button
+										variant="ghost"
+										size="sm"
+										icon={<Bug size={16} />}
+										onClick={onOpenDebugDialog}
+										aria-label="Debug"
+										data-testid="open-debug-dialog-button"
+										className="ml-0.5 mr-0.5"
+									/>
+								</ElementTooltip>
 							) : null}
 						</>
 					) : null}
@@ -674,15 +681,17 @@ export function TopBar({
 					) : null}
 
 					{/* Settings: always visible */}
-					<Button
-						variant="ghost"
-						size="sm"
-						icon={<Settings size={16} />}
-						onClick={() => onOpenSettings?.()}
-						aria-label="Settings"
-						data-testid="open-settings-button"
-						className={cn("ml-0.5 mr-0.5", isMobile && MOBILE_TOUCH_TARGET)}
-					/>
+					<ElementTooltip id="top-bar.settings" side="bottom">
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={<Settings size={16} />}
+							onClick={() => onOpenSettings?.()}
+							aria-label="Settings"
+							data-testid="open-settings-button"
+							className={cn("ml-0.5 mr-0.5", isMobile && MOBILE_TOUCH_TARGET)}
+						/>
+					</ElementTooltip>
 				</div>
 			</nav>
 			<Dialog
