@@ -477,6 +477,11 @@ deep analysis:
 - [ ] **Chat agent runtime (reuse NKlein core).** An interactive multi-turn chat loop built on the existing NKlein
       agent core + tool suite (read/edit/search/run, retrieval, etc.) and provider plumbing, so it has real coding
       capability. New chat entry point + streaming; board-independent.
+- [ ] **Multimodal I/O, capability-gated.** Support multimodal **input** (images, and other modalities a model
+      accepts — e.g. audio/PDF) when the selected model advertises that capability, and multimodal **output**
+      when the model can produce it. Drive this off the model's declared capabilities (MCSR / provider model
+      metadata), degrade gracefully to text-only when unsupported, and expose the supported modalities in the chat
+      UI + over the Signal bridge (which itself carries images/attachments).
 - [ ] **Execution-access modes (3, user-controlled; default = most isolated).** (a) **Docker-isolated** with
       read-only — and, only if the user explicitly enables it, write — access to **explicitly user-mounted files/
       folders** (nothing else reachable); (b) **sandbox-by-default + double-confirmed per-action host escape hatch**
