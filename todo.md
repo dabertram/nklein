@@ -571,6 +571,25 @@ deep analysis:
       The min-spec fallback decision (dedicated GGUF vs main LLM) is resolved: ship the GGUF default, lexical
       stays the zero-download floor.
       *(Superseded the original "NOT implemented" investigation note below.)*
+- [ ] **#2 — Measure the batteries-included embedding model's performance (in Docker) + decide on a two-layer
+      retrieval.** *(curiosity-driven benchmark, raised 2026-06-23; ties to §5.G Docker delivery.)* Benchmark the
+      baked-in `local_gguf` (nomic-embed-text-v1.5 Q4_K_M via the Python core) **running inside the deliverable
+      Docker image** — cold-load time, per-chunk embed throughput + p50/p95 latency, full-project index build time,
+      and query latency — on realistic repos, CPU-only (the image has no GPU). Compare against `local_lexical`
+      (instant, low quality) to answer: **is the in-image dense model fast enough on its own, or do we want a
+      two-layer retrieval?**
+      - **Two-layer hypothesis to test:** layer-1 = fast lexical candidate generation (cheap recall over the whole
+        repo), layer-2 = GGUF **dense re-rank / re-vectorize** only the top-K candidates (quality + bounded cost).
+        This caps the expensive dense work regardless of repo size and could beat "dense-everything" on both
+        latency and quality. Measure recall@k / latency for lexical-only vs dense-only vs lexical→dense rerank.
+      - **User-hosted fast embedding — ALREADY SUPPORTED (confirmed 2026-06-23):** the `openai_compatible` code-
+        embedding provider (`runtimeCodeEmbeddingProviderSchema`; `code-embedding-fields.tsx`
+        "OpenAI-compatible endpoint") lets a user point at *any* external embeddings endpoint (a GPU/unified-memory
+        box, LM Studio, Ollama, …) — exactly like connecting a worker LLM — configurable globally or per-project
+        (the Project Settings code-embedding override). So the "bring your own fast GPU embedder" path exists; the
+        TODO is to **benchmark it as the explicit fast path** and make sure it's discoverable (and that the
+        in-Docker default degrades gracefully to it / to lexical). Outcome decides whether layer-2 dense is
+        on-by-default in the image or opt-in when a user endpoint is connected.
 - [ ] **#1 (original spec, now superseded by the shipped work above; kept for the detailed acceptance intent).**
       *Investigated 2026-06-22: NOT implemented today* — code embeddings are only `local_lexical` (in-process
       lexical hashing, not real semantic) or `openai_compatible` (an external LM Studio/Ollama endpoint the user
