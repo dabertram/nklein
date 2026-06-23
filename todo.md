@@ -644,6 +644,29 @@ deep analysis:
       Decide keep/relabel/remove (leaning keep for now; revisit).
 - [ ] **Deactivate the "read the docs" links** (we're not at that point yet) — keep them but mark "(not yet available)".
 
+### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24)*
+> **Goal (meta-task):** do a deliberate, whole-codebase reasoning pass over !Klein's architecture and structure and
+> surface **every** worthwhile improvement — simplification, maintainability, performance, extensibility,
+> architecture, and code quality — then **write each finding into this todo.md as its own concrete, landable item**
+> so we can work through them. The deliverable of the pass itself is the populated backlog (the sub-items below get
+> replaced by the real findings as they're produced). **Constraints:** every proposal must respect the §1 invariants
+> (local-only, strict Docker isolation, ≥32k floor, upstream-clean SDK boundary, protected tests) — flag, don't
+> violate. Don't churn for its own sake (§3): prefer changes that measurably improve navigability/clarity/perf, each
+> independently shippable + test-backed. Coordinate with the already-planned structural work so we don't duplicate:
+> §5.R (dissolve the `src/nklein-sdk/` boundary / one unified codebase), §5.P (eventual Python backend port), and the
+> §5.A worktree-module shrink (plan.md §2.B) — note overlaps rather than re-deriving them.
+- [ ] **Run the review pass** — systematically read across the runtime (`src/`), the web-ui (`web-ui/src/`), the
+      vendored SDK boundary (`src/nklein-sdk/` + `vendor/`), the Python core (`core-py/`), state/telemetry, and the
+      tRPC/contract seam. For each area assess: module boundaries & separation of concerns; oversized/multi-purpose
+      files (e.g. the large `nklein-task-session-service.ts`) worth decomposing; duplication / missing shared
+      utilities (the `model-identity` extraction is the template); dead or back-compat-only code; data-flow and
+      hot-path performance (startup, event adapter, telemetry reads, embedding/index build); extension points for
+      new tools/agents/providers; type-safety gaps; test coverage shape. Capture concrete findings, not vibes.
+- [ ] **Write findings into todo.md as concrete items** — promote each finding to a checkbox item under the most
+      fitting §5 section (or a new one), with enough spec to be landable independently and a note on which invariant(s)
+      it touches. Cross-link duplicates to §5.R / §5.P / §5.A.
+- [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
   + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
