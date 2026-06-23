@@ -1052,31 +1052,6 @@ export const runtimeProjectArtifactMigrationResponseSchema = z.object({
 });
 export type RuntimeProjectArtifactMigrationResponse = z.infer<typeof runtimeProjectArtifactMigrationResponseSchema>;
 
-export const runtimeWorktreeEnsureRequestSchema = z.object({
-	taskId: z.string(),
-	baseRef: z.string(),
-});
-export type RuntimeWorktreeEnsureRequest = z.infer<typeof runtimeWorktreeEnsureRequestSchema>;
-
-export const runtimeWorktreeEnsureResponseSchema = z.union([
-	z.object({
-		ok: z.literal(true),
-		path: z.string(),
-		baseRef: z.string(),
-		baseCommit: z.string(),
-		warning: z.string().optional(),
-		error: z.string().optional(),
-	}),
-	z.object({
-		ok: z.literal(false),
-		path: z.null(),
-		baseRef: z.string(),
-		baseCommit: z.null(),
-		error: z.string().optional(),
-	}),
-]);
-export type RuntimeWorktreeEnsureResponse = z.infer<typeof runtimeWorktreeEnsureResponseSchema>;
-
 export const runtimeWorktreeDeleteRequestSchema = z.object({
 	taskId: z.string(),
 	preserveChanges: z.boolean().optional(),

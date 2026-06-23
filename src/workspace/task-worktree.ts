@@ -1,63 +1,25 @@
+// Legacy host-task-worktree CLEANUP surface (§5.A). The worktree *creation* machinery
+// (ensure/resolve/sync/symlink-mirroring) was retired once native NKlein tasks moved fully into Docker sandboxes
+// delivered via `nklein/tasks/<task>` result branches. What remains here removes any worktree, setup lock, or
+// saved task patch left on disk by pre-§5.A builds — used by project removal, shutdown cleanup, and the
+// `deleteWorktree` tRPC (a no-op for tasks that never created a host worktree). Patch capture is retained because
+// `deleteTaskWorktree({ preserveChanges: true })` still snapshots an existing legacy worktree before removing it.
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { access, lstat, mkdir, readdir, readFile, rm, symlink } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { access, mkdir, readdir, rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
-import type {
-	RuntimeTaskWorkspaceInfoResponse,
-	RuntimeWorktreeDeleteResponse,
-	RuntimeWorktreeEnsureResponse,
-} from "../core/api-contract";
-import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
-import { getRuntimeHomePath, getTaskWorktreesHomePath, loadWorkspaceContext } from "../state/workspace-state";
-import { getGitCommandErrorMessage, getGitStdout, readGitHeadInfo, runGit } from "./git-utils";
+import type { RuntimeWorktreeDeleteResponse } from "../core/api-contract";
+import { lockedFileSystem } from "../fs/locked-file-system";
+import { getRuntimeHomePath, getTaskWorktreesHomePath } from "../state/workspace-state";
+import { getGitStdout, runGit } from "./git-utils";
 import { deleteTaskResultBranch } from "./task-result-branches";
 import { getWorkspaceFolderLabelForWorktreePath, normalizeTaskIdForWorktreePath } from "./task-worktree-path";
-import { deleteTaskWorktreeSyncState, syncWorkspaceChangesIntoTaskWorktree } from "./task-worktree-sync";
-import { listTurbopackNodeModulesSymlinkSkipPaths } from "./task-worktree-turbopack";
+import { deleteTaskWorktreeSyncState } from "./task-worktree-sync";
 
-const KANBAN_MANAGED_EXCLUDE_BLOCK_START = "# kanban-managed-symlinked-ignored-paths:start";
-const KANBAN_MANAGED_EXCLUDE_BLOCK_END = "# kanban-managed-symlinked-ignored-paths:end";
 const KANBAN_TRASHED_TASK_PATCHES_DIR_NAME = "trashed-task-patches";
 const KANBAN_TASK_WORKTREE_SETUP_LOCKFILE_NAME = "kanban-task-worktree-setup.lock";
 const TASK_PATCH_FILE_SUFFIX = ".patch";
-
-const SYMLINK_PATH_SEGMENT_BLACKLIST = new Set([
-	".git",
-	".DS_Store",
-	"Thumbs.db",
-	"Desktop.ini",
-	"Icon\r",
-	".Spotlight-V100",
-	".Trashes",
-]);
-
-type CreateSymlink = (target: string, path: string, type: "dir" | "file") => Promise<void>;
-
-export async function mirrorIgnoredPath(options: {
-	sourcePath: string;
-	targetPath: string;
-	isDirectory: boolean;
-	createSymlink?: CreateSymlink;
-}): Promise<"mirrored" | "skipped"> {
-	const createSymlink = options.createSymlink ?? symlink;
-	try {
-		await createSymlink(options.sourcePath, options.targetPath, options.isDirectory ? "dir" : "file");
-		return "mirrored";
-	} catch {
-		return "skipped";
-	}
-}
-
-function toPlatformRelativePath(path: string): string {
-	return path
-		.trim()
-		.replaceAll("\\", "/")
-		.replace(/\/+$/g, "")
-		.split("/")
-		.filter((segment) => segment.length > 0)
-		.join("/");
-}
 
 async function pathExists(path: string): Promise<boolean> {
 	try {
@@ -68,55 +30,11 @@ async function pathExists(path: string): Promise<boolean> {
 	}
 }
 
-function isMissingInitialCommitError(message: string): boolean {
-	const normalizedMessage = message.trim().toLowerCase();
-	if (!normalizedMessage) {
-		return false;
-	}
-
-	return (
-		normalizedMessage.includes("needed a single revision") ||
-		normalizedMessage.includes("ambiguous argument") ||
-		normalizedMessage.includes("unknown revision or path not in the working tree") ||
-		normalizedMessage.includes("bad revision")
-	);
-}
-
-function getWorktreeBaseRefResolutionErrorMessage(baseRef: string, errorMessage: string): string {
-	if (!isMissingInitialCommitError(errorMessage)) {
-		return errorMessage;
-	}
-
-	return `This repository does not have an initial commit yet, so !Klein cannot prepare a task workspace from base ref "${baseRef}". Create an initial commit, then try moving the task to in progress again.`;
-}
-
-async function tryRunGit(cwd: string, args: string[]): Promise<string | null> {
-	const result = await runGit(cwd, args);
-	return result.ok ? result.stdout : null;
-}
-
-async function getGitCommonDir(repoPath: string): Promise<string> {
-	const gitCommonDir = await getGitStdout(["rev-parse", "--git-common-dir"], repoPath);
-	return isAbsolute(gitCommonDir) ? gitCommonDir : join(repoPath, gitCommonDir);
-}
-
-async function getTaskWorktreeSetupLock(repoPath: string): Promise<LockRequest> {
-	return {
-		path: await getGitCommonDir(repoPath),
-		type: "directory",
-		lockfileName: KANBAN_TASK_WORKTREE_SETUP_LOCKFILE_NAME,
-	};
-}
-
 export async function removeTaskWorktreeSetupLock(repoPath: string): Promise<boolean> {
 	const lockPath = join(repoPath, ".git", KANBAN_TASK_WORKTREE_SETUP_LOCKFILE_NAME);
 	const existed = await pathExists(lockPath);
 	await rm(lockPath, { force: true, recursive: true });
 	return existed;
-}
-
-async function withTaskWorktreeSetupLock<T>(repoPath: string, operation: () => Promise<T>): Promise<T> {
-	return await lockedFileSystem.withLock(await getTaskWorktreeSetupLock(repoPath), operation);
 }
 
 function getWorktreesRootPath(taskId: string): string {
@@ -202,31 +120,11 @@ export async function deleteTaskPatchFilesForRepo(repoPath: string): Promise<num
 	}
 }
 
-async function findTaskPatch(repoPath: string, taskId: string): Promise<{ path: string; commit: string } | null> {
-	const patchesRootPath = getTrashedTaskPatchesRootPath();
-	const filenames = await listTaskPatchFiles(repoPath, taskId);
-	const scopedPrefix = getTaskPatchFilePrefix(repoPath, taskId);
-	const scopedFilenames = filenames.filter((filename) => filename.startsWith(scopedPrefix));
-	const filename = (scopedFilenames.length > 0 ? scopedFilenames : filenames).sort().at(-1);
-	if (!filename) {
-		return null;
-	}
-	const commit = parseTaskPatchCommit(repoPath, taskId, filename);
-	if (!commit) {
-		return null;
-	}
-	return {
-		path: join(patchesRootPath, filename),
-		commit,
-	};
-}
-
 function ensureTrailingNewline(value: string): string {
 	return value.endsWith("\n") ? value : `${value}\n`;
 }
 
 async function listUntrackedPaths(worktreePath: string): Promise<string[]> {
-	// Original used runGitRaw (throws on failure).
 	const output = await getGitStdout(["ls-files", "--others", "--exclude-standard", "-z"], worktreePath, {
 		trimStdout: false,
 	});
@@ -275,179 +173,6 @@ async function captureTaskPatch(options: { repoPath: string; taskId: string; wor
 	await lockedFileSystem.writeTextFileAtomic(patchPath, patchChunks.join(""));
 }
 
-async function applyTaskPatch(patchPath: string, worktreePath: string): Promise<void> {
-	await getGitStdout(["apply", "--binary", "--whitespace=nowarn", patchPath], worktreePath);
-}
-
-function shouldSkipSymlink(relativePath: string): boolean {
-	const segments = relativePath.split("/").filter((segment) => segment.length > 0);
-	if (segments.length === 0) {
-		return true;
-	}
-	return segments.some((segment) => SYMLINK_PATH_SEGMENT_BLACKLIST.has(segment));
-}
-
-function isPathWithinRoot(path: string, root: string): boolean {
-	return path === root || path.startsWith(`${root}/`);
-}
-
-function getUniquePaths(relativePaths: string[]): string[] {
-	const uniquePaths = Array.from(new Set(relativePaths.map((path) => toPlatformRelativePath(path)).filter(Boolean)));
-	uniquePaths.sort((left, right) => {
-		const leftDepth = left.split("/").length;
-		const rightDepth = right.split("/").length;
-		if (leftDepth !== rightDepth) {
-			return leftDepth - rightDepth;
-		}
-		return left.localeCompare(right);
-	});
-
-	const roots: string[] = [];
-	for (const path of uniquePaths) {
-		if (roots.some((root) => isPathWithinRoot(path, root))) {
-			continue;
-		}
-		roots.push(path);
-	}
-
-	return roots;
-}
-
-async function listIgnoredPaths(repoPath: string): Promise<string[]> {
-	const output = await getGitStdout(
-		["ls-files", "--others", "--ignored", "--exclude-per-directory=.gitignore", "--directory"],
-		repoPath,
-	);
-	return output
-		.split("\n")
-		.map((line) => toPlatformRelativePath(line))
-		.filter((line) => line.length > 0);
-}
-
-async function worktreeHasConfiguredSubmodules(worktreePath: string): Promise<boolean> {
-	const gitmodulesPath = join(worktreePath, ".gitmodules");
-	if (!(await pathExists(gitmodulesPath))) {
-		return false;
-	}
-
-	const result = await runGit(worktreePath, [
-		"config",
-		"--file",
-		gitmodulesPath,
-		"--get-regexp",
-		"^submodule\\..*\\.path$",
-	]);
-	return result.ok && result.stdout.length > 0;
-}
-
-function escapeGitIgnoreLiteral(path: string): string {
-	const normalized = toPlatformRelativePath(path);
-	return normalized
-		.replace(/\\/g, "\\\\")
-		.replace(/^([#!])/u, "\\$1")
-		.replace(/([*?[])/g, "\\$1");
-}
-
-function stripManagedExcludeBlock(content: string): string {
-	const lines = content.split("\n");
-	const nextLines: string[] = [];
-	let insideManagedBlock = false;
-	for (const line of lines) {
-		if (line === KANBAN_MANAGED_EXCLUDE_BLOCK_START) {
-			insideManagedBlock = true;
-			continue;
-		}
-		if (line === KANBAN_MANAGED_EXCLUDE_BLOCK_END) {
-			insideManagedBlock = false;
-			continue;
-		}
-		if (!insideManagedBlock) {
-			nextLines.push(line);
-		}
-	}
-	return nextLines.join("\n").replace(/\n+$/g, "");
-}
-
-async function syncManagedIgnoredPathExcludes(repoPath: string, relativePaths: string[]): Promise<void> {
-	const excludePathOutput = await getGitStdout(["rev-parse", "--git-path", "info/exclude"], repoPath);
-	if (!excludePathOutput) {
-		return;
-	}
-	const excludePath = isAbsolute(excludePathOutput) ? excludePathOutput : join(repoPath, excludePathOutput);
-
-	const existingContent = await readFile(excludePath, "utf8").catch(() => "");
-	const preservedContent = stripManagedExcludeBlock(existingContent);
-	const managedPaths = getUniquePaths(relativePaths);
-	const managedBlock =
-		managedPaths.length === 0
-			? ""
-			: [
-					KANBAN_MANAGED_EXCLUDE_BLOCK_START,
-					"# Keep symlinked ignored paths ignored inside !Klein task worktrees.",
-					...managedPaths.map((relativePath) => `/${escapeGitIgnoreLiteral(relativePath)}`),
-					KANBAN_MANAGED_EXCLUDE_BLOCK_END,
-				].join("\n");
-
-	const nextContent = [preservedContent, managedBlock].filter(Boolean).join("\n\n").replace(/\n+$/g, "");
-	const normalizedNextContent = nextContent ? `${nextContent}\n` : "";
-	if (normalizedNextContent === existingContent) {
-		return;
-	}
-
-	await lockedFileSystem.writeTextFileAtomic(excludePath, normalizedNextContent);
-}
-
-async function syncIgnoredPathsIntoWorktree(repoPath: string, worktreePath: string): Promise<void> {
-	const ignoredPaths = getUniquePaths(await listIgnoredPaths(repoPath)).filter(
-		(relativePath) => !shouldSkipSymlink(relativePath),
-	);
-	const turbopackNodeModulesSkipPaths = new Set(await listTurbopackNodeModulesSymlinkSkipPaths(repoPath));
-	const mirroredIgnoredPaths = ignoredPaths.filter((relativePath) => !turbopackNodeModulesSkipPaths.has(relativePath));
-
-	await syncManagedIgnoredPathExcludes(repoPath, mirroredIgnoredPaths);
-	for (const relativePath of mirroredIgnoredPaths) {
-		if (shouldSkipSymlink(relativePath)) {
-			continue;
-		}
-
-		const sourcePath = join(repoPath, relativePath);
-		if (!(await pathExists(sourcePath))) {
-			continue;
-		}
-
-		const targetPath = join(worktreePath, relativePath);
-		if (await pathExists(targetPath)) {
-			continue;
-		}
-
-		const sourceStat = await lstat(sourcePath);
-		await mkdir(dirname(targetPath), { recursive: true });
-		await mirrorIgnoredPath({
-			sourcePath,
-			targetPath,
-			isDirectory: sourceStat.isDirectory(),
-		});
-	}
-}
-
-async function initializeSubmodulesIfNeeded(worktreePath: string): Promise<void> {
-	if (!(await worktreeHasConfiguredSubmodules(worktreePath))) {
-		return;
-	}
-
-	await getGitStdout(["submodule", "update", "--init", "--recursive"], worktreePath);
-}
-
-async function prepareNewTaskWorktree(repoPath: string, worktreePath: string): Promise<void> {
-	try {
-		await initializeSubmodulesIfNeeded(worktreePath);
-		await syncIgnoredPathsIntoWorktree(repoPath, worktreePath);
-	} catch (error) {
-		await removeTaskWorktreeInternal(repoPath, worktreePath).catch(() => {});
-		throw error;
-	}
-}
-
 async function removeTaskWorktreeInternal(repoPath: string, worktreePath: string): Promise<boolean> {
 	const existed = await pathExists(worktreePath);
 	const removeResult = await runGit(repoPath, ["worktree", "remove", "--force", worktreePath]);
@@ -473,157 +198,6 @@ async function pruneEmptyParents(rootPath: string, fromPath: string): Promise<vo
 		} catch {
 			return;
 		}
-	}
-}
-
-export async function ensureTaskWorktreeIfDoesntExist(options: {
-	cwd: string;
-	taskId: string;
-	baseRef: string;
-}): Promise<RuntimeWorktreeEnsureResponse> {
-	try {
-		const context = await loadWorkspaceContext(options.cwd);
-		const taskId = normalizeTaskIdForWorktreePath(options.taskId);
-		const worktreePath = getTaskWorktreePath(context.repoPath, taskId);
-		const requestedBaseRef = options.baseRef.trim();
-		if (!requestedBaseRef) {
-			return {
-				ok: false,
-				path: null,
-				baseRef: requestedBaseRef,
-				baseCommit: null,
-				error: "Task base branch is required for worktree creation.",
-			};
-		}
-		const baseRefResult = await runGit(context.repoPath, ["rev-parse", "--verify", `${requestedBaseRef}^{commit}`]);
-		if (!baseRefResult.ok) {
-			return {
-				ok: false,
-				path: null,
-				baseRef: requestedBaseRef,
-				baseCommit: null,
-				error: getWorktreeBaseRefResolutionErrorMessage(
-					requestedBaseRef,
-					baseRefResult.stderr || baseRefResult.output,
-				),
-			};
-		}
-		const requestedBaseCommit = baseRefResult.stdout;
-		// Investigation note: ensure is called on every task start. The previous implementation
-		// compared the worktree HEAD to the latest baseRef commit and recreated the worktree
-		// when the base branch advanced, which could destroy valid task progress. Existing
-		// worktrees are now treated as authoritative and only missing worktrees are created.
-		const existingResult = await runGit(worktreePath, ["rev-parse", "HEAD"]);
-		if (existingResult.ok && existingResult.stdout) {
-			await syncIgnoredPathsIntoWorktree(context.repoPath, worktreePath);
-			const warning = await syncWorkspaceChangesIntoTaskWorktree({
-				repoPath: context.repoPath,
-				worktreePath,
-				taskId,
-				requestedBaseRef,
-				requestedBaseCommit,
-			});
-			return {
-				ok: true,
-				path: worktreePath,
-				baseRef: requestedBaseRef,
-				baseCommit: existingResult.stdout,
-				warning,
-			};
-		}
-
-		return await withTaskWorktreeSetupLock(context.repoPath, async () => {
-			const lockedExistingCommit = await tryRunGit(worktreePath, ["rev-parse", "HEAD"]);
-			if (lockedExistingCommit) {
-				await syncIgnoredPathsIntoWorktree(context.repoPath, worktreePath);
-				const warning = await syncWorkspaceChangesIntoTaskWorktree({
-					repoPath: context.repoPath,
-					worktreePath,
-					taskId,
-					requestedBaseRef,
-					requestedBaseCommit,
-				});
-				return {
-					ok: true,
-					path: worktreePath,
-					baseRef: requestedBaseRef,
-					baseCommit: lockedExistingCommit,
-					warning,
-				};
-			}
-
-			const storedPatch = await findTaskPatch(context.repoPath, taskId);
-			let baseCommit = storedPatch?.commit ?? requestedBaseCommit;
-			const warnings: string[] = [];
-
-			if (await pathExists(worktreePath)) {
-				await removeTaskWorktreeInternal(context.repoPath, worktreePath);
-			}
-
-			// Clean up stale worktree registrations that can linger when git
-			// worktree remove fails or the process is interrupted. Without this,
-			// git worktree add refuses with "missing but already registered".
-			await runGit(context.repoPath, ["worktree", "prune"]);
-
-			await mkdir(dirname(worktreePath), { recursive: true });
-			const addResult = await runGit(context.repoPath, ["worktree", "add", "--detach", worktreePath, baseCommit]);
-			if (!addResult.ok) {
-				if (!storedPatch) {
-					return {
-						ok: false,
-						path: null,
-						baseRef: requestedBaseRef,
-						baseCommit: null,
-						error: addResult.stderr || addResult.output,
-					};
-				}
-
-				baseCommit = requestedBaseCommit;
-				warnings.push(
-					"Could not restore the saved task patch onto its original commit. Started from the task base ref instead.",
-				);
-				await getGitStdout(["worktree", "add", "--detach", worktreePath, baseCommit], context.repoPath);
-			}
-			await prepareNewTaskWorktree(context.repoPath, worktreePath);
-
-			if (storedPatch && baseCommit === storedPatch.commit) {
-				try {
-					await applyTaskPatch(storedPatch.path, worktreePath);
-					await rm(storedPatch.path, { force: true });
-				} catch (error) {
-					warnings.push(
-						`Saved task changes could not be reapplied automatically. ${getGitCommandErrorMessage(error)}`,
-					);
-				}
-			}
-			const workspaceSyncWarning = await syncWorkspaceChangesIntoTaskWorktree({
-				repoPath: context.repoPath,
-				worktreePath,
-				taskId,
-				requestedBaseRef,
-				requestedBaseCommit,
-			});
-			if (workspaceSyncWarning) {
-				warnings.push(workspaceSyncWarning);
-			}
-
-			return {
-				ok: true,
-				path: worktreePath,
-				baseRef: requestedBaseRef,
-				baseCommit,
-				warning: warnings.length > 0 ? warnings.join(" ") : undefined,
-			};
-		});
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		return {
-			ok: false,
-			path: null,
-			baseRef: options.baseRef.trim(),
-			baseCommit: null,
-			error: message,
-		};
 	}
 }
 
@@ -681,92 +255,4 @@ export async function deleteTaskWorktree(options: {
 			error: message,
 		};
 	}
-}
-
-export async function resolveTaskCwd(options: {
-	cwd: string;
-	taskId: string;
-	baseRef: string;
-	ensure?: boolean;
-}): Promise<string> {
-	const context = await loadWorkspaceContext(options.cwd);
-
-	const normalizedBaseRef = options.baseRef.trim();
-	if (!normalizedBaseRef) {
-		throw new Error("Task base branch is required for task workspace resolution.");
-	}
-
-	if (options.ensure) {
-		const ensured = await ensureTaskWorktreeIfDoesntExist({
-			cwd: options.cwd,
-			taskId: options.taskId,
-			baseRef: normalizedBaseRef,
-		});
-		if (!ensured.ok) {
-			throw new Error(ensured.error ?? "Worktree setup failed.");
-		}
-		return ensured.path;
-	}
-
-	const worktreePath = getTaskWorktreePath(context.repoPath, options.taskId);
-	if (await pathExists(worktreePath)) {
-		return worktreePath;
-	}
-	throw new Error(`Task workspace not found for task "${options.taskId}".`);
-}
-
-export async function getTaskWorkspacePathInfo(options: {
-	cwd: string;
-	taskId: string;
-	baseRef: string;
-}): Promise<Pick<RuntimeTaskWorkspaceInfoResponse, "taskId" | "path" | "exists" | "baseRef">> {
-	const taskId = normalizeTaskIdForWorktreePath(options.taskId);
-	const normalizedBaseRef = options.baseRef.trim();
-	const repoPath = options.cwd.trim();
-
-	if (!repoPath) {
-		throw new Error("Task workspace root is required for task workspace info.");
-	}
-
-	if (!normalizedBaseRef) {
-		throw new Error("Task base branch is required for task workspace info.");
-	}
-
-	const worktreePath = getTaskWorktreePath(repoPath, taskId);
-	return {
-		taskId,
-		path: worktreePath,
-		exists: await pathExists(worktreePath),
-		baseRef: normalizedBaseRef,
-	};
-}
-
-export async function getTaskWorkspaceInfo(options: {
-	cwd: string;
-	taskId: string;
-	baseRef: string;
-}): Promise<RuntimeTaskWorkspaceInfoResponse> {
-	const workspacePathInfo = await getTaskWorkspacePathInfo(options);
-	if (!workspacePathInfo.exists) {
-		return {
-			taskId: workspacePathInfo.taskId,
-			path: workspacePathInfo.path,
-			exists: false,
-			baseRef: workspacePathInfo.baseRef,
-			branch: null,
-			isDetached: false,
-			headCommit: null,
-		};
-	}
-
-	const headInfo = await readGitHeadInfo(workspacePathInfo.path);
-	return {
-		taskId: workspacePathInfo.taskId,
-		path: workspacePathInfo.path,
-		exists: true,
-		baseRef: workspacePathInfo.baseRef,
-		branch: headInfo.branch,
-		isDetached: headInfo.isDetached,
-		headCommit: headInfo.headCommit,
-	};
 }

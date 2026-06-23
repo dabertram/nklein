@@ -44,7 +44,6 @@ import {
 	type RuntimeWorkspaceFileSearchRequest,
 	type RuntimeWorkspaceStateSaveRequest,
 	type RuntimeWorktreeDeleteRequest,
-	type RuntimeWorktreeEnsureRequest,
 	runtimeCommandRunRequestSchema,
 	runtimeConfigSaveRequestSchema,
 	runtimeDirectoryListRequestSchema,
@@ -88,7 +87,6 @@ import {
 	runtimeWorkspaceFileSearchRequestSchema,
 	runtimeWorkspaceStateSaveRequestSchema,
 	runtimeWorktreeDeleteRequestSchema,
-	runtimeWorktreeEnsureRequestSchema,
 } from "./api-contract";
 
 const trimmedStringSchema = z.string().transform((value) => value.trim());
@@ -168,22 +166,6 @@ export function parseGitCheckoutRequest(value: unknown): RuntimeGitCheckoutReque
 	}
 	return {
 		branch,
-	};
-}
-
-export function parseWorktreeEnsureRequest(value: unknown): RuntimeWorktreeEnsureRequest {
-	const parsed = parseWithSchema(runtimeWorktreeEnsureRequestSchema, value);
-	const taskId = parsed.taskId.trim();
-	if (!taskId) {
-		throw new Error("Invalid worktree ensure payload.");
-	}
-	const baseRef = parsed.baseRef.trim();
-	if (!baseRef) {
-		throw new Error("Invalid worktree ensure payload.");
-	}
-	return {
-		taskId,
-		baseRef,
 	};
 }
 

@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -24,7 +24,6 @@ import type {
 	RuntimeStateStreamWorkspaceStateMessage,
 	RuntimeTaskWorkspaceInfoResponse,
 	RuntimeWorkspaceStateResponse,
-	RuntimeWorktreeEnsureResponse,
 } from "../../src/core/api-contract";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
@@ -154,7 +153,7 @@ function runGit(cwd: string, args: string[]): string {
 	return result.stdout.trim();
 }
 
-function commitAll(cwd: string, message: string): string {
+function _commitAll(cwd: string, message: string): string {
 	runGit(cwd, ["add", "."]);
 	runGit(cwd, ["commit", "-qm", message]);
 	return runGit(cwd, ["rev-parse", "HEAD"]);
@@ -891,261 +890,6 @@ describe.sequential("runtime state stream integration", () => {
 			cleanupHome();
 		}
 	}, 30_000);
-
-	it("streams centralized workspace metadata updates for task worktrees", async () => {
-		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-metadata-stream-");
-		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-metadata-stream-");
-
-		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
-		runGit(projectPath, ["config", "user.name", "Test User"]);
-		runGit(projectPath, ["config", "user.email", "test@example.com"]);
-		writeFileSync(join(projectPath, "README.md"), "seed\n", "utf8");
-		commitAll(projectPath, "seed project");
-
-		const port = await getAvailablePort();
-		const server = await startKanbanServer({
-			cwd: projectPath,
-			homeDir: tempHome,
-			port,
-		});
-
-		let stream: RuntimeStreamClient | null = null;
-
-		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
-			const workspaceId = decodeURIComponent(runtimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
-
-			const stateResponse = await requestJson<RuntimeWorkspaceStateResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.getState",
-				type: "query",
-				workspaceId,
-			});
-			expect(stateResponse.status).toBe(200);
-
-			const taskId = "metadata-stream-task";
-			const defaultNKleinTaskId = "metadata-default-nklein-task";
-			const trashTaskId = "metadata-trash-task";
-			const baseRef = runGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
-			const board = createReviewBoard(taskId, "Metadata stream task", trashTaskId);
-			const reviewColumn = board.columns.find((column) => column.id === "review");
-			const trashColumn = board.columns.find((column) => column.id === "trash");
-			if (!reviewColumn?.cards[0]) {
-				throw new Error("Expected seeded review card.");
-			}
-			reviewColumn.cards[0].agentId = "codex";
-			reviewColumn.cards[0].baseRef = baseRef;
-			reviewColumn.cards.push({
-				id: defaultNKleinTaskId,
-				title: "Default NKlein metadata task",
-				prompt: "Default NKlein metadata task",
-				startInPlanMode: false,
-				baseRef,
-				createdAt: Date.now(),
-				updatedAt: Date.now(),
-			});
-			if (!trashColumn?.cards[0]) {
-				throw new Error("Expected seeded trash card.");
-			}
-			trashColumn.cards[0].baseRef = baseRef;
-
-			const saveResponse = await requestJson<RuntimeWorkspaceStateResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.saveState",
-				type: "mutation",
-				workspaceId,
-				payload: {
-					board,
-					sessions: stateResponse.payload.sessions,
-					expectedRevision: stateResponse.payload.revision,
-				},
-			});
-			expect(saveResponse.status).toBe(200);
-
-			const ensureResponse = await requestJson<RuntimeWorktreeEnsureResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.ensureWorktree",
-				type: "mutation",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef,
-				},
-			});
-			expect(ensureResponse.status).toBe(200);
-			expect(ensureResponse.payload.ok).toBe(true);
-			if (!ensureResponse.payload.ok) {
-				throw new Error(ensureResponse.payload.error ?? "ensureWorktree failed");
-			}
-
-			stream = await connectRuntimeStream(
-				`ws://127.0.0.1:${port}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`,
-			);
-			const snapshot = (await stream.waitForMessage(
-				(message): message is RuntimeStateStreamSnapshotMessage => message.type === "snapshot",
-			)) as RuntimeStateStreamSnapshotMessage;
-			expect(snapshot.workspaceMetadata).not.toBeNull();
-			const initialTaskMetadata =
-				snapshot.workspaceMetadata?.taskWorkspaces.find((task) => task.taskId === taskId) ?? null;
-			expect(initialTaskMetadata).not.toBeNull();
-			expect(initialTaskMetadata?.changedFiles ?? 0).toBe(0);
-			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === defaultNKleinTaskId)).toBe(
-				false,
-			);
-			expect(snapshot.workspaceMetadata?.taskWorkspaces.some((task) => task.taskId === trashTaskId)).toBe(false);
-			const messagesAfterInitialSnapshot = await stream.collectFor(250);
-			expect(messagesAfterInitialSnapshot.some((message) => message.type === "workspace_metadata_updated")).toBe(
-				false,
-			);
-
-			writeFileSync(join(ensureResponse.payload.path, "task-change.txt"), "updated\n", "utf8");
-
-			const metadataMessage = await stream.waitForMessage(
-				(message) =>
-					message.type === "workspace_metadata_updated" &&
-					message.workspaceId === workspaceId &&
-					message.workspaceMetadata.taskWorkspaces.some(
-						(task) => task.taskId === taskId && (task.changedFiles ?? 0) > 0,
-					),
-				10_000,
-			);
-			expect(metadataMessage.type).toBe("workspace_metadata_updated");
-			if (metadataMessage.type !== "workspace_metadata_updated") {
-				throw new Error("Expected workspace metadata update message.");
-			}
-			const updatedTaskMetadata = metadataMessage.workspaceMetadata.taskWorkspaces.find(
-				(task) => task.taskId === taskId,
-			);
-			expect(updatedTaskMetadata?.changedFiles).toBeGreaterThan(0);
-			expect(updatedTaskMetadata?.stateVersion).toBeGreaterThan(initialTaskMetadata?.stateVersion ?? 0);
-		} finally {
-			if (stream) {
-				await stream.close();
-			}
-			await server.stop();
-			cleanupProject();
-			cleanupHome();
-		}
-	}, 45_000);
-
-	it("preserves existing task worktree when base ref advances", async () => {
-		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-preserve-worktree-");
-		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-preserve-worktree-");
-
-		mkdirSync(projectPath, { recursive: true });
-		initGitRepository(projectPath);
-		runGit(projectPath, ["config", "user.name", "Test User"]);
-		runGit(projectPath, ["config", "user.email", "test@example.com"]);
-		writeFileSync(join(projectPath, "initial.txt"), "one\n", "utf8");
-		const firstBaseCommit = commitAll(projectPath, "initial commit");
-		const baseRef = runGit(projectPath, ["symbolic-ref", "--short", "HEAD"]);
-
-		const port = await getAvailablePort();
-		const server = await startKanbanServer({
-			cwd: projectPath,
-			homeDir: tempHome,
-			port,
-		});
-
-		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
-			const workspaceId = decodeURIComponent(runtimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
-
-			const stateResponse = await requestJson<RuntimeWorkspaceStateResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.getState",
-				type: "query",
-				workspaceId,
-			});
-			expect(stateResponse.status).toBe(200);
-
-			const taskId = "preserve-worktree-task";
-			const board = createBoard("Preserve existing worktree");
-			const backlogColumn = board.columns.find((column) => column.id === "backlog");
-			if (!backlogColumn?.cards[0]) {
-				throw new Error("Expected a backlog card for seed board.");
-			}
-			backlogColumn.cards[0].id = taskId;
-			backlogColumn.cards[0].baseRef = baseRef;
-
-			const saveResponse = await requestJson<RuntimeWorkspaceStateResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.saveState",
-				type: "mutation",
-				workspaceId,
-				payload: {
-					board,
-					sessions: stateResponse.payload.sessions,
-					expectedRevision: stateResponse.payload.revision,
-				},
-			});
-			expect(saveResponse.status).toBe(200);
-
-			const firstEnsure = await requestJson<RuntimeWorktreeEnsureResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.ensureWorktree",
-				type: "mutation",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef,
-				},
-			});
-			expect(firstEnsure.status).toBe(200);
-			expect(firstEnsure.payload.ok).toBe(true);
-			if (!firstEnsure.payload.ok) {
-				throw new Error(firstEnsure.payload.error ?? "ensureWorktree failed");
-			}
-			expect(firstEnsure.payload.baseCommit).toBe(firstBaseCommit);
-
-			runGit(firstEnsure.payload.path, ["config", "user.name", "Task User"]);
-			runGit(firstEnsure.payload.path, ["config", "user.email", "task@example.com"]);
-			writeFileSync(join(firstEnsure.payload.path, "task-local.txt"), "task commit\n", "utf8");
-			const taskWorktreeCommit = commitAll(firstEnsure.payload.path, "task-local commit");
-
-			writeFileSync(join(projectPath, "advance-base.txt"), "two\n", "utf8");
-			const advancedBaseCommit = commitAll(projectPath, "advance base");
-			expect(advancedBaseCommit).not.toBe(firstBaseCommit);
-
-			const secondEnsure = await requestJson<RuntimeWorktreeEnsureResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.ensureWorktree",
-				type: "mutation",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef,
-				},
-			});
-			expect(secondEnsure.status).toBe(200);
-			expect(secondEnsure.payload.ok).toBe(true);
-			if (!secondEnsure.payload.ok) {
-				throw new Error(secondEnsure.payload.error ?? "ensureWorktree failed");
-			}
-			expect(secondEnsure.payload.path).toBe(firstEnsure.payload.path);
-			expect(secondEnsure.payload.baseCommit).toBe(taskWorktreeCommit);
-
-			const taskContext = await requestJson<RuntimeTaskWorkspaceInfoResponse>({
-				baseUrl: `http://127.0.0.1:${port}`,
-				procedure: "workspace.getTaskContext",
-				type: "query",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef,
-				},
-			});
-			expect(taskContext.status).toBe(200);
-			expect(taskContext.payload.headCommit).toBe(taskWorktreeCommit);
-		} finally {
-			await server.stop();
-			cleanupProject();
-			cleanupHome();
-		}
-	}, 45_000);
 
 	it("moves stale completed review cards to trash on shutdown", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-stale-exit-review-");

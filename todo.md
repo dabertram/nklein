@@ -307,7 +307,14 @@ deep analysis:
           `createWorkspaceApi` handlers + `parseWorktreeEnsureRequest` usage (web-ui + CLI no longer call them).
           `deleteWorktree` retained (`cleanupTaskWorkspace` + legacy on-disk cleanup). `ensureTaskWorktreeIfDoesntExist`/
           `getTaskWorkspaceInfo` are now dead exports → delete in C7c with the rest of the creation machinery.
-        - **C7c READY (creation machinery now provably dead — no live consumers):** delete from
+        - **C7c DONE 2026-06-23:** `task-worktree.ts` slimmed to its legacy cleanup surface (`deleteTaskWorktree`/
+          `removeTaskWorktreeSetupLock`/`deleteTaskPatchFilesForRepo` + patch capture); deleted the create/sync/
+          mirror functions, `task-worktree-turbopack.ts`, the dead `runtimeWorktreeEnsureRequest/ResponseSchema` +
+          `parseWorktreeEnsureRequest`, and the retired-behavior tests (mirroring/turbopack/creation-lifecycle +
+          the stream test's per-task-metadata blocks). Kept `task-worktree-sync.ts` (`nklein-trusted-auto-merge`).
+          (Integration tests that boot the full server are unrunnable in this env — pre-existing `@nklein/core`
+          resolution for the spawned process — so verified via tsc/biome/test:fast.)
+        - **C7c (original plan, now done):** delete from
           `task-worktree.ts` the dead exports `mirrorIgnoredPath`, `ensureTaskWorktreeIfDoesntExist`,
           `resolveTaskCwd`, `getTaskWorkspacePathInfo`, `getTaskWorkspaceInfo` + their private helpers, and delete
           `task-worktree-turbopack.ts` (only used by that creation code). **KEEP** `deleteTaskWorktree` /
