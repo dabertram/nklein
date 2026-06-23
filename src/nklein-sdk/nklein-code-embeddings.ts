@@ -1,4 +1,5 @@
 import { resolveKleinCorePyConfig } from "../config/klein-core-config";
+import { defaultEmbeddingIdleUnloadScheduler, type EmbeddingIdleUnloadScheduler } from "./nklein-embedding-idle-unload";
 import {
 	DEFAULT_EMBEDDING_MODEL_MANIFEST,
 	type EmbeddingModelManagerOptions,
@@ -162,11 +163,18 @@ export function createLocalGgufEmbeddingProvider(input: {
 		options?: EmbeddingModelManagerOptions,
 	) => Promise<EnsureEmbeddingModelResult>;
 	managerOptions?: EmbeddingModelManagerOptions;
+	/** Scheduler that frees the resident model in the core after an idle window. Defaults to the singleton. */
+	idleUnloadScheduler?: EmbeddingIdleUnloadScheduler;
+	/** Override the idle-unload window (ms); `<= 0` disables idle unloading for this provider. */
+	idleUnloadMs?: number;
 }): NKleinCodeEmbeddingProvider {
 	const manifest = input.manifest ?? DEFAULT_EMBEDDING_MODEL_MANIFEST;
 	const sidecarUrl = input.sidecarUrl.replace(/\/+$/u, "");
 	const fetchImpl = input.fetchImpl ?? fetch;
 	const ensureModel = input.ensureModel ?? ensureEmbeddingModel;
+	const idleUnloadScheduler = input.idleUnloadScheduler ?? defaultEmbeddingIdleUnloadScheduler;
+	const idleUnloadMs = input.idleUnloadMs;
+	const idleUnloadEnabled = idleUnloadMs === undefined || idleUnloadMs > 0;
 	let modelPathPromise: Promise<string> | null = null;
 	const ensureModelOnce = (): Promise<string> => {
 		if (!modelPathPromise) {
@@ -179,8 +187,13 @@ export function createLocalGgufEmbeddingProvider(input: {
 		model: manifest.id,
 		cacheKey: `local-gguf:${manifest.id}:${manifest.version}`,
 		async embed(text) {
+			// Resolve the model path first; if provisioning fails nothing is loaded in the core, so degrade to
+			// lexical without arming an unload.
+			const ggufPath = await ensureModelOnce().catch(() => null);
+			if (ggufPath === null) {
+				return vectorizeSparseTokens(text);
+			}
 			try {
-				const ggufPath = await ensureModelOnce();
 				const response = await fetchImpl(`${sidecarUrl}/v1/embed`, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
@@ -201,6 +214,12 @@ export function createLocalGgufEmbeddingProvider(input: {
 			} catch {
 				// Degrade to lexical so indexing keeps working when the core/model is unavailable.
 				return vectorizeSparseTokens(text);
+			} finally {
+				// The core has now (lazily) loaded the model for this gguf_path; (re)arm its idle unload so it
+				// frees the RAM once indexing goes quiet. Re-armed on every embed, so active bursts never unload.
+				if (idleUnloadEnabled) {
+					idleUnloadScheduler.touch({ sidecarUrl, ggufPath, idleMs: idleUnloadMs });
+				}
 			}
 		},
 	};

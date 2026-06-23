@@ -48,6 +48,9 @@ export const DEFAULT_EMBEDDING_MODEL_MANIFEST: EmbeddingModelManifest = {
 	label: "Nomic Embed Text v1.5 (Q4_K_M)",
 	fileName: "nomic-embed-text-v1.5.Q4_K_M.gguf",
 	url: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf",
+	// Verified against the file content (HF LFS `X-Linked-ETag`, confirmed by a full download + sha256 on
+	// 2026-06-23): 84_106_624 bytes. A mismatch re-provisions rather than serving a tampered/corrupt model.
+	sha256: "d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac",
 	minBytes: 50_000_000,
 	dimension: 768,
 };

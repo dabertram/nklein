@@ -375,10 +375,15 @@ deep analysis:
       lazily ensures the model once, embeds through the core, and degrades to `local_lexical` on any failure;
       `local_gguf` is now the default in `runtimeCodeEmbeddingProviderSchema` but only activates the dense path when
       the Python core is enabled. The Code-intelligence panel surfaces model/download/idle status.
-      **Remaining (small, follow-ups):** a real idle-unload *timer* on the host calling `/v1/embed/unload` (the
-      endpoint + lazy-load exist; auto-trigger on cache-key change is not yet a background scheduler), a verified
-      `sha256` in the default manifest, and an in-panel model-override picker. The min-spec fallback decision
-      (dedicated GGUF vs main LLM) is resolved: ship the GGUF default, lexical stays the zero-download floor.
+      **Remaining (small, follow-up):** an in-panel model-override picker.
+      **DONE 2026-06-23:** (a) the host-side idle-unload *timer* — `src/nklein-sdk/nklein-embedding-idle-unload.ts`,
+      a process-wide `EmbeddingIdleUnloadScheduler` keyed by `(sidecarUrl, gguf_path)` (the model is resident in
+      the core, not on the per-request provider), re-armed on every embed, freeing the model via
+      `POST /v1/embed/unload` after the idle window (default 2 min); `unref`-ed + injectable timer/fetch +
+      unit-tested; and (b) the **verified `sha256`** in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (confirmed by a full
+      download + hash; matches HF's LFS `X-Linked-ETag`), so the existing download integrity check now runs.
+      The min-spec fallback decision (dedicated GGUF vs main LLM) is resolved: ship the GGUF default, lexical
+      stays the zero-download floor.
       *(Superseded the original "NOT implemented" investigation note below.)*
 - [ ] **#1 (original spec, now superseded by the shipped work above; kept for the detailed acceptance intent).**
       *Investigated 2026-06-22: NOT implemented today* — code embeddings are only `local_lexical` (in-process
