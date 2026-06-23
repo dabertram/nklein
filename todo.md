@@ -775,6 +775,13 @@ deep analysis:
       exercised and clearly beneficial — to harden the swarm executor, sandbox pool, result-branch merges, and the
       §5.K review/§5.L delivery flow under real concurrency. Cover the spread: a wide-fan-out feature build, a
       deep-dependency chain, a mixed DAG, and a "lots of tiny cards" stress case.
+      **Presets DONE 2026-06-23:** all four shapes ship as `--preset`s for `nklein dev test-project`
+      ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)): `wide_fanout`,
+      `deep_chain`, `mixed_dag`, `many_small` — each reuses the small TS CLI template and steers the decomposition
+      toward its DAG shape via the seed prompt; unit-tested (resolution, shape-steering phrases, scaffold).
+      **Remaining (live, gated on §5.O sweeps):** actually running them under concurrency + hardening from the
+      observed failures — done when the user supplies the quant/K-V-cache configs (the autonomous-sweep tooling
+      below is the deferred "discuss the shape" piece).
 - [ ] **Autonomous sweep tooling (designed when we start sweeps).** An efficient way to sweep configs **with as
       little cloud-agent involvement as possible** (there are long waits): build on the existing `nklein dev
       test-project` + `collect evidence` + `cleanup-report`, adding orchestration that iterates the model/quant/

@@ -7,11 +7,15 @@ import { describe, expect, it } from "vitest";
 import {
 	AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO,
 	DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO,
+	DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO,
 	DEFAULT_NKLEIN_DEV_TEST_SCENARIO,
+	MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO,
+	MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO,
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	resolveNKleinDevTestProjectScenario,
 	resolveNKleinDevTestTemplatePath,
 	scaffoldNKleinDevTestProject,
+	WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO,
 } from "../../../src/nklein-sdk/nklein-dev-test-project";
 
 const execFileAsync = promisify(execFile);
@@ -126,5 +130,53 @@ describe("nklein dev test project", () => {
 		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("decompose_project");
 		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain("read_files");
 		expect(DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO.prompt).not.toContain(".nklein/nklein");
+	});
+
+	it("resolves the parallel-fan-out presets to distinct scenarios (§5.O)", () => {
+		expect(resolveNKleinDevTestProjectScenario("wide_fanout")).toEqual(WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO);
+		expect(resolveNKleinDevTestProjectScenario("deep_chain")).toEqual(DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO);
+		expect(resolveNKleinDevTestProjectScenario("mixed_dag")).toEqual(MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO);
+		expect(resolveNKleinDevTestProjectScenario("many_small")).toEqual(MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO);
+		const ids = [
+			WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO,
+			DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO,
+			MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO,
+			MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO,
+		].map((scenario) => scenario.id);
+		expect(new Set(ids).size).toBe(4);
+	});
+
+	it("fan-out seed prompts steer the intended DAG shape and stay user-level (§5.O)", () => {
+		expect(WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("INDEPENDENT");
+		expect(WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO.prompt.toLowerCase()).toContain("parallel");
+		expect(DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO.prompt.toLowerCase()).toContain("linear");
+		expect(DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("depends on the immediately preceding card");
+		expect(MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO.prompt.toLowerCase()).toContain("join");
+		expect(MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO.prompt).toContain("at least twenty");
+		for (const scenario of [
+			WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO,
+			DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO,
+			MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO,
+			MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO,
+		]) {
+			expect(scenario.prompt).toContain("Acceptance command: npm test");
+			expect(scenario.prompt).not.toContain("decompose_project");
+			expect(scenario.prompt).not.toContain("read_files");
+			expect(scenario.prompt).not.toContain(".nklein/nklein");
+			expect(scenario.acceptanceCommand).toBe("npm test");
+		}
+	});
+
+	it("scaffolds a fan-out preset on the smoke CLI template (§5.O)", async () => {
+		const parentDir = await createParentDir();
+		const scenario = resolveNKleinDevTestProjectScenario("wide_fanout");
+		const project = await scaffoldNKleinDevTestProject({ parentDir, scenario, initializeGit: false });
+
+		expect(project.scenario).toEqual(WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO);
+		await expect(readFile(join(project.workspacePath, "src", "habit-score.ts"), "utf8")).resolves.toContain(
+			"calculateHabitScore",
+		);
+		const specification = await readFile(join(project.workspacePath, "specification.md"), "utf8");
+		expect(specification).toContain(WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO.title);
 	});
 });

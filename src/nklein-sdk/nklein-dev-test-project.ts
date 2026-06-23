@@ -21,7 +21,15 @@ export interface NKleinDevTestProjectScenario {
 	templateName?: string;
 }
 
-export type NKleinDevTestProjectPreset = "mid_task" | "complex_dag" | "audio_vst" | "daw_foundation";
+export type NKleinDevTestProjectPreset =
+	| "mid_task"
+	| "complex_dag"
+	| "audio_vst"
+	| "daw_foundation"
+	| "wide_fanout"
+	| "deep_chain"
+	| "mixed_dag"
+	| "many_small";
 
 export interface ScaffoldNKleinDevTestProjectOptions {
 	scenario?: NKleinDevTestProjectScenario;
@@ -167,6 +175,103 @@ export const DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenar
 	filesLikelyTouched: ["src/timebase.ts", "src/index.ts", "test/timebase.test.js"],
 };
 
+// §5.O parallel-fan-out dev-test projects: DAG-shape stress presets that exercise + benefit from parallel
+// multi-agent execution (the swarm executor, sandbox pool, result-branch merges, review/delivery). They reuse
+// the small TS CLI template and steer the decomposition toward a specific shape via the prompt.
+
+export const WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = {
+	id: "habit-wide-fanout",
+	title: "Wide fan-out formatter build",
+	specification: [
+		"Extend the habit scoring CLI with INDEPENDENT, non-overlapping output formatters that can be built in parallel.",
+		"",
+		"Expected capabilities:",
+		"- Add several independent formatters, each in its own file under src/formatters/ with its own test, turning a habit score into a different representation: a compact line, a JSON object, a CSV row, a markdown table row, an emoji sparkline, and a plain-text report.",
+		"- No formatter may import or depend on another formatter.",
+		"- Add a single registry card that wires every formatter into the CLI (depends on all formatters).",
+		"- Add one broad integration test card (depends on the registry).",
+	].join("\n"),
+	prompt: [
+		"Create a WIDE, parallel implementation-card breakdown for the formatter work in specification.md.",
+		"The shape must fan out wide: produce many INDEPENDENT formatter cards that do not depend on each other, plus exactly two join points at the end.",
+		"Use this outline unless the files prove it impossible: cards 1-6 are independent formatters (compact line, JSON, CSV, markdown row, emoji sparkline, plain-text report) — each in its own file under src/formatters/ with its own test, and NONE depending on another; card 7 is a formatter registry that wires all six into the CLI and depends on cards 1-6; card 8 is a broad integration test that depends on card 7.",
+		"Do not serialize the independent formatters into a chain — they must be parallelizable. Only the registry and the integration test have dependencies.",
+		PRODUCT_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 66,
+	filesLikelyTouched: ["src/formatters", "src/index.ts", "test/formatters.test.js"],
+};
+
+export const DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = {
+	id: "habit-deep-chain",
+	title: "Deep dependency chain pipeline",
+	specification: [
+		"Build a strictly linear habit-data processing pipeline where each stage consumes the previous stage's typed output.",
+		"",
+		"Expected pipeline (each stage depends on the one before it):",
+		"- parse raw entries -> normalize -> validate -> score -> classify trend -> derive recommendation -> format output -> emit summary.",
+		"- Each stage lives in its own file and consumes the type produced by the previous stage, so the work cannot be parallelized.",
+		"- Add a final end-to-end test that runs the whole pipeline (depends on the last stage).",
+	].join("\n"),
+	prompt: [
+		"Create a DEEP, strictly linear implementation-card breakdown for the pipeline in specification.md.",
+		"The shape must be a single dependency chain with almost no parallelism: each card depends on the immediately preceding card.",
+		"Use this outline unless the files prove it impossible: 1 parse raw entries, 2 normalize (depends on 1), 3 validate (depends on 2), 4 score (depends on 3), 5 classify trend (depends on 4), 6 derive recommendation (depends on 5), 7 format output (depends on 6), 8 emit summary (depends on 7), 9 end-to-end pipeline test (depends on 8).",
+		"Do not split stages into independent parallel branches — each stage genuinely consumes the previous stage's output type.",
+		PRODUCT_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 70,
+	filesLikelyTouched: ["src/pipeline", "src/index.ts", "test/pipeline.test.js"],
+};
+
+export const MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = {
+	id: "habit-mixed-dag",
+	title: "Mixed DAG feature slice",
+	specification: [
+		"Extend the habit CLI with a feature slice that mixes independent parallel branches, a shared dependency, and join points (a realistic diamond-shaped DAG).",
+		"",
+		"Expected capabilities:",
+		"- A shared domain/config module that several features build on.",
+		"- Two independent parallel branches built on the shared module: a goals branch and a streak-analytics branch, each with its own implementation and tests.",
+		"- A reporting feature that joins both branches.",
+		"- Broad tests and a README that depend on the reporting feature.",
+	].join("\n"),
+	prompt: [
+		"Create a MIXED-shape implementation-card breakdown for specification.md: some cards run in parallel, some share a dependency, and some are join points (a diamond DAG).",
+		"Use this outline unless the files prove it impossible: 1 shared domain/config module (root); a goals branch (2 settings depends on 1, 3 goal logic depends on 2); a parallel streak-analytics branch (4 depends on 1, 5 depends on 4); 6 reporting feature depends on BOTH 3 and 5 (the join); 7 broad tests depend on 6; 8 README depends on 6.",
+		"Branches 2-3 and 4-5 must be independent of each other so they can run in parallel; the reporting card is the join point.",
+		PRODUCT_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 72,
+	filesLikelyTouched: ["src/habit-score.ts", "src/habit-insights.ts", "src/index.ts"],
+};
+
+export const MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario = {
+	id: "habit-many-small",
+	title: "Many tiny cards stress",
+	specification: [
+		"Add a large number of tiny, independent, single-purpose helpers to the habit CLI to stress parallel execution.",
+		"",
+		"Expected capabilities:",
+		"- Add at least twenty tiny pure helper functions (e.g., clamp, percent, round-half-up, day-of-week, streak-bucket, label-for-band, ...), each in its own small file under src/helpers/ with one focused test.",
+		"- Each helper is independent — no helper imports another.",
+		"- Add a single barrel card that re-exports every helper (depends on all of them).",
+	].join("\n"),
+	prompt: [
+		"Create a breakdown with MANY tiny, independent implementation cards for specification.md to stress parallel execution and the sandbox pool.",
+		"Produce at least twenty small helper cards, each adding one tiny pure function in its own file under src/helpers/ with one focused test, and NONE depending on another helper.",
+		"Add exactly one final barrel card that re-exports every helper and depends on all of them.",
+		"Keep each card tiny and independently reviewable; do not merge helpers together or introduce dependencies between them.",
+		PRODUCT_PROMPT_SUFFIX,
+	].join(" "),
+	acceptanceCommand: "npm test",
+	complexity: 58,
+	filesLikelyTouched: ["src/helpers", "src/index.ts"],
+};
+
 export function resolveNKleinDevTestProjectScenario(
 	preset: NKleinDevTestProjectPreset = "mid_task",
 ): NKleinDevTestProjectScenario {
@@ -178,6 +283,18 @@ export function resolveNKleinDevTestProjectScenario(
 	}
 	if (preset === "daw_foundation") {
 		return DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO;
+	}
+	if (preset === "wide_fanout") {
+		return WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO;
+	}
+	if (preset === "deep_chain") {
+		return DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO;
+	}
+	if (preset === "mixed_dag") {
+		return MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO;
+	}
+	if (preset === "many_small") {
+		return MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO;
 	}
 	return MID_COMPLEXITY_NKLEIN_DEV_TEST_SCENARIO;
 }

@@ -201,10 +201,21 @@ function parseDevTestPreset(value: string | undefined): NKleinDevTestProjectPres
 	if (value === undefined) {
 		return "mid_task";
 	}
-	if (value === "mid_task" || value === "complex_dag" || value === "audio_vst" || value === "daw_foundation") {
+	if (
+		value === "mid_task" ||
+		value === "complex_dag" ||
+		value === "audio_vst" ||
+		value === "daw_foundation" ||
+		value === "wide_fanout" ||
+		value === "deep_chain" ||
+		value === "mixed_dag" ||
+		value === "many_small"
+	) {
 		return value;
 	}
-	throw new Error("Invalid preset. Expected one of: mid_task, complex_dag, audio_vst, daw_foundation.");
+	throw new Error(
+		"Invalid preset. Expected one of: mid_task, complex_dag, audio_vst, daw_foundation, wide_fanout, deep_chain, mixed_dag, many_small.",
+	);
 }
 
 function createDevRuntimeClient(workspaceId: string | null) {
@@ -458,7 +469,10 @@ export function registerDevCommand(program: Command): void {
 		.description(
 			"Start a dev-test scenario seed card against the running runtime and monitor it to a classified outcome.",
 		)
-		.option("--preset <preset>", "Scenario preset: mid_task | complex_dag | audio_vst | daw_foundation.")
+		.option(
+			"--preset <preset>",
+			"Scenario preset: mid_task | complex_dag | audio_vst | daw_foundation | wide_fanout | deep_chain | mixed_dag | many_small.",
+		)
 		.option("--project-path <path>", "Workspace path to run the dev-test scenario in. Defaults to the cwd.")
 		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")
 		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
