@@ -7,7 +7,7 @@ import {
 	EmbeddingEndpointFields,
 	formatCodeEmbeddingSettings,
 	LOCAL_CODE_EMBEDDING_MODEL,
-} from "@/components/runtime-settings-dialog";
+} from "@/components/code-embedding-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
