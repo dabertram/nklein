@@ -94,6 +94,11 @@ export interface ReviewSeedPromptInput {
 	round: number;
 	/** The previous round's change-request feedback, included when re-reviewing so the reviewer can verify it. */
 	priorFeedback?: string | null;
+	/**
+	 * The worker's self-authored focus chain (its plan-of-attack checklist for this card, todo §5.N), formatted via
+	 * `formatFocusChainForPrompt`, so the reviewer can judge whether the work actually followed/completed its plan.
+	 */
+	focusChain?: string | null;
 }
 
 const REVIEW_REASONING_BUDGET = 6_000;
@@ -185,6 +190,14 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"## Worker's reasoning",
 			"The implementer's own account of what it did and why. Judge the *reasoning*, not just the diff: a tidy-looking change built on a wrong assumption, or a 'no changes' justified by faulty reasoning, still warrants `request_changes`.",
 			clamped,
+		);
+	}
+	if (input.focusChain?.trim()) {
+		lines.push(
+			"",
+			"## Worker's focus chain (its self-authored plan)",
+			"The implementer's own ordered checklist for this card. Judge whether the work actually followed and completed its own plan — steps left unfinished or skipped that matter to the objective warrant `request_changes`; a chain whose done steps don't match the diff is a red flag.",
+			input.focusChain.trim(),
 		);
 	}
 	lines.push(

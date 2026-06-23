@@ -103,6 +103,19 @@ describe("buildReviewSeedPrompt", () => {
 		expect(prompt).toContain("Sibling cards");
 		expect(prompt).toContain("Classify trends [review]");
 	});
+
+	it("includes the worker's focus chain so the reviewer can judge whether the plan was followed", () => {
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "T",
+			taskObjective: "obj",
+			diff: "d",
+			round: 1,
+			focusChain: "Focus chain (1/2 done):\n- [x] Write the parser\n- [ ] Add tests",
+		});
+		expect(prompt).toContain("Worker's focus chain");
+		expect(prompt).toContain("followed and completed its own plan");
+		expect(prompt).toContain("Write the parser");
+	});
 });
 
 describe("buildReviewBouncePrompt / buildReviewSignOff", () => {

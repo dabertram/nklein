@@ -163,6 +163,7 @@ export async function runSecondOpinionReviewForTask(
 				title: card.title ?? card.id,
 				prompt: card.prompt,
 				review: card.review,
+				focusChain: card.focusChain ?? null,
 			}),
 			getTaskDiff: async () =>
 				getDiff({ repoPath: input.workspacePath, taskId: input.taskId, baseRef: card.baseRef }),

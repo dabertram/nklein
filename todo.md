@@ -157,7 +157,7 @@ deep analysis:
       container-primary + result-branch model.)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
-- [ ] **FIX (live bug, evidence 2026-06-22T12-09): `decompose_project` malformed/empty-call recovery.** A small
+- [x] **FIX (live bug, evidence 2026-06-22T12-09): `decompose_project` malformed/empty-call recovery** *(shipped; verified 2026-06-23 — `relaxJsonSchemaNode` drops `required` + relaxes `additionalProperties` at every depth so `execute` always runs; in-handler validation throws a short directive naming missing fields + "don't resend empty"; `repairJsonStringValue` recovers typo'd/stringified payloads; fuzz-tested).* A small
       local model (gemma-4-26b) called `decompose_project` 3× and all 3 were rejected *before* our handler ran:
       call 1 had typo'd task fields (`tasks_id`, `plant`); calls 2–3 arrived as empty `{}`. The tool's SDK-level
       `inputSchema` (`required: [slug,spec,plan,title,tasks]`, `additionalProperties: false`) makes the **SDK
@@ -635,11 +635,13 @@ deep analysis:
 - [ ] **Reference & parity.** Mirror the ergonomics of Cline's "focus chain" / markdown task-list and comparable
       agent todo lists (Claude Code / Cursor): the agent maintains and visibly works through the list; the user can
       follow progress and (later, optional) nudge/edit it.
-- [ ] **More focus-chain ideas (user: "maybe even more ideas, lets rock this").** Candidates to scope when we
-      pick this up: user can view/edit/reorder/add steps from the UI; the reviewer (§5.K) checks whether the worker
-      actually owned/followed its chain; re-anchor the chain into the model's context on long runs / after
-      compaction (we already have `formatFocusChainForPrompt`); per-step timing/telemetry; carry the chain into the
-      run summary; let a step link to the file(s)/card(s) it touched.
+- [~] **More focus-chain ideas (user: "maybe even more ideas, lets rock this").** **Done 2026-06-23:** the
+      reviewer (§5.K) now checks whether the worker followed/owned its chain — `buildReviewSeedPrompt` includes the
+      worker's `formatFocusChainForPrompt(card.focusChain)` under "Worker's focus chain" and instructs the reviewer
+      to flag unfinished/skipped steps or done-steps that don't match the diff (unit-tested; wired via the live
+      review runner). **Still open:** user can view/edit/reorder/add steps from the UI; re-anchor the chain into
+      the model's context on long runs / after compaction (we already have `formatFocusChainForPrompt`); per-step
+      timing/telemetry; carry the chain into the run summary; let a step link to the file(s)/card(s) it touched.
 
 ### 5.O — Robustness sweeps: harden across model sizes / families / quants + parallelism *(raised 2026-06-23)*
 > **Goal (user):** make !Klein robust on **as many small local LLMs as possible** (low weight quant — at least

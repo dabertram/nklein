@@ -11,6 +11,7 @@
  */
 
 import type { RuntimeCardReview, RuntimeReviewRoundRecord } from "../core/api-contract";
+import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import {
 	buildReviewSeedPrompt,
 	fingerprintReviewArtifact,
@@ -32,6 +33,8 @@ export interface SecondOpinionReviewCard {
 	title: string;
 	prompt: string;
 	review?: RuntimeCardReview;
+	/** The worker's self-authored focus chain (todo §5.N), surfaced to the reviewer to judge plan adherence. */
+	focusChain?: FocusChain | null;
 }
 
 export type NKleinSecondOpinionReviewOutcome =
@@ -134,6 +137,7 @@ export async function runNKleinSecondOpinionReview(
 		acceptanceSummary: input.acceptanceSummary ?? null,
 		round,
 		priorFeedback: card.review?.lastFeedback ?? null,
+		focusChain: card.focusChain ? formatFocusChainForPrompt(card.focusChain) : null,
 	});
 	const submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
 	if (!submission) {
