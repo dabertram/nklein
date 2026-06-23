@@ -1682,6 +1682,7 @@ export function RuntimeSettingsDialog({
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [secondOpinionReviewEnabled, setSecondOpinionReviewEnabled] = useState(true);
+	const [reviewMaxRounds, setReviewMaxRounds] = useState(20);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
@@ -1756,6 +1757,7 @@ export function RuntimeSettingsDialog({
 	const taskDefaultAutoReviewEnabledId = "runtime-settings-task-default-auto-review-enabled";
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
 	const secondOpinionReviewLabelId = "runtime-settings-second-opinion-review-label";
+	const reviewMaxRoundsId = "runtime-settings-review-max-rounds";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -1836,6 +1838,7 @@ export function RuntimeSettingsDialog({
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
+	const initialReviewMaxRounds = config?.reviewMaxRounds ?? 20;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
@@ -1919,6 +1922,7 @@ export function RuntimeSettingsDialog({
 			nkleinSettings.providerId,
 			decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled,
+			reviewMaxRounds,
 			lostHeartbeatPolicy,
 			maxConcurrentTasks,
 			sandboxAgentsPerContainer,
@@ -2054,6 +2058,9 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (secondOpinionReviewEnabled !== initialSecondOpinionReviewEnabled) {
+			return true;
+		}
+		if (reviewMaxRounds !== initialReviewMaxRounds) {
 			return true;
 		}
 		if (developerModeEnabled !== initialDeveloperModeEnabled) {
@@ -2201,6 +2208,7 @@ export function RuntimeSettingsDialog({
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
+		setReviewMaxRounds(config?.reviewMaxRounds ?? 20);
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
@@ -2244,6 +2252,7 @@ export function RuntimeSettingsDialog({
 		config?.codeEmbeddingOverride,
 		config?.decompositionAutoApplyEnabled,
 		config?.secondOpinionReviewEnabled,
+		config?.reviewMaxRounds,
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
 		config?.maxAgentWritableFileLines,
@@ -2786,6 +2795,7 @@ export function RuntimeSettingsDialog({
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled,
+			reviewMaxRounds,
 			developerModeEnabled,
 			replayCardsEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
@@ -3266,6 +3276,24 @@ export function RuntimeSettingsDialog({
 										worker, bounded by a round cap with stall/loop detection. When off, cards go straight to
 										review/delivery.
 									</p>
+									<div className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
+										<label htmlFor={reviewMaxRoundsId}>Max review rounds</label>
+										<input
+											id={reviewMaxRoundsId}
+											type="number"
+											min={1}
+											value={reviewMaxRounds}
+											disabled={controlsDisabled || !secondOpinionReviewEnabled}
+											onChange={(event) => {
+												const parsed = Number.parseInt(event.target.value, 10);
+												setReviewMaxRounds(Number.isFinite(parsed) && parsed > 0 ? parsed : 1);
+											}}
+											className="w-16 rounded-md border border-border bg-surface-2 px-2 py-1 text-text-primary disabled:opacity-40"
+										/>
+										<span className="text-text-tertiary text-[11px]">
+											Rounds before a bouncing card parks for attention (default 20).
+										</span>
+									</div>
 								</div>
 								<div
 									style={{ gridColumn: "1 / span 2" }}

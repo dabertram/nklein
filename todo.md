@@ -456,7 +456,7 @@ deep analysis:
       unit-tested) persists the review round via `applyCardReviewToBoard` and, on bounce, moves the card to
       In Progress + re-drives the worker with the feedback. (deliver → ready-for-review/delivery; park → review
       column with parked status surfaced on the card.)
-- [~] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
+- [x] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
       the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
       second perspective is visible even on a clean approve.
       **Config done:** `secondOpinionReviewEnabled` (default on) + `reviewMaxRounds` (default 20) round-trip through
@@ -464,8 +464,9 @@ deep analysis:
       Settings → Tasks has a "Second-opinion review of completed cards" switch wired to the config (threaded through
       the dialog's state/dirty-check/save). **Card display done:** the card detail view shows a Second-opinion
       review panel (status + round + summary/requested-changes/sign-off/parked-reason) when a card has review state
-      ([web-ui/src/components/card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx)). **Remaining:**
-      (optionally) a round-cap input.
+      ([web-ui/src/components/card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx)). **Round-cap input
+      done (2026-06-23):** Settings → Tasks now has a **Max review rounds** number input (default 20, disabled when
+      review is off) threaded through the dialog's state/init/dirty-check/save like the toggle — §5.K complete.
 
 ### 5.L — Per-role capability rulesets + agent web/browser access *(active; raised + decided 2026-06-22)*
 > **Goal (user):** unleash the swarm by giving agents real capabilities (incl. web/browser access for the
