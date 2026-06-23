@@ -641,9 +641,13 @@ deep analysis:
       reviewer (§5.K) now checks whether the worker followed/owned its chain — `buildReviewSeedPrompt` includes the
       worker's `formatFocusChainForPrompt(card.focusChain)` under "Worker's focus chain" and instructs the reviewer
       to flag unfinished/skipped steps or done-steps that don't match the diff (unit-tested; wired via the live
-      review runner). **Still open:** user can view/edit/reorder/add steps from the UI; re-anchor the chain into
-      the model's context on long runs / after compaction (we already have `formatFocusChainForPrompt`); per-step
-      timing/telemetry; carry the chain into the run summary; let a step link to the file(s)/card(s) it touched.
+      review runner). **Also done 2026-06-23:** re-anchor the chain into the model's context on long runs / after
+      compaction — `reanchorFocusChainMessages` ([src/nklein-sdk/nklein-focus-chain-rail.ts](src/nklein-sdk/nklein-focus-chain-rail.ts))
+      re-projects the latest chain (captured per session when `update_focus_chain` fires) into every model request
+      via the `beforeModel` hook, stripping any stale rail so it never stacks or goes out of date (unit-tested,
+      fail-safe no-op when there's no chain). **Still open:** user can view/edit/reorder/add steps from the UI;
+      per-step timing/telemetry; carry the chain into the run summary; let a step link to the file(s)/card(s) it
+      touched; chat-agent surface (§5.M).
 
 ### 5.O — Robustness sweeps: harden across model sizes / families / quants + parallelism *(raised 2026-06-23)*
 > **Goal (user):** make !Klein robust on **as many small local LLMs as possible** (low weight quant — at least

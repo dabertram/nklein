@@ -16,6 +16,7 @@ import {
 	type RuntimeTaskSessionMode,
 	runtimeNKleinReasoningEffortSchema,
 } from "../core/api-contract";
+import type { FocusChain } from "../core/focus-chain";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { createNKleinCodeEmbeddingProvider, type NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -25,6 +26,7 @@ import { createNKleinDecompositionTools, type NKleinDecompositionAppliedHandler 
 import { createEditFileTool } from "./nklein-edit-file-tool";
 import { extractNKleinSessionId } from "./nklein-event-adapter";
 import { createFileDiscoveryTools } from "./nklein-file-discovery-tools";
+import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
 import { createNKleinFocusChainTool, type NKleinFocusChainSubmittedHandler } from "./nklein-focus-chain-tool";
 import {
 	createReadLargeFileTool,
@@ -230,6 +232,13 @@ function createRepoMapRailMessage(text: string): AgentMessage {
 	};
 }
 
+/**
+ * Latest focus chain (todo §5.N) per live session, captured when the agent calls `update_focus_chain`. The
+ * beforeModel hook re-anchors it into each request so a small model stays on its own plan across turns and after
+ * context compaction (the chain is otherwise only present as the tool call/result, which compaction can drop).
+ */
+const focusChainBySessionId = new Map<string, FocusChain>();
+
 function readAgentMessageText(message: AgentMessage): string {
 	const content = message.content;
 	if (typeof content === "string") {
@@ -342,13 +351,21 @@ function createKanbanContextFocusExtension(
 		},
 		hooks: {
 			async beforeModel(context) {
-				return await appendRepoMapBeforeModel(
+				const result = await appendRepoMapBeforeModel(
 					context,
 					workspacePath,
 					contextWindow,
 					await largeFileWorkflow.beforeModel(context),
 					getCachedRepoMap,
 				);
+				if (result?.stop) {
+					return result;
+				}
+				// Re-anchor the agent's own focus chain (todo §5.N) into this request so a small model stays on its
+				// plan across turns and after compaction. No-op when there is no chain (and no stale rail to strip).
+				const baseMessages = result?.messages ?? context.request.messages;
+				const messages = reanchorFocusChainMessages(baseMessages, focusChainBySessionId.get(sessionId) ?? null);
+				return messages === baseMessages ? result : { ...result, messages };
 			},
 			async afterModel(context) {
 				// Robustness over teaching: if a weak model narrated its tool call as `<tool_call>` text instead of a
@@ -842,7 +859,15 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			...(request.onReviewSubmitted ? [createNKleinReviewTool({ onSubmitted: request.onReviewSubmitted })] : []),
 			// Focus-chain checklist tool (todo §5.N): attached whenever the runtime wires a persistence handler.
 			...(request.onFocusChainUpdated
-				? [createNKleinFocusChainTool({ onUpdated: request.onFocusChainUpdated })]
+				? [
+						createNKleinFocusChainTool({
+							// Capture the latest chain for beforeModel re-anchoring (todo §5.N), then forward to the runtime handler.
+							onUpdated: (chain) => {
+								focusChainBySessionId.set(requestedSessionId, chain);
+								return request.onFocusChainUpdated?.(chain);
+							},
+						}),
+					]
 				: []),
 			...(mcpToolBundle?.tools ?? []),
 		];
@@ -1157,6 +1182,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			await sessionHost.delete(sessionId).catch(() => false);
 			this.taskIdBySessionId.delete(sessionId);
 			releaseNKleinLargeFileWorkflow(sessionId);
+			focusChainBySessionId.delete(sessionId);
 		}
 		this.clearTaskSessionBinding(taskId);
 		await this.releaseTaskMcpToolBundle(taskId);
@@ -1202,6 +1228,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		this.taskIdBySessionId.clear();
 		this.lastStartRequestByTaskId.clear();
 		releaseAllNKleinLargeFileWorkflows();
+		focusChainBySessionId.clear();
 
 		const mcpBundles = [...this.mcpToolBundleByTaskId.values()];
 		this.mcpToolBundleByTaskId.clear();
