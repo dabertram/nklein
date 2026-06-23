@@ -5,7 +5,6 @@ import {
 	type RuntimeConfigSaveRequest,
 	type RuntimeDirectoryListRequest,
 	type RuntimeGitCheckoutRequest,
-	type RuntimeHookIngestRequest,
 	type RuntimeNKleinAccountSwitchRequest,
 	type RuntimeNKleinAddProviderRequest,
 	type RuntimeNKleinAdvisorBuildRequest,
@@ -48,7 +47,6 @@ import {
 	runtimeConfigSaveRequestSchema,
 	runtimeDirectoryListRequestSchema,
 	runtimeGitCheckoutRequestSchema,
-	runtimeHookIngestRequestSchema,
 	runtimeNKleinAccountSwitchRequestSchema,
 	runtimeNKleinAddProviderRequestSchema,
 	runtimeNKleinAdvisorBuildRequestSchema,
@@ -690,34 +688,6 @@ export function parseShellSessionStartRequest(value: unknown): RuntimeShellSessi
 		taskId,
 		workspaceTaskId,
 		baseRef,
-	};
-}
-
-export function parseHookIngestRequest(value: unknown): RuntimeHookIngestRequest {
-	const parsed = parseWithSchema(runtimeHookIngestRequestSchema, value);
-	const taskId = parsed.taskId.trim();
-	const workspaceId = parsed.workspaceId.trim();
-	if (!taskId) {
-		throw new Error("Missing taskId");
-	}
-	if (!workspaceId) {
-		throw new Error("Missing workspaceId");
-	}
-	const metadata = parsed.metadata
-		? {
-				activityText: parsed.metadata.activityText?.trim(),
-				toolName: parsed.metadata.toolName?.trim(),
-				finalMessage: parsed.metadata.finalMessage?.trim(),
-				hookEventName: parsed.metadata.hookEventName?.trim(),
-				notificationType: parsed.metadata.notificationType?.trim(),
-				source: parsed.metadata.source?.trim(),
-			}
-		: undefined;
-	return {
-		...parsed,
-		taskId,
-		workspaceId,
-		metadata,
 	};
 }
 

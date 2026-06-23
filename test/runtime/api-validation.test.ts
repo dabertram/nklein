@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	parseHookIngestRequest,
 	parseProjectAddRequest,
 	parseTaskSessionStartRequest,
 	parseWorkspaceFileSearchRequest,
@@ -34,43 +33,6 @@ describe("parseWorkspaceFileSearchRequest", () => {
 		expect(() => {
 			parseWorkspaceFileSearchRequest(new URLSearchParams({ q: "board", limit: "0" }));
 		}).toThrow("Invalid file search limit parameter.");
-	});
-});
-
-describe("parseHookIngestRequest", () => {
-	it("parses and trims task and workspace identifiers", () => {
-		const parsed = parseHookIngestRequest({
-			taskId: "  task-123  ",
-			workspaceId: "  workspace-456  ",
-			event: "to_review",
-			metadata: {
-				source: " claude ",
-				activityText: " Using Read ",
-			},
-		});
-		expect(parsed).toEqual({
-			taskId: "task-123",
-			workspaceId: "workspace-456",
-			event: "to_review",
-			metadata: {
-				source: "claude",
-				activityText: "Using Read",
-				hookEventName: undefined,
-				toolName: undefined,
-				finalMessage: undefined,
-				notificationType: undefined,
-			},
-		});
-	});
-
-	it("throws when workspaceId is missing", () => {
-		expect(() => {
-			parseHookIngestRequest({
-				taskId: "task-1",
-				workspaceId: "   ",
-				event: "to_review",
-			});
-		}).toThrow("Missing workspaceId");
 	});
 });
 

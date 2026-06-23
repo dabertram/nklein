@@ -27,8 +27,6 @@ import type {
 	RuntimeGitSummaryResponse,
 	RuntimeGitSyncAction,
 	RuntimeGitSyncResponse,
-	RuntimeHookIngestRequest,
-	RuntimeHookIngestResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
@@ -161,8 +159,6 @@ import {
 	runtimeGitSummaryResponseSchema,
 	runtimeGitSyncActionSchema,
 	runtimeGitSyncResponseSchema,
-	runtimeHookIngestRequestSchema,
-	runtimeHookIngestResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
@@ -554,9 +550,6 @@ export interface RuntimeTrpcContext {
 			preferredWorkspaceId: string | null,
 			input: RuntimeDirectoryListRequest,
 		) => Promise<RuntimeDirectoryListResponse>;
-	};
-	hooksApi: {
-		ingest: (input: RuntimeHookIngestRequest) => Promise<RuntimeHookIngestResponse>;
 	};
 }
 
@@ -1058,14 +1051,6 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeDirectoryListResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.projectsApi.listDirectoryContents(ctx.requestedWorkspaceId, input);
-			}),
-	}),
-	hooks: t.router({
-		ingest: t.procedure
-			.input(runtimeHookIngestRequestSchema)
-			.output(runtimeHookIngestResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.hooksApi.ingest(input);
 			}),
 	}),
 });

@@ -221,15 +221,17 @@ deep analysis:
     - [x] C7a — `nklein task` CLI worktree plumbing retired `4de877f0`
     - [x] C7b — `ensureWorktree` + `getTaskContext` tRPC procedures removed `50ac2006`
     - [x] C7c — host-worktree CREATION machinery deleted; `task-worktree.ts` slimmed to cleanup `f595fae0`
-    - [ ] **C7d — delete the dead `src/terminal/*` CLI-agent integration** *(scoped, surgical — `TerminalSessionManager`
+    - [~] **C7d — delete the dead `src/terminal/*` CLI-agent integration** *(scoped, surgical — `TerminalSessionManager`
           is LIVE for shell)*
+      - [x] delete `commands/hooks.ts` + `commands/hook-events/*` (the `nklein hooks` CLI) + the `hooks-api` tRPC
+            ingest + `parseHookIngestRequest` + ingest schemas (step 1; `RuntimeHookEvent` kept for adapters)
       - [ ] keep shell infra (`pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
             `terminal-session-service`, `terminal-state-mirror`, `output-utils`, session-manager's shell path)
+      - [ ] remove the dead terminal-agent `startTaskSession` path from `runtime-api` (nklein uses the session
+            service) + rewire `terminalManager.getSummary`/`listSummaries` (~1138/1165) off the terminal manager
       - [ ] delete the agent path (`session-manager.startTaskSession`, `agent-registry`, `agent-session-adapters`,
             `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`, `command-discovery`,
-            `hook-runtime-context`, `task-image-prompt`)
-      - [ ] delete `commands/hooks.ts` + `commands/hook-events/*` (the `nklein hooks ingest` CLI) + the `hooks-api` tRPC ingest
-      - [ ] rewire `terminalManager.getSummary` (runtime-api ~1165, hooks-api) — nklein summaries come from the session service
+            `hook-runtime-context`, `task-image-prompt`) + the now-unused `RuntimeHookEvent`
     - [x] **C7e — web-ui task-workspace-info store cleanup** — removed the dead `taskWorkspaceInfoByTaskId` store
           API + consumers (App.tsx navbar path/subtitle/hint, top-bar git-status, `selectedTaskBaseRef` prop,
           use-board-interactions `clearTaskWorkspaceInfo`); kept the `taskWorkspaceSnapshot` half. Zero behavior

@@ -2361,17 +2361,3 @@ export type RuntimeGitRefsResponse = z.infer<typeof runtimeGitRefsResponseSchema
 
 export const runtimeHookEventSchema = z.enum(["to_review", "to_in_progress", "activity"]);
 export type RuntimeHookEvent = z.infer<typeof runtimeHookEventSchema>;
-
-export const runtimeHookIngestRequestSchema = z.object({
-	taskId: z.string(),
-	workspaceId: z.string(),
-	event: runtimeHookEventSchema,
-	metadata: runtimeTaskHookActivitySchema.partial().optional(),
-});
-export type RuntimeHookIngestRequest = z.infer<typeof runtimeHookIngestRequestSchema>;
-
-export const runtimeHookIngestResponseSchema = z.object({
-	ok: z.boolean(),
-	error: z.string().optional(),
-});
-export type RuntimeHookIngestResponse = z.infer<typeof runtimeHookIngestResponseSchema>;
