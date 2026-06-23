@@ -40,6 +40,7 @@ import {
 	type NKleinMcpToolBundle,
 } from "./nklein-mcp-runtime-service";
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
+import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
@@ -350,6 +351,25 @@ function createKanbanContextFocusExtension(
 				);
 			},
 			async afterModel(context) {
+				// Robustness over teaching: if a weak model narrated its tool call as `<tool_call>` text instead of a
+				// structured call, parse it and append a real tool-call part so the loop executes it (this hook runs
+				// before the loop extracts tool calls from the message). A recovered call means the turn is NOT a
+				// completion, so skip the synthesis/self-review completion hooks and let the loop dispatch the tool.
+				const recoveredToolCalls = recoverNarratedToolCalls(context.assistantMessage);
+				if (recoveredToolCalls.length > 0) {
+					recordSelfObservation({
+						signal: "tool_argument_error",
+						severity: "info",
+						message: `!Klein recovered ${recoveredToolCalls.length} tool call(s) the model emitted as <tool_call> text instead of a structured tool call.`,
+						workspacePath,
+						metadata: {
+							category: "narrated_tool_call_recovered",
+							toolNames: recoveredToolCalls.map((part) => part.toolName),
+							sessionId,
+						},
+					});
+					return undefined;
+				}
 				const largeFileControl = await largeFileWorkflow.afterModel(context);
 				return (
 					largeFileControl ??
