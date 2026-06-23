@@ -1,14 +1,7 @@
 // PTY-backed runtime for non-NKlein task sessions and the workspace shell terminal.
 // It owns process lifecycle, terminal protocol filtering, and summary updates
 // for command-driven agents such as Claude Code, Codex, Gemini, and shell sessions.
-import type {
-	RuntimeTaskHookActivity,
-	RuntimeTaskImage,
-	RuntimeTaskSessionReviewReason,
-	RuntimeTaskSessionState,
-	RuntimeTaskSessionSummary,
-	RuntimeTaskTurnCheckpoint,
-} from "../core/api-contract";
+import type { RuntimeTaskImage, RuntimeTaskSessionState, RuntimeTaskSessionSummary } from "../core/api-contract";
 import {
 	type AgentAdapterLaunchInput,
 	type AgentOutputTransitionDetector,
@@ -818,128 +811,6 @@ export class TerminalSessionManager implements TerminalSessionService {
 		}
 		entry.active.session.resume();
 		return true;
-	}
-
-	transitionToReview(taskId: string, reason: RuntimeTaskSessionReviewReason): RuntimeTaskSessionSummary | null {
-		const entry = this.entries.get(taskId);
-		if (!entry) {
-			return null;
-		}
-		if (reason !== "hook") {
-			return cloneSummary(entry.summary);
-		}
-		const before = entry.summary;
-		const summary = this.applySessionEvent(entry, { type: "hook.to_review" });
-		if (summary !== before && entry.active) {
-			for (const listener of entry.listeners.values()) {
-				listener.onState?.(cloneSummary(summary));
-			}
-			this.emitSummary(summary);
-		}
-		return cloneSummary(summary);
-	}
-
-	applyHookActivity(taskId: string, activity: Partial<RuntimeTaskHookActivity>): RuntimeTaskSessionSummary | null {
-		const entry = this.entries.get(taskId);
-		if (!entry) {
-			return null;
-		}
-
-		const hasActivityUpdate =
-			typeof activity.activityText === "string" ||
-			typeof activity.toolName === "string" ||
-			typeof activity.toolInputSummary === "string" ||
-			typeof activity.finalMessage === "string" ||
-			typeof activity.hookEventName === "string" ||
-			typeof activity.notificationType === "string" ||
-			typeof activity.source === "string";
-		if (!hasActivityUpdate) {
-			return cloneSummary(entry.summary);
-		}
-
-		const previous = entry.summary.latestHookActivity;
-		const next: RuntimeTaskHookActivity = {
-			activityText:
-				typeof activity.activityText === "string" ? activity.activityText : (previous?.activityText ?? null),
-			toolName: typeof activity.toolName === "string" ? activity.toolName : (previous?.toolName ?? null),
-			toolInputSummary:
-				typeof activity.toolInputSummary === "string"
-					? activity.toolInputSummary
-					: (previous?.toolInputSummary ?? null),
-			finalMessage:
-				typeof activity.finalMessage === "string" ? activity.finalMessage : (previous?.finalMessage ?? null),
-			hookEventName:
-				typeof activity.hookEventName === "string" ? activity.hookEventName : (previous?.hookEventName ?? null),
-			notificationType:
-				typeof activity.notificationType === "string"
-					? activity.notificationType
-					: (previous?.notificationType ?? null),
-			source: typeof activity.source === "string" ? activity.source : (previous?.source ?? null),
-		};
-
-		const didChange =
-			next.activityText !== (previous?.activityText ?? null) ||
-			next.toolName !== (previous?.toolName ?? null) ||
-			next.toolInputSummary !== (previous?.toolInputSummary ?? null) ||
-			next.finalMessage !== (previous?.finalMessage ?? null) ||
-			next.hookEventName !== (previous?.hookEventName ?? null) ||
-			next.notificationType !== (previous?.notificationType ?? null) ||
-			next.source !== (previous?.source ?? null);
-		if (!didChange) {
-			return cloneSummary(entry.summary);
-		}
-
-		const summary = updateSummary(entry, {
-			lastHookAt: now(),
-			latestHookActivity: next,
-		});
-		if (entry.active) {
-			for (const listener of entry.listeners.values()) {
-				listener.onState?.(cloneSummary(summary));
-			}
-		}
-		this.emitSummary(summary);
-		return cloneSummary(summary);
-	}
-
-	transitionToRunning(taskId: string): RuntimeTaskSessionSummary | null {
-		const entry = this.entries.get(taskId);
-		if (!entry) {
-			return null;
-		}
-		const before = entry.summary;
-		const summary = this.applySessionEvent(entry, { type: "hook.to_in_progress" });
-		if (summary !== before && entry.active) {
-			for (const listener of entry.listeners.values()) {
-				listener.onState?.(cloneSummary(summary));
-			}
-			this.emitSummary(summary);
-		}
-		return cloneSummary(summary);
-	}
-
-	applyTurnCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null {
-		const entry = this.entries.get(taskId);
-		if (!entry) {
-			return null;
-		}
-
-		const latestCheckpoint = entry.summary.latestTurnCheckpoint ?? null;
-		if (latestCheckpoint?.ref === checkpoint.ref && latestCheckpoint.commit === checkpoint.commit) {
-			return cloneSummary(entry.summary);
-		}
-
-		const summary = updateSummary(entry, {
-			previousTurnCheckpoint: latestCheckpoint,
-			latestTurnCheckpoint: checkpoint,
-		});
-		if (entry.active) {
-			for (const listener of entry.listeners.values()) {
-				listener.onState?.(cloneSummary(summary));
-			}
-		}
-		this.emitSummary(summary);
-		return cloneSummary(summary);
 	}
 
 	stopTaskSession(taskId: string): RuntimeTaskSessionSummary | null {

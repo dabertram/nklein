@@ -1393,17 +1393,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					taskId: body.taskId,
 					paused: false,
 				});
-				if (nkleinSummary) {
-					return {
-						ok: true,
-						summary: withTaskPausedState(nkleinSummary, pausedTaskIds),
-					};
-				}
-				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
-				const summary = terminalManager.stopTaskSession(body.taskId);
+				// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); only NKlein sessions exist.
 				return {
-					ok: Boolean(summary),
-					summary: withTaskPausedState(summary, pausedTaskIds),
+					ok: Boolean(nkleinSummary),
+					summary: withTaskPausedState(nkleinSummary, pausedTaskIds),
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -1496,26 +1489,18 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const payloadText = body.appendNewline ? `${body.text}\n` : body.text;
 				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 				const nkleinSummary = await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
-				if (nkleinSummary) {
-					await reconcileRunningTaskBoardLane(workspaceScope, nkleinSummary);
-					return {
-						ok: true,
-						summary: nkleinSummary,
-					};
-				}
-				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
-				const summary = terminalManager.writeInput(body.taskId, Buffer.from(payloadText, "utf8"));
-				if (!summary) {
+				// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); only NKlein sessions exist.
+				if (!nkleinSummary) {
 					return {
 						ok: false,
 						summary: null,
 						error: "Task session is not running.",
 					};
 				}
-				await reconcileRunningTaskBoardLane(workspaceScope, summary);
+				await reconcileRunningTaskBoardLane(workspaceScope, nkleinSummary);
 				return {
 					ok: true,
-					summary,
+					summary: nkleinSummary,
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

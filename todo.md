@@ -232,9 +232,15 @@ deep analysis:
             `previousTerminalAgentId`/`useNKleinPath`/persisted-session-probe resolution deleted); concurrency
             counts NKlein summaries only; `terminalManager.getSummary`/`listSummaries` no longer read here.
             6 obsolete terminal-path tests removed, chat-clear test converted to the NKlein path.
-      - [ ] delete the agent path (`session-manager.startTaskSession`, `agent-registry`, `agent-session-adapters`,
-            `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`, `command-discovery`,
-            `hook-runtime-context`, `task-image-prompt`) + the now-unused `RuntimeHookEvent`
+      - [x] step 3a — remove the dead terminal stop/input fallbacks in `runtime-api` + delete the 4 zero-caller
+            hook-driven manager methods (`transitionToReview`/`applyHookActivity`/`transitionToRunning`/
+            `applyTurnCheckpoint`) + their 2 obsolete tests. (1333 tests green.)
+      - [ ] step 3b — delete `session-manager.startTaskSession` (+ `trySendDeferredCodexStartupInput`,
+            `cloneStartTaskSessionRequest`, the task-kind auto-restart) + the 7 agent-only helper files
+            (`agent-session-adapters`, `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`,
+            `hook-runtime-context`, `task-image-prompt`) + now-unused `RuntimeHookEvent`. **Live-shell verify after.**
+            *(KEEP `agent-registry` — `detectInstalledCommands`/`buildRuntimeConfigResponse` used by runtime-config +
+            runtime-api; KEEP `command-discovery` — `isBinaryAvailableOnPath` used by `server/browser.ts`.)*
     - [x] **C7e — web-ui task-workspace-info store cleanup** — removed the dead `taskWorkspaceInfoByTaskId` store
           API + consumers (App.tsx navbar path/subtitle/hint, top-bar git-status, `selectedTaskBaseRef` prop,
           use-board-interactions `clearTaskWorkspaceInfo`); kept the `taskWorkspaceSnapshot` half. Zero behavior

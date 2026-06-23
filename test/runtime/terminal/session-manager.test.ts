@@ -67,24 +67,6 @@ describe("TerminalSessionManager", () => {
 		expect(restricted.NKLEIN_AGENT_EGRESS_RESTRICTED).toBe("best_effort_local_only");
 	});
 
-	it("stores hook activity metadata on sessions", () => {
-		const manager = new TerminalSessionManager();
-		manager.hydrateFromRecord({
-			"task-1": createSummary({ state: "running" }),
-		});
-
-		const updated = manager.applyHookActivity("task-1", {
-			source: "claude",
-			activityText: "Using Read",
-			toolName: "Read",
-		});
-
-		expect(updated?.latestHookActivity?.source).toBe("claude");
-		expect(updated?.latestHookActivity?.activityText).toBe("Using Read");
-		expect(updated?.latestHookActivity?.toolName).toBe("Read");
-		expect(typeof updated?.lastHookAt).toBe("number");
-	});
-
 	it("resets stale running sessions without active processes", () => {
 		const manager = new TerminalSessionManager();
 		manager.hydrateFromRecord({
@@ -98,30 +80,6 @@ describe("TerminalSessionManager", () => {
 		expect(recovered?.agentId).toBe("claude");
 		expect(recovered?.workspacePath).toBeNull();
 		expect(recovered?.reviewReason).toBeNull();
-	});
-
-	it("tracks only the latest two turn checkpoints", () => {
-		const manager = new TerminalSessionManager();
-		manager.hydrateFromRecord({
-			"task-1": createSummary({ state: "running" }),
-		});
-
-		manager.applyTurnCheckpoint("task-1", {
-			turn: 1,
-			ref: "refs/kanban/checkpoints/task-1/turn/1",
-			commit: "1111111",
-			createdAt: 1,
-		});
-		manager.applyTurnCheckpoint("task-1", {
-			turn: 2,
-			ref: "refs/kanban/checkpoints/task-1/turn/2",
-			commit: "2222222",
-			createdAt: 2,
-		});
-
-		const summary = manager.getSummary("task-1");
-		expect(summary?.latestTurnCheckpoint?.turn).toBe(2);
-		expect(summary?.previousTurnCheckpoint?.turn).toBe(1);
 	});
 
 	it("does not replay raw PTY history when attaching an output listener", () => {
