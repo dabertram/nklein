@@ -5,6 +5,7 @@ import {
 	getTaskAgentNavbarHint,
 	isCloudProviderSupportEnabled,
 	isNativeNKleinAgentSelected,
+	isNKleinLocalModelConfigured,
 	isNKleinProviderAuthenticated,
 	isTaskAgentSetupSatisfied,
 	selectLatestTaskChatMessageForTask,
@@ -212,7 +213,7 @@ describe("native-agent helpers", () => {
 		expect(isTaskAgentSetupSatisfied(config)).toBe(false);
 	});
 
-	it("falls back to other installed launch-supported agents when nklein auth is missing", () => {
+	it("treats selected nklein as task-ready when a local model provider is configured (no API key / oauth)", () => {
 		const config = createRuntimeConfigResponse("nklein", {
 			agents: [
 				{
@@ -224,18 +225,9 @@ describe("native-agent helpers", () => {
 					installed: true,
 					configured: true,
 				},
-				{
-					id: "codex",
-					label: "OpenAI Codex",
-					binary: "codex",
-					command: "codex",
-					defaultArgs: [],
-					installed: true,
-					configured: false,
-				},
 			],
 			nkleinProviderSettings: {
-				providerId: null,
+				providerId: "lmstudio",
 				modelId: null,
 				baseUrl: null,
 				apiKeyConfigured: false,
@@ -246,7 +238,36 @@ describe("native-agent helpers", () => {
 				oauthExpiresAt: null,
 			},
 		});
+		// Local-only readiness: a selected local provider is enough; no other installed CLI agent is required.
 		expect(isTaskAgentSetupSatisfied(config)).toBe(true);
+	});
+
+	it("recognizes a configured local model provider for local-only readiness", () => {
+		const base = {
+			modelId: null,
+			baseUrl: null,
+			apiKeyConfigured: false,
+			oauthProvider: null,
+			oauthAccessTokenConfigured: false,
+			oauthRefreshTokenConfigured: false,
+			oauthAccountId: null,
+			oauthExpiresAt: null,
+		};
+		expect(isNKleinLocalModelConfigured(null)).toBe(false);
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: null })).toBe(false);
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: "lmstudio" })).toBe(true);
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: "ollama" })).toBe(true);
+		// Known cloud providers are never "local configured".
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: "anthropic" })).toBe(false);
+		// Custom / unknown provider: configured when it carries a model id or a local endpoint.
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: "custom", modelId: "my-model" })).toBe(true);
+		expect(isNKleinLocalModelConfigured({ ...base, providerId: "custom", baseUrl: "http://127.0.0.1:4000/v1" })).toBe(
+			true,
+		);
+		// Custom provider pointed at a non-local endpoint with no model id is not configured-local.
+		expect(
+			isNKleinLocalModelConfigured({ ...base, providerId: "custom", baseUrl: "https://models.example.com/v1" }),
+		).toBe(false);
 	});
 
 	it("does not show the navbar setup hint when nklein is configured through the native SDK path", () => {

@@ -201,8 +201,14 @@ deep analysis:
       budget). **Increment-1 gotcha (found 2026-06-23):** `isNKleinProviderAuthenticated` (native-agent.ts) is
       cloud-oriented (needs apiKey/oauth, both false for local-only), so today local readiness leans on the
       terminal-CLI fallback — removing it for nklein-only requires a **local-aware** readiness rework (ready when a
-      local model is configured), or the navbar will always show "No agent configured". Don't start the deletions
-      (increment 3) until the live shell-on-task `docker exec` gate (increment 2) passes.
+      local model is configured), or the navbar will always show "No agent configured".
+      **Increment 1a DONE 2026-06-23:** the local-aware readiness rework shipped — `isNKleinLocalModelConfigured`
+      ([web-ui/src/runtime/native-agent.ts](web-ui/src/runtime/native-agent.ts)) treats a selected local provider
+      (lmstudio/ollama, or a custom provider carrying a model id / local endpoint) as configured, and
+      `isTaskAgentSetupSatisfied` now uses it (cloud auth OR local model), dropping the CLI fallback for the nklein
+      branch; web-ui tsc + unit-tested. **Next (1b):** shrink `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` to `["nklein"]`
+      now that readiness no longer depends on the CLI fallback, then trim the agent picker/onboarding UI. Don't
+      start the deletions (increment 3) until the live shell-on-task `docker exec` gate (increment 2) passes.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean

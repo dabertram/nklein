@@ -141,6 +141,32 @@ export function isNKleinProviderAuthenticated(settings: RuntimeNKleinProviderSet
 }
 
 /**
+ * Local-only readiness: the native NKlein agent is "configured" when a LOCAL model provider is selected, even
+ * before a specific model/endpoint is persisted — the runtime auto-discovers a loaded model and falls back to
+ * the catalog base URL at launch (§6.10). This is the local counterpart to {@link isNKleinProviderAuthenticated}
+ * (which is cloud-oriented: it requires an API key / OAuth token that a local provider never has), so a pure
+ * local-only setup (e.g. LM Studio) is no longer wrongly flagged as "No agent configured".
+ */
+export function isNKleinLocalModelConfigured(settings: RuntimeNKleinProviderSettings | null | undefined): boolean {
+	if (!settings) {
+		return false;
+	}
+	const providerId = settings.providerId?.trim().toLowerCase() ?? "";
+	if (!providerId) {
+		return false;
+	}
+	if (LOCAL_PROVIDER_IDS.has(providerId)) {
+		return true;
+	}
+	if (isKnownCloudProviderId(providerId)) {
+		return false;
+	}
+	// Custom / unknown provider: treat as a configured local model when it carries a model id or points at a
+	// local endpoint.
+	return (settings.modelId?.trim().length ?? 0) > 0 || isLocalBaseUrl(settings.baseUrl);
+}
+
+/**
  * Returns true only when the selected provider is the NKlein managed OAuth
  * provider **and** an access token is configured.  This is stricter than
  * {@link isNKleinProviderAuthenticated} which accepts any configured provider
@@ -167,12 +193,9 @@ export function isTaskAgentSetupSatisfied(
 		return null;
 	}
 	if (isNativeNKleinAgentSelected(config.selectedAgentId)) {
-		if (isNKleinProviderAuthenticated(getRuntimeNKleinProviderSettings(config))) {
-			return true;
-		}
-		return config.agents.some(
-			(agent) => agent.id !== "nklein" && isRuntimeAgentLaunchSupported(agent.id) && agent.installed,
-		);
+		// Local-only: ready when a local model provider is configured; the cloud auth path stays valid too.
+		const settings = getRuntimeNKleinProviderSettings(config);
+		return isNKleinProviderAuthenticated(settings) || isNKleinLocalModelConfigured(settings);
 	}
 	return config.agents.some((agent) => isRuntimeAgentLaunchSupported(agent.id) && agent.installed);
 }
