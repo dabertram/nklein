@@ -288,9 +288,12 @@ deep analysis:
           (home/chat sessions keep the host cwd) — so the "working directory" the model is told is the sandbox path,
           never the host mount. **Live strict-isolation PASS** with the change (core accepts the sandbox cwd, tools
           execute, container appears, clean teardown) + unit test asserting both branches.
-    - [ ] scrub host paths from the **remaining** agent-facing surfaces: the `read_files` "large file" block error
-          (it echoes the requested path) and evidence `summary.md`/`config-snapshot.json` → workspace-relative display.
-    - [ ] confirm on a real dev-test **decompose** transcript that the agent now emits only sandbox/relative paths.
+    - [x] read_files block error: **resolved transitively** — it echoes the agent's *requested* path
+          (`readRequest.path`), and with the cwd fix the agent now requests sandbox/relative paths, so no host path
+          leaks there. Evidence `summary.md`/`config-snapshot.json` keep the host workspace path **on purpose** (it's
+          host-side: the user needs it to locate the bundle's workspace) — not an agent-facing leak.
+    - [ ] confirm on a real dev-test **decompose** transcript that the agent now emits only sandbox/relative paths
+          (fold into the live Playwright/dev-test pass).
     - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
           host-side evidence/workspace access, but the agent only sees `/workspaces/<taskId>`. A dev-test run that
           shows the agent the host temp project path is a bug; verify a dev-test decompose shows only sandbox paths.
