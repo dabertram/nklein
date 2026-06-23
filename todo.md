@@ -9,7 +9,9 @@
 > and why the project is shaped the way it is all live here.
 >
 > **Status legend:** `[x]` shipped & verified · `[~]` partial / shipped-but-degraded · `[ ]` open ·
-> `LATER:` deferred by decision · `BLOCKED:` needs the user or an environment we don't have.
+> `LATER:` deferred by decision · `BLOCKED:` needs the user (env is **not** a blocker — the working session has
+> Docker + the `nklein/agent-sandbox` image, a live LM Studio with loaded models, and a Playwright browser, so
+> Docker/browser/live-model verification is actionable here, not blocked).
 >
 > **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain —
 > including a line-by-line re-verification pass over all 10 source docs: follow-up-1/2/3 are 100% shipped,
@@ -137,13 +139,13 @@ deep analysis:
       checkout. The saved-host-patch retirement and the project-health "accidental worktree" re-validation ride
       along with (1). Do this where the review/diff/merge + shell UI can be visually verified. Files:
       `src/workspace/task-worktree*.ts`, `src/workspace/task-result-branches.ts`, `src/terminal/session-manager.ts`.
-- [ ] **BLOCKED (needs a Docker-enabled interactive browser session): UI live-verification debts.** The
+- [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
-      telemetry). **Still owed in-browser:** Settings isolation status + pool-control inspection; and dev-build
-      UX (no cloud default, model-registry prune, live loaded-model line, Developer Mode persistence, embedding
-      auto-discovery). Also verify the swarm concurrency cap and sandbox-pool queue compose visibly in the
-      card/header UI.
+      telemetry). **Still owed in-browser (verify via Playwright):** Settings isolation status + pool-control
+      inspection; and dev-build UX (no cloud default, model-registry prune, live loaded-model line, Developer Mode
+      persistence, embedding auto-discovery). Also verify the swarm concurrency cap and sandbox-pool queue compose
+      visibly in the card/header UI.
 - [ ] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
@@ -225,7 +227,7 @@ deep analysis:
       forward-migration registry (keyed by source version, empty today) upgrades older committed files up to
       `CURRENT_PORTABLE_BOARD_SCHEMA_VERSION`, refuses newer-than-known versions instead of coercing them, and
       guards against non-advancing migrations. A future bump is a one-line registry entry + the version constant.
-- [ ] **BLOCKED (browser): verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI.
+- [ ] **Verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI *(browser available — verify via Playwright).*
 - [x] ~~**Confirm WITH THE USER before extending**~~ **DECIDED 2026-06-22 (user):** **repo-committed** =
       board/CRDT, DAG, card progress, `knowledgeDebt`, decomposition — stored as **human-readable (pretty-printed)
       JSON** like `board-crdt.json` today. **Machine-local (never committed):** model registry/measured speeds,
