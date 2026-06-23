@@ -9,6 +9,7 @@ import {
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
 	buildAgentSandboxInteractiveShellArgs,
+	buildTaskShellSpawnSpec,
 	createAgentSandboxTaskUid,
 	createAgentSandboxToolExecutors,
 	DEFAULT_AGENT_SANDBOX_IMAGE,
@@ -126,6 +127,30 @@ describe("agent sandbox interactive shell (todo §5.A)", () => {
 	it("returns no shell target for a task without a prepared sandbox", () => {
 		const manager = new AgentSandboxManager({ image: "test-image" });
 		expect(manager.getTaskShellTarget("unprepared-task")).toBeNull();
+	});
+
+	it("spawns docker exec when the task has a sandbox target", () => {
+		const spec = buildTaskShellSpawnSpec(
+			{ containerName: "klein-agent-sandbox-1", uid: 1001, workdir: "/workspaces/t1" },
+			{ binary: "/bin/zsh", args: ["-l"] },
+		);
+		expect(spec.usesSandbox).toBe(true);
+		expect(spec.binary).toBe("docker");
+		expect(spec.args).toEqual([
+			"exec",
+			"-it",
+			"-u",
+			"1001",
+			"-w",
+			"/workspaces/t1",
+			"klein-agent-sandbox-1",
+			...DEFAULT_AGENT_SANDBOX_SHELL,
+		]);
+	});
+
+	it("falls back to the host shell when there is no sandbox target", () => {
+		const spec = buildTaskShellSpawnSpec(null, { binary: "/bin/zsh", args: ["-l"] });
+		expect(spec).toEqual({ binary: "/bin/zsh", args: ["-l"], usesSandbox: false });
 	});
 });
 

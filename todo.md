@@ -237,15 +237,20 @@ deep analysis:
       **Increment 2a DONE 2026-06-23:** the sandbox `docker exec` shell seam —
       `AgentSandboxManager.getTaskShellTarget(taskId)` (container + task uid + workdir, or null) +
       `buildAgentSandboxInteractiveShellArgs` (pure `docker exec -it -u <uid> -w <workdir> <container> <shell>`,
-      mirroring the existing task-user exec); unit-tested. **Next (increment 2b — PTY wiring + LIVE gate):** the
-      real shell-on-task entry is the **`ensureWorktree` tRPC mutation** ([src/trpc/workspace-api.ts](src/trpc/workspace-api.ts):336,
-      [src/trpc/app-router.ts](src/trpc/app-router.ts):982) + the CLI in [src/commands/task.ts](src/commands/task.ts),
-      and the PTY is [src/terminal/pty-session.ts](src/terminal/pty-session.ts) (`resolveTaskCwd({ ensure: true })`
-      lives in [src/workspace/task-worktree.ts](src/workspace/task-worktree.ts)). Rewire them to acquire/find the
-      task's sandbox placement and spawn the PTY as `docker` + `buildAgentSandboxInteractiveShellArgs(getTaskShellTarget(taskId))`
-      instead of ensuring a host worktree. LIVE gate: start a task, open its shell → confirm it lands inside the
-      container at `/workspaces/<taskId>` (isolated, `--network none`) and **no** `~/.nklein/nklein/worktrees/<task>`
-      dir is created. This gate MUST pass before the increment-3 deletions.
+      mirroring the existing task-user exec); unit-tested.
+      **Increment 2b DONE 2026-06-23 (wiring + live-core gate):** the `startShellSession` handler
+      ([src/trpc/runtime-api.ts](src/trpc/runtime-api.ts)) now resolves the task's sandbox shell target via the
+      memoized per-workspace `NKleinTaskSessionService.getTaskShellTarget` → `AgentSandboxManager` and, when
+      present, spawns the PTY as `docker exec -it -u <taskUid> -w /workspaces/<taskId> <container>` (login
+      bash→sh) via the pure, unit-tested `buildTaskShellSpawnSpec`; otherwise it keeps the legacy host-worktree
+      shell (`resolveTaskCwd({ ensure: true })`) as a retained fallback. **Live-verified** against the running
+      `nklein-agent-sandbox-1`: `docker exec -u <taskUid> -w /workspaces/<taskId> … sh -lc 'pwd'` lands in the
+      cloned repo working copy as the task user, and `/usr/bin/bash -l` starts cleanly there. tsc + 35 sandbox
+      tests green. **Still owed before increment 3 (folded into the increment-4 pass):** the full
+      browser-terminal e2e (open a task shell in the UI → interactive shell in the container via node-pty
+      `docker exec -it`), and confirming **no** `~/.nklein/nklein/worktrees/<task>` dir is created for a
+      sandboxed-task shell. The increment-3 deletions (removing the worktree fallback + modules) MUST wait for
+      that browser-terminal e2e.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean

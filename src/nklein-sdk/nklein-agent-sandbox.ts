@@ -276,6 +276,28 @@ export function buildAgentSandboxInteractiveShellArgs(
 	return ["exec", "-it", "-u", String(target.uid), "-w", target.workdir, target.containerName, ...shell];
 }
 
+export interface TaskShellSpawnSpec {
+	binary: string;
+	args: string[];
+	/** True when the shell will `docker exec` into the task's sandbox container rather than a host shell. */
+	usesSandbox: boolean;
+}
+
+/**
+ * Decide how to spawn a shell-on-task PTY (todo §5.A): when the task has a prepared sandbox, shell INTO its
+ * hardened container via `docker exec`; otherwise fall back to the provided host shell (the legacy host-worktree
+ * path). Pure so the decision is unit-tested; the caller resolves the host cwd and supplies the host shell.
+ */
+export function buildTaskShellSpawnSpec(
+	shellTarget: AgentSandboxShellTarget | null,
+	hostShell: { binary: string; args?: readonly string[] },
+): TaskShellSpawnSpec {
+	if (shellTarget) {
+		return { binary: "docker", args: buildAgentSandboxInteractiveShellArgs(shellTarget), usesSandbox: true };
+	}
+	return { binary: hostShell.binary, args: [...(hostShell.args ?? [])], usesSandbox: false };
+}
+
 export function createAgentSandboxToolExecutors(
 	manager: AgentSandboxManager,
 	taskId: string,

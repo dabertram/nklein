@@ -38,6 +38,7 @@ import {
 	AgentSandboxExecutionError,
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
+	type AgentSandboxShellTarget,
 	createAgentSandboxToolExecutors,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
@@ -464,6 +465,8 @@ export interface NKleinTaskSessionService {
 	clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	rebindPersistedTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null;
+	/** Interactive-shell target for a task's prepared sandbox container, or null (todo §5.A shell-on-task). */
+	getTaskShellTarget(taskId: string): AgentSandboxShellTarget | null;
 	listSummaries(): RuntimeTaskSessionSummary[];
 	listModelEndpointSessions(): Array<{
 		taskId: string;
@@ -2722,6 +2725,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null {
 		return this.messageRepository.getSummary(taskId);
+	}
+
+	getTaskShellTarget(taskId: string): AgentSandboxShellTarget | null {
+		return this.agentSandboxManager?.getTaskShellTarget(taskId) ?? null;
 	}
 
 	listSummaries(): RuntimeTaskSessionSummary[] {

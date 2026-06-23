@@ -73,6 +73,7 @@ import {
 } from "../core/task-context-import";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
+import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../nklein-sdk/nklein-code-embeddings";
 import { getNKleinCodeIndexStatus } from "../nklein-sdk/nklein-code-index";
 import {
@@ -2452,26 +2453,34 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const body = parseShellSessionStartRequest(input);
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				const shell = deps.resolveInteractiveShellCommand();
-				const shellCwd = body.workspaceTaskId
-					? await resolveTaskCwd({
-							cwd: workspaceScope.workspacePath,
-							taskId: body.workspaceTaskId,
-							baseRef: body.baseRef,
-							ensure: true,
-						})
-					: workspaceScope.workspacePath;
+				// §5.A: when the task has a prepared Docker sandbox, shell INTO its hardened container via
+				// `docker exec` (the user shell is as isolated as the agent); otherwise fall back to the legacy
+				// host-worktree shell. The fallback is retained until the increment-3 worktree retirement.
+				const shellTarget = body.workspaceTaskId
+					? (await deps.getScopedNKleinTaskSessionService(workspaceScope)).getTaskShellTarget(body.workspaceTaskId)
+					: null;
+				const spawnSpec = buildTaskShellSpawnSpec(shellTarget, shell);
+				const shellCwd =
+					!spawnSpec.usesSandbox && body.workspaceTaskId
+						? await resolveTaskCwd({
+								cwd: workspaceScope.workspacePath,
+								taskId: body.workspaceTaskId,
+								baseRef: body.baseRef,
+								ensure: true,
+							})
+						: workspaceScope.workspacePath;
 				const summary = await terminalManager.startShellSession({
 					taskId: body.taskId,
 					cwd: shellCwd,
 					cols: body.cols,
 					rows: body.rows,
-					binary: shell.binary,
-					args: shell.args,
+					binary: spawnSpec.binary,
+					args: spawnSpec.args,
 				});
 				return {
 					ok: true,
 					summary,
-					shellBinary: shell.binary,
+					shellBinary: spawnSpec.binary,
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
