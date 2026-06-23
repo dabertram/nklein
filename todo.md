@@ -129,7 +129,9 @@ deep analysis:
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
 > clarification; the per-section items below are annotated to match.
-> - **NEXT / priority order:** **§5.A worktree retirement first**, then the rest.
+> - **NEXT / priority order:** **§5.A worktree retirement first**, then **§5.R de-SDK integration**, then the
+>   bigger feature builds (§5.H / §5.M / §5.O / …). The §5.S user-questions UI lands at the bottom (after all
+>   currently planned tasks).
 > - **§5.A:** **Full retirement now** — remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` + the web-ui
 >   legacy path, rework shell-on-task to `docker exec` into the task's sandbox, delete the worktree modules +
 >   saved-host-patch path; verify the review/diff/merge + shell UI in-browser (env has Docker + browser).
@@ -723,8 +725,37 @@ deep analysis:
       and aggregated, and dedupe/merge existing rows on it so the global view is one consistent entry per model.
 - [ ] **Verify global vs per-scope aggregation.** Confirm performance stats aggregate **globally per model** (not
       siloed by workspace/session/run in a way that splits one model), while still allowing intended breakdowns
-      (project/role/tool/category/outcome per §6.6). Add coverage for the dedupe/aggregation core. *(Clarify the
-      precise desired groupings with the user before building.)*
+      (project/role/tool/category/outcome per §6.6). Add coverage for the dedupe/aggregation core.
+      **DECIDED (2026-06-23, §5.0):** canonical model identity = **provider + model + canonical endpoint**
+      (canonicalize loopback / trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate
+      **globally per model**, keep the project/role/tool/category/outcome breakdowns.
+
+### 5.R — Dissolve the "internal SDK" separation; one unified codebase *(raised + clarified 2026-06-23)*
+> **Goal (user):** stop treating any part of the runtime as a separate "SDK" with its own interface / packaging /
+> modularity. **nKlein is one product; a reusable core is NOT on the agenda today.** The recurring confusion comes
+> from the `src/nklein-sdk/` boundary framing; remove the "SDK idea" so the codebase reads as one integrated
+> whole. **Guiding principle (user): make it simple, make it work, maximize codebase comprehensibility** — do NOT
+> do fancy internals re-engineering now, because the **§5.P Python port** will supersede the deep internals. Target
+> the **npm dev build** only for now; a single packaged/minified release artifact is a *later* concern (the outer
+> deliverable is a Docker image). **Priority: after §5.A, before the bigger feature builds (§5.H/§5.M/§5.O).**
+> **DECISIONS (2026-06-23, §5.0):**
+> - **Layer 1 — `src/nklein-sdk/` boundary (our readable TS):** **fully dissolve / inline into call sites.** Inline
+>   the thin pass-through boundary wrappers (`sdk-runtime-boundary.ts`, `sdk-provider-boundary.ts` — re-exports/
+>   isolation shims), drop the "SDK boundary" framing + the `check:nklein-boundary` discipline, and reframe the
+>   substantive integration code (the `NKlein*` services, tools, event adapter, session runtime) as plain
+>   first-class runtime code. Keep sensible structure (e.g. an `agent-runtime/` area) — just no "SDK separation".
+> - **Layer 2 — vendored `@nklein/*` runtime (minified `core/agents/llms/shared` bundles + `.d.ts`):** **keep it
+>   working as the internal runtime; do NOT do the fragile minified-bundle de-packaging now** (no upstream source
+>   here — it lives in `nklein/sdk-wip`; relativizing minified cross-imports adds no comprehensibility and the
+>   Python port supersedes it). Reframe it as an internal dependency (not a reusable SDK); dropping vestigial
+>   `vendor/**/package.json` versioning is OK only if trivial + safe. Full layer-2 de-packaging is deferred to the
+>   Python port (§5.P) / a future single-package effort.
+- [ ] **Inventory + inline the layer-1 boundary.** Catalog what `src/nklein-sdk/` re-exports/isolates from
+      `@nklein/*`, then inline the pass-through shims into their callers (or a flat internal module), remove the
+      boundary indirection, and delete the `check:nklein-boundary` discipline. No behavior change; tests stay green.
+- [ ] **Reframe the docs/mental model.** Update AGENTS.md + comments so there's no "SDK boundary / plug-in /
+      reusable core" framing — it's the internal agent runtime. Keep it simple; don't churn the substantive code
+      beyond what removing the separation requires.
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
