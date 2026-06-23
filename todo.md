@@ -271,6 +271,20 @@ deep analysis:
   - [x] **✅ MILESTONE (2026-06-23):** no live nklein flow creates or reads a host worktree — every path runs off the
         `nklein/tasks/<task>` result branch / Docker sandbox; only legacy on-disk *cleanup* survives (for users
         upgrading from worktree builds).
+  - [ ] **HARDEN — agents must never see host paths** *(raised 2026-06-23; from a real decompose evidence bundle)*.
+        A dev-test **decompose** run leaked the host workspace path to the agent: its first reasoning + `read_files`
+        input used `/private/var/folders/.../T/nklein-…/specification.md` (the host mount), not the sandbox path.
+        Root: the agent's cwd/working-directory context is the host path, and surfaces (the `read_files` block error,
+        evidence `summary.md`/`config-snapshot.json`) echo it. (`read_large_file`'s own result already returns the
+        relative path.) Per the new AGENTS.md "agents must never see host details" rule:
+    - [ ] agent's perceived cwd + every agent-facing path = the in-container workspace (`/workspaces/<taskId>`,
+          `AGENT_SANDBOX_WORKSPACES_DIR`), never the host mount; scrub host paths from prompt/context, the paths the
+          agent is nudged toward, tool results, and error messages (find where cwd enters the agent context first).
+    - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
+          host-side evidence/workspace access, but the agent only sees `/workspaces/<taskId>`. A dev-test run that
+          shows the agent the host temp project path is a bug; verify a dev-test decompose shows only sandbox paths.
+    - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
+    - [ ] only exception: user intentionally opted out of Docker isolation (future full-privileged host-agent mode).
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
@@ -525,6 +539,19 @@ deep analysis:
   - [ ] run under concurrency + harden from observed failures (gated on the user's quant/K-V configs)
 - [ ] **Autonomous sweep tooling** (designed when we start) — iterate the model/quant/config matrix unattended on top
       of `dev test-project` + `collect evidence` + `cleanup-report`; capture evidence per run + summarize. Discuss shape then.
+- [ ] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
+      families/variants emit tool calls in different shapes (OpenAI `tool_calls`, `<tool_call>{…}</tool_call>` narration,
+      Hermes/Qwen/Mistral/Anthropic-ish templates, etc.). Parse-and-recover **every** publicly-known format at the
+      `afterModel` seam (extend `recoverNarratedToolCalls` in `nklein-narrated-tool-call.ts`) so weak/quantized models
+      "just work" regardless of formatting — per the parse-and-recover principle (recover in !Klein, don't teach the
+      model). Catalog the formats + add fixtures per family.
+- [ ] **Simplify `read_large_file` to pure iteration** *(raised 2026-06-23)* — the model should only need to *trigger* it;
+      !Klein returns the first right-sized chunk and each result tells the model to fetch the **next by index/total**
+      (not by composing `read:`/`stitch:` cursors), through every chunk, then the same for stitching areas; the model only
+      iterates + summarizes each chunk/area + does the final dedup **synthesis**. Reason about whether to re-run the whole
+      pass if the final synthesis is still too large (hopefully unnecessary — verify). Cuts the cursor-bookkeeping burden
+      that trips small models. *(The false-pause that surfaced this — the repeat-guard fingerprint ignoring the cursor —
+      is already fixed; this is the ergonomics rework on top.)*
 
 ### 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*
 > User saw the same model listed multiple times. **Diagnosed (2026-06-23): the data is clean** (registry +
@@ -570,6 +597,17 @@ deep analysis:
       auto-vs-manual + the hard limit.
 - [ ] **Manual-mode UI** — board-header badge + per-card indicators → clarifying dialog (≥4 options + free-text,
       multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
+
+### 5.T — Settings/UI polish *(raised 2026-06-23, from a Swarm/Settings review)*
+- [ ] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button.
+- [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
+      attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
+- [ ] **Clarify "concurrent cards" vs "parallel agents"** — if they map 1:1, label it "concurrent cards (parallel
+      agents)"; if they do NOT, expose "parallel agents" as a separate setting (only in that case).
+- [ ] **Move the model-roles model selector up next to the default model selector** (group role models with the default).
+- [ ] **Revisit the bottom "Project" reference + "script shortcuts"** — unclear what they're for; might be useful later.
+      Decide keep/relabel/remove (leaning keep for now; revisit).
+- [ ] **Deactivate the "read the docs" links** (we're not at that point yet) — keep them but mark "(not yet available)".
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
@@ -861,5 +899,8 @@ deep analysis:
 ---
 
 ## 9. Changelog discipline
-`CHANGELOG.md` keeps a running `## [Upcoming]` section, updated **within** the same change as the code (derive
-entries from the real diff, not commit subjects). Only open a PR / cut a release when the user asks.
+`CHANGELOG.md` is **release notes**, not a work log (pre-version: branched off `main`, no released version yet, no
+back-compat burden). Record only **features / user-facing behavior changes** since the last version, plus **fixes for
+bugs that already existed on `main`** — derived from the real diff, within the same change. Do **NOT** log bugs we
+introduce *and* fix during this pre-version phase (they never shipped); fix them with a test only. Resume normal
+"every fix" discipline once a version is released. Only open a PR / cut a release when the user asks.
