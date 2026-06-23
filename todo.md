@@ -515,6 +515,16 @@ deep analysis:
       overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
       **project settings modal reachable from the project selector** (a button that opens a modal listing every
       project-specific override/setting). Keep global settings strictly global.
+      **Scope notes (mapped 2026-06-23):** today the only per-project override in the global dialog is the
+      **code-embedding override** (the `codeEmbeddingOverride` section, gated on `workspaceId`, reusing
+      `<EmbeddingEndpointFields>`); its state + the per-project save inclusion are inline in the ~4000-line
+      `runtime-settings-dialog.tsx`. The save path is a **whole-config replace** (`await save({...wholeConfig})`),
+      so the new modal isn't blocked — it can load the current config and call the same `save(currentConfig + the
+      changed override)` (the established pattern), no scoped/partial mutation needed. Build: a new
+      `project-settings-dialog.tsx` owning the embedding-override state + load/save, a gear button in
+      `project-navigation-panel.tsx`, then delete the override section from the global dialog. **Overlaps §5.I-1#3**
+      (the in-panel embedding model-override picker writes the same `codeEmbeddingOverride`) — do them together or
+      share an `<CodeEmbeddingOverrideForm>`.
 - [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
       design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
       Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role
