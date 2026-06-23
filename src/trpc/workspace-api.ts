@@ -409,49 +409,30 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 		},
 		loadGitLog: async (workspaceScope, input) => {
 			const taskScope = normalizeOptionalTaskWorkspaceScopeInput(input.taskScope ?? null);
-			let logCwd = workspaceScope.workspacePath;
-			if (taskScope) {
-				logCwd = await resolveTaskCwd({
-					cwd: workspaceScope.workspacePath,
-					taskId: taskScope.taskId,
-					baseRef: taskScope.baseRef,
-					ensure: false,
-				});
-			}
+			// A task's inspectable history is its `nklein/tasks/<task>` result branch, whose commits live in the
+			// project repo's shared object DB — so we log that commit from the project repo path, never a host
+			// worktree (worktree subsystem retired, §5.A). With no result branch yet, fall back to the requested ref.
+			const taskResultCommit = taskScope
+				? await resolveTaskResultBranchCommit({ repoPath: workspaceScope.workspacePath, taskId: taskScope.taskId })
+				: null;
 			return await getGitLog({
-				cwd: logCwd,
-				ref: input.ref ?? null,
+				cwd: workspaceScope.workspacePath,
+				ref: taskResultCommit ?? input.ref ?? null,
 				refs: input.refs ?? null,
 				maxCount: input.maxCount,
 				skip: input.skip,
 			});
 		},
-		loadGitRefs: async (workspaceScope, input) => {
-			const taskScope = normalizeOptionalTaskWorkspaceScopeInput(input ?? null);
-			let refsCwd = workspaceScope.workspacePath;
-			if (taskScope) {
-				refsCwd = await resolveTaskCwd({
-					cwd: workspaceScope.workspacePath,
-					taskId: taskScope.taskId,
-					baseRef: taskScope.baseRef,
-					ensure: false,
-				});
-			}
-			return await getGitRefs(refsCwd);
+		loadGitRefs: async (workspaceScope) => {
+			// Refs are repo-wide — the task's `nklein/tasks/<task>` result branch is itself a ref in the project
+			// repo — so task-scoped refs come straight from the project repo path, with no host worktree (§5.A).
+			return await getGitRefs(workspaceScope.workspacePath);
 		},
 		loadCommitDiff: async (workspaceScope, input) => {
-			const taskScope = normalizeOptionalTaskWorkspaceScopeInput(input.taskScope ?? null);
-			let diffCwd = workspaceScope.workspacePath;
-			if (taskScope) {
-				diffCwd = await resolveTaskCwd({
-					cwd: workspaceScope.workspacePath,
-					taskId: taskScope.taskId,
-					baseRef: taskScope.baseRef,
-					ensure: false,
-				});
-			}
+			// Commit objects are shared across the repo (the task result commit lives in the project repo's object
+			// DB via its `nklein/tasks/<task>` branch), so diffs resolve against the project repo path — no worktree.
 			return await getCommitDiff({
-				cwd: diffCwd,
+				cwd: workspaceScope.workspacePath,
 				commitHash: input.commitHash,
 			});
 		},

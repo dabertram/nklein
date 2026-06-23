@@ -253,11 +253,28 @@ deep analysis:
       (only the standard ws→xterm round-trip is untested — exercised by every other terminal already).
       **Increment 3 step 1 DONE 2026-06-23:** `startShellSession` no longer creates a host worktree — a sandboxed
       task shells into its container, any other shell opens at the project root (dropped the
-      `resolveTaskCwd({ ensure: true })` fallback). **Remaining increment 3 (the bulk — fresh full window per this
-      plan):** rewire the OTHER `resolveTaskCwd` consumers (review diff/log/refs in `workspace-api`, the two uses
-      in `runtime-api` ~394/401, `nklein-acceptance-auto-repair`) onto the `nklein/tasks/<task>` result-branch
-      path; then delete `task-worktree*.ts` + the saved-host-patch + the dead `src/terminal/*` CLI-agent
-      integration + `hook-events/*`; then the increment-4 browser/Docker verification pass.
+      `resolveTaskCwd({ ensure: true })` fallback).
+      **Increment 3 — bulk in progress (code-grounded decomposition, each its own green commit):**
+      - **C1 DONE 2026-06-23:** review **log/refs/diff** (`workspace-api` `loadGitLog`/`loadGitRefs`/`loadCommitDiff`)
+        are result-branch-aware — they ran `resolveTaskCwd({ ensure:false })` which *throws* for a worktree-free
+        nklein task (so the task git-history was broken), now they read the `nklein/tasks/<task>` result commit and
+        operate on the project repo's shared object DB. (`loadChanges`/`collectTaskEvidence` were already
+        result-branch-first.)
+      - **C2–C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
+        `nklein-acceptance-auto-repair` → sandbox-only (drop the `resolveTaskCwd`/`runAcceptanceGate` host branch);
+        `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the terminal
+        `startTaskSession` path.
+      - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**
+        `task-worktree-auto-merge.ts` is **NOT dead** — it is the *live result-branch delivery merge* invoked on
+        every auto-complete (`runtime-server`), already `resolveTaskResultBranchCommit`-first with the worktree as a
+        mere fallback. It gets **rewired to result-branch-only and KEPT** (rename optional), not deleted. Likewise
+        `deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/patch-cleanup + `isPathInsideTaskWorktreesHome` detection
+        retain **migration value** (cleaning legacy on-disk worktrees for users upgrading from worktree builds), so
+        the *creation/sync* machinery (`ensureTaskWorktreeIfDoesntExist`/`resolveTaskCwd`/`getTaskWorkspaceInfo`/
+        `mirrorIgnoredPath` + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`) is what gets deleted; the
+        cleanup/detection surface is extracted to a focused legacy-cleanup module.
+      - **Then:** delete the dead `src/terminal/*` CLI-agent integration + `hook-events/*` + rework `commands/task`;
+        schema/predicate cleanup; the increment-4 browser/Docker verification pass.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
