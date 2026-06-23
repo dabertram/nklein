@@ -258,750 +258,299 @@ deep analysis:
       container-primary + result-branch model.)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
-- [x] **FIX (live bug, evidence 2026-06-22T12-09): `decompose_project` malformed/empty-call recovery** *(shipped; verified 2026-06-23 — `relaxJsonSchemaNode` drops `required` + relaxes `additionalProperties` at every depth so `execute` always runs; in-handler validation throws a short directive naming missing fields + "don't resend empty"; `repairJsonStringValue` recovers typo'd/stringified payloads; fuzz-tested).* A small
-      local model (gemma-4-26b) called `decompose_project` 3× and all 3 were rejected *before* our handler ran:
-      call 1 had typo'd task fields (`tasks_id`, `plant`); calls 2–3 arrived as empty `{}`. The tool's SDK-level
-      `inputSchema` (`required: [slug,spec,plan,title,tasks]`, `additionalProperties: false`) makes the **SDK
-      pre-reject** with a 4 KB raw Zod dump that (a) small models can't recover from, (b) bloats context, and
-      (c) bypasses our in-handler `repairJsonStringValue`. The model then spiraled to empty calls and decomposed
-      nothing. **Fix:** relax the boundary `inputSchema` (drop `required`, allow extra props) so `execute` always
-      runs; validate in-handler and **return a compact, directive message** (name missing fields; nudge a small
-      first payload: "3–6 tasks, keep spec/plan to a few sentences — they're truncated; don't resend empty")
-      instead of throwing the dump; detect the empty `{}` case explicitly. Files:
-      [src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts). Distinct from
-      the shipped "re-prompt a turn that ends with NO tool call" — here the model *did* call the tool, with bad
-      args.
-- [x] **Knowledge-tool usage as a decomposition-quality signal** *(DONE 2026-06-23 — backend + UI).* Correlate
-      whether retrieval / code-index / architecture-knowledge tools were actually used in a planning session
-      *before* `decompose_project`, and surface "decomposition used / did not use knowledge tools" in the Settings
-      stats view — not just a usage count. **Backend:** `src/telemetry/knowledge-tool-decomposition-signal.ts`
-      (`correlateDecompositionKnowledgeSignals` + `aggregateDecompositionKnowledgeSignals`) turns the
-      knowledge-tool-usage observation log into a per-decomposition "used knowledge tools (yes/no) + which
-      categories, before the decomposition landed" signal (anchored on `decomposition_applied` so retries get
-      credit), rolled up per scope × role × provider × model; surfaced in the stats API response
-      (`decompositionKnowledgeSignals` + `decompositionKnowledgeAggregates`, schema in api-contract);
-      unit-tested + a read-path integration test. **UI:** the Model & Knowledge stats dialog
-      ([web-ui/src/components/model-performance-stats-dialog.tsx](web-ui/src/components/model-performance-stats-dialog.tsx))
-      gained a "Decomposition Knowledge" section — headline metrics + a scope × role × model × project breakdown —
-      backed by an exported, unit-tested `summarizeDecompositionKnowledge`. (Graph-coherence validation,
-      `knowledgeDebt` on cards, and the mandatory knowledge-acquisition + scope-pressure workflow are already
-      shipped — see §6.)
-- [ ] **Audio dev-test rubric.** Score the audio-VST fixture as under-decomposed/shallow against a domain
-      rubric: DSP correctness, measured phase alignment, groove invariants, effect-guardrail sweeps, full UI
-      control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)
+- [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
+      allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
+      fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
+      ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
+- [x] **Knowledge-tool usage as a decomposition-quality signal** — backend correlator
+      ([src/telemetry/knowledge-tool-decomposition-signal.ts](src/telemetry/knowledge-tool-decomposition-signal.ts))
+      flags whether retrieval/code-index/architecture tools ran *before* a decomposition (anchored on
+      `decomposition_applied`), rolled up per scope × role × model + surfaced in the "Decomposition Knowledge" stats
+      section. Unit + read-path tested.
+- [ ] **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped;
+      this is the *scoring*):
+  - [ ] DSP correctness + measured phase alignment
+  - [ ] groove invariants + effect-guardrail sweeps
+  - [ ] full UI control coverage
+  - [ ] prototype-vs-real-VST docs
 
 ### 5.C — Run summaries & timeout diagnostics
-- [x] **Timeout provenance + stats** *(2026-06-22; completed 2026-06-23)*. Terminal run summaries populate
-      `timeoutSource` (`role_override` vs `global_config` vs `autonomous_default`), resolved per-kind from the
-      launch-config precedence in `resolveEffectiveTaskTimeoutSettings`, threaded through the start request, stored
-      per task, and stamped with the source of the timeout that actually fired. `summarizeTimeoutOutcomes`
-      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts)) groups timeout-triggered runs by
-      provider × model × timeout-source × **role** × **scenario** with the terminal outcome each produced.
-      **By-role + by-scenario breakdowns DONE (2026-06-23):** the run-summary record carries a coarse `role`
-      (`reviewer` for `<taskId>::review`, `architect` for decomposition turns, else `worker` — inferred in
-      `captureTerminalRunSummary`) and a dev-test `scenario` (parsed from the `devtest-<scenario>-<ts>` task id);
-      pre-§5.C records default to the `unknown` role / `null` scenario group. Both unit-tested. (The by-scenario
-      breakdown directly feeds the §5.O robustness sweeps.)
-
-- [x] **Thin real wiring for `runDevTestProject`** *(2026-06-22)*. The harness + outcome classifier + observer
-      fallback + cleanup summarizer were already built and unit-tested. Added the side-effecting seams in
-      [src/nklein-sdk/nklein-dev-test-runner.ts](src/nklein-sdk/nklein-dev-test-runner.ts): `createDevTestStateReader`
-      (live tRPC `workspace.getState` → persisted `loadWorkspaceBoardById` fallback → null, with the fallback
-      semantics unit-tested) and `discoverDevTestCleanupEntries` (active/retained classification unit-tested).
-      Wired both into real CLI commands ([src/commands/dev.ts](src/commands/dev.ts)): `nklein dev test-project`
-      (starts a scenario seed via `runtime.startTaskSession` and monitors to a classified outcome) and
-      `nklein dev cleanup-report` (marker-scan + `du` + `docker volume ls` discovery feeding the summarizer).
-      **Manual-verification debt (live path):** the tRPC/docker/du glue runs against a live runtime + Docker and
-      is not unit-covered — verify `dev test-project` end-to-end and `dev cleanup-report` sizing in the
-      Docker-enabled session noted in §5.A.
+- [x] **Timeout provenance + stats** — run summaries stamp `timeoutSource`
+      (role_override/global_config/autonomous_default); `summarizeTimeoutOutcomes` groups timeout runs by
+      provider × model × source × role × scenario (role inferred at capture; scenario from `devtest-<scenario>-<ts>`).
+      Unit-tested. ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts))
+- [~] **Real wiring for `runDevTestProject`** — side-effecting seams (`createDevTestStateReader`,
+      `discoverDevTestCleanupEntries`) wired into `nklein dev test-project` + `dev cleanup-report`
+      ([src/commands/dev.ts](src/commands/dev.ts)).
+  - [ ] live-path verification debt: `dev test-project` end-to-end + `dev cleanup-report` sizing (Docker session, §5.A)
 
 ### 5.E — Cache-key hygiene & fuzz coverage
-- [x] **Audit telemetry/session caches for task-id-only keys** *(2026-06-22)*. Dev-test task ids repeat across
-      projects. The self-observation sink, task-diagnostics, and run-summary store are workspace-scoped; the
-      **model-performance** and **knowledge-tool-usage** caches were verified to already include
-      `workspacePathHash` in their observation id / aggregate keys / read filters — and that invariant is now
-      locked by regression tests asserting the same repeated task id across two workspaces stays as two distinct
-      observations. (The live `*ByTaskId` maps in the session service/runtime are single-process and keyed by the
-      unique live task id — not a cross-project persisted cache.)
-- [x] **Extend the near-valid tool-payload fuzz suite** *(2026-06-22)* beyond `decompose_project` to
-      `expand_task`, `write_file(s)`, and the discovery tools (`test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts`).
-      Found + fixed a real gap: `expand_task` parsed its `taskGraph` raw, so a stringified graph (common from
-      small models) failed — it now uses the same `repairJsonStringValue` recovery as `decompose_project`.
-      (`run_command` is the SDK-owned sandboxed bash bridge with no local schema-recovery surface, so it is out of
-      scope for a near-valid-payload fuzz.)
+- [x] **Telemetry/session caches keyed beyond task-id** — model-performance + knowledge-tool caches include
+      `workspacePathHash`; locked by regression tests (same task id across two workspaces → two observations).
+- [x] **Near-valid tool-payload fuzz suite** — extended beyond `decompose_project` to
+      `expand_task`/`write_file(s)`/discovery tools; fixed `expand_task` raw-`taskGraph` parse (now uses
+      `repairJsonStringValue`). ([test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts](test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts))
 
 ### 5.F — Portable "project state in the repository" (cross-machine continuation)
-> Conflict model chosen: **CRDT** (automatic merge, no manual rebase UI). Board CRDT, committed store,
-> export/import with local model re-resolution, and live wiring into save/load are shipped (see §6). What's left:
-- [x] **Schema migration** when `schemaVersion` advances on the committed
-      `<repo>/.nklein/nklein/workspace/board-crdt.json` *(2026-06-22)*. `readPortableBoardCrdt` now goes through
-      `migratePortableBoardCrdt` ([src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts)): a
-      forward-migration registry (keyed by source version, empty today) upgrades older committed files up to
-      `CURRENT_PORTABLE_BOARD_SCHEMA_VERSION`, refuses newer-than-known versions instead of coercing them, and
-      guards against non-advancing migrations. A future bump is a one-line registry entry + the version constant.
-- [ ] **Verify the reconcile UX** of a cross-machine fetch-and-continue end-to-end in the UI *(browser available — verify via Playwright).*
-- [x] ~~**Confirm WITH THE USER before extending**~~ **DECIDED 2026-06-22 (user):** **repo-committed** =
-      board/CRDT, DAG, card progress, `knowledgeDebt`, decomposition — stored as **human-readable (pretty-printed)
-      JSON** like `board-crdt.json` today. **Machine-local (never committed):** model registry/measured speeds,
-      endpoint URLs, container/sandbox state, telemetry, secrets, absolute host paths, worktree/result-branch
-      artifacts, and in-flight sandbox work (these don't move — only plan/graph/progress does). No secrets or
-      absolute host paths may leak into committed state; card provenance/links must survive a different checkout;
-      roles/fit **re-resolve against the target machine's local models on load**.
+> CRDT conflict model (automatic merge). Board CRDT + committed store + export/import with local-model re-resolution
+> + save/load wiring are shipped (§6).
+- [x] **Committed-state schema migration** — `readPortableBoardCrdt` → `migratePortableBoardCrdt` (forward-migration
+      registry; refuses newer-than-known; a future bump = one registry entry).
+      ([src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts))
+- [x] **Decided scope (policy, keep):** repo-committed = board/CRDT, DAG, card progress, `knowledgeDebt`,
+      decomposition (pretty-printed JSON); machine-local (never committed) = model registry/speeds, endpoints,
+      sandbox/container state, telemetry, secrets, absolute paths, worktree/result-branch artifacts. No
+      secrets/abs-paths committed; provenance survives a different checkout; roles/fit re-resolve on the target machine.
+- [ ] **Verify the reconcile UX** — cross-machine fetch-and-continue end-to-end (Playwright).
 
 ### 5.G — Backlog (promote into a worked item when picked up)
-- [ ] **Plug-and-play, batteries-included Docker delivery.** Ship !Klein as a **fully self-contained, deliverable
-      Docker image** + a **`docker-compose.yml` we provide**: a user copies the compose file, runs `docker compose up`,
-      and has a running, ready-to-use !Klein immediately. The image bundles the runtime + built web-ui + the Python
-      core **and all of !Klein's own internal models**, so every internal capability works offline out of the box.
-      **DECIDED 2026-06-23 (clarified with user):**
-      - **Batteries-included internals — ALL of !Klein's internal models baked into the image:** the code-embedding
-        GGUF (~84MB, nomic-embed-text-v1.5 Q4_K_M), the context-compression scorer (ONNX/LLMLingua via
-        [src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts)),
-        and any other small Python-core helper model. The delivered image is **offline / air-gapped for everything
-        !Klein-internal** — no first-run downloads for its own models.
-      - **Agent-work LLM + its runtime are 100% user-provided and EXTERNAL to the container** — exactly like the host
-        LM Studio used today. We do **not** bundle Ollama (or any engine) for agent work and do **not** bake or
-        auto-pull a default agent model; the user points !Klein at an existing model runtime running **outside** the
-        container, reachable via `host.docker.internal`. This deliberately leaves model, version, quant, and runtime
-        **entirely free to the user**, and preserves host GPU/Metal acceleration (a containerized LLM on macOS gets
-        no Metal). (Supersedes the earlier "bundle Ollama + host override" lean — there is no internal Ollama.)
-      - **Docker-in-Docker (DinD):** !Klein launches hardened agent sandboxes, so the stack runs a **nested,
-        privileged Docker daemon inside the compose** (no host `docker.sock` exposure) — fully self-contained sandbox
-        isolation. Document the privileged-DinD requirement and that sandbox image storage lives inside the stack.
-      - **Two explicit host mounts (the only !Klein-side config besides the user's model endpoint):** (1) a
-        **projects folder** (code loads from + persists to the host), and (2) a **runtime-state folder** for the
-        !Klein home (`~/.nklein`: board CRDT / plan-graph / progress, model registry, telemetry, results) — both
-        visible and persisted on the host filesystem.
-      - **Expose** the runtime + web-ui ports; **keep local-only / no-cloud defaults** (the only outbound reachability
-        is the user's own external model endpoint; agent sandboxes stay `--network none`).
-      **Acceptance:** on a fresh machine with Docker, `docker compose up` (after the user sets their external model
-      endpoint + the two mount paths) yields a working !Klein — board, decomposition, sandboxed parallel execution,
-      review/merge — with !Klein's internal models already present (zero internal-model downloads), projects loaded
-      from + persisted to the projects mount, and runtime state surviving teardown/re-up via the state mount.
-- [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
-      execution → merge cycle on a tiny local model, as a CI gate.
+- [ ] **Plug-and-play, batteries-included Docker delivery** — ship a self-contained image + a provided
+      `docker-compose.yml`: copy compose → `docker compose up` → working !Klein, bundling runtime + built web-ui +
+      Python core + ALL internal models (offline for everything !Klein-internal):
+  - [ ] bake in all internal models — code-embedding GGUF (~84MB nomic-embed Q4_K_M), the ONNX/LLMLingua
+        compression scorer, any Python-core helper model (no first-run downloads for !Klein's own models)
+  - [ ] agent-work LLM stays user-provided + EXTERNAL (via `host.docker.internal`) — no bundled engine, no baked
+        default model; preserves host GPU/Metal + free choice of model/quant/runtime
+  - [ ] Docker-in-Docker — nested privileged daemon inside the compose (no host `docker.sock`); document it
+  - [ ] two host mounts — (1) projects folder, (2) runtime-state folder (`~/.nklein`); both host-visible/persisted
+  - [ ] expose runtime + web-ui ports; keep local-only/no-cloud defaults (sandboxes stay `--network none`)
+  - [ ] acceptance: fresh machine + Docker → `docker compose up` (user sets endpoint + 2 mounts) → working board/
+        decomposition/sandboxed parallel-exec/review-merge, zero internal-model downloads, state survives re-up
+- [ ] **CI-able dogfood smoke** — scripted 1-shot → decomposition → parallel exec → merge on a tiny model, as a CI gate.
 - [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
-- [ ] **Main-board role/agent visibility.** Add a compact board-header strip that groups active work by role
-      (`Architect`, `Worker`, later `Reviewer`) and shows which card each role is currently running/queued on,
-      with click-to-focus behavior. Cards now show an inferred role chip, but the fuller UI should persist and
-      expose the resolved launch role on session summaries so the view can show planned role, active role,
-      model override, and route-up/down decisions without relying only on `startInPlanMode` inference. Keep the
-      distinction visible: plan-mode decomposition cards are architect work, while implementation cards waiting
-      in Planning with `startInPlanMode: false` are worker work.
+- [ ] **Main-board role/agent visibility** — board-header strip grouping active work by role (Architect/Worker/
+      Reviewer) with click-to-focus; persist the resolved launch role on session summaries (don't rely on
+      `startInPlanMode` inference).
 - [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
-- [x] **Richer acceptance-failure classification taxonomy** *(2026-06-22)*. Built the pure classifier
-      ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) — command-not-found,
-      missing-script, missing-dependency, type-error, lint-error, compile/syntax-error, test-failures, timeout,
-      unknown — each with a label + next-step hint, and wired it onto the acceptance-gate result
-      (`failureCategory` + `failureHint`, both now required on `NKleinAcceptanceGateResult`). The category list is a
-      single source-of-truth const tuple (`ACCEPTANCE_FAILURE_CATEGORIES`) feeding both the TS union and the wire
-      zod enum; labels live in one map (`ACCEPTANCE_FAILURE_LABELS` / `acceptanceFailureCategoryLabel`) reused by the
-      classifier and the UI. **UI done:** the contract round-trips `failureCategory`/`failureHint`, and the card
-      detail view's Verify-acceptance result renders the classified label + next-step hint on failure
-      (`whitespace-pre-line` so it sits on its own line). Tests: gate/taxonomy/auto-repair/task-verify + web-ui
-      card-detail all green.
+- [x] **Acceptance-failure classification taxonomy** — pure classifier
+      ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
+      missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,
+      wired onto the gate result + rendered on the card's Verify result. Tested.
 
-### 5.H — Polyglot / native-agent-core workstream *(active; postdates the predecessor planning chain)*
-> Direction: !Klein is growing **its own** capabilities instead of depending only on the vendored SDK — a
-> local-only Python core sidecar (`core-py/`, FastAPI) and a TS-native agent core (`src/agent-core/`). Shipped so
-> far (see §6.10); the open edges:
-> **ENGINEERING REALITY (found 2026-06-22 while wiring):** both "default-now" decisions below are NOT safe
-> flag-flips and were NOT flipped:
-> - **Native-core default** has nothing to flip — `src/agent-core/` is only `agent-action-decider.ts` +
->   `agent-loop.ts` (~285 lines) and is **not imported by any runtime/session code**. There is no
->   runtime-selection switch; defaulting to it would require first building the native-core→task-execution
->   integration (sandboxed tools, session lifecycle), which needs a live/Docker session to verify. Prerequisite,
->   not a flip.
-> - **Python-core default-on** would make every install attempt the (absent) sidecar and rely entirely on the
->   fallback on every call — *worse* default behavior than opt-in *until* the sidecar is bundled + auto-started.
->   The decided "flip + auto-start + bundle + Settings health" needs the auto-start/bundle (live verification)
->   to land first. Safe additive piece available without flipping: the read-only **Settings health line**.
-- [x] **Decide the embedding story end-to-end (ties to §5.I-1)** *(2026-06-22)*. Resolved: `local_gguf`
-      (nomic-embed-text-v1.5) served in-process by the Python core's `llama-cpp-python` `embedding=True` backend,
-      auto-downloaded host-side, wired through `runtimeCodeEmbeddingProviderSchema` as the default, degrading to
-      `local_lexical` when the core is off. See §5.I-1 for the shipped detail.
-- [ ] **Promote the native agent core path** (`src/agent-core/`) from "one supported runtime" toward a
-      first-class local option, keeping strict isolation for its data-plane tools. **DECIDED 2026-06-22 (user):
-      make native-core the DEFAULT runtime now**, with the vendored SDK host as automatic fallback. Switch the
-      default selection, keep the SDK reachable on failure, and assert strict isolation still holds for
-      native-core data-plane tools. (Bigger blast radius — land behind thorough tests + a clean fallback path.)
-- [ ] **Python core production wiring & gating.** It's opt-in via `NKLEIN_CORE_PY` (default off) and falls back
-      automatically when unreachable. **DECIDED 2026-06-22 (user): flip default-ON now** (auto-start the
-      `core-py` sidecar, still auto-fallback when unreachable) **and surface health in Settings** (running, model
-      loaded, port). Bundle/package the sidecar so automatic startup is reliable; degrade cleanly if it can't
-      start.
+### 5.H — Polyglot / native-agent-core workstream *(active)*
+> Direction: !Klein grows its own capabilities — a local-only Python core sidecar (`core-py/`, FastAPI) + a
+> TS-native agent core (`src/agent-core/`). Shipped: §6.10. Engineering reality (2026-06-22): both "default-now"
+> decisions are prerequisites, not flag-flips — native-core isn't imported by any runtime/session code yet, and
+> python-core default-on is worse than opt-in until the sidecar is bundled + auto-started.
+- [x] **Embedding story decided + shipped** — `local_gguf` (nomic-embed-text-v1.5) in-process via the Python core,
+      default in `runtimeCodeEmbeddingProviderSchema`, degrading to `local_lexical` when the core is off. (→ §5.I #1)
+- [ ] **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22)*:
+  - [ ] build the native-core → task-execution integration (sandboxed tools, session lifecycle) — the missing prereq
+  - [ ] switch default selection; keep the SDK reachable on failure
+  - [ ] assert strict isolation still holds for native-core data-plane tools (thorough tests + clean fallback)
+- [ ] **Python core default-ON + Settings health** *(decided 2026-06-22)*:
+  - [ ] bundle/package the `core-py` sidecar so auto-start is reliable
+  - [ ] auto-start on launch; keep auto-fallback when unreachable
+  - [ ] Settings health line (running, model loaded, port) — safe additive piece, can land first
 
-### 5.I — Newly raised in chat (2026-06-22) — spec'd, not yet built
-- [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process, batteries-included)** *(2026-06-22)*.
-      **Shipped (user chose nomic-embed-text-v1.5 via the Python core):** the Python core embeds via an in-process
-      quantized GGUF (`llama-cpp-python`, `embedding=True`) on `/v1/embed` with a host-provided `gguf_path` + a
-      CPU-thread cap, caches it across batches, and frees it via `/v1/embed/unload`. A host-side download manager
-      ([src/nklein-sdk/nklein-embedding-model-manager.ts](src/nklein-sdk/nklein-embedding-model-manager.ts)) streams
-      the GGUF to the runtime home with progress + integrity/version checks (the one sanctioned, explicit fetch). A
-      `local_gguf` code-embedding provider ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts))
-      lazily ensures the model once, embeds through the core, and degrades to `local_lexical` on any failure;
-      `local_gguf` is now the default in `runtimeCodeEmbeddingProviderSchema` but only activates the dense path when
-      the Python core is enabled. The Code-intelligence panel surfaces model/download/idle status.
-      **DONE 2026-06-23 (§5.I-1#3):** the in-panel model-override control — a "Configure embedding model" link in
-      the code-intelligence panel that opens the Project Settings dialog (where the per-project
-      `codeEmbeddingOverride` lives), rather than a redundant inline picker (single source of truth, per decision).
-      **DONE 2026-06-23:** (a) the host-side idle-unload *timer* — `src/nklein-sdk/nklein-embedding-idle-unload.ts`,
-      a process-wide `EmbeddingIdleUnloadScheduler` keyed by `(sidecarUrl, gguf_path)` (the model is resident in
-      the core, not on the per-request provider), re-armed on every embed, freeing the model via
-      `POST /v1/embed/unload` after the idle window (default 2 min); `unref`-ed + injectable timer/fetch +
-      unit-tested; and (b) the **verified `sha256`** in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (confirmed by a full
-      download + hash; matches HF's LFS `X-Linked-ETag`), so the existing download integrity check now runs.
-      The min-spec fallback decision (dedicated GGUF vs main LLM) is resolved: ship the GGUF default, lexical
-      stays the zero-download floor.
-      *(Superseded the original "NOT implemented" investigation note below.)*
-- [ ] **#2 — Measure the batteries-included embedding model's performance (in Docker) + decide on a two-layer
-      retrieval.** *(curiosity-driven benchmark, raised 2026-06-23; ties to §5.G Docker delivery.)* Benchmark the
-      baked-in `local_gguf` (nomic-embed-text-v1.5 Q4_K_M via the Python core) **running inside the deliverable
-      Docker image** — cold-load time, per-chunk embed throughput + p50/p95 latency, full-project index build time,
-      and query latency — on realistic repos, CPU-only (the image has no GPU). Compare against `local_lexical`
-      (instant, low quality) to answer: **is the in-image dense model fast enough on its own, or do we want a
-      two-layer retrieval?**
-      - **Two-layer hypothesis to test:** layer-1 = fast lexical candidate generation (cheap recall over the whole
-        repo), layer-2 = GGUF **dense re-rank / re-vectorize** only the top-K candidates (quality + bounded cost).
-        This caps the expensive dense work regardless of repo size and could beat "dense-everything" on both
-        latency and quality. Measure recall@k / latency for lexical-only vs dense-only vs lexical→dense rerank.
-      - **User-hosted fast embedding — ALREADY SUPPORTED (confirmed 2026-06-23):** the `openai_compatible` code-
-        embedding provider (`runtimeCodeEmbeddingProviderSchema`; `code-embedding-fields.tsx`
-        "OpenAI-compatible endpoint") lets a user point at *any* external embeddings endpoint (a GPU/unified-memory
-        box, LM Studio, Ollama, …) — exactly like connecting a worker LLM — configurable globally or per-project
-        (the Project Settings code-embedding override). So the "bring your own fast GPU embedder" path exists; the
-        TODO is to **benchmark it as the explicit fast path** and make sure it's discoverable (and that the
-        in-Docker default degrades gracefully to it / to lexical). Outcome decides whether layer-2 dense is
-        on-by-default in the image or opt-in when a user endpoint is connected.
-- [ ] **#1 (original spec, now superseded by the shipped work above; kept for the detailed acceptance intent).**
-      *Investigated 2026-06-22: NOT implemented today* — code embeddings are only `local_lexical` (in-process
-      lexical hashing, not real semantic) or `openai_compatible` (an external LM Studio/Ollama endpoint the user
-      must run themselves); the Python core's `/v1/embed` is lexical-or-`sentence-transformers` and is **not**
-      wired as the app's code-embedding provider; `llama_backend.py` is **generation-only** (`complete()`, no
-      `embedding=True`, no download).
-      **Goal:** a *premium, zero-config* local code-embedding model that works out of the box on **minimum
-      hardware**, served via llama.cpp **in-process** — no external model runtime to install or start, no cheap
-      disposable shortcuts.
-      **Hard requirements (verbatim intent):**
-      - **Auto-download** a quantized GGUF on first need; cache under the runtime home; integrity-verify;
-        resumable; progress shown in the code-intelligence panel. The download is the one sanctioned fetch
-        (respect local-only/no-egress) and must be explicit/visible — never a silent fetch during a sandboxed
-        agent run.
-      - **Direct connect, NO external model runtime** — embed in-process via llama.cpp (the Python core's own
-        `llama-cpp-python` with `embedding=True`, or a TS `node-llama-cpp` binding if we keep it out of the
-        sidecar). Must not depend on the user running LM Studio/Ollama.
-      - **Small but strong enough for codebase indexing.** Confirm the default with the user — candidates:
-        `nomic-embed-text-v1.5` (~137M, code-capable, 8k ctx) for quality, or `bge-small-en-v1.5` /
-        `all-MiniLM-L6-v2` (~22–33M, tens-of-MB RAM) for the absolute-minimum-hardware floor. Ship one strong
-        default; allow override.
-      - **Low RAM + never hogs the machine.** Quantized (Q4/Q8) + mmap; cap CPU threads and run at low priority
-        so it never competes with the main LLM; **lazy-load on demand** (load only when there is something to
-        index) and **unload after an idle timeout** so it consumes nothing at rest.
-      - **Auto-load when there's work.** Trigger model-load + (re)indexing automatically when a project needs it
-        (new/changed files, cache-key change), in the background, throttled — must not block or degrade a
-        concurrent main-LLM task.
-      **Implementation sketch:** add the llama.cpp embedding backend to the Python core (`embeddings.py` +
-      `llama_backend.py` with `embedding=True`) + a model-download/cache manager mirroring the existing ONNX
-      compression-scorer download manager
-      ([src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts));
-      expose on `/v1/embed`; route the app's code-embedding path
-      ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts)) through the Python
-      core; add a `local_gguf` option to `runtimeCodeEmbeddingProviderSchema`
-      ([src/core/api-contract.ts](src/core/api-contract.ts)) as the **new default**, with `local_lexical`
-      staying the honest no-download fallback; surface model/download/idle status in the code-intelligence panel
-      (which is already project-scoped — §6.13). When an agent is sandboxed, the embedder runs **host-side as
-      trusted control-plane** over plan/index data, never inside the agent's data-plane.
-      **Fallback (if a dedicated embedder isn't worth it on min-spec):** index with the **main/default local
-      LLM** instead — its embedding endpoint if it exposes one, or a pooled/throttled generation-based embedding —
-      reusing the same provider plumbing. Decide this only after measuring the small-GGUF path on minimum hardware.
-      **Acceptance:** a fresh install with **no LM Studio/Ollama running** indexes a repo end-to-end using the
-      auto-downloaded in-process model; RAM stays within a small budget; the model unloads when idle; indexing
-      never stalls or degrades a concurrent main-LLM task; `local_lexical` still works with zero download.
-      **Confirm with the user:** the default model + quant, the RAM/idle budgets, and sidecar (`llama-cpp-python`)
-      vs TS (`node-llama-cpp`) hosting.
-- [x] **#3 — Move per-project overrides out of Global Settings** *(DONE 2026-06-23 — A: Project Settings dialog; B: removed from global; shared form extracted to `code-embedding-fields.tsx`).* Today the global runtime-settings dialog showed
-      an "Override for this project" affordance ([web-ui/src/components/runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx)
-      ~line 3466), which is poor UX (project-scoped state polluting global settings). Move all per-project
-      overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
-      **project settings modal reachable from the project selector** (a button that opens a modal listing every
-      project-specific override/setting). Keep global settings strictly global.
-      **Ready-to-execute recipe (fully de-risked 2026-06-23):** today the only per-project override in the global
-      dialog is the **code-embedding override** (the `codeEmbeddingOverride` section, gated on `workspaceId`,
-      reusing `<EmbeddingEndpointFields>`); state + save inclusion are inline in the ~4000-line
-      `runtime-settings-dialog.tsx`. **Save merges:** `runtimeConfigSaveRequestSchema` is all-optional and
-      `updateRuntimeConfig` applies `updates.X ?? current.X` per field, so the new surface can call
-      `save({ codeEmbeddingOverride })` ALONE (a scoped partial merge — preserves every other field); no need to
-      replicate the full config. **Data hook:** reuse `useRuntimeConfig(open, workspaceId, null)` → `{ config, save,
-      isSaving }` (same hook the global dialog uses). **Shared fields to extract:** `EmbeddingEndpointFields`
-      (runtime-settings-dialog.tsx ~line 286, ~260 lines — check for hidden dialog-local deps first),
-      `CODE_EMBEDDING_PROVIDER_OPTIONS` (~552), `LOCAL_CODE_EMBEDDING_MODEL` (~551), `formatCodeEmbeddingSettings`
-      (~625). **Steps:** **(0)+(A) DONE 2026-06-23** — instead of moving, the shared bits are now **exported** from
-      `runtime-settings-dialog.tsx` (`EmbeddingEndpointFields`, `CODE_EMBEDDING_PROVIDER_OPTIONS`,
-      `LOCAL_CODE_EMBEDDING_MODEL`, `buildCodeEmbeddingSettings`, `formatCodeEmbeddingSettings`; relocating them to a
-      shared `code-embedding-fields.tsx` is an optional future cleanup), and
-      [web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx)
-      (useRuntimeConfig + the override form + `save({ codeEmbeddingOverride })`) opens from the per-project "⋯" menu
-      in `project-navigation-panel.tsx`; web-ui tsc + panel tests green. **(B) DONE 2026-06-23** — removed the
-      override's state, memo, effective-settings, dirty-check clause, deps, config-load effect, save-time
-      validation, save inclusion, and the JSX section from the global dialog; global Code-embeddings now shows only
-      the defaults, and the per-project override lives solely in Project Settings. tsc + dialog/panel tests green.
-      **§5.I-1#3** (the in-panel embedding control) is handled separately as a link from the code-intelligence
-      panel to this Project Settings dialog.
-- [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
-      design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
-      Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role
-      so the swarm can truly run many tasks in parallel, and when several models are available **and free** for a
-      role, automatically pick the **best-fit** model for each individual task — favoring the fastest and most
-      capable that suits the task (context size, model size, model capabilities). **This needs real reasoning, not
-      a greedy heuristic:** we likely must introduce a **task difficulty / complexity / size** estimate (e.g. from
-      objective text, expected diff scope, file/context footprint, acceptance-command shape, prior-round history)
-      and match it against per-model metrics so a small/fast model takes easy cards while a larger/more-capable
-      model is reserved for hard ones — and so we never block on a busy model when a free, adequate one exists.
-      **Build on what exists:** the **Model Capability & Speed Registry (MCSR, §6.4)** already tracks per-model
-      capability/speed and should be the source of per-model metrics (extend it if metrics are missing rather than
-      duplicating); the **parallel local swarm executor (§6.5)** is where free-vs-busy model accounting and
-      assignment live; role→model config is where the one-to-many binding changes. Respect the prime directives
-      (local-only; ≥32k context floor — never select a model that can't hold the task's budget).
-      **User override (required):** the user must be able to override the **model-selection priorities** — e.g.
-      pin a model to a role, set a preference ordering, or weight speed-vs-capability — so the automatic best-fit
-      is a smart default, never a cage. **Acceptance intent:** with ≥2 free models on a role and a mix of
-      easy/hard cards, easy cards land on the fast/small model and hard cards on the capable one; no card waits on
-      a busy model when a suitable free one exists; user priority overrides are honored end-to-end; selection
-      reasoning is inspectable (why this model for this task). **DECIDED 2026-06-22 (user):** default selection
-      = **estimate task difficulty → match to MCSR capability/speed, capability-weighted** (prefer the most
-      capable free model that fits the ≥32k/context budget; speed is the tiebreaker, and easy cards still take a
-      fast/small model). Difficulty signals: objective text length/complexity, expected file/context footprint,
-      acceptance-command shape, and prior-round bounce history. User can override the selection priorities
-      (pin/prefer/weight speed-vs-capability) per role.
-- [ ] **#5 — Universal hover tooltips across the UI (name + short description for every element).** **Goal:** the
-      user can always discover what any UI element is by hovering — every meaningful control, button, icon, field,
-      badge, panel header, and status indicator shows a tooltip containing the element's **name** and a **short,
-      comprehensive description** of what it is / does, so details are always one hover away. Use the existing
-      `Tooltip` primitive ([web-ui/src/components/ui/tooltip.tsx](web-ui/src/components/ui/tooltip.tsx)) per
-      AGENTS.md (Radix-backed) rather than ad-hoc `title=` attributes, so styling and accessibility stay
-      consistent. Prefer a single source of truth for the copy (a name+description map keyed per element) over
-      scattering strings, to keep it maintainable and reviewable. Cover icon-only buttons first (highest
-      discoverability win), then fields/badges/headers; ensure tooltips are keyboard/focus-accessible, not
-      mouse-only. **Acceptance:** hovering (or focusing) any interactive element across the main board, cards,
-      drawers, settings, and project surfaces shows a name + concise description; no meaningful control is left
-      unexplained; tooltips don't obscure the element or trap focus.
-      **Progress:** the `ELEMENT_TOOLTIPS` registry + `ElementTooltip` primitive are in place (§6.13). Wired so
-      far *(2026-06-23)*: top-bar icon buttons; board-column (start-all/clear-trash); board-card
-      (resume/pause/start/replay); card-detail controls (reject-artifact, collapse-expanded-diff,
-      toggle-split-diff); **swarm cockpit (concurrency cap, pause/resume swarm, code-intelligence chip)**;
-      **git-history "Discard all changes"**; **terminal "Close"**. This covers the high-value icon-only controls
-      across the main board + card + cockpit surfaces. **Remaining (lower-value tail):** labeled tabs/buttons (most
-      already self-describing), settings-dialog section headers/fields, model-registry per-row actions (Save/Clear,
-      already labeled), project sidebar, and the §5.M chat surface controls.
+### 5.I — Newly raised in chat (2026-06-22)
+- [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process)** — Python core embeds an in-process
+      quantized GGUF (`embedding=True`) on `/v1/embed`; host-side download manager streams it with progress +
+      integrity check; `local_gguf` provider lazily ensures + degrades to `local_lexical`; default in the schema
+      (dense active only when the core is on); Code-intelligence panel shows status.
+      ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts),
+      [src/nklein-sdk/nklein-embedding-model-manager.ts](src/nklein-sdk/nklein-embedding-model-manager.ts))
+  - [x] in-panel override = "Configure embedding model" link → Project Settings (single source of truth)
+  - [x] host-side idle-unload timer (frees the resident model after ~2 min idle)
+  - [x] verified `sha256` in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (download integrity check now runs)
+- [ ] **#2 — Benchmark the baked-in embedder (in Docker) + decide on two-layer retrieval** *(ties §5.G)*:
+  - [ ] measure `local_gguf` in-image (CPU-only): cold-load, embed throughput, p50/p95 latency, index-build + query
+  - [ ] compare lexical-only vs dense-only vs **lexical→dense rerank** (recall@k + latency) — does dense pay its way?
+  - [ ] benchmark the user-hosted `openai_compatible` endpoint as the explicit fast path (already supported — a GPU
+        box / LM Studio / Ollama, configurable global or per-project); ensure graceful in-Docker degrade
+  - [ ] decide: is layer-2 dense on-by-default in the image, or opt-in when a user endpoint is connected?
+- [x] **#3 — Per-project overrides moved out of Global Settings** — a Project Settings dialog (from the project "⋯"
+      menu) hosts the per-project code-embedding override via `save({ codeEmbeddingOverride })` (scoped partial
+      merge); shared embedding form extracted; override removed from the global dialog (global = defaults only).
+      ([web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx),
+      [web-ui/src/components/code-embedding-fields.tsx](web-ui/src/components/code-embedding-fields.tsx))
+- [ ] **#4 — Multiple models per role + per-task best-fit selection** *(deep design; not a quick win)*. Today each
+      role binds one model. *Decided 2026-06-22:* estimate task difficulty → match to MCSR capability/speed,
+      capability-weighted (most-capable free model that fits the ≥32k budget; speed tiebreaker; easy cards take the
+      fast/small model); user can pin/prefer/weight per role.
+  - [ ] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history)
+  - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
+  - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
+  - [ ] user override (pin / preference order / speed-vs-capability weight) per role
+  - [ ] inspectable selection reasoning (why this model for this task)
+- [~] **#5 — Universal hover tooltips (name + short description for every element)** — via the `ELEMENT_TOOLTIPS`
+      registry + `ElementTooltip` primitive (§6.13); single source of truth; focus-accessible.
+  - [x] high-value icon-only controls: top-bar, board-column, board-card, card-detail, swarm cockpit, git-history
+        "Discard", terminal "Close"
+  - [ ] remaining tail: settings section headers/fields, model-registry row actions, project sidebar, §5.M chat surface
 
-### 5.K — Second-opinion reviewer workflow *(active; raised 2026-06-22)*
-> **Goal (user):** every worker card gets a real second-opinion review from the **reviewer role** (a potentially
-> different local LLM), just like a good human dev team. Bouncing back with added insight/feedback is a *normal*
-> part of the flow; a clean confirmation from a second perspective is itself valuable. Today the "reviewer" role
-> exists in config but **never starts a review session** — `autoReview` is only a *delivery* decision
-> (`commit` vs `pr`) + trustworthiness checks, not a peer review. Decisions (2026-06-22): **full loop**; **up to
-> 20 rounds** with **stall + identical-loop detection**.
-- [x] **Decision core** ([src/core/review-loop.ts](src/core/review-loop.ts)) — pure `decideReviewLoopAction`:
-      approve→deliver, request_changes→bounce_to_worker, and **park** on the round limit (default 20), a **stall**
-      (worker made no change since the last round), or an **identical loop** (same feedback on unchanged work).
-      Fully unit-tested.
-- [x] **Reviewer interface** ([src/nklein-sdk/nklein-review-tool.ts](src/nklein-sdk/nklein-review-tool.ts)) —
-      a `submit_review` tool (the reviewer's structured output, like `decompose_project`): `verdict`
-      (`approve`/`request_changes`), `summary`, `feedback` (required on changes), optional `insight`. Unit-tested.
-- [x] **Orchestration** — when a worker card reaches Review with a real diff, auto-start a **reviewer-role**
-      session (reviewer model, fallback to the worker model) seeded with the card objective + diff + acceptance
-      result + the `submit_review` tool; on `submit_review`, run `decideReviewLoopAction`. Guard against recursion
-      (a reviewer card is not itself reviewed) and skip planning cards. Reuse the sandbox/data-plane isolation.
-      **WIRED in the delivery-gating seam** (corrected after live verification — see §6 note): service
-      `runSecondOpinionReviewSession` (synthetic `<taskId>::review` session prepared from the result branch,
-      reviewer model, await verdict via the tool with a timeout, teardown via `clearTaskSessions` +
-      `disposeWorkspace`) is invoked from `finalizeHeadlessAutoReviewTask` (runtime-server) right after the card
-      moves to Review and **before** the auto-merge/complete, so the verdict gates delivery: approve → deliver;
-      request_changes → bounced back to In Progress (no delivery); park → stays in Review. Gated + fail-safe
-      (review error/skip → prior auto-complete behavior). Live: runtime boots clean on it; worker→sandbox→
-      result-branch verified end-to-end.
-      **Pure core done** ([src/core/review-orchestration.ts](src/core/review-orchestration.ts), unit-tested):
-      `shouldReviewCard` gate (enabled + in `review` + not a reviewer/planning card + has a diff),
-      `fingerprintReviewArtifact` (stall/identical-loop hashing), `buildReviewSeedPrompt` (objective + acceptance
-      summary + prior change request + truncated diff → single `submit_review` call), `buildReviewBouncePrompt`,
-      `buildReviewSignOff`, and `resolveReviewTransition` (verdict + round + history → deliver/bounce/park + the
-      `ReviewRoundRecord` to persist). **Remaining (live):** start the reviewer session with the review tool
-      wired to the verdict handler, then call the transition + apply it (next item) + broadcast.
-      **Orchestrator done** ([src/nklein-sdk/nklein-second-opinion-review.ts](src/nklein-sdk/nklein-second-opinion-review.ts),
-      unit-tested): `runNKleinSecondOpinionReview` injects all I/O (getCard, getTaskDiff, runReviewSession,
-      onDeliver/onBounce/onPark) like the acceptance auto-repair, so the gate→diff→verdict→transition→persist flow
-      is tested with mocks. **Live adapters started:** `getTaskResultBranchDiff` (the worker-diff input, tested) and
-      session-runtime `onReviewSubmitted` threading (attaches the `submit_review` tool only for reviewer turns).
-      **Now wired live** via `runSecondOpinionReviewSession` + the state-hub runner (see above); needs a local
-      model + Docker to exercise end-to-end.
-- [x] **Board state + transitions** — track per card: review round, review history (verdict + feedback/work
-      fingerprints for stall/identical-loop detection), last reviewer note. `bounce_to_worker` → move the card
-      back to In Progress with the feedback as the worker's next turn; `deliver` → proceed to the existing
-      commit/PR delivery with the sign-off attached; `park` → needs-attention with the reason.
-      **Done:** the card carries an optional `review` object (`runtimeCardReviewSchema`, CRDT-compatible), and
-      `runSecondOpinionReviewForTask` ([src/server/second-opinion-review-runner.ts](src/server/second-opinion-review-runner.ts),
-      unit-tested) persists the review round via `applyCardReviewToBoard` and, on bounce, moves the card to
-      In Progress + re-drives the worker with the feedback. (deliver → ready-for-review/delivery; park → review
-      column with parked status surfaced on the card.)
-- [x] **Settings + UI** — a setting to enable second-opinion review (default **on**) with the round cap; surface
-      the reviewer's verdict/summary/feedback/insight and the round number on the card (Watch/diagnostics), so the
-      second perspective is visible even on a clean approve.
-      **Config done:** `secondOpinionReviewEnabled` (default on) + `reviewMaxRounds` (default 20) round-trip through
-      `runtime-config.ts` (load/normalize/persist/update + change-detection), unit-tested. **Settings toggle done:**
-      Settings → Tasks has a "Second-opinion review of completed cards" switch wired to the config (threaded through
-      the dialog's state/dirty-check/save). **Card display done:** the card detail view shows a Second-opinion
-      review panel (status + round + summary/requested-changes/sign-off/parked-reason) when a card has review state
-      ([web-ui/src/components/card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx)). **Round-cap input
-      done (2026-06-23):** Settings → Tasks now has a **Max review rounds** number input (default 20, disabled when
-      review is off) threaded through the dialog's state/init/dirty-check/save like the toggle — §5.K complete.
+### 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*
+> Every worker card gets a real reviewer-role second opinion (full loop, up to 20 rounds, stall + identical-loop
+> detection) — was config-only before.
+- [x] **decision core** (`review-loop.ts`) — approve→deliver / request_changes→bounce / park (round-limit/stall/loop)
+- [x] **reviewer tool + orchestration core** — `submit_review` (verdict/summary/feedback/insight) +
+      `review-orchestration.ts` (gate, fingerprint, seed/bounce prompts, transition); unit-tested
+- [x] **live wiring** — `runSecondOpinionReviewSession` runs a synthetic `<taskId>::review` session from the result
+      branch and gates delivery in `finalizeHeadlessAutoReviewTask` (approve→deliver, request_changes→bounce to In
+      Progress, park→stays in Review); fail-safe to the prior auto-complete on error
+- [x] **board state + transitions** — card `review` object (CRDT-compatible); `runSecondOpinionReviewForTask`
+      persists each round + re-drives the worker on bounce
+- [x] **settings + UI** — `secondOpinionReviewEnabled` (default on) + `reviewMaxRounds` (default 20); Settings → Tasks
+      toggle + max-rounds input; card-detail review panel (verdict/summary/feedback/sign-off/parked-reason)
 
 ### 5.L — Per-role capability rulesets + agent web/browser access *(active; raised + decided 2026-06-22)*
-> **Goal (user):** unleash the swarm by giving agents real capabilities (incl. web/browser access for the
-> domain-knowledge the spec demands), governed by **per-agent-role rulesets** in global settings. Today the
-> `nklein-web-research-tool.ts` is parked because the sandbox runs `--network none`. **All decisions below are
-> FINAL (user, 2026-06-22).**
-> **HARD INVARIANTS — unchanged at every tier (never violated by any ruleset):** Docker isolation stays mandatory
-> and fail-closed (prime directive #2) — tiers NEVER run agents on the host; `--cap-drop ALL`, `no-new-privileges`,
-> read-only rootfs, project mounts read-only all stay. Cloud-LLM lockdown stays absolute (prime directive #1) —
-> "open" grants web/data egress + tools, **never** a cloud/paid model provider. ≥32k context floor stays.
-- [ ] **Capability tiers (5, monotonic), all inside the mandatory sandbox.** `strict` (network none, no web,
-      no browser, no MCP) → `less_strict` (network none, MCP local-only) → `medium` (domain-allowlist egress,
-      web research on, no browser) → `more_open` (full internet, web + headless browser, MCP) → `fully_open`
-      (full internet, all tools, new tools auto-enabled). **Default preset = `fully_open`.**
-- [ ] **Delivery-autonomy tiers (5, SEPARATE parallel dial — user: "its own trait of rules").** `strict`
-      (manual commit/PR/merge) → `less_strict` (auto-commit to task branch) → `medium` (auto-commit + auto-open
-      PR, manual merge) → `more_open` (auto-merge when review ✓ AND regression delta ≤0; self-merge on null delta
-      blocked) → `fully_open` (auto-merge incl. self-merge on green gates). **Default = `fully_open`** (turns on
-      `nklein-trusted-auto-merge` self-merge — wire the gates carefully). Keep separate from the capability dial.
-- [ ] **Granularity:** one **global preset** as baseline (default fully_open) + **per-role override**
-      (Architect/Worker/Reviewer) for BOTH dials. Schema in `src/core/api-contract.ts`; persisted in runtime
-      settings.
-- [x] **Pure core** (`src/core/agent-rulesets.ts`): both tier enums + capability/delivery matrices +
-      `resolveEffectiveAgentRuleset`/`resolveAgentToolAccess`/`sandboxNetworkHasEgress`. Unit-tested.
-- [x] **Schema + config** : `agentRulesetsConfigSchema` in `api-contract.ts`; `agentRulesets` loads/exposes/
-      preserves through `runtime-config.ts` (default fully_open), round-trip tested.
-- [x] **Sandbox wiring + ACTIVATION (VERIFIED LIVE 2026-06-22):** `resolveAgentSandboxNetworkArgs` maps the tier
-      to `--network` (full→bridge, none/allowlist→none, allowlist fail-closed); `AgentSandboxManager` applies the
-      GLOBAL capability preset's policy to its pool, wired from `runtime-server`. **Verified with the real image:
-      `--network none` → fetch blocked, `--network bridge` → HTTP 200, both under `--cap-drop ALL --read-only
-      --security-opt no-new-privileges`.** **Remaining:** per-role network override needs policy-keyed pools (a
-      pooled container's `--network` is fixed at creation); allowlist needs a real egress proxy.
-- [~] **Tool gating:** `resolveAgentToolAccess` (egress-gated) is built + tested. In-sandbox agents already have
-      egress via the activation above. **Remaining (lower value, host-egress):** thread tool access into
-      `nklein-session-runtime` to drive the host-side `nklein-web-research-tool` enable; a sandbox-side headless
-      browser tool; MCP gating. Env supports verifying these live (Docker + LM Studio + runtime all present).
-- [~] **Delivery gate:** `decideDeliveryAction` core built + tested (tier × gates → commit/PR/merge/self-merge).
-      **DECISION (user, 2026-06-23): self-merge is ALLOWED.** This resolves the old §5.J "self-merge stays off"
-      tension — self-merge is on at the open tiers, and the user can adapt it in **global settings, per project,
-      and per card**. **WIRED (core):** `finalizeHeadlessAutoReviewTask` resolves the delivery policy
-      (`resolveEffectiveAgentRuleset(...).delivery`) and calls `decideDeliveryAction` before auto-merging — gates:
-      review-approved (true here since review didn't bounce/park), tests (acceptance ran upstream), protected-path
-      (via `isTrustedAutoMergeProtectedPath` over the result-branch changed files), regression (null for now). Only
-      `merge` proceeds to the auto-merge; `manual`/`commit`/`open_pr` hold the card in Review with the reason logged.
-      Default `fully_open` → merge (incl. self-merge); a protected-path change holds. **Remaining:** (1) auto-perform
-      `commit`-to-branch / `open_pr` (today they hold in Review); (2) a measured **regression delta**; (3)
-      **per-project + per-card** delivery-tier overrides (config plumbing + UI) on top of the global preset.
-- [ ] **Settings UI + config write-path:** global preset picker + per-role tier overrides for both dials (default
-      fully_open), + thread `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` so the UI can
-      save tier changes (read/preserve already work). Make clear Docker isolation + cloud lockdown never relax.
+> **Goal:** unleash the swarm with real capabilities (incl. web/browser) governed by per-role rulesets. **Hard
+> invariants (never relax):** Docker isolation mandatory + fail-closed (#2 — never run on host; cap-drop ALL,
+> no-new-privileges, ro rootfs, ro project mounts); cloud-LLM lockdown absolute (#1 — "open" = web/data egress +
+> tools, NEVER a cloud model); ≥32k floor.
+- [~] **Two parallel 5-tier dials, per-role overridable, default `fully_open`**
+  > capability: strict → less_strict → medium → more_open → fully_open (all in-sandbox). delivery (separate dial):
+  > strict → less_strict → medium → more_open → fully_open; **self-merge ALLOWED on green gates** (decided 2026-06-23,
+  > adaptable global/per-project/per-card). granularity: one global preset + per-role override for both dials.
+  - [x] pure core (`src/core/agent-rulesets.ts`) — both tier enums + capability/delivery matrices + resolvers; tested
+  - [x] schema + config — `agentRulesetsConfigSchema`; loads/preserves in `runtime-config.ts` (default fully_open)
+  - [x] sandbox network activation (VERIFIED LIVE) — tier → `--network` (none/bridge), allowlist fail-closed, under
+        `--cap-drop ALL --read-only --security-opt no-new-privileges`
+  - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining:** thread into `nklein-session-runtime`
+        (web-research enable), a sandbox-side headless-browser tool, MCP gating
+  - [~] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask` (review + tests +
+        protected-path gates; default `fully_open` → merge incl. self-merge; protected-path change holds);
+        **remaining:** auto-perform commit/open_pr, a measured regression delta, per-project + per-card overrides
+  - [ ] per-role network override (needs policy-keyed pools — a pooled container's `--network` is fixed at creation;
+        allowlist needs a real egress proxy)
+  - [ ] Settings UI + write-path — global preset picker + per-role tier overrides (both dials); thread
+        `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` (read/preserve already work)
 
-### 5.M — Decoupled agentic coding chat mode + private Signal bridge *(raised + decided 2026-06-22)*
-> **Goal (user):** a board-independent **agentic coding chat** — a strong coding agent on par with Claude /
-> Codex / Cline (real coding tasks, not just chat), runnable on small local models (qwen3.5-9b and smaller)
-> through sophisticated memory management, reachable privately from the user's own phone via a messenger, and
-> able to work on the host **only** under explicit user authorization. **Decisions (FINAL 2026-06-22):**
-> messenger = **Signal via signal-cli** (linked device, local, private); chat agent = **reuse the NKlein agent
-> core + full tool suite** with a new decoupled session/UI; memory = **vector store of the whole conversation +
-> human-like short/long-term memory** (long-term "wakes up" on associated topics); execution access = **three
-> user-selectable modes** (below).
-> **PRIME-DIRECTIVE NOTE:** directive #2 (Docker isolation mandatory/fail-closed, no host execution) continues to
-> govern the **autonomous card swarm unchanged**. The chat mode is a **separate, user-driven** surface where the
-> user may authorize host access. Host access is NEVER default, always explicit, always logged, and the autonomous
-> swarm never gains it. Cloud-LLM lockdown (#1) and ≥32k floor still apply everywhere.
-> **DIRECTION (user, 2026-06-23 — agreed):** build **ONE unified agent**, not separate surfaces — the existing
-> kanban (home) agent folds into it (likely just a selectable **scope/role**, not its own UI; avoid bloating with
-> multiple ways to chat). The single chat session is configured by **selectable "targeted use-case" presets**
-> (scope/role/tools) the user turns on per session. **Session scope = "both and more":** workspace-scoped AND
-> global/cross-project AND a **full host-access mode**, etc. (the §5.M execution modes become selectable session
-> modes). **Messenger routing = one session per thread.** **Messenger scope:** Signal first (signal-cli), then
-> **WhatsApp** once the base works + is polished; transport-agnostic bridge so both (and more later) plug in.
-> **Use-case presets — SELECTED (user, 2026-06-23):** base always-on = coding + board operation. **Access scopes:**
-> (1) project-sandboxed coder (default), (2) all-loaded-projects pilot, (3) host-access power session (typed-confirm,
-> logged). [Mobile is a *transport*, not a scope — the bridge routes to sessions regardless.] **Roles:**
-> planner/architect (can spin board cards via decompose_project), reviewer (reuse §5.K), debugger/incident,
-> researcher (web/browser per §5.L tiers), and **system operator** — a host-level persona that analyzes machine
-> issues, optimizes/configures "things", and can drive apps/tools (pairs with the host-access scope; gated behind
-> the typed host-mode confirmation; always logged; the autonomous swarm never gets it). Presets compose scope ×
-> role; build the unified agent so a session turns these on/off.
-- [ ] **Chat session model & store (decoupled from the board).** Board-independent chat sessions with persisted
-      transcripts and stable ids; **multiple concurrent sessions**; not represented as kanban cards. New session
-      store + lifecycle, separate from the task/board state.
-- [ ] **Chat agent runtime (reuse NKlein core).** An interactive multi-turn chat loop built on the existing NKlein
-      agent core + tool suite (read/edit/search/run, retrieval, etc.) and provider plumbing, so it has real coding
-      capability. New chat entry point + streaming; board-independent.
-- [ ] **Multimodal I/O, capability-gated.** Support multimodal **input** (images, and other modalities a model
-      accepts — e.g. audio/PDF) when the selected model advertises that capability, and multimodal **output**
-      when the model can produce it. Drive this off the model's declared capabilities (MCSR / provider model
-      metadata), degrade gracefully to text-only when unsupported, and expose the supported modalities in the chat
-      UI + over the Signal bridge (which itself carries images/attachments).
-- [ ] **Execution-access modes (3, user-controlled; default = most isolated).** (a) **Docker-isolated** with
-      read-only — and, only if the user explicitly enables it, write — access to **explicitly user-mounted files/
-      folders** (nothing else reachable); (b) **sandbox-by-default + double-confirmed per-action host escape hatch**
-      (each individual host command/edit needs a fresh confirmation and is audit-logged); (c) **host-mode toggle**
-      that runs the agent directly on the host for the session, gated behind an **explicitly typed** confirmation
-      phrase. All host access is logged; none is ever the default.
-- [ ] **Memory system — human-like short/long-term (the hard part).** Embed every turn into a local vector store
-      (reuse the in-process code-embedding model). **Short-term** = small live window (so small models sustain very
-      long sessions) kept lean via rolling summarization/consolidation; **long-term** = persisted memories that are
-      semantically **recalled ("woken up") when associated/similar topics arise** and surfaced back into context.
-      Consolidate short→long-term over time. **Multi-session memory scope:** each session is **isolated by default**;
-      user opt-in to **shared memory across sessions**; user opt-in to let a session **access all !Klein-loaded
-      projects** (filesystem, branches, logs — everything) as retrievable context. Must stay within the ≥32k floor
-      and degrade gracefully when the embedding backend is the lexical fallback.
-- [ ] **Private Signal bridge.** Link the running instance as a Signal **linked device** via `signal-cli` (pair by
-      QR from the user's phone). **Only the paired user** can interact (hard access control — reject all other
-      senders); inbound messages route to a chat session and replies go back over Signal. Local, no cloud broker.
-      Transport-agnostic bridge interface so WhatsApp/Telegram could be added later, Signal first.
-- [ ] **Chat UI (web-ui, separate surface).** A chat surface distinct from the board: session list, transcript,
-      streaming, the execution-mode selector, and the memory-scope toggles (shared-memory, project-access). Surface
-      the Signal pairing/status. Tooltips per §5.L-style.
-- [ ] **Safety, permissions & audit.** The per-action and typed host confirmations, an audit log of every host
-      action, and the Signal access-control are first-class and tested. No host action without the user's explicit
-      (double / typed) confirmation; the autonomous swarm path can never reach these host capabilities.
-- [ ] **Settable session goal (like Codex — user: "they hit the nail with this").** Let the user set an explicit
-      **goal/objective** for a chat session that the agent keeps in focus and works toward across turns (persisted
-      with the session, editable, shown in the UI + over the Signal bridge). It anchors the agent's planning
-      (pairs naturally with the §5.N focus chain — the goal is the chain's north star) and is surfaced back so the
-      user always sees what the agent is driving at. Codex's goal UX is the bar to match.
-- [ ] **Steering messages (mid-task course-correction).** Let the user send a message **while the agent is
-      working** that adjusts/redirects without cancelling the turn — the agent folds the steer into its current
-      work (re-prioritize, add a constraint, correct course) rather than dropping everything. Distinct from a
-      normal next-turn message: it lands mid-flight. Wire through the chat UI and the Signal bridge; reuse the
-      SDK's steering/queue delivery semantics where available (the session runtime already exposes a
-      `"queue" | "steer"` delivery mode on `sendTaskSessionInput`). Match the ergonomics users like in Codex/Cline.
+### 5.M — Unified agentic coding chat + private messenger bridge *(raised + decided 2026-06-22/23)*
+> **Goal:** a board-independent strong coding agent (Claude/Codex/Cline-class) on small local models via good memory
+> management, reachable privately from the user's phone, touching the host only under explicit auth. **Decided:**
+> ONE unified agent (the kanban agent folds in as a selectable scope/role — no separate UI), sessions configured by
+> selectable use-case presets (scope × role); messenger = Signal first (signal-cli linked device), WhatsApp later,
+> transport-agnostic bridge, one session per thread; reuse the NKlein agent core + tools. **Invariant:** the
+> autonomous swarm stays Docker-isolated/no-host (#2) unchanged; host access is chat-only, never default, always
+> typed-confirmed + logged; cloud lockdown (#1) + ≥32k floor everywhere. **Presets:** base = coding + board ops;
+> scopes = project-sandboxed (default) / all-loaded-projects / host-access (typed-confirm); roles =
+> planner-architect, reviewer (§5.K), debugger, researcher (§5.L tiers), system-operator (host persona).
+- [ ] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
+      concurrent; separate from board/task state (not kanban cards).
+- [ ] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
+- [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
+      (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
+- [ ] **Execution-access modes (default = most isolated)**
+  - [ ] (a) Docker-isolated, read-only (opt-in write) to explicitly user-mounted folders only
+  - [ ] (b) sandbox-by-default + double-confirmed per-action host escape hatch (each host command/edit, audit-logged)
+  - [ ] (c) host-mode toggle (whole session on host) behind a typed confirmation phrase
+- [ ] **Memory — human-like short/long-term** (reuse the in-process embedder)
+  - [ ] short-term = lean live window via rolling summarization/consolidation (small models sustain long sessions)
+  - [ ] long-term = persisted memories semantically recalled ("woken up") on associated topics; consolidate short→long
+  - [ ] scope: per-session isolated by default; opt-in shared-across-sessions; opt-in access-all-loaded-projects;
+        stay within ≥32k; degrade when the embedder is the lexical fallback
+- [ ] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
+      others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
+- [ ] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
+      memory-scope toggles, Signal pairing/status; tooltips per §5.I #5.
+- [ ] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
+      messenger access-control; first-class + tested; the autonomous swarm can never reach these.
+- [ ] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
+      (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star).
+- [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
+      `"queue" | "steer"` delivery mode; wire through UI + bridge.
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
-> **Goal (user):** give **every** agent a *focus chain* — an agent-authored, ordered checklist it creates at the
-> **start of each task** and then works through step by step, like the latest Cline bot and similar agents. It
-> keeps a (small) model on-task across long runs, makes the plan-of-attack and live progress legible to the user,
-> and survives turn/compaction boundaries. Applies to **all roles** (Architect/planning, Worker, Reviewer), the
-> **native kanban agent**, and the planned **chat agents** (§5.M). Needs a **nice visual representation — a todo
-> list** (checklist with done / in-progress / pending), not just text in the transcript.
-> **Distinction:** this is *intra-task* self-direction (the agent's own steps for one card/turn-loop), distinct
-> from `decompose_project` (which splits a project into multiple **board cards**). A focus chain lives inside a
-> single task/chat session.
-- [~] **Focus-chain model & store.** A persisted, ordered list of steps per task (and per chat session) — each
-      step has text + status (`pending`/`in_progress`/`done`, maybe `skipped`) + ordering. Persist it (board card
-      field and/or a sibling store) so it survives turns, restarts, and context compaction, and round-trips in the
-      workspace state contract. Keep it cheap (small models, ≥32k floor).
-      **Done:** pure core ([src/core/focus-chain.ts](src/core/focus-chain.ts)) — `normalizeFocusChain` (trim/clamp,
-      drop empties, coerce status, cap 30 steps), `summarizeFocusChain`, `formatFocusChainForPrompt`; +
-      `runtimeFocusChainSchema` on the card (`focusChain?`), unit-tested. **Remaining:** per-chat-session store
-      (§5.M) + CRDT round-trip check (additive optional field, same as `review`).
-- [x] **Agent tool to create/update the chain.** A structured tool (à la `decompose_project` / `submit_review`)
-      the agent calls to **create** the chain at task start and **update** it as it works (check off a step, add /
-      reorder / revise steps, mark the current one in-progress). Reuse the relaxed-input-schema + short-directive
-      error handling proven for the other NKlein tools so small models use it reliably. Consider a re-prompt nudge
-      (like decomposition) if a task starts without one.
-      **Done:** `update_focus_chain` ([src/nklein-sdk/nklein-focus-chain-tool.ts](src/nklein-sdk/nklein-focus-chain-tool.ts))
-      — full-list re-emit shape (small-model-reliable), normalizes via the core, fires an `onUpdated` handler,
-      unit-tested. **Remaining:** attach it in the session runtime (like the decompose/review tools) + the
-      re-prompt nudge.
-- [~] **Wire into every agent surface.** Seed the create-a-focus-chain expectation into the per-task system/seed
-      prompts for **Architect, Worker, Reviewer**, the **native kanban agent**, and the **chat agents** (§5.M).
-      Each begins a task by drafting its chain, then works it; the reviewer can also check whether the worker
-      actually followed/owned its chain. Cohere with the existing efficiency/brevity rules.
-      **Done (board agents):** a "Focus Chain" rule pack in `buildKanbanEfficiencyRules` (applied to every task),
-      `update_focus_chain` attached in the session runtime (when a persist handler is wired), and the state hub
-      persists each update onto `card.focusChain` + broadcasts. **Remaining:** chat-agent surface (§5.M) + an
-      optional re-prompt nudge if a task runs without drafting a chain.
-- [~] **Visual representation (todo list).** A clear checklist UI: on the card detail / Watch panel for board
-      tasks (live updates as steps flip to done), and in the chat surface for chat agents. Use the design-system
-      checklist styling (done/in-progress/pending states), with per-control tooltips (§5.L-style). Should read at a
-      glance like a todo list, updating in real time.
-      **Done (board):** a `FocusChainPanel` in the card detail view renders `card.focusChain` as a todo list
-      (✓/▸/○/– marks + x/total), threaded through the web-ui `BoardCard` type + board-state normalizer.
-      **Remaining:** the chat surface (§5.M).
-- [ ] **Reference & parity.** Mirror the ergonomics of Cline's "focus chain" / markdown task-list and comparable
-      agent todo lists (Claude Code / Cursor): the agent maintains and visibly works through the list; the user can
-      follow progress and (later, optional) nudge/edit it.
-- [~] **More focus-chain ideas (user: "maybe even more ideas, lets rock this").** **Done 2026-06-23:** the
-      reviewer (§5.K) now checks whether the worker followed/owned its chain — `buildReviewSeedPrompt` includes the
-      worker's `formatFocusChainForPrompt(card.focusChain)` under "Worker's focus chain" and instructs the reviewer
-      to flag unfinished/skipped steps or done-steps that don't match the diff (unit-tested; wired via the live
-      review runner). **Also done 2026-06-23:** re-anchor the chain into the model's context on long runs / after
-      compaction — `reanchorFocusChainMessages` ([src/nklein-sdk/nklein-focus-chain-rail.ts](src/nklein-sdk/nklein-focus-chain-rail.ts))
-      re-projects the latest chain (captured per session when `update_focus_chain` fires) into every model request
-      via the `beforeModel` hook, stripping any stale rail so it never stacks or goes out of date (unit-tested,
-      fail-safe no-op when there's no chain). **Still open:** user can view/edit/reorder/add steps from the UI;
-      per-step timing/telemetry; carry the chain into the run summary; let a step link to the file(s)/card(s) it
-      touched; chat-agent surface (§5.M).
+> Every agent drafts an ordered checklist at task start + works through it — keeps small models on-task, makes
+> progress legible, survives compaction. Intra-task (one card/session), distinct from `decompose_project`. All roles
+> + native kanban agent + chat agents (§5.M). Needs a real todo-list visual.
+- [~] **Model & store** — persisted ordered steps (text + status pending/in_progress/done/skipped) per task/session
+  - [x] pure core (`src/core/focus-chain.ts`: normalize/summarize/format, cap 30) + `runtimeFocusChainSchema` on card; tested
+  - [ ] per-chat-session store (§5.M) + CRDT round-trip check (additive optional field)
+- [x] **Agent tool** — `update_focus_chain` (full-list re-emit, relaxed schema, `onUpdated`); unit-tested
+- [~] **Wire into every agent surface** — seed "draft a chain first" into per-task prompts; reviewer checks adherence
+  - [x] board agents: "Focus Chain" rule pack + tool attached in the session runtime + state-hub persists onto `card.focusChain`
+  - [ ] chat-agent surface (§5.M) + optional re-prompt nudge when a task runs without a chain
+- [~] **Visual representation (todo list)** — checklist UI with done/in-progress/pending
+  - [x] board: `FocusChainPanel` in card detail (✓/▸/○/– + x/total), threaded through `BoardCard` + normalizer
+  - [ ] chat surface (§5.M)
+- [~] **More ideas**
+  - [x] reviewer checks the worker followed/owned its chain (seed prompt includes it; flags unfinished/mismatched steps)
+  - [x] re-anchor the chain into context on long runs/after compaction (`reanchorFocusChainMessages`, `beforeModel` hook)
+  - [ ] user view/edit/reorder/add steps from the UI
+  - [ ] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
+- [ ] **Reference & parity** — match Cline/Claude-Code/Cursor focus-chain ergonomics (visible work-through; later user nudge/edit)
 
-### 5.O — Robustness sweeps: harden across model sizes / families / quants + parallelism *(raised 2026-06-23)*
-> **Goal (user):** make !Klein robust on **as many small local LLMs as possible** (low weight quant — at least
-> down to 4-bit, lower if models exist — and low **K/V-cache** quant, e.g. q8 / q5.1 which stay strong but very
-> memory-efficient) AND optimized for the **large** models we can now run — "successful and efficient on any kind
-> of model that gets connected." The method is evidence-driven: the user makes models available, we **sweep the
-> dev-test projects across configs, collect evidence, and harden** !Klein against the common failure modes that
-> surface. Also harden for **parallel multi-agent** work with dev-test projects that genuinely exercise + benefit
-> from parallelism. **Phase note (user):** we're still "punching through" the early phase; the heavy sweep
-> automation is designed/built **when we start the sweeps** — discuss then.
-- [ ] **Model-matrix robustness (small → large).** Sweep representative models across **size × family × weight
-      quant (≤4-bit and lower) × K/V-cache quant (q8/q5.1/…) × context window**, run the dev-test presets, and use
-      `collect evidence` to catalog the failure taxonomy per config (tool-call malformation, no-tool-call stalls,
-      structured-output misses like decompose/submit_review/update_focus_chain, context-overflow, host
-      crash/unload under memory pressure, reasoning runaways). Feed findings back into guardrails/prompts/budgets so
-      a given config "just works." Equally: ensure **large** models run efficiently (no needless small-model
-      hedging when the model is capable). Capability-tier the hardening off the live model, not catalog defaults.
-- [ ] **Parallel multi-agent dev-test coverage.** Define a small set of dev-test projects whose DAGs **fan out
-      widely** (many independent implementation cards with a few join points) so parallel execution is both
-      exercised and clearly beneficial — to harden the swarm executor, sandbox pool, result-branch merges, and the
-      §5.K review/§5.L delivery flow under real concurrency. Cover the spread: a wide-fan-out feature build, a
-      deep-dependency chain, a mixed DAG, and a "lots of tiny cards" stress case.
-      **Presets DONE 2026-06-23:** all four shapes ship as `--preset`s for `nklein dev test-project`
-      ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)): `wide_fanout`,
-      `deep_chain`, `mixed_dag`, `many_small` — each reuses the small TS CLI template and steers the decomposition
-      toward its DAG shape via the seed prompt; unit-tested (resolution, shape-steering phrases, scaffold).
-      **Remaining (live, gated on §5.O sweeps):** actually running them under concurrency + hardening from the
-      observed failures — done when the user supplies the quant/K-V-cache configs (the autonomous-sweep tooling
-      below is the deferred "discuss the shape" piece).
-- [ ] **Autonomous sweep tooling (designed when we start sweeps).** An efficient way to sweep configs **with as
-      little cloud-agent involvement as possible** (there are long waits): build on the existing `nklein dev
-      test-project` + `collect evidence` + `cleanup-report`, adding orchestration that iterates the model/quant/
-      config matrix unattended, captures evidence per run, and summarizes outcomes — living in the Developer Tools
-      section or as side-helper tooling. **Discuss the exact shape together when we begin the sweeps.**
+### 5.O — Robustness sweeps: harden across model sizes/families/quants + parallelism *(raised 2026-06-23)*
+> Make !Klein robust on as many small local LLMs as possible (≤4-bit weight quant + low K/V-cache quant) AND
+> efficient on large models — evidence-driven: user supplies models, we sweep the dev-test presets, collect
+> evidence, harden the common failure modes. Heavy sweep automation is designed when we start sweeping (discuss then).
+- [ ] **Model-matrix robustness (small → large)** — sweep size × family × weight-quant × K/V-quant × context; run the
+      presets; catalog the failure taxonomy per config (tool-call malformation, no-tool-call stalls, structured-output
+      misses, context-overflow, host crash/unload under memory pressure, reasoning runaways); feed back into
+      guardrails/prompts/budgets; ensure large models aren't needlessly small-model-hedged (capability-tier off the live model).
+- [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
+  - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
+        ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
+  - [ ] run under concurrency + harden from observed failures (gated on the user's quant/K-V configs)
+- [ ] **Autonomous sweep tooling** (designed when we start) — iterate the model/quant/config matrix unattended on top
+      of `dev test-project` + `collect evidence` + `cleanup-report`; capture evidence per run + summarize. Discuss shape then.
 
 ### 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*
-> **Goal (user):** verify and fix the **model telemetry / performance-stats collection**. The user saw the **same
-> model listed multiple times** in the stats — these must be **consistent, global** per-model stats. This underpins
-> §5.O (evidence-driven sweeps rely on trustworthy per-model/per-config stats) and the shipped stats view (§6.6).
-> **DIAGNOSED (2026-06-23, from live data):** the underlying data is **clean** — `model-registry.json` has 9
-> distinct entries all on the canonical `http://localhost:1234/v1` endpoint (loopback canonicalized), and the 130
-> `model-performance` observations show **6 distinct models with no id case/prefix variance**. The "same model
-> multiple times" is the **aggregation/display shape**: `groupByAggregate` ([src/telemetry/model-performance-stats.ts](src/telemetry/model-performance-stats.ts))
-> keys every aggregate by `scope × role × project × version × provider × model`, and the stats dialog
-> ([web-ui/src/components/model-performance-stats-dialog.tsx](web-ui/src/components/model-performance-stats-dialog.tsx)
-> ~line 229) renders them **flat** — so one model that ran as architect *and* worker, across overall/version/
-> project scopes, fills many rows.
-> **FIX (per the §5.0 decision — global per model, keep breakdowns):** add a **role/scope-agnostic global-per-model
-> aggregate** keyed by **provider + normalized-model + canonical-endpoint** (reuse the registry's `normalizeEndpoint`
-> + `normalizeModelId`/`normalizeProviderId` — extract them to a shared module so telemetry + registry agree), expose
-> it as a new `byModel` list on the stats response, and render **that** as the primary stats table (one row per
-> model). Keep the existing `scope × role × project × version` aggregates as a secondary **breakdowns** table/
-> drill-down. Unit-test the global-per-model grouping (same model across roles/scopes → one `byModel` row).
-- [ ] **Audit the stats pipeline for model-identity fragmentation.** Find why one model appears as several rows —
-      likely an inconsistent **model-identity key** across the telemetry/aggregation path (e.g. provider-prefixed
-      vs bare id, casing, a stale/loaded-vs-catalog id, per-endpoint or per-session variance, or quant/context
-      variants counted separately). Establish a single **canonical model-identity** used everywhere stats are keyed
-      and aggregated, and dedupe/merge existing rows on it so the global view is one consistent entry per model.
-- [~] **Verify global vs per-scope aggregation.** Confirm performance stats aggregate **globally per model** (not
-      siloed by workspace/session/run in a way that splits one model), while still allowing intended breakdowns
-      (project/role/tool/category/outcome per §6.6). Add coverage for the dedupe/aggregation core.
-      **DECIDED (2026-06-23, §5.0):** canonical model identity = **provider + model + canonical endpoint**
-      (canonicalize loopback / trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate
-      **globally per model**, keep the project/role/tool/category/outcome breakdowns.
-      **DONE (2026-06-23) — display fix:** the Model Performance dialog now shows a **By Model (global)** primary
-      table — `rollUpAggregatesByModel` consolidates the overall-scope role splits into **one row per model**
-      (summed runs/outcomes, exact recomputed `successRate`, ignoring non-overall scopes so runs aren't
-      double-counted), and the per-scope×role aggregates are relabeled the **Breakdowns** table. Unit-tested.
-      **Remaining (follow-up):** a precise *backend* `byModel` aggregate recomputed from raw observations keyed by
-      provider + normalized-model + **canonical endpoint** (extract the registry's `normalizeEndpoint`/
-      `normalizeModelId`/`normalizeProviderId` into a shared module so telemetry + registry agree), for exact
-      timing/capability per-model + true cross-endpoint dedup. The current data is already single-endpoint + clean,
-      so the display rollup resolves the user-visible "same model multiple times" today.
+> User saw the same model listed multiple times. **Diagnosed (2026-06-23): the data is clean** (registry +
+> observations have no id variance); the duplication was the **display** — aggregates keyed by scope × role ×
+> project × version rendered flat, so one model fills many rows. **Decided:** canonical identity = provider + model +
+> canonical endpoint; aggregate globally per model, keep the breakdowns.
+- [x] **Display fix** — the Model Performance dialog leads with a **By Model (global)** table
+      (`rollUpAggregatesByModel` consolidates overall-scope role splits into one row per model, exact recomputed
+      success rate); per-scope×role relabeled **Breakdowns**. Unit-tested. (Resolves the user-visible duplication.)
+- [ ] **Backend `byModel` aggregate** (precision follow-up) — recompute from raw observations keyed by provider +
+      normalized-model + canonical endpoint; extract the registry's `normalizeEndpoint`/`normalizeModelId`/
+      `normalizeProviderId` into a shared module so telemetry + registry agree (exact per-model timing + true
+      cross-endpoint dedup). Current data is single-endpoint + clean, so this is precision, not a user-visible bug.
 
 ### 5.R — Dissolve the "internal SDK" separation; one unified codebase *(raised + clarified 2026-06-23)*
-> **Goal (user):** stop treating any part of the runtime as a separate "SDK" with its own interface / packaging /
-> modularity. **nKlein is one product; a reusable core is NOT on the agenda today.** The recurring confusion comes
-> from the `src/nklein-sdk/` boundary framing; remove the "SDK idea" so the codebase reads as one integrated
-> whole. **Guiding principle (user): make it simple, make it work, maximize codebase comprehensibility** — do NOT
-> do fancy internals re-engineering now, because the **§5.P Python port** will supersede the deep internals. Target
-> the **npm dev build** only for now; a single packaged/minified release artifact is a *later* concern (the outer
-> deliverable is a Docker image). **Priority: after §5.A, before the bigger feature builds (§5.H/§5.M/§5.O).**
-> **DECISIONS (2026-06-23, §5.0):**
-> - **Layer 1 — `src/nklein-sdk/` boundary (our readable TS):** **fully dissolve / inline into call sites.** Inline
->   the thin pass-through boundary wrappers (`sdk-runtime-boundary.ts`, `sdk-provider-boundary.ts` — re-exports/
->   isolation shims), drop the "SDK boundary" framing + the `check:nklein-boundary` discipline, and reframe the
->   substantive integration code (the `NKlein*` services, tools, event adapter, session runtime) as plain
->   first-class runtime code. Keep sensible structure (e.g. an `agent-runtime/` area) — just no "SDK separation".
-> - **Layer 2 — vendored `@nklein/*` runtime (minified `core/agents/llms/shared` bundles + `.d.ts`):** **keep it
->   working as the internal runtime; do NOT do the fragile minified-bundle de-packaging now** (no upstream source
->   here — it lives in `nklein/sdk-wip`; relativizing minified cross-imports adds no comprehensibility and the
->   Python port supersedes it). Reframe it as an internal dependency (not a reusable SDK); dropping vestigial
->   `vendor/**/package.json` versioning is OK only if trivial + safe. Full layer-2 de-packaging is deferred to the
->   Python port (§5.P) / a future single-package effort.
-- [ ] **Inventory + inline the layer-1 boundary.** Catalog what `src/nklein-sdk/` re-exports/isolates from
-      `@nklein/*`, then inline the pass-through shims into their callers (or a flat internal module), remove the
-      boundary indirection, and delete the `check:nklein-boundary` discipline. No behavior change; tests stay green.
-- [ ] **Reframe the docs/mental model.** Update AGENTS.md + comments so there's no "SDK boundary / plug-in /
-      reusable core" framing — it's the internal agent runtime. Keep it simple; don't churn the substantive code
-      beyond what removing the separation requires.
+> **Goal:** stop framing any runtime part as a separate "SDK" — nKlein is one product (no reusable core today).
+> Remove the `src/nklein-sdk/` boundary framing so it reads as one integrated whole. **Principle:** simple, working,
+> comprehensible — no fancy internals re-engineering now (the §5.P Python port supersedes the deep internals); target
+> the npm dev build only. **Priority: after §5.A, before §5.H/§5.M/§5.O.** **Decided:** Layer 1 (our readable TS
+> boundary) — fully inline; Layer 2 (vendored minified `@nklein/*` runtime) — keep working as an internal
+> dependency, do NOT de-package the minified bundles now (deferred to §5.P).
+- [ ] **Inventory + inline the layer-1 boundary** — catalog `src/nklein-sdk/`'s re-exports of `@nklein/*`, inline the
+      pass-through shims (`sdk-runtime-boundary.ts`, `sdk-provider-boundary.ts`) into callers, reframe the `NKlein*`
+      services/tools/event-adapter/session-runtime as plain runtime code (keep an `agent-runtime/` area), drop the
+      `check:nklein-boundary` discipline. No behavior change; tests green.
+- [ ] **Reframe the docs/mental model** — AGENTS.md + comments: no "SDK boundary / plug-in / reusable core" framing;
+      it's the internal agent runtime. Don't churn substantive code beyond removing the separation.
 
-### 5.S — User-questions: auto-clarify loop + first-class UI *(raised + clarified 2026-06-23; LOWEST priority — build after all other planned tasks, before the §5.P Python port)*
-> **Goal (user):** clarifying **user questions** are an essential, first-class part of !Klein. Decomposition (and
-> other agents) already *raise* questions, but they were force-answered and **never surfaced in the UI**. (The
-> decompose fix on 2026-06-23 now lets an `open` question survive with a working `assumption` instead of being
-> fabricated away — see §5.B / the decomposition tool.) This task builds the clarification **flow** + **UI** on top.
-> **DEFAULT = automatic clarification.** When a question is raised:
-> 1. the **architect** proposes answer(s);
-> 2. the **reviewer** (reuse the §5.K second-opinion reviewer role/model + session infra) clarifies with its
->    knowledge/perspective and adds an opinion;
-> 3. the architect takes that opinion into account and decides whether it can answer the question(s) now, or needs
->    further **ping-pong** with the reviewer.
-> Ping-pong continues **as long as clarification is progressing** — no hard limit by default. Loops are stopped by
-> a **multi-layered no-progress detector (DECIDED):** (a) **semantic-similarity** of successive exchanges (embed
-> each round, stop a question when consecutive rounds are too similar) **AND** (b) **agent self-check** — the
-> architect/reviewer are asked (LLM) whether their exchange is looping without producing valuable progress; either
-> layer can flag a question as stalled. A **generous safety cap (default ~30, user-adjustable)** backstops a
-> detector bug. The user can set a **hard ping-pong limit** in **global + project settings**.
-> **MANUAL mode (user opts out of auto-clarify):** surface pending questions in the main UI via **both a
-> board-header "N pending questions" badge AND per-card indicators (DECIDED)**, each opening a **clarifying
-> dialog**. Every question presents **≥4 options that genuinely suit the question + 1 free-text option** for other/
-> additional answers, and supports **multiple-choice or radio** selection **per question** (the asking agent picks
-> the selector type + prepares the options). Auto/manual is a global + per-project setting (auto is the default).
-> **Reuse what exists:** the plan-artifact question schema (`nklein-plan-artifacts.ts`: `options[]` with id/label/
-> description/recommended, `status` open/answered/assumed-default, `answer`/`assumption`) + `questions.md`; the
-> §5.K reviewer infra; the embedding model for the semantic-similarity layer.
-- [ ] **Auto-clarify core (pure + tested).** A decision core that drives the architect→reviewer→architect loop
-      over a card's open questions: per-question state machine, the multi-layered no-progress detector
-      (semantic-similarity + agent self-check), the safety cap + user hard-limit, and the transition (answer /
-      keep-asking / give-up-with-assumption). Inject I/O (model calls, embeddings) like the §5.K orchestrator.
-- [ ] **Wire auto-clarify into the flow.** Run it after decomposition (and wherever an agent raises questions),
-      reusing the reviewer role/model; persist resolved answers + remaining-open state onto the card/plan; settings
-      (global + per-project) for auto-vs-manual + the hard limit.
-- [ ] **Manual-mode UI.** Board-header pending-questions badge + per-card indicators → a clarifying dialog
-      rendering each question's ≥4 suitable options + free-text, multiple-choice/radio per question, with per-control
-      tooltips (§5.I#5). Persist the user's answers back through the plan-artifact question state.
+### 5.S — User-questions: auto-clarify loop + first-class UI *(raised 2026-06-23; LOWEST priority — after all other planned tasks, before §5.P)*
+> **Goal:** clarifying user questions are first-class. Agents already raise them; they were force-answered + never
+> shown. (The 2026-06-23 decompose fix lets an `open` question survive with a working `assumption` — §5.B.) This
+> builds the flow + UI. **Default = automatic:** architect proposes → reviewer (reuse §5.K) adds an opinion →
+> architect answers or ping-pongs; continue while progressing, stopped by a **multi-layered no-progress detector**
+> (semantic-similarity of rounds AND agent self-check) + a generous safety cap (~30, user-adjustable) + a user hard
+> limit (global/project). **Manual mode:** board-header "N pending" badge + per-card indicators → a clarifying
+> dialog; each question shows ≥4 fitting options + free-text, multi-choice/radio (the asking agent picks). **Reuse:**
+> the plan-artifact question schema (`nklein-plan-artifacts.ts`) + `questions.md`; §5.K reviewer infra; the embedder.
+- [ ] **Auto-clarify core (pure + tested)** — architect→reviewer→architect state machine over a card's open
+      questions: per-question state, the no-progress detector (semantic-similarity + agent self-check), safety cap +
+      user hard-limit, transition (answer / keep-asking / give-up-with-assumption); inject I/O like §5.K.
+- [ ] **Wire into the flow** — run after decomposition (+ wherever questions are raised), reusing the reviewer
+      role/model; persist resolved/remaining state onto the card/plan; settings (global + per-project) for
+      auto-vs-manual + the hard limit.
+- [ ] **Manual-mode UI** — board-header badge + per-card indicators → clarifying dialog (≥4 options + free-text,
+      multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
 
 ### 5.J — LATER (deferred by decision)
-- LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
-  operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed
-  next-step guidance, and clearer UI status than the generic SDK `bash` bridge.
-- LATER: **Linux & Windows first-class runtime.** Keep Docker mandatory for every agent shell/FS action. Linux:
-  verify Docker availability, sandbox image build/run, endpoint discovery, browser/runtime launch, headless
-  file-picker fallback, path handling. Windows (Docker Desktop/WSL): verify path translation, shell/PTY, Git,
-  Docker volume/mount semantics, endpoint discovery, browser/runtime launch, packaged app. Must not weaken the
-  strict-isolation invariant. *(A dev-only `start.bat` Windows launcher exists.)*
-- **PARKED (cloud-dependent; re-enable only when cloud is revisited or a strong local model is proven):**
-  `nklein-advisor.ts` (config/log/MCP advisor buttons), `nklein-model-research.ts` (model-freshness research),
-  `nklein-team-delegation.ts`/`nklein-team-progress.ts` (native team delegation UI),
-  `nklein-web-research-tool.ts` (host web research — also incompatible with `--network none`). These compile as
-  parked helpers and render no local-only UI. *(NOTE: `nklein-trusted-auto-merge.ts` self-merge is no longer
-  parked — per the 2026-06-23 decision it is ALLOWED and configurable; see §5.L delivery gate.)*
+- LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
+  + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
+- LATER: **Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify
+  per-OS Docker availability, sandbox build/run, endpoint discovery, browser/runtime launch, path/PTY/Git/mount
+  semantics, file-picker fallback. Must not weaken strict isolation. (A dev-only `start.bat` exists.)
+- PARKED (cloud-dependent; re-enable when cloud is revisited or a strong local model is proven): `nklein-advisor.ts`,
+  `nklein-model-research.ts`, `nklein-team-delegation.ts`/`-team-progress.ts`, `nklein-web-research-tool.ts` (also
+  incompatible with `--network none`). They compile as parked helpers + render no local-only UI.
+  (`nklein-trusted-auto-merge.ts` self-merge is NOT parked — allowed + configurable; §5.L.)
 
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
-> **Goal (user, tentative):** port the backend to Python so that **practically no TypeScript remains in the
-> backend**. **Status: explicitly the very late / likely final task** — do NOT start until nearly everything else
-> is done. The user is **not** locked to a strict "zero TS" target: there may be good reasons to keep some TS
-> (web-ui stays TS regardless; some boundaries/SDKs may be cheaper to keep), and we'll go through **a lot of
-> clarifying questions** before committing. Rationale for deferring + then doing it fast: porting a **battle-proven
-> tool with strong test coverage** is close to a mechanical, well-specified job (the test suite is the spec), so it
-> can plausibly be a largely **autonomous overnight** effort once we get there. **Revisit scope when we reach it;**
-> for now it just sits at the bottom and we'll know much more by then.
-> Open questions to settle then (non-exhaustive): exact TS/Python boundary (does the NKlein SDK boundary, the
-> Docker sandbox manager, the tRPC contract, the runtime server all move? what does web-ui talk to?); reuse the
-> existing `core-py` FastAPI sidecar as the seed vs. a fresh service; how the strong test suite ports/maps to keep
-> it the spec; migration strategy (strangler vs. big-bang); perf/packaging/Docker-delivery implications.
+> **Goal (tentative):** port the backend to Python so practically no TS remains (web-ui stays TS; some
+> boundaries/SDKs may be cheaper to keep — not locked to "zero TS"). **The very last task** — don't start until
+> nearly everything else is done; expect a lot of clarifying questions first. Rationale: a battle-proven, well-tested
+> tool ports near-mechanically (the test suite is the spec), plausibly a largely autonomous overnight effort once
+> reached. Open questions then: exact TS/Python boundary (SDK boundary, Docker sandbox manager, tRPC contract,
+> runtime server — what moves? what does web-ui talk to?); reuse `core-py` as seed vs fresh; test-suite mapping;
+> migration strategy (strangler vs big-bang); perf/packaging/Docker implications.
 
 ---
 
@@ -1103,7 +652,8 @@ deep analysis:
       classification, failing file/hunk extraction, failing patch preserved under `patch-failures/`, structured
       stream/tool inactivity-timeout card note (last activity/tool, captured?, resume safety).
       ([src/workspace/task-patch-capture-diagnostics.ts](src/workspace/task-patch-capture-diagnostics.ts))
-- [ ] **Open:** retire the host worktree subsystem — see §5.A.
+- [~] **In progress:** host-worktree retirement — creation machinery retired (no live path creates/reads a
+      worktree); only legacy cleanup + dead terminal-CLI scaffolding remain (C7d/C7e/C8 + verify). See §5.A.
 
 ### 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*
 - [x] **Python core sidecar** (`core-py/`, FastAPI, local-only): constrained generation (`/v1/generate`,
@@ -1246,10 +796,10 @@ deep analysis:
   causing 678× "Insufficient balance", 227× "1.1M-token prompt exceeds 1M limit", 227× "1s timeout", 453×
   "No previous session config". Result: **LOCAL ONLY + ≥32k minimum** invariants (§1). All cloud paths are
   hidden/parked, not deleted, so a future single-file re-enable is possible.
-- **Host worktrees → Docker clone-in/patch-out.** The early model ran agent tools on host task worktrees. That
-  was replaced by **strict Docker isolation** with `nklein/tasks/<task>` result branches applied host-side. The
-  worktree subsystem is now legacy and slated for retirement (§5.A); it is NOT dead yet (terminal/CLI agents +
-  shell-on-task still reach it), which is why deletion is gated on UI-verifiable changes.
+- **Host worktrees → Docker clone-in/patch-out.** The early model ran agent tools on host task worktrees; replaced
+  by **strict Docker isolation** with `nklein/tasks/<task>` result branches applied host-side. The worktree
+  **creation** machinery is now retired (§5.A, 2026-06-23) — no live nklein path creates or reads a worktree; only
+  legacy on-disk *cleanup* + the dead terminal-CLI-agent scaffolding remain (C7d/C7e/C8 + verification left).
 - **Decomposition under isolation was briefly dark, then restored.** For a period, sandboxed planning omitted
   `decompose_project`/`expand_task`. Decision reversed 2026-06-19: they are *trusted control-plane* and stay
   host-side (they touch only plan artifacts + the board). The earlier "produce a plan in chat instead of
