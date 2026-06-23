@@ -453,7 +453,9 @@ deep analysis:
       lazily ensures the model once, embeds through the core, and degrades to `local_lexical` on any failure;
       `local_gguf` is now the default in `runtimeCodeEmbeddingProviderSchema` but only activates the dense path when
       the Python core is enabled. The Code-intelligence panel surfaces model/download/idle status.
-      **Remaining (small, follow-up):** an in-panel model-override picker.
+      **DONE 2026-06-23 (§5.I-1#3):** the in-panel model-override control — a "Configure embedding model" link in
+      the code-intelligence panel that opens the Project Settings dialog (where the per-project
+      `codeEmbeddingOverride` lives), rather than a redundant inline picker (single source of truth, per decision).
       **DONE 2026-06-23:** (a) the host-side idle-unload *timer* — `src/nklein-sdk/nklein-embedding-idle-unload.ts`,
       a process-wide `EmbeddingIdleUnloadScheduler` keyed by `(sidecarUrl, gguf_path)` (the model is resident in
       the core, not on the per-request provider), re-armed on every embed, freeing the model via

@@ -1,4 +1,4 @@
-import { Database, RefreshCw } from "lucide-react";
+import { Database, RefreshCw, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchNKleinCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
@@ -107,12 +107,15 @@ export function CodeIntelligencePanel({
 	disabled,
 	onError,
 	compact = false,
+	onOpenProjectSettings,
 }: {
 	workspaceId: string | null;
 	active: boolean;
 	disabled: boolean;
 	onError: (message: string | null) => void;
 	compact?: boolean;
+	/** Opens the Project Settings dialog (where the per-project embedding override lives, todo §5.I-1#3). */
+	onOpenProjectSettings?: () => void;
 }): React.ReactElement | null {
 	const [isLoading, setIsLoading] = useState(false);
 	const [status, setStatus] = useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
@@ -224,6 +227,17 @@ export function CodeIntelligencePanel({
 						<div>
 							Config: {status.codeEmbeddingSettings.source === "project" ? "Project override" : "Global default"}
 						</div>
+						{onOpenProjectSettings ? (
+							<button
+								type="button"
+								onClick={onOpenProjectSettings}
+								disabled={disabled}
+								className="mt-1 flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-[11px] text-text-secondary hover:text-text-primary disabled:cursor-default disabled:opacity-50"
+							>
+								<Settings size={11} />
+								Configure embedding model
+							</button>
+						) : null}
 					</div>
 				</div>
 			) : null}

@@ -461,6 +461,12 @@ export function ProjectNavigationPanel({
 									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
 								}
 							}}
+							onOpenProjectSettings={() => {
+								const found = sortedProjects.find((item) => item.id === currentProjectId);
+								if (found) {
+									setSettingsProject(found);
+								}
+							}}
 						/>
 						{projectsWithHealthIssues.length > 0 ? (
 							<ProjectHealthCard
