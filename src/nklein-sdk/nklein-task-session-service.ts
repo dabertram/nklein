@@ -232,11 +232,14 @@ export function formatRepeatedToolCallParkMessage(state: {
 /**
  * Repeated-tool-call guard candidate for a hook activity (its fingerprint), or `null` to skip the guard.
  *
- * `read_large_file` is **excluded**: it is a stateful chunk/stitch **workflow** tool that is *designed* to be
- * called repeatedly with an advancing cursor (`start` → `read:<line>:<n>` → `stitch:<l>/<r>:<n>`), so the generic
- * "identical input ⇒ stuck" heuristic does not apply — the large-file workflow rejects stale cursors itself and the
- * autonomy budget bounds any true loop. Excluding it here also decouples the guard from the display-summary format,
- * so legitimate mid-file progression can never again be falsely paused as "3 repeated read_large_file ... same input".
+ * The fingerprint keys on the **lossless full-input fingerprint** (`activity.toolInputFingerprint`, a hash of
+ * the entire parsed tool input — see `computeNKleinToolInputFingerprint`) when present, falling back to the lossy
+ * display summary only for back-compat with older persisted activities. This is what makes the guard immune **by
+ * construction** for every tool — including future ones: two calls collide only when their inputs are genuinely
+ * identical, so an advancing stateful workflow can never again be falsely paused for "the same input" just because
+ * its human-facing *summary* happened to collapse (the read_large_file cursor / decompose_project question-resolution
+ * regressions). `read_large_file` stays **explicitly excluded** as well — it is *designed* to be re-called with an
+ * advancing cursor, the workflow rejects stale cursors itself, and the autonomy budget bounds any true loop.
  */
 export function computeRepeatedToolCallCandidate(
 	activity: RuntimeTaskSessionSummary["latestHookActivity"],
@@ -256,8 +259,9 @@ export function computeRepeatedToolCallCandidate(
 		return null;
 	}
 	const toolInputSummary = activity.toolInputSummary?.trim() || null;
+	const fingerprintBasis = activity.toolInputFingerprint?.trim() || toolInputSummary || "";
 	return {
-		fingerprint: `${toolName.toLowerCase()}\n${toolInputSummary ?? ""}`,
+		fingerprint: `${toolName.toLowerCase()}\n${fingerprintBasis}`,
 		toolName,
 		toolInputSummary,
 	};

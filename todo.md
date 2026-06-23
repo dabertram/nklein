@@ -548,6 +548,17 @@ deep analysis:
 > Make !Klein robust on as many small local LLMs as possible (≤4-bit weight quant + low K/V-cache quant) AND
 > efficient on large models — evidence-driven: user supplies models, we sweep the dev-test presets, collect
 > evidence, harden the common failure modes. Heavy sweep automation is designed when we start sweeping (discuss then).
+- [x] **Repeated-tool-call guard hardened against false-pauses (structural; 2026-06-24)** — the guard used to
+      fingerprint on the *lossy display summary*, so any stateful workflow tool whose summary collapsed across
+      advancing calls was falsely paused as "3 repeated … with the same input" (hit twice: `read_large_file`'s
+      cursor, then `decompose_project` resolving open questions — the latter paused the very call that *applied*
+      the decomposition, the "paused yet completed" report). Now the guard keys on a **lossless full-input
+      fingerprint** ([src/nklein-sdk/nklein-tool-call-fingerprint.ts](src/nklein-sdk/nklein-tool-call-fingerprint.ts),
+      a key-order-independent hash of the entire parsed input, set on the `tool_call` hook activity in the event
+      adapter), falling back to the summary only for back-compat. Two calls now collide **only** on genuinely
+      identical input ⇒ every tool, **including future ones**, is immune by construction; a real identical-input
+      loop still pauses. Extensively tested (fingerprint unit suite + guard-level end-to-end for an arbitrary
+      "future" tool, both progress→no-pause and identical→pause).
 - [ ] **Model-matrix robustness (small → large)** — sweep size × family × weight-quant × K/V-quant × context; run the
       presets; catalog the failure taxonomy per config (tool-call malformation, no-tool-call stalls, structured-output
       misses, context-overflow, host crash/unload under memory pressure, reasoning runaways); feed back into

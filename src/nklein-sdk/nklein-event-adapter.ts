@@ -23,6 +23,7 @@ import {
 	updateSummary,
 } from "./nklein-session-state";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
+import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
 function normalizePreviewText(value: string | null | undefined): string | null {
@@ -645,6 +646,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 				activityText: `Using ${formatNKleinToolCallLabel(toolDisplay.toolName, toolDisplay.inputSummary)}`,
 				toolName: toolDisplay.toolName,
 				toolInputSummary: toolDisplay.inputSummary,
+				toolInputFingerprint: computeNKleinToolInputFingerprint(toolInput),
 				finalMessage: null,
 				hookEventName: "tool_call",
 				notificationType: isUserAttentionTool ? "user_attention" : null,
@@ -722,6 +724,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 				activityText: `Using ${formatNKleinToolCallLabel(toolDisplay.toolName, toolDisplay.inputSummary)}`,
 				toolName: toolDisplay.toolName,
 				toolInputSummary: toolDisplay.inputSummary,
+				toolInputFingerprint: computeNKleinToolInputFingerprint(toolInput),
 				finalMessage: null,
 				hookEventName: "tool_call",
 				notificationType: isUserAttentionTool ? "user_attention" : null,

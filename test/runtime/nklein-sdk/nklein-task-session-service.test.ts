@@ -3071,6 +3071,50 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
 	});
 
+	it("does NOT pause an unknown/future workflow tool whose FULL input advances (structural guarantee)", async () => {
+		// The guard now keys on the lossless full-input fingerprint computed in the event adapter, so ANY tool —
+		// including ones with no bespoke display summarizer — is immune to the false-pause as long as its input
+		// actually changes. A field a lossy summary might have keyed on (`title`) stays constant here on purpose.
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({ taskId: "task-1", cwd: "/tmp/worktree", prompt: "Work." });
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		for (let index = 1; index <= 4; index += 1) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `wf-${index}`,
+				toolName: "some_workflow_tool",
+				input: { title: "constant-title", step: index, payload: { nested: index * 7 } },
+			});
+		}
+
+		expect(service.getSummary("task-1")?.state).toBe("running");
+		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
+	});
+
+	it("STILL pauses an unknown/future tool called with genuinely identical input (true loop preserved)", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({ taskId: "task-1", cwd: "/tmp/worktree", prompt: "Work." });
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		for (let index = 1; index <= 3; index += 1) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `wf-${index}`,
+				toolName: "some_workflow_tool",
+				input: { title: "constant-title", payload: { nested: 42 } },
+			});
+		}
+
+		const summary = service.getSummary("task-1");
+		expect(summary?.state).toBe("awaiting_review");
+		expect(summary?.reviewReason).toBe("attention");
+		expect(summary?.warningMessage).toContain("repeated some_workflow_tool tool calls");
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+	});
+
 	it("resets repeated tool-call tracking when the tool input changes", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
@@ -4185,13 +4229,50 @@ describe("computeRepeatedToolCallCandidate", () => {
 		...overrides,
 	});
 
-	it("fingerprints an ordinary tool call by name + input summary", () => {
+	it("fingerprints an ordinary tool call by name + input summary when no full-input fingerprint is present", () => {
 		const candidate = computeRepeatedToolCallCandidate(activity() as never);
 		expect(candidate).toEqual({
 			fingerprint: "read_files\nsrc/a.ts",
 			toolName: "read_files",
 			toolInputSummary: "src/a.ts",
 		});
+	});
+
+	it("PREFERS the lossless full-input fingerprint over the lossy summary when present (future-tool safety)", () => {
+		const candidate = computeRepeatedToolCallCandidate(
+			activity({ toolInputFingerprint: "abc123", toolInputSummary: "src/a.ts" }) as never,
+		);
+		expect(candidate).toEqual({
+			fingerprint: "read_files\nabc123",
+			toolName: "read_files",
+			toolInputSummary: "src/a.ts",
+		});
+	});
+
+	it("does NOT collide when two calls share a summary but differ in full input (the structural guarantee)", () => {
+		// This is exactly the false-pause failure mode: a lossy summary that looked identical across calls that
+		// were actually different. With distinct full-input fingerprints the guard sees them as distinct.
+		const first = computeRepeatedToolCallCandidate(
+			activity({ toolName: "decompose_project", toolInputSummary: "daw", toolInputFingerprint: "fp-open" }) as never,
+		);
+		const second = computeRepeatedToolCallCandidate(
+			activity({
+				toolName: "decompose_project",
+				toolInputSummary: "daw",
+				toolInputFingerprint: "fp-resolved",
+			}) as never,
+		);
+		expect(first?.fingerprint).not.toBe(second?.fingerprint);
+	});
+
+	it("still collides for genuinely identical calls (true loop detection preserved)", () => {
+		const first = computeRepeatedToolCallCandidate(
+			activity({ toolName: "some_future_tool", toolInputSummary: "x", toolInputFingerprint: "same" }) as never,
+		);
+		const second = computeRepeatedToolCallCandidate(
+			activity({ toolName: "some_future_tool", toolInputSummary: "x", toolInputFingerprint: "same" }) as never,
+		);
+		expect(first?.fingerprint).toBe(second?.fingerprint);
 	});
 
 	it("EXCLUDES read_large_file from the guard — it is a stateful cursor workflow, not a repeat", () => {

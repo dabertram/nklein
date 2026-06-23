@@ -421,6 +421,10 @@ export const runtimeTaskHookActivitySchema = z.object({
 	activityText: z.string().nullable().default(null),
 	toolName: z.string().nullable().default(null),
 	toolInputSummary: z.string().nullable().default(null),
+	// Lossless full-input fingerprint for the repeated-identical-tool-call guard (todo §5.O hardening) —
+	// distinct from the lossy human-facing `toolInputSummary`. Optional: only the two `tool_call` activity
+	// sites set it; absent/undefined everywhere else (and the guard falls back to the summary for back-compat).
+	toolInputFingerprint: z.string().nullable().optional(),
 	finalMessage: z.string().nullable().default(null),
 	hookEventName: z.string().nullable().default(null),
 	notificationType: z.string().nullable().default(null),
