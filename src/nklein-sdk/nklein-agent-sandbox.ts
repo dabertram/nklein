@@ -901,6 +901,17 @@ function normalizeTaskIdForSandboxPath(taskId: string): string {
 	);
 }
 
+/**
+ * The deterministic in-container workspace path for a task (`/workspaces/<taskId>`). This is where the task's repo
+ * is cloned inside the sandbox and where its agent tools execute. It is also the **only** working directory a
+ * Docker-isolated agent should ever perceive (see the "agents must never see host details" rule in AGENTS.md) —
+ * never the host mount path. Deterministic from the taskId, so callers that don't hold a live `TaskPlacement`
+ * (e.g. the session host configuring the agent-core `cwd`) can compute it without touching Docker.
+ */
+export function buildAgentSandboxWorkdir(taskId: string): string {
+	return `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`;
+}
+
 function bufferOrStringToString(value: string | Buffer | undefined): string {
 	if (typeof value === "string") {
 		return value;

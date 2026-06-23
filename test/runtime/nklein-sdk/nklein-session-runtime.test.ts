@@ -618,6 +618,59 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		);
 	});
 
+	it("gives task agents the sandbox cwd (/workspaces/<taskId>) but home/chat sessions the host cwd", async () => {
+		// Agents must never see host paths (AGENTS.md "agents must never see host details"): the agent-core cwd —
+		// the working directory the model is told — must be the deterministic in-container sandbox workdir for a
+		// task, never the host mount. Home/chat sessions are not sandbox-backed, so they keep the host project cwd.
+		const fakeHost = {
+			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
+				sessionId: input.config?.sessionId ?? "session-1",
+				result: {},
+			})),
+			send: vi.fn(async () => ({})),
+			stop: vi.fn(async () => {}),
+			abort: vi.fn(async () => {}),
+			delete: vi.fn(async () => true),
+			dispose: vi.fn(async () => {}),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(async () => []),
+			readMessages: vi.fn(async () => []),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const runtime = createInMemoryNKleinSessionRuntime({
+			createSessionHost: async () => fakeHost,
+			createMcpRuntimeService: createNoopMcpRuntimeService,
+		});
+
+		await runtime.startTaskSession({
+			taskId: "task-1",
+			cwd: "/private/var/folders/x/T/nklein-host-project",
+			prompt: "Investigate",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			contextWindow: 80_000,
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+		await runtime.startTaskSession({
+			taskId: "__home_agent__:ws-1:nklein",
+			cwd: "/Users/me/project",
+			prompt: "Hi",
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			contextWindow: 80_000,
+			systemPrompt: "You are a helpful coding assistant.",
+		});
+
+		expect(fakeHost.start).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ config: expect.objectContaining({ cwd: "/workspaces/task-1" }) }),
+		);
+		expect(fakeHost.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ config: expect.objectContaining({ cwd: "/Users/me/project" }) }),
+		);
+	});
+
 	it("wires !Klein focused context compaction into SDK local runtime", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({

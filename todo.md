@@ -74,6 +74,12 @@
 6. **Follow `AGENTS.md` / `CLAUDE.md`:** no `any`, no inline/dynamic imports, prefer SDK types, `react-use`
    hooks in web-ui, Tailwind over inline styles, small single-responsibility files, and keep `CHANGELOG.md`
    `## [Upcoming]` current **in the same change** as the code.
+7. **WORK THE BACKLOG — do not stop for interaction unless absolutely necessary** *(2026-06-23, standing)*. Grind
+   §5 toward zero without report-and-wait checkpoints. A genuinely blocking question/decision (spec ambiguity only
+   the user can resolve, or an irreversible/outward-facing action) *may* be asked — but **defer it when reasonably
+   possible**: take the sensible default, record the assumption, keep moving, and batch deferred questions for one
+   later pass once the pile is worked down. Capability, context-budget, and "which task next" are **never** reasons
+   to stop — decide and proceed, committing green increments continuously.
 
 ### Product identity
 !Klein is a local-autonomous, multi-LLM **kanban swarm** for software work. A user drops a high-level idea on
@@ -277,18 +283,14 @@ deep analysis:
         Root: the agent's cwd/working-directory context is the host path, and surfaces (the `read_files` block error,
         evidence `summary.md`/`config-snapshot.json`) echo it. (`read_large_file`'s own result already returns the
         relative path.) Per the new AGENTS.md "agents must never see host details" rule:
-    - [ ] agent's perceived cwd + every agent-facing path = the in-container workspace (`/workspaces/<taskId>`,
-          `AGENT_SANDBOX_WORKSPACES_DIR`), never the host mount; scrub host paths from prompt/context, the paths the
-          agent is nudged toward, tool results, and error messages.
-          **FOUND (2026-06-23):** the leak is [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts) `config.cwd = request.cwd`
-          (the host path) handed to the agent-core — that's the "working directory" the model is told. Fix: pass the
-          **deterministic sandbox workdir** `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`
-          (= `/workspaces/<taskId>`, [nklein-agent-sandbox.ts](src/nklein-sdk/nklein-agent-sandbox.ts):592) as the
-          agent-core `cwd` whenever the task is sandboxed (the norm); keep `request.cwd`/`workspaceRoot` (host) only for
-          host-side ops (result branches, evidence). **Core-path change for ALL nklein tasks → needs live task
-          verification** (run a dev-test decompose: agent sees `/workspaces/<taskId>`, file reads/edits still resolve,
-          result branch still delivers) before flipping. Also still scrub the host path from the `read_files` "large
-          file" block error + evidence `summary.md`/`config-snapshot.json`.
+    - [x] **agent cwd → sandbox path (DONE 2026-06-24).** `nklein-session-runtime` now hands the agent-core
+          `config.cwd = buildAgentSandboxWorkdir(taskId)` (`/workspaces/<taskId>`) for sandboxed task sessions
+          (home/chat sessions keep the host cwd) — so the "working directory" the model is told is the sandbox path,
+          never the host mount. **Live strict-isolation PASS** with the change (core accepts the sandbox cwd, tools
+          execute, container appears, clean teardown) + unit test asserting both branches.
+    - [ ] scrub host paths from the **remaining** agent-facing surfaces: the `read_files` "large file" block error
+          (it echoes the requested path) and evidence `summary.md`/`config-snapshot.json` → workspace-relative display.
+    - [ ] confirm on a real dev-test **decompose** transcript that the agent now emits only sandbox/relative paths.
     - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
           host-side evidence/workspace access, but the agent only sees `/workspaces/<taskId>`. A dev-test run that
           shows the agent the host temp project path is a bug; verify a dev-test decompose shows only sandbox paths.
