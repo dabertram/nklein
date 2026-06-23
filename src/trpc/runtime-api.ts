@@ -2453,25 +2453,16 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				const body = parseShellSessionStartRequest(input);
 				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				const shell = deps.resolveInteractiveShellCommand();
-				// §5.A: when the task has a prepared Docker sandbox, shell INTO its hardened container via
-				// `docker exec` (the user shell is as isolated as the agent); otherwise fall back to the legacy
-				// host-worktree shell. The fallback is retained until the increment-3 worktree retirement.
+				// §5.A: a task with a prepared Docker sandbox shells INTO its hardened container via `docker exec`
+				// (cwd is irrelevant there); a task without an active sandbox — or a non-task shell — opens at the
+				// project root. No host worktree is ever created for a shell (worktree subsystem retired).
 				const shellTarget = body.workspaceTaskId
 					? (await deps.getScopedNKleinTaskSessionService(workspaceScope)).getTaskShellTarget(body.workspaceTaskId)
 					: null;
 				const spawnSpec = buildTaskShellSpawnSpec(shellTarget, shell);
-				const shellCwd =
-					!spawnSpec.usesSandbox && body.workspaceTaskId
-						? await resolveTaskCwd({
-								cwd: workspaceScope.workspacePath,
-								taskId: body.workspaceTaskId,
-								baseRef: body.baseRef,
-								ensure: true,
-							})
-						: workspaceScope.workspacePath;
 				const summary = await terminalManager.startShellSession({
 					taskId: body.taskId,
-					cwd: shellCwd,
+					cwd: workspaceScope.workspacePath,
 					cols: body.cols,
 					rows: body.rows,
 					binary: spawnSpec.binary,

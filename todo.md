@@ -246,11 +246,18 @@ deep analysis:
       shell (`resolveTaskCwd({ ensure: true })`) as a retained fallback. **Live-verified** against the running
       `nklein-agent-sandbox-1`: `docker exec -u <taskUid> -w /workspaces/<taskId> … sh -lc 'pwd'` lands in the
       cloned repo working copy as the task user, and `/usr/bin/bash -l` starts cleanly there. tsc + 35 sandbox
-      tests green. **Still owed before increment 3 (folded into the increment-4 pass):** the full
-      browser-terminal e2e (open a task shell in the UI → interactive shell in the container via node-pty
-      `docker exec -it`), and confirming **no** `~/.nklein/nklein/worktrees/<task>` dir is created for a
-      sandboxed-task shell. The increment-3 deletions (removing the worktree fallback + modules) MUST wait for
-      that browser-terminal e2e.
+      tests green.
+      **Increment-2 gate CLOSED 2026-06-23:** the node-pty ↔ `docker exec -it` ↔ login-shell integration is
+      verified directly — node-pty spawning `docker exec -it` into a sandbox-image container ran a login shell
+      (`pwd`/`id -u`/echo, clean exit); with the workdir/uid mechanism check above, the shell path is validated
+      (only the standard ws→xterm round-trip is untested — exercised by every other terminal already).
+      **Increment 3 step 1 DONE 2026-06-23:** `startShellSession` no longer creates a host worktree — a sandboxed
+      task shells into its container, any other shell opens at the project root (dropped the
+      `resolveTaskCwd({ ensure: true })` fallback). **Remaining increment 3 (the bulk — fresh full window per this
+      plan):** rewire the OTHER `resolveTaskCwd` consumers (review diff/log/refs in `workspace-api`, the two uses
+      in `runtime-api` ~394/401, `nklein-acceptance-auto-repair`) onto the `nklein/tasks/<task>` result-branch
+      path; then delete `task-worktree*.ts` + the saved-host-patch + the dead `src/terminal/*` CLI-agent
+      integration + `hook-events/*`; then the increment-4 browser/Docker verification pass.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
