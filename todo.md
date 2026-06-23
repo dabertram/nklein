@@ -227,8 +227,11 @@ deep analysis:
             ingest + `parseHookIngestRequest` + ingest schemas (step 1; `RuntimeHookEvent` kept for adapters)
       - [ ] keep shell infra (`pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
             `terminal-session-service`, `terminal-state-mirror`, `output-utils`, session-manager's shell path)
-      - [ ] remove the dead terminal-agent `startTaskSession` path from `runtime-api` (nklein uses the session
-            service) + rewire `terminalManager.getSummary`/`listSummaries` (~1138/1165) off the terminal manager
+      - [x] remove the dead terminal-agent `startTaskSession` path from `runtime-api` (step 2) — handler now
+            always takes the NKlein path (terminal `startTaskSession`/`applyTurnCheckpoint` branch + the
+            `previousTerminalAgentId`/`useNKleinPath`/persisted-session-probe resolution deleted); concurrency
+            counts NKlein summaries only; `terminalManager.getSummary`/`listSummaries` no longer read here.
+            6 obsolete terminal-path tests removed, chat-clear test converted to the NKlein path.
       - [ ] delete the agent path (`session-manager.startTaskSession`, `agent-registry`, `agent-session-adapters`,
             `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`, `command-discovery`,
             `hook-runtime-context`, `task-image-prompt`) + the now-unused `RuntimeHookEvent`
@@ -259,7 +262,7 @@ deep analysis:
 - [ ] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /
-      provider-error events. *(AGENTS.md worktree tribal-knowledge is already reconciled to the
+      provider-error events. *(AGENTS.md worktree tribal-knowledgƒe is already reconciled to the
       container-primary + result-branch model.)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop

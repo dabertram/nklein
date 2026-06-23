@@ -1046,99 +1046,6 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("records checkpoint capture failures without blocking task start", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		turnCheckpointMocks.captureTaskTurnCheckpoint.mockRejectedValue(new Error("checkpoint ref failed"));
-
-		const terminalManager = {
-			listSummaries: vi.fn(() => []),
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
-		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => ({
-				...createRuntimeConfigState(),
-				selectedAgentId: "codex" as const,
-			})),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Start work",
-			},
-		);
-
-		expect(response.ok).toBe(true);
-		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
-			expect.objectContaining({
-				signal: "runtime_error",
-				severity: "warning",
-				taskId: "task-1",
-				workspacePath: "/tmp/repo",
-				message: "Task checkpoint capture failed: checkpoint ref failed",
-				metadata: expect.objectContaining({
-					operation: "capture_task_turn_checkpoint",
-					agentId: "claude",
-				}),
-			}),
-		);
-	});
-
-	it("blocks project task starts when the terminal active task capacity is full", async () => {
-		const terminalManager = {
-			listSummaries: vi.fn(() => [createSummary({ taskId: "task-2", state: "running" })]),
-			startTaskSession: vi.fn(async () => createSummary()),
-			applyTurnCheckpoint: vi.fn(),
-		};
-		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => ({
-				...createRuntimeConfigState(),
-				maxConcurrentTasks: 1,
-			})),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Investigate startup freeze",
-			},
-		);
-
-		expect(response).toEqual({
-			ok: false,
-			summary: null,
-			error: "Maximum concurrent task limit reached (1). Wait for a running task to finish, or stop an active task before starting another.",
-		});
-		expect(taskWorktreeMocks.resolveTaskCwd).not.toHaveBeenCalled();
-		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
-		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
-	});
-
 	it("counts active NKlein sessions when enforcing project task capacity", async () => {
 		const terminalManager = {
 			listSummaries: vi.fn(() => []),
@@ -2170,23 +2077,21 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
-	it("skips nklein persisted-session probing when resumeFromTrash already has a non-nklein terminal summary", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "codex",
-			label: "OpenAI Codex",
-			command: "codex",
-			binary: "codex",
-			args: [],
+	it("clears task chat cache and resumes the nklein session on resumeFromTrash", async () => {
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockReturnValue({
+			schemaVersion: 1,
+			updatedAt: 0,
+			models: {},
 		});
 
-		const terminalManager = {
-			getSummary: vi.fn(() => createSummary({ agentId: "codex", state: "idle", pid: null })),
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
+		const broadcastTaskChatCleared = vi.fn();
 		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		const getScopedNKleinTaskSessionService = vi.fn(async () => nkleinTaskSessionService as never);
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
 
 		const api = createTestRuntimeApi({
 			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
@@ -2196,66 +2101,8 @@ describe("createRuntimeApi startTaskSession", () => {
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService,
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Resume task",
-				resumeFromTrash: true,
-			},
-		);
-
-		expect(response.ok).toBe(true);
-		expect(terminalManager.getSummary).toHaveBeenCalledWith("task-1");
-		expect(getScopedNKleinTaskSessionService).not.toHaveBeenCalled();
-		expect(nkleinTaskSessionService.rebindPersistedTaskSession).not.toHaveBeenCalled();
-		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "task-1",
-				agentId: "codex",
-				resumeFromTrash: true,
-			}),
-		);
-		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
-	});
-
-	it("clears task chat cache before resumeFromTrash starts", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "codex",
-			label: "OpenAI Codex",
-			command: "codex",
-			binary: "codex",
-			args: [],
-		});
-
-		const broadcastTaskChatCleared = vi.fn();
-		const terminalManager = {
-			getSummary: vi.fn(() => createSummary({ agentId: "codex", state: "idle", pid: null })),
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
-
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => {
-				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "codex";
-				return runtimeConfigState;
-			}),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
 			broadcastTaskChatCleared,
 			resolveInteractiveShellCommand: vi.fn(),
 			runCommand: vi.fn(),
@@ -2276,74 +2123,12 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.ok).toBe(true);
 		expect(broadcastTaskChatCleared).toHaveBeenCalledWith("workspace-1", "task-1");
-	});
-
-	it("probes nklein persisted sessions on resumeFromTrash when no terminal agent summary exists", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "codex",
-			label: "OpenAI Codex",
-			command: "codex",
-			binary: "codex",
-			args: [],
-		});
-		setSelectedProviderSettings({
-			provider: "anthropic",
-			model: "claude-sonnet-4-6",
-			apiKey: "anthropic-api-key",
-		});
-
-		const terminalManager = {
-			getSummary: vi.fn(() => null),
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
-		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		nkleinTaskSessionService.rebindPersistedTaskSession.mockResolvedValue(
-			createSummary({ agentId: "nklein", pid: null }),
-		);
-		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
-
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => {
-				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "codex";
-				return runtimeConfigState;
-			}),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Resume task",
-				resumeFromTrash: true,
-			},
-		);
-
-		expect(response.ok).toBe(true);
-		expect(terminalManager.getSummary).toHaveBeenCalledWith("task-1");
-		expect(nkleinTaskSessionService.rebindPersistedTaskSession).toHaveBeenCalledWith("task-1");
 		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "task-1",
 				resumeFromTrash: true,
-				providerId: "anthropic",
-				apiKey: "anthropic-api-key",
 			}),
 		);
-		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
-		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
 	});
 
 	it("uses saved nklein settings even when no last-used provider is recorded", async () => {
@@ -2545,133 +2330,6 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 		expect(turnCheckpointMocks.captureTaskTurnCheckpoint).not.toHaveBeenCalled();
-	});
-
-	it("forwards task images to CLI task sessions", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "codex",
-			label: "OpenAI Codex",
-			command: "codex",
-			binary: "codex",
-			args: [],
-		});
-
-		const terminalManager = {
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
-		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => {
-				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "codex";
-				return runtimeConfigState;
-			}),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const images = [
-			{
-				id: "img-1",
-				data: Buffer.from("hello").toString("base64"),
-				mimeType: "image/png",
-				name: "diagram.png",
-			},
-		];
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Continue task",
-				images,
-			},
-		);
-
-		expect(response.ok).toBe(true);
-		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				agentId: "codex",
-				images,
-			}),
-		);
-		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
-	});
-
-	it("does not resolve nklein OAuth when starting a non-nklein task session", async () => {
-		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
-		agentRegistryMocks.resolveAgentCommand.mockReturnValue({
-			agentId: "codex",
-			label: "OpenAI Codex",
-			command: "codex",
-			binary: "codex",
-			args: [],
-		});
-		oauthMocks.getValidNKleinCredentials.mockRejectedValue(
-			new Error('OAuth credentials for provider "nklein" are invalid. Re-run OAuth login.'),
-		);
-
-		const terminalManager = {
-			startTaskSession: vi.fn(async () => createSummary({ agentId: "codex" })),
-			applyTurnCheckpoint: vi.fn(),
-		};
-		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
-		setSelectedProviderSettings({
-			provider: "nklein",
-			auth: {
-				accessToken: "workos:oauth-access",
-				refreshToken: "oauth-refresh",
-				accountId: "acct-1",
-				expiresAt: 1_700_000_000_000,
-			},
-		});
-
-		const api = createTestRuntimeApi({
-			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
-			loadScopedRuntimeConfig: vi.fn(async () => {
-				const runtimeConfigState = createRuntimeConfigState();
-				runtimeConfigState.selectedAgentId = "codex";
-				return runtimeConfigState;
-			}),
-			setActiveRuntimeConfig: vi.fn(),
-			getScopedTerminalManager: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			resolveInteractiveShellCommand: vi.fn(),
-			runCommand: vi.fn(),
-		});
-
-		const response = await api.startTaskSession(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				prompt: "Continue task",
-			},
-		);
-
-		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
-		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
-			expect.objectContaining({
-				agentId: "codex",
-				// Worktrees retired (§5.A): a legacy terminal session runs at the project root, not a host checkout.
-				cwd: "/tmp/repo",
-			}),
-		);
-		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
 	it("prefers OAuth api key when nklein OAuth credentials are configured", async () => {

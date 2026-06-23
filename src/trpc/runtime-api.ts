@@ -134,7 +134,7 @@ import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
 import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
-import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
+import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { getWorkspaceChanges, getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
@@ -142,7 +142,6 @@ import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
-import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
@@ -1130,12 +1129,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					runtimeConfig: scopedRuntimeConfig,
 					taskSettings: body.nkleinSettings,
 				});
-				const terminalManager = await deps.getScopedTerminalManager(workspaceScope);
 				if (!isHomeAgentSessionId(body.taskId)) {
 					const loadedNKleinTaskSessionService =
 						deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
 					const activeProjectTaskCount = countActiveProjectTaskSessions(
-						[...terminalManager.listSummaries(), ...(loadedNKleinTaskSessionService?.listSummaries() ?? [])],
+						loadedNKleinTaskSessionService?.listSummaries() ?? [],
 						body.taskId,
 					);
 					if (activeProjectTaskCount >= scopedRuntimeConfig.maxConcurrentTasks) {
@@ -1146,331 +1144,234 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						};
 					}
 				}
-				const isHomeSession = isHomeAgentSessionId(body.taskId);
-
-				// Per-task config source-of-truth precedence:
-				//
-				// agentId resolution (which agent runtime to use):
-				//   1. previousTerminalAgentId — persisted in the terminal session summary from
-				//      the last run; ensures trash-restore resumes with the same agent runtime.
-				//   2. body.agentId — the card's current per-task agent override.
-				//   3. scopedRuntimeConfig.selectedAgentId — the workspace-level default.
-				//
-				// nkleinSettings (which LLM model and reasoning profile the NKlein agent uses):
-				//   Always taken from the card's current override object. There is no
-				//   session-level persistence for these;
-				//   if the user changes the model on the card, the next session launch
-				//   (including trash-restore) uses the updated values.
-				const previousTerminalAgentId = body.resumeFromTrash
-					? (terminalManager.getSummary(body.taskId)?.agentId ?? null)
-					: null;
-				const effectiveAgentId = previousTerminalAgentId ?? body.agentId ?? scopedRuntimeConfig.selectedAgentId;
-				let useNKleinPath = effectiveAgentId === "nklein";
-				const shouldProbePersistedNKleinSession =
-					body.resumeFromTrash && !useNKleinPath && previousTerminalAgentId === null;
-				if (shouldProbePersistedNKleinSession) {
-					// If the terminal summary already has a concrete non-NKlein agentId,
-					// skip NKlein persisted-session probing. That probe can cold-start the
-					// NKlein session host and adds multi-second latency to Codex restores.
-					const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-					const persistedSession = await nkleinTaskSessionService
-						.rebindPersistedTaskSession(body.taskId)
-						.catch(() => null);
-					if (persistedSession) {
-						useNKleinPath = true;
-					}
-				}
-
-				if (useNKleinPath) {
-					const sandboxStatus = deps.refreshAgentSandboxStatus
-						? await deps.refreshAgentSandboxStatus()
-						: deps.getAgentSandboxStatus?.();
-					const sandboxStartBlock = buildNKleinSandboxStartBlock(sandboxStatus);
-					if (sandboxStartBlock) {
-						return {
-							ok: false,
-							summary: null,
-							error: sandboxStartBlock.error,
-							errorCode: sandboxStartBlock.errorCode,
-						};
-					}
-					const hasTaskLevelNKleinSettingsOverride = body.nkleinSettings !== undefined;
-					let nkleinLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
-						providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
-						modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
-						...(hasTaskLevelNKleinSettingsOverride
-							? {
-									reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
-								}
-							: {}),
-					});
-					const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-					const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(
-						() => ({
-							schemaVersion: 1,
-							updatedAt: 0,
-							models: {},
-						}),
-					);
-					const guardCandidates = new Map<string, NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>>();
-					const selectedCandidate = buildNKleinStartGuardCandidate({
-						launchConfig: nkleinLaunchConfig,
-						role: null,
-						modelRegistry: modelRegistrySnapshot,
-					});
-					nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
-					guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
-					for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
-						// #4 model pools: a role contributes its primary model plus every member of its additionalModels
-						// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.
-						const roleModels = [
-							{ model: settings, primary: true },
-							...(settings.additionalModels ?? []).map((model) => ({ model, primary: false })),
-						];
-						for (const { model, primary } of roleModels) {
-							if (!model.providerId && !model.modelId) {
-								continue;
-							}
-							try {
-								const roleLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
-									providerIdOverride: model.providerId ?? undefined,
-									modelIdOverride: model.modelId ?? undefined,
-									reasoningEffortOverride: model.reasoningEffort ?? null,
-								});
-								const roleCandidate = buildNKleinStartGuardCandidate({
-									launchConfig: roleLaunchConfig,
-									role,
-									modelRegistry: modelRegistrySnapshot,
-								});
-								guardCandidates.set(roleCandidate.entry.key, roleCandidate);
-							} catch (error) {
-								// The primary role model keeps the fatal-on-context-policy behavior; an over-budget or
-								// unrunnable *pool* member is skipped so the rest of the role's models still participate.
-								if (primary && isNKleinContextWindowPolicyError(error)) {
-									return {
-										ok: false,
-										summary: null,
-										error: error.message,
-										errorCode: "routing_escalation",
-									};
-								}
-								// Ignore role models that are not currently runnable; the configured default still participates.
-							}
-						}
-					}
-					const preferredCandidate = body.startInPlanMode
-						? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ??
-							selectedCandidate)
-						: selectedCandidate;
-					const promptTokens = estimateNKleinStartPromptTokens({
-						prompt: body.prompt,
-						taskTitle: body.taskTitle,
-						images: body.images,
-					});
-					const largestContextWindow =
-						[...guardCandidates.values()]
-							.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
-							.filter((contextWindow) => contextWindow > 0)
-							.sort((left, right) => right - left)[0] ?? null;
-					// #4 swarm fan-out: when several candidates are feasible, prefer one that is not currently busy so
-					// parallel tasks spread across free models instead of all queueing on the single smallest-sufficient
-					// one. Fully fallback-safe — with a single candidate this resolves to that candidate (no change), and
-					// when no free feasible candidate exists the preferred candidate below is used unchanged.
-					const runningModelKeys = new Set(
-						nkleinTaskSessionService
-							.listModelEndpointSessions()
-							.filter((session) => session.state === "running")
-							.map((session) =>
-								buildNKleinModelRegistryKey({
-									providerId: session.providerId,
-									modelId: session.modelId,
-									endpoint: session.endpoint,
-								}),
-							),
-					);
-					const freeFirstSelection = selectRoleModel({
-						candidates: [...guardCandidates.values()].map((candidate) => ({
-							modelKey: candidate.entry.key,
-							capability: candidate.entry.capability.effectiveScore,
-							contextWindow: candidate.entry.contextWindow.effective ?? 0,
-							predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
-							isFree: !runningModelKeys.has(candidate.entry.key),
-						})),
-						difficulty: estimateNKleinStartDifficulty(promptTokens),
-						requiredContextTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
-						weighting: "efficient",
-					});
-					const freeFirstModelKey =
-						runningModelKeys.has(preferredCandidate.entry.key) &&
-						freeFirstSelection.type === "assign" &&
-						!freeFirstSelection.busyFallback
-							? freeFirstSelection.modelKey
-							: null;
-					const routingDecision = routeNKleinTask({
-						difficulty: estimateNKleinStartDifficulty(promptTokens),
-						fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
-						promptTokens,
-						outputTokens: 1_000,
-						preferredModelKey: freeFirstModelKey ?? preferredCandidate.entry.key,
-						candidates: [...guardCandidates.values()].map((candidate) => ({
-							entry: candidate.entry,
-							role: candidate.role,
-						})),
-					});
-					if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
-						return {
-							ok: false,
-							summary: null,
-							error: formatNKleinTaskRoutingBlockMessage(routingDecision),
-							errorCode: routingDecision.type === "decompose" ? "needs_decomposition" : "routing_escalation",
-						};
-					}
-					const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
-					if (routedCandidate) {
-						nkleinLaunchConfig = applyCandidateEffectiveContextWindow(
-							routedCandidate.launchConfig,
-							routedCandidate,
-						);
-					}
-					assertLocalProviderAllowed({
-						providerId: nkleinLaunchConfig.providerId,
-						baseUrl: nkleinLaunchConfig.baseUrl,
-					});
-					const mcsrAwareTimeouts = applyMcsrAwareLocalTimeoutScaling({
-						timeouts: effectiveTimeouts,
-						launchConfig: nkleinLaunchConfig,
-						modelRegistry: modelRegistrySnapshot,
-						promptTokens,
-					});
-					const codeEmbeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
-						scopedRuntimeConfig.effectiveCodeEmbeddingSettings,
-					);
-					const endpointDecision = scheduleNKleinEndpointStart({
-						taskId: body.taskId,
-						providerId: nkleinLaunchConfig.providerId,
-						modelId: nkleinLaunchConfig.modelId ?? "",
-						endpoint: nkleinLaunchConfig.baseUrl ?? null,
-						runningSessions: nkleinTaskSessionService.listModelEndpointSessions(),
-						modelRegistry: modelRegistrySnapshot,
-						now: Date.now(),
-					});
-					if (!endpointDecision.ok) {
-						if (body.queueOnEndpointBusy) {
-							deps.taskStartQueue?.enqueue({
-								workspaceScope,
-								request: body,
-								delayMs: endpointDecision.estimatedWaitMs,
-								error: endpointDecision.reason,
-							});
-						}
-						return {
-							ok: false,
-							summary: null,
-							error: `${endpointDecision.reason} Wait for task "${endpointDecision.blockedByTaskId}" to finish, or choose a different model endpoint.`,
-							errorCode: "endpoint_busy",
-							retryAfterMs: endpointDecision.estimatedWaitMs,
-							queued: body.queueOnEndpointBusy ? true : undefined,
-						};
-					}
-					deps.taskStartQueue?.remove(workspaceScope.workspaceId, body.taskId);
-					const resolvedNKleinTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
-					const summary = await nkleinTaskSessionService.startTaskSession({
-						taskId: body.taskId,
-						cwd: workspaceScope.workspacePath,
-						workspaceRoot: workspaceScope.workspacePath,
-						baseRef: body.baseRef,
-						prompt: body.prompt,
-						taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
-						images: body.images,
-						filesLikelyTouched: body.filesLikelyTouched,
-						resumeFromTrash: body.resumeFromTrash,
-						providerId: nkleinLaunchConfig.providerId,
-						modelId: nkleinLaunchConfig.modelId,
-						mode: requestedNKleinTaskMode,
-						startInPlanMode: body.startInPlanMode,
-						apiKey: nkleinLaunchConfig.apiKey,
-						baseUrl: nkleinLaunchConfig.baseUrl,
-						reasoningEffort: nkleinLaunchConfig.reasoningEffort,
-						contextScope: body.nkleinSettings?.contextScope,
-						contextWindow: nkleinLaunchConfig.contextWindow ?? null,
-						timeoutMode: mcsrAwareTimeouts.timeoutMode,
-						requestTimeoutMs: mcsrAwareTimeouts.requestTimeoutMs,
-						turnTimeoutMs: mcsrAwareTimeouts.agentTimeoutMs,
-						streamTimeoutMs: mcsrAwareTimeouts.streamTimeoutMs,
-						toolTimeoutMs: mcsrAwareTimeouts.toolTimeoutMs,
-						conversationTimeoutMs: mcsrAwareTimeouts.conversationTimeoutMs,
-						streamTimeoutSource: mcsrAwareTimeouts.streamTimeoutSource,
-						toolTimeoutSource: mcsrAwareTimeouts.toolTimeoutSource,
-						conversationTimeoutSource: mcsrAwareTimeouts.conversationTimeoutSource,
-						maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
-						codeEmbeddingProvider,
-					});
-
-					return {
-						ok: true,
-						summary,
-					};
-				}
-
-				const resolvedConfig =
-					effectiveAgentId !== scopedRuntimeConfig.selectedAgentId
-						? { ...scopedRuntimeConfig, selectedAgentId: effectiveAgentId }
-						: scopedRuntimeConfig;
-				const resolved = resolveAgentCommand(resolvedConfig);
-				if (!resolved) {
+				// Under the local-only lockdown every task runs on the NKlein agent path; terminal/CLI agents are
+				// disabled and the host-worktree subsystem is retired (§5.A). The card's nkleinSettings override
+				// (model + reasoning profile) is read fresh below, and resumeFromTrash is self-hydrated inside
+				// nkleinTaskSessionService.startTaskSession (readPersistedTaskSession), so no path probe is needed.
+				const sandboxStatus = deps.refreshAgentSandboxStatus
+					? await deps.refreshAgentSandboxStatus()
+					: deps.getAgentSandboxStatus?.();
+				const sandboxStartBlock = buildNKleinSandboxStartBlock(sandboxStatus);
+				if (sandboxStartBlock) {
 					return {
 						ok: false,
 						summary: null,
-						error: "No runnable agent command is configured. Open Settings, install a supported CLI, and select it.",
+						error: sandboxStartBlock.error,
+						errorCode: sandboxStartBlock.errorCode,
 					};
 				}
-				// Terminal/CLI agents are disabled under the local-only lockdown and the host-worktree subsystem is
-				// retired (§5.A), so any legacy terminal session runs at the project root rather than a host checkout.
-				const taskCwd = workspaceScope.workspacePath;
-				const summary = await terminalManager.startTaskSession({
-					taskId: body.taskId,
-					agentId: resolved.agentId,
-					binary: resolved.binary,
-					args: resolved.args,
-					autonomousModeEnabled: scopedRuntimeConfig.agentAutonomousModeEnabled,
-					cwd: taskCwd,
-					prompt: body.prompt,
-					images: body.images,
-					startInPlanMode: body.startInPlanMode,
-					resumeFromTrash: body.resumeFromTrash,
-					cols: body.cols,
-					rows: body.rows,
-					workspaceId: workspaceScope.workspaceId,
+				const hasTaskLevelNKleinSettingsOverride = body.nkleinSettings !== undefined;
+				let nkleinLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
+					providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
+					modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
+					...(hasTaskLevelNKleinSettingsOverride
+						? {
+								reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
+							}
+						: {}),
 				});
-
-				let nextSummary = summary;
-				if (!body.resumeFromTrash && !isHomeSession) {
-					try {
-						const nextTurn = (summary.latestTurnCheckpoint?.turn ?? 0) + 1;
-						const checkpoint = await captureTaskTurnCheckpoint({
-							cwd: taskCwd,
-							taskId: body.taskId,
-							turn: nextTurn,
-						});
-						nextSummary = terminalManager.applyTurnCheckpoint(body.taskId, checkpoint) ?? summary;
-					} catch (error) {
-						const message = error instanceof Error ? error.message : String(error);
-						recordSelfObservation({
-							signal: "runtime_error",
-							severity: "warning",
-							message: `Task checkpoint capture failed: ${message}`,
-							taskId: body.taskId,
-							workspacePath: workspaceScope.workspacePath,
-							metadata: {
-								operation: "capture_task_turn_checkpoint",
-								agentId: resolved.agentId,
-							},
-						});
+				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+				const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(
+					() => ({
+						schemaVersion: 1,
+						updatedAt: 0,
+						models: {},
+					}),
+				);
+				const guardCandidates = new Map<string, NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>>();
+				const selectedCandidate = buildNKleinStartGuardCandidate({
+					launchConfig: nkleinLaunchConfig,
+					role: null,
+					modelRegistry: modelRegistrySnapshot,
+				});
+				nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
+				guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
+				for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
+					// #4 model pools: a role contributes its primary model plus every member of its additionalModels
+					// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.
+					const roleModels = [
+						{ model: settings, primary: true },
+						...(settings.additionalModels ?? []).map((model) => ({ model, primary: false })),
+					];
+					for (const { model, primary } of roleModels) {
+						if (!model.providerId && !model.modelId) {
+							continue;
+						}
+						try {
+							const roleLaunchConfig = await nkleinProviderService.resolveLaunchConfig({
+								providerIdOverride: model.providerId ?? undefined,
+								modelIdOverride: model.modelId ?? undefined,
+								reasoningEffortOverride: model.reasoningEffort ?? null,
+							});
+							const roleCandidate = buildNKleinStartGuardCandidate({
+								launchConfig: roleLaunchConfig,
+								role,
+								modelRegistry: modelRegistrySnapshot,
+							});
+							guardCandidates.set(roleCandidate.entry.key, roleCandidate);
+						} catch (error) {
+							// The primary role model keeps the fatal-on-context-policy behavior; an over-budget or
+							// unrunnable *pool* member is skipped so the rest of the role's models still participate.
+							if (primary && isNKleinContextWindowPolicyError(error)) {
+								return {
+									ok: false,
+									summary: null,
+									error: error.message,
+									errorCode: "routing_escalation",
+								};
+							}
+							// Ignore role models that are not currently runnable; the configured default still participates.
+						}
 					}
 				}
+				const preferredCandidate = body.startInPlanMode
+					? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ??
+						selectedCandidate)
+					: selectedCandidate;
+				const promptTokens = estimateNKleinStartPromptTokens({
+					prompt: body.prompt,
+					taskTitle: body.taskTitle,
+					images: body.images,
+				});
+				const largestContextWindow =
+					[...guardCandidates.values()]
+						.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
+						.filter((contextWindow) => contextWindow > 0)
+						.sort((left, right) => right - left)[0] ?? null;
+				// #4 swarm fan-out: when several candidates are feasible, prefer one that is not currently busy so
+				// parallel tasks spread across free models instead of all queueing on the single smallest-sufficient
+				// one. Fully fallback-safe — with a single candidate this resolves to that candidate (no change), and
+				// when no free feasible candidate exists the preferred candidate below is used unchanged.
+				const runningModelKeys = new Set(
+					nkleinTaskSessionService
+						.listModelEndpointSessions()
+						.filter((session) => session.state === "running")
+						.map((session) =>
+							buildNKleinModelRegistryKey({
+								providerId: session.providerId,
+								modelId: session.modelId,
+								endpoint: session.endpoint,
+							}),
+						),
+				);
+				const freeFirstSelection = selectRoleModel({
+					candidates: [...guardCandidates.values()].map((candidate) => ({
+						modelKey: candidate.entry.key,
+						capability: candidate.entry.capability.effectiveScore,
+						contextWindow: candidate.entry.contextWindow.effective ?? 0,
+						predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+						isFree: !runningModelKeys.has(candidate.entry.key),
+					})),
+					difficulty: estimateNKleinStartDifficulty(promptTokens),
+					requiredContextTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+					weighting: "efficient",
+				});
+				const freeFirstModelKey =
+					runningModelKeys.has(preferredCandidate.entry.key) &&
+					freeFirstSelection.type === "assign" &&
+					!freeFirstSelection.busyFallback
+						? freeFirstSelection.modelKey
+						: null;
+				const routingDecision = routeNKleinTask({
+					difficulty: estimateNKleinStartDifficulty(promptTokens),
+					fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+					promptTokens,
+					outputTokens: 1_000,
+					preferredModelKey: freeFirstModelKey ?? preferredCandidate.entry.key,
+					candidates: [...guardCandidates.values()].map((candidate) => ({
+						entry: candidate.entry,
+						role: candidate.role,
+					})),
+				});
+				if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
+					return {
+						ok: false,
+						summary: null,
+						error: formatNKleinTaskRoutingBlockMessage(routingDecision),
+						errorCode: routingDecision.type === "decompose" ? "needs_decomposition" : "routing_escalation",
+					};
+				}
+				const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
+				if (routedCandidate) {
+					nkleinLaunchConfig = applyCandidateEffectiveContextWindow(routedCandidate.launchConfig, routedCandidate);
+				}
+				assertLocalProviderAllowed({
+					providerId: nkleinLaunchConfig.providerId,
+					baseUrl: nkleinLaunchConfig.baseUrl,
+				});
+				const mcsrAwareTimeouts = applyMcsrAwareLocalTimeoutScaling({
+					timeouts: effectiveTimeouts,
+					launchConfig: nkleinLaunchConfig,
+					modelRegistry: modelRegistrySnapshot,
+					promptTokens,
+				});
+				const codeEmbeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
+					scopedRuntimeConfig.effectiveCodeEmbeddingSettings,
+				);
+				const endpointDecision = scheduleNKleinEndpointStart({
+					taskId: body.taskId,
+					providerId: nkleinLaunchConfig.providerId,
+					modelId: nkleinLaunchConfig.modelId ?? "",
+					endpoint: nkleinLaunchConfig.baseUrl ?? null,
+					runningSessions: nkleinTaskSessionService.listModelEndpointSessions(),
+					modelRegistry: modelRegistrySnapshot,
+					now: Date.now(),
+				});
+				if (!endpointDecision.ok) {
+					if (body.queueOnEndpointBusy) {
+						deps.taskStartQueue?.enqueue({
+							workspaceScope,
+							request: body,
+							delayMs: endpointDecision.estimatedWaitMs,
+							error: endpointDecision.reason,
+						});
+					}
+					return {
+						ok: false,
+						summary: null,
+						error: `${endpointDecision.reason} Wait for task "${endpointDecision.blockedByTaskId}" to finish, or choose a different model endpoint.`,
+						errorCode: "endpoint_busy",
+						retryAfterMs: endpointDecision.estimatedWaitMs,
+						queued: body.queueOnEndpointBusy ? true : undefined,
+					};
+				}
+				deps.taskStartQueue?.remove(workspaceScope.workspaceId, body.taskId);
+				const resolvedNKleinTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
+				const summary = await nkleinTaskSessionService.startTaskSession({
+					taskId: body.taskId,
+					cwd: workspaceScope.workspacePath,
+					workspaceRoot: workspaceScope.workspacePath,
+					baseRef: body.baseRef,
+					prompt: body.prompt,
+					taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
+					images: body.images,
+					filesLikelyTouched: body.filesLikelyTouched,
+					resumeFromTrash: body.resumeFromTrash,
+					providerId: nkleinLaunchConfig.providerId,
+					modelId: nkleinLaunchConfig.modelId,
+					mode: requestedNKleinTaskMode,
+					startInPlanMode: body.startInPlanMode,
+					apiKey: nkleinLaunchConfig.apiKey,
+					baseUrl: nkleinLaunchConfig.baseUrl,
+					reasoningEffort: nkleinLaunchConfig.reasoningEffort,
+					contextScope: body.nkleinSettings?.contextScope,
+					contextWindow: nkleinLaunchConfig.contextWindow ?? null,
+					timeoutMode: mcsrAwareTimeouts.timeoutMode,
+					requestTimeoutMs: mcsrAwareTimeouts.requestTimeoutMs,
+					turnTimeoutMs: mcsrAwareTimeouts.agentTimeoutMs,
+					streamTimeoutMs: mcsrAwareTimeouts.streamTimeoutMs,
+					toolTimeoutMs: mcsrAwareTimeouts.toolTimeoutMs,
+					conversationTimeoutMs: mcsrAwareTimeouts.conversationTimeoutMs,
+					streamTimeoutSource: mcsrAwareTimeouts.streamTimeoutSource,
+					toolTimeoutSource: mcsrAwareTimeouts.toolTimeoutSource,
+					conversationTimeoutSource: mcsrAwareTimeouts.conversationTimeoutSource,
+					maxAgentWritableFileLines: scopedRuntimeConfig.maxAgentWritableFileLines,
+					codeEmbeddingProvider,
+				});
+
 				return {
 					ok: true,
-					summary: nextSummary,
+					summary,
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
