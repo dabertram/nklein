@@ -260,8 +260,12 @@ deep analysis:
         nklein task (so the task git-history was broken), now they read the `nklein/tasks/<task>` result commit and
         operate on the project repo's shared object DB. (`loadChanges`/`collectTaskEvidence` were already
         result-branch-first.)
-      - **C2–C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
-        `nklein-acceptance-auto-repair` → sandbox-only (drop the `resolveTaskCwd`/`runAcceptanceGate` host branch);
+      - **C3 DONE 2026-06-23:** `nklein-acceptance-auto-repair` is **sandbox-only** — removed the worktree-backed
+        host gate (`resolveTaskCwd` + `runAcceptanceGate`), which was dead in production (the hub only ever passes
+        the scoped session service's `verifyTaskAcceptanceInSandbox`). Skip reason `worktree_unavailable` →
+        `acceptance_unavailable`. Tests rewired to the sandbox verifier.
+      - **C2/C4/C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
+        rewire `task-worktree-auto-merge` to result-branch-only (drop the worktree fallback — KEEP the module);
         `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the terminal
         `startTaskSession` path.
       - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**

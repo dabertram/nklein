@@ -1,8 +1,6 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { loadWorkspaceState } from "../state/workspace-state";
-import { resolveTaskCwd } from "../workspace/task-worktree";
-import type { runNKleinAcceptanceGate } from "./nklein-acceptance-gate";
 import { buildNKleinAcceptanceRepairPlan } from "./nklein-acceptance-repair";
 import type { NKleinTaskLaunchConfigOverrides, NKleinTaskSessionService } from "./nklein-task-session-service";
 
@@ -21,7 +19,7 @@ export type NKleinAcceptanceAutoRepairOutcome =
 	  }
 	| {
 			type: "skipped";
-			reason: "task_not_found" | "worktree_unavailable" | "send_failed";
+			reason: "task_not_found" | "acceptance_unavailable" | "send_failed";
 	  };
 
 export interface NKleinAcceptanceAutoRepairAttemptStore {
@@ -39,8 +37,6 @@ export interface RunNKleinAcceptanceAutoRepairInput {
 	attemptStore: NKleinAcceptanceAutoRepairAttemptStore;
 	maxAttempts?: number;
 	loadWorkspaceState?: typeof loadWorkspaceState;
-	resolveTaskCwd?: typeof resolveTaskCwd;
-	runAcceptanceGate?: typeof runNKleinAcceptanceGate;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 }
 
@@ -72,33 +68,18 @@ export async function runNKleinAcceptanceAutoRepair(
 		return { type: "skipped", reason: "task_not_found" };
 	}
 
-	const acceptance = input.runAcceptanceGate
-		? await (async () => {
-				const taskWorkspacePath = await (input.resolveTaskCwd ?? resolveTaskCwd)({
-					cwd: input.workspacePath,
-					taskId: input.taskId,
-					baseRef: taskRecord.task.baseRef,
-					ensure: false,
-				}).catch(() => null);
-				if (!taskWorkspacePath) {
-					return null;
-				}
-				return await input.runAcceptanceGate?.({
-					taskId: input.taskId,
-					workspacePath: taskWorkspacePath,
-					taskPrompt: taskRecord.task.prompt,
-				});
-			})()
-		: input.service.verifyTaskAcceptanceInSandbox
-			? await input.service.verifyTaskAcceptanceInSandbox({
-					taskId: input.taskId,
-					projectRepoPath: input.workspacePath,
-					baseRef: taskRecord.task.baseRef,
-					taskPrompt: taskRecord.task.prompt,
-				})
-			: null;
+	// Acceptance always runs in the task's Docker sandbox (the worktree-backed host gate is retired, §5.A): the
+	// scoped session service re-runs the acceptance command against the task's sandbox working copy.
+	const acceptance = input.service.verifyTaskAcceptanceInSandbox
+		? await input.service.verifyTaskAcceptanceInSandbox({
+				taskId: input.taskId,
+				projectRepoPath: input.workspacePath,
+				baseRef: taskRecord.task.baseRef,
+				taskPrompt: taskRecord.task.prompt,
+			})
+		: null;
 	if (!acceptance) {
-		return { type: "skipped", reason: "worktree_unavailable" };
+		return { type: "skipped", reason: "acceptance_unavailable" };
 	}
 	if (acceptance.present !== true) {
 		input.attemptStore.delete(input.taskId);

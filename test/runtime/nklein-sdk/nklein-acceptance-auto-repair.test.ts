@@ -11,7 +11,7 @@ function createSummary(): RuntimeTaskSessionSummary {
 		state: "awaiting_review",
 		mode: "act",
 		agentId: "nklein",
-		workspacePath: "/repo/.nklein/worktrees/task-1/repo",
+		workspacePath: "/repo",
 		pid: null,
 		startedAt: 1,
 		updatedAt: 2,
@@ -22,6 +22,19 @@ function createSummary(): RuntimeTaskSessionSummary {
 		latestHookActivity: null,
 		latestTurnCheckpoint: null,
 		previousTurnCheckpoint: null,
+	};
+}
+
+function createAcceptanceResult(passed: boolean) {
+	return {
+		present: true as const,
+		command: "npm test",
+		passed,
+		exitCode: passed ? 0 : 1,
+		output: passed ? "ok" : "failed",
+		durationMs: 20,
+		failureCategory: null,
+		failureHint: null,
 	};
 }
 
@@ -117,7 +130,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 }
 
 describe("nklein acceptance auto repair", () => {
-	it("returns ready when the acceptance gate passes", async () => {
+	it("returns ready when the sandbox acceptance gate passes", async () => {
 		const attemptStore = new Map<string, number>();
 		attemptStore.set("task-1", 1);
 
@@ -127,20 +140,10 @@ describe("nklein acceptance auto repair", () => {
 			summary: createSummary(),
 			service: {
 				sendTaskSessionInput: vi.fn(),
+				verifyTaskAcceptanceInSandbox: vi.fn(async () => createAcceptanceResult(true)),
 			},
 			attemptStore,
 			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
-			resolveTaskCwd: vi.fn(async () => "/worktree"),
-			runAcceptanceGate: vi.fn(async () => ({
-				present: true,
-				command: "npm test",
-				passed: true,
-				exitCode: 0,
-				output: "ok",
-				durationMs: 20,
-				failureCategory: null,
-				failureHint: null,
-			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
 
@@ -148,7 +151,23 @@ describe("nklein acceptance auto repair", () => {
 		expect(attemptStore.has("task-1")).toBe(false);
 	});
 
-	it("sends a repair prompt when the acceptance gate fails within the repair budget", async () => {
+	it("skips when no sandbox acceptance verifier is available", async () => {
+		const outcome = await runNKleinAcceptanceAutoRepair({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			summary: createSummary(),
+			service: {
+				sendTaskSessionInput: vi.fn(),
+			},
+			attemptStore: new Map<string, number>(),
+			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
+			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+		});
+
+		expect(outcome).toEqual({ type: "skipped", reason: "acceptance_unavailable" });
+	});
+
+	it("sends a repair prompt when the sandbox acceptance gate fails within the repair budget", async () => {
 		const sendTaskSessionInput = vi.fn(async () => createSummary());
 		const outcome = await runNKleinAcceptanceAutoRepair({
 			workspacePath: "/repo",
@@ -156,20 +175,10 @@ describe("nklein acceptance auto repair", () => {
 			summary: createSummary(),
 			service: {
 				sendTaskSessionInput,
+				verifyTaskAcceptanceInSandbox: vi.fn(async () => createAcceptanceResult(false)),
 			},
 			attemptStore: new Map<string, number>(),
 			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
-			resolveTaskCwd: vi.fn(async () => "/worktree"),
-			runAcceptanceGate: vi.fn(async () => ({
-				present: true,
-				command: "npm test",
-				passed: false,
-				exitCode: 1,
-				output: "failed",
-				durationMs: 20,
-				failureCategory: null,
-				failureHint: null,
-			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
 
@@ -187,19 +196,9 @@ describe("nklein acceptance auto repair", () => {
 		);
 	});
 
-	it("uses the scoped service sandbox verifier for automatic repair checks", async () => {
+	it("verifies acceptance against the task's sandbox working copy", async () => {
 		const sendTaskSessionInput = vi.fn(async () => createSummary());
-		const resolveTaskCwd = vi.fn(async () => "/legacy-worktree");
-		const verifyTaskAcceptanceInSandbox = vi.fn(async () => ({
-			present: true,
-			command: "npm test",
-			passed: false,
-			exitCode: 1,
-			output: "failed",
-			durationMs: 20,
-			failureCategory: null,
-			failureHint: null,
-		}));
+		const verifyTaskAcceptanceInSandbox = vi.fn(async () => createAcceptanceResult(false));
 
 		const outcome = await runNKleinAcceptanceAutoRepair({
 			workspacePath: "/repo",
@@ -211,7 +210,6 @@ describe("nklein acceptance auto repair", () => {
 			},
 			attemptStore: new Map<string, number>(),
 			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
-			resolveTaskCwd,
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
 
@@ -221,7 +219,6 @@ describe("nklein acceptance auto repair", () => {
 			baseRef: "main",
 			taskPrompt: "Acceptance check: npm test",
 		});
-		expect(resolveTaskCwd).not.toHaveBeenCalled();
 		expect(outcome).toMatchObject({
 			type: "repair_sent",
 			action: "repair",
@@ -245,21 +242,11 @@ describe("nklein acceptance auto repair", () => {
 			summary: createSummary(),
 			service: {
 				sendTaskSessionInput,
+				verifyTaskAcceptanceInSandbox: vi.fn(async () => createAcceptanceResult(false)),
 			},
 			attemptStore,
 			maxAttempts: 2,
 			loadWorkspaceState: vi.fn(async () => createWorkspaceState()),
-			resolveTaskCwd: vi.fn(async () => "/worktree"),
-			runAcceptanceGate: vi.fn(async () => ({
-				present: true,
-				command: "npm test",
-				passed: false,
-				exitCode: 1,
-				output: "failed",
-				durationMs: 20,
-				failureCategory: null,
-				failureHint: null,
-			})),
 			loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
 		});
 
