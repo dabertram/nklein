@@ -509,7 +509,7 @@ deep analysis:
       never stalls or degrades a concurrent main-LLM task; `local_lexical` still works with zero download.
       **Confirm with the user:** the default model + quant, the RAM/idle budgets, and sidecar (`llama-cpp-python`)
       vs TS (`node-llama-cpp`) hosting.
-- [ ] **#3 — Move per-project overrides out of Global Settings.** Today the global runtime-settings dialog shows
+- [x] **#3 — Move per-project overrides out of Global Settings** *(DONE 2026-06-23 — A: Project Settings dialog; B: removed from global; shared form extracted to `code-embedding-fields.tsx`).* Today the global runtime-settings dialog showed
       an "Override for this project" affordance ([web-ui/src/components/runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx)
       ~line 3466), which is poor UX (project-scoped state polluting global settings). Move all per-project
       overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
@@ -531,17 +531,12 @@ deep analysis:
       shared `code-embedding-fields.tsx` is an optional future cleanup), and
       [web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx)
       (useRuntimeConfig + the override form + `save({ codeEmbeddingOverride })`) opens from the per-project "⋯" menu
-      in `project-navigation-panel.tsx`; web-ui tsc + panel tests green. **(B) REMAINING — remove the now-duplicate
-      override from the global dialog** (the duplication is harmless meanwhile; both edit the same
-      `codeEmbeddingOverride`). It's a delicate ~10-site removal in the 4000-line `runtime-settings-dialog.tsx`,
-      best done fresh (a slip regresses the GLOBAL save flow). Sites to delete: the 4 `codeEmbeddingOverride*`
-      `useState` (~1696-1700), `initialCodeEmbeddingOverride` (~1853), the `draftCodeEmbeddingOverride` memo
-      (~1949-1963), `draftEffectiveCodeEmbeddingSettings` (~1965), the dirty-check clause (~2081), its deps-array
-      entries (~2133/2136), the load effect (~2226-2230) + its dep (~2255), the save-time openai-compatible
-      validation (~2732-2733), the save inclusion (~2805), and the JSX section (~3624-3685, replace with a one-line
-      pointer to Project Settings). tsc catches dangling refs; then verify the global Save still works (the
-      *defaults* section + `EmbeddingEndpointFields` stay). **Overlaps §5.I-1#3** (the in-panel embedding
-      model-override picker writes the same `codeEmbeddingOverride`) — share the form / do them together.
+      in `project-navigation-panel.tsx`; web-ui tsc + panel tests green. **(B) DONE 2026-06-23** — removed the
+      override's state, memo, effective-settings, dirty-check clause, deps, config-load effect, save-time
+      validation, save inclusion, and the JSX section from the global dialog; global Code-embeddings now shows only
+      the defaults, and the per-project override lives solely in Project Settings. tsc + dialog/panel tests green.
+      **§5.I-1#3** (the in-panel embedding control) is handled separately as a link from the code-intelligence
+      panel to this Project Settings dialog.
 - [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
       design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
       Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role

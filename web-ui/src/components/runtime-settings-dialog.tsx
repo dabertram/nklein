@@ -44,7 +44,6 @@ import {
 	buildCodeEmbeddingSettings,
 	CODE_EMBEDDING_PROVIDER_OPTIONS,
 	EmbeddingEndpointFields,
-	formatCodeEmbeddingSettings,
 	LOCAL_CODE_EMBEDDING_MODEL,
 } from "@/components/code-embedding-fields";
 import {
@@ -1405,11 +1404,6 @@ export function RuntimeSettingsDialog({
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
 	const [codeEmbeddingDefaultsModel, setCodeEmbeddingDefaultsModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
 	const [codeEmbeddingDefaultsBaseUrl, setCodeEmbeddingDefaultsBaseUrl] = useState("");
-	const [codeEmbeddingOverrideEnabled, setCodeEmbeddingOverrideEnabled] = useState(false);
-	const [codeEmbeddingOverrideProvider, setCodeEmbeddingOverrideProvider] =
-		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
-	const [codeEmbeddingOverrideModel, setCodeEmbeddingOverrideModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
-	const [codeEmbeddingOverrideBaseUrl, setCodeEmbeddingOverrideBaseUrl] = useState("");
 	const [taskDefaultStartInPlanMode, setTaskDefaultStartInPlanMode] = useState(() =>
 		readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false),
 	);
@@ -1562,7 +1556,6 @@ export function RuntimeSettingsDialog({
 		model: LOCAL_CODE_EMBEDDING_MODEL,
 		baseUrl: null,
 	};
-	const initialCodeEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
 	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
@@ -1658,23 +1651,6 @@ export function RuntimeSettingsDialog({
 			),
 		[codeEmbeddingDefaultsBaseUrl, codeEmbeddingDefaultsModel, codeEmbeddingDefaultsProvider],
 	);
-	const draftCodeEmbeddingOverride = useMemo(
-		() =>
-			codeEmbeddingOverrideEnabled
-				? buildCodeEmbeddingSettings(
-						codeEmbeddingOverrideProvider,
-						codeEmbeddingOverrideModel,
-						codeEmbeddingOverrideBaseUrl,
-					)
-				: null,
-		[
-			codeEmbeddingOverrideBaseUrl,
-			codeEmbeddingOverrideEnabled,
-			codeEmbeddingOverrideModel,
-			codeEmbeddingOverrideProvider,
-		],
-	);
-	const draftEffectiveCodeEmbeddingSettings = draftCodeEmbeddingOverride ?? draftCodeEmbeddingDefaults;
 	const sandboxPoolSummary = useMemo(() => {
 		const parsePositiveInteger = (value: string, fallback: number) => {
 			const parsed = Number(value.trim());
@@ -1790,9 +1766,6 @@ export function RuntimeSettingsDialog({
 		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingDefaults, initialCodeEmbeddingDefaults)) {
 			return true;
 		}
-		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingOverride, initialCodeEmbeddingOverride)) {
-			return true;
-		}
 		if (
 			taskDefaultStartInPlanMode !== initialTaskDefaultStartInPlanMode ||
 			taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
@@ -1842,10 +1815,8 @@ export function RuntimeSettingsDialog({
 		secondOpinionReviewEnabled,
 		developerModeEnabled,
 		draftCodeEmbeddingDefaults,
-		draftCodeEmbeddingOverride,
 		draftThemeId,
 		initialCodeEmbeddingDefaults,
-		initialCodeEmbeddingOverride,
 		initialAgentAutonomousModeEnabled,
 		initialAgentTimeoutMs,
 		initialAgentTimeoutMode,
@@ -1935,11 +1906,6 @@ export function RuntimeSettingsDialog({
 		setCodeEmbeddingDefaultsProvider(nextEmbeddingDefaults.provider);
 		setCodeEmbeddingDefaultsModel(nextEmbeddingDefaults.model ?? "");
 		setCodeEmbeddingDefaultsBaseUrl(nextEmbeddingDefaults.baseUrl ?? "");
-		const nextEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
-		setCodeEmbeddingOverrideEnabled(nextEmbeddingOverride !== null);
-		setCodeEmbeddingOverrideProvider(nextEmbeddingOverride?.provider ?? nextEmbeddingDefaults.provider);
-		setCodeEmbeddingOverrideModel(nextEmbeddingOverride?.model ?? nextEmbeddingDefaults.model ?? "");
-		setCodeEmbeddingOverrideBaseUrl(nextEmbeddingOverride?.baseUrl ?? nextEmbeddingDefaults.baseUrl ?? "");
 		const storedTaskDefaultStartInPlanMode = readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false);
 		const storedTaskDefaultAutoReviewEnabled = readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false);
 		const storedTaskDefaultAutoReviewMode = readTaskAutoReviewModeDefault();
@@ -1964,7 +1930,6 @@ export function RuntimeSettingsDialog({
 		config?.commitPromptTemplate,
 		config?.conversationTimeoutMs,
 		config?.codeEmbeddingDefaults,
-		config?.codeEmbeddingOverride,
 		config?.decompositionAutoApplyEnabled,
 		config?.secondOpinionReviewEnabled,
 		config?.reviewMaxRounds,
@@ -2440,13 +2405,6 @@ export function RuntimeSettingsDialog({
 			setSaveError("Default OpenAI-compatible embeddings need both an endpoint URL and a model id.");
 			return;
 		}
-		if (
-			draftCodeEmbeddingOverride?.provider === "openai_compatible" &&
-			(!draftCodeEmbeddingOverride.baseUrl || !draftCodeEmbeddingOverride.model)
-		) {
-			setSaveError("Project OpenAI-compatible embeddings need both an endpoint URL and a model id.");
-			return;
-		}
 		const selectedAgent = displayedAgents.find((agent) => agent.id === selectedAgentId);
 		if (selectedAgent?.installed !== true) {
 			setSaveError("Selected agent is not installed. Install it first or choose an installed agent.");
@@ -2514,7 +2472,6 @@ export function RuntimeSettingsDialog({
 			developerModeEnabled,
 			replayCardsEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
-			...(workspaceId ? { codeEmbeddingOverride: draftCodeEmbeddingOverride } : {}),
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			agentRulesets,
@@ -3336,68 +3293,6 @@ export function RuntimeSettingsDialog({
 													onError={setSaveError}
 												/>
 											</div>
-											{workspaceId ? (
-												<div className="rounded-md border border-border bg-surface-1 p-3">
-													<div className="mb-3 flex items-center justify-between gap-3">
-														<div className="flex items-center gap-2 text-[13px] text-text-primary">
-															<RadixSwitch.Root
-																checked={codeEmbeddingOverrideEnabled}
-																disabled={controlsDisabled}
-																onCheckedChange={setCodeEmbeddingOverrideEnabled}
-																className="relative h-5 w-9 rounded-full bg-surface-4 data-[state=checked]:bg-accent cursor-pointer disabled:opacity-40"
-															>
-																<RadixSwitch.Thumb className="block h-4 w-4 rounded-full bg-white shadow-sm transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
-															</RadixSwitch.Root>
-															<span>Override for this project</span>
-														</div>
-														<div className="text-right text-[11px] text-text-secondary">
-															Effective:{" "}
-															{formatCodeEmbeddingSettings(draftEffectiveCodeEmbeddingSettings)}
-														</div>
-													</div>
-													<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
-														<div className="min-w-0">
-															<span className="mb-1 block text-[12px] text-text-secondary">
-																Project provider
-															</span>
-															<NativeSelect
-																value={codeEmbeddingOverrideProvider}
-																onChange={(event) =>
-																	setCodeEmbeddingOverrideProvider(
-																		event.target.value as RuntimeCodeEmbeddingSettings["provider"],
-																	)
-																}
-																disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
-																fill
-															>
-																{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
-																	<option key={option.value} value={option.value}>
-																		{option.label}
-																	</option>
-																))}
-															</NativeSelect>
-														</div>
-														<EmbeddingEndpointFields
-															workspaceId={workspaceId}
-															labelPrefix="Project"
-															disabled={controlsDisabled || !codeEmbeddingOverrideEnabled}
-															provider={codeEmbeddingOverrideProvider}
-															baseUrl={codeEmbeddingOverrideBaseUrl}
-															model={codeEmbeddingOverrideModel}
-															suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
-															endpointPlaceholder={codeEmbeddingDefaultsBaseUrl || "Inherited endpoint"}
-															modelPlaceholder={codeEmbeddingDefaultsModel || "Inherited model"}
-															onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}
-															onModelChange={setCodeEmbeddingOverrideModel}
-															onError={setSaveError}
-														/>
-													</div>
-												</div>
-											) : (
-												<p className="m-0 text-[12px] text-text-secondary">
-													Open project settings to set a project-specific override.
-												</p>
-											)}
 										</div>
 									</div>
 									<div className="mt-4 border-t border-border pt-4">
