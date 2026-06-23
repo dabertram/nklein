@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { RUNTIME_AGENT_CATALOG, usesLegacyHostTaskWorkspace } from "../../src/core/agent-catalog";
+import {
+	getRuntimeLaunchSupportedAgentCatalog,
+	isRuntimeAgentLaunchSupported,
+	RUNTIME_AGENT_CATALOG,
+	RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS,
+	usesLegacyHostTaskWorkspace,
+} from "../../src/core/agent-catalog";
 
 describe("usesLegacyHostTaskWorkspace (host-worktree boundary)", () => {
 	it("never uses a host worktree for the default NKlein / sandbox agent", () => {
@@ -19,6 +25,32 @@ describe("usesLegacyHostTaskWorkspace (host-worktree boundary)", () => {
 		expect(legacyAgentIds.length).toBeGreaterThan(0);
 		for (const agentId of legacyAgentIds) {
 			expect(usesLegacyHostTaskWorkspace(agentId)).toBe(true);
+		}
+	});
+});
+
+describe("nklein-only launch support (todo §5.A invariant)", () => {
+	it("launches only the native NKlein agent", () => {
+		expect([...RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS]).toEqual(["nklein"]);
+		expect(isRuntimeAgentLaunchSupported("nklein")).toBe(true);
+		expect(getRuntimeLaunchSupportedAgentCatalog().map((entry) => entry.id)).toEqual(["nklein"]);
+	});
+
+	it("does not launch any terminal/CLI agent", () => {
+		for (const entry of RUNTIME_AGENT_CATALOG) {
+			if (entry.id === "nklein") {
+				continue;
+			}
+			expect(isRuntimeAgentLaunchSupported(entry.id)).toBe(false);
+		}
+	});
+
+	it("no launchable agent ever creates a host worktree", () => {
+		// Combined §5.A invariant: every launch-supported agent is the sandbox NKlein agent, which never
+		// creates a host worktree — so no reachable task start can produce one (locks increments 1b + 2a/2b
+		// ahead of the increment-3 worktree-subsystem deletion).
+		for (const agentId of RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS) {
+			expect(usesLegacyHostTaskWorkspace(agentId)).toBe(false);
 		}
 	});
 });
