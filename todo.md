@@ -525,13 +525,23 @@ deep analysis:
       isSaving }` (same hook the global dialog uses). **Shared fields to extract:** `EmbeddingEndpointFields`
       (runtime-settings-dialog.tsx ~line 286, ~260 lines — check for hidden dialog-local deps first),
       `CODE_EMBEDDING_PROVIDER_OPTIONS` (~552), `LOCAL_CODE_EMBEDDING_MODEL` (~551), `formatCodeEmbeddingSettings`
-      (~625) → move into a shared `code-embedding-fields.tsx` (the global dialog's *defaults* section still uses
-      `EmbeddingEndpointFields`, so both import it). **Steps:** (0) extract the shared fields (behavior-preserving,
-      tsc + dialog tests verify); (A) new `project-settings-dialog.tsx` (useRuntimeConfig + the embedding-override
-      form + `save({ codeEmbeddingOverride: enabled ? {...} : null })`) + a gear button in
-      `project-navigation-panel.tsx`; (B) remove the override section + its state from the global dialog. **Overlaps
-      §5.I-1#3** (the in-panel embedding model-override picker writes the same `codeEmbeddingOverride`) — share the
-      extracted form / do them together.
+      (~625). **Steps:** **(0)+(A) DONE 2026-06-23** — instead of moving, the shared bits are now **exported** from
+      `runtime-settings-dialog.tsx` (`EmbeddingEndpointFields`, `CODE_EMBEDDING_PROVIDER_OPTIONS`,
+      `LOCAL_CODE_EMBEDDING_MODEL`, `buildCodeEmbeddingSettings`, `formatCodeEmbeddingSettings`; relocating them to a
+      shared `code-embedding-fields.tsx` is an optional future cleanup), and
+      [web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx)
+      (useRuntimeConfig + the override form + `save({ codeEmbeddingOverride })`) opens from the per-project "⋯" menu
+      in `project-navigation-panel.tsx`; web-ui tsc + panel tests green. **(B) REMAINING — remove the now-duplicate
+      override from the global dialog** (the duplication is harmless meanwhile; both edit the same
+      `codeEmbeddingOverride`). It's a delicate ~10-site removal in the 4000-line `runtime-settings-dialog.tsx`,
+      best done fresh (a slip regresses the GLOBAL save flow). Sites to delete: the 4 `codeEmbeddingOverride*`
+      `useState` (~1696-1700), `initialCodeEmbeddingOverride` (~1853), the `draftCodeEmbeddingOverride` memo
+      (~1949-1963), `draftEffectiveCodeEmbeddingSettings` (~1965), the dirty-check clause (~2081), its deps-array
+      entries (~2133/2136), the load effect (~2226-2230) + its dep (~2255), the save-time openai-compatible
+      validation (~2732-2733), the save inclusion (~2805), and the JSX section (~3624-3685, replace with a one-line
+      pointer to Project Settings). tsc catches dangling refs; then verify the global Save still works (the
+      *defaults* section + `EmbeddingEndpointFields` stay). **Overlaps §5.I-1#3** (the in-panel embedding
+      model-override picker writes the same `codeEmbeddingOverride`) — share the form / do them together.
 - [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
       design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
       Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role
