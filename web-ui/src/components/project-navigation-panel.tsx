@@ -12,6 +12,7 @@ import {
 	Lightbulb,
 	Play,
 	Plus,
+	Settings,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEff
 import { showAppToast } from "@/components/app-toaster";
 import { CodeIntelligencePanel } from "@/components/code-intelligence-panel";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
+import { ProjectSettingsDialog } from "@/components/project-settings-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -128,6 +130,7 @@ export function ProjectNavigationPanel({
 	});
 
 	const [pendingProjectRemoval, setPendingProjectRemoval] = useState<RuntimeProjectSummary | null>(null);
+	const [settingsProject, setSettingsProject] = useState<RuntimeProjectSummary | null>(null);
 	const [deleteGitRepository, setDeleteGitRepository] = useState(false);
 	const [devTestProjectState, setDevTestProjectState] = useState<{
 		runningPreset: RuntimeDevTestProjectPreset | null;
@@ -426,6 +429,12 @@ export function ProjectNavigationPanel({
 									}
 									setDeleteGitRepository(false);
 									setPendingProjectRemoval(found);
+								}}
+								onOpenSettings={(projectId) => {
+									const found = sortedProjects.find((item) => item.id === projectId);
+									if (found) {
+										setSettingsProject(found);
+									}
 								}}
 							/>
 						))}
@@ -762,6 +771,16 @@ export function ProjectNavigationPanel({
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialog>
+			<ProjectSettingsDialog
+				open={settingsProject !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setSettingsProject(null);
+					}
+				}}
+				workspaceId={settingsProject?.id ?? null}
+				projectName={settingsProject?.name ?? null}
+			/>
 		</aside>
 	);
 }
@@ -1283,12 +1302,14 @@ function ProjectRow({
 	removingProjectId,
 	onSelect,
 	onRemove,
+	onOpenSettings,
 }: {
 	project: RuntimeProjectSummary;
 	isCurrent: boolean;
 	removingProjectId: string | null;
 	onSelect: (id: string) => void;
 	onRemove: (id: string) => void;
+	onOpenSettings: (id: string) => void;
 }): React.ReactElement {
 	const displayPath = formatPathForDisplay(project.path);
 	const isRemovingProject = removingProjectId === project.id;
@@ -1422,9 +1443,17 @@ function ProjectRow({
 							onCloseAutoFocus={(event) => event.preventDefault()}
 						>
 							<DropdownMenu.Item
+								className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] text-text-primary cursor-pointer outline-none data-[highlighted]:bg-surface-3"
+								onSelect={() => onOpenSettings(project.id)}
+							>
+								<Settings size={14} />
+								Project settings
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
 								className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] text-status-red cursor-pointer outline-none data-[highlighted]:bg-surface-3"
 								onSelect={() => onRemove(project.id)}
 							>
+								<Trash2 size={14} />
 								Delete
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>

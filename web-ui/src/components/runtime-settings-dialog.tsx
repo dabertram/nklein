@@ -283,7 +283,7 @@ const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
 	reviewer: "Reviewer",
 };
 
-function EmbeddingEndpointFields({
+export function EmbeddingEndpointFields({
 	workspaceId,
 	labelPrefix,
 	disabled,
@@ -548,8 +548,11 @@ function normalizeAgentTimeoutProfile(
 	}
 	return "local";
 }
-const LOCAL_CODE_EMBEDDING_MODEL = "kanban-local-lexical-vector-v1";
-const CODE_EMBEDDING_PROVIDER_OPTIONS: Array<{ value: RuntimeCodeEmbeddingSettings["provider"]; label: string }> = [
+export const LOCAL_CODE_EMBEDDING_MODEL = "kanban-local-lexical-vector-v1";
+export const CODE_EMBEDDING_PROVIDER_OPTIONS: Array<{
+	value: RuntimeCodeEmbeddingSettings["provider"];
+	label: string;
+}> = [
 	{ value: "local_lexical", label: "Local lexical fallback" },
 	{ value: "openai_compatible", label: "OpenAI-compatible endpoint" },
 ];
@@ -596,7 +599,7 @@ function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOpt
 	return getRuntimeShortcutPickerOption(icon);
 }
 
-function buildCodeEmbeddingSettings(
+export function buildCodeEmbeddingSettings(
 	provider: RuntimeCodeEmbeddingSettings["provider"],
 	model: string,
 	baseUrl: string,
@@ -622,7 +625,7 @@ function areCodeEmbeddingSettingsEqual(
 	return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function formatCodeEmbeddingSettings(settings: RuntimeCodeEmbeddingSettings): string {
+export function formatCodeEmbeddingSettings(settings: RuntimeCodeEmbeddingSettings): string {
 	if (settings.provider === "local_lexical") {
 		return "Local lexical fallback";
 	}
