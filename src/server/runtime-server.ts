@@ -38,6 +38,7 @@ import {
 	type AgentSandboxPoolConfig,
 	resolveAgentSandboxImageName,
 } from "../nklein-sdk/nklein-agent-sandbox";
+import { configureNKleinAiSdkWarnings } from "../nklein-sdk/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-sdk/nklein-decomposition-tool";
 import { handleNKleinMcpOauthCallback } from "../nklein-sdk/nklein-mcp-runtime-service";
 import {
@@ -205,6 +206,9 @@ function createCheckingAgentSandboxStatus(): RuntimeAgentSandboxStatus {
 }
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
+	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
+	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
+	configureNKleinAiSdkWarnings(deps.warn);
 	const webUiDir = getWebUiDir();
 	const startupAgentSandboxManager = new AgentSandboxManager();
 	let agentSandboxStatus = createCheckingAgentSandboxStatus();
