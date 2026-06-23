@@ -264,8 +264,10 @@ deep analysis:
         host gate (`resolveTaskCwd` + `runAcceptanceGate`), which was dead in production (the hub only ever passes
         the scoped session service's `verifyTaskAcceptanceInSandbox`). Skip reason `worktree_unavailable` →
         `acceptance_unavailable`. Tests rewired to the sandbox verifier.
-      - **C2/C4/C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
-        rewire `task-worktree-auto-merge` to result-branch-only (drop the worktree fallback — KEEP the module);
+      - **C4 DONE 2026-06-23:** `task-worktree-auto-merge` (the live delivery merge on auto-complete) is
+        result-branch-only — dropped the `resolveTaskCwd` worktree fallback; a task with no `nklein/tasks/<task>`
+        result branch is now skipped (nothing host-visible to merge). Module kept (it is *not* dead).
+      - **C2/C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
         `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the terminal
         `startTaskSession` path.
       - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**

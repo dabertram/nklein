@@ -1,7 +1,6 @@
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
 import { resolveTaskResultBranchCommit as defaultResolveTaskResultBranchCommit } from "./task-result-branches";
-import { resolveTaskCwd as defaultResolveTaskCwd } from "./task-worktree";
 
 export type TaskWorktreeAutoMergeColumn = Extract<RuntimeBoardColumnId, "review" | "completed">;
 
@@ -47,7 +46,6 @@ export interface TaskWorktreeAutoMergeResult {
 }
 
 type RunGit = (cwd: string, args: string[], options?: RunGitOptions) => ReturnType<typeof defaultRunGit>;
-type ResolveTaskCwd = typeof defaultResolveTaskCwd;
 type ResolveTaskResultBranchCommit = typeof defaultResolveTaskResultBranchCommit;
 
 function collectCandidateTasks(input: {
@@ -142,11 +140,9 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	columns: readonly TaskWorktreeAutoMergeColumn[];
 	taskIds?: readonly string[];
 	runGit?: RunGit;
-	resolveTaskCwd?: ResolveTaskCwd;
 	resolveTaskResultBranchCommit?: ResolveTaskResultBranchCommit;
 }): Promise<TaskWorktreeAutoMergeResult> {
 	const runGit = input.runGit ?? defaultRunGit;
-	const resolveTaskCwd = input.resolveTaskCwd ?? defaultResolveTaskCwd;
 	const resolveTaskResultBranchCommit = input.resolveTaskResultBranchCommit ?? defaultResolveTaskResultBranchCommit;
 	const steps: TaskWorktreeAutoMergeStep[] = [];
 	const mergedTaskIds: string[] = [];
@@ -184,34 +180,24 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			return { ok: false, steps, mergedTaskIds, skippedTaskIds, blocked };
 		}
 
-		const resultBranchCommit = await resolveTaskResultBranchCommit({
+		// A task's deliverable is its `nklein/tasks/<task>` result branch (the worktree subsystem is retired,
+		// §5.A). With no result branch there is nothing host-visible to merge, so skip the task rather than
+		// reaching into a (now-nonexistent) host worktree.
+		const headCommit = await resolveTaskResultBranchCommit({
 			repoPath: input.repoPath,
 			taskId: task.id,
 			runGit,
 		});
-		let headCommit: string;
-		if (resultBranchCommit) {
-			headCommit = resultBranchCommit;
-		} else {
-			const worktreePath = await resolveTaskCwd({
-				cwd: input.repoPath,
+		if (!headCommit) {
+			const skipped: TaskWorktreeAutoMergeSuccess = {
+				type: "skipped",
 				taskId: task.id,
-				baseRef: task.baseRef,
-				ensure: false,
-			}).catch((error: unknown) => {
-				throw new Error(error instanceof Error ? error.message : String(error));
-			});
-			const head = await runGit(worktreePath, ["rev-parse", "--verify", "HEAD"]);
-			if (!head.ok || !head.stdout.trim()) {
-				const blocked: TaskWorktreeAutoMergeBlocked = {
-					type: "blocked",
-					taskId: task.id,
-					reason: head.error ?? `Could not resolve HEAD for task "${task.id}".`,
-				};
-				steps.push(blocked);
-				return { ok: false, steps, mergedTaskIds, skippedTaskIds, blocked };
-			}
-			headCommit = head.stdout.trim();
+				headCommit: "",
+				reason: "no task result branch to merge.",
+			};
+			steps.push(skipped);
+			skippedTaskIds.push(task.id);
+			continue;
 		}
 		const alreadyMerged = await runGit(input.repoPath, ["merge-base", "--is-ancestor", headCommit, "HEAD"]);
 		if (alreadyMerged.ok) {
