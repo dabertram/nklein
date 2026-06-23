@@ -16,6 +16,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/dialog";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { ResizeHandle } from "@/resize/resize-handle";
 import {
@@ -245,16 +246,18 @@ export function GitHistoryView({
 						>
 							<span style={{ flex: 1 }}>Working Copy Changes</span>
 							{onDiscardWorkingChanges ? (
-								<Button
-									variant="danger"
-									size="sm"
-									icon={<Trash2 size={14} />}
-									aria-label="Discard all changes"
-									disabled={isDiscardWorkingChangesPending}
-									onClick={() => setIsDiscardAlertOpen(true)}
-								>
-									{isDiscardWorkingChangesPending ? <Spinner size={14} /> : null}
-								</Button>
+								<ElementTooltip id="git.discard-changes" side="left">
+									<Button
+										variant="danger"
+										size="sm"
+										icon={<Trash2 size={14} />}
+										aria-label="Discard all changes"
+										disabled={isDiscardWorkingChangesPending}
+										onClick={() => setIsDiscardAlertOpen(true)}
+									>
+										{isDiscardWorkingChangesPending ? <Spinner size={14} /> : null}
+									</Button>
+								</ElementTooltip>
 							) : null}
 						</div>
 					) : null

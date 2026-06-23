@@ -5,6 +5,7 @@ import type { MutableRefObject, ReactElement } from "react";
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
@@ -383,13 +384,15 @@ function AgentTerminalPanelLayout({
 								/>
 							</Tooltip>
 						) : null}
-						<Button
-							icon={<X size={14} />}
-							variant="ghost"
-							size="sm"
-							onClick={onClose}
-							aria-label="Close terminal"
-						/>
+						<ElementTooltip id="terminal.close" side="bottom">
+							<Button
+								icon={<X size={14} />}
+								variant="ghost"
+								size="sm"
+								onClick={onClose}
+								aria-label="Close terminal"
+							/>
+						</ElementTooltip>
 					</div>
 				</div>
 			) : null}

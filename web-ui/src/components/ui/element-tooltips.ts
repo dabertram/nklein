@@ -68,6 +68,26 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Expand / collapse diff",
 		description: "Switch between the inline diff and the full-screen split diff view.",
 	},
+	"board.concurrency-cap": {
+		name: "Max concurrent tasks",
+		description: "How many agent tasks the swarm runs at once; drag to change the cap.",
+	},
+	"board.swarm-pause": {
+		name: "Pause / resume the swarm",
+		description: "Stop every agent at the next safe checkpoint, or resume paused work.",
+	},
+	"board.code-intel": {
+		name: "Code intelligence",
+		description: "The project's code-index status and the embedding provider used for retrieval.",
+	},
+	"git.discard-changes": {
+		name: "Discard all changes",
+		description: "Permanently revert every uncommitted change in the working copy. This cannot be undone.",
+	},
+	"terminal.close": {
+		name: "Close terminal",
+		description: "Close this task's terminal pane.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

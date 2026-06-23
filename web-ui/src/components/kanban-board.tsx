@@ -17,6 +17,7 @@ import { BoardColumn } from "@/components/board-column";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import {
 	collectTaskEvidence,
@@ -707,60 +708,66 @@ export function KanbanBoard({
 						</span>
 					) : null}
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
-					<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">
-						<Database size={12} />
-						{formatCodeIntelligenceChip(codeIntelligenceStatus)}
-					</span>
+					<ElementTooltip id="board.code-intel" side="bottom">
+						<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">
+							<Database size={12} />
+							{formatCodeIntelligenceChip(codeIntelligenceStatus)}
+						</span>
+					</ElementTooltip>
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
-					<label className="inline-flex h-7 items-center gap-2 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-secondary">
-						<SlidersHorizontal size={12} />
-						<span className="font-medium text-text-primary">Cap {concurrencyCapDraft}</span>
-						<input
-							type="range"
-							min={1}
-							max={12}
-							step={1}
-							value={concurrencyCapDraft}
-							disabled={!currentProjectId || !runtimeConfig || isConcurrencyCapSaving}
-							aria-label="Max concurrent tasks"
-							className="h-1.5 w-20 accent-accent disabled:opacity-50"
-							onChange={(event) => {
-								setConcurrencyCapDraft(Number(event.currentTarget.value));
-							}}
-							onBlur={() => {
-								void handleSaveConcurrencyCap(concurrencyCapDraft);
-							}}
-							onPointerUp={() => {
-								void handleSaveConcurrencyCap(concurrencyCapDraft);
-							}}
-							onKeyUp={(event) => {
-								if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+					<ElementTooltip id="board.concurrency-cap" side="bottom">
+						<label className="inline-flex h-7 items-center gap-2 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-secondary">
+							<SlidersHorizontal size={12} />
+							<span className="font-medium text-text-primary">Cap {concurrencyCapDraft}</span>
+							<input
+								type="range"
+								min={1}
+								max={12}
+								step={1}
+								value={concurrencyCapDraft}
+								disabled={!currentProjectId || !runtimeConfig || isConcurrencyCapSaving}
+								aria-label="Max concurrent tasks"
+								className="h-1.5 w-20 accent-accent disabled:opacity-50"
+								onChange={(event) => {
+									setConcurrencyCapDraft(Number(event.currentTarget.value));
+								}}
+								onBlur={() => {
 									void handleSaveConcurrencyCap(concurrencyCapDraft);
-								}
+								}}
+								onPointerUp={() => {
+									void handleSaveConcurrencyCap(concurrencyCapDraft);
+								}}
+								onKeyUp={(event) => {
+									if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+										void handleSaveConcurrencyCap(concurrencyCapDraft);
+									}
+								}}
+							/>
+							{isConcurrencyCapSaving ? <Spinner size={12} /> : null}
+						</label>
+					</ElementTooltip>
+					<ElementTooltip id="board.swarm-pause" side="bottom">
+						<Button
+							variant={swarmStopSignal ? "default" : "danger"}
+							size="sm"
+							icon={
+								isSwarmStopLoading ? (
+									<Spinner size={14} />
+								) : swarmStopSignal ? (
+									<PlayCircle size={14} />
+								) : (
+									<PauseCircle size={14} />
+								)
+							}
+							disabled={!currentProjectId || isSwarmStopLoading}
+							onClick={() => {
+								void handleToggleSwarmStop();
 							}}
-						/>
-						{isConcurrencyCapSaving ? <Spinner size={12} /> : null}
-					</label>
-					<Button
-						variant={swarmStopSignal ? "default" : "danger"}
-						size="sm"
-						icon={
-							isSwarmStopLoading ? (
-								<Spinner size={14} />
-							) : swarmStopSignal ? (
-								<PlayCircle size={14} />
-							) : (
-								<PauseCircle size={14} />
-							)
-						}
-						disabled={!currentProjectId || isSwarmStopLoading}
-						onClick={() => {
-							void handleToggleSwarmStop();
-						}}
-					>
-						{swarmStopSignal ? "Resume" : "Pause"}
-					</Button>
+						>
+							{swarmStopSignal ? "Resume" : "Pause"}
+						</Button>
+					</ElementTooltip>
 				</div>
 			</div>
 			<DragDropContext

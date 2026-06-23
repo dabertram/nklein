@@ -2,7 +2,7 @@
 
 ## [Upcoming !Klein 0.0.1]
 
-- More **hover/focus tooltips** (todo §5.I#5): the card-detail controls — reject pending artifact, collapse the expanded diff, and toggle the split diff view — now show a name + one-line description from the `ELEMENT_TOOLTIPS` registry, continuing the universal-tooltip coverage beyond the top bar / board columns / cards.
+- More **hover/focus tooltips** (todo §5.I#5): extended universal-tooltip coverage to the card-detail controls (reject pending artifact, collapse expanded diff, toggle split diff), the **swarm cockpit** (max-concurrency cap, pause/resume the swarm, code-intelligence chip), **git-history "Discard all changes"**, and the **terminal "Close"** — each now shows a name + one-line description from the `ELEMENT_TOOLTIPS` registry. This covers the high-value icon-only controls across the board, card, and cockpit surfaces (beyond the already-covered top bar / board columns / cards).
 
 - Settings → Tasks now has a **Max review rounds** input (todo §5.K): the second-opinion review round cap (`reviewMaxRounds`, default 20) is now editable from the UI — a number input next to the review toggle, disabled when review is off, threaded through the settings dialog's state/dirty-check/save like the other settings. Completes §5.K.
 
