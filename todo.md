@@ -309,14 +309,35 @@ deep analysis:
       roles/fit **re-resolve against the target machine's local models on load**.
 
 ### 5.G — Backlog (promote into a worked item when picked up)
-- [ ] **Plug-and-play Docker delivery.** Wrap the whole !Klein app (runtime + built web-ui) into a Docker image so
-      it's a ready-to-use deliverable, and add a **`docker-compose` example to the README** so anyone can
-      `docker compose up` to build the image and get a running, ready-to-use container. **Must handle the
-      Docker-in-the-loop wrinkle:** !Klein itself launches hardened Docker sandboxes for agents, so the container
-      needs Docker access (mount the host `docker.sock` or document DinD) for agent tasks to run — call this out
-      explicitly in the compose example. Persist the runtime home (`~/.nklein`) and project mounts as volumes;
-      expose the runtime + web-ui ports; keep local-only/no-cloud defaults. Document local-model endpoint reachability
-      from inside the container (host LM Studio/Ollama via `host.docker.internal`).
+- [ ] **Plug-and-play, batteries-included Docker delivery.** Ship !Klein as a **fully self-contained, deliverable
+      Docker image** + a **`docker-compose.yml` we provide**: a user copies the compose file, runs `docker compose up`,
+      and has a running, ready-to-use !Klein immediately. The image bundles the runtime + built web-ui + the Python
+      core **and all of !Klein's own internal models**, so every internal capability works offline out of the box.
+      **DECIDED 2026-06-23 (clarified with user):**
+      - **Batteries-included internals — ALL of !Klein's internal models baked into the image:** the code-embedding
+        GGUF (~84MB, nomic-embed-text-v1.5 Q4_K_M), the context-compression scorer (ONNX/LLMLingua via
+        [src/nklein-sdk/nklein-compression-model-manager.ts](src/nklein-sdk/nklein-compression-model-manager.ts)),
+        and any other small Python-core helper model. The delivered image is **offline / air-gapped for everything
+        !Klein-internal** — no first-run downloads for its own models.
+      - **Agent-work LLM + its runtime are 100% user-provided and EXTERNAL to the container** — exactly like the host
+        LM Studio used today. We do **not** bundle Ollama (or any engine) for agent work and do **not** bake or
+        auto-pull a default agent model; the user points !Klein at an existing model runtime running **outside** the
+        container, reachable via `host.docker.internal`. This deliberately leaves model, version, quant, and runtime
+        **entirely free to the user**, and preserves host GPU/Metal acceleration (a containerized LLM on macOS gets
+        no Metal). (Supersedes the earlier "bundle Ollama + host override" lean — there is no internal Ollama.)
+      - **Docker-in-Docker (DinD):** !Klein launches hardened agent sandboxes, so the stack runs a **nested,
+        privileged Docker daemon inside the compose** (no host `docker.sock` exposure) — fully self-contained sandbox
+        isolation. Document the privileged-DinD requirement and that sandbox image storage lives inside the stack.
+      - **Two explicit host mounts (the only !Klein-side config besides the user's model endpoint):** (1) a
+        **projects folder** (code loads from + persists to the host), and (2) a **runtime-state folder** for the
+        !Klein home (`~/.nklein`: board CRDT / plan-graph / progress, model registry, telemetry, results) — both
+        visible and persisted on the host filesystem.
+      - **Expose** the runtime + web-ui ports; **keep local-only / no-cloud defaults** (the only outbound reachability
+        is the user's own external model endpoint; agent sandboxes stay `--network none`).
+      **Acceptance:** on a fresh machine with Docker, `docker compose up` (after the user sets their external model
+      endpoint + the two mount paths) yields a working !Klein — board, decomposition, sandboxed parallel execution,
+      review/merge — with !Klein's internal models already present (zero internal-model downloads), projects loaded
+      from + persisted to the projects mount, and runtime state surviving teardown/re-up via the state mount.
 - [ ] **CI-able dogfood smoke:** a scripted end-to-end that exercises a full 1-shot → decomposition → parallel
       execution → merge cycle on a tiny local model, as a CI gate.
 - [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
