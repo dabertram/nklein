@@ -237,9 +237,15 @@ deep analysis:
 - [ ] **Knowledge-tool usage as a decomposition-quality signal.** Correlate whether retrieval / code-index /
       architecture-knowledge tools were actually used in a planning session *before* `decompose_project`, and
       surface "decomposition used / did not use knowledge tools" in the Settings stats view — not just a usage
-      count. Needs session-runtime correlation + a Settings UI column. (Graph-coherence validation,
-      `knowledgeDebt` on cards, and the mandatory knowledge-acquisition + scope-pressure workflow are already
-      shipped — see §6.)
+      count. **Backend DONE 2026-06-23:** `src/telemetry/knowledge-tool-decomposition-signal.ts`
+      (`correlateDecompositionKnowledgeSignals` + `aggregateDecompositionKnowledgeSignals`) turns the
+      knowledge-tool-usage observation log into a per-decomposition "used knowledge tools (yes/no) + which
+      categories, before the decomposition landed" signal (anchored on `decomposition_applied` so retries get
+      credit), rolled up per scope × role × provider × model; surfaced in the stats API response
+      (`decompositionKnowledgeSignals` + `decompositionKnowledgeAggregates`, schema in api-contract);
+      unit-tested + a read-path integration test. **Remaining:** the Settings stats UI column that renders it
+      (web-ui). (Graph-coherence validation, `knowledgeDebt` on cards, and the mandatory knowledge-acquisition +
+      scope-pressure workflow are already shipped — see §6.)
 - [ ] **Audio dev-test rubric.** Score the audio-VST fixture as under-decomposed/shallow against a domain
       rubric: DSP correctness, measured phase alignment, groove invariants, effect-guardrail sweeps, full UI
       control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)

@@ -141,6 +141,56 @@ describe("knowledge tool usage stats", () => {
 		});
 	});
 
+	it("surfaces the §5.B decomposition knowledge signal from the read path", async () => {
+		const rootDir = await createStatsRoot();
+		const runtimeConfig = createRuntimeConfig();
+		// A code-index consultation, then an applied decomposition for the same planning session.
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project",
+			card: createCard("audio-synth"),
+			runtimeConfig,
+			summary: createSummary(),
+			now: 4_000,
+		});
+		await recordKnowledgeToolUsageObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/audio-project",
+			card: createCard("audio-synth"),
+			runtimeConfig,
+			summary: createSummary({
+				lastHookAt: 5_000,
+				latestHookActivity: {
+					activityText: "Applied decomposition",
+					toolName: "decompose_project",
+					toolInputSummary: "decompose project",
+					finalMessage: null,
+					hookEventName: "decomposition_applied",
+					notificationType: null,
+					source: "nklein-sdk",
+				},
+			}),
+			now: 5_000,
+		});
+
+		const stats = await readKnowledgeToolUsageStats({ rootDir, workspacePath: "/tmp/audio-project", now: 7_000 });
+
+		expect(stats.decompositionKnowledgeSignals).toHaveLength(1);
+		expect(stats.decompositionKnowledgeSignals[0]).toMatchObject({
+			taskId: "audio-synth",
+			usedKnowledgeTools: true,
+			applied: true,
+		});
+		expect(
+			stats.decompositionKnowledgeAggregates.some(
+				(aggregate) =>
+					aggregate.scope === "overall" && aggregate.decompositions === 1 && aggregate.withKnowledgeTools === 1,
+			),
+		).toBe(true);
+	});
+
 	it("deduplicates repeated emissions and aggregates by project, version, role, model, and tool", async () => {
 		const rootDir = await createStatsRoot();
 		const runtimeConfig = createRuntimeConfig();

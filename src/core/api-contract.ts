@@ -635,10 +635,50 @@ export const runtimeKnowledgeToolUsageAggregateSchema = z.object({
 });
 export type RuntimeKnowledgeToolUsageAggregate = z.infer<typeof runtimeKnowledgeToolUsageAggregateSchema>;
 
+/**
+ * §5.B decomposition-quality signal: per planning session, whether the architect consulted knowledge tools
+ * (codebase retrieval / code index / architecture knowledge) *before* the decomposition landed — not just a
+ * raw usage count.
+ */
+export const runtimeDecompositionKnowledgeSignalSchema = z.object({
+	taskId: z.string(),
+	appVersion: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	projectName: z.string().nullable(),
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	decomposedAt: z.number().int().nonnegative(),
+	applied: z.boolean(),
+	usedKnowledgeTools: z.boolean(),
+	knowledgeCategoriesBefore: z.array(runtimeKnowledgeToolCategorySchema),
+});
+export type RuntimeDecompositionKnowledgeSignal = z.infer<typeof runtimeDecompositionKnowledgeSignalSchema>;
+
+export const runtimeDecompositionKnowledgeAggregateSchema = z.object({
+	key: z.string(),
+	scope: z.enum(["overall", "project", "version"]),
+	appVersion: z.string().nullable(),
+	workspacePathHash: z.string().nullable(),
+	projectName: z.string().nullable(),
+	role: runtimeModelPerformanceRoleSchema,
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	decompositions: z.number().int().nonnegative(),
+	withKnowledgeTools: z.number().int().nonnegative(),
+	withoutKnowledgeTools: z.number().int().nonnegative(),
+	knowledgeUsageRate: z.number().nonnegative(),
+	lastDecomposedAt: z.number().int().nonnegative(),
+});
+export type RuntimeDecompositionKnowledgeUsageAggregate = z.infer<typeof runtimeDecompositionKnowledgeAggregateSchema>;
+
 export const runtimeKnowledgeToolUsageStatsResponseSchema = z.object({
 	generatedAt: z.number().int().nonnegative(),
 	observations: z.array(runtimeKnowledgeToolUsageObservationSchema),
 	aggregates: z.array(runtimeKnowledgeToolUsageAggregateSchema),
+	// §5.B; defaulted so older persisted/partial responses parse cleanly.
+	decompositionKnowledgeSignals: z.array(runtimeDecompositionKnowledgeSignalSchema).default([]),
+	decompositionKnowledgeAggregates: z.array(runtimeDecompositionKnowledgeAggregateSchema).default([]),
 });
 export type RuntimeKnowledgeToolUsageStatsResponse = z.infer<typeof runtimeKnowledgeToolUsageStatsResponseSchema>;
 

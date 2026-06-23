@@ -17,6 +17,10 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
 import { runtimeKnowledgeToolUsageObservationSchema } from "../core/api-contract";
+import {
+	aggregateDecompositionKnowledgeSignals,
+	correlateDecompositionKnowledgeSignals,
+} from "./knowledge-tool-decomposition-signal";
 
 const DEFAULT_KNOWLEDGE_TOOL_USAGE_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "knowledge-tool-usage");
 const DEFAULT_OBSERVATION_LIMIT = 1_000;
@@ -398,9 +402,13 @@ export async function readKnowledgeToolUsageStats(
 		(record) => !workspacePathHash || record.workspacePathHash === workspacePathHash,
 	);
 	const limit = options.limit ?? DEFAULT_OBSERVATION_LIMIT;
+	// §5.B: correlate knowledge-tool use against decompositions (aggregates over the full set; list is capped).
+	const decompositionKnowledgeSignals = correlateDecompositionKnowledgeSignals(observations);
 	return {
 		generatedAt: options.now ?? Date.now(),
 		observations: observations.slice(0, limit),
 		aggregates: groupByAggregate(observations),
+		decompositionKnowledgeSignals: decompositionKnowledgeSignals.slice(0, limit),
+		decompositionKnowledgeAggregates: aggregateDecompositionKnowledgeSignals(decompositionKnowledgeSignals),
 	};
 }
