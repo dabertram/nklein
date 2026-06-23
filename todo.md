@@ -291,8 +291,16 @@ deep analysis:
         - **C6a DONE 2026-06-23:** `workspace-metadata-monitor` is home-git-only — removed the per-task tracking
           (`collectTrackedTasks`/`getTaskWorkspacePathInfo`/`usesLegacyHostTaskWorkspace` + the `board` input);
           `taskWorkspaces` is always `[]` (was already empty for every nklein workspace).
-        - **Backend tRPC remaining:** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
-          (`getTaskWorkspaceInfo`). `commands/task` CLI (`resolveTaskCwd` + worktree auto-merge defaults).
+        - **C6b DONE 2026-06-23:** removed the web-ui's dead host-worktree prep — `ensureTaskWorkspace`
+          (→ `ensureWorktree`) + `fetchTaskWorkspaceInfo` (→ `getTaskContext`) + the
+          `shouldPrepareLegacyHostTaskWorkspace`-gated kickoff blocks (start/resume/replay/decompose) +
+          the obsolete saved-patch-warning test. Web-ui no longer calls those tRPC. Live Playwright: board
+          renders, 0 console errors.
+        - **Backend tRPC remaining (now uncalled by web-ui → removable):** the `ensureWorktree`/`getTaskContext`
+          tRPC mutations + `loadTaskContext` (`getTaskWorkspaceInfo`); the `verifyTaskAcceptance` `ensureWorktree:
+          true` param; `deleteWorktree` stays for now (`cleanupTaskWorkspace` on replay/trash — no-op for nklein).
+          `commands/task` CLI (`resolveTaskCwd` + worktree auto-merge defaults). The `getTaskWorkspaceInfo`
+          web-ui store/path-display (App.tsx) also still reads the now-always-empty metadata.
         - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
           `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
           `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).

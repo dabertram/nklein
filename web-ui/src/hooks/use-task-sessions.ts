@@ -3,8 +3,6 @@
 // sessions across native NKlein and PTY-backed agents.
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback } from "react";
-
-import { notifyError } from "@/components/app-toaster";
 import { selectNewestTaskSessionSummary } from "@/hooks/home-sidebar-agent-panel-session-summary";
 import { type NKleinChatActionResult, useNKleinChatRuntimeActions } from "@/hooks/use-nklein-chat-runtime-actions";
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
@@ -14,9 +12,7 @@ import type {
 	RuntimeTaskChatMessage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
-	RuntimeTaskWorkspaceInfoResponse,
 	RuntimeWorktreeDeleteResponse,
-	RuntimeWorktreeEnsureResponse,
 } from "@/runtime/types";
 import { trackTaskResumedFromTrash } from "@/telemetry/events";
 import { getTerminalController } from "@/terminal/terminal-controller-registry";
@@ -27,12 +23,6 @@ import type { BoardCard } from "@/types";
 interface UseTaskSessionsInput {
 	currentProjectId: string | null;
 	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
-}
-
-interface EnsureTaskWorkspaceResult {
-	ok: boolean;
-	message?: string;
-	response?: Extract<RuntimeWorktreeEnsureResponse, { ok: true }>;
 }
 
 interface SendTaskSessionInputResult {
@@ -63,7 +53,6 @@ interface StartTaskSessionOptions {
 
 export interface UseTaskSessionsResult {
 	upsertSession: (summary: RuntimeTaskSessionSummary) => void;
-	ensureTaskWorkspace: (task: BoardCard) => Promise<EnsureTaskWorkspaceResult>;
 	startTaskSession: (task: BoardCard, options?: StartTaskSessionOptions) => Promise<StartTaskSessionResult>;
 	stopTaskSession: (taskId: string) => Promise<void>;
 	sendTaskSessionInput: (
@@ -87,7 +76,6 @@ export interface UseTaskSessionsResult {
 		taskId: string,
 		options?: { preserveChanges?: boolean },
 	) => Promise<RuntimeWorktreeDeleteResponse | null>;
-	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 }
 
 export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessionsInput): UseTaskSessionsResult {
@@ -138,32 +126,6 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		currentProjectId,
 		onSessionSummary: upsertSession,
 	});
-
-	const ensureTaskWorkspace = useCallback(
-		async (task: BoardCard): Promise<EnsureTaskWorkspaceResult> => {
-			if (!currentProjectId) {
-				return { ok: false, message: "No project selected." };
-			}
-			try {
-				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				const payload = await trpcClient.workspace.ensureWorktree.mutate({
-					taskId: task.id,
-					baseRef: task.baseRef,
-				});
-				if (!payload.ok) {
-					return {
-						ok: false,
-						message: payload.error ?? "Worktree setup failed.",
-					};
-				}
-				return { ok: true, response: payload };
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return { ok: false, message };
-			}
-		},
-		[currentProjectId],
-	);
 
 	const startTaskSession = useCallback(
 		async (task: BoardCard, options?: StartTaskSessionOptions): Promise<StartTaskSessionResult> => {
@@ -297,29 +259,8 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		[currentProjectId],
 	);
 
-	const fetchTaskWorkspaceInfo = useCallback(
-		async (task: BoardCard): Promise<RuntimeTaskWorkspaceInfoResponse | null> => {
-			if (!currentProjectId) {
-				return null;
-			}
-			try {
-				const trpcClient = getRuntimeTrpcClient(currentProjectId);
-				return await trpcClient.workspace.getTaskContext.query({
-					taskId: task.id,
-					baseRef: task.baseRef,
-				});
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				notifyError(message);
-				return null;
-			}
-		},
-		[currentProjectId],
-	);
-
 	return {
 		upsertSession,
-		ensureTaskWorkspace,
 		startTaskSession,
 		stopTaskSession,
 		sendTaskSessionInput,
@@ -329,6 +270,5 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		grantProtectedTestApproval,
 		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
-		fetchTaskWorkspaceInfo,
 	};
 }

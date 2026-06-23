@@ -1,5 +1,4 @@
 import type { DropResult } from "@hello-pangea/dnd";
-import { usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
 import { clampRuntimeSwarmCardStartBatchSize } from "@runtime-contract";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +8,7 @@ import { useLinkedBacklogTaskActions } from "@/hooks/use-linked-backlog-task-act
 import { useProgrammaticCardMoves } from "@/hooks/use-programmatic-card-moves";
 import { useReviewAutoActions } from "@/hooks/use-review-auto-actions";
 import type { UseTaskSessionsResult } from "@/hooks/use-task-sessions";
-import type { RuntimeTaskSessionSummary, RuntimeTaskWorkspaceInfoResponse } from "@/runtime/types";
+import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import {
 	applyDragResult,
 	clearColumnTasks,
@@ -21,7 +20,7 @@ import {
 	updateTaskAutoReviewNotice,
 	updateTaskBlockedState,
 } from "@/state/board-state";
-import { clearTaskWorkspaceInfo, setTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
+import { clearTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
 import type { BoardCard, BoardColumnId, BoardData, TaskBlockedKind } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
@@ -51,10 +50,6 @@ interface PendingProgrammaticStartMoveCompletion {
 
 function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardColumnId {
 	return task.startInPlanMode ? "planning" : "in_progress";
-}
-
-function shouldPrepareLegacyHostTaskWorkspace(task: Pick<BoardCard, "agentId">): boolean {
-	return usesLegacyHostTaskWorkspace(task.agentId);
 }
 
 function getSessionRunningColumnId(summary: RuntimeTaskSessionSummary): BoardColumnId {
@@ -172,9 +167,7 @@ interface UseBoardInteractionsInput {
 	setIsGitHistoryOpen: Dispatch<SetStateAction<boolean>>;
 	stopTaskSession: (taskId: string) => Promise<void>;
 	cleanupTaskWorkspace: UseTaskSessionsResult["cleanupTaskWorkspace"];
-	ensureTaskWorkspace: UseTaskSessionsResult["ensureTaskWorkspace"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
-	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 	sendTaskSessionInput: (
 		taskId: string,
 		input: string,
@@ -225,9 +218,7 @@ export function useBoardInteractions({
 	setIsGitHistoryOpen,
 	stopTaskSession,
 	cleanupTaskWorkspace,
-	ensureTaskWorkspace,
 	startTaskSession,
-	fetchTaskWorkspaceInfo,
 	sendTaskSessionInput,
 	activeTaskSessionCount,
 	maxConcurrentTasks,
@@ -414,48 +405,8 @@ export function useBoardInteractions({
 		): Promise<boolean> => {
 			const optimisticMove = options?.optimisticMove ?? true;
 			const activeColumnId = getTaskActiveColumnId(task);
-			if (shouldPrepareLegacyHostTaskWorkspace(task)) {
-				const ensured = await ensureTaskWorkspace(task);
-				if (!ensured.ok) {
-					notifyError(ensured.message ?? "Could not set up task workspace.");
-					if (optimisticMove) {
-						setBoard((currentBoard) => {
-							const currentColumnId = getTaskColumnId(currentBoard, taskId);
-							if (currentColumnId !== activeColumnId) {
-								return currentBoard;
-							}
-							const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
-							return reverted.moved ? reverted.board : currentBoard;
-						});
-					}
-					return false;
-				}
-				if (ensured.response?.warning) {
-					showAppToast({
-						intent: "warning",
-						icon: "warning-sign",
-						message: ensured.response.warning,
-						timeout: 7000,
-					});
-				}
-				if (selectedTaskId === taskId) {
-					if (ensured.response) {
-						setTaskWorkspaceInfo({
-							taskId,
-							path: ensured.response.path,
-							exists: true,
-							baseRef: ensured.response.baseRef,
-							branch: null,
-							isDetached: true,
-							headCommit: ensured.response.baseCommit,
-						});
-					}
-					const infoAfterEnsure = await fetchTaskWorkspaceInfo(task);
-					if (infoAfterEnsure) {
-						setTaskWorkspaceInfo(infoAfterEnsure);
-					}
-				}
-			}
+			// Native NKlein tasks run in their Docker sandbox — no host workspace to prepare (worktrees retired,
+			// §5.A). `optimisticMove`/`activeColumnId`/`fromColumnId` remain the revert anchors if the start fails.
 			const started = await startTaskSession(task, { queueOnEndpointBusy: options?.queueOnEndpointBusy });
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
@@ -497,7 +448,7 @@ export function useBoardInteractions({
 			});
 			return true;
 		},
-		[ensureTaskWorkspace, fetchTaskWorkspaceInfo, selectedTaskId, setBoard, startTaskSession],
+		[setBoard, startTaskSession],
 	);
 
 	const startWaitingTaskImmediately = useCallback(
@@ -693,34 +644,6 @@ export function useBoardInteractions({
 
 	const resumeTaskFromTrash = useCallback(
 		async (task: BoardCard, taskId: string, options?: { optimisticMoveApplied?: boolean }): Promise<void> => {
-			if (shouldPrepareLegacyHostTaskWorkspace(task)) {
-				const ensured = await ensureTaskWorkspace(task);
-				if (!ensured.ok) {
-					notifyError(ensured.message ?? "Could not set up task workspace.");
-					if (!options?.optimisticMoveApplied) {
-						return;
-					}
-					setBoard((currentBoard) => {
-						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== "review") {
-							return currentBoard;
-						}
-						const reverted = moveTaskToColumn(currentBoard, taskId, "trash", {
-							insertAtTop: true,
-						});
-						return reverted.moved ? reverted.board : currentBoard;
-					});
-					return;
-				}
-				if (ensured.response?.warning) {
-					showAppToast({
-						intent: "warning",
-						icon: "warning-sign",
-						message: ensured.response.warning,
-						timeout: 7000,
-					});
-				}
-			}
 			const resumed = await startTaskSession(task, { resumeFromTrash: true });
 			if (resumed.ok) {
 				setBoard((currentBoard) => {
@@ -745,7 +668,7 @@ export function useBoardInteractions({
 				return reverted.moved ? reverted.board : currentBoard;
 			});
 		},
-		[ensureTaskWorkspace, setBoard, startTaskSession],
+		[setBoard, startTaskSession],
 	);
 
 	const handleDragEnd = useCallback(
@@ -966,21 +889,6 @@ export function useBoardInteractions({
 						delete nextSessions[taskId];
 						return nextSessions;
 					});
-					if (shouldPrepareLegacyHostTaskWorkspace(selection.card)) {
-						const ensured = await ensureTaskWorkspace(selection.card);
-						if (!ensured.ok) {
-							notifyError(ensured.message ?? "Could not set up task workspace.");
-							return;
-						}
-						if (ensured.response?.warning) {
-							showAppToast({
-								intent: "warning",
-								icon: "warning-sign",
-								message: ensured.response.warning,
-								timeout: 7000,
-							});
-						}
-					}
 					const started = await startTaskSession(selection.card, { queueOnEndpointBusy: true });
 					if (!started.ok) {
 						notifyError(started.message ?? "Could not replay task.");
@@ -1008,7 +916,6 @@ export function useBoardInteractions({
 			activeTaskSessionCount,
 			board,
 			cleanupTaskWorkspace,
-			ensureTaskWorkspace,
 			maxConcurrentTasks,
 			maybeRequestNotificationPermissionForTaskStart,
 			sessions,
@@ -1027,13 +934,6 @@ export function useBoardInteractions({
 				return;
 			}
 			void (async () => {
-				if (shouldPrepareLegacyHostTaskWorkspace(selection.card)) {
-					const ensured = await ensureTaskWorkspace(selection.card);
-					if (!ensured.ok) {
-						notifyError(ensured.message ?? "Could not set up task workspace.");
-						return;
-					}
-				}
 				const started = await startTaskSession(selection.card, {
 					mode: "plan",
 					startInPlanMode: true,
@@ -1054,7 +954,7 @@ export function useBoardInteractions({
 				setSelectedTaskId(taskId);
 			})();
 		},
-		[board, ensureTaskWorkspace, setBoard, setSelectedTaskId, startTaskSession],
+		[board, setBoard, setSelectedTaskId, startTaskSession],
 	);
 
 	const handleDetailTaskDragEnd = useCallback(

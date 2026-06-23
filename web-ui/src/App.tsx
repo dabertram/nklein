@@ -220,7 +220,6 @@ export default function App(): ReactElement {
 	}, [runtimeProjectConfig?.selectedShortcutLabel, shortcuts]);
 	const {
 		upsertSession,
-		ensureTaskWorkspace,
 		startTaskSession,
 		stopTaskSession,
 		sendTaskSessionInput,
@@ -229,7 +228,6 @@ export default function App(): ReactElement {
 		cancelTaskChatTurn,
 		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
-		fetchTaskWorkspaceInfo,
 	} = useTaskSessions({
 		currentProjectId,
 		setSessions,
@@ -661,9 +659,7 @@ export default function App(): ReactElement {
 		setIsGitHistoryOpen,
 		stopTaskSession,
 		cleanupTaskWorkspace,
-		ensureTaskWorkspace,
 		startTaskSession,
-		fetchTaskWorkspaceInfo,
 		sendTaskSessionInput,
 		activeTaskSessionCount,
 		maxConcurrentTasks: runtimeProjectConfig?.maxConcurrentTasks ?? 3,

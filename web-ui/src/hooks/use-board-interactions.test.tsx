@@ -137,7 +137,6 @@ function setupDefaultBoardInteractionMocks(): void {
 
 const NOOP_STOP_SESSION = async (): Promise<void> => {};
 const NOOP_CLEANUP_WORKSPACE = async (): Promise<null> => null;
-const NOOP_FETCH_WORKSPACE_INFO = async (): Promise<null> => null;
 const NOOP_SEND_TASK_INPUT = async (): Promise<{ ok: boolean }> => ({ ok: true });
 const NOOP_RUN_AUTO_REVIEW = async (): Promise<boolean> => false;
 
@@ -170,7 +169,6 @@ function createRect(width: number, height: number): DOMRect {
 function HookHarness({
 	board,
 	setBoard,
-	ensureTaskWorkspace,
 	startTaskSession,
 	stopTaskSession = NOOP_STOP_SESSION,
 	cleanupTaskWorkspace = NOOP_CLEANUP_WORKSPACE,
@@ -183,7 +181,6 @@ function HookHarness({
 }: {
 	board: BoardData;
 	setBoard: Dispatch<SetStateAction<BoardData>>;
-	ensureTaskWorkspace: UseTaskSessionsResult["ensureTaskWorkspace"];
 	startTaskSession: UseTaskSessionsResult["startTaskSession"];
 	stopTaskSession?: (taskId: string) => Promise<void>;
 	cleanupTaskWorkspace?: UseTaskSessionsResult["cleanupTaskWorkspace"];
@@ -215,9 +212,7 @@ function HookHarness({
 		setIsGitHistoryOpen,
 		stopTaskSession,
 		cleanupTaskWorkspace,
-		ensureTaskWorkspace,
 		startTaskSession,
-		fetchTaskWorkspaceInfo: NOOP_FETCH_WORKSPACE_INFO,
 		sendTaskSessionInput: NOOP_SEND_TASK_INPUT,
 		activeTaskSessionCount,
 		maxConcurrentTasks,
@@ -329,26 +324,10 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((_nextBoard) => {
 			// Simulate React deferring state updater execution.
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-1",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
-			root.render(
-				<HookHarness
-					board={board}
-					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
-					startTaskSession={startTaskSession}
-				/>,
-			);
+			root.render(<HookHarness board={board} setBoard={setBoard} startTaskSession={startTaskSession} />);
 		});
 
 		if (!startWaitingTaskWithAnimation) {
@@ -366,7 +345,6 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(started).toBe(true);
-		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).toHaveBeenCalledWith(backlogTask, { queueOnEndpointBusy: true });
 	});
 
@@ -378,10 +356,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -389,7 +363,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -426,10 +399,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -437,7 +406,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					initialSessions={{ "task-plan": createRunningNKleinSession("task-plan", "nklein", "model") }}
 					onSnapshot={(snapshot) => {
@@ -469,10 +437,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -480,7 +444,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -511,10 +474,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: { ok: true as const, path: "/tmp/task-plan", baseRef: "main", baseCommit: "abc123" },
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -522,7 +481,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -556,15 +514,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-1",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({
 			ok: false as const,
 			message: "Task start blocked: this card needs decomposition.",
@@ -594,7 +543,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -629,15 +577,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-1",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({
 			ok: false as const,
 			message: "Docker is required for !Klein agent isolation, but it is unavailable.",
@@ -667,7 +606,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -722,7 +660,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -748,7 +685,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					activeTaskSessionCount={1}
 					maxConcurrentTasks={2}
@@ -804,7 +740,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -830,7 +765,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					maxConcurrentTasks={20}
 					onSnapshot={(snapshot) => {
@@ -896,7 +830,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={vi.fn()}
 					startTaskSession={vi.fn()}
 					stopTaskSession={stopTaskSession}
 					cleanupTaskWorkspace={cleanupTaskWorkspace}
@@ -955,7 +888,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -981,7 +913,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					activeTaskSessionCount={1}
 					maxConcurrentTasks={2}
@@ -1018,7 +949,6 @@ describe("useBoardInteractions", () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		const board = createBoard();
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);
 
@@ -1045,7 +975,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					activeTaskSessionCount={2}
 					maxConcurrentTasks={2}
@@ -1066,7 +995,6 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
-		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).not.toHaveBeenCalled();
 	});
 
@@ -1091,7 +1019,6 @@ describe("useBoardInteractions", () => {
 			dependencies: [],
 		};
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 		const tryProgrammaticCardMove = vi.fn(() => "unavailable" as const);
 
@@ -1118,7 +1045,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					activeTaskSessionCount={1}
 					maxConcurrentTasks={2}
@@ -1148,7 +1074,6 @@ describe("useBoardInteractions", () => {
 		});
 
 		expect(tryProgrammaticCardMove).not.toHaveBeenCalled();
-		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).not.toHaveBeenCalled();
 	});
 
@@ -1175,7 +1100,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((updater) => {
 			currentBoard = typeof updater === "function" ? updater(currentBoard) : updater;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -1201,7 +1125,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					maxConcurrentTasks={3}
 					onSnapshot={(snapshot) => {
@@ -1262,7 +1185,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -1288,7 +1210,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1358,15 +1279,6 @@ describe("useBoardInteractions", () => {
 
 		const board = createBoard();
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-1",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -1374,7 +1286,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1446,7 +1357,6 @@ describe("useBoardInteractions", () => {
 		}
 		backlogColumn.cards[0] = createTask("task-1", "Planning task", 1, { startInPlanMode: true });
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -1454,7 +1364,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1495,7 +1404,6 @@ describe("useBoardInteractions", () => {
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({ ok: true as const }));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		useProgrammaticCardMovesMock.mockReturnValue({
@@ -1522,7 +1430,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1589,15 +1496,6 @@ describe("useBoardInteractions", () => {
 
 		const board = createBoard();
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>(() => {});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-1",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -1605,7 +1503,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					selectedCard={{ card: board.columns[0]!.cards[0]!, column: { id: "backlog" } }}
 					onSnapshot={(snapshot) => {
@@ -1654,15 +1551,6 @@ describe("useBoardInteractions", () => {
 		});
 		const stopTaskSession = vi.fn(async (_taskId: string) => {});
 		const cleanupTaskWorkspace = vi.fn(async (_taskId: string) => ({ ok: true, removed: true }));
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-review",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 		vi.spyOn(window, "confirm").mockReturnValue(true);
 
@@ -1689,7 +1577,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					stopTaskSession={stopTaskSession}
 					cleanupTaskWorkspace={cleanupTaskWorkspace}
@@ -1716,7 +1603,6 @@ describe("useBoardInteractions", () => {
 		);
 		expect(stopTaskSession).toHaveBeenCalledWith("task-review");
 		expect(cleanupTaskWorkspace).toHaveBeenCalledWith("task-review", { preserveChanges: false });
-		expect(ensureTaskWorkspace).not.toHaveBeenCalled();
 		expect(startTaskSession).toHaveBeenCalledWith(reviewTask, { queueOnEndpointBusy: true });
 		const replayedTask = currentBoard.columns.find((column) => column.id === "in_progress")?.cards[0];
 		expect(replayedTask?.id).toBe("task-review");
@@ -1724,97 +1610,6 @@ describe("useBoardInteractions", () => {
 		expect(replayedTask?.autoReviewMessage).toBeUndefined();
 		expect(replayedTask?.blockedKind).toBeUndefined();
 		expect(replayedTask?.blockedReason).toBeUndefined();
-	});
-
-	it("shows a warning toast when restoring a trashed task with a saved patch warning", async () => {
-		let latestSnapshot: HookSnapshot | null = null;
-
-		useProgrammaticCardMovesMock.mockReturnValue({
-			handleProgrammaticCardMoveReady: () => {},
-			setRequestMoveTaskToTrashHandler: () => {},
-			tryProgrammaticCardMove: () => "unavailable",
-			consumeProgrammaticCardMove: () => ({}),
-			resolvePendingProgrammaticTrashMove: () => {},
-			waitForProgrammaticCardMoveAvailability: async () => {},
-			resetProgrammaticCardMoves: () => {},
-			requestMoveTaskToTrashWithAnimation: async () => {},
-			programmaticCardMoveCycle: 0,
-		});
-
-		useLinkedBacklogTaskActionsMock.mockReturnValue({
-			handleCreateDependency: () => {},
-			handleDeleteDependency: () => {},
-			confirmMoveTaskToTrash: async () => {},
-			requestMoveTaskToTrash: async () => {},
-		});
-
-		const trashTask: BoardCard = { ...createTask("task-trash", "Trash task", 2), agentId: "codex" };
-		const board: BoardData = {
-			columns: [
-				{ id: "backlog", title: "Backlog", cards: [] },
-				{ id: "in_progress", title: "In Progress", cards: [] },
-				{ id: "review", title: "Review", cards: [] },
-				{ id: "trash", title: "Done", cards: [trashTask] },
-			],
-			dependencies: [],
-		};
-		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((_nextBoard) => {
-			// The optimistic move is not part of this assertion.
-		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-trash",
-				baseRef: "main",
-				baseCommit: "abc123",
-				warning: "Saved task changes could not be reapplied automatically.",
-			},
-		}));
-		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
-
-		await act(async () => {
-			root.render(
-				<HookHarness
-					board={board}
-					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
-					startTaskSession={startTaskSession}
-					onSnapshot={(snapshot) => {
-						latestSnapshot = snapshot;
-					}}
-				/>,
-			);
-		});
-
-		if (!latestSnapshot) {
-			throw new Error("Expected a hook snapshot.");
-		}
-
-		await act(async () => {
-			latestSnapshot!.handleRestoreTaskFromTrash("task-trash");
-			// resumeTaskFromTrash is fire-and-forget (void), so flush enough
-			// microtasks for ensureTaskWorkspace and startTaskSession to resolve.
-			for (let i = 0; i < 10; i++) {
-				await Promise.resolve();
-			}
-		});
-
-		// moveTaskToColumn updates updatedAt with Date.now(), so match fields except updatedAt.
-		const expectedTask = expect.objectContaining({
-			id: trashTask.id,
-			prompt: trashTask.prompt,
-			baseRef: trashTask.baseRef,
-			createdAt: trashTask.createdAt,
-		});
-		expect(ensureTaskWorkspace).toHaveBeenCalledWith(expectedTask);
-		expect(startTaskSession).toHaveBeenCalledWith(expectedTask, { resumeFromTrash: true });
-		expect(showAppToastMock).toHaveBeenCalledWith({
-			intent: "warning",
-			icon: "warning-sign",
-			message: "Saved task changes could not be reapplied automatically.",
-			timeout: 7000,
-		});
 	});
 
 	it("preserves model fields when restoring a trashed task", async () => {
@@ -1871,15 +1666,6 @@ describe("useBoardInteractions", () => {
 				currentBoard = nextBoard;
 			}
 		});
-		const ensureTaskWorkspace = vi.fn(async () => ({
-			ok: true as const,
-			response: {
-				ok: true as const,
-				path: "/tmp/task-trash-model",
-				baseRef: "main",
-				baseCommit: "abc123",
-			},
-		}));
 		const startTaskSession = vi.fn(async () => ({ ok: true as const }));
 
 		await act(async () => {
@@ -1887,7 +1673,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={ensureTaskWorkspace}
 					startTaskSession={startTaskSession}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
@@ -1958,7 +1743,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={board}
 					setBoard={() => board}
-					ensureTaskWorkspace={async () => ({ ok: true as const })}
 					startTaskSession={async () => ({ ok: true as const })}
 					setSelectedTaskIdOverride={setSelectedTaskId}
 					onSnapshot={(snapshot) => {
@@ -2031,7 +1815,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={async () => ({ ok: true as const })}
 					startTaskSession={startTaskSession}
 					setSelectedTaskIdOverride={setSelectedTaskId}
 					onSnapshot={(snapshot) => {
@@ -2107,7 +1890,6 @@ describe("useBoardInteractions", () => {
 				<HookHarness
 					board={currentBoard}
 					setBoard={setBoard}
-					ensureTaskWorkspace={async () => ({ ok: true as const })}
 					startTaskSession={async () => ({ ok: true as const })}
 					onSnapshot={(snapshot) => {
 						latestSnapshot = snapshot;
