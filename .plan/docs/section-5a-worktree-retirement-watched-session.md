@@ -1,9 +1,22 @@
 # §5.A — Host-worktree retirement: watched-session plan
 
-**Status:** lined up 2026-06-23, ready to execute in a session where the user can watch the browser + Docker.
-**Why watched:** the core (shell-on-task → `docker exec`) and the web-ui agent-picker / review-diff-merge changes
-need *interactive* verification (attach a shell to a live task; click through review/diff/merge); they must not
-land blind. Each increment is its own commit behind its own verification gate, so any gate failure reverts cleanly.
+**Status:** lined up 2026-06-23. **Verification is AUTONOMOUS via Playwright — not "watched"** (user confirmed
+2026-06-23 the agent can drive a headless browser itself; capability verified: Playwright/chromium drives the
+running app at `127.0.0.1:4173`). Each increment is its own commit behind its own gate (automated test +
+Playwright UI check, and `docker`/`AgentSandboxManager` inspection for the shell gate), so any gate failure
+reverts cleanly. Execute at the **start of a fresh context window** — it's a ~40-file, semantically-subtle
+refactor and needs the full budget for a clean job (this is a context constraint, not a babysitting one).
+
+**Increment-1 subtlety (found 2026-06-23, must not regress):** `web-ui/src/runtime/native-agent.ts`
+`isNKleinProviderAuthenticated` is **cloud-oriented** — it requires `apiKeyConfigured` / `oauthAccessTokenConfigured`,
+both **false for a local-only NKlein setup**. So today `isTaskAgentSetupSatisfied` for a local user actually leans
+on the terminal-CLI fallback (`agents.some(... isRuntimeAgentLaunchSupported && installed)`). When that fallback is
+removed for nklein-only, readiness must become **local-aware** — the native agent is ready when a local model is
+configured (`nkleinProviderSettings.providerId` + a `modelId`/`baseUrl`), not when an apiKey/oauth exists. First
+confirm how `nkleinProviderSettings.modelId`/`baseUrl` is populated for local (LM Studio auto-selects the first
+loaded model — §6.10) so the new check matches reality, then rework `isTaskAgentSetupSatisfied` + its
+`native-agent.test.ts` accordingly. Verify with web-ui vitest AND a Playwright check that the navbar shows no
+spurious "No agent configured" with only a local model set.
 
 ## Decided scope (from §5.0 / §5.A)
 Full retirement: terminal/CLI agents stay permanently disabled under local-only; **shell-on-task = `docker exec`

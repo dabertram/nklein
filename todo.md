@@ -16,6 +16,17 @@
 > **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain —
 > including a line-by-line re-verification pass over all 10 source docs: follow-up-1/2/3 are 100% shipped,
 > follow-up-4/5 open items map to §5.A, and the distinct follow-up-2 hardening features are itemized in §6.13).
+>
+> ## ⚙️ WORKING MODE — AUTONOMOUS, FULL CAPABILITIES (do NOT forget; do NOT re-litigate)
+> The agent has **all needed capabilities and tools** in the working environment and uses them **itself**: a
+> **headless browser (Playwright)** it drives for any UI work + verification, **Docker** + the `nklein/agent-sandbox`
+> image, a **live LM Studio** with loaded models, the **dev-test projects** + `collect evidence`, and the full repo
+> toolchain. **There are NO babysitting / "watched" sessions.** ALL user interaction is limited to **adding specs,
+> guiding direction, and asking/answering clarifying questions** — **everything else is done autonomously**:
+> implementation, browser/UI interaction + verification, Docker/sandbox runs, dev-test sweeps, and all live
+> verification. **Never defer work by assuming a missing capability or a need for the user to watch/click.** If a
+> change needs UI/live verification, the agent drives the browser / Docker / models itself. (The only real reason
+> to pause is a genuine spec/clarification question for the user, or to split a job across context windows.)
 
 ---
 
@@ -184,8 +195,14 @@ deep analysis:
       launch-support shrink to keep the tree green.) **Watched-session plan lined up (2026-06-23):** see
       [.plan/docs/section-5a-worktree-retirement-watched-session.md](.plan/docs/section-5a-worktree-retirement-watched-session.md)
       — full surface inventory, the 4 increments each behind a test/live gate, and the browser/Docker verification
-      checklist. Execute it step-by-step when watching; do not start the deletions (increment 3) until the live
-      shell-on-task `docker exec` gate (increment 2) passes.
+      checklist. **Verification is AUTONOMOUS via Playwright** (user confirmed 2026-06-23 the agent self-drives a
+      headless browser; capability verified against the running app) — not a "watched" session. Execute at the
+      **start of a fresh context window** (it's a ~40-file, semantically-subtle refactor that needs the full
+      budget). **Increment-1 gotcha (found 2026-06-23):** `isNKleinProviderAuthenticated` (native-agent.ts) is
+      cloud-oriented (needs apiKey/oauth, both false for local-only), so today local readiness leans on the
+      terminal-CLI fallback — removing it for nklein-only requires a **local-aware** readiness rework (ready when a
+      local model is configured), or the navbar will always show "No agent configured". Don't start the deletions
+      (increment 3) until the live shell-on-task `docker exec` gate (increment 2) passes.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
