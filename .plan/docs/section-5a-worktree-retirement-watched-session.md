@@ -1,4 +1,4 @@
-# §5.A — Host-worktree retirement: watched-session plan
+# §5.A — Host-worktree retirement: autonomous plan
 
 **Status:** lined up 2026-06-23. **Verification is AUTONOMOUS via Playwright — not "watched"** (user confirmed
 2026-06-23 the agent can drive a headless browser itself; capability verified: Playwright/chromium drives the
@@ -59,7 +59,7 @@ agents are gone, then can be removed in the final cleanup with an invariant test
    - Rework `startShellSession` (`session-manager.ts`) + `resolveTaskCwd({ ensure: true })` (`workspace-state.ts`)
      to attach to the task's sandbox container (`AgentSandboxManager` exec into `/workspaces/<taskId>`) instead of
      ensuring a host checkout; drop the `ensureWorktree` tRPC mutation.
-   - **Gate (LIVE, watched):** start a task on the NKlein agent; open its shell → confirm it lands *inside the
+   - **Gate (LIVE, autonomous — Playwright + docker exec inspection):** start a task on the NKlein agent; open its shell → confirm it lands *inside the
      sandbox container* (`/workspaces/<taskId>`, isolated, `--network none`), commands run, exit is clean; confirm
      **no host worktree dir** appears under `~/.nklein/nklein/worktrees`.
 3. **Delete the worktree subsystem + saved-host-patch + dead terminal integration.**
@@ -70,10 +70,10 @@ agents are gone, then can be removed in the final cleanup with an invariant test
      `usesLegacyHostTaskWorkspace`.
    - **Gate (test):** tsc + full suite green. **Gate (browser):** review/diff/merge on a finished task still works;
      project-health shows no "accidental worktree" false positives.
-4. **Full verification pass (watched):** the checklist below; update AGENTS.md (worktree tribal knowledge →
+4. **Full verification pass (autonomous):** the checklist below; update AGENTS.md (worktree tribal knowledge →
    "retired"), todo.md (§5.A → done), CHANGELOG.
 
-## Browser/Docker verification checklist (the watched part)
+## Browser/Docker verification checklist (autonomous: Playwright + docker inspection)
 - [ ] Agent picker / onboarding offers only the NKlein agent; settings reflect it.
 - [ ] Start a task → runs in a Docker sandbox; **no** `~/.nklein/nklein/worktrees/<task>` dir is created.
 - [ ] Open a shell on that task → attaches to the sandbox container (`/workspaces/<taskId>`), not a host checkout.
@@ -86,6 +86,7 @@ agents are gone, then can be removed in the final cleanup with an invariant test
 - Each increment is a standalone commit; if a gate fails, `git revert` that commit and reassess. Do **not** start
   increment 3 (deletions) until increment 2's live shell gate passes.
 
-## Follow-on watched sessions (separate)
+## Follow-on autonomous sessions (separate)
 - **§5.R** (dissolve the internal-SDK boundary — repo-wide inlining) and the big **§5.H** (native-core/python-core
-  defaults) / **§5.M** (chat + memory) similarly want a watched session; line up each the same way when reached.
+  defaults) / **§5.M** (chat + memory) similarly want their own fresh-context autonomous session; line up each the
+  same way when reached.
