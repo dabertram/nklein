@@ -187,9 +187,12 @@ deep analysis:
       and stamped with the source of the timeout that actually fired. Added `summarizeTimeoutOutcomes`
       ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts)) grouping timeout-triggered runs
       by model + source + terminal outcome.
-      **Remaining (small):** role/scenario breakdowns of timeout outcomes — the run-summary record has no role or
-      dev-test scenario field, so a by-role/scenario view needs either those fields plumbed onto the record or
-      `timeoutSource` mirrored onto the model-performance observation (which already carries role attribution).
+      **By-role breakdown DONE (2026-06-23):** the run-summary record now carries a coarse `role`
+      (`reviewer` for `<taskId>::review` sessions, `architect` for decomposition turns, else `worker` — inferred in
+      `captureTerminalRunSummary`), and `summarizeTimeoutOutcomes` groups by provider × model × timeout-source ×
+      **role** (pre-§5.C records default to the `unknown` role group). Unit-tested.
+      **Remaining (small):** the *scenario* breakdown — the run-summary record still has no dev-test scenario field,
+      so a by-scenario view needs that field plumbed onto the record (the dev-test harness knows the scenario id).
 
 - [x] **Thin real wiring for `runDevTestProject`** *(2026-06-22)*. The harness + outcome classifier + observer
       fallback + cleanup summarizer were already built and unit-tested. Added the side-effecting seams in

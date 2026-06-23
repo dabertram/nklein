@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import type { RuntimeModelPerformanceRole } from "../core/api-contract";
 
 /**
  * Durable terminal task-run summaries (follow-up-6 §3.6, §4.2).
@@ -39,6 +40,8 @@ export interface TaskRunSummaryRecord {
 	totalTokens: number | null;
 	timeoutReason: string | null;
 	timeoutSource: TaskRunTimeoutSource;
+	/** Coarse agent role of the run (todo §5.C), for by-role timeout breakdowns. Absent on pre-§5.C records. */
+	role?: RuntimeModelPerformanceRole;
 	patchCaptureStatus: string | null;
 }
 
@@ -89,15 +92,18 @@ export async function recordTaskRunSummary(
 /**
  * Aggregated view of the runs that ended on a bounded turn/stream/tool timeout, grouped by model and the
  * provenance of the timeout that fired (global config vs role override vs autonomous default), with the
- * terminal outcome each timeout produced. This makes "which model/timeout-source combinations keep timing out,
- * and what happens when they do" answerable from the durable run log. (Role/scenario breakdowns are surfaced
- * via the model-performance stats, which already carry role attribution.)
+ * terminal outcome each timeout produced. Grouped by model, the provenance of the timeout that fired, **and the
+ * coarse agent role** (todo §5.C), so "which model/timeout-source/role combinations keep timing out, and what
+ * happens when they do" is answerable from the durable run log. (Finer per-task role attribution still lives in
+ * the model-performance stats; this is the role breakdown for timeout outcomes specifically.)
  */
 export interface TimeoutOutcomeAggregate {
 	key: string;
 	providerId: string | null;
 	modelId: string | null;
 	timeoutSource: TaskRunTimeoutSource;
+	/** Coarse agent role of the runs in this group (todo §5.C); `"unknown"` for pre-§5.C records. */
+	role: RuntimeModelPerformanceRole;
 	timeoutRuns: number;
 	awaitingReviewRuns: number;
 	failedRuns: number;
@@ -112,16 +118,19 @@ export function summarizeTimeoutOutcomes(records: readonly TaskRunSummaryRecord[
 		if (!record.timeoutReason) {
 			continue;
 		}
+		const role: RuntimeModelPerformanceRole = record.role ?? "unknown";
 		const key = [
 			record.providerId ?? "unknown_provider",
 			record.modelId ?? "unknown_model",
 			record.timeoutSource ?? "unknown_source",
+			role,
 		].join("\0");
 		const existing = groups.get(key) ?? {
 			key,
 			providerId: record.providerId,
 			modelId: record.modelId,
 			timeoutSource: record.timeoutSource,
+			role,
 			timeoutRuns: 0,
 			awaitingReviewRuns: 0,
 			failedRuns: 0,

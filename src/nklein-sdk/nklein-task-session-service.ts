@@ -6,6 +6,7 @@
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	RuntimeContextBudgetBreakdown,
+	RuntimeModelPerformanceRole,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
 	RuntimeTaskAcceptanceResult,
@@ -3364,6 +3365,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTimeoutReasonByTaskId.delete(taskId);
 		const timeoutSource = this.pendingTimeoutSourceByTaskId.get(taskId) ?? null;
 		this.pendingTimeoutSourceByTaskId.delete(taskId);
+		// Coarse role attribution (todo §5.C) for by-role timeout breakdowns: reviewer sessions use the synthetic
+		// `<taskId>::review` id, decomposition turns are tracked in explicitDecompositionTaskIds (still set at this
+		// awaiting_review capture), everything else is worker. Finer card/config-based role lives in the model-perf obs.
+		const role: RuntimeModelPerformanceRole = taskId.endsWith("::review")
+			? "reviewer"
+			: this.explicitDecompositionTaskIds.has(taskId)
+				? "architect"
+				: "worker";
 		void recordTaskRunSummary({
 			taskId,
 			workspacePath: summary.workspacePath ?? null,
@@ -3382,6 +3391,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null,
 			timeoutReason,
 			timeoutSource,
+			role,
 			patchCaptureStatus: null,
 		});
 	}

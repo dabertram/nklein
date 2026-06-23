@@ -2049,6 +2049,9 @@ export const runtimeTaskRunSummarySchema = z.object({
 	totalTokens: z.number().nullable(),
 	timeoutReason: z.string().nullable(),
 	timeoutSource: z.enum(["global_config", "role_override", "autonomous_default"]).nullable(),
+	// Coarse agent role of the run (todo §5.C), so timeout outcomes can be broken down by role. Optional for
+	// backward-compatibility with run-summary records written before this field existed.
+	role: runtimeModelPerformanceRoleSchema.optional(),
 	patchCaptureStatus: z.string().nullable(),
 });
 export type RuntimeTaskRunSummary = z.infer<typeof runtimeTaskRunSummarySchema>;

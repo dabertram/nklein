@@ -142,4 +142,39 @@ describe("summarizeTimeoutOutcomes", () => {
 		// Most-frequent timeout grouping is ordered first.
 		expect(summary[0]?.timeoutSource).toBe("global_config");
 	});
+
+	it("breaks timeout outcomes down by role (todo §5.C)", () => {
+		const summary = summarizeTimeoutOutcomes([
+			record({
+				timeoutReason: "t",
+				timeoutSource: "global_config",
+				role: "architect",
+				state: "awaiting_review",
+				endedAt: 10,
+			}),
+			record({ timeoutReason: "t", timeoutSource: "global_config", role: "worker", state: "failed", endedAt: 20 }),
+			record({
+				timeoutReason: "t",
+				timeoutSource: "global_config",
+				role: "worker",
+				state: "interrupted",
+				endedAt: 30,
+			}),
+		]);
+		expect(summary).toHaveLength(2);
+		expect(summary.find((entry) => entry.role === "architect")).toMatchObject({
+			timeoutRuns: 1,
+			awaitingReviewRuns: 1,
+		});
+		expect(summary.find((entry) => entry.role === "worker")).toMatchObject({
+			timeoutRuns: 2,
+			failedRuns: 1,
+			interruptedRuns: 1,
+		});
+	});
+
+	it("defaults pre-§5.C records with no role to the unknown role group", () => {
+		const summary = summarizeTimeoutOutcomes([record({ timeoutReason: "t", timeoutSource: "global_config" })]);
+		expect(summary[0]?.role).toBe("unknown");
+	});
 });
