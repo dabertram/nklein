@@ -886,7 +886,7 @@ describe("nklein decomposition tools", () => {
 		).rejects.toThrow("requires at least 3 task leaves; received 2");
 	});
 
-	it("rejects decompose_project artifacts while clarifying questions remain open", async () => {
+	it("rejects an open clarifying question with no working default (no assumption or answer)", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-open-questions-"));
 		const tool = getTool("decompose_project", workspacePath);
 
@@ -908,7 +908,34 @@ describe("nklein decomposition tools", () => {
 				},
 				undefined as never,
 			),
-		).rejects.toThrow("still open");
+		).rejects.toThrow("open with no working default");
+	});
+
+	it("accepts an open clarifying question that carries a working assumption (stays open for clarification)", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-open-assumption-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				summary: "Build the habit tracker in two cards.",
+				questions: [
+					{
+						id: "reminders",
+						question: "Should reminders be included?",
+						status: "open",
+						assumption: "Assume reminders are in scope (sensible default to plan against).",
+					},
+				],
+				tasks: createTaskGraph().tasks,
+			},
+			undefined as never,
+		)) as { ok: boolean };
+
+		expect(result.ok).toBe(true);
 	});
 
 	it("applies decompose_project artifacts to a Git-backed !Klein workspace", async () => {

@@ -36,7 +36,7 @@ Dependency coherence (the graph is validated for this; missing edges are rejecte
 - A UI card should \`dependsOn\` the core domain/control-metadata card(s) it renders.
 - Do not emit a flat list of independent cards for work that has a real build order; add the ordering edges.
 
-Each \`questions\` item must include id, question, status. Use status \`answered\` with answer, or \`assumed-default\` with assumption. Include options[] when you offered choices.
+Each \`questions\` item must include id, question, status. Prefer status \`open\` with a sensible \`assumption\` (the default you are planning against) so the question stays open for clarification — do not invent a hard answer just to proceed. Use \`answered\` (with answer) only if the spec already settles it, or \`assumed-default\` (with assumption) for a default you are explicitly locking in. Include options[] when you offered choices.
 
 If you provide the lower-level \`taskGraph\` input instead of \`tasks\`, each task must include id, title, prompt, dependsOn[], complexity, suggestedRole, filesLikelyTouched[], acceptanceCommand, testFirst, and acceptanceTestPrompt.
 Split or expand any leaf that cannot satisfy those limits before \`decompose_project\` validation finishes. If an atomic leaf still cannot fit the connected local models, stop and report the infeasible leaf and why it cannot be split further.

@@ -498,9 +498,15 @@ function validateTaskSizingContract(task: NKleinPlanTask): void {
 
 function validatePlanQuestions(questions: readonly NKleinPlanQuestion[]): void {
 	for (const question of questions) {
-		if (question.status === "open") {
+		// An `open` clarifying question may proceed as long as it carries a working default — an `assumption` (a
+		// sensible default to plan against) or an `answer`. It then stays *open* for later clarification (the
+		// architect/reviewer auto-clarify loop, or the user; todo §5.S) instead of forcing the asking model to
+		// fabricate an `assumed-default` just to get past validation (which both burns turns on weak models and
+		// throws away the genuine question). Only reject an open question with no working default at all — planning
+		// against a truly unresolved unknown is unsafe.
+		if (question.status === "open" && !question.assumption?.trim() && !question.answer?.trim()) {
 			throw new Error(
-				`Clarifying question ${question.id} is still open; answer it or record an assumed-default before writing plan artifacts.`,
+				`Clarifying question ${question.id} is open with no working default; add an \`assumption\` (a sensible default to plan against) so the plan can proceed while the question stays open for clarification — do not invent a hard answer.`,
 			);
 		}
 		if (question.status === "answered" && !question.answer?.trim()) {
