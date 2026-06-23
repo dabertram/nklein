@@ -267,9 +267,15 @@ deep analysis:
       - **C4 DONE 2026-06-23:** `task-worktree-auto-merge` (the live delivery merge on auto-complete) is
         result-branch-only — dropped the `resolveTaskCwd` worktree fallback; a task with no `nklein/tasks/<task>`
         result branch is now skipped (nothing host-visible to merge). Module kept (it is *not* dead).
-      - **C2/C5 remaining:** `loadChanges` last-turn + `ensure/deleteWorktree` mutations + `loadTaskContext`;
-        `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the terminal
-        `startTaskSession` path.
+      - **C2 DONE 2026-06-23:** `workspace-api` `loadChanges`/`loadGitSummary`/`discardGitChanges` no longer call
+        `resolveTaskCwd` — `loadChanges` returns the result-branch diff or empty (dropped the legacy per-turn
+        host-checkpoint diff `selectLastTurnSummary`, dead for sandbox tasks); summary/discard operate on the
+        project repo. `resolveTaskCwd` is now fully gone from `workspace-api`.
+      - **C2b remaining (web-ui-touching):** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
+        (`getTaskWorkspaceInfo`) and their web-ui callers (`use-task-sessions` `ensureWorktree`, `App.tsx`
+        `getTaskWorkspaceInfo` path display) + `workspace-metadata-monitor` `getTaskWorkspacePathInfo`.
+      - **C5 remaining:** `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the
+        terminal `startTaskSession` path; `commands/task` CLI.
       - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**
         `task-worktree-auto-merge.ts` is **NOT dead** — it is the *live result-branch delivery merge* invoked on
         every auto-complete (`runtime-server`), already `resolveTaskResultBranchCommit`-first with the worktree as a

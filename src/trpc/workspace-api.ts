@@ -5,7 +5,6 @@ import type {
 	RuntimeGitSummaryResponse,
 	RuntimeGitSyncAction,
 	RuntimeGitSyncResponse,
-	RuntimeTaskSessionSummary,
 	RuntimeWorkspaceChangesMode,
 	RuntimeWorkspaceFileSearchResponse,
 	RuntimeWorkspaceStateResponse,
@@ -22,18 +21,12 @@ import {
 	createEmptyWorkspaceChangesResponse,
 	getWorkspaceChanges,
 	getWorkspaceChangesBetweenRefs,
-	getWorkspaceChangesFromRef,
 } from "../workspace/get-workspace-changes";
 import { getCommitDiff, getGitLog, getGitRefs } from "../workspace/git-history";
 import { discardGitChanges, getGitSyncSummary, runGitCheckoutAction, runGitSyncAction } from "../workspace/git-sync";
 import { searchWorkspaceFiles } from "../workspace/search-workspace-files";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import {
-	deleteTaskWorktree,
-	ensureTaskWorktreeIfDoesntExist,
-	getTaskWorkspaceInfo,
-	resolveTaskCwd,
-} from "../workspace/task-worktree";
+import { deleteTaskWorktree, ensureTaskWorktreeIfDoesntExist, getTaskWorkspaceInfo } from "../workspace/task-worktree";
 import type { RuntimeTrpcContext } from "./app-router";
 
 export interface CreateWorkspaceApiDependencies {
@@ -87,34 +80,6 @@ function normalizeRequiredTaskWorkspaceScopeInput(input: {
 		baseRef,
 		mode,
 	};
-}
-
-function isActiveTaskSessionState(summary: RuntimeTaskSessionSummary | null): boolean {
-	return summary?.state === "queued" || summary?.state === "running" || summary?.state === "awaiting_review";
-}
-
-function selectLastTurnSummary(
-	terminalSummary: RuntimeTaskSessionSummary | null,
-	nkleinSummary: RuntimeTaskSessionSummary | null,
-): RuntimeTaskSessionSummary | null {
-	if (!terminalSummary) {
-		return nkleinSummary;
-	}
-	if (!nkleinSummary) {
-		return terminalSummary;
-	}
-	const terminalIsActive = isActiveTaskSessionState(terminalSummary);
-	const nkleinIsActive = isActiveTaskSessionState(nkleinSummary);
-	if (terminalIsActive !== nkleinIsActive) {
-		return nkleinIsActive ? nkleinSummary : terminalSummary;
-	}
-	if (terminalSummary.updatedAt !== nkleinSummary.updatedAt) {
-		return terminalSummary.updatedAt > nkleinSummary.updatedAt ? terminalSummary : nkleinSummary;
-	}
-	if (nkleinSummary.agentId === "nklein" && terminalSummary.agentId !== "nklein") {
-		return nkleinSummary;
-	}
-	return terminalSummary;
 }
 
 function createEmptyGitSummaryErrorResponse(error: unknown): RuntimeGitSummaryResponse {
@@ -190,31 +155,13 @@ function createEmptyGitDiscardErrorResponse(error: unknown): RuntimeGitDiscardRe
 	};
 }
 
-function isMissingTaskWorktreeError(error: unknown): boolean {
-	if (!(error instanceof Error)) {
-		return false;
-	}
-	return (
-		error.message.startsWith("Task workspace not found for task ") ||
-		error.message.startsWith("Task worktree not found for task ")
-	);
-}
-
 export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): RuntimeTrpcContext["workspaceApi"] {
 	return {
-		loadGitSummary: async (workspaceScope, input) => {
+		loadGitSummary: async (workspaceScope) => {
 			try {
-				const taskScope = normalizeOptionalTaskWorkspaceScopeInput(input);
-				let summaryCwd = workspaceScope.workspacePath;
-				if (taskScope) {
-					summaryCwd = await resolveTaskCwd({
-						cwd: workspaceScope.workspacePath,
-						taskId: taskScope.taskId,
-						baseRef: taskScope.baseRef,
-						ensure: false,
-					});
-				}
-				const summary = await getGitSyncSummary(summaryCwd);
+				// The only host-resolvable summary is the project repo's — a task has no per-task host worktree
+				// (worktrees retired, §5.A); its result-branch delta is surfaced through workspace metadata instead.
+				const summary = await getGitSyncSummary(workspaceScope.workspacePath);
 				return {
 					ok: true,
 					summary,
@@ -251,20 +198,12 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 				return createEmptyGitCheckoutErrorResponse(error);
 			}
 		},
-		discardGitChanges: async (workspaceScope, input) => {
+		discardGitChanges: async (workspaceScope) => {
 			try {
-				const taskScope = normalizeOptionalTaskWorkspaceScopeInput(input);
-				let discardCwd = workspaceScope.workspacePath;
-				if (taskScope) {
-					discardCwd = await resolveTaskCwd({
-						cwd: workspaceScope.workspacePath,
-						taskId: taskScope.taskId,
-						baseRef: taskScope.baseRef,
-						ensure: false,
-					});
-				}
+				// Discard operates on the project repo working tree. A task has no per-task host worktree to reset
+				// (worktrees retired, §5.A); abandoning a task's result is a separate result-branch operation.
 				const response = await discardGitChanges({
-					cwd: discardCwd,
+					cwd: workspaceScope.workspacePath,
 				});
 				if (response.ok) {
 					void deps.broadcastRuntimeWorkspaceStateUpdated(
@@ -290,48 +229,11 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 					toRef: taskResultCommit,
 				});
 			}
-			let taskCwd: string;
-			try {
-				taskCwd = await resolveTaskCwd({
-					cwd: workspaceScope.workspacePath,
-					taskId: normalizedInput.taskId,
-					baseRef: normalizedInput.baseRef,
-					ensure: false,
-				});
-			} catch (error) {
-				if (!isMissingTaskWorktreeError(error)) {
-					throw error;
-				}
-				return await createEmptyWorkspaceChangesResponse(workspaceScope.workspacePath);
-			}
-			if (normalizedInput.mode === "last_turn") {
-				const terminalManager = await deps.ensureTerminalManagerForWorkspace(
-					workspaceScope.workspaceId,
-					workspaceScope.workspacePath,
-				);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const summary = selectLastTurnSummary(
-					terminalManager.getSummary(normalizedInput.taskId),
-					nkleinTaskSessionService.getSummary(normalizedInput.taskId),
-				);
-				const fromCheckpoint = summary?.previousTurnCheckpoint;
-				const toCheckpoint = summary?.latestTurnCheckpoint;
-				if (!toCheckpoint) {
-					return await createEmptyWorkspaceChangesResponse(taskCwd);
-				}
-				if (summary?.state === "running" || !fromCheckpoint) {
-					return await getWorkspaceChangesFromRef({
-						cwd: taskCwd,
-						fromRef: toCheckpoint.commit,
-					});
-				}
-				return await getWorkspaceChangesBetweenRefs({
-					cwd: taskCwd,
-					fromRef: fromCheckpoint.commit,
-					toRef: toCheckpoint.commit,
-				});
-			}
-			return await getWorkspaceChanges(taskCwd);
+			// No result branch yet: the task's work lives in its Docker sandbox (or it hasn't started). The host
+			// working tree is untouched during a sandbox run, so there are no host-visible task changes to diff —
+			// completed tasks surface their delta via the result branch above (the worktree subsystem is retired,
+			// §5.A, and the legacy per-turn host-checkpoint diff went with it).
+			return await createEmptyWorkspaceChangesResponse(workspaceScope.workspacePath);
 		},
 		ensureWorktree: async (workspaceScope, input) => {
 			const body = parseWorktreeEnsureRequest(input);

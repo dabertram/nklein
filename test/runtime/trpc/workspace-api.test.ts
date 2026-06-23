@@ -162,51 +162,39 @@ describe("createWorkspaceApi loadChanges", () => {
 		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue(null);
 	});
 
-	it("shows the completed turn diff while awaiting review", async () => {
-		const terminalManager = {
-			getSummary: vi.fn(() =>
-				createSummary({
-					state: "awaiting_review",
-					latestTurnCheckpoint: {
-						turn: 2,
-						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "2222222",
-						createdAt: 2,
-					},
-					previousTurnCheckpoint: {
-						turn: 1,
-						ref: "refs/kanban/checkpoints/task-1/turn/1",
-						commit: "1111111",
-						createdAt: 1,
-					},
-				}),
-			),
-		};
+	it("returns the result-branch diff for last_turn mode (per-turn host checkpoints retired)", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit");
+		const response = createChangesResponse();
+		workspaceChangesMocks.getWorkspaceChangesBetweenRefs.mockResolvedValue(response);
 
 		const api = createWorkspaceApi({
-			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
+			ensureTerminalManagerForWorkspace: vi.fn(),
+			getScopedNKleinTaskSessionService: vi.fn(),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
 		});
 
-		await api.loadChanges(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				mode: "last_turn",
-			},
-		);
+		await expect(
+			api.loadChanges(
+				{
+					workspaceId: "workspace-1",
+					workspacePath: "/tmp/repo",
+				},
+				{
+					taskId: "task-1",
+					baseRef: "main",
+					mode: "last_turn",
+				},
+			),
+		).resolves.toBe(response);
 
+		// last_turn no longer diffs per-turn host checkpoints (the worktree-backed checkpoint flow is retired,
+		// §5.A); the reviewable diff is always the task's result branch vs base, on the project repo path.
 		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
-			cwd: "/tmp/worktree",
-			fromRef: "1111111",
-			toRef: "2222222",
+			cwd: "/tmp/repo",
+			fromRef: "main",
+			toRef: "result-commit",
 		});
 		expect(workspaceChangesMocks.getWorkspaceChangesFromRef).not.toHaveBeenCalled();
 	});
@@ -250,36 +238,20 @@ describe("createWorkspaceApi loadChanges", () => {
 		expect(workspaceChangesMocks.getWorkspaceChanges).not.toHaveBeenCalled();
 	});
 
-	it("tracks the current turn from the latest checkpoint while running", async () => {
-		const terminalManager = {
-			getSummary: vi.fn(() =>
-				createSummary({
-					state: "running",
-					latestTurnCheckpoint: {
-						turn: 2,
-						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "2222222",
-						createdAt: 2,
-					},
-					previousTurnCheckpoint: {
-						turn: 1,
-						ref: "refs/kanban/checkpoints/task-1/turn/1",
-						commit: "1111111",
-						createdAt: 1,
-					},
-				}),
-			),
-		};
+	it("returns an empty diff for an in-progress task with no result branch yet", async () => {
+		taskResultBranchMocks.resolveTaskResultBranchCommit.mockResolvedValue(null);
+		const emptyResponse = createChangesResponse();
+		workspaceChangesMocks.createEmptyWorkspaceChangesResponse.mockResolvedValue(emptyResponse);
 
 		const api = createWorkspaceApi({
-			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => ({ getSummary: vi.fn(() => null) }) as never),
+			ensureTerminalManagerForWorkspace: vi.fn(),
+			getScopedNKleinTaskSessionService: vi.fn(),
 			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
 			broadcastRuntimeProjectsUpdated: vi.fn(),
 			buildWorkspaceStateSnapshot: vi.fn(),
 		});
 
-		await api.loadChanges(
+		const response = await api.loadChanges(
 			{
 				workspaceId: "workspace-1",
 				workspacePath: "/tmp/repo",
@@ -291,141 +263,13 @@ describe("createWorkspaceApi loadChanges", () => {
 			},
 		);
 
-		expect(workspaceChangesMocks.getWorkspaceChangesFromRef).toHaveBeenCalledWith({
-			cwd: "/tmp/worktree",
-			fromRef: "2222222",
-		});
+		// No result branch yet → no host-visible task changes (work is in the sandbox); empty, not a throw.
+		expect(response).toBe(emptyResponse);
+		expect(workspaceChangesMocks.createEmptyWorkspaceChangesResponse).toHaveBeenCalledWith("/tmp/repo");
 		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).not.toHaveBeenCalled();
 	});
 
-	it("uses native nklein session checkpoints when terminal summaries are unavailable", async () => {
-		const terminalManager = {
-			getSummary: vi.fn(() => null),
-		};
-		const nkleinTaskSessionService = {
-			getSummary: vi.fn(() =>
-				createSummary({
-					state: "awaiting_review",
-					latestTurnCheckpoint: {
-						turn: 3,
-						ref: "refs/kanban/checkpoints/task-1/turn/3",
-						commit: "3333333",
-						createdAt: 3,
-					},
-					previousTurnCheckpoint: {
-						turn: 2,
-						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "2222222",
-						createdAt: 2,
-					},
-				}),
-			),
-		};
-
-		const api = createWorkspaceApi({
-			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
-			broadcastRuntimeProjectsUpdated: vi.fn(),
-			buildWorkspaceStateSnapshot: vi.fn(),
-		});
-
-		await api.loadChanges(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				mode: "last_turn",
-			},
-		);
-
-		expect(nkleinTaskSessionService.getSummary).toHaveBeenCalledWith("task-1");
-		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
-			cwd: "/tmp/worktree",
-			fromRef: "2222222",
-			toRef: "3333333",
-		});
-	});
-
-	it("prefers the newer live nklein summary over a stale terminal summary", async () => {
-		const terminalManager = {
-			getSummary: vi.fn(() =>
-				createSummary({
-					state: "awaiting_review",
-					agentId: "claude",
-					updatedAt: 10,
-					latestTurnCheckpoint: {
-						turn: 2,
-						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "terminal-2",
-						createdAt: 2,
-					},
-					previousTurnCheckpoint: {
-						turn: 1,
-						ref: "refs/kanban/checkpoints/task-1/turn/1",
-						commit: "terminal-1",
-						createdAt: 1,
-					},
-				}),
-			),
-		};
-		const nkleinTaskSessionService = {
-			getSummary: vi.fn(() =>
-				createSummary({
-					state: "awaiting_review",
-					agentId: "nklein",
-					updatedAt: 20,
-					latestTurnCheckpoint: {
-						turn: 3,
-						ref: "refs/kanban/checkpoints/task-1/turn/3",
-						commit: "nklein-3",
-						createdAt: 3,
-					},
-					previousTurnCheckpoint: {
-						turn: 2,
-						ref: "refs/kanban/checkpoints/task-1/turn/2",
-						commit: "nklein-2",
-						createdAt: 2,
-					},
-				}),
-			),
-		};
-
-		const api = createWorkspaceApi({
-			ensureTerminalManagerForWorkspace: vi.fn(async () => terminalManager as never),
-			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
-			broadcastRuntimeWorkspaceStateUpdated: vi.fn(),
-			broadcastRuntimeProjectsUpdated: vi.fn(),
-			buildWorkspaceStateSnapshot: vi.fn(),
-		});
-
-		await api.loadChanges(
-			{
-				workspaceId: "workspace-1",
-				workspacePath: "/tmp/repo",
-			},
-			{
-				taskId: "task-1",
-				baseRef: "main",
-				mode: "last_turn",
-			},
-		);
-
-		expect(workspaceChangesMocks.getWorkspaceChangesBetweenRefs).toHaveBeenCalledWith({
-			cwd: "/tmp/worktree",
-			fromRef: "nklein-2",
-			toRef: "nklein-3",
-		});
-	});
-
-	it("returns an empty diff when the task worktree does not exist yet", async () => {
-		workspaceTaskWorktreeMocks.resolveTaskCwd.mockRejectedValue(
-			new Error('Task workspace not found for task "task-1".'),
-		);
-
+	it("returns an empty diff in working_copy mode when there is no result branch", async () => {
 		const emptyResponse = createChangesResponse();
 		workspaceChangesMocks.createEmptyWorkspaceChangesResponse.mockResolvedValue(emptyResponse);
 
