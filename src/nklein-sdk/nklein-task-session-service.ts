@@ -229,6 +229,40 @@ export function formatRepeatedToolCallParkMessage(state: {
 	return `!Klein paused this task after ${state.count} repeated ${state.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`;
 }
 
+/**
+ * Repeated-tool-call guard candidate for a hook activity (its fingerprint), or `null` to skip the guard.
+ *
+ * `read_large_file` is **excluded**: it is a stateful chunk/stitch **workflow** tool that is *designed* to be
+ * called repeatedly with an advancing cursor (`start` → `read:<line>:<n>` → `stitch:<l>/<r>:<n>`), so the generic
+ * "identical input ⇒ stuck" heuristic does not apply — the large-file workflow rejects stale cursors itself and the
+ * autonomy budget bounds any true loop. Excluding it here also decouples the guard from the display-summary format,
+ * so legitimate mid-file progression can never again be falsely paused as "3 repeated read_large_file ... same input".
+ */
+export function computeRepeatedToolCallCandidate(
+	activity: RuntimeTaskSessionSummary["latestHookActivity"],
+): Omit<NKleinTaskRepeatedToolState, "count"> | null {
+	if (activity?.source !== "nklein-sdk") {
+		return null;
+	}
+	const hookEventName = activity.hookEventName?.trim().toLowerCase();
+	if (hookEventName !== "tool_call" && hookEventName !== "tool_call_start") {
+		return null;
+	}
+	const toolName = activity.toolName?.trim();
+	if (!toolName || isNKleinUserAttentionTool(toolName)) {
+		return null;
+	}
+	if (toolName.toLowerCase() === "read_large_file") {
+		return null;
+	}
+	const toolInputSummary = activity.toolInputSummary?.trim() || null;
+	return {
+		fingerprint: `${toolName.toLowerCase()}\n${toolInputSummary ?? ""}`,
+		toolName,
+		toolInputSummary,
+	};
+}
+
 function normalizePlanArtifactFailureTarget(value: string | null | undefined): string | null {
 	const normalized = value?.trim();
 	if (!normalized) {
@@ -3172,24 +3206,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readRepeatedToolCallCandidate(
 		summary: RuntimeTaskSessionSummary,
 	): Omit<NKleinTaskRepeatedToolState, "count"> | null {
-		const activity = summary.latestHookActivity;
-		if (activity?.source !== "nklein-sdk") {
-			return null;
-		}
-		const hookEventName = activity.hookEventName?.trim().toLowerCase();
-		if (hookEventName !== "tool_call" && hookEventName !== "tool_call_start") {
-			return null;
-		}
-		const toolName = activity.toolName?.trim();
-		if (!toolName || isNKleinUserAttentionTool(toolName)) {
-			return null;
-		}
-		const toolInputSummary = activity.toolInputSummary?.trim() || null;
-		return {
-			fingerprint: `${toolName.toLowerCase()}\n${toolInputSummary ?? ""}`,
-			toolName,
-			toolInputSummary,
-		};
+		return computeRepeatedToolCallCandidate(summary.latestHookActivity);
 	}
 
 	private readRepeatedFailureTargetCandidate(summary: RuntimeTaskSessionSummary): {

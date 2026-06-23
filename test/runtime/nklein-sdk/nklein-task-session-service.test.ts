@@ -21,6 +21,7 @@ import type {
 } from "../../../src/nklein-sdk/nklein-task-session-service";
 import {
 	buildKanbanEfficiencyRules,
+	computeRepeatedToolCallCandidate,
 	createInMemoryNKleinTaskSessionService,
 	formatRepeatedToolCallParkMessage,
 } from "../../../src/nklein-sdk/nklein-task-session-service";
@@ -4124,5 +4125,45 @@ describe("formatRepeatedToolCallParkMessage", () => {
 	it("uses the generic message for other repeated tools", () => {
 		const message = formatRepeatedToolCallParkMessage({ toolName: "read_files", count: 6, toolInputSummary: null });
 		expect(message).toMatch(/repeated read_files tool calls/i);
+	});
+});
+
+describe("computeRepeatedToolCallCandidate", () => {
+	const activity = (overrides: Record<string, unknown> = {}) => ({
+		activityText: null,
+		toolName: "read_files",
+		toolInputSummary: "src/a.ts",
+		finalMessage: null,
+		hookEventName: "tool_call",
+		notificationType: null,
+		source: "nklein-sdk",
+		...overrides,
+	});
+
+	it("fingerprints an ordinary tool call by name + input summary", () => {
+		const candidate = computeRepeatedToolCallCandidate(activity() as never);
+		expect(candidate).toEqual({
+			fingerprint: "read_files\nsrc/a.ts",
+			toolName: "read_files",
+			toolInputSummary: "src/a.ts",
+		});
+	});
+
+	it("EXCLUDES read_large_file from the guard — it is a stateful cursor workflow, not a repeat", () => {
+		// Regression: read_large_file progresses start → read:<line> → stitch:<l>/<r>; the generic identical-input
+		// guard must never pause it (the workflow rejects stale cursors + the autonomy budget bounds true loops).
+		expect(
+			computeRepeatedToolCallCandidate(
+				activity({ toolName: "read_large_file", toolInputSummary: "specification.md" }) as never,
+			),
+		).toBeNull();
+		expect(computeRepeatedToolCallCandidate(activity({ toolName: "READ_LARGE_FILE" }) as never)).toBeNull();
+	});
+
+	it("skips non-tool-call activities, missing source, and user-attention tools", () => {
+		expect(computeRepeatedToolCallCandidate(null)).toBeNull();
+		expect(computeRepeatedToolCallCandidate(activity({ source: "other" }) as never)).toBeNull();
+		expect(computeRepeatedToolCallCandidate(activity({ hookEventName: "tool_result" }) as never)).toBeNull();
+		expect(computeRepeatedToolCallCandidate(activity({ toolName: "ask_followup_question" }) as never)).toBeNull();
 	});
 });
