@@ -155,6 +155,11 @@ deep analysis:
 
 > Everything in §6 is already shipped — listed there so an agent knows what exists and doesn't rebuild it.
 > The items below are what's left. Each is independently landable.
+>
+> **Tracking convention (2026-06-23): use nested checkbox lists, up to ~6 levels deep, so progress is visible at a
+> glance** — a multi-commit effort becomes a tree of `[x]`/`[~]`/`[ ]` sub-items, NOT prose under one checkbox. As
+> work lands, **flip the nested boxes** (and tag each with its short commit hash) rather than appending DONE-notes;
+> the verbose per-commit detail belongs in CHANGELOG `## [Upcoming]` + git, not here. §5.A is the worked example.
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
@@ -190,185 +195,51 @@ deep analysis:
 > - **§5.P:** **keep deferred** until we reach it (it's the last task; boundary depends on how everything lands).
 
 ### 5.A — Finish strict-isolation reconciliation & live verification
-- [ ] **Retire the host worktree subsystem** *(direction decided: retire — terminal/CLI agents stay
-      permanently disabled under local-only).* The single boundary predicate is
-      `usesLegacyHostTaskWorkspace(agentId)` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts)) — keep it
-      as THE source of truth (invariant-tested). **Deletion is BLOCKED on two UI-verifiable changes:**
-      (1) remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` / launch-support and the web-ui legacy path;
-      (2) ~~decide the shell-terminal-on-task story~~ **DECIDED 2026-06-22 (user): shell-on-task = `docker exec`
-      into that task's hardened sandbox container** (drop into the sandbox working copy; no host checkout, no
-      legacy worktree — the user shell is as isolated as the agent). `startShellSession` /
-      `resolveTaskCwd({ ensure: true })` is reworked to attach to the task's container instead of ensuring a host
-      checkout. The saved-host-patch retirement and the project-health "accidental worktree" re-validation ride
-      along with (1). Do this where the review/diff/merge + shell UI can be visually verified. Files:
-      `src/workspace/task-worktree*.ts`, `src/workspace/task-result-branches.ts`, `src/terminal/session-manager.ts`.
-      **STATUS (2026-06-23):** confirmed this is a tangled, interactive-verification-dependent refactor — **do it
-      with the user watching, not blind in an autonomous run.** Findings: (a) terminal/CLI agents are already
-      clamped to `nklein` under local-only (`normalizeAgentId` returns `DEFAULT_AGENT_ID` for any non-nklein id),
-      so they're unreachable at runtime, but (b) just shrinking `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` to
-      `["nklein"]` cascades into the **web-ui native-agent fallback path** (`isTaskAgentSetupSatisfied` falls back
-      to other launch-supported agents — a `native-agent.test.ts` case fails), and (c) the core
-      shell-on-task→`docker exec` rework genuinely needs **live Docker + interactive** verification (a user shell
-      attaching to the task container). So the launch-support shrink + web-ui-fallback rework + shell rework +
-      worktree-module deletion should land together in a browser/Docker-watched session. (Reverted a trial
-      launch-support shrink to keep the tree green.) **Watched-session plan lined up (2026-06-23):** see
-      [.plan/docs/section-5a-worktree-retirement-watched-session.md](.plan/docs/section-5a-worktree-retirement-watched-session.md)
-      — full surface inventory, the 4 increments each behind a test/live gate, and the browser/Docker verification
-      checklist. **Verification is AUTONOMOUS via Playwright** (user confirmed 2026-06-23 the agent self-drives a
-      headless browser; capability verified against the running app) — not a "watched" session. Execute at the
-      **start of a fresh context window** (it's a ~40-file, semantically-subtle refactor that needs the full
-      budget). **Increment-1 gotcha (found 2026-06-23):** `isNKleinProviderAuthenticated` (native-agent.ts) is
-      cloud-oriented (needs apiKey/oauth, both false for local-only), so today local readiness leans on the
-      terminal-CLI fallback — removing it for nklein-only requires a **local-aware** readiness rework (ready when a
-      local model is configured), or the navbar will always show "No agent configured".
-      **Increment 1a DONE 2026-06-23:** the local-aware readiness rework shipped — `isNKleinLocalModelConfigured`
-      ([web-ui/src/runtime/native-agent.ts](web-ui/src/runtime/native-agent.ts)) treats a selected local provider
-      (lmstudio/ollama, or a custom provider carrying a model id / local endpoint) as configured, and
-      `isTaskAgentSetupSatisfied` now uses it (cloud auth OR local model), dropping the CLI fallback for the nklein
-      branch; web-ui tsc + unit-tested.
-      **Increment 1b DONE 2026-06-23:** `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` shrunk to `["nklein"]`, so
-      `getRuntimeLaunchSupportedAgentCatalog()` (which drives the task-agent picker + runtime-settings agent list)
-      returns only NKlein, and terminal/CLI agents are no longer launchable. Confirmed safe: under the local-only
-      lockdown `normalizeAgentId` already clamped every non-nklein id to nklein, so the shrink only drops the dead
-      cloud path; root tsc + full fast suite + web-ui tsc + picker/settings/native-agent tests all green. **Browser
-      gate (1a+1b):** Playwright boot smoke ran against the live dev server (`:4173`) — app boots, 0 console
-      errors, navbar shows "!Klein Agent" (no spurious "No agent configured"); the deeper picker-only-NKlein drill
-      is batched into the increment-4 pass.
-      **Increment 2a DONE 2026-06-23:** the sandbox `docker exec` shell seam —
-      `AgentSandboxManager.getTaskShellTarget(taskId)` (container + task uid + workdir, or null) +
-      `buildAgentSandboxInteractiveShellArgs` (pure `docker exec -it -u <uid> -w <workdir> <container> <shell>`,
-      mirroring the existing task-user exec); unit-tested.
-      **Increment 2b DONE 2026-06-23 (wiring + live-core gate):** the `startShellSession` handler
-      ([src/trpc/runtime-api.ts](src/trpc/runtime-api.ts)) now resolves the task's sandbox shell target via the
-      memoized per-workspace `NKleinTaskSessionService.getTaskShellTarget` → `AgentSandboxManager` and, when
-      present, spawns the PTY as `docker exec -it -u <taskUid> -w /workspaces/<taskId> <container>` (login
-      bash→sh) via the pure, unit-tested `buildTaskShellSpawnSpec`; otherwise it keeps the legacy host-worktree
-      shell (`resolveTaskCwd({ ensure: true })`) as a retained fallback. **Live-verified** against the running
-      `nklein-agent-sandbox-1`: `docker exec -u <taskUid> -w /workspaces/<taskId> … sh -lc 'pwd'` lands in the
-      cloned repo working copy as the task user, and `/usr/bin/bash -l` starts cleanly there. tsc + 35 sandbox
-      tests green.
-      **Increment-2 gate CLOSED 2026-06-23:** the node-pty ↔ `docker exec -it` ↔ login-shell integration is
-      verified directly — node-pty spawning `docker exec -it` into a sandbox-image container ran a login shell
-      (`pwd`/`id -u`/echo, clean exit); with the workdir/uid mechanism check above, the shell path is validated
-      (only the standard ws→xterm round-trip is untested — exercised by every other terminal already).
-      **Increment 3 step 1 DONE 2026-06-23:** `startShellSession` no longer creates a host worktree — a sandboxed
-      task shells into its container, any other shell opens at the project root (dropped the
-      `resolveTaskCwd({ ensure: true })` fallback).
-      **Increment 3 — bulk in progress (code-grounded decomposition, each its own green commit):**
-      - **C1 DONE 2026-06-23:** review **log/refs/diff** (`workspace-api` `loadGitLog`/`loadGitRefs`/`loadCommitDiff`)
-        are result-branch-aware — they ran `resolveTaskCwd({ ensure:false })` which *throws* for a worktree-free
-        nklein task (so the task git-history was broken), now they read the `nklein/tasks/<task>` result commit and
-        operate on the project repo's shared object DB. (`loadChanges`/`collectTaskEvidence` were already
-        result-branch-first.)
-      - **C3 DONE 2026-06-23:** `nklein-acceptance-auto-repair` is **sandbox-only** — removed the worktree-backed
-        host gate (`resolveTaskCwd` + `runAcceptanceGate`), which was dead in production (the hub only ever passes
-        the scoped session service's `verifyTaskAcceptanceInSandbox`). Skip reason `worktree_unavailable` →
-        `acceptance_unavailable`. Tests rewired to the sandbox verifier.
-      - **C4 DONE 2026-06-23:** `task-worktree-auto-merge` (the live delivery merge on auto-complete) is
-        result-branch-only — dropped the `resolveTaskCwd` worktree fallback; a task with no `nklein/tasks/<task>`
-        result branch is now skipped (nothing host-visible to merge). Module kept (it is *not* dead).
-      - **C2 DONE 2026-06-23:** `workspace-api` `loadChanges`/`loadGitSummary`/`discardGitChanges` no longer call
-        `resolveTaskCwd` — `loadChanges` returns the result-branch diff or empty (dropped the legacy per-turn
-        host-checkpoint diff `selectLastTurnSummary`, dead for sandbox tasks); summary/discard operate on the
-        project repo. `resolveTaskCwd` is now fully gone from `workspace-api`.
-      - **C2b remaining (web-ui-touching):** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
-        (`getTaskWorkspaceInfo`) and their web-ui callers (`use-task-sessions` `ensureWorktree`, `App.tsx`
-        `getTaskWorkspaceInfo` path display) + `workspace-metadata-monitor` `getTaskWorkspacePathInfo`.
-      - **C5 DONE 2026-06-23:** `runtime-api` `resolveExistingTaskCwdOrEnsure` deleted (it created a host worktree
-        on miss — `collectTaskEvidence` would silently materialize one); evidence + the legacy terminal
-        `startTaskSession` now use the project repo path. `resolveTaskCwd`/`task-worktree` import gone from
-        `runtime-api`.
-      - **✅ MILESTONE (2026-06-23): the host-worktree subsystem is retired from every LIVE nklein runtime path.**
-        Verified by tracing every consumer: review log/refs/diff (C1), acceptance (C3), delivery merge (C4),
-        changes/summary/discard (C2), task evidence + runtime-api (C5) all run off the `nklein/tasks/<task>`
-        result branch / project repo — and the one path that actively *created* a worktree
-        (`collectTaskEvidence`'s `ensure:true` fallback) is gone. **No live nklein flow creates or reads a host
-        worktree.** Every remaining worktree/task-path consumer is gated behind
-        `usesLegacyHostTaskWorkspace`/`shouldPrepareLegacyHostTaskWorkspace`, **always false for nklein** — i.e.
-        dead legacy-terminal scaffolding.
-      - **Remaining = one coupled deletion of the dead legacy-terminal + worktree scaffolding (increment-3
-        deletions) + increment-4 live verification — a single focused pass that needs the browser/Docker:**
-        - **C6a DONE 2026-06-23:** `workspace-metadata-monitor` is home-git-only — removed the per-task tracking
-          (`collectTrackedTasks`/`getTaskWorkspacePathInfo`/`usesLegacyHostTaskWorkspace` + the `board` input);
-          `taskWorkspaces` is always `[]` (was already empty for every nklein workspace).
-        - **C6b DONE 2026-06-23:** removed the web-ui's dead host-worktree prep — `ensureTaskWorkspace`
-          (→ `ensureWorktree`) + `fetchTaskWorkspaceInfo` (→ `getTaskContext`) + the
-          `shouldPrepareLegacyHostTaskWorkspace`-gated kickoff blocks (start/resume/replay/decompose) +
-          the obsolete saved-patch-warning test. Web-ui no longer calls those tRPC. Live Playwright: board
-          renders, 0 console errors.
-        - **C7a DONE 2026-06-23 (gate cleared):** retired the host-worktree plumbing from `src/commands/task.ts` —
-          removed `task start`'s gated `ensureWorktree.mutate`, `runVerifyTaskAcceptanceCommand`'s
-          `resolveTaskCwd`/`runAcceptanceGate` host-acceptance branch (sandbox `verifyTaskAcceptance` is the live
-          path), the `shouldPrepareLegacyHostTaskWorkspace` helper, and the `resolveTaskCwd`/`runNKleinAcceptance
-          Gate`/`usesLegacyHostTaskWorkspace` imports. The CLI no longer calls `workspace.ensureWorktree` or
-          `resolveTaskCwd` (only the result-branch `task merge` auto-merge + the `verifyTaskAcceptance`
-          `--ensure-worktree` flag remain). **Gate for tRPC removal is now clear.**
-        - **C7b DONE 2026-06-23:** removed the `ensureWorktree` + `getTaskContext` tRPC procedures + their
-          `createWorkspaceApi` handlers + `parseWorktreeEnsureRequest` usage (web-ui + CLI no longer call them).
-          `deleteWorktree` retained (`cleanupTaskWorkspace` + legacy on-disk cleanup). `ensureTaskWorktreeIfDoesntExist`/
-          `getTaskWorkspaceInfo` are now dead exports → delete in C7c with the rest of the creation machinery.
-        - **C7c DONE 2026-06-23:** `task-worktree.ts` slimmed to its legacy cleanup surface (`deleteTaskWorktree`/
-          `removeTaskWorktreeSetupLock`/`deleteTaskPatchFilesForRepo` + patch capture); deleted the create/sync/
-          mirror functions, `task-worktree-turbopack.ts`, the dead `runtimeWorktreeEnsureRequest/ResponseSchema` +
-          `parseWorktreeEnsureRequest`, and the retired-behavior tests (mirroring/turbopack/creation-lifecycle +
-          the stream test's per-task-metadata blocks). Kept `task-worktree-sync.ts` (`nklein-trusted-auto-merge`).
-          (Integration tests that boot the full server are unrunnable in this env — pre-existing `@nklein/core`
-          resolution for the spawned process — so verified via tsc/biome/test:fast.)
-        - **C7c (original plan, now done):** delete from
-          `task-worktree.ts` the dead exports `mirrorIgnoredPath`, `ensureTaskWorktreeIfDoesntExist`,
-          `resolveTaskCwd`, `getTaskWorkspacePathInfo`, `getTaskWorkspaceInfo` + their private helpers, and delete
-          `task-worktree-turbopack.ts` (only used by that creation code). **KEEP** `deleteTaskWorktree` /
-          `removeTaskWorktreeSetupLock` / `deleteTaskPatchFilesForRepo` (live cleanup: workspace-api deleteWorktree,
-          projects-api, shutdown-coordinator) and **KEEP** `task-worktree-sync.ts` (still used by
-          `nklein-trusted-auto-merge`). Approach: delete the dead exports, then prune whatever helpers biome flags,
-          then drop the now-unused `task-worktree-sync`/`turbopack` imports + `RuntimeWorktreeEnsureResponse`/
-          `RuntimeTaskWorkspaceInfoResponse` from task-worktree.ts; then remove the now-dead ensure schemas from
-          api-contract/api-validation (`runtimeWorktreeEnsureRequest/ResponseSchema`, `parseWorktreeEnsureRequest`).
-          The 786-line interleaved file makes this a delicate excision best done fresh.
-        - **C7d SCOPED 2026-06-23 (NOT a bulk delete — surgical separation):** `TerminalSessionManager` is **LIVE** —
-          it powers shell-on-task (`runtime-api` `startShellSession` → `terminalManager.startShellSession`, the
-          docker-exec shell) and the xterm WS bridge (`createTerminalWebSocketBridge` in `runtime-server`). So
-          `src/terminal/*` is **not** deletable wholesale. C7d = excise the dead **CLI-agent** integration while
-          keeping the shell infra: KEEP `pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
-          `terminal-session-service`, `terminal-state-mirror`, `output-utils`, and `session-manager`'s **shell**
-          path; DELETE the agent path (`session-manager.startTaskSession` + `agent-registry` +
-          `agent-session-adapters` + `claude/codex-workspace-trust` + `codex-hook-config` + `opencode-paths` +
-          `command-discovery` + `hook-runtime-context` + `task-image-prompt`), `commands/hooks.ts` +
-          `commands/hook-events/*` (the `nklein hooks ingest` CLI for terminal agents) + the `hooks-api` tRPC
-          ingest, and rewire `terminalManager.getSummary` (runtime-api ~1165, hooks-api) — for nklein the
-          NKlein session-service supplies summaries, so the terminal getSummary merge is dead. This is one
-          interconnected surgery best done as its own careful pass (high risk of breaking the LIVE shell feature).
-        - **C8 ordering:** `usesLegacyHostTaskWorkspace` is now down to ONE consumer (shutdown-coordinator's
-          interrupted-worktree cleanup, always-empty for nklein) + its definition. Per plan it's the boundary guard
-          to remove in the FINAL cleanup *after* the terminal-agent catalog is gone (C7d) — so C8 follows C7d. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui
-          `workspace-metadata-store` (`toTaskWorkspaceInfo`) + `task-trash-warning-dialog` + `App.tsx` path-display
-          (all reading the now-always-empty `taskWorkspaces`) — its own web-ui cleanup. Then schema/predicate
-          (`runtimeAgentIdSchema`, `normalizeAgentId`, `usesLegacyHostTaskWorkspace`) → **increment-4** Playwright +
-          docker verification.
-        - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
-          `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
-          `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).
-        - **delete:** `src/terminal/*` CLI-agent integration + `src/commands/hook-events/*`; then the CREATION/sync
-          machinery (`task-worktree.ts` `ensureTaskWorktreeIfDoesntExist`/`resolveTaskCwd`/`getTaskWorkspaceInfo`/
-          `getTaskWorkspacePathInfo`/`mirrorIgnoredPath` + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`),
-          **extracting** the legacy CLEANUP surface (`deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/
-          `deleteTaskPatchFilesForRepo` + `isPathInsideTaskWorktreesHome` detection — retains migration value for
-          users upgrading from worktree builds) into a focused module.
-        - **then:** schema/predicate cleanup (`runtimeAgentIdSchema`, simplify `normalizeAgentId`,
-          invariant-pin/remove `usesLegacyHostTaskWorkspace`); **increment-4** Playwright + docker verification
-          (review lane diff/verify/merge; start a task → no `~/.nklein/nklein/worktrees/<task>`; shell → sandbox
-          container; project-health no false worktree warnings; `scripts/verify-strict-isolation.mts`).
-      - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**
-        `task-worktree-auto-merge.ts` is **NOT dead** — it is the *live result-branch delivery merge* invoked on
-        every auto-complete (`runtime-server`), already `resolveTaskResultBranchCommit`-first with the worktree as a
-        mere fallback. It gets **rewired to result-branch-only and KEPT** (rename optional), not deleted. Likewise
-        `deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/patch-cleanup + `isPathInsideTaskWorktreesHome` detection
-        retain **migration value** (cleaning legacy on-disk worktrees for users upgrading from worktree builds), so
-        the *creation/sync* machinery (`ensureTaskWorktreeIfDoesntExist`/`resolveTaskCwd`/`getTaskWorkspaceInfo`/
-        `mirrorIgnoredPath` + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`) is what gets deleted; the
-        cleanup/detection surface is extracted to a focused legacy-cleanup module.
-      - **Then:** delete the dead `src/terminal/*` CLI-agent integration + `hook-events/*` + rework `commands/task`;
-        schema/predicate cleanup; the increment-4 browser/Docker verification pass.
+- [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
+      local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
+      shell-on-task = `docker exec` into the task's sandbox (no host checkout). Full plan +
+      surface inventory: [.plan/docs/section-5a-worktree-retirement-watched-session.md](.plan/docs/section-5a-worktree-retirement-watched-session.md).
+      Per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–2 done; increment 3 ~80%
+      (C1–C7c done, C7d/C7e/C8 left); increment 4 pending.**
+  - [x] **Increment 1 — catalog + web-ui native-agent → nklein-only**
+    - [x] 1a — local-aware readiness (`isNKleinLocalModelConfigured`; dropped the CLI fallback)
+    - [x] 1b — `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS = ["nklein"]` (picker + settings nklein-only)
+    - [x] browser gate — boot smoke, 0 console errors, no spurious "No agent configured"
+  - [x] **Increment 2 — shell-on-task → `docker exec`**
+    - [x] 2a — sandbox shell seam (`getTaskShellTarget` + `buildAgentSandboxInteractiveShellArgs`)
+    - [x] 2b — `startShellSession` wiring (`docker exec -it -u <uid> -w /workspaces/<task>`), live-verified
+    - [x] gate closed — node-pty ↔ `docker exec -it` ↔ login shell verified end-to-end
+  - [~] **Increment 3 — retire the worktree consumers + delete the machinery** (each = one green commit)
+    - [x] step 1 — `startShellSession` worktree-free (dropped the `resolveTaskCwd({ ensure:true })` fallback) `816d7e07`
+    - [x] C1 — review log/refs/diff → result-branch (`workspace-api`) `60945cc3`
+    - [x] C2 — `loadChanges`/git-summary/discard drop `resolveTaskCwd` `203a9002`
+    - [x] C3 — acceptance-auto-repair → sandbox-only `a6487e33`
+    - [x] C4 — auto-merge → result-branch-only (KEPT — it's the live delivery merge) `87073a84`
+    - [x] C5 — runtime-api `resolveExistingTaskCwdOrEnsure` removed (killed worktree-create-on-miss) `8415cdfc`
+    - [x] C6a — workspace-metadata-monitor → home-git-only `76d09e8f`
+    - [x] C6b — web-ui dead worktree-prep removed (+live Playwright) `47f4bb54`
+    - [x] C7a — `nklein task` CLI worktree plumbing retired `4de877f0`
+    - [x] C7b — `ensureWorktree` + `getTaskContext` tRPC procedures removed `50ac2006`
+    - [x] C7c — host-worktree CREATION machinery deleted; `task-worktree.ts` slimmed to cleanup `f595fae0`
+    - [ ] **C7d — delete the dead `src/terminal/*` CLI-agent integration** *(scoped, surgical — `TerminalSessionManager`
+          is LIVE for shell)*
+      - [ ] keep shell infra (`pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
+            `terminal-session-service`, `terminal-state-mirror`, `output-utils`, session-manager's shell path)
+      - [ ] delete the agent path (`session-manager.startTaskSession`, `agent-registry`, `agent-session-adapters`,
+            `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`, `command-discovery`,
+            `hook-runtime-context`, `task-image-prompt`)
+      - [ ] delete `commands/hooks.ts` + `commands/hook-events/*` (the `nklein hooks ingest` CLI) + the `hooks-api` tRPC ingest
+      - [ ] rewire `terminalManager.getSummary` (runtime-api ~1165, hooks-api) — nklein summaries come from the session service
+    - [ ] **C7e — web-ui `RuntimeTaskWorkspaceInfoResponse` store/path-display cleanup** (`workspace-metadata-store`
+          `toTaskWorkspaceInfo`, `task-trash-warning-dialog`, `App.tsx` path-display — all read the now-always-empty `taskWorkspaces`)
+    - [ ] **C8 — schema/predicate cleanup** (shrink `runtimeAgentIdSchema`, simplify `normalizeAgentId`, remove
+          `usesLegacyHostTaskWorkspace` — its last consumer is shutdown-coordinator; do AFTER C7d, it's the boundary guard)
+  - [ ] **Increment 4 — live verification pass** (Playwright review lane diff/verify/merge; start a task → no
+        `~/.nklein/nklein/worktrees/<task>`; shell → sandbox container; project-health no false worktree warnings;
+        `scripts/verify-strict-isolation.mts`) + flip the AGENTS.md worktree tribal-knowledge → "retired"
+  - [x] **✅ MILESTONE (2026-06-23):** no live nklein flow creates or reads a host worktree — every path runs off the
+        `nklein/tasks/<task>` result branch / Docker sandbox; only legacy on-disk *cleanup* survives (for users
+        upgrading from worktree builds).
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
