@@ -2358,6 +2358,3 @@ export const runtimeGitRefsResponseSchema = z.object({
 	error: z.string().optional(),
 });
 export type RuntimeGitRefsResponse = z.infer<typeof runtimeGitRefsResponseSchema>;
-
-export const runtimeHookEventSchema = z.enum(["to_review", "to_in_progress", "activity"]);
-export type RuntimeHookEvent = z.infer<typeof runtimeHookEventSchema>;

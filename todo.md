@@ -221,11 +221,11 @@ deep analysis:
     - [x] C7a — `nklein task` CLI worktree plumbing retired `4de877f0`
     - [x] C7b — `ensureWorktree` + `getTaskContext` tRPC procedures removed `50ac2006`
     - [x] C7c — host-worktree CREATION machinery deleted; `task-worktree.ts` slimmed to cleanup `f595fae0`
-    - [~] **C7d — delete the dead `src/terminal/*` CLI-agent integration** *(scoped, surgical — `TerminalSessionManager`
-          is LIVE for shell)*
+    - [x] **C7d — deleted the dead `src/terminal/*` CLI-agent integration** *(surgical — `TerminalSessionManager`
+          is LIVE for shell; **live-shell verify still pending in increment 4**)*
       - [x] delete `commands/hooks.ts` + `commands/hook-events/*` (the `nklein hooks` CLI) + the `hooks-api` tRPC
             ingest + `parseHookIngestRequest` + ingest schemas (step 1; `RuntimeHookEvent` kept for adapters)
-      - [ ] keep shell infra (`pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
+      - [x] kept shell infra (`pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
             `terminal-session-service`, `terminal-state-mirror`, `output-utils`, session-manager's shell path)
       - [x] remove the dead terminal-agent `startTaskSession` path from `runtime-api` (step 2) — handler now
             always takes the NKlein path (terminal `startTaskSession`/`applyTurnCheckpoint` branch + the
@@ -235,12 +235,13 @@ deep analysis:
       - [x] step 3a — remove the dead terminal stop/input fallbacks in `runtime-api` + delete the 4 zero-caller
             hook-driven manager methods (`transitionToReview`/`applyHookActivity`/`transitionToRunning`/
             `applyTurnCheckpoint`) + their 2 obsolete tests. (1333 tests green.)
-      - [ ] step 3b — delete `session-manager.startTaskSession` (+ `trySendDeferredCodexStartupInput`,
-            `cloneStartTaskSessionRequest`, the task-kind auto-restart) + the 7 agent-only helper files
-            (`agent-session-adapters`, `claude/codex-workspace-trust`, `codex-hook-config`, `opencode-paths`,
-            `hook-runtime-context`, `task-image-prompt`) + now-unused `RuntimeHookEvent`. **Live-shell verify after.**
-            *(KEEP `agent-registry` — `detectInstalledCommands`/`buildRuntimeConfigResponse` used by runtime-config +
-            runtime-api; KEEP `command-discovery` — `isBinaryAvailableOnPath` used by `server/browser.ts`.)*
+      - [x] step 3b — deleted `session-manager.startTaskSession` + all agent-only internals (workspace-trust,
+            Codex startup/prompt, output-transition adapters, egress env, auto-restart machinery) + trimmed
+            `ActiveProcessState`/`SessionEntry` to shell-only; deleted the 7 helper files + 5 obsolete test files
+            (940→427 lines). Shell path is a behavioral no-op. KEPT `agent-registry` + `command-discovery` (live
+            non-agent consumers). 1300 tests green. **Live-shell verify still pending (increment 4).**
+      - [x] step 3c — removed now-unused `runtimeHookEventSchema`/`RuntimeHookEvent` from `api-contract` (no
+            consumers after the adapters were deleted). `RuntimeTaskHookActivity` kept (still on the summary).
     - [x] **C7e — web-ui task-workspace-info store cleanup** — removed the dead `taskWorkspaceInfoByTaskId` store
           API + consumers (App.tsx navbar path/subtitle/hint, top-bar git-status, `selectedTaskBaseRef` prop,
           use-board-interactions `clearTaskWorkspaceInfo`); kept the `taskWorkspaceSnapshot` half. Zero behavior

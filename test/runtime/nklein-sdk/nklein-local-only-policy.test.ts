@@ -39,10 +39,6 @@ const CLOUD_LITERAL_ALLOWLIST = new Map<string, string>([
 		"Web-research allowed domains are user-triggered research references, not dispatch defaults.",
 	],
 	["src/core/agent-catalog.ts", "Claude Code install docs are for the separate Claude CLI agent."],
-	[
-		"src/terminal/agent-session-adapters.ts",
-		"OpenCode provider ordering belongs to the separate OpenCode CLI adapter, not NKlein dispatch.",
-	],
 ]);
 
 async function collectTypeScriptSourceFiles(directory: string): Promise<string[]> {

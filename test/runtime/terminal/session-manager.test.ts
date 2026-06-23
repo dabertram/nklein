@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
 import { buildShellCommandLine } from "../../../src/core/shell";
-import { applyAgentEgressRestrictionEnvironment, TerminalSessionManager } from "../../../src/terminal/session-manager";
+import { TerminalSessionManager } from "../../../src/terminal/session-manager";
 
 function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): RuntimeTaskSessionSummary {
 	return {
@@ -23,48 +23,11 @@ function createSummary(overrides: Partial<RuntimeTaskSessionSummary> = {}): Runt
 }
 
 describe("TerminalSessionManager", () => {
-	it("clears trust prompt state when transitioning to review", () => {
-		const manager = new TerminalSessionManager();
-		const entry = {
-			summary: createSummary({ state: "running", reviewReason: null }),
-			active: {
-				workspaceTrustBuffer: "trust this folder",
-				awaitingCodexPromptAfterEnter: true,
-			},
-			listenerIdCounter: 1,
-			listeners: new Map(),
-		};
-		const applySessionEvent = (
-			manager as unknown as {
-				applySessionEvent: (sessionEntry: unknown, event: { type: "hook.to_review" }) => RuntimeTaskSessionSummary;
-			}
-		).applySessionEvent;
-		const nextSummary = applySessionEvent(entry, { type: "hook.to_review" });
-		expect(nextSummary.state).toBe("awaiting_review");
-		expect(entry.active.workspaceTrustBuffer).toBe("");
-	});
-
 	it("builds shell kickoff command lines with quoted arguments", () => {
 		const commandLine = buildShellCommandLine("nklein", ["--auto-approve-all", "hello world"]);
 		expect(commandLine).toContain("nklein");
 		expect(commandLine).toContain("--auto-approve-all");
 		expect(commandLine).toContain("hello world");
-	});
-
-	it("keeps agent egress env unchanged unless best-effort local-only mode is enabled", () => {
-		const env = { PATH: "/usr/bin", HTTP_PROXY: "http://proxy.example" };
-		expect(applyAgentEgressRestrictionEnvironment(env, {})).toBe(env);
-
-		const restricted = applyAgentEgressRestrictionEnvironment(env, {
-			NKLEIN_AGENT_EGRESS_RESTRICTION: "best_effort_local_only",
-		});
-
-		expect(restricted).not.toBe(env);
-		expect(restricted.HTTP_PROXY).toBe("http://127.0.0.1:9");
-		expect(restricted.HTTPS_PROXY).toBe("http://127.0.0.1:9");
-		expect(restricted.ALL_PROXY).toBe("http://127.0.0.1:9");
-		expect(restricted.NO_PROXY).toContain("127.0.0.1");
-		expect(restricted.NKLEIN_AGENT_EGRESS_RESTRICTED).toBe("best_effort_local_only");
 	});
 
 	it("resets stale running sessions without active processes", () => {
