@@ -8,9 +8,11 @@ import {
 	AgentSandboxManager,
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
+	buildAgentSandboxInteractiveShellArgs,
 	createAgentSandboxTaskUid,
 	createAgentSandboxToolExecutors,
 	DEFAULT_AGENT_SANDBOX_IMAGE,
+	DEFAULT_AGENT_SANDBOX_SHELL,
 	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxNetworkArgs,
 } from "../../../src/nklein-sdk/nklein-agent-sandbox";
@@ -93,6 +95,39 @@ function createDelayedRunExecFileStub(): {
 		},
 	};
 }
+
+describe("agent sandbox interactive shell (todo §5.A)", () => {
+	it("builds the interactive docker exec argv for a task shell", () => {
+		const args = buildAgentSandboxInteractiveShellArgs({
+			containerName: "klein-agent-sandbox-2",
+			uid: 1234,
+			workdir: "/workspaces/task-abc",
+		});
+		expect(args).toEqual([
+			"exec",
+			"-it",
+			"-u",
+			"1234",
+			"-w",
+			"/workspaces/task-abc",
+			"klein-agent-sandbox-2",
+			...DEFAULT_AGENT_SANDBOX_SHELL,
+		]);
+	});
+
+	it("honours a custom shell argv", () => {
+		const args = buildAgentSandboxInteractiveShellArgs({ containerName: "c1", uid: 0, workdir: "/workspaces/x" }, [
+			"bash",
+			"-l",
+		]);
+		expect(args).toEqual(["exec", "-it", "-u", "0", "-w", "/workspaces/x", "c1", "bash", "-l"]);
+	});
+
+	it("returns no shell target for a task without a prepared sandbox", () => {
+		const manager = new AgentSandboxManager({ image: "test-image" });
+		expect(manager.getTaskShellTarget("unprepared-task")).toBeNull();
+	});
+});
 
 describe("AgentSandboxManager", () => {
 	it("uses a pinned default sandbox image tag", () => {

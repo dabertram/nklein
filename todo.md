@@ -212,10 +212,21 @@ deep analysis:
       returns only NKlein, and terminal/CLI agents are no longer launchable. Confirmed safe: under the local-only
       lockdown `normalizeAgentId` already clamped every non-nklein id to nklein, so the shrink only drops the dead
       cloud path; root tsc + full fast suite + web-ui tsc + picker/settings/native-agent tests all green. **Browser
-      gate (1a+1b) owed:** Playwright check that the picker offers only NKlein + no spurious "No agent configured"
-      with only a local model — batched into the increment-4 verification pass. **Next (increment 2):** rework
-      shell-on-task (`startShellSession` / `resolveTaskCwd({ ensure: true })`) to `docker exec` into the task's
-      sandbox container; its LIVE gate must pass before the increment-3 deletions.
+      gate (1a+1b):** Playwright boot smoke ran against the live dev server (`:4173`) — app boots, 0 console
+      errors, navbar shows "!Klein Agent" (no spurious "No agent configured"); the deeper picker-only-NKlein drill
+      is batched into the increment-4 pass.
+      **Increment 2a DONE 2026-06-23:** the sandbox `docker exec` shell seam —
+      `AgentSandboxManager.getTaskShellTarget(taskId)` (container + task uid + workdir, or null) +
+      `buildAgentSandboxInteractiveShellArgs` (pure `docker exec -it -u <uid> -w <workdir> <container> <shell>`,
+      mirroring the existing task-user exec); unit-tested. **Next (increment 2b — PTY wiring + LIVE gate):** the
+      real shell-on-task entry is the **`ensureWorktree` tRPC mutation** ([src/trpc/workspace-api.ts](src/trpc/workspace-api.ts):336,
+      [src/trpc/app-router.ts](src/trpc/app-router.ts):982) + the CLI in [src/commands/task.ts](src/commands/task.ts),
+      and the PTY is [src/terminal/pty-session.ts](src/terminal/pty-session.ts) (`resolveTaskCwd({ ensure: true })`
+      lives in [src/workspace/task-worktree.ts](src/workspace/task-worktree.ts)). Rewire them to acquire/find the
+      task's sandbox placement and spawn the PTY as `docker` + `buildAgentSandboxInteractiveShellArgs(getTaskShellTarget(taskId))`
+      instead of ensuring a host worktree. LIVE gate: start a task, open its shell → confirm it lands inside the
+      container at `/workspaces/<taskId>` (isolated, `--network none`) and **no** `~/.nklein/nklein/worktrees/<task>`
+      dir is created. This gate MUST pass before the increment-3 deletions.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean

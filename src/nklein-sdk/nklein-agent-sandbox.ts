@@ -247,6 +247,35 @@ export function createAgentSandboxVolumeName(slot: number): string {
 	return `${AGENT_SANDBOX_VOLUME_PREFIX}-${slot}`;
 }
 
+/**
+ * Interactive shell into a task's prepared sandbox container (todo §5.A: shell-on-task = `docker exec` into the
+ * task's hardened container, not a host worktree). Tries a login bash, falling back to sh, so it works across
+ * sandbox base images.
+ */
+export const DEFAULT_AGENT_SANDBOX_SHELL: readonly string[] = [
+	"/bin/sh",
+	"-lc",
+	"exec bash -il 2>/dev/null || exec sh -il",
+];
+
+export interface AgentSandboxShellTarget {
+	containerName: string;
+	uid: number;
+	workdir: string;
+}
+
+/**
+ * Build the `docker` argv for an INTERACTIVE shell into a task's sandbox container. Mirrors the internal
+ * `execAsTaskUser` exec (same task user + workdir + container) but adds `-it` to allocate a TTY and keep stdin
+ * open, so a PTY can drive it. The user shell lands in the sandbox working copy, as isolated as the agent.
+ */
+export function buildAgentSandboxInteractiveShellArgs(
+	target: AgentSandboxShellTarget,
+	shell: readonly string[] = DEFAULT_AGENT_SANDBOX_SHELL,
+): string[] {
+	return ["exec", "-it", "-u", String(target.uid), "-w", target.workdir, target.containerName, ...shell];
+}
+
 export function createAgentSandboxToolExecutors(
 	manager: AgentSandboxManager,
 	taskId: string,
@@ -779,6 +808,23 @@ export class AgentSandboxManager {
 	 */
 	hasWorkspace(taskId: string): boolean {
 		return this.placements.has(taskId);
+	}
+
+	/**
+	 * The interactive-shell target for a task's prepared sandbox workspace, or null when none is prepared. The
+	 * shell-on-task flow uses this to `docker exec` into the task's container instead of ensuring a host worktree
+	 * (todo §5.A). Pair with {@link buildAgentSandboxInteractiveShellArgs} to build the PTY `docker` argv.
+	 */
+	getTaskShellTarget(taskId: string): AgentSandboxShellTarget | null {
+		const placement = this.placements.get(taskId);
+		if (!placement) {
+			return null;
+		}
+		return {
+			containerName: createAgentSandboxContainerName(placement.slot),
+			uid: placement.uid,
+			workdir: placement.workdir,
+		};
 	}
 
 	private requirePlacement(taskId: string): TaskPlacement {
