@@ -296,11 +296,21 @@ deep analysis:
           `shouldPrepareLegacyHostTaskWorkspace`-gated kickoff blocks (start/resume/replay/decompose) +
           the obsolete saved-patch-warning test. Web-ui no longer calls those tRPC. Live Playwright: board
           renders, 0 console errors.
-        - **Backend tRPC remaining (now uncalled by web-ui → removable):** the `ensureWorktree`/`getTaskContext`
-          tRPC mutations + `loadTaskContext` (`getTaskWorkspaceInfo`); the `verifyTaskAcceptance` `ensureWorktree:
-          true` param; `deleteWorktree` stays for now (`cleanupTaskWorkspace` on replay/trash — no-op for nklein).
-          `commands/task` CLI (`resolveTaskCwd` + worktree auto-merge defaults). The `getTaskWorkspaceInfo`
-          web-ui store/path-display (App.tsx) also still reads the now-always-empty metadata.
+        - **STRUCTURAL BLOCKER (found 2026-06-23):** `src/commands/task.ts` (the 2907-line `nklein task` CLI) is
+          still an **active** consumer — it calls `runtimeClient.workspace.ensureWorktree.mutate` (~L1303),
+          `resolveTaskCwd`, the worktree auto-merge, and `runNKleinAcceptanceGate` — so the `ensureWorktree`/
+          `getTaskContext` tRPC mutations and `task-worktree.ts` **cannot be removed until the CLI is reworked or
+          retired**. The CLI also carries real nklein decomposition/planning/acceptance logic, so it's a
+          rework-or-carefully-delete decision, not a trivial drop. This is the gate for the rest of the deletion.
+        - **Also still wired:** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
+          `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` deletion needs those
+          rewired first. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui `workspace-metadata-store`
+          (`toTaskWorkspaceInfo`) + `task-trash-warning-dialog` + `App.tsx` path-display (all reading the
+          now-always-empty `taskWorkspaces`) — its own web-ui cleanup. `deleteWorktree` tRPC stays
+          (`cleanupTaskWorkspace` on replay/trash — no-op for nklein) + the `verifyTaskAcceptance` `ensureWorktree`
+          param. **Next focused pass:** decide CLI rework/retire → drop tRPC mutations → rewire terminalManager
+          getSummary → delete `src/terminal/*` + `hook-events/*` → delete `task-worktree.ts` creation machinery
+          (extract cleanup) → web-ui metadata-store cleanup → schema/predicate → increment-4 verification.
         - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
           `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
           `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).
