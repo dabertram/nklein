@@ -751,12 +751,21 @@ deep analysis:
       vs bare id, casing, a stale/loaded-vs-catalog id, per-endpoint or per-session variance, or quant/context
       variants counted separately). Establish a single **canonical model-identity** used everywhere stats are keyed
       and aggregated, and dedupe/merge existing rows on it so the global view is one consistent entry per model.
-- [ ] **Verify global vs per-scope aggregation.** Confirm performance stats aggregate **globally per model** (not
+- [~] **Verify global vs per-scope aggregation.** Confirm performance stats aggregate **globally per model** (not
       siloed by workspace/session/run in a way that splits one model), while still allowing intended breakdowns
       (project/role/tool/category/outcome per §6.6). Add coverage for the dedupe/aggregation core.
       **DECIDED (2026-06-23, §5.0):** canonical model identity = **provider + model + canonical endpoint**
       (canonicalize loopback / trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate
       **globally per model**, keep the project/role/tool/category/outcome breakdowns.
+      **DONE (2026-06-23) — display fix:** the Model Performance dialog now shows a **By Model (global)** primary
+      table — `rollUpAggregatesByModel` consolidates the overall-scope role splits into **one row per model**
+      (summed runs/outcomes, exact recomputed `successRate`, ignoring non-overall scopes so runs aren't
+      double-counted), and the per-scope×role aggregates are relabeled the **Breakdowns** table. Unit-tested.
+      **Remaining (follow-up):** a precise *backend* `byModel` aggregate recomputed from raw observations keyed by
+      provider + normalized-model + **canonical endpoint** (extract the registry's `normalizeEndpoint`/
+      `normalizeModelId`/`normalizeProviderId` into a shared module so telemetry + registry agree), for exact
+      timing/capability per-model + true cross-endpoint dedup. The current data is already single-endpoint + clean,
+      so the display rollup resolves the user-visible "same model multiple times" today.
 
 ### 5.R — Dissolve the "internal SDK" separation; one unified codebase *(raised + clarified 2026-06-23)*
 > **Goal (user):** stop treating any part of the runtime as a separate "SDK" with its own interface / packaging /
