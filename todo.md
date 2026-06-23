@@ -279,7 +279,16 @@ deep analysis:
         relative path.) Per the new AGENTS.md "agents must never see host details" rule:
     - [ ] agent's perceived cwd + every agent-facing path = the in-container workspace (`/workspaces/<taskId>`,
           `AGENT_SANDBOX_WORKSPACES_DIR`), never the host mount; scrub host paths from prompt/context, the paths the
-          agent is nudged toward, tool results, and error messages (find where cwd enters the agent context first).
+          agent is nudged toward, tool results, and error messages.
+          **FOUND (2026-06-23):** the leak is [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts) `config.cwd = request.cwd`
+          (the host path) handed to the agent-core — that's the "working directory" the model is told. Fix: pass the
+          **deterministic sandbox workdir** `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`
+          (= `/workspaces/<taskId>`, [nklein-agent-sandbox.ts](src/nklein-sdk/nklein-agent-sandbox.ts):592) as the
+          agent-core `cwd` whenever the task is sandboxed (the norm); keep `request.cwd`/`workspaceRoot` (host) only for
+          host-side ops (result branches, evidence). **Core-path change for ALL nklein tasks → needs live task
+          verification** (run a dev-test decompose: agent sees `/workspaces/<taskId>`, file reads/edits still resolve,
+          result branch still delivers) before flipping. Also still scrub the host path from the `read_files` "large
+          file" block error + evidence `summary.md`/`config-snapshot.json`.
     - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
           host-side evidence/workspace access, but the agent only sees `/workspaces/<taskId>`. A dev-test run that
           shows the agent the host temp project path is a bug; verify a dev-test decompose shows only sandbox paths.
