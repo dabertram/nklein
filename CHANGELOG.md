@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- Decomposition no longer stalls when a weak local model raises a clarifying question it can't resolve. Previously an `open` question with options but no default was rejected with "add an `assumption`", and small models often just re-sent the identical `decompose_project` call, looping until the task paused. !Klein now auto-supplies a sensible default from the question's recommended (or first) option so the plan proceeds; the question stays open for later clarification.
+
 - Tasks and second-opinion reviews no longer intermittently fail with "Lock file is already being held" when several cards run in parallel. The on-disk lock (`proper-lockfile`) is a cross-process lock; using it to coordinate the many concurrent callers inside one runtime process (the swarm persisting board state) meant they raced it and, when a holder held longer than the retry window, threw `ELOCKED` — which surfaced as queued task-starts failing and second-opinion reviews being skipped. `LockedFileSystem` now serializes same-process callers through an in-process, re-entrant per-lockfile mutex first, so the file lock is only ever contended across processes. (Re-entrant: a nested lock on the same path from one call stack now proceeds instead of self-blocking.)
 
 - Silenced the noisy per-call "System messages in the prompt … can be a security risk" log line. It comes from the external `ai` package (Vercel AI SDK) and was printed on every model call; !Klein passes system messages by design, so the runtime now logs the rationale once at startup and disables the SDK's per-call warning via its official switch.

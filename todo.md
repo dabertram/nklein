@@ -326,6 +326,11 @@ deep analysis:
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
       ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
+- [x] **Open-question default auto-recovery (2026-06-24, real evidence)** — an `open` clarifying question with
+      options but no `assumption`/`answer` used to throw "add an `assumption`"; weak models couldn't comply and
+      re-sent the identical decompose call, looping until the guard paused the task. `deriveOpenQuestionDefaults`
+      now auto-supplies a default from the question's `recommended` (else first) option so planning proceeds; the
+      question stays `open` for later clarification (§5.S). Parse-and-recover, unit-tested.
 - [x] **Knowledge-tool usage as a decomposition-quality signal** — backend correlator
       ([src/telemetry/knowledge-tool-decomposition-signal.ts](src/telemetry/knowledge-tool-decomposition-signal.ts))
       flags whether retrieval/code-index/architecture tools ran *before* a decomposition (anchored on

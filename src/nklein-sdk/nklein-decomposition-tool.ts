@@ -496,6 +496,31 @@ function validateTaskSizingContract(task: NKleinPlanTask): void {
 	}
 }
 
+/**
+ * Parse-and-recover for clarifying questions (AGENTS.md: recover in !Klein, don't teach the model). When the
+ * model emits an `open` question that offers options but no working default, supply one automatically from its
+ * `recommended` option (else the first option) instead of bouncing the model with "add an `assumption`". Weak
+ * local models frequently cannot comply with that directive and just re-send the identical decompose call,
+ * looping until the repeated-tool-call guard pauses the task. The question stays **open** (so the §5.S clarify
+ * loop / the user can still resolve it) but now carries a default, so the plan proceeds. Questions with no
+ * options to choose from are left untouched — there is nothing safe to assume, so validation still guides.
+ */
+export function deriveOpenQuestionDefaults(questions: readonly NKleinPlanQuestion[]): NKleinPlanQuestion[] {
+	return questions.map((question) => {
+		if (question.status !== "open" || question.assumption?.trim() || question.answer?.trim()) {
+			return question;
+		}
+		const chosen = question.options.find((option) => option.recommended) ?? question.options[0];
+		if (!chosen) {
+			return question;
+		}
+		return {
+			...question,
+			assumption: `Proceeding with "${chosen.label}" as the default${chosen.recommended ? " (recommended option)" : ""}; revisit during clarification.`,
+		};
+	});
+}
+
 function validatePlanQuestions(questions: readonly NKleinPlanQuestion[]): void {
 	for (const question of questions) {
 		// An `open` clarifying question may proceed as long as it carries a working default — an `assumption` (a
@@ -789,7 +814,7 @@ function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToo
 			"decompose_project requires at least one task. Add 3 to 6 task objects (id, title, prompt) to tasks and resubmit.",
 		);
 	}
-	const questions = parsed.questions ?? [];
+	const questions = deriveOpenQuestionDefaults(parsed.questions ?? []);
 	validatePlanQuestions(questions);
 	const expansions = parsed.expansions ?? {};
 	const tasks = expandDecomposeProjectTasks({
