@@ -270,6 +270,39 @@ function shortId(id: string): string {
 	return trimmed.length > 6 ? trimmed.slice(0, 6) : trimmed;
 }
 
+/**
+ * `decompose_project` is a stateful planning *workflow*, not a one-shot call: when it reports an open
+ * clarifying question, the model re-calls it with that question resolved (assumption/answer), which often
+ * surfaces the next one — legitimate progress, not a stuck loop. Summarizing by `slug` alone made every
+ * iteration look identical, so the repeated-identical-tool-call guard falsely paused a decomposition that was
+ * actually advancing (and even one that had just applied — the "paused yet completed" symptom). Encode the
+ * task/question counts so each progress step gets a distinct summary (⇒ distinct guard fingerprint) while a
+ * genuinely unchanged resubmission still trips the guard. Argument-less calls return `null` so the dedicated
+ * empty-decompose diagnostic still applies.
+ */
+function summarizeDecomposeProjectInput(record: Record<string, unknown>): string | null {
+	const slug = typeof record.slug === "string" ? record.slug.trim() : "";
+	const tasks = Array.isArray(record.tasks) ? record.tasks.length : 0;
+	const questions = Array.isArray(record.questions) ? record.questions : [];
+	if (!slug && tasks === 0 && questions.length === 0) {
+		return null;
+	}
+	const openQuestions = questions.filter(
+		(question) =>
+			isRecord(question) &&
+			String(question.status ?? "open")
+				.trim()
+				.toLowerCase() === "open",
+	).length;
+	const parts = [slug || "(no slug)", `${tasks} task${tasks === 1 ? "" : "s"}`];
+	if (questions.length > 0) {
+		parts.push(
+			`${questions.length} question${questions.length === 1 ? "" : "s"}${openQuestions > 0 ? `, ${openQuestions} open` : ""}`,
+		);
+	}
+	return parts.join(" · ");
+}
+
 function summarizeParsedToolInput(toolName: string, input: unknown, output?: unknown): string | null {
 	if (input === null || input === undefined) {
 		return null;
@@ -290,6 +323,13 @@ function summarizeParsedToolInput(toolName: string, input: unknown, output?: unk
 		const record = input;
 
 		switch (normalizedToolName) {
+			case "decomposeproject": {
+				const decomposeSummary = summarizeDecomposeProjectInput(record);
+				if (decomposeSummary !== null) {
+					return decomposeSummary;
+				}
+				break;
+			}
 			case "runcommands": {
 				if (Array.isArray(record.commands)) {
 					return formatArraySummary(record.commands);

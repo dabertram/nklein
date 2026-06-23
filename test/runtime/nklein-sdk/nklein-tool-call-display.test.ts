@@ -45,3 +45,51 @@ describe("getNKleinToolCallDisplay — read_large_file cursor in the input summa
 		expect(display.inputSummary).toBe("specification.md:1-788");
 	});
 });
+
+describe("getNKleinToolCallDisplay — decompose_project workflow progress in the input summary", () => {
+	// Regression (real evidence): the architect re-called decompose_project as it resolved open clarifying
+	// questions one at a time (audio-core open → assumed + webgpu open → both assumed). Summarizing by `slug`
+	// alone collapsed all three progress steps to one fingerprint, so the repeated-tool-call guard paused the
+	// task at the 3rd call — even though that call had just APPLIED the decomposition (the "paused yet completed"
+	// symptom). The summary must reflect the question/task counts so progress steps stay distinct.
+	const callsFromEvidence = [
+		{ slug: "professional-daw", tasks: [{}], questions: [{ id: "audio-core", status: "open" }] },
+		{
+			slug: "professional-daw",
+			tasks: [{}],
+			questions: [
+				{ id: "audio-core", status: "assumed-default" },
+				{ id: "webgpu-integration", status: "open" },
+			],
+		},
+		{
+			slug: "professional-daw",
+			tasks: [{}],
+			questions: [
+				{ id: "audio-core", status: "assumed-default" },
+				{ id: "webgpu-integration", status: "assumed-default" },
+			],
+		},
+	];
+
+	it("gives each question-resolution step a distinct summary (no false repeat pause)", () => {
+		const summaries = callsFromEvidence.map(
+			(input) => getNKleinToolCallDisplay("decompose_project", input).inputSummary,
+		);
+		expect(summaries[0]).toBe("professional-daw · 1 task · 1 question, 1 open");
+		expect(summaries[1]).toBe("professional-daw · 1 task · 2 questions, 1 open");
+		expect(summaries[2]).toBe("professional-daw · 1 task · 2 questions");
+		expect(new Set(summaries).size).toBe(callsFromEvidence.length);
+	});
+
+	it("keeps an identical summary for a genuinely unchanged resubmission (true loop still caught)", () => {
+		const input = { slug: "x", tasks: [{}, {}], questions: [{ id: "q", status: "open" }] };
+		expect(getNKleinToolCallDisplay("decompose_project", input).inputSummary).toBe(
+			getNKleinToolCallDisplay("decompose_project", input).inputSummary,
+		);
+	});
+
+	it("returns no summary for an argument-less call so the empty-decompose diagnostic still fires", () => {
+		expect(getNKleinToolCallDisplay("decompose_project", {}).inputSummary).toBeNull();
+	});
+});

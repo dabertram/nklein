@@ -3026,6 +3026,51 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(service.listMessages("task-1").at(-1)?.content).toContain("repeated Read tool calls");
 	});
 
+	it("does NOT park decompose_project across question-resolution progress (real evidence regression)", async () => {
+		// The architect re-calls decompose_project as it resolves open clarifying questions one at a time. By slug
+		// alone these looked identical and the guard paused at the 3rd call — even though that call applied the
+		// decomposition. The progress-aware summary gives each step a distinct fingerprint, so no false pause.
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose autonomously.",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		const progressingCalls = [
+			{ slug: "professional-daw", tasks: [{}], questions: [{ id: "audio-core", status: "open" }] },
+			{
+				slug: "professional-daw",
+				tasks: [{}],
+				questions: [
+					{ id: "audio-core", status: "assumed-default" },
+					{ id: "webgpu-integration", status: "open" },
+				],
+			},
+			{
+				slug: "professional-daw",
+				tasks: [{}],
+				questions: [
+					{ id: "audio-core", status: "assumed-default" },
+					{ id: "webgpu-integration", status: "assumed-default" },
+				],
+			},
+		];
+		for (const [index, input] of progressingCalls.entries()) {
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: `decompose-${index}`,
+				toolName: "decompose_project",
+				input,
+			});
+		}
+
+		expect(service.getSummary("task-1")?.state).toBe("running");
+		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
+	});
+
 	it("resets repeated tool-call tracking when the tool input changes", async () => {
 		const { service, runtime } = createTrackedService();
 		await service.startTaskSession({
