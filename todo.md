@@ -206,9 +206,16 @@ deep analysis:
       ([web-ui/src/runtime/native-agent.ts](web-ui/src/runtime/native-agent.ts)) treats a selected local provider
       (lmstudio/ollama, or a custom provider carrying a model id / local endpoint) as configured, and
       `isTaskAgentSetupSatisfied` now uses it (cloud auth OR local model), dropping the CLI fallback for the nklein
-      branch; web-ui tsc + unit-tested. **Next (1b):** shrink `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` to `["nklein"]`
-      now that readiness no longer depends on the CLI fallback, then trim the agent picker/onboarding UI. Don't
-      start the deletions (increment 3) until the live shell-on-task `docker exec` gate (increment 2) passes.
+      branch; web-ui tsc + unit-tested.
+      **Increment 1b DONE 2026-06-23:** `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` shrunk to `["nklein"]`, so
+      `getRuntimeLaunchSupportedAgentCatalog()` (which drives the task-agent picker + runtime-settings agent list)
+      returns only NKlein, and terminal/CLI agents are no longer launchable. Confirmed safe: under the local-only
+      lockdown `normalizeAgentId` already clamped every non-nklein id to nklein, so the shrink only drops the dead
+      cloud path; root tsc + full fast suite + web-ui tsc + picker/settings/native-agent tests all green. **Browser
+      gate (1a+1b) owed:** Playwright check that the picker offers only NKlein + no spurious "No agent configured"
+      with only a local model — batched into the increment-4 verification pass. **Next (increment 2):** rework
+      shell-on-task (`startShellSession` / `resolveTaskCwd({ ensure: true })`) to `docker exec` into the task's
+      sandbox container; its LIVE gate must pass before the increment-3 deletions.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean

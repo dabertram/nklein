@@ -68,14 +68,16 @@ export const RUNTIME_AGENT_CATALOG: RuntimeAgentCatalogEntry[] = [
 	},
 ];
 
-// Temporarily keep launch support scoped to the core agent set.
-// Re-enable additional CLIs by uncommenting entries below when ready.
+// Local-only / nklein-only (todo §5.A): the native NKlein agent is the sole launch-supported runtime agent;
+// terminal/CLI agents stay permanently disabled under the lockdown. The catalog entries below remain only for
+// the legacy terminal integration that a later §5.A increment removes — they are not launchable.
 export const RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS: readonly RuntimeAgentId[] = [
 	"nklein",
-	"claude",
-	"codex",
-	"droid",
-	"kiro",
+	// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); do not re-enable for launch:
+	// "claude",
+	// "codex",
+	// "droid",
+	// "kiro",
 	// "opencode",
 	// "gemini",
 ];
