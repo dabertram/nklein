@@ -72,6 +72,43 @@ describe("parseNarratedToolCalls", () => {
 	});
 });
 
+describe("parseNarratedToolCalls — model-family tool-call formats (todo §5.O)", () => {
+	it("recovers the Mistral/Mixtral [TOOL_CALLS] array format (multiple calls)", () => {
+		const text = `[TOOL_CALLS][{"name": "read_files", "arguments": {"path": "a.ts"}}, {"name": "read_files", "arguments": {"path": "b.ts"}}]`;
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "read_files", input: { path: "a.ts" } },
+			{ toolName: "read_files", input: { path: "b.ts" } },
+		]);
+	});
+
+	it("recovers the Llama 3.1 <|python_tag|> single-object format", () => {
+		const text = `<|python_tag|>{"name": "list_files", "parameters": {"path": "/workspace"}}`;
+		expect(parseNarratedToolCalls(text)).toEqual([{ toolName: "list_files", input: { path: "/workspace" } }]);
+	});
+
+	it("recovers the OpenAI-shaped nested function:{name,arguments} object (with stringified args)", () => {
+		const text = `<tool_call>{"function": {"name": "read_files", "arguments": "{\\"path\\": \\"a.ts\\"}"}}</tool_call>`;
+		expect(parseNarratedToolCalls(text)).toEqual([{ toolName: "read_files", input: { path: "a.ts" } }]);
+	});
+
+	it("recovers the Functionary <function=NAME>{args}</function> named-tag format", () => {
+		const text = `<function=read_files>{"path": "a.ts"}</function>`;
+		expect(parseNarratedToolCalls(text)).toEqual([{ toolName: "read_files", input: { path: "a.ts" } }]);
+	});
+
+	it("recovers multiple named-function tags in one turn", () => {
+		const text = `<function=read_files>{"path": "a.ts"}</function>\n<function=run_commands>{"commands": ["ls"]}</function>`;
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "read_files", input: { path: "a.ts" } },
+			{ toolName: "run_commands", input: { commands: ["ls"] } },
+		]);
+	});
+
+	it("does not fire on plain prose mentioning these tokens without a real block", () => {
+		expect(parseNarratedToolCalls("I'll use the python_tag approach and discuss tool_calls in general.")).toEqual([]);
+	});
+});
+
 describe("recoverNarratedToolCalls", () => {
 	it("appends a recovered tool-call part when the call is narrated in the reasoning channel", () => {
 		const msg = message({

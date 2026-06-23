@@ -574,12 +574,16 @@ deep analysis:
   - [ ] run under concurrency + harden from observed failures (gated on the user's quant/K-V configs)
 - [ ] **Autonomous sweep tooling** (designed when we start) — iterate the model/quant/config matrix unattended on top
       of `dev test-project` + `collect evidence` + `cleanup-report`; capture evidence per run + summarize. Discuss shape then.
-- [ ] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
+- [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
       families/variants emit tool calls in different shapes (OpenAI `tool_calls`, `<tool_call>{…}</tool_call>` narration,
       Hermes/Qwen/Mistral/Anthropic-ish templates, etc.). Parse-and-recover **every** publicly-known format at the
       `afterModel` seam (extend `recoverNarratedToolCalls` in `nklein-narrated-tool-call.ts`) so weak/quantized models
       "just work" regardless of formatting — per the parse-and-recover principle (recover in !Klein, don't teach the
       model). Catalog the formats + add fixtures per family.
+  - [x] **2026-06-24:** added Llama 3.1 `<|python_tag|>`, Mistral/Mixtral `[TOOL_CALLS][…]` (JSON array of calls),
+        the OpenAI-shaped nested `function:{name,arguments}` object, and the Functionary `<function=NAME>{…}</function>`
+        named-tag form, on top of the existing Hermes/Qwen `<tool_call>`/`<|tool_call|>`/`<function_call>`. Fixtures per
+        family + a false-positive guard test. (Remaining tail: exotic per-fine-tune variants as they surface in sweeps.)
 - [ ] **Simplify `read_large_file` to pure iteration** *(raised 2026-06-23)* — the model should only need to *trigger* it;
       !Klein returns the first right-sized chunk and each result tells the model to fetch the **next by index/total**
       (not by composing `read:`/`stitch:` cursors), through every chunk, then the same for stitching areas; the model only
