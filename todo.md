@@ -181,7 +181,11 @@ deep analysis:
       shell-on-task→`docker exec` rework genuinely needs **live Docker + interactive** verification (a user shell
       attaching to the task container). So the launch-support shrink + web-ui-fallback rework + shell rework +
       worktree-module deletion should land together in a browser/Docker-watched session. (Reverted a trial
-      launch-support shrink to keep the tree green.)
+      launch-support shrink to keep the tree green.) **Watched-session plan lined up (2026-06-23):** see
+      [.plan/docs/section-5a-worktree-retirement-watched-session.md](.plan/docs/section-5a-worktree-retirement-watched-session.md)
+      — full surface inventory, the 4 increments each behind a test/live gate, and the browser/Docker verification
+      checklist. Execute it step-by-step when watching; do not start the deletions (increment 3) until the live
+      shell-on-task `docker exec` gate (increment 2) passes.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
