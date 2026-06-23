@@ -1,19 +1,7 @@
-import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
-import type {
-	RuntimeBoardData,
-	RuntimeGitSyncSummary,
-	RuntimeTaskWorkspaceMetadata,
-	RuntimeWorkspaceMetadata,
-} from "../core/api-contract";
+import type { RuntimeGitSyncSummary, RuntimeWorkspaceMetadata } from "../core/api-contract";
 import { getGitSyncSummary, probeGitWorkspaceState } from "../workspace/git-sync";
-import { getTaskWorkspacePathInfo } from "../workspace/task-worktree";
 
 const WORKSPACE_METADATA_POLL_INTERVAL_MS = 1_000;
-
-interface TrackedTaskWorkspace {
-	taskId: string;
-	baseRef: string;
-}
 
 interface CachedHomeGitMetadata {
 	summary: RuntimeGitSyncSummary | null;
@@ -21,19 +9,12 @@ interface CachedHomeGitMetadata {
 	stateVersion: number;
 }
 
-interface CachedTaskWorkspaceMetadata {
-	data: RuntimeTaskWorkspaceMetadata;
-	stateToken: string | null;
-}
-
 interface WorkspaceMetadataEntry {
 	workspacePath: string;
-	trackedTasks: TrackedTaskWorkspace[];
 	subscriberCount: number;
 	pollTimer: NodeJS.Timeout | null;
 	refreshPromise: Promise<RuntimeWorkspaceMetadata> | null;
 	homeGit: CachedHomeGitMetadata;
-	taskMetadataByTaskId: Map<string, CachedTaskWorkspaceMetadata>;
 }
 
 export interface CreateWorkspaceMetadataMonitorDependencies {
@@ -41,42 +22,17 @@ export interface CreateWorkspaceMetadataMonitorDependencies {
 }
 
 export interface WorkspaceMetadataMonitor {
-	connectWorkspace: (input: {
-		workspaceId: string;
-		workspacePath: string;
-		board: RuntimeBoardData;
-	}) => Promise<RuntimeWorkspaceMetadata>;
-	updateWorkspaceState: (input: {
-		workspaceId: string;
-		workspacePath: string;
-		board: RuntimeBoardData;
-	}) => Promise<RuntimeWorkspaceMetadata>;
+	connectWorkspace: (input: { workspaceId: string; workspacePath: string }) => Promise<RuntimeWorkspaceMetadata>;
+	updateWorkspaceState: (input: { workspaceId: string; workspacePath: string }) => Promise<RuntimeWorkspaceMetadata>;
 	disconnectWorkspace: (workspaceId: string) => void;
 	disposeWorkspace: (workspaceId: string) => void;
 	close: () => void;
 }
 
-function collectTrackedTasks(board: RuntimeBoardData): TrackedTaskWorkspace[] {
-	const tracked: TrackedTaskWorkspace[] = [];
-	for (const column of board.columns) {
-		// Backlog, completed, and trash cards do not need git metadata polling.
-		// Tracking only active columns avoids unnecessary work, and trash paths are
-		// reconstructed from task id on the web-ui side.
-		if (column.id === "backlog" || column.id === "completed" || column.id === "trash") {
-			continue;
-		}
-		for (const card of column.cards) {
-			if (!usesLegacyHostTaskWorkspace(card.agentId)) {
-				continue;
-			}
-			tracked.push({
-				taskId: card.id,
-				baseRef: card.baseRef,
-			});
-		}
-	}
-	return tracked;
-}
+// The monitor polls only the project's home git summary. Per-task host-workspace metadata is retired with the
+// host-worktree subsystem (§5.A): native NKlein tasks run in Docker sandboxes and surface their delta via the
+// `nklein/tasks/<task>` result branch, so there is no per-task host checkout to poll. `taskWorkspaces` stays in
+// the contract (always empty) for back-compat with the web-ui store.
 
 function areGitSummariesEqual(a: RuntimeGitSyncSummary | null, b: RuntimeGitSyncSummary | null): boolean {
 	if (a === b) {
@@ -96,40 +52,8 @@ function areGitSummariesEqual(a: RuntimeGitSyncSummary | null, b: RuntimeGitSync
 	);
 }
 
-function areTaskMetadataEqual(a: RuntimeTaskWorkspaceMetadata, b: RuntimeTaskWorkspaceMetadata): boolean {
-	return (
-		a.taskId === b.taskId &&
-		a.path === b.path &&
-		a.exists === b.exists &&
-		a.baseRef === b.baseRef &&
-		a.branch === b.branch &&
-		a.isDetached === b.isDetached &&
-		a.headCommit === b.headCommit &&
-		a.changedFiles === b.changedFiles &&
-		a.additions === b.additions &&
-		a.deletions === b.deletions &&
-		a.stateVersion === b.stateVersion
-	);
-}
-
 function areWorkspaceMetadataEqual(a: RuntimeWorkspaceMetadata, b: RuntimeWorkspaceMetadata): boolean {
-	if (!areGitSummariesEqual(a.homeGitSummary, b.homeGitSummary)) {
-		return false;
-	}
-	if (a.homeGitStateVersion !== b.homeGitStateVersion) {
-		return false;
-	}
-	if (a.taskWorkspaces.length !== b.taskWorkspaces.length) {
-		return false;
-	}
-	for (let index = 0; index < a.taskWorkspaces.length; index += 1) {
-		const left = a.taskWorkspaces[index];
-		const right = b.taskWorkspaces[index];
-		if (!left || !right || !areTaskMetadataEqual(left, right)) {
-			return false;
-		}
-	}
-	return true;
+	return areGitSummariesEqual(a.homeGitSummary, b.homeGitSummary) && a.homeGitStateVersion === b.homeGitStateVersion;
 }
 
 function createEmptyWorkspaceMetadata(): RuntimeWorkspaceMetadata {
@@ -143,7 +67,6 @@ function createEmptyWorkspaceMetadata(): RuntimeWorkspaceMetadata {
 function createWorkspaceEntry(workspacePath: string): WorkspaceMetadataEntry {
 	return {
 		workspacePath,
-		trackedTasks: [],
 		subscriberCount: 0,
 		pollTimer: null,
 		refreshPromise: null,
@@ -152,7 +75,6 @@ function createWorkspaceEntry(workspacePath: string): WorkspaceMetadataEntry {
 			stateToken: null,
 			stateVersion: 0,
 		},
-		taskMetadataByTaskId: new Map<string, CachedTaskWorkspaceMetadata>(),
 	};
 }
 
@@ -160,9 +82,7 @@ function buildWorkspaceMetadataSnapshot(entry: WorkspaceMetadataEntry): RuntimeW
 	return {
 		homeGitSummary: entry.homeGit.summary,
 		homeGitStateVersion: entry.homeGit.stateVersion,
-		taskWorkspaces: entry.trackedTasks
-			.map((task) => entry.taskMetadataByTaskId.get(task.taskId)?.data ?? null)
-			.filter((task): task is RuntimeTaskWorkspaceMetadata => task !== null),
+		taskWorkspaces: [],
 	};
 }
 
@@ -180,94 +100,6 @@ async function loadHomeGitMetadata(entry: WorkspaceMetadataEntry): Promise<Cache
 		};
 	} catch {
 		return entry.homeGit;
-	}
-}
-
-async function loadTaskWorkspaceMetadata(
-	workspacePath: string,
-	task: TrackedTaskWorkspace,
-	current: CachedTaskWorkspaceMetadata | null,
-): Promise<CachedTaskWorkspaceMetadata | null> {
-	const pathInfo = await getTaskWorkspacePathInfo({
-		cwd: workspacePath,
-		taskId: task.taskId,
-		baseRef: task.baseRef,
-	});
-
-	if (!pathInfo.exists) {
-		if (
-			current &&
-			current.data.exists === false &&
-			current.data.path === pathInfo.path &&
-			current.data.baseRef === pathInfo.baseRef
-		) {
-			return current;
-		}
-		return {
-			data: {
-				taskId: task.taskId,
-				path: pathInfo.path,
-				exists: false,
-				baseRef: pathInfo.baseRef,
-				branch: null,
-				isDetached: false,
-				headCommit: null,
-				changedFiles: null,
-				additions: null,
-				deletions: null,
-				stateVersion: Date.now(),
-			},
-			stateToken: null,
-		};
-	}
-
-	try {
-		const probe = await probeGitWorkspaceState(pathInfo.path);
-		if (
-			current &&
-			current.stateToken === probe.stateToken &&
-			current.data.path === pathInfo.path &&
-			current.data.baseRef === pathInfo.baseRef
-		) {
-			return current;
-		}
-		const summary = await getGitSyncSummary(pathInfo.path, { probe });
-		return {
-			data: {
-				taskId: task.taskId,
-				path: pathInfo.path,
-				exists: true,
-				baseRef: pathInfo.baseRef,
-				branch: probe.currentBranch,
-				isDetached: probe.headCommit !== null && probe.currentBranch === null,
-				headCommit: probe.headCommit,
-				changedFiles: summary.changedFiles,
-				additions: summary.additions,
-				deletions: summary.deletions,
-				stateVersion: Date.now(),
-			},
-			stateToken: probe.stateToken,
-		};
-	} catch {
-		if (current) {
-			return current;
-		}
-		return {
-			data: {
-				taskId: task.taskId,
-				path: pathInfo.path,
-				exists: true,
-				baseRef: pathInfo.baseRef,
-				branch: null,
-				isDetached: false,
-				headCommit: null,
-				changedFiles: null,
-				additions: null,
-				deletions: null,
-				stateVersion: Date.now(),
-			},
-			stateToken: null,
-		};
 	}
 }
 
@@ -296,21 +128,6 @@ export function createWorkspaceMetadataMonitor(
 		entry.refreshPromise = (async () => {
 			const previousSnapshot = buildWorkspaceMetadataSnapshot(entry);
 			entry.homeGit = await loadHomeGitMetadata(entry);
-
-			const nextTaskEntries = await Promise.all(
-				entry.trackedTasks.map(async (task) => {
-					const current = entry.taskMetadataByTaskId.get(task.taskId) ?? null;
-					const next = await loadTaskWorkspaceMetadata(entry.workspacePath, task, current);
-					return next ? [task.taskId, next] : null;
-				}),
-			);
-
-			entry.taskMetadataByTaskId = new Map(
-				nextTaskEntries.filter(
-					(candidate): candidate is [string, CachedTaskWorkspaceMetadata] => candidate !== null,
-				),
-			);
-
 			const nextSnapshot = buildWorkspaceMetadataSnapshot(entry);
 			if (!areWorkspaceMetadataEqual(previousSnapshot, nextSnapshot)) {
 				deps.onMetadataUpdated(workspaceId, nextSnapshot);
@@ -326,14 +143,9 @@ export function createWorkspaceMetadataMonitor(
 		return await entry.refreshPromise;
 	};
 
-	const updateWorkspaceEntry = (input: {
-		workspaceId: string;
-		workspacePath: string;
-		board: RuntimeBoardData;
-	}): WorkspaceMetadataEntry => {
+	const updateWorkspaceEntry = (input: { workspaceId: string; workspacePath: string }): WorkspaceMetadataEntry => {
 		const existing = workspaces.get(input.workspaceId) ?? createWorkspaceEntry(input.workspacePath);
 		existing.workspacePath = input.workspacePath;
-		existing.trackedTasks = collectTrackedTasks(input.board);
 		workspaces.set(input.workspaceId, existing);
 		return existing;
 	};
@@ -350,14 +162,14 @@ export function createWorkspaceMetadataMonitor(
 	};
 
 	return {
-		connectWorkspace: async ({ workspaceId, workspacePath, board }) => {
-			const entry = updateWorkspaceEntry({ workspaceId, workspacePath, board });
+		connectWorkspace: async ({ workspaceId, workspacePath }) => {
+			const entry = updateWorkspaceEntry({ workspaceId, workspacePath });
 			entry.subscriberCount += 1;
 			ensureWorkspaceTimer(workspaceId, entry);
 			return await refreshWorkspace(workspaceId);
 		},
-		updateWorkspaceState: async ({ workspaceId, workspacePath, board }) => {
-			const entry = updateWorkspaceEntry({ workspaceId, workspacePath, board });
+		updateWorkspaceState: async ({ workspaceId, workspacePath }) => {
+			const entry = updateWorkspaceEntry({ workspaceId, workspacePath });
 			if (entry.subscriberCount === 0) {
 				return buildWorkspaceMetadataSnapshot(entry);
 			}

@@ -288,10 +288,11 @@ deep analysis:
         dead legacy-terminal scaffolding.
       - **Remaining = one coupled deletion of the dead legacy-terminal + worktree scaffolding (increment-3
         deletions) + increment-4 live verification — a single focused pass that needs the browser/Docker:**
-        - **Backend tRPC + monitor:** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
-          (`getTaskWorkspaceInfo`); `workspace-metadata-monitor`'s per-task tracking (`collectTrackedTasks` only
-          tracks legacy agents → `getTaskWorkspacePathInfo`; its test tracks a `codex` card). `commands/task` CLI
-          (`resolveTaskCwd` + worktree auto-merge defaults).
+        - **C6a DONE 2026-06-23:** `workspace-metadata-monitor` is home-git-only — removed the per-task tracking
+          (`collectTrackedTasks`/`getTaskWorkspacePathInfo`/`usesLegacyHostTaskWorkspace` + the `board` input);
+          `taskWorkspaces` is always `[]` (was already empty for every nklein workspace).
+        - **Backend tRPC remaining:** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
+          (`getTaskWorkspaceInfo`). `commands/task` CLI (`resolveTaskCwd` + worktree auto-merge defaults).
         - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
           `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
           `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).

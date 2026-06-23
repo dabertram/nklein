@@ -350,7 +350,6 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			await workspaceMetadataMonitor.updateWorkspaceState({
 				workspaceId,
 				workspacePath,
-				board: workspaceState.board,
 			});
 		} catch {
 			// Ignore transient state read failures; next update will resync.
@@ -498,7 +497,6 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 					workspaceMetadata = await workspaceMetadataMonitor.connectWorkspace({
 						workspaceId: workspace.workspaceId,
 						workspacePath: workspace.workspacePath,
-						board: workspaceState.board,
 					});
 					didConnectWorkspaceMonitor = true;
 				} else {
