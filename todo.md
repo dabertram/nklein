@@ -257,9 +257,17 @@ deep analysis:
           CLI change (summary.agentId, catalog UI, `task.ts`/`dev.ts`) flagged by AGENTS.md as needing UI verification.
           Do together with the full host-worktree *module* deletion (plan.md §2.B), once migrated-board cleanup is
           re-homed off the agent-id boundary.
-  - [ ] **Increment 4 — live verification pass** (Playwright review lane diff/verify/merge; start a task → no
-        `~/.nklein/nklein/worktrees/<task>`; shell → sandbox container; project-health no false worktree warnings;
-        `scripts/verify-strict-isolation.mts`) + flip the AGENTS.md worktree tribal-knowledge → "retired"
+  - [~] **Increment 4 — live verification pass**
+    - [x] **strict-isolation on a real task** — `scripts/verify-strict-isolation.mts` (isolated HOME, live LM Studio
+          `qwen/qwen3-8b`, real Docker sandbox) **PASS (2026-06-23)**: sandbox container `nklein-agent-sandbox-1`
+          appeared, session advanced, **no host worktree** under `~/.nklein/nklein/worktrees`, containers cleaned up.
+    - [x] **runtime boot-smoke** after the session-manager refactor — fresh `tsx src/cli.ts` on an isolated HOME boots
+          clean (HTTP 200), no errors from the deleted modules.
+    - [x] updated the AGENTS.md worktree tribal-knowledge to reflect C7c/C7d (creation + agent launcher deleted;
+          shell decoupled; legacy cleanup + `usesLegacyHostTaskWorkspace` are live-not-dead). *(Not a full "retired"
+          flip — the worktree modules survive for legacy cleanup; that's plan.md §2.B.)*
+    - [ ] Playwright UI pass (review lane diff/verify/merge; shell-on-task opens a container shell; project-health no
+          false worktree warnings) — needs a non-disruptive isolated UI session.
   - [x] **✅ MILESTONE (2026-06-23):** no live nklein flow creates or reads a host worktree — every path runs off the
         `nklein/tasks/<task>` result branch / Docker sandbox; only legacy on-disk *cleanup* survives (for users
         upgrading from worktree builds).
