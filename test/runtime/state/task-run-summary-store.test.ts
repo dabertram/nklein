@@ -176,5 +176,29 @@ describe("summarizeTimeoutOutcomes", () => {
 	it("defaults pre-§5.C records with no role to the unknown role group", () => {
 		const summary = summarizeTimeoutOutcomes([record({ timeoutReason: "t", timeoutSource: "global_config" })]);
 		expect(summary[0]?.role).toBe("unknown");
+		expect(summary[0]?.scenario).toBeNull();
+	});
+
+	it("breaks timeout outcomes down by dev-test scenario (todo §5.C/§5.O)", () => {
+		const summary = summarizeTimeoutOutcomes([
+			record({
+				timeoutReason: "t",
+				timeoutSource: "global_config",
+				role: "architect",
+				scenario: "daw-foundation-platform",
+				endedAt: 10,
+			}),
+			record({
+				timeoutReason: "t",
+				timeoutSource: "global_config",
+				role: "architect",
+				scenario: "habit-insights-mid",
+				state: "failed",
+				endedAt: 20,
+			}),
+		]);
+		expect(summary).toHaveLength(2);
+		expect(summary.find((entry) => entry.scenario === "daw-foundation-platform")).toMatchObject({ timeoutRuns: 1 });
+		expect(summary.find((entry) => entry.scenario === "habit-insights-mid")).toMatchObject({ timeoutRuns: 1 });
 	});
 });

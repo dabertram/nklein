@@ -3373,6 +3373,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			: this.explicitDecompositionTaskIds.has(taskId)
 				? "architect"
 				: "worker";
+		// Dev-test runs seed tasks as `devtest-<scenarioId>-<timestamp>` (see `nklein dev test-project`), so the
+		// scenario is parseable from the id for by-scenario timeout breakdowns (§5.C/§5.O). Null for ordinary runs.
+		const scenario = /^devtest-(.+)-\d+$/.exec(taskId)?.[1] ?? null;
 		void recordTaskRunSummary({
 			taskId,
 			workspacePath: summary.workspacePath ?? null,
@@ -3392,6 +3395,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			timeoutReason,
 			timeoutSource,
 			role,
+			scenario,
 			patchCaptureStatus: null,
 		});
 	}

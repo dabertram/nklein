@@ -181,18 +181,17 @@ deep analysis:
       control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)
 
 ### 5.C — Run summaries & timeout diagnostics
-- [~] **Timeout provenance + stats** *(2026-06-22)*. Terminal run summaries now populate `timeoutSource`
-      (`role_override` vs `global_config` vs `autonomous_default`), resolved per-kind from the launch-config
-      precedence in `resolveEffectiveTaskTimeoutSettings`, threaded through the start request, stored per task,
-      and stamped with the source of the timeout that actually fired. Added `summarizeTimeoutOutcomes`
-      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts)) grouping timeout-triggered runs
-      by model + source + terminal outcome.
-      **By-role breakdown DONE (2026-06-23):** the run-summary record now carries a coarse `role`
-      (`reviewer` for `<taskId>::review` sessions, `architect` for decomposition turns, else `worker` — inferred in
-      `captureTerminalRunSummary`), and `summarizeTimeoutOutcomes` groups by provider × model × timeout-source ×
-      **role** (pre-§5.C records default to the `unknown` role group). Unit-tested.
-      **Remaining (small):** the *scenario* breakdown — the run-summary record still has no dev-test scenario field,
-      so a by-scenario view needs that field plumbed onto the record (the dev-test harness knows the scenario id).
+- [x] **Timeout provenance + stats** *(2026-06-22; completed 2026-06-23)*. Terminal run summaries populate
+      `timeoutSource` (`role_override` vs `global_config` vs `autonomous_default`), resolved per-kind from the
+      launch-config precedence in `resolveEffectiveTaskTimeoutSettings`, threaded through the start request, stored
+      per task, and stamped with the source of the timeout that actually fired. `summarizeTimeoutOutcomes`
+      ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts)) groups timeout-triggered runs by
+      provider × model × timeout-source × **role** × **scenario** with the terminal outcome each produced.
+      **By-role + by-scenario breakdowns DONE (2026-06-23):** the run-summary record carries a coarse `role`
+      (`reviewer` for `<taskId>::review`, `architect` for decomposition turns, else `worker` — inferred in
+      `captureTerminalRunSummary`) and a dev-test `scenario` (parsed from the `devtest-<scenario>-<ts>` task id);
+      pre-§5.C records default to the `unknown` role / `null` scenario group. Both unit-tested. (The by-scenario
+      breakdown directly feeds the §5.O robustness sweeps.)
 
 - [x] **Thin real wiring for `runDevTestProject`** *(2026-06-22)*. The harness + outcome classifier + observer
       fallback + cleanup summarizer were already built and unit-tested. Added the side-effecting seams in

@@ -42,6 +42,8 @@ export interface TaskRunSummaryRecord {
 	timeoutSource: TaskRunTimeoutSource;
 	/** Coarse agent role of the run (todo §5.C), for by-role timeout breakdowns. Absent on pre-§5.C records. */
 	role?: RuntimeModelPerformanceRole;
+	/** Dev-test scenario id (todo §5.C), for by-scenario timeout breakdowns during sweeps; null for ordinary runs. */
+	scenario?: string | null;
 	patchCaptureStatus: string | null;
 }
 
@@ -104,6 +106,8 @@ export interface TimeoutOutcomeAggregate {
 	timeoutSource: TaskRunTimeoutSource;
 	/** Coarse agent role of the runs in this group (todo §5.C); `"unknown"` for pre-§5.C records. */
 	role: RuntimeModelPerformanceRole;
+	/** Dev-test scenario id of the runs in this group (todo §5.C); `null` for ordinary (non-dev-test) runs. */
+	scenario: string | null;
 	timeoutRuns: number;
 	awaitingReviewRuns: number;
 	failedRuns: number;
@@ -119,11 +123,13 @@ export function summarizeTimeoutOutcomes(records: readonly TaskRunSummaryRecord[
 			continue;
 		}
 		const role: RuntimeModelPerformanceRole = record.role ?? "unknown";
+		const scenario = record.scenario ?? null;
 		const key = [
 			record.providerId ?? "unknown_provider",
 			record.modelId ?? "unknown_model",
 			record.timeoutSource ?? "unknown_source",
 			role,
+			scenario ?? "no_scenario",
 		].join("\0");
 		const existing = groups.get(key) ?? {
 			key,
@@ -131,6 +137,7 @@ export function summarizeTimeoutOutcomes(records: readonly TaskRunSummaryRecord[
 			modelId: record.modelId,
 			timeoutSource: record.timeoutSource,
 			role,
+			scenario,
 			timeoutRuns: 0,
 			awaitingReviewRuns: 0,
 			failedRuns: 0,

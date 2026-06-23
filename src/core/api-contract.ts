@@ -2052,6 +2052,9 @@ export const runtimeTaskRunSummarySchema = z.object({
 	// Coarse agent role of the run (todo §5.C), so timeout outcomes can be broken down by role. Optional for
 	// backward-compatibility with run-summary records written before this field existed.
 	role: runtimeModelPerformanceRoleSchema.optional(),
+	// Dev-test scenario id (todo §5.C), parsed from a `devtest-<scenario>-<ts>` task id, for by-scenario timeout
+	// breakdowns during robustness sweeps (§5.O). Null/absent for ordinary (non-dev-test) runs.
+	scenario: z.string().nullable().optional(),
 	patchCaptureStatus: z.string().nullable(),
 });
 export type RuntimeTaskRunSummary = z.infer<typeof runtimeTaskRunSummarySchema>;
