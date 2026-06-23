@@ -31,11 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import type { RuntimeGitSyncAction, RuntimeProjectShortcut } from "@/runtime/types";
-import {
-	useHomeGitSummaryValue,
-	useTaskWorkspaceInfoValue,
-	useTaskWorkspaceSnapshotValue,
-} from "@/stores/workspace-metadata-store";
+import { useHomeGitSummaryValue, useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
 import type { OpenTargetId, OpenTargetOption } from "@/utils/open-targets";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { isMacPlatform } from "@/utils/platform";
@@ -170,7 +166,6 @@ function GitBranchStatusControl({
 function TopBarGitStatusSection({
 	showHomeGitSummary,
 	selectedTaskId,
-	selectedTaskBaseRef,
 	onToggleGitHistory,
 	isGitHistoryOpen,
 	runningGitAction,
@@ -180,7 +175,6 @@ function TopBarGitStatusSection({
 }: {
 	showHomeGitSummary: boolean;
 	selectedTaskId: string | null;
-	selectedTaskBaseRef: string | null;
 	onToggleGitHistory?: () => void;
 	isGitHistoryOpen?: boolean;
 	runningGitAction?: RuntimeGitSyncAction | null;
@@ -189,7 +183,6 @@ function TopBarGitStatusSection({
 	onGitPush?: () => void;
 }): React.ReactElement | null {
 	const homeGitSummary = useHomeGitSummaryValue();
-	const taskWorkspaceInfo = useTaskWorkspaceInfoValue(selectedTaskId, selectedTaskBaseRef);
 	const taskWorkspaceSnapshot = useTaskWorkspaceSnapshotValue(selectedTaskId);
 
 	if (showHomeGitSummary && homeGitSummary) {
@@ -258,13 +251,13 @@ function TopBarGitStatusSection({
 		);
 	}
 
-	if (selectedTaskId && (taskWorkspaceInfo || taskWorkspaceSnapshot)) {
+	if (selectedTaskId && taskWorkspaceSnapshot) {
 		return (
 			<>
 				<div className="w-px h-5 bg-border mx-1" />
 				<GitBranchStatusControl
 					branchLabel={
-						taskWorkspaceInfo?.branch ?? taskWorkspaceSnapshot?.headCommit?.slice(0, 8) ?? "initializing"
+						taskWorkspaceSnapshot.branch ?? taskWorkspaceSnapshot.headCommit?.slice(0, 8) ?? "initializing"
 					}
 					changedFiles={taskWorkspaceSnapshot?.changedFiles ?? 0}
 					additions={taskWorkspaceSnapshot?.additions ?? 0}
@@ -287,7 +280,6 @@ export function TopBar({
 	workspaceHint,
 	runtimeHint,
 	selectedTaskId,
-	selectedTaskBaseRef,
 	showHomeGitSummary,
 	runningGitAction,
 	onGitFetch,
@@ -322,7 +314,6 @@ export function TopBar({
 	workspaceHint?: string;
 	runtimeHint?: string;
 	selectedTaskId?: string | null;
-	selectedTaskBaseRef?: string | null;
 	showHomeGitSummary?: boolean;
 	runningGitAction?: RuntimeGitSyncAction | null;
 	onGitFetch?: () => void;
@@ -509,7 +500,6 @@ export function TopBar({
 								<TopBarGitStatusSection
 									showHomeGitSummary={showHomeGitSummary === true}
 									selectedTaskId={selectedTaskId ?? null}
-									selectedTaskBaseRef={selectedTaskBaseRef ?? null}
 									onToggleGitHistory={onToggleGitHistory}
 									isGitHistoryOpen={isGitHistoryOpen}
 									runningGitAction={runningGitAction}

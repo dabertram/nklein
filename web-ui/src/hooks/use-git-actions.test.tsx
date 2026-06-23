@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type UseGitActionsResult, useGitActions } from "@/hooks/use-git-actions";
 import type { RuntimeConfigResponse } from "@/runtime/types";
-import { clearTaskWorkspaceInfo, clearTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
+import { clearTaskWorkspaceSnapshot } from "@/stores/workspace-metadata-store";
 import type { BoardData } from "@/types";
 
 const showAppToastMock = vi.hoisted(() => vi.fn());
@@ -192,7 +192,6 @@ describe("useGitActions", () => {
 		showAppToastMock.mockReset();
 		useGitHistoryDataMock.mockReset();
 		useGitHistoryDataMock.mockReturnValue(createGitHistoryResult());
-		clearTaskWorkspaceInfo("task-1");
 		clearTaskWorkspaceSnapshot("task-1");
 		previousActEnvironment = (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
 			.IS_REACT_ACT_ENVIRONMENT;
@@ -207,7 +206,6 @@ describe("useGitActions", () => {
 			root.unmount();
 		});
 		container.remove();
-		clearTaskWorkspaceInfo("task-1");
 		clearTaskWorkspaceSnapshot("task-1");
 		if (previousActEnvironment === undefined) {
 			delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;

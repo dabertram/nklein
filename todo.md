@@ -230,8 +230,11 @@ deep analysis:
             `hook-runtime-context`, `task-image-prompt`)
       - [ ] delete `commands/hooks.ts` + `commands/hook-events/*` (the `nklein hooks ingest` CLI) + the `hooks-api` tRPC ingest
       - [ ] rewire `terminalManager.getSummary` (runtime-api ~1165, hooks-api) — nklein summaries come from the session service
-    - [ ] **C7e — web-ui `RuntimeTaskWorkspaceInfoResponse` store/path-display cleanup** (`workspace-metadata-store`
-          `toTaskWorkspaceInfo`, `task-trash-warning-dialog`, `App.tsx` path-display — all read the now-always-empty `taskWorkspaces`)
+    - [x] **C7e — web-ui task-workspace-info store cleanup** — removed the dead `taskWorkspaceInfoByTaskId` store
+          API + consumers (App.tsx navbar path/subtitle/hint, top-bar git-status, `selectedTaskBaseRef` prop,
+          use-board-interactions `clearTaskWorkspaceInfo`); kept the `taskWorkspaceSnapshot` half. Zero behavior
+          change; web-ui tsc/biome/683 tests + live Playwright (0 console errors). *(`task-trash-warning-dialog`
+          is an unused component using the contract type — left alone.)*
     - [ ] **C8 — schema/predicate cleanup** (shrink `runtimeAgentIdSchema`, simplify `normalizeAgentId`, remove
           `usesLegacyHostTaskWorkspace` — its last consumer is shutdown-coordinator; do AFTER C7d, it's the boundary guard)
   - [ ] **Increment 4 — live verification pass** (Playwright review lane diff/verify/merge; start a task → no

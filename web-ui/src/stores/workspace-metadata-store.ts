@@ -1,11 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import type {
-	RuntimeGitSyncSummary,
-	RuntimeTaskWorkspaceInfoResponse,
-	RuntimeTaskWorkspaceMetadata,
-	RuntimeWorkspaceMetadata,
-} from "@/runtime/types";
+import type { RuntimeGitSyncSummary, RuntimeTaskWorkspaceMetadata, RuntimeWorkspaceMetadata } from "@/runtime/types";
 import type { ReviewTaskWorkspaceSnapshot } from "@/types";
 
 type StoreListener = () => void;
@@ -14,7 +9,6 @@ type TaskMetadataListener = (taskId: string) => void;
 interface WorkspaceMetadataState {
 	homeGitSummary: RuntimeGitSyncSummary | null;
 	homeGitStateVersion: number;
-	taskWorkspaceInfoByTaskId: Record<string, RuntimeTaskWorkspaceInfoResponse | null>;
 	taskWorkspaceSnapshotByTaskId: Record<string, ReviewTaskWorkspaceSnapshot | null>;
 	taskWorkspaceStateVersionByTaskId: Record<string, number>;
 }
@@ -22,7 +16,6 @@ interface WorkspaceMetadataState {
 const workspaceMetadataState: WorkspaceMetadataState = {
 	homeGitSummary: null,
 	homeGitStateVersion: 0,
-	taskWorkspaceInfoByTaskId: {},
 	taskWorkspaceSnapshotByTaskId: {},
 	taskWorkspaceStateVersionByTaskId: {},
 };
@@ -47,18 +40,6 @@ function emitTaskMetadata(taskId: string): void {
 	for (const listener of anyTaskMetadataListeners) {
 		listener(taskId);
 	}
-}
-
-function toTaskWorkspaceInfo(metadata: RuntimeTaskWorkspaceMetadata): RuntimeTaskWorkspaceInfoResponse {
-	return {
-		taskId: metadata.taskId,
-		path: metadata.path,
-		exists: metadata.exists,
-		baseRef: metadata.baseRef,
-		branch: metadata.branch,
-		isDetached: metadata.isDetached,
-		headCommit: metadata.headCommit,
-	};
 }
 
 function toTaskWorkspaceSnapshot(metadata: RuntimeTaskWorkspaceMetadata): ReviewTaskWorkspaceSnapshot {
@@ -105,27 +86,6 @@ function areGitSummariesEqual(a: RuntimeGitSyncSummary | null, b: RuntimeGitSync
 		a.deletions === b.deletions &&
 		a.aheadCount === b.aheadCount &&
 		a.behindCount === b.behindCount
-	);
-}
-
-function areTaskWorkspaceInfosEqual(
-	a: RuntimeTaskWorkspaceInfoResponse | null,
-	b: RuntimeTaskWorkspaceInfoResponse | null,
-): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	return (
-		a.taskId === b.taskId &&
-		a.path === b.path &&
-		a.exists === b.exists &&
-		a.baseRef === b.baseRef &&
-		a.branch === b.branch &&
-		a.isDetached === b.isDetached &&
-		a.headCommit === b.headCommit
 	);
 }
 
@@ -176,51 +136,6 @@ export function setHomeGitSummary(summary: RuntimeGitSyncSummary | null): boolea
 
 export function clearHomeGitSummary(): void {
 	setHomeGitMetadata(null, 0);
-}
-
-export function getTaskWorkspaceInfo(
-	taskId: string | null | undefined,
-	baseRef?: string | null,
-): RuntimeTaskWorkspaceInfoResponse | null {
-	const normalizedTaskId = taskId?.trim();
-	if (!normalizedTaskId) {
-		return null;
-	}
-	const value = workspaceMetadataState.taskWorkspaceInfoByTaskId[normalizedTaskId] ?? null;
-	if (!value) {
-		return null;
-	}
-	if (baseRef && value.baseRef !== baseRef) {
-		return null;
-	}
-	return value;
-}
-
-export function setTaskWorkspaceInfo(info: RuntimeTaskWorkspaceInfoResponse | null): boolean {
-	if (!info) {
-		return false;
-	}
-	const existing = workspaceMetadataState.taskWorkspaceInfoByTaskId[info.taskId] ?? null;
-	if (areTaskWorkspaceInfosEqual(existing, info)) {
-		return false;
-	}
-	workspaceMetadataState.taskWorkspaceInfoByTaskId = {
-		...workspaceMetadataState.taskWorkspaceInfoByTaskId,
-		[info.taskId]: info,
-	};
-	emitTaskMetadata(info.taskId);
-	return true;
-}
-
-export function clearTaskWorkspaceInfo(taskId: string | null | undefined): boolean {
-	const normalizedTaskId = taskId?.trim();
-	if (!normalizedTaskId || !(normalizedTaskId in workspaceMetadataState.taskWorkspaceInfoByTaskId)) {
-		return false;
-	}
-	const { [normalizedTaskId]: _removed, ...rest } = workspaceMetadataState.taskWorkspaceInfoByTaskId;
-	workspaceMetadataState.taskWorkspaceInfoByTaskId = rest;
-	emitTaskMetadata(normalizedTaskId);
-	return true;
 }
 
 export function getTaskWorkspaceSnapshot(taskId: string | null | undefined): ReviewTaskWorkspaceSnapshot | null {
@@ -291,13 +206,11 @@ export function clearInactiveTaskWorkspaceSnapshots(activeTaskIds: Set<string>):
 
 export function resetWorkspaceMetadataStore(): void {
 	const taskIds = new Set([
-		...Object.keys(workspaceMetadataState.taskWorkspaceInfoByTaskId),
 		...Object.keys(workspaceMetadataState.taskWorkspaceSnapshotByTaskId),
 		...Object.keys(workspaceMetadataState.taskWorkspaceStateVersionByTaskId),
 	]);
 	workspaceMetadataState.homeGitSummary = null;
 	workspaceMetadataState.homeGitStateVersion = 0;
-	workspaceMetadataState.taskWorkspaceInfoByTaskId = {};
 	workspaceMetadataState.taskWorkspaceSnapshotByTaskId = {};
 	workspaceMetadataState.taskWorkspaceStateVersionByTaskId = {};
 	emitHomeGitSummary();
@@ -309,35 +222,28 @@ export function resetWorkspaceMetadataStore(): void {
 export function replaceWorkspaceMetadata(metadata: RuntimeWorkspaceMetadata | null): void {
 	setHomeGitMetadata(metadata?.homeGitSummary ?? null, metadata?.homeGitStateVersion ?? 0);
 
-	const nextTaskWorkspaceInfoByTaskId: Record<string, RuntimeTaskWorkspaceInfoResponse | null> = {};
 	const nextTaskWorkspaceSnapshotByTaskId: Record<string, ReviewTaskWorkspaceSnapshot | null> = {};
 	const nextTaskWorkspaceStateVersionByTaskId: Record<string, number> = {};
 
 	for (const taskMetadata of metadata?.taskWorkspaces ?? []) {
-		nextTaskWorkspaceInfoByTaskId[taskMetadata.taskId] = toTaskWorkspaceInfo(taskMetadata);
 		nextTaskWorkspaceSnapshotByTaskId[taskMetadata.taskId] = toTaskWorkspaceSnapshot(taskMetadata);
 		nextTaskWorkspaceStateVersionByTaskId[taskMetadata.taskId] = taskMetadata.stateVersion;
 	}
 
 	const taskIds = new Set([
-		...Object.keys(workspaceMetadataState.taskWorkspaceInfoByTaskId),
 		...Object.keys(workspaceMetadataState.taskWorkspaceSnapshotByTaskId),
 		...Object.keys(workspaceMetadataState.taskWorkspaceStateVersionByTaskId),
-		...Object.keys(nextTaskWorkspaceInfoByTaskId),
 		...Object.keys(nextTaskWorkspaceSnapshotByTaskId),
 		...Object.keys(nextTaskWorkspaceStateVersionByTaskId),
 	]);
 
 	const changedTaskIds: string[] = [];
 	for (const taskId of taskIds) {
-		const previousInfo = workspaceMetadataState.taskWorkspaceInfoByTaskId[taskId] ?? null;
-		const nextInfo = nextTaskWorkspaceInfoByTaskId[taskId] ?? null;
 		const previousSnapshot = workspaceMetadataState.taskWorkspaceSnapshotByTaskId[taskId] ?? null;
 		const nextSnapshot = nextTaskWorkspaceSnapshotByTaskId[taskId] ?? null;
 		const previousStateVersion = workspaceMetadataState.taskWorkspaceStateVersionByTaskId[taskId] ?? 0;
 		const nextStateVersion = nextTaskWorkspaceStateVersionByTaskId[taskId] ?? 0;
 		if (
-			!areTaskWorkspaceInfosEqual(previousInfo, nextInfo) ||
 			!areTaskWorkspaceSnapshotsEqual(previousSnapshot, nextSnapshot) ||
 			previousStateVersion !== nextStateVersion
 		) {
@@ -345,7 +251,6 @@ export function replaceWorkspaceMetadata(metadata: RuntimeWorkspaceMetadata | nu
 		}
 	}
 
-	workspaceMetadataState.taskWorkspaceInfoByTaskId = nextTaskWorkspaceInfoByTaskId;
 	workspaceMetadataState.taskWorkspaceSnapshotByTaskId = nextTaskWorkspaceSnapshotByTaskId;
 	workspaceMetadataState.taskWorkspaceStateVersionByTaskId = nextTaskWorkspaceStateVersionByTaskId;
 
@@ -384,23 +289,6 @@ export function useHomeGitStateVersionValue(): number {
 		},
 		() => workspaceMetadataState.homeGitStateVersion,
 		() => 0,
-	);
-}
-
-export function useTaskWorkspaceInfoValue(
-	taskId: string | null | undefined,
-	baseRef?: string | null,
-): RuntimeTaskWorkspaceInfoResponse | null {
-	const normalizedTaskId = taskId?.trim() ?? "";
-	return useSyncExternalStore(
-		(listener) => {
-			if (!normalizedTaskId) {
-				return () => {};
-			}
-			return subscribeToTaskId(normalizedTaskId, listener);
-		},
-		() => getTaskWorkspaceInfo(normalizedTaskId, baseRef),
-		() => null,
 	);
 }
 

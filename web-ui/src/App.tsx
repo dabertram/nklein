@@ -83,7 +83,6 @@ import {
 	findCardSelection,
 } from "@/state/board-state";
 import {
-	getTaskWorkspaceInfo,
 	getTaskWorkspaceSnapshot,
 	replaceWorkspaceMetadata,
 	resetWorkspaceMetadataStore,
@@ -725,11 +724,7 @@ export default function App(): ReactElement {
 		if (!selectedCard) {
 			return null;
 		}
-		return (
-			getTaskWorkspaceInfo(selectedCard.card.id, selectedCard.card.baseRef)?.path ??
-			getTaskWorkspaceSnapshot(selectedCard.card.id)?.path ??
-			null
-		);
+		return getTaskWorkspaceSnapshot(selectedCard.card.id)?.path ?? null;
 	}, [selectedCard]);
 
 	const runtimeHint = useMemo(() => {
@@ -739,27 +734,13 @@ export default function App(): ReactElement {
 	}, [runtimeProjectConfig, shouldUseNavigationPath]);
 
 	const activeWorkspacePath = selectedCard
-		? (getTaskWorkspaceInfo(selectedCard.card.id, selectedCard.card.baseRef)?.path ??
-			getTaskWorkspaceSnapshot(selectedCard.card.id)?.path ??
-			workspacePath ??
-			undefined)
+		? (getTaskWorkspaceSnapshot(selectedCard.card.id)?.path ?? workspacePath ?? undefined)
 		: shouldUseNavigationPath
 			? (navigationProjectPath ?? undefined)
 			: (workspacePath ?? undefined);
-
-	const activeWorkspaceHint = useMemo(() => {
-		if (!selectedCard) {
-			return undefined;
-		}
-		const activeSelectedTaskWorkspaceInfo = getTaskWorkspaceInfo(selectedCard.card.id, selectedCard.card.baseRef);
-		if (!activeSelectedTaskWorkspaceInfo) {
-			return undefined;
-		}
-		if (!activeSelectedTaskWorkspaceInfo.exists) {
-			return selectedCard.column.id === "trash" ? "Task workspace cleaned up" : "Task workspace not prepared yet";
-		}
-		return undefined;
-	}, [selectedCard]);
+	// Native NKlein tasks have no host workspace to report a "not prepared / cleaned up" hint for (worktrees
+	// retired, §5.A); the navbar workspace hint is no longer applicable.
+	const activeWorkspaceHint = undefined;
 
 	const sidebarLayout = useProjectNavigationLayout();
 	const handleToggleSidebar = useCallback(() => {
@@ -940,7 +921,6 @@ export default function App(): ReactElement {
 						workspaceHint={navbarWorkspaceHint}
 						runtimeHint={navbarRuntimeHint}
 						selectedTaskId={selectedCard?.card.id ?? null}
-						selectedTaskBaseRef={selectedCard?.card.baseRef ?? null}
 						showHomeGitSummary={!hasNoProjects && !selectedCard}
 						runningGitAction={selectedCard || hasNoProjects ? null : runningGitAction}
 						onGitFetch={

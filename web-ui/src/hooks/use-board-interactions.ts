@@ -20,7 +20,6 @@ import {
 	updateTaskAutoReviewNotice,
 	updateTaskBlockedState,
 } from "@/state/board-state";
-import { clearTaskWorkspaceInfo } from "@/stores/workspace-metadata-store";
 import type { SendTerminalInputOptions } from "@/terminal/terminal-input";
 import type { BoardCard, BoardColumnId, BoardData, TaskBlockedKind } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
@@ -883,7 +882,6 @@ export function useBoardInteractions({
 						notifyError("Could not clean up the previous task workspace.");
 						return;
 					}
-					clearTaskWorkspaceInfo(taskId);
 					setSessions((currentSessions) => {
 						const nextSessions = { ...currentSessions };
 						delete nextSessions[taskId];
@@ -1079,7 +1077,6 @@ export function useBoardInteractions({
 		});
 		if (selectedTaskId && taskIds.includes(selectedTaskId)) {
 			setSelectedTaskId(null);
-			clearTaskWorkspaceInfo(selectedTaskId);
 		}
 
 		void (async () => {
