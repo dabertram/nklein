@@ -278,12 +278,33 @@ deep analysis:
         on miss — `collectTaskEvidence` would silently materialize one); evidence + the legacy terminal
         `startTaskSession` now use the project repo path. `resolveTaskCwd`/`task-worktree` import gone from
         `runtime-api`.
-      - **C6/C7/C8 remaining:** extract legacy worktree CLEANUP (keep `deleteTaskWorktree`/lock/patch +
-        `isPathInsideTaskWorktreesHome` detection) and delete the CREATION/sync machinery (`task-worktree.ts`
-        ensure/resolve/getInfo/mirror + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`); the `commands/task`
-        CLI + the `ensureWorktree`/`deleteWorktree` tRPC surface + `loadTaskContext` + web-ui ride with the terminal
-        deletion; schema/predicate cleanup; then increment-4 verification. (`workspace-metadata-monitor`
-        `getTaskWorkspacePathInfo` also rewires here.)
+      - **✅ MILESTONE (2026-06-23): the host-worktree subsystem is retired from every LIVE nklein runtime path.**
+        Verified by tracing every consumer: review log/refs/diff (C1), acceptance (C3), delivery merge (C4),
+        changes/summary/discard (C2), task evidence + runtime-api (C5) all run off the `nklein/tasks/<task>`
+        result branch / project repo — and the one path that actively *created* a worktree
+        (`collectTaskEvidence`'s `ensure:true` fallback) is gone. **No live nklein flow creates or reads a host
+        worktree.** Every remaining worktree/task-path consumer is gated behind
+        `usesLegacyHostTaskWorkspace`/`shouldPrepareLegacyHostTaskWorkspace`, **always false for nklein** — i.e.
+        dead legacy-terminal scaffolding.
+      - **Remaining = one coupled deletion of the dead legacy-terminal + worktree scaffolding (increment-3
+        deletions) + increment-4 live verification — a single focused pass that needs the browser/Docker:**
+        - **Backend tRPC + monitor:** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
+          (`getTaskWorkspaceInfo`); `workspace-metadata-monitor`'s per-task tracking (`collectTrackedTasks` only
+          tracks legacy agents → `getTaskWorkspacePathInfo`; its test tracks a `codex` card). `commands/task` CLI
+          (`resolveTaskCwd` + worktree auto-merge defaults).
+        - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
+          `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
+          `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).
+        - **delete:** `src/terminal/*` CLI-agent integration + `src/commands/hook-events/*`; then the CREATION/sync
+          machinery (`task-worktree.ts` `ensureTaskWorktreeIfDoesntExist`/`resolveTaskCwd`/`getTaskWorkspaceInfo`/
+          `getTaskWorkspacePathInfo`/`mirrorIgnoredPath` + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`),
+          **extracting** the legacy CLEANUP surface (`deleteTaskWorktree`/`removeTaskWorktreeSetupLock`/
+          `deleteTaskPatchFilesForRepo` + `isPathInsideTaskWorktreesHome` detection — retains migration value for
+          users upgrading from worktree builds) into a focused module.
+        - **then:** schema/predicate cleanup (`runtimeAgentIdSchema`, simplify `normalizeAgentId`,
+          invariant-pin/remove `usesLegacyHostTaskWorkspace`); **increment-4** Playwright + docker verification
+          (review lane diff/verify/merge; start a task → no `~/.nklein/nklein/worktrees/<task>`; shell → sandbox
+          container; project-health no false worktree warnings; `scripts/verify-strict-isolation.mts`).
       - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**
         `task-worktree-auto-merge.ts` is **NOT dead** — it is the *live result-branch delivery merge* invoked on
         every auto-complete (`runtime-server`), already `resolveTaskResultBranchCommit`-first with the worktree as a
