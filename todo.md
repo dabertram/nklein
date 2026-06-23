@@ -25,8 +25,27 @@
 > guiding direction, and asking/answering clarifying questions** — **everything else is done autonomously**:
 > implementation, browser/UI interaction + verification, Docker/sandbox runs, dev-test sweeps, and all live
 > verification. **Never defer work by assuming a missing capability or a need for the user to watch/click.** If a
-> change needs UI/live verification, the agent drives the browser / Docker / models itself. (The only real reason
-> to pause is a genuine spec/clarification question for the user, or to split a job across context windows.)
+> change needs UI/live verification, the agent drives the browser / Docker / models itself.
+>
+> ### Workflow rules (settled across this dev chain — do NOT re-litigate, do NOT ask about these again)
+> - **Decide priority/order yourself.** When the user has not stated an explicit preference between tasks, the
+>   agent picks the order (using §5.0 + the priority notes as the default) and proceeds. Do **not** stop to ask
+>   "which should I do?" or report-and-wait for a steer on prioritization. Trust your judgment — you are a highly
+>   skilled worker.
+> - **Never stop for "budget shape".** A big/long task is split into **committed increments** and the work
+>   continues — commit in between and keep going. Do **not** checkpoint, hand off, or pause just because a context
+>   window is filling. (Splitting across windows is fine, but it means *commit the increment and continue*, not
+>   *stop and report*.)
+> - **Don't stop to narrate or wait for approval** when there is actionable work — keep producing. Prefer doing
+>   over reporting; a short status is fine *after* a chunk lands, never instead of the work.
+> - **Commit incrementally without being asked** (this is the standing instruction for this repo; it overrides the
+>   generic "never commit unless asked" guardrail). Every commit must be **green** — the pre-commit gate (`tsc` +
+>   `biome` + fast tests) — and must keep `CHANGELOG.md` `## [Upcoming]` and this `todo.md` current in the same
+>   change.
+> - **Verify via `tsc` / `biome` / tests + live Playwright/Docker — NOT the IDE diagnostics**, which are frequently
+>   stale/phantom in this repo (redeclared/parse-error cascades mid-edit). Trust the real compiler/test output.
+> - **The only legitimate reasons to pause** are a genuine spec/clarification question only the user can answer, or
+>   a hard external blocker. Capability and context-budget are never the reason.
 
 ---
 
