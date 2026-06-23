@@ -75,6 +75,7 @@ import {
 } from "@/runtime/native-agent";
 import {
 	findNKleinProviderModel,
+	formatModelOptionLabel,
 	formatNKleinModelContextWindowLabel,
 	getNKleinModelContextWindowWarning,
 	isLmStudioProviderId,
@@ -202,15 +203,6 @@ function findProviderCatalogItem(
 function formatProviderOptionLabel(provider: { id: string; name: string }): string {
 	const name = provider.name.trim();
 	const id = provider.id.trim();
-	if (!name || name.toLowerCase() === id.toLowerCase()) {
-		return id;
-	}
-	return `${name} (${id})`;
-}
-
-function formatModelOptionLabel(model: RuntimeNKleinProviderModel): string {
-	const name = formatNKleinModelContextWindowLabel(model);
-	const id = model.id.trim();
 	if (!name || name.toLowerCase() === id.toLowerCase()) {
 		return id;
 	}

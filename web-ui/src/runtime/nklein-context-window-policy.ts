@@ -42,6 +42,16 @@ export function formatNKleinModelContextWindowLabel(model: RuntimeNKleinProvider
 		: `${baseLabel} (${contextLabel}, below ${formatNKleinContextWindowTokens(NKLEIN_MIN_CONTEXT_WINDOW_TOKENS)})`;
 }
 
+/** Dropdown-option label for a provider model: the context-window label plus the raw id when they differ. */
+export function formatModelOptionLabel(model: RuntimeNKleinProviderModel): string {
+	const name = formatNKleinModelContextWindowLabel(model);
+	const id = model.id.trim();
+	if (!name || name.toLowerCase() === id.toLowerCase()) {
+		return id;
+	}
+	return `${name} (${id})`;
+}
+
 export function getNKleinModelContextWindowWarning(input: {
 	model: RuntimeNKleinProviderModel | null;
 	modelId: string | null | undefined;
