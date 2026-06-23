@@ -384,12 +384,20 @@ deep analysis:
   - [x] in-panel override = "Configure embedding model" link → Project Settings (single source of truth)
   - [x] host-side idle-unload timer (frees the resident model after ~2 min idle)
   - [x] verified `sha256` in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (download integrity check now runs)
-- [ ] **#2 — Benchmark the baked-in embedder (in Docker) + decide on two-layer retrieval** *(ties §5.G)*:
-  - [ ] measure `local_gguf` in-image (CPU-only): cold-load, embed throughput, p50/p95 latency, index-build + query
-  - [ ] compare lexical-only vs dense-only vs **lexical→dense rerank** (recall@k + latency) — does dense pay its way?
-  - [ ] benchmark the user-hosted `openai_compatible` endpoint as the explicit fast path (already supported — a GPU
-        box / LM Studio / Ollama, configurable global or per-project); ensure graceful in-Docker degrade
-  - [ ] decide: is layer-2 dense on-by-default in the image, or opt-in when a user endpoint is connected?
+- [~] **#2 — Benchmark the baked-in embedder + decide on two-layer retrieval** *(ties §5.G)*:
+  - [x] **measured throughput/latency** (2026-06-23, `scripts/embed-bench.mts`; nomic-embed-text-v1.5 **Q4_K_M** =
+        the manifest model, via LM Studio **Metal/GPU**, 500 real code chunks avg ~1.3k chars): **~20 texts/sec**,
+        per-text **p50 48ms / p95 75ms**; **batching gives no speedup** (batch 16/64 ≈ same ~19–20/sec). Lexical
+        baseline (in-process sparse tokens) = **~8,400 texts/sec (~420× faster)**. ⇒ a full cold dense index is the
+        bottleneck (~1k chunks ≈ 50s; ~20k ≈ 17min); incremental re-embed of a few changed files is sub-second.
+        **NB:** this is the **GPU upper bound** — the in-image **CPU-only** path will be slower, widening the gap.
+  - [ ] still TODO: in-image **CPU-only** cold-load + index-build numbers (no Metal); recall@k for lexical-only vs
+        dense-only vs **lexical→dense rerank** — does dense pay its way on retrieval *quality*?
+  - [x] user-hosted `openai_compatible` fast path **confirmed supported** (GPU box / LM Studio / Ollama; configurable
+        global + per-project; degrades to lexical when absent) — `createNKleinCodeEmbeddingProviderFromSettings`.
+  - [ ] **decision (leaning, from the numbers):** keep **lexical as the instant always-on layer**; make dense
+        **layer-2 opt-in / background** (auto-on when a user GPU endpoint is connected; for the baked-in CPU GGUF,
+        build the dense index lazily in the background instead of blocking first use) — 420× cost can't be paid up front.
 - [x] **#3 — Per-project overrides moved out of Global Settings** — a Project Settings dialog (from the project "⋯"
       menu) hosts the per-project code-embedding override via `save({ codeEmbeddingOverride })` (scoped partial
       merge); shared embedding form extracted; override removed from the global dialog (global = defaults only).
