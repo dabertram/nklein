@@ -296,12 +296,13 @@ deep analysis:
           `shouldPrepareLegacyHostTaskWorkspace`-gated kickoff blocks (start/resume/replay/decompose) +
           the obsolete saved-patch-warning test. Web-ui no longer calls those tRPC. Live Playwright: board
           renders, 0 console errors.
-        - **STRUCTURAL BLOCKER (found 2026-06-23):** `src/commands/task.ts` (the 2907-line `nklein task` CLI) is
-          still an **active** consumer — it calls `runtimeClient.workspace.ensureWorktree.mutate` (~L1303),
-          `resolveTaskCwd`, the worktree auto-merge, and `runNKleinAcceptanceGate` — so the `ensureWorktree`/
-          `getTaskContext` tRPC mutations and `task-worktree.ts` **cannot be removed until the CLI is reworked or
-          retired**. The CLI also carries real nklein decomposition/planning/acceptance logic, so it's a
-          rework-or-carefully-delete decision, not a trivial drop. This is the gate for the rest of the deletion.
+        - **C7a DONE 2026-06-23 (gate cleared):** retired the host-worktree plumbing from `src/commands/task.ts` —
+          removed `task start`'s gated `ensureWorktree.mutate`, `runVerifyTaskAcceptanceCommand`'s
+          `resolveTaskCwd`/`runAcceptanceGate` host-acceptance branch (sandbox `verifyTaskAcceptance` is the live
+          path), the `shouldPrepareLegacyHostTaskWorkspace` helper, and the `resolveTaskCwd`/`runNKleinAcceptance
+          Gate`/`usesLegacyHostTaskWorkspace` imports. The CLI no longer calls `workspace.ensureWorktree` or
+          `resolveTaskCwd` (only the result-branch `task merge` auto-merge + the `verifyTaskAcceptance`
+          `--ensure-worktree` flag remain). **Gate for tRPC removal is now clear.**
         - **Also still wired:** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
           `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` deletion needs those
           rewired first. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui `workspace-metadata-store`

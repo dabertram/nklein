@@ -15,7 +15,11 @@ import {
 	runVerifyTaskAcceptanceCommand,
 } from "../../../src/commands/task";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
-import type { RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
+import type {
+	RuntimeBoardColumnId,
+	RuntimeTaskAcceptanceResult,
+	RuntimeWorkspaceStateResponse,
+} from "../../../src/core/api-contract";
 import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
 
 const COLUMN_IDS: RuntimeBoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
@@ -105,49 +109,28 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 	};
 }
 
+// Acceptance now always runs in the task's Docker sandbox via the runtime tRPC (the host gate is retired, §5.A);
+// these deps mock that verifier so the command's repair/plan-gap classification can be exercised off its result.
+function sandboxVerifierDeps(acceptance: RuntimeTaskAcceptanceResult) {
+	return {
+		ensureRuntimeWorkspace: vi.fn(async () => "workspace-1"),
+		createRuntimeTrpcClient: vi.fn(() => ({
+			runtime: {
+				verifyTaskAcceptance: {
+					mutate: vi.fn(async () => ({
+						ok: acceptance.present === true && acceptance.passed === true,
+						taskId: "task-1",
+						taskWorkspacePath: null,
+						acceptance,
+						message: "",
+					})),
+				},
+			},
+		})),
+	};
+}
+
 describe("task verify command helper", () => {
-	it("runs the acceptance gate in the task worktree", async () => {
-		const runAcceptanceGate = vi.fn(async () => ({
-			present: true,
-			command: "npm test",
-			passed: true,
-			exitCode: 0,
-			output: "ok",
-			durationMs: 10,
-			failureCategory: null,
-			failureHint: null,
-		}));
-
-		const result = await runVerifyTaskAcceptanceCommand(
-			{
-				cwd: "/repo",
-				taskId: "task-1",
-			},
-			{
-				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
-				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/repo/.nklein/worktrees/task-1/repo"),
-				runAcceptanceGate,
-			},
-		);
-
-		expect(runAcceptanceGate).toHaveBeenCalledWith({
-			taskId: "task-1",
-			workspacePath: "/repo/.nklein/worktrees/task-1/repo",
-			taskPrompt: "Acceptance check: npm test",
-			timeoutMs: undefined,
-		});
-		expect(result).toMatchObject({
-			ok: true,
-			workspacePath: "/repo",
-			taskWorkspacePath: "/repo/.nklein/worktrees/task-1/repo",
-			acceptance: {
-				passed: true,
-				command: "npm test",
-			},
-		});
-	});
-
 	it("uses the runtime scoped sandbox verifier by default", async () => {
 		const verifyTaskAcceptance = vi.fn(async () => ({
 			ok: true,
@@ -165,7 +148,6 @@ describe("task verify command helper", () => {
 			},
 			message: "Acceptance check passed: npm test.",
 		}));
-		const resolveTaskCwd = vi.fn(async () => "/worktree");
 		const ensureRuntimeWorkspace = vi.fn(async () => "workspace-1");
 		const createRuntimeTrpcClient = vi.fn(() => ({
 			runtime: {
@@ -185,7 +167,6 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd,
 				ensureRuntimeWorkspace,
 				createRuntimeTrpcClient,
 				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
@@ -194,7 +175,6 @@ describe("task verify command helper", () => {
 
 		expect(ensureRuntimeWorkspace).toHaveBeenCalledWith("/repo");
 		expect(createRuntimeTrpcClient).toHaveBeenCalledWith("workspace-1");
-		expect(resolveTaskCwd).not.toHaveBeenCalled();
 		expect(verifyTaskAcceptance).toHaveBeenCalledWith({
 			taskId: "task-1",
 			ensureWorktree: true,
@@ -222,7 +202,6 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/worktree"),
 				loadRuntimeConfig: vi.fn(async () =>
 					createRuntimeConfigState({
 						reviewer: {
@@ -231,7 +210,7 @@ describe("task verify command helper", () => {
 						},
 					}),
 				),
-				runAcceptanceGate: vi.fn(async () => ({
+				...sandboxVerifierDeps({
 					present: true,
 					command: "npm test",
 					passed: false,
@@ -240,7 +219,7 @@ describe("task verify command helper", () => {
 					durationMs: 5,
 					failureCategory: null,
 					failureHint: null,
-				})),
+				}),
 				recordPlanGap,
 			},
 		);
@@ -274,7 +253,6 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/worktree"),
 				loadRuntimeConfig: vi.fn(async () =>
 					createRuntimeConfigState({
 						reviewer: {
@@ -283,7 +261,7 @@ describe("task verify command helper", () => {
 						},
 					}),
 				),
-				runAcceptanceGate: vi.fn(async () => ({
+				...sandboxVerifierDeps({
 					present: true,
 					command: "npm test",
 					passed: false,
@@ -292,7 +270,7 @@ describe("task verify command helper", () => {
 					durationMs: 5,
 					failureCategory: null,
 					failureHint: null,
-				})),
+				}),
 				recordPlanGap,
 			},
 		);
@@ -332,7 +310,6 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/worktree"),
 				loadRuntimeConfig: vi.fn(async () =>
 					createRuntimeConfigState({
 						reviewer: {
@@ -341,7 +318,7 @@ describe("task verify command helper", () => {
 						},
 					}),
 				),
-				runAcceptanceGate: vi.fn(async () => ({
+				...sandboxVerifierDeps({
 					present: true,
 					command: "npm test",
 					passed: false,
@@ -350,7 +327,7 @@ describe("task verify command helper", () => {
 					durationMs: 5,
 					failureCategory: null,
 					failureHint: null,
-				})),
+				}),
 				recordPlanGap,
 			},
 		);
@@ -413,9 +390,8 @@ describe("task verify command helper", () => {
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Acceptance check: npm test")),
-				resolveTaskCwd: vi.fn(async () => "/worktree"),
 				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
-				runAcceptanceGate: vi.fn(async () => ({
+				...sandboxVerifierDeps({
 					present: true,
 					command: "npm test",
 					passed: false,
@@ -424,7 +400,7 @@ describe("task verify command helper", () => {
 					durationMs: 5,
 					failureCategory: null,
 					failureHint: null,
-				})),
+				}),
 				recordPlanGap,
 			},
 		);
@@ -444,14 +420,12 @@ describe("task verify command helper", () => {
 			{
 				cwd: "/repo",
 				taskId: "task-1",
-				workspaceRoot: true,
 			},
 			{
 				resolveWorkspaceRepoPath: vi.fn(async () => "/repo"),
 				loadWorkspaceState: vi.fn(async () => createWorkspaceState("Implement the task.")),
-				resolveTaskCwd: vi.fn(async () => "/worktree"),
 				loadRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
-				runAcceptanceGate: vi.fn(async () => ({
+				...sandboxVerifierDeps({
 					present: false,
 					command: null,
 					passed: null,
@@ -460,7 +434,7 @@ describe("task verify command helper", () => {
 					durationMs: 0,
 					failureCategory: null,
 					failureHint: null,
-				})),
+				}),
 				recordPlanGap,
 			},
 		);
@@ -468,7 +442,7 @@ describe("task verify command helper", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			error: 'Task "task-1" has no Acceptance check line.',
-			taskWorkspacePath: "/repo",
+			taskWorkspacePath: null,
 			acceptance: {
 				present: false,
 			},

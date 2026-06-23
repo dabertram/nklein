@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
-import { usesLegacyHostTaskWorkspace } from "../core/agent-catalog";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
@@ -38,7 +37,6 @@ import {
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
-import type { runNKleinAcceptanceGate } from "../nklein-sdk/nklein-acceptance-gate";
 import {
 	buildNKleinAcceptanceRepairPlan,
 	type NKleinAcceptanceRepairAction,
@@ -62,7 +60,6 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
-import { resolveTaskCwd } from "../workspace/task-worktree";
 import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeColumn,
@@ -142,8 +139,6 @@ interface RuntimeTaskAcceptanceVerifyMutationClient {
 interface VerifyTaskAcceptanceDependencies {
 	resolveWorkspaceRepoPath?: typeof resolveWorkspaceRepoPath;
 	loadWorkspaceState?: typeof loadWorkspaceState;
-	resolveTaskCwd?: typeof resolveTaskCwd;
-	runAcceptanceGate?: typeof runNKleinAcceptanceGate;
 	ensureRuntimeWorkspace?: typeof ensureRuntimeWorkspace;
 	createRuntimeTrpcClient?: (workspaceId: string | null) => RuntimeTaskAcceptanceVerifyMutationClient;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
@@ -1144,39 +1139,20 @@ export async function runVerifyTaskAcceptanceCommand(
 		throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
 	}
 
-	let taskWorkspacePath: string | null = null;
-	const runAcceptanceGate = deps.runAcceptanceGate;
-	const result = runAcceptanceGate
-		? await (async () => {
-				taskWorkspacePath = input.workspaceRoot
-					? workspaceRepoPath
-					: await (deps.resolveTaskCwd ?? resolveTaskCwd)({
-							cwd: workspaceRepoPath,
-							taskId: input.taskId,
-							baseRef: taskRecord.task.baseRef,
-							ensure: input.ensureWorktree === true,
-						});
-				return await runAcceptanceGate({
-					taskId: input.taskId,
-					workspacePath: taskWorkspacePath,
-					taskPrompt: taskRecord.task.prompt,
-					timeoutMs: input.timeoutMs,
-				});
-			})()
-		: await (async () => {
-				if (input.workspaceRoot) {
-					throw new Error("--workspace-root is not available for sandboxed task verification.");
-				}
-				const workspaceId = await (deps.ensureRuntimeWorkspace ?? ensureRuntimeWorkspace)(workspaceRepoPath);
-				const runtimeClient = (deps.createRuntimeTrpcClient ?? createRuntimeTrpcClient)(workspaceId);
-				const response = await runtimeClient.runtime.verifyTaskAcceptance.mutate({
-					taskId: input.taskId,
-					...(input.ensureWorktree === true ? { ensureWorktree: true } : {}),
-					...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
-				});
-				taskWorkspacePath = response.taskWorkspacePath;
-				return response.acceptance;
-			})();
+	// Acceptance always runs in the task's Docker sandbox via the runtime (the worktree-backed host gate is
+	// retired, §5.A); `--workspace-root` referred to a host checkout that no longer exists.
+	if (input.workspaceRoot) {
+		throw new Error("--workspace-root is not available for sandboxed task verification.");
+	}
+	const workspaceId = await (deps.ensureRuntimeWorkspace ?? ensureRuntimeWorkspace)(workspaceRepoPath);
+	const runtimeClient = (deps.createRuntimeTrpcClient ?? createRuntimeTrpcClient)(workspaceId);
+	const response = await runtimeClient.runtime.verifyTaskAcceptance.mutate({
+		taskId: input.taskId,
+		...(input.ensureWorktree === true ? { ensureWorktree: true } : {}),
+		...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
+	});
+	const taskWorkspacePath: string | null = response.taskWorkspacePath;
+	const result = response.acceptance;
 
 	const ok = result.present === true && result.passed === true;
 	const repair = ok
@@ -1299,16 +1275,7 @@ async function startTask(input: {
 				`Task "${task.id}" likely touches the same files as active task "${overlappingTask.id}". Wait for the active task to finish before starting this one.`,
 			);
 		}
-		if (shouldPrepareLegacyHostTaskWorkspace(task)) {
-			const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
-				taskId: task.id,
-				baseRef: task.baseRef,
-			});
-			if (!ensured.ok) {
-				throw new Error(ensured.error ?? "Could not prepare task workspace.");
-			}
-		}
-
+		// Native NKlein tasks start in their Docker sandbox — no host workspace to prepare (worktrees retired, §5.A).
 		const started = await runtimeClient.runtime.startTaskSession.mutate({
 			taskId: task.id,
 			prompt: task.prompt,
@@ -1408,10 +1375,6 @@ interface FinishTaskMutationValue {
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
 	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
-}
-
-function shouldPrepareLegacyHostTaskWorkspace(task: Pick<RuntimeBoardCard, "agentId">): boolean {
-	return usesLegacyHostTaskWorkspace(task.agentId);
 }
 
 async function autoMergeFinishedTaskWorktree(input: {
