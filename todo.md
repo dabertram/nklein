@@ -126,6 +126,32 @@ deep analysis:
 > Everything in §6 is already shipped — listed there so an agent knows what exists and doesn't rebuild it.
 > The items below are what's left. Each is independently landable.
 
+### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
+> The user went through every open question in §5. Recorded here so the tasks are actionable without further
+> clarification; the per-section items below are annotated to match.
+> - **NEXT / priority order:** **§5.A worktree retirement first**, then the rest.
+> - **§5.A:** **Full retirement now** — remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` + the web-ui
+>   legacy path, rework shell-on-task to `docker exec` into the task's sandbox, delete the worktree modules +
+>   saved-host-patch path; verify the review/diff/merge + shell UI in-browser (env has Docker + browser).
+> - **§5.H:** **Build both prerequisites now, then flip** — native-core→task-execution integration AND
+>   python-core auto-start/bundle (+ Settings health line), then make native-core the default runtime (SDK
+>   fallback intact) and python-core default-on.
+> - **§5.M:** build **memory system first** (sensible defaults, tunable in settings); **fold the home agent into
+>   the unified agent** as a selectable scope/role (migrate its session model into the new store). (Signal-first,
+>   one-session-per-thread, 3 execution modes, isolated-by-default memory remain as previously decided.)
+> - **§5.Q:** canonical model identity = **provider + model + canonical endpoint** (canonicalize loopback /
+>   trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate globally per model.
+> - **§5.O:** **CLI orchestrator** extending `nklein dev test-project` (+ collect-evidence/cleanup-report);
+>   build the orchestrator **and** the parallel-fan-out dev-test projects **now**, sweep when the user makes the
+>   quant / K-V-cache configs available.
+> - **§5.L:** next delivery follow-up = **per-project delivery override**, built **with the §5.I#3 project-settings
+>   modal** (where per-project settings belong).
+> - **§5.B:** **build** the knowledge-tool-usage decomposition signal (backend correlation + Settings stats
+>   column); **I draft** the audio-VST domain rubric + scorer.
+> - **§5.I#1:** build **all three** residuals — idle-unload timer, verified sha256 in the manifest, in-panel
+>   model-override picker.
+> - **§5.P:** **keep deferred** until we reach it (it's the last task; boundary depends on how everything lands).
+
 ### 5.A — Finish strict-isolation reconciliation & live verification
 - [ ] **Retire the host worktree subsystem** *(direction decided: retire — terminal/CLI agents stay
       permanently disabled under local-only).* The single boundary predicate is
