@@ -730,9 +730,22 @@ deep analysis:
 
 ### 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*
 > **Goal (user):** verify and fix the **model telemetry / performance-stats collection**. The user saw the **same
-> model listed multiple times** in the stats — these must be **consistent, global** per-model stats. **Phase note
-> (user):** clarify the exact details together once we pick this up. This underpins §5.O (evidence-driven sweeps
-> rely on trustworthy per-model/per-config stats) and the shipped stats view (§6.6).
+> model listed multiple times** in the stats — these must be **consistent, global** per-model stats. This underpins
+> §5.O (evidence-driven sweeps rely on trustworthy per-model/per-config stats) and the shipped stats view (§6.6).
+> **DIAGNOSED (2026-06-23, from live data):** the underlying data is **clean** — `model-registry.json` has 9
+> distinct entries all on the canonical `http://localhost:1234/v1` endpoint (loopback canonicalized), and the 130
+> `model-performance` observations show **6 distinct models with no id case/prefix variance**. The "same model
+> multiple times" is the **aggregation/display shape**: `groupByAggregate` ([src/telemetry/model-performance-stats.ts](src/telemetry/model-performance-stats.ts))
+> keys every aggregate by `scope × role × project × version × provider × model`, and the stats dialog
+> ([web-ui/src/components/model-performance-stats-dialog.tsx](web-ui/src/components/model-performance-stats-dialog.tsx)
+> ~line 229) renders them **flat** — so one model that ran as architect *and* worker, across overall/version/
+> project scopes, fills many rows.
+> **FIX (per the §5.0 decision — global per model, keep breakdowns):** add a **role/scope-agnostic global-per-model
+> aggregate** keyed by **provider + normalized-model + canonical-endpoint** (reuse the registry's `normalizeEndpoint`
+> + `normalizeModelId`/`normalizeProviderId` — extract them to a shared module so telemetry + registry agree), expose
+> it as a new `byModel` list on the stats response, and render **that** as the primary stats table (one row per
+> model). Keep the existing `scope × role × project × version` aggregates as a secondary **breakdowns** table/
+> drill-down. Unit-test the global-per-model grouping (same model across roles/scopes → one `byModel` row).
 - [ ] **Audit the stats pipeline for model-identity fragmentation.** Find why one model appears as several rows —
       likely an inconsistent **model-identity key** across the telemetry/aggregation path (e.g. provider-prefixed
       vs bare id, casing, a stale/loaded-vs-catalog id, per-endpoint or per-session variance, or quant/context
