@@ -125,7 +125,6 @@ import type {
 	RuntimeTaskSessionStopRequest,
 	RuntimeTaskSessionStopResponse,
 	RuntimeTaskWorkspaceInfoRequest,
-	RuntimeTaskWorkspaceInfoResponse,
 	RuntimeTaskWorktreeMergeRequest,
 	RuntimeTaskWorktreeMergeResponse,
 	RuntimeUpdateStatusResponse,
@@ -138,8 +137,6 @@ import type {
 	RuntimeWorkspaceStateSaveRequest,
 	RuntimeWorktreeDeleteRequest,
 	RuntimeWorktreeDeleteResponse,
-	RuntimeWorktreeEnsureRequest,
-	RuntimeWorktreeEnsureResponse,
 } from "../core/api-contract";
 import {
 	runtimeCommandRunRequestSchema,
@@ -262,7 +259,6 @@ import {
 	runtimeTaskSessionStopRequestSchema,
 	runtimeTaskSessionStopResponseSchema,
 	runtimeTaskWorkspaceInfoRequestSchema,
-	runtimeTaskWorkspaceInfoResponseSchema,
 	runtimeTaskWorktreeMergeRequestSchema,
 	runtimeTaskWorktreeMergeResponseSchema,
 	runtimeUpdateStatusResponseSchema,
@@ -275,8 +271,6 @@ import {
 	runtimeWorkspaceStateSaveRequestSchema,
 	runtimeWorktreeDeleteRequestSchema,
 	runtimeWorktreeDeleteResponseSchema,
-	runtimeWorktreeEnsureRequestSchema,
-	runtimeWorktreeEnsureResponseSchema,
 } from "../core/api-contract";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 
@@ -507,18 +501,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeWorkspaceChangesRequest,
 		) => Promise<RuntimeWorkspaceChangesResponse>;
-		ensureWorktree: (
-			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeWorktreeEnsureRequest,
-		) => Promise<RuntimeWorktreeEnsureResponse>;
 		deleteWorktree: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeWorktreeDeleteRequest,
 		) => Promise<RuntimeWorktreeDeleteResponse>;
-		loadTaskContext: (
-			scope: RuntimeTrpcWorkspaceScope,
-			input: RuntimeTaskWorkspaceInfoRequest,
-		) => Promise<RuntimeTaskWorkspaceInfoResponse>;
 		searchFiles: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeWorkspaceFileSearchRequest,
@@ -979,23 +965,11 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx, input }) => {
 				return await ctx.workspaceApi.loadChanges(ctx.workspaceScope, input);
 			}),
-		ensureWorktree: workspaceProcedure
-			.input(runtimeWorktreeEnsureRequestSchema)
-			.output(runtimeWorktreeEnsureResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.ensureWorktree(ctx.workspaceScope, input);
-			}),
 		deleteWorktree: workspaceProcedure
 			.input(runtimeWorktreeDeleteRequestSchema)
 			.output(runtimeWorktreeDeleteResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.workspaceApi.deleteWorktree(ctx.workspaceScope, input);
-			}),
-		getTaskContext: workspaceProcedure
-			.input(runtimeTaskWorkspaceInfoRequestSchema)
-			.output(runtimeTaskWorkspaceInfoResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadTaskContext(ctx.workspaceScope, input);
 			}),
 		searchFiles: workspaceProcedure
 			.input(runtimeWorkspaceFileSearchRequestSchema)

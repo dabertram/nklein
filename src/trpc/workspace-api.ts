@@ -9,11 +9,7 @@ import type {
 	RuntimeWorkspaceFileSearchResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
-import {
-	parseGitCheckoutRequest,
-	parseWorktreeDeleteRequest,
-	parseWorktreeEnsureRequest,
-} from "../core/api-validation";
+import { parseGitCheckoutRequest, parseWorktreeDeleteRequest } from "../core/api-validation";
 import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import { saveWorkspaceState, WorkspaceStateConflictError } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -26,7 +22,7 @@ import { getCommitDiff, getGitLog, getGitRefs } from "../workspace/git-history";
 import { discardGitChanges, getGitSyncSummary, runGitCheckoutAction, runGitSyncAction } from "../workspace/git-sync";
 import { searchWorkspaceFiles } from "../workspace/search-workspace-files";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import { deleteTaskWorktree, ensureTaskWorktreeIfDoesntExist, getTaskWorkspaceInfo } from "../workspace/task-worktree";
+import { deleteTaskWorktree } from "../workspace/task-worktree";
 import type { RuntimeTrpcContext } from "./app-router";
 
 export interface CreateWorkspaceApiDependencies {
@@ -235,28 +231,14 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 			// §5.A, and the legacy per-turn host-checkpoint diff went with it).
 			return await createEmptyWorkspaceChangesResponse(workspaceScope.workspacePath);
 		},
-		ensureWorktree: async (workspaceScope, input) => {
-			const body = parseWorktreeEnsureRequest(input);
-			return await ensureTaskWorktreeIfDoesntExist({
-				cwd: workspaceScope.workspacePath,
-				taskId: body.taskId,
-				baseRef: body.baseRef,
-			});
-		},
 		deleteWorktree: async (workspaceScope, input) => {
+			// Retained for `cleanupTaskWorkspace` (replay/trash) and to clean up any legacy on-disk worktrees from
+			// pre-§5.A builds; a no-op for native NKlein tasks, which never create a host worktree.
 			const body = parseWorktreeDeleteRequest(input);
 			return await deleteTaskWorktree({
 				repoPath: workspaceScope.workspacePath,
 				taskId: body.taskId,
 				preserveChanges: body.preserveChanges,
-			});
-		},
-		loadTaskContext: async (workspaceScope, input) => {
-			const normalizedInput = normalizeRequiredTaskWorkspaceScopeInput(input);
-			return await getTaskWorkspaceInfo({
-				cwd: workspaceScope.workspacePath,
-				taskId: normalizedInput.taskId,
-				baseRef: normalizedInput.baseRef,
 			});
 		},
 		searchFiles: async (workspaceScope, input) => {

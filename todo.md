@@ -303,6 +303,10 @@ deep analysis:
           Gate`/`usesLegacyHostTaskWorkspace` imports. The CLI no longer calls `workspace.ensureWorktree` or
           `resolveTaskCwd` (only the result-branch `task merge` auto-merge + the `verifyTaskAcceptance`
           `--ensure-worktree` flag remain). **Gate for tRPC removal is now clear.**
+        - **C7b DONE 2026-06-23:** removed the `ensureWorktree` + `getTaskContext` tRPC procedures + their
+          `createWorkspaceApi` handlers + `parseWorktreeEnsureRequest` usage (web-ui + CLI no longer call them).
+          `deleteWorktree` retained (`cleanupTaskWorkspace` + legacy on-disk cleanup). `ensureTaskWorktreeIfDoesntExist`/
+          `getTaskWorkspaceInfo` are now dead exports → delete in C7c with the rest of the creation machinery.
         - **Also still wired:** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
           `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` deletion needs those
           rewired first. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui `workspace-metadata-store`
