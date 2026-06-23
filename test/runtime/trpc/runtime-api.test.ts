@@ -2667,7 +2667,8 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				agentId: "codex",
-				cwd: "/tmp/existing-worktree",
+				// Worktrees retired (§5.A): a legacy terminal session runs at the project root, not a host checkout.
+				cwd: "/tmp/repo",
 			}),
 		);
 		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();

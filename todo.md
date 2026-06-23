@@ -274,8 +274,16 @@ deep analysis:
       - **C2b remaining (web-ui-touching):** the `ensureWorktree`/`deleteWorktree` tRPC mutations + `loadTaskContext`
         (`getTaskWorkspaceInfo`) and their web-ui callers (`use-task-sessions` `ensureWorktree`, `App.tsx`
         `getTaskWorkspaceInfo` path display) + `workspace-metadata-monitor` `getTaskWorkspacePathInfo`.
-      - **C5 remaining:** `runtime-api` `resolveExistingTaskCwdOrEnsure` + `collectTaskEvidence` fallback + the
-        terminal `startTaskSession` path; `commands/task` CLI.
+      - **C5 DONE 2026-06-23:** `runtime-api` `resolveExistingTaskCwdOrEnsure` deleted (it created a host worktree
+        on miss — `collectTaskEvidence` would silently materialize one); evidence + the legacy terminal
+        `startTaskSession` now use the project repo path. `resolveTaskCwd`/`task-worktree` import gone from
+        `runtime-api`.
+      - **C6/C7/C8 remaining:** extract legacy worktree CLEANUP (keep `deleteTaskWorktree`/lock/patch +
+        `isPathInsideTaskWorktreesHome` detection) and delete the CREATION/sync machinery (`task-worktree.ts`
+        ensure/resolve/getInfo/mirror + `task-worktree-sync.ts` + `task-worktree-turbopack.ts`); the `commands/task`
+        CLI + the `ensureWorktree`/`deleteWorktree` tRPC surface + `loadTaskContext` + web-ui ride with the terminal
+        deletion; schema/predicate cleanup; then increment-4 verification. (`workspace-metadata-monitor`
+        `getTaskWorkspacePathInfo` also rewires here.)
       - **CORRECTION to the plan's "delete" list (found by tracing the code 2026-06-23):**
         `task-worktree-auto-merge.ts` is **NOT dead** — it is the *live result-branch delivery merge* invoked on
         every auto-complete (`runtime-server`), already `resolveTaskResultBranchCommit`-first with the worktree as a

@@ -138,7 +138,6 @@ import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/age
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { getWorkspaceChanges, getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import { resolveTaskCwd } from "../workspace/task-worktree";
 import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeStep,
@@ -383,28 +382,6 @@ export interface CreateRuntimeApiDependencies {
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
 	getAgentSandboxStatus?: () => RuntimeAgentSandboxStatus;
 	refreshAgentSandboxStatus?: () => Promise<RuntimeAgentSandboxStatus>;
-}
-
-async function resolveExistingTaskCwdOrEnsure(options: {
-	cwd: string;
-	taskId: string;
-	baseRef: string;
-}): Promise<string> {
-	try {
-		return await resolveTaskCwd({
-			cwd: options.cwd,
-			taskId: options.taskId,
-			baseRef: options.baseRef,
-			ensure: false,
-		});
-	} catch {
-		return await resolveTaskCwd({
-			cwd: options.cwd,
-			taskId: options.taskId,
-			baseRef: options.baseRef,
-			ensure: true,
-		});
-	}
 }
 
 function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: string): RuntimeBoardCard | null {
@@ -1447,13 +1424,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						error: "No runnable agent command is configured. Open Settings, install a supported CLI, and select it.",
 					};
 				}
-				const taskCwd = isHomeSession
-					? workspaceScope.workspacePath
-					: await resolveExistingTaskCwdOrEnsure({
-							cwd: workspaceScope.workspacePath,
-							taskId: body.taskId,
-							baseRef: body.baseRef,
-						});
+				// Terminal/CLI agents are disabled under the local-only lockdown and the host-worktree subsystem is
+				// retired (§5.A), so any legacy terminal session runs at the project root rather than a host checkout.
+				const taskCwd = workspaceScope.workspacePath;
 				const summary = await terminalManager.startTaskSession({
 					taskId: body.taskId,
 					agentId: resolved.agentId,
@@ -2137,13 +2110,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				repoPath: workspaceScope.workspacePath,
 				taskId: task.id,
 			});
-			const taskCwd = taskResultCommit
-				? workspaceScope.workspacePath
-				: await resolveExistingTaskCwdOrEnsure({
-						cwd: workspaceScope.workspacePath,
-						taskId: task.id,
-						baseRef: task.baseRef,
-					}).catch(() => workspaceScope.workspacePath);
+			// Evidence is gathered from the project repo: a completed task's delta is its result branch (used for
+			// changesResult below), and an in-progress task has no host-visible working tree — work runs in its
+			// sandbox (worktrees retired, §5.A; the old fallback here would *create* a host worktree on miss).
+			const taskCwd = workspaceScope.workspacePath;
 			const [nkleinTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
 				deps.getScopedNKleinTaskSessionService(workspaceScope),
 				deps.loadScopedRuntimeConfig(workspaceScope),
