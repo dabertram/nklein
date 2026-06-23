@@ -757,6 +757,42 @@ deep analysis:
       reusable core" framing — it's the internal agent runtime. Keep it simple; don't churn the substantive code
       beyond what removing the separation requires.
 
+### 5.S — User-questions: auto-clarify loop + first-class UI *(raised + clarified 2026-06-23; LOWEST priority — build after all other planned tasks, before the §5.P Python port)*
+> **Goal (user):** clarifying **user questions** are an essential, first-class part of !Klein. Decomposition (and
+> other agents) already *raise* questions, but they were force-answered and **never surfaced in the UI**. (The
+> decompose fix on 2026-06-23 now lets an `open` question survive with a working `assumption` instead of being
+> fabricated away — see §5.B / the decomposition tool.) This task builds the clarification **flow** + **UI** on top.
+> **DEFAULT = automatic clarification.** When a question is raised:
+> 1. the **architect** proposes answer(s);
+> 2. the **reviewer** (reuse the §5.K second-opinion reviewer role/model + session infra) clarifies with its
+>    knowledge/perspective and adds an opinion;
+> 3. the architect takes that opinion into account and decides whether it can answer the question(s) now, or needs
+>    further **ping-pong** with the reviewer.
+> Ping-pong continues **as long as clarification is progressing** — no hard limit by default. Loops are stopped by
+> a **multi-layered no-progress detector (DECIDED):** (a) **semantic-similarity** of successive exchanges (embed
+> each round, stop a question when consecutive rounds are too similar) **AND** (b) **agent self-check** — the
+> architect/reviewer are asked (LLM) whether their exchange is looping without producing valuable progress; either
+> layer can flag a question as stalled. A **generous safety cap (default ~30, user-adjustable)** backstops a
+> detector bug. The user can set a **hard ping-pong limit** in **global + project settings**.
+> **MANUAL mode (user opts out of auto-clarify):** surface pending questions in the main UI via **both a
+> board-header "N pending questions" badge AND per-card indicators (DECIDED)**, each opening a **clarifying
+> dialog**. Every question presents **≥4 options that genuinely suit the question + 1 free-text option** for other/
+> additional answers, and supports **multiple-choice or radio** selection **per question** (the asking agent picks
+> the selector type + prepares the options). Auto/manual is a global + per-project setting (auto is the default).
+> **Reuse what exists:** the plan-artifact question schema (`nklein-plan-artifacts.ts`: `options[]` with id/label/
+> description/recommended, `status` open/answered/assumed-default, `answer`/`assumption`) + `questions.md`; the
+> §5.K reviewer infra; the embedding model for the semantic-similarity layer.
+- [ ] **Auto-clarify core (pure + tested).** A decision core that drives the architect→reviewer→architect loop
+      over a card's open questions: per-question state machine, the multi-layered no-progress detector
+      (semantic-similarity + agent self-check), the safety cap + user hard-limit, and the transition (answer /
+      keep-asking / give-up-with-assumption). Inject I/O (model calls, embeddings) like the §5.K orchestrator.
+- [ ] **Wire auto-clarify into the flow.** Run it after decomposition (and wherever an agent raises questions),
+      reusing the reviewer role/model; persist resolved answers + remaining-open state onto the card/plan; settings
+      (global + per-project) for auto-vs-manual + the hard limit.
+- [ ] **Manual-mode UI.** Board-header pending-questions badge + per-card indicators → a clarifying dialog
+      rendering each question's ≥4 suitable options + free-text, multiple-choice/radio per question, with per-control
+      tooltips (§5.I#5). Persist the user's answers back through the plan-artifact question state.
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator.** Because !Klein owns the Docker image, ship a small in-image command
   operator that runs shell commands directly with structured stdout/stderr/exit-code/error metadata, typed
