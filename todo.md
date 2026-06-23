@@ -325,10 +325,22 @@ deep analysis:
           `RuntimeTaskWorkspaceInfoResponse` from task-worktree.ts; then remove the now-dead ensure schemas from
           api-contract/api-validation (`runtimeWorktreeEnsureRequest/ResponseSchema`, `parseWorktreeEnsureRequest`).
           The 786-line interleaved file makes this a delicate excision best done fresh.
-        - **Then (still wired):** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
-          `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` + `hook-events/*` deletion
-          needs those rewired first (last-turn/getSummary now only meaningful for nklein, which has its own
-          session-service summaries). `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui
+        - **C7d SCOPED 2026-06-23 (NOT a bulk delete — surgical separation):** `TerminalSessionManager` is **LIVE** —
+          it powers shell-on-task (`runtime-api` `startShellSession` → `terminalManager.startShellSession`, the
+          docker-exec shell) and the xterm WS bridge (`createTerminalWebSocketBridge` in `runtime-server`). So
+          `src/terminal/*` is **not** deletable wholesale. C7d = excise the dead **CLI-agent** integration while
+          keeping the shell infra: KEEP `pty-session`, `ws-server`, `terminal-protocol-filter`, `terminal-input`,
+          `terminal-session-service`, `terminal-state-mirror`, `output-utils`, and `session-manager`'s **shell**
+          path; DELETE the agent path (`session-manager.startTaskSession` + `agent-registry` +
+          `agent-session-adapters` + `claude/codex-workspace-trust` + `codex-hook-config` + `opencode-paths` +
+          `command-discovery` + `hook-runtime-context` + `task-image-prompt`), `commands/hooks.ts` +
+          `commands/hook-events/*` (the `nklein hooks ingest` CLI for terminal agents) + the `hooks-api` tRPC
+          ingest, and rewire `terminalManager.getSummary` (runtime-api ~1165, hooks-api) — for nklein the
+          NKlein session-service supplies summaries, so the terminal getSummary merge is dead. This is one
+          interconnected surgery best done as its own careful pass (high risk of breaking the LIVE shell feature).
+        - **C8 ordering:** `usesLegacyHostTaskWorkspace` is now down to ONE consumer (shutdown-coordinator's
+          interrupted-worktree cleanup, always-empty for nklein) + its definition. Per plan it's the boundary guard
+          to remove in the FINAL cleanup *after* the terminal-agent catalog is gone (C7d) — so C8 follows C7d. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui
           `workspace-metadata-store` (`toTaskWorkspaceInfo`) + `task-trash-warning-dialog` + `App.tsx` path-display
           (all reading the now-always-empty `taskWorkspaces`) — its own web-ui cleanup. Then schema/predicate
           (`runtimeAgentIdSchema`, `normalizeAgentId`, `usesLegacyHostTaskWorkspace`) → **increment-4** Playwright +
