@@ -1,4 +1,5 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
 	buildNKleinModelRegistryKey,
@@ -31,17 +32,8 @@ export type NKleinEndpointSchedulingDecision =
 			reason: string;
 	  };
 
-function normalizeProviderId(providerId: string): string {
-	return providerId.trim().toLowerCase();
-}
-
-function normalizeModelId(modelId: string): string {
-	return modelId.trim();
-}
-
-function normalizeEndpoint(endpoint: string | null | undefined): string | null {
-	const trimmed = endpoint?.trim();
-	return trimmed && trimmed.length > 0 ? trimmed : null;
+function hasRealModelIdentity(input: NKleinModelRegistryKeyInput): boolean {
+	return input.providerId.trim().length > 0 && input.modelId.trim().length > 0;
 }
 
 function getLegacySharedEndpointId(input: NKleinModelRegistryKeyInput): string | null {
@@ -63,12 +55,12 @@ function getFallbackSharedEndpointId(input: NKleinModelRegistryKeyInput): string
 }
 
 function getSharedEndpointId(snapshot: NKleinModelRegistrySnapshot, input: NKleinModelRegistryKeyInput): string | null {
+	if (!hasRealModelIdentity(input)) {
+		return null;
+	}
 	const providerId = normalizeProviderId(input.providerId);
 	const modelId = normalizeModelId(input.modelId);
 	const endpoint = normalizeEndpoint(input.endpoint);
-	if (providerId.length === 0 || modelId.length === 0) {
-		return null;
-	}
 	if (!isLocalProvider(providerId, endpoint)) {
 		return null;
 	}
@@ -85,12 +77,12 @@ function getObservedWallTimeMs(
 	snapshot: NKleinModelRegistrySnapshot,
 	input: NKleinModelRegistryKeyInput,
 ): number | null {
+	if (!hasRealModelIdentity(input)) {
+		return null;
+	}
 	const providerId = normalizeProviderId(input.providerId);
 	const modelId = normalizeModelId(input.modelId);
 	const endpoint = normalizeEndpoint(input.endpoint);
-	if (providerId.length === 0 || modelId.length === 0) {
-		return null;
-	}
 	const key = buildNKleinModelRegistryKey({ providerId, modelId, endpoint });
 	const speed = snapshot.models[key]?.speed;
 	const wallTimeMs = speed?.wallTimeMsEwma ?? speed?.lastWallTimeMs ?? null;

@@ -1652,10 +1652,12 @@ describe("createRuntimeApi startTaskSession", () => {
 			},
 		]);
 		const qwenEntry = createModelRegistryEntry({
-			key: "ollama:qwen3.5-9b:http://127.0.0.1:11434",
+			// The registry canonicalizes loopback hosts to `localhost` (todo §5.Q / the 2026-06-22 loopback fix),
+			// so the stored key + endpoint use the canonical form even though sessions report `127.0.0.1`.
+			key: "ollama:qwen3.5-9b:http://localhost:11434",
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
-			endpoint: "http://127.0.0.1:11434",
+			endpoint: "http://localhost:11434",
 			contextWindow: 64_000,
 			capability: 70,
 		});
@@ -1707,7 +1709,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.errorCode).toBe("endpoint_busy");
 		expect(response.queued).toBe(true);
 		expect(response.retryAfterMs).toBeGreaterThan(0);
-		expect(response.error).toContain("http://127.0.0.1:11434");
+		expect(response.error).toContain("http://localhost:11434");
 		expect(response.error).toContain("task-1");
 		expect(response.error).toContain("Estimated wait");
 		expect(taskStartQueue.enqueue).toHaveBeenCalledWith(

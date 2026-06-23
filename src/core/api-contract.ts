@@ -546,13 +546,16 @@ export type RuntimeModelPerformanceObservation = z.infer<typeof runtimeModelPerf
 
 export const runtimeModelPerformanceAggregateSchema = z.object({
 	key: z.string(),
-	scope: z.enum(["overall", "project", "version"]),
+	scope: z.enum(["overall", "project", "version", "model"]),
 	appVersion: z.string().nullable(),
 	workspacePathHash: z.string().nullable(),
 	projectName: z.string().nullable(),
 	role: runtimeModelPerformanceRoleSchema,
 	providerId: z.string().nullable(),
 	modelId: z.string().nullable(),
+	// Canonical endpoint for the `model` scope (provider + normalized model + canonical endpoint identity,
+	// todo §5.Q); null for the role/project/version scopes which collapse across endpoints.
+	endpoint: z.string().nullable(),
 	runs: z.number().int().nonnegative(),
 	completedRuns: z.number().int().nonnegative(),
 	failedRuns: z.number().int().nonnegative(),

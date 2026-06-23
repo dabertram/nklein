@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeDecompositionKnowledgeUsageAggregate, RuntimeModelPerformanceAggregate } from "@/runtime/types";
-import { rollUpAggregatesByModel, summarizeDecompositionKnowledge } from "./model-performance-stats-dialog";
+import {
+	rollUpAggregatesByModel,
+	selectModelRollups,
+	summarizeDecompositionKnowledge,
+} from "./model-performance-stats-dialog";
 
 function aggregate(overrides: Partial<RuntimeModelPerformanceAggregate>): RuntimeModelPerformanceAggregate {
 	return {
@@ -12,6 +16,7 @@ function aggregate(overrides: Partial<RuntimeModelPerformanceAggregate>): Runtim
 		role: "worker",
 		providerId: "lmstudio",
 		modelId: "qwen3-8b",
+		endpoint: null,
 		runs: 0,
 		completedRuns: 0,
 		failedRuns: 0,
@@ -89,6 +94,37 @@ describe("rollUpAggregatesByModel (todo §5.Q)", () => {
 
 	it("returns an empty list when there are no aggregates", () => {
 		expect(rollUpAggregatesByModel([])).toEqual([]);
+	});
+});
+
+describe("selectModelRollups (todo §5.Q backend precision rollup)", () => {
+	it("prefers the backend model-scope aggregates (with exact timing) when present", () => {
+		const rollups = selectModelRollups([
+			// The overall-scope rows would also roll up, but the precise model-scope row must win.
+			aggregate({ scope: "overall", role: "worker", modelId: "qwen3-8b", runs: 99, completedRuns: 99 }),
+			aggregate({
+				scope: "model",
+				role: "unknown",
+				modelId: "qwen3-8b",
+				endpoint: "http://localhost:1234/v1",
+				runs: 10,
+				completedRuns: 6,
+				successRate: 0.6,
+				averageWallTimeMs: 4200,
+				lastObservedAt: 50,
+			}),
+		]);
+		expect(rollups).toHaveLength(1);
+		expect(rollups[0]).toMatchObject({ modelId: "qwen3-8b", runs: 10, successRate: 0.6, averageWallTimeMs: 4200 });
+	});
+
+	it("falls back to the client overall-scope roll-up when no model scope is present (older server)", () => {
+		const rollups = selectModelRollups([
+			aggregate({ scope: "overall", role: "worker", modelId: "qwen3-8b", runs: 4, completedRuns: 2 }),
+		]);
+		expect(rollups).toHaveLength(1);
+		expect(rollups[0]).toMatchObject({ modelId: "qwen3-8b", runs: 4, successRate: 0.5 });
+		expect(rollups[0]?.averageWallTimeMs).toBeUndefined();
 	});
 });
 

@@ -580,10 +580,15 @@ deep analysis:
 - [x] **Display fix** — the Model Performance dialog leads with a **By Model (global)** table
       (`rollUpAggregatesByModel` consolidates overall-scope role splits into one row per model, exact recomputed
       success rate); per-scope×role relabeled **Breakdowns**. Unit-tested. (Resolves the user-visible duplication.)
-- [ ] **Backend `byModel` aggregate** (precision follow-up) — recompute from raw observations keyed by provider +
-      normalized-model + canonical endpoint; extract the registry's `normalizeEndpoint`/`normalizeModelId`/
-      `normalizeProviderId` into a shared module so telemetry + registry agree (exact per-model timing + true
-      cross-endpoint dedup). Current data is single-endpoint + clean, so this is precision, not a user-visible bug.
+- [x] **Backend `byModel` aggregate** (precision follow-up) — `groupByModel` in
+      [src/telemetry/model-performance-stats.ts](src/telemetry/model-performance-stats.ts) emits a `model`-scope
+      aggregate recomputed from raw observations, keyed by provider + normalized-model + canonical endpoint, so
+      success rate **and** timing are exact and loopback spellings dedup. Extracted the registry's
+      `normalizeEndpoint`/`normalizeModelId`/`normalizeProviderId` into shared
+      [src/core/model-identity.ts](src/core/model-identity.ts) — now used by the registry, the endpoint scheduler
+      (loopback canonicalization now also fixes per-endpoint swarm serialization), and telemetry, so all three
+      agree. web-ui `selectModelRollups` prefers the precise server aggregate (with Avg Time), falling back to the
+      client roll-up for older servers. Unit-tested both sides + the loopback-dedup case.
 
 ### 5.R — Dissolve the "internal SDK" separation; one unified codebase *(raised + clarified 2026-06-23)*
 > **Goal:** stop framing any runtime part as a separate "SDK" — nKlein is one product (no reusable core today).

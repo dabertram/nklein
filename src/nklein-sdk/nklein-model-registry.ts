@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
@@ -144,40 +145,6 @@ function normalizeNullableString(value: unknown): string | null {
 	}
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeProviderId(providerId: string): string {
-	const normalized = providerId.trim().toLowerCase();
-	return normalized.length > 0 ? normalized : "unknown";
-}
-
-function normalizeModelId(modelId: string): string {
-	const normalized = modelId.trim();
-	return normalized.length > 0 ? normalized : "unknown";
-}
-
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
-
-function normalizeEndpoint(endpoint: string | null | undefined): string | null {
-	const trimmed = normalizeNullableString(endpoint);
-	if (!trimmed) {
-		return null;
-	}
-	let parsed: URL;
-	try {
-		parsed = new URL(trimmed);
-	} catch {
-		return trimmed;
-	}
-	// All loopback spellings address the same local server, so canonicalize the host and
-	// drop any trailing slash. Otherwise the same local model observed as `localhost` and
-	// configured as `127.0.0.1` (or vice versa) gets two registry keys and shows up twice —
-	// once with telemetry and once blank.
-	if (LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
-		parsed.hostname = "localhost";
-	}
-	const path = parsed.pathname.replace(/\/+$/, "");
-	return `${parsed.protocol}//${parsed.host}${path}${parsed.search}`;
 }
 
 function registryEntryObservationCount(entry: NKleinModelRegistryEntry): number {

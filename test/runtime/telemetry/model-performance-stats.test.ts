@@ -254,6 +254,44 @@ describe("model performance stats", () => {
 		expect(scopedStats.observations[0]?.projectName).toBe("project-a");
 	});
 
+	it("rolls up a model scope per canonical identity, deduping loopback endpoint spellings (todo §5.Q)", async () => {
+		const rootDir = await createStatsRoot();
+		const runtimeConfig = createRuntimeConfig();
+		// Same model + same logical local server, addressed two ways. They must collapse into ONE model row.
+		await recordModelPerformanceObservation({
+			rootDir,
+			workspaceId: "workspace-a",
+			workspacePath: "/tmp/project-a",
+			card: createCard("task-localhost"),
+			runtimeConfig,
+			summary: createSummary({ taskId: "task-localhost", endpoint: "http://localhost:11434/" }),
+			now: 20_000,
+		});
+		await recordModelPerformanceObservation({
+			rootDir,
+			workspaceId: "workspace-b",
+			workspacePath: "/tmp/project-b",
+			card: createCard("task-loopback-ip"),
+			runtimeConfig,
+			summary: createSummary({ taskId: "task-loopback-ip", endpoint: "http://127.0.0.1:11434" }),
+			now: 21_000,
+		});
+
+		const allStats = await readModelPerformanceStats({ rootDir, now: 30_000 });
+		const modelRows = allStats.aggregates.filter((aggregate) => aggregate.scope === "model");
+		expect(modelRows).toHaveLength(1);
+		expect(modelRows[0]).toMatchObject({
+			providerId: "ollama",
+			modelId: "qwen2.5-coder",
+			endpoint: "http://localhost:11434",
+			runs: 2,
+			completedRuns: 2,
+			role: "unknown",
+		});
+		// Timing is recomputed from the raw observations (both wall times are 10_000ms here).
+		expect(modelRows[0]?.averageWallTimeMs).toBe(10_000);
+	});
+
 	it("keeps the same repeated task id distinct across workspaces (dev-test ids collide otherwise)", async () => {
 		const rootDir = await createStatsRoot();
 		const runtimeConfig = createRuntimeConfig();

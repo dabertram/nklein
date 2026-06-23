@@ -200,7 +200,9 @@ describe("nklein endpoint scheduler", () => {
 		expect(decision).toMatchObject({
 			ok: false,
 			blockedByTaskId: "task-1",
-			sharedEndpointId: "http://127.0.0.1:11434#qwen",
+			// Loopback hosts canonicalize to `localhost` so the cold-start fallback id matches the
+			// registry's stored shared-endpoint id (todo §5.Q — telemetry/registry/scheduler agree).
+			sharedEndpointId: "http://localhost:11434#qwen",
 		});
 	});
 
@@ -254,7 +256,7 @@ describe("nklein endpoint scheduler", () => {
 		expect(decision).toMatchObject({
 			ok: false,
 			blockedByTaskId: "task-1",
-			sharedEndpointId: "http://127.0.0.1:1234/v1#qwen",
+			sharedEndpointId: "http://localhost:1234/v1#qwen",
 		});
 	});
 

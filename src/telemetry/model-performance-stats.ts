@@ -16,6 +16,7 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
 import { runtimeModelPerformanceObservationSchema } from "../core/api-contract";
+import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 
 const DEFAULT_MODEL_PERFORMANCE_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-performance");
 const DEFAULT_OBSERVATION_LIMIT = 500;
@@ -297,6 +298,7 @@ function aggregateRecords(input: {
 	role: RuntimeModelPerformanceRole;
 	providerId: string | null;
 	modelId: string | null;
+	endpoint: string | null;
 	records: RuntimeModelPerformanceObservation[];
 }): RuntimeModelPerformanceAggregate {
 	const completedRuns = input.records.filter((record) => record.outcome === "completed").length;
@@ -312,6 +314,7 @@ function aggregateRecords(input: {
 		role: input.role,
 		providerId: input.providerId,
 		modelId: input.modelId,
+		endpoint: input.endpoint,
 		runs: input.records.length,
 		completedRuns,
 		failedRuns,
@@ -338,6 +341,7 @@ function groupByAggregate(records: RuntimeModelPerformanceObservation[]): Runtim
 			role: RuntimeModelPerformanceRole;
 			providerId: string | null;
 			modelId: string | null;
+			endpoint: string | null;
 			records: RuntimeModelPerformanceObservation[];
 		}
 	>();
@@ -364,6 +368,7 @@ function groupByAggregate(records: RuntimeModelPerformanceObservation[]): Runtim
 			role: record.role,
 			providerId: record.providerId,
 			modelId: record.modelId,
+			endpoint: null,
 			records: [],
 		};
 		existing.records.push(record);
@@ -376,7 +381,50 @@ function groupByAggregate(records: RuntimeModelPerformanceObservation[]): Runtim
 	}
 	return [...groups.entries()]
 		.map(([key, group]) => aggregateRecords({ key, ...group }))
+		.concat(groupByModel(records))
 		.sort((left, right) => right.runs - left.runs || right.lastObservedAt - left.lastObservedAt);
+}
+
+/**
+ * The precise per-model rollup (todo §5.Q): one row per canonical model identity — provider + normalized
+ * model id + canonical endpoint — recomputed straight from the raw observations (not by re-summing the
+ * role/project/version aggregates), so success rate **and** the timing averages are exact and loopback
+ * endpoint spellings dedup the same way the model registry keys them. `role` is `"unknown"` because this
+ * scope intentionally collapses across roles; the per-role split stays in the other scopes' breakdowns.
+ */
+function groupByModel(records: RuntimeModelPerformanceObservation[]): RuntimeModelPerformanceAggregate[] {
+	const groups = new Map<
+		string,
+		{
+			providerId: string | null;
+			modelId: string | null;
+			endpoint: string | null;
+			records: RuntimeModelPerformanceObservation[];
+		}
+	>();
+	for (const record of records) {
+		const providerId = record.providerId ? normalizeProviderId(record.providerId) : null;
+		const modelId = record.modelId ? normalizeModelId(record.modelId) : null;
+		const endpoint = normalizeEndpoint(record.endpoint);
+		const key = [providerId ?? "unknown_provider", modelId ?? "unknown_model", endpoint ?? "default"].join("\0");
+		const existing = groups.get(key) ?? { providerId, modelId, endpoint, records: [] };
+		existing.records.push(record);
+		groups.set(key, existing);
+	}
+	return [...groups.entries()].map(([key, group]) =>
+		aggregateRecords({
+			key: `model\0${key}`,
+			scope: "model",
+			appVersion: null,
+			workspacePathHash: null,
+			projectName: null,
+			role: "unknown",
+			providerId: group.providerId,
+			modelId: group.modelId,
+			endpoint: group.endpoint,
+			records: group.records,
+		}),
+	);
 }
 
 export async function recordModelPerformanceObservation(
