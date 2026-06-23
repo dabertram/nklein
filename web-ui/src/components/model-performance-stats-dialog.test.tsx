@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeModelPerformanceAggregate } from "@/runtime/types";
-import { rollUpAggregatesByModel } from "./model-performance-stats-dialog";
+import type { RuntimeDecompositionKnowledgeUsageAggregate, RuntimeModelPerformanceAggregate } from "@/runtime/types";
+import { rollUpAggregatesByModel, summarizeDecompositionKnowledge } from "./model-performance-stats-dialog";
 
 function aggregate(overrides: Partial<RuntimeModelPerformanceAggregate>): RuntimeModelPerformanceAggregate {
 	return {
@@ -89,5 +89,45 @@ describe("rollUpAggregatesByModel (todo §5.Q)", () => {
 
 	it("returns an empty list when there are no aggregates", () => {
 		expect(rollUpAggregatesByModel([])).toEqual([]);
+	});
+});
+
+function decompAggregate(
+	overrides: Partial<RuntimeDecompositionKnowledgeUsageAggregate>,
+): RuntimeDecompositionKnowledgeUsageAggregate {
+	return {
+		key: "k",
+		scope: "overall",
+		appVersion: null,
+		workspacePathHash: null,
+		projectName: null,
+		role: "architect",
+		providerId: "lmstudio",
+		modelId: "qwen3-8b",
+		decompositions: 0,
+		withKnowledgeTools: 0,
+		withoutKnowledgeTools: 0,
+		knowledgeUsageRate: 0,
+		lastDecomposedAt: 0,
+		...overrides,
+	};
+}
+
+describe("summarizeDecompositionKnowledge (todo §5.B)", () => {
+	it("sums only overall-scope aggregates and recomputes the knowledge-first rate", () => {
+		const totals = summarizeDecompositionKnowledge([
+			decompAggregate({ scope: "overall", role: "architect", decompositions: 4, withKnowledgeTools: 3 }),
+			decompAggregate({ scope: "overall", role: "worker", decompositions: 6, withKnowledgeTools: 2 }),
+			// version/project rows re-count the same decompositions and must be ignored (no double-count).
+			decompAggregate({ scope: "version", decompositions: 10, withKnowledgeTools: 5 }),
+			decompAggregate({ scope: "project", decompositions: 10, withKnowledgeTools: 5 }),
+		]);
+		expect(totals.decompositions).toBe(10);
+		expect(totals.withKnowledgeTools).toBe(5);
+		expect(totals.rate).toBeCloseTo(0.5);
+	});
+
+	it("returns zeros when there are no aggregates", () => {
+		expect(summarizeDecompositionKnowledge([])).toEqual({ decompositions: 0, withKnowledgeTools: 0, rate: 0 });
 	});
 });

@@ -282,18 +282,21 @@ deep analysis:
       [src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts). Distinct from
       the shipped "re-prompt a turn that ends with NO tool call" — here the model *did* call the tool, with bad
       args.
-- [ ] **Knowledge-tool usage as a decomposition-quality signal.** Correlate whether retrieval / code-index /
-      architecture-knowledge tools were actually used in a planning session *before* `decompose_project`, and
-      surface "decomposition used / did not use knowledge tools" in the Settings stats view — not just a usage
-      count. **Backend DONE 2026-06-23:** `src/telemetry/knowledge-tool-decomposition-signal.ts`
+- [x] **Knowledge-tool usage as a decomposition-quality signal** *(DONE 2026-06-23 — backend + UI).* Correlate
+      whether retrieval / code-index / architecture-knowledge tools were actually used in a planning session
+      *before* `decompose_project`, and surface "decomposition used / did not use knowledge tools" in the Settings
+      stats view — not just a usage count. **Backend:** `src/telemetry/knowledge-tool-decomposition-signal.ts`
       (`correlateDecompositionKnowledgeSignals` + `aggregateDecompositionKnowledgeSignals`) turns the
       knowledge-tool-usage observation log into a per-decomposition "used knowledge tools (yes/no) + which
       categories, before the decomposition landed" signal (anchored on `decomposition_applied` so retries get
       credit), rolled up per scope × role × provider × model; surfaced in the stats API response
       (`decompositionKnowledgeSignals` + `decompositionKnowledgeAggregates`, schema in api-contract);
-      unit-tested + a read-path integration test. **Remaining:** the Settings stats UI column that renders it
-      (web-ui). (Graph-coherence validation, `knowledgeDebt` on cards, and the mandatory knowledge-acquisition +
-      scope-pressure workflow are already shipped — see §6.)
+      unit-tested + a read-path integration test. **UI:** the Model & Knowledge stats dialog
+      ([web-ui/src/components/model-performance-stats-dialog.tsx](web-ui/src/components/model-performance-stats-dialog.tsx))
+      gained a "Decomposition Knowledge" section — headline metrics + a scope × role × model × project breakdown —
+      backed by an exported, unit-tested `summarizeDecompositionKnowledge`. (Graph-coherence validation,
+      `knowledgeDebt` on cards, and the mandatory knowledge-acquisition + scope-pressure workflow are already
+      shipped — see §6.)
 - [ ] **Audio dev-test rubric.** Score the audio-VST fixture as under-decomposed/shallow against a domain
       rubric: DSP correctness, measured phase alignment, groove invariants, effect-guardrail sweeps, full UI
       control coverage, prototype-vs-real-VST docs. (The preset + run-harness are shipped; this is the *scoring*.)
