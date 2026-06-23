@@ -132,6 +132,11 @@ deep analysis:
 > - **NEXT / priority order:** **§5.A worktree retirement first**, then **§5.R de-SDK integration**, then the
 >   bigger feature builds (§5.H / §5.M / §5.O / …). The §5.S user-questions UI lands at the bottom (after all
 >   currently planned tasks).
+> - **AUTONOMOUS-RUN NOTE (2026-06-23):** §5.A and §5.R both need interactive/live verification (shell-on-task
+>   `docker exec` rework; web-ui native-agent fallback rework; the de-SDK boundary inlining touches the whole agent
+>   runtime) — **do them in a browser/Docker-watched session, not blind.** Meanwhile the unattended grind takes the
+>   clearly-safe, fully-test-verifiable backend items first: **§5.Q** (telemetry identity), **§5.I#1 residuals**,
+>   **§5.B knowledge-tool signal**, **§5.O CLI sweep orchestrator**.
 > - **§5.A:** **Full retirement now** — remove terminal/CLI agents from `RUNTIME_AGENT_CATALOG` + the web-ui
 >   legacy path, rework shell-on-task to `docker exec` into the task's sandbox, delete the worktree modules +
 >   saved-host-patch path; verify the review/diff/merge + shell UI in-browser (env has Docker + browser).
@@ -167,6 +172,16 @@ deep analysis:
       checkout. The saved-host-patch retirement and the project-health "accidental worktree" re-validation ride
       along with (1). Do this where the review/diff/merge + shell UI can be visually verified. Files:
       `src/workspace/task-worktree*.ts`, `src/workspace/task-result-branches.ts`, `src/terminal/session-manager.ts`.
+      **STATUS (2026-06-23):** confirmed this is a tangled, interactive-verification-dependent refactor — **do it
+      with the user watching, not blind in an autonomous run.** Findings: (a) terminal/CLI agents are already
+      clamped to `nklein` under local-only (`normalizeAgentId` returns `DEFAULT_AGENT_ID` for any non-nklein id),
+      so they're unreachable at runtime, but (b) just shrinking `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS` to
+      `["nklein"]` cascades into the **web-ui native-agent fallback path** (`isTaskAgentSetupSatisfied` falls back
+      to other launch-supported agents — a `native-agent.test.ts` case fails), and (c) the core
+      shell-on-task→`docker exec` rework genuinely needs **live Docker + interactive** verification (a user shell
+      attaching to the task container). So the launch-support shrink + web-ui-fallback rework + shell rework +
+      worktree-module deletion should land together in a browser/Docker-watched session. (Reverted a trial
+      launch-support shrink to keep the tree green.)
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
