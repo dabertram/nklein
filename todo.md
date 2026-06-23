@@ -80,6 +80,11 @@
    possible**: take the sensible default, record the assumption, keep moving, and batch deferred questions for one
    later pass once the pile is worked down. Capability, context-budget, and "which task next" are **never** reasons
    to stop — decide and proceed, committing green increments continuously.
+8. **`/clear` at clean breakpoints** *(2026-06-23, standing)*. When you reach a point where the long chat history is
+   no longer needed — a milestone is committed **and** all durable state lives in `todo.md` / `AGENTS.md` / `git`
+   (the chat holds nothing that isn't in files) — run `/clear` to reset the context window (faster + cheaper, keeps
+   the prompt cache lean). This is only safe because state is *always* persisted to those files, never to chat alone;
+   keep it that way so a clear never loses anything.
 
 ### Product identity
 !Klein is a local-autonomous, multi-LLM **kanban swarm** for software work. A user drops a high-level idea on
