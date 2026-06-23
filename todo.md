@@ -307,15 +307,25 @@ deep analysis:
           `createWorkspaceApi` handlers + `parseWorktreeEnsureRequest` usage (web-ui + CLI no longer call them).
           `deleteWorktree` retained (`cleanupTaskWorkspace` + legacy on-disk cleanup). `ensureTaskWorktreeIfDoesntExist`/
           `getTaskWorkspaceInfo` are now dead exports → delete in C7c with the rest of the creation machinery.
-        - **Also still wired:** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
-          `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` deletion needs those
-          rewired first. `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui `workspace-metadata-store`
-          (`toTaskWorkspaceInfo`) + `task-trash-warning-dialog` + `App.tsx` path-display (all reading the
-          now-always-empty `taskWorkspaces`) — its own web-ui cleanup. `deleteWorktree` tRPC stays
-          (`cleanupTaskWorkspace` on replay/trash — no-op for nklein) + the `verifyTaskAcceptance` `ensureWorktree`
-          param. **Next focused pass:** decide CLI rework/retire → drop tRPC mutations → rewire terminalManager
-          getSummary → delete `src/terminal/*` + `hook-events/*` → delete `task-worktree.ts` creation machinery
-          (extract cleanup) → web-ui metadata-store cleanup → schema/predicate → increment-4 verification.
+        - **C7c READY (creation machinery now provably dead — no live consumers):** delete from
+          `task-worktree.ts` the dead exports `mirrorIgnoredPath`, `ensureTaskWorktreeIfDoesntExist`,
+          `resolveTaskCwd`, `getTaskWorkspacePathInfo`, `getTaskWorkspaceInfo` + their private helpers, and delete
+          `task-worktree-turbopack.ts` (only used by that creation code). **KEEP** `deleteTaskWorktree` /
+          `removeTaskWorktreeSetupLock` / `deleteTaskPatchFilesForRepo` (live cleanup: workspace-api deleteWorktree,
+          projects-api, shutdown-coordinator) and **KEEP** `task-worktree-sync.ts` (still used by
+          `nklein-trusted-auto-merge`). Approach: delete the dead exports, then prune whatever helpers biome flags,
+          then drop the now-unused `task-worktree-sync`/`turbopack` imports + `RuntimeWorktreeEnsureResponse`/
+          `RuntimeTaskWorkspaceInfoResponse` from task-worktree.ts; then remove the now-dead ensure schemas from
+          api-contract/api-validation (`runtimeWorktreeEnsureRequest/ResponseSchema`, `parseWorktreeEnsureRequest`).
+          The 786-line interleaved file makes this a delicate excision best done fresh.
+        - **Then (still wired):** `TerminalSessionManager` (`src/terminal/session-manager.ts`) is used by
+          `runtime-api` (`terminalManager.getSummary`) + `hooks-api`, so `src/terminal/*` + `hook-events/*` deletion
+          needs those rewired first (last-turn/getSummary now only meaningful for nklein, which has its own
+          session-service summaries). `RuntimeTaskWorkspaceInfoResponse` is woven into the web-ui
+          `workspace-metadata-store` (`toTaskWorkspaceInfo`) + `task-trash-warning-dialog` + `App.tsx` path-display
+          (all reading the now-always-empty `taskWorkspaces`) — its own web-ui cleanup. Then schema/predicate
+          (`runtimeAgentIdSchema`, `normalizeAgentId`, `usesLegacyHostTaskWorkspace`) → **increment-4** Playwright +
+          docker verification.
         - **web-ui:** `ensureTaskWorkspace`/`fetchTaskWorkspaceInfo` (`use-task-sessions`), the
           `shouldPrepareLegacyHostTaskWorkspace`-gated `kickoffTaskInProgress` ensure block + the
           `getTaskWorkspaceInfo` path-display in `App.tsx` (+ `use-board-interactions(.test)` ~30 refs).
