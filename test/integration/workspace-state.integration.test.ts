@@ -493,7 +493,7 @@ describe.sequential("workspace-state integration", () => {
 		});
 	});
 
-	it("preserves lock contention when loading a workspace by workspace id", async () => {
+	it("re-enters a held same-process lock instead of self-deadlocking (load-by-id under the index lock)", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-explicit-id-lock-");
 			try {
@@ -502,15 +502,17 @@ describe.sequential("workspace-state integration", () => {
 				initGitRepository(workspacePath);
 
 				const context = await loadWorkspaceContext(workspacePath);
-				await expect(
-					lockedFileSystem.withLock(
-						{
-							path: join(getWorkspacesRootPath(), "index.json"),
-							type: "file",
-						},
-						async () => await loadWorkspaceContextById(context.workspaceId),
-					),
-				).rejects.toThrow("Lock file is already being held");
+				// Holding the index lock and then loading-by-id (which itself needs the index lock) used to throw
+				// "Lock file is already being held". The in-process lock is now re-entrant for the same async call
+				// stack, so the nested load resolves with the same workspace instead of ELOCKED-ing (or deadlocking).
+				const loaded = await lockedFileSystem.withLock(
+					{
+						path: join(getWorkspacesRootPath(), "index.json"),
+						type: "file",
+					},
+					async () => await loadWorkspaceContextById(context.workspaceId),
+				);
+				expect(loaded?.workspaceId).toBe(context.workspaceId);
 			} finally {
 				cleanup();
 			}

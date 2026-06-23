@@ -95,6 +95,101 @@ describe("LockedFileSystem", () => {
 		}
 	});
 
+	it("serializes concurrent SAME-path locks in-process so callers never race the file lock (ELOCKED fix)", async () => {
+		const tempDir = createTempDir("kanban-locked-fs-");
+		try {
+			const lockedFileSystem = new LockedFileSystem();
+			const filePath = join(tempDir.path, "state.json");
+			// The guarantee is mutual exclusion (never two operations on the same key at once), independent of
+			// acquisition order — that is exactly what prevents the in-process file-lock race that throws ELOCKED.
+			let active = 0;
+			let peakConcurrency = 0;
+			const operation = async () => {
+				active += 1;
+				peakConcurrency = Math.max(peakConcurrency, active);
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				active -= 1;
+			};
+
+			await Promise.all(
+				Array.from({ length: 12 }, () => lockedFileSystem.withLock({ path: filePath, type: "file" }, operation)),
+			);
+
+			expect(peakConcurrency).toBe(1);
+			expect(lockfileMocks.lock).toHaveBeenCalledTimes(12);
+		} finally {
+			tempDir.cleanup();
+		}
+	});
+
+	it("is re-entrant for the same async call stack (nested same-key lock does not deadlock or re-lock)", async () => {
+		const tempDir = createTempDir("kanban-locked-fs-");
+		try {
+			const lockedFileSystem = new LockedFileSystem();
+			const filePath = join(tempDir.path, "state.json");
+			let innerRan = false;
+
+			const result = await lockedFileSystem.withLock({ path: filePath, type: "file" }, async () => {
+				// Nested acquisition of the SAME lock from within the holder must re-enter (not deadlock / ELOCKED).
+				return await lockedFileSystem.withLock({ path: filePath, type: "file" }, async () => {
+					innerRan = true;
+					return "nested-ok";
+				});
+			});
+
+			expect(innerRan).toBe(true);
+			expect(result).toBe("nested-ok");
+			// The file lock is taken once for the outer holder; the re-entrant inner call must NOT re-lock.
+			expect(lockfileMocks.lock).toHaveBeenCalledTimes(1);
+		} finally {
+			tempDir.cleanup();
+		}
+	});
+
+	it("allows concurrent DIFFERENT-path locks to overlap (no needless serialization)", async () => {
+		const tempDir = createTempDir("kanban-locked-fs-");
+		try {
+			const lockedFileSystem = new LockedFileSystem();
+			let active = 0;
+			let peakConcurrency = 0;
+			const operation = async () => {
+				active += 1;
+				peakConcurrency = Math.max(peakConcurrency, active);
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				active -= 1;
+			};
+
+			// Distinct lockfiles → no shared gate, so both run at the same time.
+			await Promise.all([
+				lockedFileSystem.withLock({ path: join(tempDir.path, "a.json"), type: "file" }, operation),
+				lockedFileSystem.withLock({ path: join(tempDir.path, "b.json"), type: "file" }, operation),
+			]);
+
+			expect(peakConcurrency).toBe(2);
+		} finally {
+			tempDir.cleanup();
+		}
+	});
+
+	it("releases the in-process gate when an operation throws so the next same-path caller proceeds", async () => {
+		const tempDir = createTempDir("kanban-locked-fs-");
+		try {
+			const lockedFileSystem = new LockedFileSystem();
+			const filePath = join(tempDir.path, "state.json");
+
+			await expect(
+				lockedFileSystem.withLock({ path: filePath, type: "file" }, async () => {
+					throw new Error("boom");
+				}),
+			).rejects.toThrow("boom");
+
+			const result = await lockedFileSystem.withLock({ path: filePath, type: "file" }, async () => "ok");
+			expect(result).toBe("ok");
+		} finally {
+			tempDir.cleanup();
+		}
+	});
+
 	it("releases every lock even when an earlier release rejects", async () => {
 		const tempDir = createTempDir("kanban-locked-fs-");
 		try {
