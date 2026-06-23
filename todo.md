@@ -515,16 +515,23 @@ deep analysis:
       overrides — and any genuinely project-scoped settings that aren't overrides — into a dedicated
       **project settings modal reachable from the project selector** (a button that opens a modal listing every
       project-specific override/setting). Keep global settings strictly global.
-      **Scope notes (mapped 2026-06-23):** today the only per-project override in the global dialog is the
-      **code-embedding override** (the `codeEmbeddingOverride` section, gated on `workspaceId`, reusing
-      `<EmbeddingEndpointFields>`); its state + the per-project save inclusion are inline in the ~4000-line
-      `runtime-settings-dialog.tsx`. The save path is a **whole-config replace** (`await save({...wholeConfig})`),
-      so the new modal isn't blocked — it can load the current config and call the same `save(currentConfig + the
-      changed override)` (the established pattern), no scoped/partial mutation needed. Build: a new
-      `project-settings-dialog.tsx` owning the embedding-override state + load/save, a gear button in
-      `project-navigation-panel.tsx`, then delete the override section from the global dialog. **Overlaps §5.I-1#3**
-      (the in-panel embedding model-override picker writes the same `codeEmbeddingOverride`) — do them together or
-      share an `<CodeEmbeddingOverrideForm>`.
+      **Ready-to-execute recipe (fully de-risked 2026-06-23):** today the only per-project override in the global
+      dialog is the **code-embedding override** (the `codeEmbeddingOverride` section, gated on `workspaceId`,
+      reusing `<EmbeddingEndpointFields>`); state + save inclusion are inline in the ~4000-line
+      `runtime-settings-dialog.tsx`. **Save merges:** `runtimeConfigSaveRequestSchema` is all-optional and
+      `updateRuntimeConfig` applies `updates.X ?? current.X` per field, so the new surface can call
+      `save({ codeEmbeddingOverride })` ALONE (a scoped partial merge — preserves every other field); no need to
+      replicate the full config. **Data hook:** reuse `useRuntimeConfig(open, workspaceId, null)` → `{ config, save,
+      isSaving }` (same hook the global dialog uses). **Shared fields to extract:** `EmbeddingEndpointFields`
+      (runtime-settings-dialog.tsx ~line 286, ~260 lines — check for hidden dialog-local deps first),
+      `CODE_EMBEDDING_PROVIDER_OPTIONS` (~552), `LOCAL_CODE_EMBEDDING_MODEL` (~551), `formatCodeEmbeddingSettings`
+      (~625) → move into a shared `code-embedding-fields.tsx` (the global dialog's *defaults* section still uses
+      `EmbeddingEndpointFields`, so both import it). **Steps:** (0) extract the shared fields (behavior-preserving,
+      tsc + dialog tests verify); (A) new `project-settings-dialog.tsx` (useRuntimeConfig + the embedding-override
+      form + `save({ codeEmbeddingOverride: enabled ? {...} : null })`) + a gear button in
+      `project-navigation-panel.tsx`; (B) remove the override section + its state from the global dialog. **Overlaps
+      §5.I-1#3** (the in-panel embedding model-override picker writes the same `codeEmbeddingOverride`) — share the
+      extracted form / do them together.
 - [ ] **#4 — Multiple models per agent role + per-task best-fit model selection** *(raised 2026-06-22; deep
       design, explicitly NOT a quick win — get this right rather than fast).** Today each role (Architect /
       Worker / Reviewer) binds to a single model. **Goal:** let the user assign *more than one* model to a role
