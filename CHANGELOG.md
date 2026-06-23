@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- More **hover/focus tooltips** (todo §5.I#5): the card-detail controls — reject pending artifact, collapse the expanded diff, and toggle the split diff view — now show a name + one-line description from the `ELEMENT_TOOLTIPS` registry, continuing the universal-tooltip coverage beyond the top bar / board columns / cards.
+
 - Settings → Tasks now has a **Max review rounds** input (todo §5.K): the second-opinion review round cap (`reviewMaxRounds`, default 20) is now editable from the UI — a number input next to the review toggle, disabled when review is off, threaded through the settings dialog's state/dirty-check/save like the other settings. Completes §5.K.
 
 - Agents now **re-anchor their focus chain** every turn (todo §5.N): the chain an agent authors via `update_focus_chain` is captured per live session and re-projected into each model request by the `beforeModel` hook, so a small model stays on its own plan across turns and after context compaction (which otherwise drops the chain — it only lived as the tool call/result). The rail strips any prior focus-chain rail before prepending the current one, so it never stacks or goes stale, and it's a fail-safe no-op when there's no chain. Logic lives in a standalone, unit-tested `nklein-focus-chain-rail.ts` (`reanchorFocusChainMessages`).

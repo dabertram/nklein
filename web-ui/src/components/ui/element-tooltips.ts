@@ -56,6 +56,18 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Replay task",
 		description: "Re-run this finished task from scratch on a fresh attempt.",
 	},
+	"card-artifact.reject": {
+		name: "Reject artifact",
+		description: "Discard this pending decomposition artifact without applying it to the board.",
+	},
+	"card-diff.collapse-expanded": {
+		name: "Collapse diff",
+		description: "Exit the expanded full-screen diff and return to the card view.",
+	},
+	"card-diff.toggle-split": {
+		name: "Expand / collapse diff",
+		description: "Switch between the inline diff and the full-screen split diff view.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

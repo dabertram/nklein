@@ -30,6 +30,7 @@ import {
 } from "@/components/detail-panels/nklein-agent-chat-panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import type { NKleinChatActionResult } from "@/hooks/use-nklein-chat-runtime-actions";
@@ -891,17 +892,19 @@ function PendingPlanArtifactsPanel({
 									>
 										Apply
 									</Button>
-									<Button
-										size="sm"
-										variant="ghost"
-										icon={<Trash2 size={14} />}
-										disabled={isBusy || actionArtifactId !== null}
-										onClick={() => {
-											void handleReject(artifact.artifactId);
-										}}
-									>
-										Reject
-									</Button>
+									<ElementTooltip id="card-artifact.reject" side="top">
+										<Button
+											size="sm"
+											variant="ghost"
+											icon={<Trash2 size={14} />}
+											disabled={isBusy || actionArtifactId !== null}
+											onClick={() => {
+												void handleReject(artifact.artifactId);
+											}}
+										>
+											Reject
+										</Button>
+									</ElementTooltip>
 								</div>
 							</div>
 						</div>
@@ -1479,14 +1482,16 @@ function DiffToolbar({
 	return (
 		<div className="flex items-center gap-1 border-b border-divider px-2 py-1">
 			{isExpanded ? (
-				<Button
-					variant="ghost"
-					size="sm"
-					icon={<X size={14} />}
-					onClick={onToggleExpand}
-					className="h-5"
-					aria-label="Collapse expanded diff view"
-				/>
+				<ElementTooltip id="card-diff.collapse-expanded" side="top">
+					<Button
+						variant="ghost"
+						size="sm"
+						icon={<X size={14} />}
+						onClick={onToggleExpand}
+						className="h-5"
+						aria-label="Collapse expanded diff view"
+					/>
+				</ElementTooltip>
 			) : null}
 			<div className="inline-flex items-center gap-0.5 rounded-md p-0.5">
 				<DiffModeButton active={mode === "working_copy"} onClick={() => onModeChange("working_copy")}>
@@ -1497,14 +1502,16 @@ function DiffToolbar({
 				</DiffModeButton>
 			</div>
 			{!hideExpand ? (
-				<Button
-					variant="ghost"
-					size="sm"
-					icon={isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-					onClick={onToggleExpand}
-					className="ml-auto h-5"
-					aria-label={isExpanded ? "Collapse split diff view" : "Expand split diff view"}
-				/>
+				<ElementTooltip id="card-diff.toggle-split" side="top">
+					<Button
+						variant="ghost"
+						size="sm"
+						icon={isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+						onClick={onToggleExpand}
+						className="ml-auto h-5"
+						aria-label={isExpanded ? "Collapse split diff view" : "Expand split diff view"}
+					/>
+				</ElementTooltip>
 			) : null}
 		</div>
 	);

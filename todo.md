@@ -406,6 +406,11 @@ deep analysis:
       mouse-only. **Acceptance:** hovering (or focusing) any interactive element across the main board, cards,
       drawers, settings, and project surfaces shows a name + concise description; no meaningful control is left
       unexplained; tooltips don't obscure the element or trap focus.
+      **Progress:** the `ELEMENT_TOOLTIPS` registry + `ElementTooltip` primitive are in place (§6.13). Wired so
+      far: top-bar icon buttons, board-column (start-all/clear-trash), board-card (resume/pause/start/replay), and
+      **card-detail controls (reject-artifact, collapse-expanded-diff, toggle-split-diff)** *(2026-06-23)*.
+      **Remaining:** the rest of the card-detail header/actions, swarm/cockpit header, settings, and project
+      sidebar surfaces.
 
 ### 5.K — Second-opinion reviewer workflow *(active; raised 2026-06-22)*
 > **Goal (user):** every worker card gets a real second-opinion review from the **reviewer role** (a potentially
