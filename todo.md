@@ -247,8 +247,16 @@ deep analysis:
           use-board-interactions `clearTaskWorkspaceInfo`); kept the `taskWorkspaceSnapshot` half. Zero behavior
           change; web-ui tsc/biome/683 tests + live Playwright (0 console errors). *(`task-trash-warning-dialog`
           is an unused component using the contract type — left alone.)*
-    - [ ] **C8 — schema/predicate cleanup** (shrink `runtimeAgentIdSchema`, simplify `normalizeAgentId`, remove
-          `usesLegacyHostTaskWorkspace` — its last consumer is shutdown-coordinator; do AFTER C7d, it's the boundary guard)
+    - [x] **C8 — follow-up orphan cleanup** — deleted `session-state-machine.ts` + `output-utils.ts`, orphaned by
+          the agent-launcher removal (zero references). `src/terminal/` now = live shell + config surface (8 files).
+    - [ ] **C8b — schema/catalog/predicate shrink (DEFERRED — coupled to plan.md §2.B)** *(investigated 2026-06-23:
+          NOT safe-to-do yet)*. `usesLegacyHostTaskWorkspace(agentId)` returns true for any non-nklein id and still
+          **drives legacy host-worktree cleanup on shutdown** for migrated pre-§5.A boards (`shutdown-coordinator.ts`,
+          via the kept `task-worktree` cleanup surface) — it is a **live back-compat boundary, not dead code**.
+          Shrinking `runtimeAgentIdSchema`/`RUNTIME_AGENT_CATALOG` to nklein-only is a broad contract + web-ui +
+          CLI change (summary.agentId, catalog UI, `task.ts`/`dev.ts`) flagged by AGENTS.md as needing UI verification.
+          Do together with the full host-worktree *module* deletion (plan.md §2.B), once migrated-board cleanup is
+          re-homed off the agent-id boundary.
   - [ ] **Increment 4 — live verification pass** (Playwright review lane diff/verify/merge; start a task → no
         `~/.nklein/nklein/worktrees/<task>`; shell → sandbox container; project-health no false worktree warnings;
         `scripts/verify-strict-isolation.mts`) + flip the AGENTS.md worktree tribal-knowledge → "retired"
