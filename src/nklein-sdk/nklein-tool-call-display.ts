@@ -151,13 +151,22 @@ function summarizeReadLargeFileInput(input: unknown, output: unknown): string | 
 		return null;
 	}
 
+	// Include the workflow cursor (`start` → `read:<line>:<n>` → `stitch:<l>/<r>:<n>`) so each *progressing*
+	// call has a distinct summary. The repeated-tool-call guard fingerprints on this summary; the guard samples
+	// `tool_call_start`, where there is no `output` yet, so without the cursor every advancing call through one
+	// file collapses to an identical `path`-only fingerprint and the task is falsely paused as "repeated
+	// read_large_file with the same input". A genuinely stuck replay of the *same* cursor still collides and is
+	// caught. (The large-file workflow itself rejects stale cursors, so the cursor here is the right discriminator.)
+	const cursor = typeof input.cursor === "string" ? input.cursor.trim() : "";
+	const cursorSuffix = cursor ? ` @${cursor}` : "";
+
 	if (!isRecord(output)) {
-		return path;
+		return `${path}${cursorSuffix}`;
 	}
 
 	const startLine = readNumber(output.startLine) ?? readNumber(output.start_line);
 	const endLine = readNumber(output.endLine) ?? readNumber(output.end_line);
-	return startLine !== null && endLine !== null ? `${path}:${startLine}-${endLine}` : path;
+	return startLine !== null && endLine !== null ? `${path}:${startLine}-${endLine}` : `${path}${cursorSuffix}`;
 }
 
 function parseToolPayload(input: unknown): unknown {
