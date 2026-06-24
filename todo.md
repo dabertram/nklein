@@ -956,9 +956,11 @@ deep analysis:
         `update_focus_chain×4/read_files×2/write_file×2`, **0 narration leaks, 0 true repeats**, `awaiting_review` —
         swarm path clean (the fingerprint guard correctly passed the *advancing* focus chain; a first coarse dedup
         mis-flagged it, fixed to full-content). Existing hardening holds; no new fix.
-  - [ ] **Round 6 (next, now one command)** — run `sweep-capture.mts` across the small models × presets (gemma-e2b/
-        e4b, qwen3-8b × `complex_dag`/`wide_fanout`/`many_small`) and harden anything it flags (leaks / true repeats /
-        non-terminal stalls). Optionally weigh the imperative tool-result framing (Finding 6).
+  - [~] **Round 6 — sweeping via the one-command harness (2026-06-24)** — gemma-4-e4b on `complex_dag`: 5514 msgs, 24
+        tool calls (`read_files×10/edit_file×8/update_focus_chain×4/list_files×2`), **0 leaks, 0 true repeats**,
+        `awaiting_review`. **Tally clean so far: gemma-e2b {mid_task, complex_dag} + gemma-e4b {complex_dag}.**
+        Remaining (now one command each): qwen3-8b + the `wide_fanout`/`many_small` presets — harden anything flagged.
+        Optionally weigh the imperative tool-result framing (Finding 6).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

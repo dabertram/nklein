@@ -58,6 +58,16 @@ granularity, not a runaway — the turn completed within guardrails.)
 run `sweep-capture.mts` across models/presets and harden anything it flags (leaks / true repeats / non-terminal
 stalls). So far gemma-4-e2b is robust on `mid_task`+`complex_dag`.
 
+## Round 6 — gemma-4-e4b on the heavier complex_dag: also clean (2026-06-24)
+
+`sweep-capture.mts --model google/gemma-4-e4b-m5max --preset complex_dag`: **5514 messages**, 24 tool calls
+(`read_files×10, edit_file×8, update_focus_chain×4, list_files×2`), **0 narration leaks, 0 true repeated calls**,
+terminal `awaiting_review`. So a heavier task (24 tool calls incl. 8 real `edit_file`s) on the 4B model also completes
+cleanly through the swarm path — the existing hardening holds. (Aside: 4602 `reasoning` messages — gemma is verbose in
+its reasoning channel, but the turn stayed within guardrails.) **Tally so far: gemma-4-e2b {mid_task, complex_dag} +
+gemma-4-e4b {complex_dag} — all clean, no new fix needed.** Remaining one-command runs: qwen3-8b + the `wide_fanout`/
+`many_small` presets.
+
 ## Methodology (how to run a round)
 
 The agent that small models drive lives in the **runtime swarm** (decomposition + Docker task agents). To sweep one
