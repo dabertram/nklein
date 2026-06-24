@@ -276,6 +276,22 @@ import {
 	runtimeWorktreeDeleteRequestSchema,
 	runtimeWorktreeDeleteResponseSchema,
 } from "../core/api-contract";
+import type {
+	RuntimeChatCreateSessionRequest,
+	RuntimeChatMessage,
+	RuntimeChatSession,
+	RuntimeChatUpdateSessionRequest,
+} from "../core/chat-api-contract.js";
+import {
+	runtimeChatCreateSessionRequestSchema,
+	runtimeChatDeleteSessionRequestSchema,
+	runtimeChatDeleteSessionResponseSchema,
+	runtimeChatSessionResponseSchema,
+	runtimeChatSessionsResponseSchema,
+	runtimeChatTranscriptRequestSchema,
+	runtimeChatTranscriptResponseSchema,
+	runtimeChatUpdateSessionRequestSchema,
+} from "../core/chat-api-contract.js";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 
 export interface RuntimeTrpcWorkspaceScope {
@@ -489,6 +505,13 @@ export interface RuntimeTrpcContext {
 		openFile: (input: RuntimeOpenFileRequest) => Promise<RuntimeOpenFileResponse>;
 		getUpdateStatus: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeUpdateStatusResponse>;
 		runUpdateNow: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeRunUpdateResponse>;
+		// Board-independent unified chat (todo §5.M) — session management + transcript reads.
+		listChatSessions: () => Promise<RuntimeChatSession[]>;
+		getChatSession: (id: string) => Promise<RuntimeChatSession | null>;
+		createChatSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession>;
+		updateChatSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
+		deleteChatSession: (id: string) => Promise<boolean>;
+		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
 	};
 	workspaceApi: {
 		loadGitSummary: (
@@ -952,6 +975,45 @@ export const runtimeAppRouter = t.router({
 		runUpdateNow: t.procedure.output(runtimeRunUpdateResponseSchema).mutation(async ({ ctx }) => {
 			return await ctx.runtimeApi.runUpdateNow(ctx.workspaceScope);
 		}),
+	}),
+	// Board-independent unified chat (todo §5.M). Non-workspace procedures: chat sessions are not tied to a board.
+	chat: t.router({
+		listSessions: t.procedure.output(runtimeChatSessionsResponseSchema).query(async ({ ctx }) => {
+			return { sessions: await ctx.runtimeApi.listChatSessions() };
+		}),
+		getSession: t.procedure
+			.input(z.object({ id: z.string() }))
+			.output(runtimeChatSessionResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return { session: await ctx.runtimeApi.getChatSession(input.id) };
+			}),
+		createSession: t.procedure
+			.input(runtimeChatCreateSessionRequestSchema)
+			.output(runtimeChatSessionResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return { session: await ctx.runtimeApi.createChatSession(input) };
+			}),
+		updateSession: t.procedure
+			.input(runtimeChatUpdateSessionRequestSchema)
+			.output(runtimeChatSessionResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return { session: await ctx.runtimeApi.updateChatSession(input) };
+			}),
+		deleteSession: t.procedure
+			.input(runtimeChatDeleteSessionRequestSchema)
+			.output(runtimeChatDeleteSessionResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return { deleted: await ctx.runtimeApi.deleteChatSession(input.id) };
+			}),
+		getTranscript: t.procedure
+			.input(runtimeChatTranscriptRequestSchema)
+			.output(runtimeChatTranscriptResponseSchema)
+			.query(async ({ ctx, input }) => {
+				return {
+					sessionId: input.sessionId,
+					messages: await ctx.runtimeApi.readChatTranscript(input.sessionId, input.limit),
+				};
+			}),
 	}),
 	workspace: t.router({
 		getGitSummary: workspaceProcedure

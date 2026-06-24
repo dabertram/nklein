@@ -707,7 +707,18 @@ deep analysis:
           (audit confirmed+executed, file = the requested content) while the model's 5 repeat calls (no further
           confirmation arrived) were correctly **refused** (audit confirmed=false, executed=false). The confirm gate
           is the safety backstop even when a flaky small model spams a mutating tool — exactly the §5.M invariant.
-  - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
+    - [x] **tRPC chat session/transcript surface (2026-06-24)** — the board-independent chat backend is now exposed
+          over tRPC for the web-ui. [src/core/chat-api-contract.ts](src/core/chat-api-contract.ts) holds the Zod
+          contract (session/message + list/get/create/update/delete + transcript), mirroring the store shapes (drops
+          `schemaVersion`). [src/chat/chat-service.ts](src/chat/chat-service.ts) `createChatService({ rootDir? })` is
+          the single aggregation seam over the session + transcript stores (owns the wire mapping + per-store-subdir
+          root layout; injectable root → testable; the Signal bridge will reuse it). Wired into `createRuntimeApi`
+          (an injectable `chatService` dep, real runtime home by default) and a non-workspace `chat` sub-router in
+          [app-router.ts](src/trpc/app-router.ts). Unit-tested: the service CRUD + transcript (temp root) and the
+          sub-router end-to-end (`{ sessions }`/`{ session }`/`{ deleted }`/`{ messages }` wrapping). Full fast suite
+          (1468) green.
+  - [ ] still owed (next live layer): the **web-ui chat surface** (session list + transcript view + composer) on the
+        new `chat` sub-router; the live **send-a-turn** endpoint (model + streaming over tRPC); the **Signal bridge**.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):

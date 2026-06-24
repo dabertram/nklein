@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
+import { type ChatService, createChatService } from "../chat/chat-service";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
@@ -383,6 +384,8 @@ export interface CreateRuntimeApiDependencies {
 	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
 	getAgentSandboxStatus?: () => RuntimeAgentSandboxStatus;
 	refreshAgentSandboxStatus?: () => Promise<RuntimeAgentSandboxStatus>;
+	/** Board-independent chat service (todo §5.M); defaults to the real runtime home. Injected in tests. */
+	chatService?: ChatService;
 }
 
 function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: string): RuntimeBoardCard | null {
@@ -838,6 +841,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		join(homedir(), ".nklein", "nklein"),
 		join(homedir(), ".nklein", "worktrees"),
 	] as const;
+	// Board-independent chat service (todo §5.M); production uses the real runtime home (no rootDir).
+	const chatService = deps.chatService ?? createChatService();
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
 		buildRuntimeConfigResponse(
@@ -2422,5 +2427,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		runUpdateNow: async () => {
 			return await deps.runUpdateNow();
 		},
+		listChatSessions: () => chatService.listSessions(),
+		getChatSession: (id) => chatService.getSession(id),
+		createChatSession: (input) => chatService.createSession(input),
+		updateChatSession: (input) => chatService.updateSession(input),
+		deleteChatSession: (id) => chatService.deleteSession(id),
+		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
 	};
 }
