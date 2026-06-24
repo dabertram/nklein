@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
 import type { ChatTool } from "./chat-tool-executor";
 
@@ -154,6 +154,72 @@ export function createWorkspaceReadTools(
 						description: "Workspace-relative directory path; defaults to the workspace root.",
 					},
 				},
+			},
+		},
+	];
+
+	return { tools, definitions };
+}
+
+export interface WorkspaceWriteToolFsDeps {
+	writeFile: (path: string, content: string) => Promise<void>;
+	mkdir: (dir: string) => Promise<void>;
+}
+
+const DEFAULT_WRITE_FS: WorkspaceWriteToolFsDeps = {
+	writeFile: (path, content) => writeFile(path, content, "utf8"),
+	mkdir: async (dir) => {
+		await mkdir(dir, { recursive: true });
+	},
+};
+
+/**
+ * Build the mutating workspace tool set (`write_file`) rooted at `rootDir`. Unlike the read tools, this is a
+ * `sandbox_write` action: the execution-mode gate makes it a **confirm** (in `isolated_readonly`) — the executor
+ * only runs it after an explicit confirmation and audits the attempt either way. Same host-isolation invariant as
+ * the read tools: the path is confined to the workspace and all agent-facing copy is workspace-relative.
+ */
+export function createWorkspaceWriteTools(
+	rootDir: string,
+	options: { fs?: WorkspaceWriteToolFsDeps } = {},
+): WorkspaceReadTools {
+	const fs = options.fs ?? DEFAULT_WRITE_FS;
+
+	const tools: ChatTool[] = [
+		{
+			name: "write_file",
+			actionKind: "sandbox_write",
+			run: async (args) => {
+				const resolved = resolveWithinWorkspace(rootDir, args.path);
+				if (!resolved.ok) {
+					return resolved.message;
+				}
+				if (typeof args.content !== "string") {
+					return "Provide `content` (the text to write) as a string.";
+				}
+				try {
+					await fs.mkdir(dirname(resolved.absolute));
+					await fs.writeFile(resolved.absolute, args.content);
+					return `Wrote ${args.content.length} bytes to ${resolved.relativePath}.`;
+				} catch {
+					return `Could not write ${resolved.relativePath} (path not writable).`;
+				}
+			},
+		},
+	];
+
+	const definitions: LocalLlmToolDefinition[] = [
+		{
+			name: "write_file",
+			description:
+				"Create or overwrite a UTF-8 text file in the workspace. The path must be relative to the workspace root. This is a write action and requires confirmation.",
+			parameters: {
+				type: "object",
+				properties: {
+					path: { type: "string", description: "Workspace-relative path to write, e.g. 'src/app.ts'." },
+					content: { type: "string", description: "The full file content to write." },
+				},
+				required: ["path", "content"],
 			},
 		},
 	];

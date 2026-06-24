@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createWorkspaceReadTools, type WorkspaceToolFsDeps } from "../../../src/chat/chat-workspace-tools";
+import {
+	createWorkspaceReadTools,
+	createWorkspaceWriteTools,
+	type WorkspaceToolFsDeps,
+	type WorkspaceWriteToolFsDeps,
+} from "../../../src/chat/chat-workspace-tools";
 
 const ROOT = "/workspaces/task-1";
 
@@ -95,5 +100,55 @@ describe("createWorkspaceReadTools", () => {
 		});
 		expect(await tool(tools, "list_dir").run({})).toBe("README.md\nsrc/");
 		expect(await tool(tools, "list_dir").run({ path: "src" })).toBe("src/app.ts");
+	});
+});
+
+describe("createWorkspaceWriteTools", () => {
+	function fakeWriteFs(): { fs: WorkspaceWriteToolFsDeps; written: Record<string, string>; dirs: string[] } {
+		const written: Record<string, string> = {};
+		const dirs: string[] = [];
+		return {
+			written,
+			dirs,
+			fs: {
+				writeFile: async (path, content) => {
+					written[path] = content;
+				},
+				mkdir: async (dir) => {
+					dirs.push(dir);
+				},
+			},
+		};
+	}
+
+	it("exposes write_file as a sandbox_write tool with a matching definition", () => {
+		const { tools, definitions } = createWorkspaceWriteTools(ROOT);
+		expect(tools.map((t) => t.name)).toEqual(["write_file"]);
+		expect(tools[0]?.actionKind).toBe("sandbox_write");
+		expect(definitions.map((d) => d.name)).toEqual(["write_file"]);
+	});
+
+	it("writes content to a workspace-relative path, creating the parent directory", async () => {
+		const { fs, written, dirs } = fakeWriteFs();
+		const { tools } = createWorkspaceWriteTools(ROOT, { fs });
+		const out = await tool(tools, "write_file").run({ path: "src/app.ts", content: "export const x = 1;" });
+		expect(out).toBe("Wrote 19 bytes to src/app.ts.");
+		expect(written[`${ROOT}/src/app.ts`]).toBe("export const x = 1;");
+		expect(dirs).toContain(`${ROOT}/src`);
+	});
+
+	it("requires string content", async () => {
+		const { fs } = fakeWriteFs();
+		const { tools } = createWorkspaceWriteTools(ROOT, { fs });
+		expect(await tool(tools, "write_file").run({ path: "a.txt" })).toContain("Provide `content`");
+	});
+
+	it("refuses to write outside the workspace (no host-path leak)", async () => {
+		const { fs, written } = fakeWriteFs();
+		const { tools } = createWorkspaceWriteTools(ROOT, { fs });
+		const out = await tool(tools, "write_file").run({ path: "../escape.txt", content: "x" });
+		expect(out).toContain("escapes the workspace");
+		expect(out).not.toContain(ROOT);
+		expect(Object.keys(written)).toHaveLength(0);
 	});
 });

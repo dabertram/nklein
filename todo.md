@@ -686,8 +686,18 @@ deep analysis:
           `runChatAgentConversation` REPL (`chat-agent-turn.ts`, surfaces which tools each turn used). Stdin reader
           extracted to a shared `createStdinLineReader`. Conversation loop unit-tested; **live-verified** end-to-end
           via the CLI against qwen2.5-coder-14b (the model called `read_file` and answered from the file).
-    - [ ] still owed: a write/mutating chat tool exercising the `confirm` gate (the read-only set is all `allow`),
-          so the confirmation + audit path is exercised by a real tool, not just unit tests.
+    - [x] **mutating `write_file` tool + confirm-gate, live-verified (2026-06-24)** —
+          [chat-workspace-tools.ts](src/chat/chat-workspace-tools.ts) `createWorkspaceWriteTools(rootDir)` adds
+          `write_file` (`sandbox_write` → a **confirm** under `isolated_readonly`), same workspace-confinement +
+          relative-path invariant as the read tools (unit-tested: write/mkdir-parent/escape-refusal/content-required).
+          `nklein chat --workspace --allow-write` offers it and wires a stdin `y/N` confirm prompt (shared reader for
+          confirm + REPL). **Two live verifications** against qwen2.5-coder-14b: (a)
+          [scripts/verify-chat-agent-write.mts](scripts/verify-chat-agent-write.mts) — a real model called
+          `write_file`, the gate invoked confirm, the file was written, and the audit logged a confirmed+executed
+          `sandbox_write`; (b) the CLI end-to-end with a single piped `y` — the **one approved** write executed
+          (audit confirmed+executed, file = the requested content) while the model's 5 repeat calls (no further
+          confirmation arrived) were correctly **refused** (audit confirmed=false, executed=false). The confirm gate
+          is the safety backstop even when a flaky small model spams a mutating tool — exactly the §5.M invariant.
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.

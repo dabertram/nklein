@@ -9,7 +9,7 @@ import { type ChatRuntimeDeps, runChatConversation, runChatTurn } from "../chat/
 import { createChatSession, getChatSession } from "../chat/chat-session-store";
 import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
-import { createWorkspaceReadTools } from "../chat/chat-workspace-tools";
+import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../chat/chat-workspace-tools";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
 
 /**
@@ -55,6 +55,8 @@ interface ChatSendOptions {
 	tokenBudget?: number;
 	/** When set, the chat is tool-using: read-only workspace tools rooted at this directory are offered to the model. */
 	workspace?: string;
+	/** With `--workspace`, also offer the mutating `write_file` tool (each write is confirm-gated + audited). */
+	allowWrite?: boolean;
 	json?: boolean;
 	write?: (text: string) => void;
 }
@@ -121,13 +123,30 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 
 	// Tool-using path: `--workspace` offers the read-only workspace tools (sandbox_read; isolated_readonly mode) and
 	// drives the multi-turn agent loop through the policy-gated + audited executor (the §5.M host-access invariant).
+	// `--allow-write` additionally offers `write_file`, whose every call is confirm-gated (a stdin y/N prompt) + audited.
 	if (options.workspace) {
 		const workspaceRoot = resolve(options.workspace);
-		const { tools, definitions } = createWorkspaceReadTools(workspaceRoot);
+		const read = createWorkspaceReadTools(workspaceRoot);
+		const writeTools = options.allowWrite ? createWorkspaceWriteTools(workspaceRoot) : { tools: [], definitions: [] };
+		const tools = [...read.tools, ...writeTools.tools];
+		const definitions = [...read.definitions, ...writeTools.definitions];
+
+		// A confirm-gated tool needs an interactive prompt; the REPL also needs stdin. Open one reader for both.
+		const reader = options.allowWrite || !message ? createStdinLineReader() : null;
+		const confirm = reader
+			? async (call: { name: string; arguments: Record<string, unknown> }): Promise<boolean> => {
+					const target = typeof call.arguments.path === "string" ? ` (${call.arguments.path})` : "";
+					write(`Allow ${call.name}${target}? [y/N] `);
+					const answer = await reader.readLine();
+					return answer?.trim().toLowerCase() === "y";
+				}
+			: undefined;
+
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
 			mode: "isolated_readonly",
 			tools,
+			...(confirm ? { confirm } : {}),
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
 			},
@@ -143,45 +162,47 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			appendToolExchange: appendChatToolExchange,
 		};
 
-		if (message) {
-			const result = await runChatAgentTurn(
-				{
-					session,
-					userMessage: message,
-					tokenBudget,
-					memoryLimit: 5,
-					maxIterations: DEFAULT_CHAT_AGENT_MAX_ITERATIONS,
-				},
-				agentDeps,
-			);
-			if (options.json) {
-				const toolsUsed = result.steps.map((step) => step.toolCall.name);
-				write(
-					`${JSON.stringify({ sessionId: session.id, reply: result.assistantMessage.content, toolsUsed }, null, 2)}\n`,
+		try {
+			if (message) {
+				const result = await runChatAgentTurn(
+					{
+						session,
+						userMessage: message,
+						tokenBudget,
+						memoryLimit: 5,
+						maxIterations: DEFAULT_CHAT_AGENT_MAX_ITERATIONS,
+					},
+					agentDeps,
 				);
+				if (options.json) {
+					const toolsUsed = result.steps.map((step) => step.toolCall.name);
+					write(
+						`${JSON.stringify({ sessionId: session.id, reply: result.assistantMessage.content, toolsUsed }, null, 2)}\n`,
+					);
+					return;
+				}
+				write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
+				write(`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}\n\n`);
+				if (result.steps.length > 0) {
+					write(`  (used: ${result.steps.map((step) => step.toolCall.name).join(", ")})\n`);
+				}
+				write(`${result.assistantMessage.content}\n`);
 				return;
 			}
-			write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
-			write(`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}\n\n`);
-			if (result.steps.length > 0) {
-				write(`  (used: ${result.steps.map((step) => step.toolCall.name).join(", ")})\n`);
-			}
-			write(`${result.assistantMessage.content}\n`);
-			return;
-		}
 
-		write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
-		write(
-			`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}  ·  type /exit to quit\n`,
-		);
-		const reader = createStdinLineReader();
-		try {
+			if (!reader) {
+				throw new Error("Interactive chat requires a stdin reader.");
+			}
+			write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
+			write(
+				`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}  ·  type /exit to quit\n`,
+			);
 			await runChatAgentConversation(
 				{ session, tokenBudget, memoryLimit: 5, maxIterations: DEFAULT_CHAT_AGENT_MAX_ITERATIONS },
 				{ ...agentDeps, readLine: reader.readLine, write },
 			);
 		} finally {
-			reader.close();
+			reader?.close();
 		}
 		return;
 	}
@@ -240,6 +261,7 @@ export function registerChatCommand(program: Command): void {
 			"--workspace <dir>",
 			"Make the chat tool-using: offer read-only workspace tools (read_file/list_dir) rooted at this directory.",
 		)
+		.option("--allow-write", "With --workspace, also offer write_file; each write is confirm-prompted and audited.")
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: ChatSendOptions) => {
 			await runChatSendCommand(options);
