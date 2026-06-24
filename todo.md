@@ -847,12 +847,17 @@ deep analysis:
       audit *every* `request.cwd`/`workspacePath` use across `nklein-session-runtime.ts` + `nklein-task-session-service.ts`
       and rename to make the sandbox-vs-host intent explicit + greppable (e.g. `agentPerceivedCwd` vs `hostWorkspaceRoot`),
       so a future surface can't silently pick the wrong one. Touches invariant #2 (strict isolation) — high value.
-- [ ] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
+- [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply
       wiring. Extract focused modules (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs, prompt-assembly) behind
       the existing service. Overlaps §5.A "Isolation polish" (extract sandbox-lifecycle/pause) — do together. Pure
       refactor, no behavior change; lock with the existing suite. (Respects invariants; navigability win per §5.U.)
+  - [x] **first slice (2026-06-24):** extracted the 4 self-contained pure prompt parsers + `WORD_NUMBER_BY_TEXT` into
+        [nklein-task-prompt-parsing.ts](src/nklein-sdk/nklein-task-prompt-parsing.ts) (`parseRequestedMinimumTaskCount`,
+        `parseAcceptanceCommand`, `isDecompositionPlanningPrompt`, `isExplicitDecompositionPrompt`) + a dedicated test.
+        Behaviour identical (service suite 119 green). Chosen as the lowest-risk slice (zero in-file deps, compiler-
+        verified). The bigger stateful extractions (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs) remain.
 
 - [~] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
       *(2026-06-24: safe slice landed — added `assignChangedConfigField(payload, existing, key, value, default)`

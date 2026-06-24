@@ -90,6 +90,12 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import {
+	isDecompositionPlanningPrompt,
+	isExplicitDecompositionPrompt,
+	parseAcceptanceCommand,
+	parseRequestedMinimumTaskCount,
+} from "./nklein-task-prompt-parsing";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
 	createNKleinWatcherRegistry,
@@ -179,10 +185,6 @@ const NKLEIN_DECOMPOSITION_CHAT_NUDGE_MS = 25_000;
 const NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT = 2;
 const DECOMPOSITION_CHAT_REPORT_PATTERN =
 	/\b(?:decompose_project|decompose this project|decomposition tool|based on my (?:analysis|review)|current (?:state|codebase state)|specification summary|implementation plan|task graph|domain analysis)\b/i;
-
-function isExplicitDecompositionPrompt(prompt: string): boolean {
-	return /\bdecompose_project\b/.test(prompt) || /\bminimumTaskCount\b/.test(prompt);
-}
 
 function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSummary): boolean {
 	const activity = summary.latestHookActivity;
@@ -695,57 +697,6 @@ interface NKleinStartPromptParts {
 	userPrompt: string;
 	systemPrompt: string | null;
 	systemWorkflowCommand: string | null;
-}
-
-const WORD_NUMBER_BY_TEXT: Record<string, number> = {
-	one: 1,
-	two: 2,
-	three: 3,
-	four: 4,
-	five: 5,
-	six: 6,
-	seven: 7,
-	eight: 8,
-	nine: 9,
-	ten: 10,
-	eleven: 11,
-	twelve: 12,
-};
-
-function parseRequestedMinimumTaskCount(prompt: string): number | null {
-	const numericMatch =
-		/\bat least\s+(\d{1,3})\b/i.exec(prompt) ??
-		/\bminimum(?:TaskCount|\s+task\s+count|\s+count)\s*:?\s*(\d{1,3})\b/i.exec(prompt);
-	if (numericMatch?.[1]) {
-		return Number.parseInt(numericMatch[1], 10);
-	}
-	const wordPattern = Object.keys(WORD_NUMBER_BY_TEXT).join("|");
-	const wordMatch = new RegExp(`\\bat least\\s+(${wordPattern})\\b`, "i").exec(prompt);
-	if (!wordMatch?.[1]) {
-		return null;
-	}
-	return WORD_NUMBER_BY_TEXT[wordMatch[1].toLowerCase()] ?? null;
-}
-
-function parseAcceptanceCommand(prompt: string): string | null {
-	const match = /^Acceptance command:\s*(.+)$/im.exec(prompt);
-	const command = match?.[1]?.trim();
-	return command && command.length > 0 ? command : null;
-}
-
-function isDecompositionPlanningPrompt(prompt: string): boolean {
-	return (
-		/\bdecompose_project\b/.test(prompt) ||
-		/\bminimumTaskCount\b/.test(prompt) ||
-		/\bdecompos(?:e|ed|es|ing|ition)\b/i.test(prompt) ||
-		/\btask\s+graph\b/i.test(prompt) ||
-		/\bimplementation[- ]card\s+graph\b/i.test(prompt) ||
-		/\bimplementation[- ]card breakdown\b/i.test(prompt) ||
-		/\bdependent implementation cards?\b/i.test(prompt) ||
-		/\bat least\s+(?:\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:dependent\s+)?(?:implementation\s+)?cards?\b/i.test(
-			prompt,
-		)
-	);
 }
 
 function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boolean): string | null {
