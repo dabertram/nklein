@@ -745,7 +745,10 @@ deep analysis:
       swarm-level dial), so per the decision the board concurrency-cap tooltip is relabeled **"Concurrent cards
       (parallel agents)"** with a description spelling out the 1:1 mapping. No separate "parallel agents" setting needed.
       (aria-label kept as "Max concurrent tasks" — relied on by a test + screen readers.)
-- [ ] **Move the model-roles model selector up next to the default model selector** (group role models with the default).
+- [x] **Move the model-roles model selector up next to the default model selector** *(DONE 2026-06-24)* — relocated
+      the "Model roles" block to sit right after the default-model setup section + its context-window panel (above the
+      code-intelligence embeddings / advisor / dev-tools blocks), so the default model and the per-role models are
+      grouped. Web tsc + biome + dialog tests (32) green; live Playwright Settings render still clean.
 - [x] **Revisit the bottom "Project" reference + "script shortcuts"** *(DECIDED 2026-06-24: KEEP both)* — inspected:
       the "Project" reference is a **clickable project-config-path** line (`<project>/.nklein/nklein/config.json`, opens
       the file) and "Script shortcuts" is a working **per-project command-shortcut editor** (named label + command,

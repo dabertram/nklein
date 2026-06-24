@@ -3440,79 +3440,6 @@ export function RuntimeSettingsDialog({
 										onRefreshProviderModels={handleRefreshNKleinProviderModels}
 										onError={setSaveError}
 									/>
-									{cloudProviderSupportEnabled ? (
-										<NKleinAdvisorActions
-											workspaceId={workspaceId}
-											disabled={controlsDisabled}
-											mcpController={nkleinMcpSettings}
-											runtimeConfigSummary={advisorRuntimeConfigSummary}
-											advisorProviderId={config?.nkleinProviderSettings.providerId ?? ""}
-											advisorModelId={config?.nkleinProviderSettings.modelId ?? ""}
-											onError={setSaveError}
-										/>
-									) : null}
-									{/* informational dev surface -> developer mode only (works in packaged builds) */}
-									{developerModeEnabled ? (
-										<div className="mt-4 border-t border-border pt-4">
-											<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-												Developer Tools
-											</h6>
-											<NKleinSmokeEvalTrial
-												workspaceId={workspaceId}
-												disabled={controlsDisabled}
-												onError={setSaveError}
-											/>
-											<NKleinDogfoodSuggestion
-												workspaceId={workspaceId}
-												disabled={controlsDisabled}
-												onError={setSaveError}
-											/>
-										</div>
-									) : null}
-									<div className="mt-4 border-t border-border pt-4">
-										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-											Code intelligence embeddings
-										</h6>
-										<div className="grid gap-3">
-											<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
-												<div className="min-w-0">
-													<span className="mb-1 block text-[12px] text-text-secondary">
-														Global default provider
-													</span>
-													<NativeSelect
-														value={codeEmbeddingDefaultsProvider}
-														onChange={(event) =>
-															setCodeEmbeddingDefaultsProvider(
-																event.target.value as RuntimeCodeEmbeddingSettings["provider"],
-															)
-														}
-														disabled={controlsDisabled}
-														fill
-													>
-														{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
-															<option key={option.value} value={option.value}>
-																{option.label}
-															</option>
-														))}
-													</NativeSelect>
-												</div>
-												<EmbeddingEndpointFields
-													workspaceId={workspaceId}
-													labelPrefix="Default"
-													disabled={controlsDisabled}
-													provider={codeEmbeddingDefaultsProvider}
-													baseUrl={codeEmbeddingDefaultsBaseUrl}
-													model={codeEmbeddingDefaultsModel}
-													suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
-													endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
-													modelPlaceholder="nomic-embed-text"
-													onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
-													onModelChange={setCodeEmbeddingDefaultsModel}
-													onError={setSaveError}
-												/>
-											</div>
-										</div>
-									</div>
 									<div className="mt-4 border-t border-border pt-4">
 										<div className="mb-2 flex items-center justify-between gap-3">
 											<h6 className="m-0 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
@@ -3719,6 +3646,79 @@ export function RuntimeSettingsDialog({
 													</div>
 												);
 											})}
+										</div>
+									</div>
+									{cloudProviderSupportEnabled ? (
+										<NKleinAdvisorActions
+											workspaceId={workspaceId}
+											disabled={controlsDisabled}
+											mcpController={nkleinMcpSettings}
+											runtimeConfigSummary={advisorRuntimeConfigSummary}
+											advisorProviderId={config?.nkleinProviderSettings.providerId ?? ""}
+											advisorModelId={config?.nkleinProviderSettings.modelId ?? ""}
+											onError={setSaveError}
+										/>
+									) : null}
+									{/* informational dev surface -> developer mode only (works in packaged builds) */}
+									{developerModeEnabled ? (
+										<div className="mt-4 border-t border-border pt-4">
+											<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+												Developer Tools
+											</h6>
+											<NKleinSmokeEvalTrial
+												workspaceId={workspaceId}
+												disabled={controlsDisabled}
+												onError={setSaveError}
+											/>
+											<NKleinDogfoodSuggestion
+												workspaceId={workspaceId}
+												disabled={controlsDisabled}
+												onError={setSaveError}
+											/>
+										</div>
+									) : null}
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Code intelligence embeddings
+										</h6>
+										<div className="grid gap-3">
+											<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
+												<div className="min-w-0">
+													<span className="mb-1 block text-[12px] text-text-secondary">
+														Global default provider
+													</span>
+													<NativeSelect
+														value={codeEmbeddingDefaultsProvider}
+														onChange={(event) =>
+															setCodeEmbeddingDefaultsProvider(
+																event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+															)
+														}
+														disabled={controlsDisabled}
+														fill
+													>
+														{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+															<option key={option.value} value={option.value}>
+																{option.label}
+															</option>
+														))}
+													</NativeSelect>
+												</div>
+												<EmbeddingEndpointFields
+													workspaceId={workspaceId}
+													labelPrefix="Default"
+													disabled={controlsDisabled}
+													provider={codeEmbeddingDefaultsProvider}
+													baseUrl={codeEmbeddingDefaultsBaseUrl}
+													model={codeEmbeddingDefaultsModel}
+													suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
+													endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
+													modelPlaceholder="nomic-embed-text"
+													onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
+													onModelChange={setCodeEmbeddingDefaultsModel}
+													onError={setSaveError}
+												/>
+											</div>
 										</div>
 									</div>
 								</div>
