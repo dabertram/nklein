@@ -859,11 +859,13 @@ deep analysis:
         Behaviour identical (service suite 119 green). Chosen as the lowest-risk slice (zero in-file deps, compiler-
         verified). The bigger stateful extractions (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs) remain.
 - [ ] **Consolidate the duplicated `toErrorMessage` / `asRecord` helpers** *(finding 2026-06-24)* — both are
-      re-defined locally in `nklein-task-session-service.ts` **and** ≥3–4 other `src/nklein-sdk/*` files (each its own
-      copy). Extract canonical versions to a small shared module (e.g. `src/nklein-sdk/nklein-value-guards.ts`) and
-      import everywhere; delete the copies. Genuine DRY win (the §5.U "missing shared utility" template, like
-      `model-identity`); compiler-verified, no behaviour change, lock with the existing suites. Multi-file edit — do as
-      a focused pass.
+      re-defined locally in `nklein-task-session-service.ts` **and** several other `src/nklein-sdk/*` files
+      (event-adapter, model-registry, session-runtime, team-progress). **⚠ NOT a blind merge — the copies differ
+      semantically:** `nklein-event-adapter`'s `asRecord` omits the `!Array.isArray` guard (so arrays pass as
+      "records"), and `nklein-model-registry`'s returns `JsonRecord`. Consolidating to one `nklein-value-guards.ts`
+      must first confirm each call site tolerates the unified contract (esp. the event-adapter array case — changing it
+      could break SDK event parsing), then import everywhere + delete the copies. Genuine DRY win (the §5.U
+      "missing shared utility" template) but a *careful* per-site pass, compiler- **and** behaviour-checked.
 
 - [~] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
       *(2026-06-24: safe slice landed — added `assignChangedConfigField(payload, existing, key, value, default)`
