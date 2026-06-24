@@ -1410,9 +1410,13 @@ deep analysis:
               against the preview: the app boots, the board renders (incl. the trash-below-completed layout), and opening a
               card works — **zero console/page errors**. Confirms the 7 extractions are bundle-sound; panel rendering itself is
               covered by the 690 web component tests.
-        - [ ] still TODO: the remaining self-contained panels (PlanningDagReviewPanel/PendingPlanArtifactsPanel/
-              TaskRecoveryActionsPanel — larger, each extractable to `detail-panels/`), and the resize/keyboard orchestration
-              into a hook.
+        - [x] **slice 8 (2026-06-24):** extracted the `PlanningDagReviewPanel` (renders the dependency-neighbourhood DAG +
+              the plan-mode "Approve for execution" action; consumes the already-extracted `planning-dag-model`) into
+              `detail-panels/planning-dag-review-panel.tsx`. web typecheck + vitest (690) green. card-detail-view 1499→1491
+              (cumulative 2384→1491, −37.5%).
+        - [ ] still TODO: the remaining self-contained panels (PendingPlanArtifactsPanel/TaskRecoveryActionsPanel — larger,
+              with their own runtime-query handlers, each extractable to `detail-panels/`), and the resize/keyboard
+              orchestration into a hook.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
