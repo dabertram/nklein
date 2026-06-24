@@ -462,13 +462,13 @@
 - Recorded initial `recursive_split` plan revisions when `decompose_project.expansions` rewrites oversized tasks before saving the plan graph.
 - Added a shared 12-card swarm batch budget for start-all and dependent auto-start launches, surfaced alongside the other Local swarm guardrails in settings.
 
-## [NKlein Kanban 0.1.68]
+## [Cline Kanban 0.1.68]
 
 - Codex hooks are now pre-trusted, eliminating permission prompts when !Klein manages Codex sessions
 - Fixed signal handling to properly re-raise signals and ignore SIGQUIT for cleaner process cleanup
 - Updated NKlein SDK from 0.0.36 to 0.0.38, which includes: new OpenAI ChatGPT Subscription and v0 providers, Ollama no longer requires an API key, file-based and event-driven automation, auto-compaction for provider requests, per-turn usage metrics on assistant messages, normalized provider usage costs, web fetch enabled by default in act mode, various message handling and abort fixes
 
-## [NKlein Kanban 0.1.67]
+## [Cline Kanban 0.1.67]
 
 - "New version available" notification with one-click update from the web UI
 - Renamed the "Trash" column to "Done" and added CLI command aliases
@@ -478,45 +478,45 @@
 - Fixed task ID generation to avoid timestamp-derived fallback IDs
 - Added scaffolding for an Electron desktop app (not yet available)
 
-## [NKlein Kanban 0.1.66]
+## [Cline Kanban 0.1.66]
 
 - Added a refresh button for LiteLLM and custom provider model lists, so you can re-fetch available models without leaving settings
 - Enforced origin and host validation on the !Klein websocket service to prevent unauthorized connections
 
-## [NKlein Kanban 0.1.65]
+## [Cline Kanban 0.1.65]
 
 - Model catalog now auto-refreshes on startup so newly available models appear immediately
 - Fixed task cards resizing and causing layout shifts on the board
 - Fixed initial NKlein message not being sent after starting a new session
 - Added runtime child process manager for the desktop app
 
-## [NKlein Kanban 0.1.64]
+## [Cline Kanban 0.1.64]
 
 - Multi-line diff comments: Shift+click to select a range of lines, click the line number to open the comment box, and comments now include file path, line number, and column context
 - File tree panel in diff views can now be toggled open or closed
 - Task title editing now requires clicking the pencil icon that appears on card hover, preventing accidental edits when clicking the card
 
-## [NKlein Kanban 0.1.63]
+## [Cline Kanban 0.1.63]
 
 - Fixed task detail view being lost on page refresh
 - Fixed API key getting reset when modifying NKlein agent settings
 - Fixed !Klein agent starting in thinking state instead of idle
 
-## [NKlein Kanban 0.1.62]
+## [Cline Kanban 0.1.62]
 
 - Fixed NKlein chats on the home screen not resuming correctly from persisted history, causing conversation context to be lost
 - Fixed NKlein thinking indicator hiding prematurely during active requests
 - Reasoning blocks now animate their collapse after finishing streaming
 - Fixed model selector not scrolling to the selected model when opened, and improved visual clarity of the selected model and reasoning effort states
 
-## [NKlein Kanban 0.1.61]
+## [Cline Kanban 0.1.61]
 
 - Added device code authorization for signing into NKlein on remote systems
 - Revamped theme system with new theme picker and improved color palettes
 - Fixed duplicate MCP tool registration when using SDK 0.0.34
 - Fixed MCP settings not showing up during NKlein setup
 
-## [NKlein Kanban 0.1.60]
+## [Cline Kanban 0.1.60]
 
 - Choose a different agent per task, or change the model and provider for NKlein tasks, when creating tasks from the board
 - Adds remote file browser for adding projects when running !Klein on a remote server, with git clone support for adding projects by repository URL
@@ -540,13 +540,13 @@
 - Redesigned settings dialog with sidebar navigation, scroll-spy highlighting, and card-style sections
 - Updated NKlein SDK from 0.0.28 to 0.0.33, which includes: checkpoint support (configurable, disabled by default), correct model list for NKlein provider via OpenRouter, compaction at 95%, steer messages fix, and team agent identity in event payloads
 
-## [NKlein Kanban 0.1.59]
+## [Cline Kanban 0.1.59]
 
 - Added a beta hint card to the project sidebar with quick access to send feedback or report issues
 - Added "Read the docs" button in the settings dialog linking to documentation
 - Adjusted prompting for the commit button to better handle stale git lock files and multiple stashes at once
 
-## [NKlein Kanban 0.1.58]
+## [Cline Kanban 0.1.58]
 
 - More panels are now resizable (agent chat, git history, and more) and your layout preferences persist across sessions
 - Adds full Factory Droid CLI agent support
@@ -557,7 +557,7 @@
 - Feedback widget no longer triggers authentication until you actually click it
 - Updated NKlein SDK from 0.0.24 to 0.0.28, which includes: OpenAI-compatible provider support via AI SDK, custom provider CRUD in core, better handling of overloaded and insufficient-credits errors, fixed tool schema format for OpenAI-compatible providers, accurate input token reporting
 
-## [NKlein Kanban 0.1.57]
+## [Cline Kanban 0.1.57]
 
 - Added `nklein --update` command so you can check for and install updates manually
 - Fixed Windows agents (like Codex) being incorrectly launched through cmd.exe when they're native executables
@@ -566,7 +566,7 @@
 - Fixed telemetry service configuration for NKlein agents
 - Updated NKlein SDK from 0.0.23 to 0.0.24, which includes reasoning details support and improved JSON Schema handling for tool definitions
 
-## [NKlein Kanban 0.1.56]
+## [Cline Kanban 0.1.56]
 
 - Automatic context overflow recovery: when the conversation history exceeds the model's context window, !Klein now compacts old messages and retries instead of failing
 - Credit limit errors (insufficient balance / 402) are now surfaced immediately without unnecessary retries or confusing system messages
@@ -574,15 +574,15 @@
 - Added NKlein icon to browser notifications
 - Updated NKlein SDK from 0.0.22 to 0.0.23, which includes: LiteLLM private model support, provider-specific setting configs, loop detection as a built-in agent policy, provider ID normalization for model resolution, OAuth token refresh fix for spawned agents
 
-## [NKlein Kanban 0.1.55]
+## [Cline Kanban 0.1.55]
 
 - Fixed non-ASCII file paths (e.g. Japanese, Chinese, Korean characters) rendering as garbled octal escape sequences in the diff view
 
-## [NKlein Kanban 0.1.54]
+## [Cline Kanban 0.1.54]
 
 - Task agent chat panel resizing now persists when navigating between tasks
 
-## [NKlein Kanban 0.1.53]
+## [Cline Kanban 0.1.53]
 
 - Added `/clear` slash command to reset the NKlein agent chat session
 - Added hints for environment variables in NKlein provider setup
@@ -592,7 +592,7 @@
 - Show loading skeleton in onboarding carousel while videos load
 - Added VS Code Insiders as a file open target
 
-## [NKlein Kanban 0.1.52]
+## [Cline Kanban 0.1.52]
 
 - Added support for custom OpenAI-compatible providers, so you can connect any OpenAI-compatible API as a NKlein model provider
 - Added PWA support -- the web UI can now be installed as a standalone desktop app from Chrome, with window controls overlay and an offline fallback page that auto-reconnects when the server comes back
@@ -604,7 +604,7 @@
 - Fixed project column sizing not persisting across sessions
 - Fixed home sidebar session IDs not matching the current format
 
-## [NKlein Kanban 0.1.51]
+## [Cline Kanban 0.1.51]
 
 - Task terminals now support multiple simultaneous viewers, so opening the same task in several browser tabs no longer causes disconnections
 - Terminal TUI state is now preserved across reconnects, so you no longer lose your terminal view when the connection drops and re-establishes
@@ -616,23 +616,23 @@
 - Fixed restoring tasks from trash using the wrong agent
 - Fixed stale git worktree registrations that could cause worktree operations to fail
 
-## [NKlein Kanban 0.1.50]
+## [Cline Kanban 0.1.50]
 
 - Updated NKlein SDK from 0.0.21 to 0.0.22, which includes: fixed hook worker process launching to use a more robust internal launch mechanism
 
-## [NKlein Kanban 0.1.49]
+## [Cline Kanban 0.1.49]
 
 - Updated NKlein SDK from 0.0.16 to 0.0.21, which includes: organization fetching support, SDK declaration maps for better type resolution, OpenAI Compatible provider migration and cleanup of the legacy provider, agent telemetry events with agent ID and metadata, bash tool and home directory fixes on Windows, and exposed LoggerTelemetryAdapter in the node package
 
-## [NKlein Kanban 0.1.48]
+## [Cline Kanban 0.1.48]
 
 - Fixed sidebar agent attempting to edit files and write code instead of staying focused on !Klein board management
 
-## [NKlein Kanban 0.1.47]
+## [Cline Kanban 0.1.47]
 
 - Fixed browser open failing on Linux systems where `xdg-open` is not available
 
-## [NKlein Kanban 0.1.46]
+## [Cline Kanban 0.1.46]
 
 - Added reasoning level dropdown to NKlein provider settings and the model selector in the chat composer
 - Images can now be attached when creating tasks for Claude Code and Codec CLI agents -- images are saved as temporary files and their paths are passed into the prompt since TUIs don't support inline images
@@ -644,15 +644,15 @@
 - Fixed a crash in older browsers when generating UUIDs for board state
 - Fixed a crash on Windows when resizing the terminal after the PTY process has exited
 
-## [NKlein Kanban 0.1.45]
+## [Cline Kanban 0.1.45]
 
 - Fixed kanban access validation to only apply restrictions to enterprise customers, so non-enterprise users are no longer incorrectly blocked
 
-## [NKlein Kanban 0.1.44]
+## [Cline Kanban 0.1.44]
 
 - Fixed remote configuration not being applied correctly
 
-## [NKlein Kanban 0.1.43]
+## [Cline Kanban 0.1.43]
 
 - !Klein access can now be gated via NKlein remote config
 - Fixed "C" (create task) keyboard shortcut crashing when no projects exist
@@ -663,11 +663,11 @@
 - Fixed cancel button showing wrong label in detail view panels
 - Temporarily disabled Featurebase feedback widget
 
-## [NKlein Kanban 0.1.42]
+## [Cline Kanban 0.1.42]
 
 - Fixed auto-update failing on Windows by using the correct `.cmd` extensions for package manager commands (npm, pnpm, yarn)
 
-## [NKlein Kanban 0.1.41]
+## [Cline Kanban 0.1.41]
 
 - NKlein agent sessions now automatically recover after a runtime teardown, so work isn't lost if the runtime restarts
 - Per-task plan/act mode now persists when switching between tasks
@@ -680,23 +680,23 @@
 - Use the `open` package for cross-platform URL opening instead of custom logic
 - Updated NKlein SDK to 0.0.15 with file-based store fallbacks, remote config support, improved chat failure handling with message state rollback, and a new `maxConsecutiveMistakes` option to prevent agents from getting stuck in failure loops
 
-## [NKlein Kanban 0.1.40]
+## [Cline Kanban 0.1.40]
 
 - Sidebar agent now stays focused on board management and redirects coding requests to task creation, so dedicated agents handle implementation work in their own worktrees
 - Fixed feedback widget initialization for NKlein-authenticated users
 
-## [NKlein Kanban 0.1.39]
+## [Cline Kanban 0.1.39]
 
 - Fixed the feedback widget not opening reliably when clicking "Share Feedback"
 - Capitalized button labels for consistency ("Add Project", "Share Feedback")
 
-## [NKlein Kanban 0.1.38]
+## [Cline Kanban 0.1.38]
 
 - First-run onboarding for script shortcuts -- new users are guided through creating their first shortcut directly from the top bar
 - Settings file URLs can now be opened
 - Fixed terminal bottom pane content clearing when running script shortcuts
 
-## [NKlein Kanban 0.1.37]
+## [Cline Kanban 0.1.37]
 
 - Slash commands and file mentions in the client chat input field
 - Share Feedback button in the bottom left, powered by Featurebase and enriched with NKlein account data like email so we can see who reports are coming from, with a Linear integration for automatic issue creation
@@ -711,7 +711,7 @@
 - Fixed default model selection when OAuth login leaves it blank
 - Updated NKlein SDK with fixes for ask question tool being disabled in yolo mode, cost calculation, and tool description and truncation logic improvements
 
-## [NKlein Kanban 0.1.36]
+## [Cline Kanban 0.1.36]
 
 - Added Sentry error reporting to help identify and fix crashes faster
 - Fixed terminal sessions sometimes failing to reconnect, which caused the terminal emulator to scroll to the top during card transitions before scrolling back down
@@ -739,12 +739,12 @@
   - Config directory is now overridable via `--config` flag or `NKLEIN_DIR` env var for isolated config across multiple SDK instances
   - `readFile` executor now supports optional `start_line`/`end_line` parameters, enabling models to read specific portions of large files
 
-## [NKlein Kanban 0.1.35]
+## [Cline Kanban 0.1.35]
 
 - Added runtime debug tools accessible from the top bar for troubleshooting configuration and agent state
 - Settings now automatically retry loading when the initial attempt fails, improving reliability on slower connections
 
-## [NKlein Kanban 0.1.34]
+## [Cline Kanban 0.1.34]
 
 - Model pickers now show recommended NKlein models for quick selection
 - Failed tasks show a red error icon and failure reason on the board card instead of a spinner
@@ -752,11 +752,11 @@
 - Fixed workspace not refreshing correctly on startup by waiting for the runtime snapshot before syncing
 - Fixed !Klein agent creating tasks for worktree paths instead of the main project
 
-## [NKlein Kanban 0.1.33]
+## [Cline Kanban 0.1.33]
 
 - Fixed task worktree setup for Turbopack projects no longer attempting slow background copies of node_modules; affected subproject dependencies are now correctly skipped instead of symlinked
 
-## [NKlein Kanban 0.1.32]
+## [Cline Kanban 0.1.32]
 
 - Fix concurrent task mutations (e.g. adding multiple tasks at the same time) failing due to write conflicts -- task mutations now use a workspace lock to safely handle simultaneous operations
 - Fix a bug where stopping a task that was restored from a previous session would fail because the session wasn't properly reconnected on startup
@@ -772,7 +772,7 @@
 - Update onboarding intro video and frame width
 - Change the start-all-tasks shortcut to Cmd+B
 
-## [NKlein Kanban 0.1.31]
+## [Cline Kanban 0.1.31]
 
 - Add ability to resume NKlein tasks that were trashed
 - Support image attachments for NKlein agent chat
@@ -785,7 +785,7 @@
 - Fix diff "Add" button incorrectly sending NKlein chat messages
 - Various UX improvements (checkbox labels, NKlein thinking shimmer animation)
 
-## [NKlein Kanban 0.1.30]
+## [Cline Kanban 0.1.30]
 
 - Add MCP server management and OAuth authentication for NKlein providers
 - Add "Start All Tasks" keyboard shortcut (Alt + Shift + S)
@@ -798,12 +798,12 @@
 - Fix task card expand animation jumping by waiting for measured height before animating
 - Fix NKlein thinking indicator flicker in the chat panel
 
-## [NKlein Kanban 0.1.29]
+## [Cline Kanban 0.1.29]
 
 - Fix onboarding and settings screens not working when no projects exist
 - Update NKlein SDK with auth migration for existing CLI users and fixes for OpenAI-compatible APIs
 
-## [NKlein Kanban 0.1.28]
+## [Cline Kanban 0.1.28]
 
 - Onboarding dialog for first-time users with guided walkthroughs for auto-commit, linking, and diff comments
 - Dependency links now show arrowheads so you can see direction at a glance, and the agent provides guidance about link direction when creating them
@@ -821,11 +821,11 @@
 - Gracefully handles missing provider settings instead of crashing
 - Removed OpenAI, Gemini, and Droid agents to reduce surface area at launch (coming back in follow-up releases)
 
-## [NKlein Kanban 0.1.27]
+## [Cline Kanban 0.1.27]
 
 - Upgraded NKlein SDK to stable v0.0.4, replacing nightly builds for more reliable native NKlein sessions
 
-## [NKlein Kanban 0.1.26]
+## [Cline Kanban 0.1.26]
 
 - Trashing a task now saves a git patch of any uncommitted work, and restoring it from trash automatically reapplies those changes so nothing gets lost
 - "Create more" toggle in the new task dialog lets you create multiple tasks in a row without reopening the dialog each time
@@ -840,7 +840,7 @@
 - Consistent spacing and alignment across all alert dialogs
 - Fixed terminal background color in the detail view to match the rest of the overlay
 
-## [NKlein Kanban 0.1.25]
+## [Cline Kanban 0.1.25]
 
 - Added a chat view to the home sidebar for project-scoped agent conversations. What used to be the project column is now a sidebar that can switch between projects and chat.
 - The agent can now trash and delete tasks on your behalf using new task management commands
@@ -853,53 +853,53 @@
 - Increased shortcut label and footer font sizes
 - Capped agent preview lines in task cards
 
-## [NKlein Kanban 0.1.24]
+## [Cline Kanban 0.1.24]
 
 - Fixed multiline prompt arguments being broken on Windows cmd.exe
 
-## [NKlein Kanban 0.1.23]
+## [Cline Kanban 0.1.23]
 
 - Fix Windows terminal launches incorrectly escaping arguments with spaces, parentheses, and other special characters
 
-## [NKlein Kanban 0.1.22]
+## [Cline Kanban 0.1.22]
 
 - Fix Windows terminal launch failing for bare executables (e.g. `nklein`) due to unnecessary quoting
 
-## [NKlein Kanban 0.1.21]
+## [Cline Kanban 0.1.21]
 
 - Fix Windows agent commands failing to launch
 - Fix update detection for Windows npm-cache npx transient installs
 - Reduce false-positive triggering of the kanban skill
 - Show worktree errors in toasts
 
-## [NKlein Kanban 0.1.20]
+## [Cline Kanban 0.1.20]
 
 - Fix branch picker showing remote tracking refs instead of just local branches, and enable trackpad scrolling in the picker
 - Fix task card activity not updating when Opencode completes hook actions
 - Fix NKlein tasks getting stuck instead of returning to in-progress when asking follow-up questions during review
 
-## [NKlein Kanban 0.1.19]
+## [Cline Kanban 0.1.19]
 
 - Fixed a race condition where navigating to a task's detail view could trigger an unintended auto-start
 - Fixed shutdown cleanup to reliably stop all running tasks across projects
 
-## [NKlein Kanban 0.1.18]
+## [Cline Kanban 0.1.18]
 
 - Fix layout stability when moving cards between columns programmatically
 - Improve checkbox contrast on dialog footers
 - Reduce dialog header/footer side padding to match vertical padding
 - Fix description briefly flashing on card mount
 
-## [NKlein Kanban 0.1.17]
+## [Cline Kanban 0.1.17]
 
 - Fix keyboard shortcuts (Cmd+Enter) not working when focus is on dialog inputs
 
-## [NKlein Kanban 0.1.16]
+## [Cline Kanban 0.1.16]
 
 - Fixed agent startup reliability and command detection
 - Fixed path handling on Windows and Linux for cross-platform support
 
-## [NKlein Kanban 0.1.15]
+## [Cline Kanban 0.1.15]
 
 - Fix diff view syntax highlighting colors in git history
 - Improve graceful shutdown handling for CLI processes
@@ -911,11 +911,11 @@
 - Fix transcript path detection in hooks
 - Handle Linux directory picker fallbacks and errors gracefully
 
-## [NKlein Kanban 0.1.14]
+## [Cline Kanban 0.1.14]
 
 - Fixed a crash on Linux systems where no browser opener (xdg-open, etc.) was available
 
-## [NKlein Kanban 0.1.13]
+## [Cline Kanban 0.1.13]
 
 - New task creation dialog with list detection for quickly creating multiple tasks at once
 - Git history now shows remote refs and branch divergence so you know if you need to pull
@@ -924,7 +924,7 @@
 - Improved split diff rendering by consolidating same hunk changes
 - Fixed issue where cards in the kanban column updating content would cause scroll jumps
 
-## [NKlein Kanban 0.1.12]
+## [Cline Kanban 0.1.12]
 
 - Redesigned the web UI with a refined dark theme, custom UI primitives, and polished controls for a more professional look and feel
 - Added split diff view so you can click the expand button above any diff to see changes side by side
@@ -938,12 +938,12 @@
 - Fix WebSocket proxy so terminal connections work correctly during local development
 - Fix the dogfood launcher not waiting for the child process to exit, which could leave orphaned processes on shutdown
 
-## [NKlein Kanban 0.1.11]
+## [Cline Kanban 0.1.11]
 
 - Add !Klein skill for creating and managing tasks directly from your agent
 - Remove !Klein MCP server in favor of skill-based task automation
 
-## [NKlein Kanban 0.1.10]
+## [Cline Kanban 0.1.10]
 
 - Add "Start task" button to create task card -- press `c` to create, type your task, then Cmd+Shift+Enter to start it right away
 - Add "Cancel auto-review" actions to task cards
@@ -967,23 +967,23 @@
 - Fix settings dialog appearing disabled during config refresh
 - Center selected detail card in sidebar
 
-## [NKlein Kanban 0.1.9]
+## [Cline Kanban 0.1.9]
 
 - Fix worktree paths with symlinks in ignored directories being incorrectly treated as active
 
-## [NKlein Kanban 0.1.8]
+## [Cline Kanban 0.1.8]
 
 - Terminal now properly renders full-screen TUI applications like OpenCode
 - Fixed terminal content disappearing and scroll back being lost when opening a task. Terminals are now created proactively for each agent instead of connecting mid-session, which preserves full scroll back and content rendering. This is especially important for rendering TUI apps like Codex and Droid correctly.
 - Improved terminal rendering quality, inspired by VS Code's xterm and node-pty implementation. Noticeably higher FPS, smoother scrolling, and a more native look and feel for terminal emulators.
 
-## [NKlein Kanban 0.1.7]
+## [Cline Kanban 0.1.7]
 
 - When a task prompt mentions creating tasks (e.g. "break down into tasks", "create 3 tickets", "split into cards"), !Klein now shows a setup dialog offering to install the !Klein MCP before the task starts
 - Similar setup dialogs appear for Linear and GitHub CLI when task prompts reference those services
 - MCP server instructions now guide agents to detect the ephemeral worktree path and pass the main worktree as projectPath, so "add tasks in kanban" tasks correctly create tasks in the main workspace instead of the ephemeral task worktree
 
-## [NKlein Kanban 0.1.6]
+## [Cline Kanban 0.1.6]
 
 - Show live hook activity (tool calls, file edits, command runs) on task cards as agents work
 - Auto-confirm Codex workspace trust prompts so tasks start without manual intervention
@@ -995,7 +995,7 @@
 - Fix git metadata not updating reliably when switching projects
 - Stabilize workspace metadata stream startup
 
-## [NKlein Kanban 0.1.5]
+## [Cline Kanban 0.1.5]
 
 - Added Droid CLI agent support alongside Claude and Codex
 - Dogfood launcher for quickly opening !Klein on its own repo with runtime port selection
@@ -1007,7 +1007,7 @@
 - Fix bypass permissions toggle resetting unexpectedly
 - Fix git refs not clearing when switching detail scope
 
-## [NKlein Kanban 0.1.4]
+## [Cline Kanban 0.1.4]
 
 - Each task gets its own CLI agent working in a git worktree, so they can work in parallel on the same codebase without stepping on each other
 - When an agent finishes, review diffs and leave comments before deciding what to merge
