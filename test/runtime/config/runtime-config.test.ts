@@ -9,6 +9,7 @@ import {
 	pickBestInstalledAgentIdFromDetected,
 	RUNTIME_CONFIG_DERIVED_FIELD_KEYS,
 	RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS,
+	type RuntimeConfigUpdateInput,
 	saveRuntimeConfig,
 	updateRuntimeConfig,
 } from "../../../src/config/runtime-config";
@@ -139,6 +140,55 @@ describe.sequential("runtime-config auto agent selection", () => {
 			});
 		} finally {
 			cleanup();
+		}
+	});
+
+	it("round-trips each simple scalar config field through update + reload (§5.U save coverage)", async () => {
+		const cases: Array<{ key: keyof RuntimeConfigUpdateInput; value: unknown }> = [
+			{ key: "selectedShortcutLabel", value: "label-x" },
+			{ key: "developerModeEnabled", value: true },
+			{ key: "replayCardsEnabled", value: true },
+			{ key: "agentAutonomousModeEnabled", value: false },
+			{ key: "agentTimeoutMode", value: "long" },
+			{ key: "agentTimeoutProfile", value: "custom" },
+			{ key: "requestTimeoutMs", value: 11111 },
+			{ key: "streamTimeoutMs", value: 22222 },
+			{ key: "toolTimeoutMs", value: 33333 },
+			{ key: "agentTimeoutMs", value: 44444 },
+			{ key: "conversationTimeoutMs", value: 55555 },
+			{ key: "maxAgentWritableFileLines", value: 1500 },
+			{ key: "maxConcurrentTasks", value: 6 },
+			{ key: "sandboxMaxContainers", value: 4 },
+			{ key: "sandboxAgentsPerContainer", value: 2 },
+			{ key: "sandboxMemoryPerContainerMb", value: 3072 },
+			{ key: "sandboxCpusPerContainer", value: 1.5 },
+			{ key: "sandboxIdleTimeoutMinutes", value: 20 },
+			{ key: "lostHeartbeatPolicy", value: "keep_running" },
+			{ key: "decompositionAutoApplyEnabled", value: false },
+			{ key: "secondOpinionReviewEnabled", value: false },
+			{ key: "reviewMaxRounds", value: 8 },
+			{ key: "readyForReviewNotificationsEnabled", value: false },
+			{ key: "commitPromptTemplate", value: "Custom commit template" },
+			{ key: "openPrPromptTemplate", value: "Custom PR template" },
+		];
+		for (const testCase of cases) {
+			const { path: tempHome, cleanup } = createTempDir("kanban-home-runtime-config-field-roundtrip-");
+			try {
+				await withTemporaryEnv({ home: tempHome }, async () => {
+					const updated = await updateRuntimeConfig(tempHome, { [testCase.key]: testCase.value });
+					expect({ key: testCase.key, value: updated[testCase.key as keyof typeof updated] }).toEqual({
+						key: testCase.key,
+						value: testCase.value,
+					});
+					const reloaded = await loadRuntimeConfig(tempHome);
+					expect({ key: testCase.key, value: reloaded[testCase.key as keyof typeof reloaded] }).toEqual({
+						key: testCase.key,
+						value: testCase.value,
+					});
+				});
+			} finally {
+				cleanup();
+			}
 		}
 	});
 
