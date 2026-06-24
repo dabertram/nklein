@@ -21,6 +21,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/dialog";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { NKleinMark } from "@/components/ui/nklein-mark";
 import { Spinner } from "@/components/ui/spinner";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
@@ -315,14 +316,16 @@ export function ProjectNavigationPanel({
 						!Klein <span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
 					</div>
 					{isMobile ? (
-						<Button
-							variant="ghost"
-							size="sm"
-							icon={<Plus size={16} className="rotate-45" />}
-							onClick={() => setCollapsed(true)}
-							aria-label="Close sidebar"
-							className="min-w-[44px] min-h-[44px] -mr-2"
-						/>
+						<ElementTooltip id="project.collapse-sidebar" side="bottom">
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={<Plus size={16} className="rotate-45" />}
+								onClick={() => setCollapsed(true)}
+								aria-label="Close sidebar"
+								className="min-w-[44px] min-h-[44px] -mr-2"
+							/>
+						</ElementTooltip>
 					) : null}
 				</div>
 			</div>

@@ -93,6 +93,14 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Close terminal",
 		description: "Close this task's terminal pane.",
 	},
+	"project.actions": {
+		name: "Project actions",
+		description: "Open per-project actions: edit project settings or remove the project.",
+	},
+	"project.collapse-sidebar": {
+		name: "Collapse sidebar",
+		description: "Hide the project navigation sidebar to give the board more room.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

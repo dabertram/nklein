@@ -578,7 +578,10 @@ deep analysis:
   - [x] **§5.M chat surface (2026-06-24)** — the icon-only chat controls now use the registry: `top-bar.chat` (the
         navbar Chat button, switched from a plain `Tooltip` to `ElementTooltip`) + `chat.delete-session` (the
         per-session delete). Web tsc + full web vitest (705) green; chat-UI Playwright re-verified.
-  - [ ] remaining tail: settings section headers/fields, model-registry row actions, project sidebar
+  - [x] **project sidebar (2026-06-25):** the per-project actions menu trigger (`project.actions`, every ProjectRow's
+        Ellipsis — wrapped via `ElementTooltip` outside the `DropdownMenu.Trigger asChild`, valid Radix Slot-chain) and the
+        mobile collapse button (`project.collapse-sidebar`). web tsc + vitest (694) green.
+  - [ ] remaining tail: settings section headers/fields, model-registry row actions
 
 ### 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*
 > Every worker card gets a real reviewer-role second opinion (full loop, up to 20 rounds, stall + identical-loop

@@ -4,6 +4,7 @@ import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import type { RuntimeProjectSummary } from "@/runtime/types";
 import { formatPathForDisplay } from "@/utils/path-display";
@@ -181,23 +182,25 @@ export function ProjectRow({
 			</div>
 			<div className="kb-project-row-actions flex items-center" style={isMenuOpen ? { opacity: 1 } : undefined}>
 				<DropdownMenu.Root open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-					<DropdownMenu.Trigger asChild>
-						<Button
-							variant="ghost"
-							size="sm"
-							icon={isRemovingProject ? <Spinner size={12} /> : <Ellipsis size={14} />}
-							disabled={hasAnyProjectRemoval && !isRemovingProject}
-							className={
-								isCurrent
-									? "text-accent-fg hover:bg-accent-fg/20 hover:text-accent-fg active:bg-accent-fg/30"
-									: undefined
-							}
-							onClick={(e) => {
-								e.stopPropagation();
-							}}
-							aria-label="Project actions"
-						/>
-					</DropdownMenu.Trigger>
+					<ElementTooltip id="project.actions" side="right">
+						<DropdownMenu.Trigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={isRemovingProject ? <Spinner size={12} /> : <Ellipsis size={14} />}
+								disabled={hasAnyProjectRemoval && !isRemovingProject}
+								className={
+									isCurrent
+										? "text-accent-fg hover:bg-accent-fg/20 hover:text-accent-fg active:bg-accent-fg/30"
+										: undefined
+								}
+								onClick={(e) => {
+									e.stopPropagation();
+								}}
+								aria-label="Project actions"
+							/>
+						</DropdownMenu.Trigger>
+					</ElementTooltip>
 					<DropdownMenu.Portal>
 						<DropdownMenu.Content
 							side="bottom"
