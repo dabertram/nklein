@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@nklein/core";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
+import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -910,6 +911,18 @@ function normalizeTaskIdForSandboxPath(taskId: string): string {
  */
 export function buildAgentSandboxWorkdir(taskId: string): string {
 	return `${AGENT_SANDBOX_WORKSPACES_DIR}/${normalizeTaskIdForSandboxPath(taskId)}`;
+}
+
+/**
+ * The single source of truth for the working directory the agent PERCEIVES — used for BOTH the agent-core
+ * `config.cwd` AND the system-prompt `<env>` "Working Directory" line so they never diverge. For a real
+ * (Docker-isolated) task this is the in-container sandbox workdir (`/workspaces/<taskId>`), never the host
+ * mount: agents must never see host details (AGENTS.md). Home/chat sessions are not sandbox-backed, so they
+ * keep the host cwd. Centralizing this prevents the leak class where one surface (e.g. the system prompt's
+ * working-directory line) keeps echoing the host path after another (`config.cwd`) was switched to the sandbox.
+ */
+export function resolveNKleinAgentPerceivedCwd(taskId: string, hostCwd: string): string {
+	return isHomeAgentSessionId(taskId) ? hostCwd : buildAgentSandboxWorkdir(taskId);
 }
 
 function bufferOrStringToString(value: string | Buffer | undefined): string {

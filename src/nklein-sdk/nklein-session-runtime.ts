@@ -17,10 +17,9 @@ import {
 	runtimeNKleinReasoningEffortSchema,
 } from "../core/api-contract";
 import type { FocusChain } from "../core/focus-chain";
-import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
-import { buildAgentSandboxWorkdir } from "./nklein-agent-sandbox";
+import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
 import { createNKleinCodeEmbeddingProvider, type NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
 import { compactKanbanFocusedMessages, focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
@@ -908,8 +907,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// The agent's perceived working directory must be the in-container sandbox path (`/workspaces/<taskId>`),
 			// never the host mount — see "agents must never see host details" (AGENTS.md). A task's tools execute in
 			// that sandbox, so this is the logical cwd the model sees and writes paths relative to. Home/chat sessions
-			// are not sandbox-backed, so they keep the host project cwd.
-			cwd: isHomeAgentSessionId(request.taskId) ? request.cwd : buildAgentSandboxWorkdir(request.taskId),
+			// are not sandbox-backed, so they keep the host project cwd. Shared with the system-prompt working-dir
+			// line via resolveNKleinAgentPerceivedCwd so the two never diverge.
+			cwd: resolveNKleinAgentPerceivedCwd(request.taskId, request.cwd),
 			mode: resolvedMode,
 			enableTools: true,
 			enableSpawnAgent: teamDelegation.enabled,

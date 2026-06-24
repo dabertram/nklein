@@ -293,6 +293,17 @@ deep analysis:
           (home/chat sessions keep the host cwd) — so the "working directory" the model is told is the sandbox path,
           never the host mount. **Live strict-isolation PASS** with the change (core accepts the sandbox cwd, tools
           execute, container appears, clean teardown) + unit test asserting both branches.
+    - [x] **system-prompt `<env>` working-directory → sandbox path (DONE 2026-06-24; the PRIMARY leak).** The cwd fix
+          above was necessary but **not sufficient**: the SDK system prompt embeds an `<env>` block with a
+          "Working Directory: <cwd>" line (`getNKleinDefaultSystemPrompt`, **every** provider), and the service built
+          it from the **host** `request.cwd`. So a sandboxed agent read its own system prompt, saw the host mount path,
+          and issued `read_files`/`list_files` against host absolute paths. Found by a new **live decompose harness**
+          ([scripts/verify-decompose-isolation.mts](scripts/verify-decompose-isolation.mts)) — not by unit tests/code
+          reading. Fix: both the agent-core `config.cwd` AND the system-prompt cwd now derive from one shared
+          `resolveNKleinAgentPerceivedCwd(taskId, hostCwd)` ([src/nklein-sdk/nklein-agent-sandbox.ts](src/nklein-sdk/nklein-agent-sandbox.ts))
+          so they can never drift again. **Live decompose PASS** (real LM Studio task, decompose_project called, zero
+          host-path leaks in agent output, clean teardown) + regression test that builds the real SDK system prompt and
+          asserts it carries the sandbox workdir, never the host mount.
     - [x] read_files block error: **resolved transitively** — it echoes the agent's *requested* path
           (`readRequest.path`), and with the cwd fix the agent now requests sandbox/relative paths, so no host path
           leaks there. Evidence `summary.md`/`config-snapshot.json` keep the host workspace path **on purpose** (it's
@@ -305,11 +316,15 @@ deep analysis:
           enters the instruction. Host-side consumers (runtime-api / CLI / evidence) read absolute paths straight from
           the plan-artifact writer — unchanged. Regression test asserts no `*Path`/instruction contains the host
           workspace path. ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
-    - [ ] confirm on a real dev-test **decompose** transcript that the agent now emits only sandbox/relative paths
-          (fold into the live Playwright/dev-test pass).
-    - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
-          host-side evidence/workspace access, but the agent only sees `/workspaces/<taskId>`. A dev-test run that
-          shows the agent the host temp project path is a bug; verify a dev-test decompose shows only sandbox paths.
+    - [x] **confirmed on a real decompose run that the agent emits only sandbox/relative paths (DONE 2026-06-24)** —
+          `scripts/verify-decompose-isolation.mts` runs a real LM Studio decompose in a Docker sandbox and captures
+          every agent-emitted activity (reasoning text, tool-input summaries, final message), asserting none contains
+          the host project path. PASS after the system-prompt fix (it FAILED before — caught the primary leak).
+    - [x] **dev-test projects run through the same Docker sandbox isolation as real tasks** — verified via the live
+          harness above: it exercises the **same** `NKleinTaskSessionService.startTaskSession` path dev-test scenarios
+          use (sandbox prep + sandbox-proxied tools + sandbox cwd), and the agent saw only `/workspaces/<taskId>`. A
+          formal `nklein dev test-project` decompose can fold into the broader Playwright/dev-test pass, but the
+          isolation mechanism is now proven on the shared code path.
     - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
     - [ ] only exception: user intentionally opted out of Docker isolation (future full-privileged host-agent mode).
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The

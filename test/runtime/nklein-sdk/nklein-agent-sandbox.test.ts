@@ -1,6 +1,7 @@
 import type { execFile } from "node:child_process";
 import type { AgentToolContext } from "@nklein/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createHomeAgentSessionId } from "../../../src/core/home-agent-session";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
@@ -9,6 +10,7 @@ import {
 	AgentSandboxUnavailableError,
 	buildAgentSandboxDockerRunArgs,
 	buildAgentSandboxInteractiveShellArgs,
+	buildAgentSandboxWorkdir,
 	buildTaskShellSpawnSpec,
 	createAgentSandboxTaskUid,
 	createAgentSandboxToolExecutors,
@@ -16,8 +18,10 @@ import {
 	DEFAULT_AGENT_SANDBOX_SHELL,
 	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxNetworkArgs,
+	resolveNKleinAgentPerceivedCwd,
 } from "../../../src/nklein-sdk/nklein-agent-sandbox";
 import { NKleinPauseController } from "../../../src/nklein-sdk/nklein-pause-controller";
+import { resolveNKleinSdkSystemPrompt } from "../../../src/nklein-sdk/sdk-runtime-boundary";
 
 interface ExecFileStubOptions {
 	failVersion?: boolean;
@@ -861,5 +865,32 @@ describe("AgentSandboxManager", () => {
 
 		await expect(pending).rejects.toThrow("Task pause wait was aborted.");
 		expect(runTool).not.toHaveBeenCalled();
+	});
+});
+
+describe("resolveNKleinAgentPerceivedCwd + agent system-prompt host-path isolation", () => {
+	it("returns the in-container sandbox workdir for a task, and the host cwd only for a home session", () => {
+		const hostCwd = "/private/var/folders/zz/T/nklein-host-project";
+		// A real task: the perceived cwd is the sandbox workdir, never the host mount.
+		expect(resolveNKleinAgentPerceivedCwd("task-1", hostCwd)).toBe("/workspaces/task-1");
+		expect(resolveNKleinAgentPerceivedCwd("task-1", hostCwd)).toBe(buildAgentSandboxWorkdir("task-1"));
+		// A home/chat session is not sandbox-backed, so it keeps the host cwd.
+		const homeSessionId = createHomeAgentSessionId("workspace-1", "nklein");
+		expect(resolveNKleinAgentPerceivedCwd(homeSessionId, "/Users/me/project")).toBe("/Users/me/project");
+	});
+
+	// Regression for the §5.A HARDEN leak the live decompose verification caught: the SDK system prompt embeds the
+	// cwd as an `<env>` "Working Directory" line for EVERY provider. Building it from the host cwd told a sandboxed
+	// agent its working directory was the host mount, so it then read/list host absolute paths. The prompt must
+	// carry the sandbox workdir, never the host path. (Exercises the real SDK prompt builder.)
+	it("builds the agent system prompt with the sandbox working directory, never the host mount", async () => {
+		const hostCwd = "/private/var/folders/zz/T/nklein-host-XYZ/specs";
+		const prompt = await resolveNKleinSdkSystemPrompt({
+			cwd: resolveNKleinAgentPerceivedCwd("task-7", hostCwd),
+			providerId: "lmstudio",
+			rules: "",
+		});
+		expect(prompt).not.toContain(hostCwd);
+		expect(prompt).toContain("/workspaces/task-7");
 	});
 });

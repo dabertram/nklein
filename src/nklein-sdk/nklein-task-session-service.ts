@@ -40,6 +40,7 @@ import {
 	type AgentSandboxPoolConfig,
 	type AgentSandboxShellTarget,
 	createAgentSandboxToolExecutors,
+	resolveNKleinAgentPerceivedCwd,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
@@ -1026,7 +1027,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		let systemPrompt =
 			input.systemPrompt?.trim() ||
 			(await resolveNKleinSdkSystemPrompt({
-				cwd: input.cwd,
+				// Sandbox-aware working directory for the `<env>` block; never the host mount (AGENTS.md).
+				cwd: resolveNKleinAgentPerceivedCwd(input.taskId, input.cwd),
 				providerId: launchConfig.providerId,
 				rules: runtimeSetup.loadRules(),
 			}));
@@ -2149,7 +2151,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				let systemPrompt =
 					request.systemPrompt?.trim() ||
 					(await resolveNKleinSdkSystemPrompt({
-						cwd: request.cwd,
+						// The system prompt's `<env>` "Working Directory" must match the agent's actual (sandbox) cwd,
+						// never the host mount — agents must never see host details (AGENTS.md). Same helper as the
+						// agent-core `config.cwd`, so the two can't drift (the bug that leaked the host path here).
+						cwd: resolveNKleinAgentPerceivedCwd(request.taskId, request.cwd),
 						providerId,
 						rules: runtimeSetup.loadRules(),
 					}));
