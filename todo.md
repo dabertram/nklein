@@ -863,6 +863,11 @@ deep analysis:
         [nklein-sdk-event-readers.ts](src/nklein-sdk/nklein-sdk-event-readers.ts) (importing the shared `asRecord`),
         with a dedicated test; this also made the service's local `asRecord` import dead (removed). Behaviour
         identical (service suite 109 + readers 6 green).
+  - [ ] **remaining clusters are coupled (need the careful pass):** the context-budget/message-classification
+        helpers share local types (`NKleinSdkContentBlock`/`NKleinSdkToolResultBlock`/`ContextHistoryTokenSegments`)
+        with the service class and `stringifyToolResultContent` has an external consumer; the guardrail/repeated-tool
+        helpers share `NKleinTaskRepeatedToolState` with the class. Extracting these needs the shared types moved/shared
+        first (to avoid circular imports) — do in the focused decomposition pass with the stateful modules.
 - [x] **Consolidate the duplicated `asRecord` helper** *(DONE 2026-06-24)* — `asRecord` was re-defined locally in 5
       `src/nklein-sdk/*` files (event-adapter, model-registry, session-runtime, task-session-service, team-progress).
       Extracted the canonical strict version (non-null, non-array object) to
