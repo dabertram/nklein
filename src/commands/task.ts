@@ -66,6 +66,14 @@ import {
 	type ParsedTaskNKleinReasoningEffort,
 	parseTaskNKleinReasoningEffort,
 } from "./task/task-nklein-settings.js";
+import {
+	buildIntegrationCardPrompt,
+	buildPlanGapAdaptationRevision,
+	buildPlanGapDecisionCardPrompt,
+	buildPlanGapIntegrationCardPrompt,
+	buildPlanGapIntegrationRevision,
+	buildPlanGapScopeCardPrompt,
+} from "./task/task-plan-gap-prompts.js";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
@@ -1422,41 +1430,6 @@ async function finishTask(input: {
 	};
 }
 
-function buildIntegrationCardPrompt(conflict: TaskWorktreeAutoMergeConflict): string {
-	const paths =
-		conflict.conflictedPaths.length > 0
-			? conflict.conflictedPaths.map((path) => `- ${path}`).join("\n")
-			: "- No conflicted paths were reported by Git; inspect the aborted merge output.";
-	return [
-		`Resolve the merge conflict from task "${conflict.taskId}".`,
-		`Task head: ${conflict.headCommit}`,
-		"Conflicting paths:",
-		paths,
-		"Re-run the task result merge after resolving the integration changes.",
-		`Git message: ${conflict.message}`,
-	].join("\n\n");
-}
-
-function buildPlanGapIntegrationCardPrompt(input: {
-	taskId: string;
-	description: string;
-	evidence?: string | null;
-}): string {
-	const lines = [
-		`Add the missing integration step reported by task "${input.taskId}".`,
-		"",
-		input.description.trim() || "An execution task reported that the plan needs an integration step.",
-	];
-	if (input.evidence?.trim()) {
-		lines.push("", `Evidence: ${input.evidence.trim()}`);
-	}
-	lines.push(
-		"",
-		"Review the completed and in-progress plan work, implement only the missing integration glue, and keep the acceptance contract explicit.",
-	);
-	return lines.join("\n");
-}
-
 function findBoardTaskByTitle(
 	board: RuntimeWorkspaceStateResponse["board"],
 	title: string,
@@ -1511,44 +1484,6 @@ export function addPlanGapIntegrationCardToBoard(input: {
 		task: created.task,
 		created: true,
 	};
-}
-
-function buildPlanGapDecisionCardPrompt(input: {
-	taskId: string;
-	kind: Extract<PlanGapKind, "missing_decision" | "contradictory_requirement">;
-	description: string;
-	evidence?: string | null;
-}): string {
-	const label = input.kind === "contradictory_requirement" ? "contradiction" : "missing decision";
-	const lines = [
-		`Resolve the ${label} reported by task "${input.taskId}".`,
-		"",
-		input.description.trim() || "Execution found a plan decision that must be answered before work continues.",
-	];
-	if (input.evidence?.trim()) {
-		lines.push("", `Evidence: ${input.evidence.trim()}`);
-	}
-	lines.push(
-		"",
-		"Ask the user for the smallest decision that unblocks the plan, record the answer in the plan decisions/revisions artifacts when available, and update affected cards before implementation continues.",
-	);
-	return lines.join("\n");
-}
-
-function buildPlanGapScopeCardPrompt(input: { taskId: string; description: string; evidence?: string | null }): string {
-	const lines = [
-		`Split the oversized task reported by "${input.taskId}".`,
-		"",
-		input.description.trim() || "Execution found this card is too large for one autonomous task.",
-	];
-	if (input.evidence?.trim()) {
-		lines.push("", `Evidence: ${input.evidence.trim()}`);
-	}
-	lines.push(
-		"",
-		"Inspect the source card and produce bounded replacement leaves. Prefer the existing decomposition workflow with recursive expansions so dependencies can be re-linked through the saved task graph instead of broadening the source card.",
-	);
-	return lines.join("\n");
 }
 
 export function addPlanGapDecisionCardToBoard(input: {
@@ -1641,54 +1576,6 @@ export function addPlanGapScopeCardToBoard(input: {
 		board: created.board,
 		task: created.task,
 		created: true,
-	};
-}
-
-export function buildPlanGapIntegrationRevision(input: {
-	taskId: string;
-	integrationTaskId: string;
-	description: string;
-	evidence?: string | null;
-}): {
-	kind: string;
-	description: string;
-	evidence: string | null;
-} {
-	const evidence = input.evidence?.trim() ? input.evidence.trim() : null;
-	return {
-		kind: "integration_card_added",
-		description: `Added Planning integration card "${input.integrationTaskId}" for plan gap reported by task "${input.taskId}": ${
-			input.description.trim() || "missing integration work"
-		}`,
-		evidence,
-	};
-}
-
-export function buildPlanGapAdaptationRevision(input: {
-	taskId: string;
-	adaptationTaskId: string;
-	kind: Extract<PlanGapKind, "missing_decision" | "contradictory_requirement" | "scope_too_large">;
-	description: string;
-	evidence?: string | null;
-}): {
-	kind: string;
-	description: string;
-	evidence: string | null;
-} {
-	const evidence = input.evidence?.trim() ? input.evidence.trim() : null;
-	const revisionKind = input.kind === "scope_too_large" ? "scope_split_card_added" : "decision_card_added";
-	const label =
-		input.kind === "scope_too_large"
-			? "Planning split card"
-			: input.kind === "contradictory_requirement"
-				? "Planning contradiction card"
-				: "Planning decision card";
-	return {
-		kind: revisionKind,
-		description: `Added ${label} "${input.adaptationTaskId}" for plan gap reported by task "${input.taskId}": ${
-			input.description.trim() || input.kind
-		}`,
-		evidence,
 	};
 }
 

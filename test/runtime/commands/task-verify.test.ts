@@ -7,13 +7,15 @@ import {
 	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,
 	addPlanGapScopeCardToBoard,
-	buildPlanGapAdaptationRevision,
-	buildPlanGapIntegrationRevision,
 	inferNKleinPlanSlugForTask,
 	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
 } from "../../../src/commands/task";
+import {
+	buildPlanGapAdaptationRevision,
+	buildPlanGapIntegrationRevision,
+} from "../../../src/commands/task/task-plan-gap-prompts";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import {
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,

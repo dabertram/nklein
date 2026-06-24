@@ -1331,6 +1331,9 @@ deep analysis:
               into `commands/task/task-nklein-settings.ts` (no I/O; covered by `task-verify.test.ts`).
         - [x] **slice 2 (2026-06-24):** extracted the pure acceptance-failure → plan-gap classification (parse / should-record /
               build-evidence / classifiers / classify) into `commands/task/task-acceptance-plan-gap.ts`. task.ts 2870→2633.
+        - [x] **slice 3 (2026-06-24):** extracted the 6 pure plan-gap/merge card prompt + revision builders into
+              `commands/task/task-plan-gap-prompts.ts` (the `add*CardToBoard` mutators stay in task.ts and import them).
+              task.ts 2633→2509.
         - [ ] still TODO: `task-target-resolution.ts`, the tRPC client factory, and the per-subcommand registration split.
   - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
