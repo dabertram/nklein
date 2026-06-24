@@ -1,7 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import type {
@@ -16,7 +15,7 @@ import type {
 } from "../core/api-contract";
 import { clampRuntimeSwarmCardStartBatchSize, runtimeAgentIdSchema } from "../core/api-contract";
 import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
-import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
+import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
 import {
 	addTaskDependency,
@@ -31,7 +30,6 @@ import {
 	updateTask,
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
-import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAcceptanceRepairPlan } from "../nklein-sdk/nklein-acceptance-repair";
 import {
 	applyNKleinPlanTaskGraphToBoard,
@@ -48,10 +46,8 @@ import {
 import { createNKleinProviderService } from "../nklein-sdk/nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../nklein-sdk/nklein-task-router";
 import { buildNKleinStartGuardCandidate } from "../nklein-sdk/nklein-task-start-guard";
-import { resolveProjectInputPath } from "../projects/project-path";
-import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
-import type { RuntimeAppRouter } from "../trpc/app-router";
 import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeColumn,
@@ -74,6 +70,15 @@ import {
 	buildPlanGapIntegrationRevision,
 	buildPlanGapScopeCardPrompt,
 } from "./task/task-plan-gap-prompts.js";
+import {
+	createRuntimeTrpcClient,
+	ensureRuntimeWorkspace,
+	notifyRuntimeWorkspaceStateUpdated,
+	resolveRuntimeWorkspace,
+	resolveTaskBaseRef,
+	resolveWorkspaceRepoPath,
+	updateRuntimeWorkspaceState,
+} from "./task/task-runtime-workspace.js";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
@@ -89,11 +94,6 @@ type ResolvedTaskCommandTarget =
 			kind: "column";
 			column: ListTaskColumn;
 	  };
-
-interface RuntimeWorkspaceMutationResult<T> {
-	board: RuntimeWorkspaceStateResponse["board"];
-	value: T;
-}
 
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
@@ -338,90 +338,6 @@ function resolveTaskCommandTarget(input: TaskCommandTarget, commandName: string)
 		};
 	}
 	throw new Error(`${commandName} requires either --task-id or --column.`);
-}
-
-function createRuntimeTrpcClient(workspaceId: string | null) {
-	return createTRPCProxyClient<RuntimeAppRouter>({
-		links: [
-			httpBatchLink({
-				url: buildKanbanRuntimeUrl("/api/trpc"),
-				headers: () => buildWorkspaceScopeHeaders(workspaceId),
-				fetch: async (url, options) => {
-					const runtimeFetch = await getRuntimeFetch();
-					return runtimeFetch(url, options);
-				},
-			}),
-		],
-	});
-}
-
-async function resolveRuntimeWorkspace(
-	projectPath: string | undefined,
-	cwd: string,
-	options: { autoCreateIfMissing?: boolean } = {},
-) {
-	const normalizedProjectPath = (projectPath ?? "").trim();
-	const resolvedPath = normalizedProjectPath ? resolveProjectInputPath(normalizedProjectPath, cwd) : cwd;
-	return await loadWorkspaceContext(resolvedPath, {
-		autoCreateIfMissing: options.autoCreateIfMissing ?? true,
-		resolutionSource: normalizedProjectPath ? "explicit_path" : undefined,
-		resolutionMetadata: normalizedProjectPath ? { providedProjectPath: normalizedProjectPath } : undefined,
-	});
-}
-
-async function resolveWorkspaceRepoPath(
-	projectPath: string | undefined,
-	cwd: string,
-	options: { autoCreateIfMissing?: boolean } = {},
-): Promise<string> {
-	const workspace = await resolveRuntimeWorkspace(projectPath, cwd, options);
-	return workspace.repoPath;
-}
-
-async function ensureRuntimeWorkspace(workspaceRepoPath: string): Promise<string> {
-	const runtimeClient = createRuntimeTrpcClient(null);
-	const projects = await runtimeClient.projects.list.query().catch(() => null);
-	const existingProject = projects?.projects.find((project) => project.path === workspaceRepoPath);
-	if (existingProject) {
-		return existingProject.id;
-	}
-	const added = await runtimeClient.projects.add.mutate({
-		path: workspaceRepoPath,
-	});
-	if (!added.ok || !added.project) {
-		throw new Error(added.error ?? `Could not register project ${workspaceRepoPath} in !Klein runtime.`);
-	}
-	return added.project.id;
-}
-
-async function notifyRuntimeWorkspaceStateUpdated(
-	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
-): Promise<void> {
-	await runtimeClient.workspace.notifyStateUpdated.mutate().catch(() => null);
-}
-
-async function updateRuntimeWorkspaceState<T>(
-	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
-	workspaceRepoPath: string,
-	mutate: (state: RuntimeWorkspaceStateResponse) => RuntimeWorkspaceMutationResult<T>,
-): Promise<T> {
-	const mutationResponse = await mutateWorkspaceState(workspaceRepoPath, (state) => {
-		const mutation = mutate(state);
-		return {
-			board: mutation.board,
-			value: mutation.value,
-		};
-	});
-
-	if (mutationResponse.saved) {
-		await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
-	}
-
-	return mutationResponse.value;
-}
-
-function resolveTaskBaseRef(state: RuntimeWorkspaceStateResponse): string {
-	return state.git.currentBranch ?? state.git.defaultBranch ?? state.git.branches[0] ?? "";
 }
 
 function findTaskRecord(

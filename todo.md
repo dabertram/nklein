@@ -1334,7 +1334,13 @@ deep analysis:
         - [x] **slice 3 (2026-06-24):** extracted the 6 pure plan-gap/merge card prompt + revision builders into
               `commands/task/task-plan-gap-prompts.ts` (the `add*CardToBoard` mutators stay in task.ts and import them).
               task.ts 2633→2509.
-        - [ ] still TODO: `task-target-resolution.ts`, the tRPC client factory, and the per-subcommand registration split.
+        - [x] **slice 4 (2026-06-24):** extracted the runtime-workspace + tRPC-client infrastructure (createRuntimeTrpcClient,
+              resolve/ensure workspace, notify, load-mutate-notify `updateRuntimeWorkspaceState`, resolveTaskBaseRef +
+              `RuntimeWorkspaceMutationResult`) into `commands/task/task-runtime-workspace.ts`. task.ts 2509→2433
+              (cumulative 2870→2433, −437). All ~60 call sites resolve via import (tsc-verified, no call-site changes).
+        - [ ] still TODO: `task-target-resolution.ts` (resolveTaskCommandTarget + findTaskRecord/findTasksInColumn), the
+              per-subcommand registration split (`registerTaskCommand` is ~470 lines), and the command implementations
+              (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern modules.
   - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
