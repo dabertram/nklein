@@ -3188,12 +3188,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		const toolNamesText = nextState.toolNames.join(", ");
+		const isDecomposition = target.kind === "decomposition";
+		const message = isDecomposition
+			? `!Klein paused this task after ${nextState.count} decomposition attempts that kept failing graph validation. Open the proposed plan graph and the validation errors in the chat, then send a corrected instruction (or split the work into smaller cards) instead of re-running decompose_project.`
+			: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`;
 		return this.parkTaskForAutonomyBudget({
 			taskId: summary.taskId,
 			entry,
-			message: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`,
+			message,
 			metadata: {
-				guardrail: "repeated_plan_artifact_failures",
+				guardrail: isDecomposition ? "repeated_decomposition_failures" : "repeated_plan_artifact_failures",
 				count: nextState.count,
 				limit: NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD,
 				targetSummary: nextState.targetSummary,
@@ -3212,6 +3216,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		fingerprint: string;
 		targetSummary: string;
 		toolName: string;
+		kind: "plan-artifact" | "decomposition";
 	} | null {
 		const activity = summary.latestHookActivity;
 		if (activity?.source !== "nklein-sdk") {
@@ -3227,15 +3232,28 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!toolName || isNKleinUserAttentionTool(toolName)) {
 			return null;
 		}
-		const targetSummary = normalizePlanArtifactFailureTarget(activity.toolInputSummary);
-		if (!targetSummary) {
-			return null;
+		const planArtifactTarget = normalizePlanArtifactFailureTarget(activity.toolInputSummary);
+		if (planArtifactTarget) {
+			return {
+				fingerprint: `plan-artifact\n${planArtifactTarget}`,
+				targetSummary: planArtifactTarget,
+				toolName,
+				kind: "plan-artifact",
+			};
 		}
-		return {
-			fingerprint: `plan-artifact\n${targetSummary}`,
-			targetSummary,
-			toolName,
-		};
+		// A `decompose_project` that keeps failing graph validation: small models re-submit a slightly-varied graph
+		// that fails the same coherence check, so the identical-full-input repeated-call guard never fires and the
+		// task loops until it stalls (evidence: the DAW-foundation run). Fingerprint by the tool itself so the
+		// consecutive validation failures accumulate and park the task for review — independent of the input churn.
+		if (toolName === "decompose_project") {
+			return {
+				fingerprint: "decomposition\ndecompose_project",
+				targetSummary: "the proposed decomposition graph",
+				toolName,
+				kind: "decomposition",
+			};
+		}
+		return null;
 	}
 
 	private parkTaskForPause(input: {

@@ -398,9 +398,12 @@ deep analysis:
       (auto-expanded; renders for failed graphs too with a red "failed validation" header). Self-contained layered SVG, no
       graph lib; tolerant of malformed JSON / cycles / unknown-or-self dependency ids. Unit-tested (4 cases) +
       `web typecheck` + `web vitest` (694) green. *(Still owed: a live in-chat screenshot from a real decompose run.)*
-- [ ] **(follow-up) loop-resilience for decompose validation failures** — even with correct classification, a genuinely
-      invalid graph re-submitted with slightly-varied inputs slips past the full-input repeated-call guard. Consider a
-      per-task "decompose validation failed N times" breaker that surfaces the blocker to the user instead of looping.
+- [x] **(follow-up) loop-resilience for decompose validation failures** *(DONE 2026-06-25)* — even with correct
+      classification, a genuinely invalid graph re-submitted with slightly-varied inputs slips past the full-input
+      repeated-call guard. Extended the existing repeated-failure-target guard (`enforceRepeatedFailureTargetGuard`) to also
+      fingerprint `decompose_project` failures by the tool, so 4 consecutive graph-validation failures **park** the task
+      (`awaiting_review`, guardrail `repeated_decomposition_failures`) with a message pointing at the proposed graph +
+      validation errors. Regression-tested (varied-input failures still park).
 - [ ] **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix)* —
       the user's workflow idea: **all** started cards should pass through **Planning** first (rename the lane in spirit
       to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the agent **re-validates the

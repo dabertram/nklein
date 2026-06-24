@@ -3526,6 +3526,61 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
+	it("parks a task after repeated decompose_project graph-validation failures (varied input)", async () => {
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Decompose the project.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-1");
+
+		// The model re-submits a slightly *different* graph each time (so the identical-full-input guard never
+		// fires) but keeps failing the same coherence validation. The decomposition-failure breaker fingerprints by
+		// the tool, so the consecutive failures accumulate and park the task instead of looping forever.
+		for (let attempt = 1; attempt <= 4; attempt += 1) {
+			const toolCallId = `decompose-${attempt}`;
+			const input = {
+				slug: "professional-daw-core",
+				tasks: [{ id: `t${attempt}`, title: `Implement layer ${attempt}`, dependsOn: [] }],
+			};
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_start",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				input,
+			});
+			runtime.emitAgentEvent(sessionId, {
+				type: "content_end",
+				contentType: "tool",
+				toolCallId,
+				toolName: "decompose_project",
+				error: "Task graph failed dependency-coherence validation.",
+				output: { error: "Task graph failed dependency-coherence validation." },
+			});
+		}
+
+		const summary = service.getSummary("task-1");
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("decomposition attempts that kept failing graph validation"),
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					guardrail: "repeated_decomposition_failures",
+					count: 4,
+					limit: 4,
+				}),
+			}),
+		);
+	});
+
 	it("creates task entry and session mapping before start() resolves", async () => {
 		const { service, runtime } = createTrackedService();
 		const startDeferred = createDeferred<StartNKleinSessionRuntimeResult>();
