@@ -908,19 +908,23 @@ deep analysis:
       (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
       findings to [local-llm-tests.md](local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
       robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
-  - [x] **Round 0 — methodology + harness frictions (2026-06-24)** — stood up the sweep loop and wrote
-        [local-llm-tests.md](local-llm-tests.md). Established the model-pin lever (the swarm resolves its model from
+  - [x] **Round 0 — methodology + the instrument problem (2026-06-24)** — stood up the loop and wrote
+        [local-llm-tests.md](local-llm-tests.md). Established the **model-pin lever** (the swarm resolves its model from
         the NKlein **provider settings**, not just live discovery — set/restore via `runtime.saveNKleinProviderSettings`;
-        `lms ps` lists loaded ids). Surfaced two **harness** blockers that must be fixed for clean rounds: (1)
-        `dev test-project` against the !Klein repo's own board **short-circuits** on pre-existing completed cards
-        (`polls:1`) — sweep a **fresh** throwaway workspace; (2) running it against a fresh `--project-path` **while
-        `dev:full` runs** fails with "Lock file is already being held" (cross-process `proper-lockfile` contention from
-        `loadWorkspaceContext` autoCreate + the CLI runtime touch) — sweep with the shared dev server stopped or under
-        an isolated HOME. No gemma-4-e2b *output* findings yet (Round 0 was consumed by setup).
-  - [ ] **Round 1 (next)** — gemma-4-e2b (then e4b, qwen3-8b) against a fresh repo with the dev server stopped / an
-        isolated-HOME sweep runtime; catalog real output failure modes + harden. Candidate harness hardening to weigh:
-        a clearer "another !Klein is already running for this home" acquire error + retry, instead of the raw lockfile
-        throw (Finding 2). Consider a small isolated-runtime sweep harness (à la `verify-strict-isolation.mts`).
+        `lms ps` lists loaded ids; pre-register a fresh repo via `projects.add` for an empty board + to dodge the
+        `loadWorkspaceContext` workspace-registry lock). **Key finding: `nklein dev test-project` is the wrong
+        instrument for §5.O** — it classifies **board card outcomes**, not the agent's **raw output**, and its
+        card-less `startTaskSession` seed reported `started:true` but **did not execute** via the CLI path (gemma
+        stayed IDLE; zero session-activity files). So there was no model output to catalog. Tried with the dev server
+        both up and stopped; restored the user's model + removed the throwaway project after.
+  - [ ] **Round 1 (next) — needs a real observation harness first (this is §5.O "option A").** Before any model can be
+        swept, build a harness that drives a task on the pinned small model and **captures the agent's raw output**
+        (every `tool_call` + content chunk / NKlein session activity + evidence), since `test-project`'s board-outcome
+        classification can't. Cheapest first lens: the **chat tool-using loop** against the pinned model (already
+        surfaces every tool call), accepting it skips the swarm's `recoverNarratedToolCalls` seam; fuller lens: an
+        isolated-runtime harness (à la `verify-strict-isolation.mts`) that tails the seeded task's session evidence.
+        Then sweep gemma-4-e2b → e4b → qwen3-8b, catalog output failure modes, and harden. (Also: trace why the
+        card-less dev-test seed doesn't run via the CLI — Finding 4.)
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

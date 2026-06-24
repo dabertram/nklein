@@ -43,9 +43,28 @@ Goal of this round was to stand up the sweep loop end-to-end against the smalles
   a clearer, retrying acquire + a "another !Klein is already running for this home" message instead of the raw
   lockfile error — tracked under §5.O.)*
 
-**No gemma-4-e2b output failure modes catalogued yet** — Round 0 was consumed by the two setup frictions above. Round
-1 (next) runs gemma-4-e2b against a fresh repo with the dev server stopped / isolated HOME, and catalogs the real
-output behavior.
+After fixing 1+2 (pre-register a fresh throwaway repo via `projects.add` → empty board, no registry-write
+contention; runtime kept up so the `test-project` *client* has something to connect to), two **deeper** findings
+made it clear `test-project` is the wrong instrument for §5.O:
+
+- **Finding 3 — `test-project` classifies board OUTCOMES, not model OUTPUT.** It polls board card counts and reports
+  `completed`/`failed`/`incomplete`. §5.O needs the agent's **raw output stream** (tool calls, narration, malformed
+  args, stalls) — which board counts can't show. With an empty board the run even classifies `completed` vacuously
+  ("0 non-trash cards → all completed").
+- **Finding 4 — the dev-test seed doesn't actually run via the CLI client path.** `executeDevTestPreset` seeds by
+  calling `runtime.startTaskSession` for a **card-less** `devtest-<scenario>-<ts>` task, then polls the board. In
+  this CLI-client setup it returned **`started: true` but nothing executed**: gemma-4-e2b stayed **IDLE** (`lms ps`)
+  and **no** session/activity files were written under `~/.nklein/nklein` in the run window. So there was no model
+  output to observe at all. *(Root cause not yet traced — candidate: a session started for a taskId with no board
+  card isn't picked up by the swarm / isn't reflected in `workspace.getState`. Tracked for Round 1.)*
+
+**Conclusion → the sweep needs a purpose-built observation harness (todo §5.O "option A").** Rather than the
+board-classifying `test-project`, Round 1 should drive the agent directly and **capture its raw output**: either
+(a) a small isolated-runtime harness that starts a real task and tails the NKlein **session activity / evidence**
+for the seeded task, or (b) exercise the agent loop against the pinned small model through a path that surfaces every
+`tool_call` / content chunk (the chat tool-using loop already does this for its 3 tools and is the cheapest first
+lens, even if it doesn't hit the swarm's `recoverNarratedToolCalls` seam). **No gemma-4-e2b output failure modes
+catalogued yet** — Round 0 established that the *instrument* must change first.
 
 ## Hardening already shipped this session that pre-empts known small-model output failures
 
