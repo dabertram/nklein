@@ -927,9 +927,15 @@ deep analysis:
         [runChatAgentTurn](src/chat/chat-agent-turn.ts) with a `Done. (used: …)` confirmation fallback. Unit-tested +
         **re-verified live** (the same write now replies `"Done. (used: write_file)"`; file still created). Logged in
         [local-llm-tests.md](local-llm-tests.md).
-  - [ ] **Round 2 (next)** — gemma-4-e4b + qwen3-8b through the same chat lens; then the **swarm/`recoverNarratedTool
-        Calls` path**, which needs the Round-0 observation harness (`test-project` can't surface raw output) + tracing
-        why the card-less dev-test seed doesn't run via the CLI (Finding 4).
+  - [x] **Round 2 — gemma-4-e4b + qwen3-8b via the chat lens (2026-06-24)** — write tasks clean (narration fix from
+        Round 1 held; files written). Surfaced **Finding 6 (logged, not a fix): a grounding failure** — both models
+        called `read_file` then ignored the result and answered from priors (qwen3-8b confabulated about *mathjs.org*;
+        e4b gave a vague non-answer). That's a model-capability issue, **out of the parse-and-recover lane** ("don't
+        teach the model"); candidate soft mitigation (more imperative tool-result framing) logged in
+        [local-llm-tests.md](local-llm-tests.md), not implemented speculatively.
+  - [ ] **Round 3 (next)** — the **swarm/`recoverNarratedToolCalls` path** (richer tool suite, raw output): needs the
+        Round-0 observation harness (`test-project` can't surface raw output) + tracing why the card-less dev-test
+        seed doesn't run via the CLI (Finding 4). Optionally weigh the imperative tool-result framing (Finding 6).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

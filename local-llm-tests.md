@@ -96,6 +96,22 @@ cleans *display* text on the final tools-disabled turn.
 *Next:* gemma-4-e4b + qwen3-8b through the same lens; then the swarm/`recoverNarratedToolCalls` path (which needs the
 Round-0 observation harness, since `test-project` can't surface raw output).
 
+## Round 2 — gemma-4-e4b + qwen3-8b via the chat lens (2026-06-24)
+
+- **Write task (both models): clean.** Each called `write_file` once and the file was written correctly; the
+  narration fix from Round 1 held (no markup leak). *(Their `--json` replies weren't captured cleanly here — the
+  stdin confirm prompt is printed on the same line as the JSON `{`, a capture-grep artifact, not a model issue.)*
+- **Finding 6 (observed, NOT a parse-and-recover fix) — grounding failure on the read task.** Both models called
+  `read_file` but then **ignored the result** and answered from priors: qwen3-8b confabulated about the famous
+  *mathjs.org* library ("over 250 functions…"), gemma-4-e4b gave a vague "math.js is a library available… the
+  snippets are very limited" non-answer — neither listed the file's actual `add`. This is a **model-capability /
+  grounding** weakness, not an output *format* issue, so it's **out of the parse-and-recover lane** (the §5.O
+  principle is "recover in !Klein, don't teach the model" — and you can't parse a model into using its tool result).
+  Candidate soft mitigation to weigh later (low confidence on weak models): a more imperative framing of the folded
+  tool result (e.g. "Answer ONLY from this tool output:") instead of the current neutral `Tool result (id): …` note.
+  Logged, not implemented (no speculative prompt-tuning). Interesting that the *smallest* model (e2b) grounded
+  correctly on the read while the larger e4b/qwen3-8b drifted — reinforces "robustness ≠ size; test the behavior."
+
 ## Hardening already shipped this session that pre-empts known small-model output failures
 
 These landed via §5.M/§5.O work and directly serve the sweep's goal (recorded here as the running tally):
