@@ -613,11 +613,16 @@ deep analysis:
   - [ ] (a) Docker-isolated, read-only (opt-in write) to explicitly user-mounted folders only
   - [ ] (b) sandbox-by-default + double-confirmed per-action host escape hatch (each host command/edit, audit-logged)
   - [ ] (c) host-mode toggle (whole session on host) behind a typed confirmation phrase
-- [ ] **Memory — human-like short/long-term** (reuse the in-process embedder)
+- [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
   - [ ] short-term = lean live window via rolling summarization/consolidation (small models sustain long sessions)
-  - [ ] long-term = persisted memories semantically recalled ("woken up") on associated topics; consolidate short→long
-  - [ ] scope: per-session isolated by default; opt-in shared-across-sessions; opt-in access-all-loaded-projects;
-        stay within ≥32k; degrade when the embedder is the lexical fallback
+  - [x] **long-term store + recall (2026-06-24)** — [src/chat/chat-memory-store.ts](src/chat/chat-memory-store.ts):
+        persisted memories (append-only JSONL) + `recallChatMemories` — the pure, testable recall core that ranks
+        session-accessible memories against a query by **cosine similarity when embeddings are present and degrades to
+        lexical (Jaccard) token overlap** when the embedder is the lexical fallback (the embedder is injected; never
+        fails closed), dropping zero-score matches. `accessibleChatMemories` enforces the scope (own session + shared).
+        Unit-tested (append/read, scope filter, cosine+lexical similarity, embedding recall, lexical-degradation recall).
+        Still owed for long-term: consolidate short→long + wiring the real in-process embedder + a prune/consolidation pass.
+  - [ ] short→long consolidation + the ≥32k-floor budget integration + opt-in access-all-loaded-projects scope.
 - [ ] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
 - [ ] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
