@@ -22,6 +22,7 @@ describe("composeChatTurnContext", () => {
 			{
 				sessionId: "s1",
 				query: "merge conflict",
+				goal: "Resolve the board merge conflicts",
 				transcript,
 				memories,
 				tokenBudget: 8,
@@ -37,6 +38,7 @@ describe("composeChatTurnContext", () => {
 
 		expect(context.recentMessages.map((m) => m.id)).toEqual(["2", "3"]);
 		expect(context.summary).toBe("summary(1)");
+		expect(context.goal).toBe("Resolve the board merge conflicts");
 		expect(summarizeCalls).toEqual([1]);
 		expect(context.recalledMemories.map((m) => m.id)).toEqual(["hit"]);
 	});

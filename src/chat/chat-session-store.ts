@@ -35,6 +35,8 @@ export interface ChatSession {
 	title: string;
 	scope: ChatSessionScope;
 	role: ChatSessionRole;
+	/** A Codex-style explicit objective kept in focus across turns (todo §5.M); null when unset. */
+	goal: string | null;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -115,6 +117,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				...event.session,
 				scope: normalizeScope(event.session.scope),
 				role: normalizeRole(event.session.role),
+				// Back-compat for sessions persisted before `goal` existed.
+				goal: typeof event.session.goal === "string" ? event.session.goal : null,
 			});
 		}
 	}
@@ -130,7 +134,7 @@ export async function getChatSession(id: string, options: ChatSessionStoreOption
 }
 
 export async function createChatSession(
-	input: { title: string; scope?: ChatSessionScope; role?: ChatSessionRole },
+	input: { title: string; scope?: ChatSessionScope; role?: ChatSessionRole; goal?: string | null },
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
 	const now = (options.now ?? Date.now)();
@@ -140,6 +144,7 @@ export async function createChatSession(
 		title: input.title.trim() || "Untitled session",
 		scope: input.scope ?? DEFAULT_CHAT_SESSION_SCOPE,
 		role: input.role ?? DEFAULT_CHAT_SESSION_ROLE,
+		goal: input.goal?.trim() || null,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -149,7 +154,7 @@ export async function createChatSession(
 
 export async function updateChatSession(
 	id: string,
-	patch: { title?: string; scope?: ChatSessionScope; role?: ChatSessionRole },
+	patch: { title?: string; scope?: ChatSessionScope; role?: ChatSessionRole; goal?: string | null },
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
 	const existing = await getChatSession(id, options);
@@ -162,6 +167,8 @@ export async function updateChatSession(
 		...(patch.title !== undefined ? { title: patch.title.trim() || existing.title } : {}),
 		...(patch.scope !== undefined ? { scope: patch.scope } : {}),
 		...(patch.role !== undefined ? { role: patch.role } : {}),
+		// `goal: null` clears it; `goal: undefined` (absent) leaves it unchanged.
+		...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

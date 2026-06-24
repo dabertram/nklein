@@ -47,6 +47,21 @@ describe("chat-session-store", () => {
 		expect(created).toMatchObject({ scope: "host_access", role: "system_operator" });
 	});
 
+	it("defaults goal to null, sets it on create, and clears vs preserves it on update", async () => {
+		const created = await createChatSession({ title: "Plain" }, { rootDir, now });
+		expect(created.goal).toBeNull();
+
+		const withGoal = await createChatSession({ title: "Goaled", goal: "  Ship the merge UI  " }, { rootDir, now });
+		expect(withGoal.goal).toBe("Ship the merge UI");
+
+		// Absent goal in the patch leaves it unchanged; explicit null clears it.
+		const renamed = await updateChatSession(withGoal.id, { title: "Renamed" }, { rootDir, now });
+		expect(renamed?.goal).toBe("Ship the merge UI");
+		const cleared = await updateChatSession(withGoal.id, { goal: null }, { rootDir, now });
+		expect(cleared?.goal).toBeNull();
+		expect((await getChatSession(withGoal.id, { rootDir }))?.goal).toBeNull();
+	});
+
 	it("updates fields, bumps updatedAt, and persists across reads", async () => {
 		const created = await createChatSession({ title: "First" }, { rootDir, now });
 		clock = 2000;

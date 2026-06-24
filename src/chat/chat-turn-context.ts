@@ -14,6 +14,8 @@ import type { ChatMessage } from "./chat-transcript-store";
  */
 
 export interface ChatTurnContext {
+	/** The session's standing objective, re-anchored into every turn so it stays in focus (todo §5.M). */
+	goal: string | null;
 	/** A rolled-up summary of the overflow beyond the lean window, or null when nothing overflowed. */
 	summary: string | null;
 	/** Long-term memories semantically recalled for this turn (highest score first). */
@@ -27,6 +29,8 @@ export async function composeChatTurnContext(
 		sessionId: string;
 		/** The incoming user message text — drives long-term recall. */
 		query: string;
+		/** The session's standing objective, carried into the turn context unchanged. */
+		goal?: string | null;
 		transcript: readonly ChatMessage[];
 		memories: readonly ChatMemory[];
 		tokenBudget: number;
@@ -53,5 +57,5 @@ export async function composeChatTurnContext(
 		},
 		{ embed: deps.embed },
 	);
-	return { summary, recalledMemories, recentMessages: window.recent };
+	return { goal: input.goal ?? null, summary, recalledMemories, recentMessages: window.recent };
 }

@@ -652,8 +652,14 @@ deep analysis:
         action (session, mode, action, decision, confirmed, executed, detail) — append-only JSONL, read newest-first
         with session filter + limit. Both pure/store-level + unit-tested. Still owed: the runtime that calls the gate,
         prompts the typed confirmation, executes, and writes the audit entry; + messenger access-control.
-- [ ] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
+- [~] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
       (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star).
+  - [x] **persisted + re-anchored (2026-06-24)** — `goal` is now a first-class `ChatSession` field
+        ([chat-session-store.ts](src/chat/chat-session-store.ts)): set on create, editable on update (explicit `null`
+        clears, absent leaves unchanged), back-compat-defaulted for older records. `composeChatTurnContext`
+        ([chat-turn-context.ts](src/chat/chat-turn-context.ts)) carries it into **every** turn's context so it stays
+        in focus across turns. Unit-tested (goal create/update/clear/preserve + goal in the composed turn context).
+        Still owed: surface/edit it in the chat UI + over the bridge (with the rest of the chat surface).
 - [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
       `"queue" | "steer"` delivery mode; wire through UI + bridge.
 
