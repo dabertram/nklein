@@ -1381,9 +1381,14 @@ deep analysis:
               low navigability gain, so likely leave in place), the model-list *fetchers* (LiteLLM/LM Studio/generic endpoint
               discovery — I/O + const/schema deps, ~340 lines, a cohesive next module but deserves fresh context), the MCP
               settings, and the launch-config resolution.
-  - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
+  - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384 → 2330)** — already composes `detail-panels/*`, but still holds
         many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract the
         skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.
+        - [x] **slice 1 (2026-06-24):** extracted the workspace-changes loading + empty presentational panels (and their
+              private skeleton primitives) into `detail-panels/workspace-changes-skeleton.tsx`. Pure prop-driven, no
+              behavior change; verified `web typecheck` + `web vitest` (690) green. card-detail-view 2384→2330.
+        - [ ] still TODO: the pure activity/diagnostic + planning-DAG formatting helpers (good next slice — pure, no JSX),
+              the bottom-terminal/workspace-changes *sections*, and the resize/keyboard orchestration into a hook.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
