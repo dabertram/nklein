@@ -26,6 +26,8 @@ export enum LocalStorageKey {
 	NotificationBadgeClearEvent = "nklein.notification-badge-clear.v1",
 	TabVisibilityPresence = "nklein.tab-visibility-presence.v1",
 	NKleinChatTimestampsCollapsed = "nklein.chat.timestamps-collapsed.v1",
+	ChatSidebarWidth = "nklein.chat-sidebar-width",
+	ChatSidebarCollapsed = "nklein.chat-sidebar-collapsed",
 	Theme = "nklein.theme",
 }
 
@@ -40,6 +42,8 @@ export const LAYOUT_CUSTOMIZATION_LOCAL_STORAGE_KEYS = [
 	LocalStorageKey.GitHistoryRefsPanelWidth,
 	LocalStorageKey.GitHistoryCommitsPanelWidth,
 	LocalStorageKey.GitDiffFileTreePanelRatio,
+	LocalStorageKey.ChatSidebarWidth,
+	LocalStorageKey.ChatSidebarCollapsed,
 ] as const;
 
 const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, string>> = {
@@ -99,6 +103,8 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 		LEGACY_LOCAL_STORAGE_PREFIX,
 		"chat.timestamps-collapsed.v1",
 	),
+	[LocalStorageKey.ChatSidebarWidth]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "chat-sidebar-width"),
+	[LocalStorageKey.ChatSidebarCollapsed]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "chat-sidebar-collapsed"),
 	[LocalStorageKey.Theme]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "theme"),
 };
 

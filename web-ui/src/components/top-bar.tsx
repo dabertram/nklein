@@ -292,7 +292,6 @@ export function TopBar({
 	onToggleGitHistory,
 	isGitHistoryOpen,
 	onOpenSettings,
-	onOpenChat,
 	showDebugButton,
 	onOpenDebugDialog,
 	shortcuts,
@@ -327,7 +326,6 @@ export function TopBar({
 	onToggleGitHistory?: () => void;
 	isGitHistoryOpen?: boolean;
 	onOpenSettings?: (section?: SettingsSection) => void;
-	onOpenChat?: () => void;
 	showDebugButton?: boolean;
 	onOpenDebugDialog?: () => void;
 	shortcuts?: RuntimeProjectShortcut[];
@@ -671,21 +669,6 @@ export function TopBar({
 								/>
 							) : null}
 						</>
-					) : null}
-
-					{/* Chat: always visible (board-independent unified chat, todo §5.M) */}
-					{onOpenChat ? (
-						<ElementTooltip id="top-bar.chat" side="bottom">
-							<Button
-								variant="ghost"
-								size="sm"
-								icon={<MessageSquare size={16} />}
-								onClick={() => onOpenChat()}
-								aria-label="Chat"
-								data-testid="open-chat-button"
-								className={cn("ml-0.5", isMobile && MOBILE_TOUCH_TARGET)}
-							/>
-						</ElementTooltip>
 					) : null}
 
 					{/* Settings: always visible */}

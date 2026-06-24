@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import { CardDetailView } from "@/components/card-detail-view";
-import { ChatDialog } from "@/components/chat/chat-dialog";
+import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
@@ -99,7 +99,6 @@ export default function App(): ReactElement {
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [settingsInitialSection, setSettingsInitialSection] = useState<RuntimeSettingsSection | null>(null);
 	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("projects");
-	const [isChatOpen, setIsChatOpen] = useState(false);
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
 	const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -953,7 +952,6 @@ export default function App(): ReactElement {
 						isTerminalOpen={selectedCard ? isDetailTerminalOpen : showHomeBottomTerminal}
 						isTerminalLoading={selectedCard ? isDetailTerminalStarting : isHomeTerminalStarting}
 						onOpenSettings={handleOpenSettings}
-						onOpenChat={() => setIsChatOpen(true)}
 						showDebugButton={developerModeEnabled}
 						onOpenDebugDialog={developerModeEnabled ? handleOpenDebugDialog : undefined}
 						shortcuts={shortcuts}
@@ -1211,6 +1209,8 @@ export default function App(): ReactElement {
 						) : null}
 					</div>
 				</div>
+				{/* Board-independent chat as a resizeable right sidebar (todo §5.M), replacing the old modal. */}
+				<ChatSidebar />
 				<RuntimeSettingsDialog
 					open={isSettingsOpen}
 					workspaceId={settingsWorkspaceId}
@@ -1245,7 +1245,6 @@ export default function App(): ReactElement {
 					onStartAllTasks={handleStartAllBacklogTasksFromBoard}
 				/>
 				{/* informational dev surface -> developer mode only (works in packaged builds) */}
-				<ChatDialog open={isChatOpen} onOpenChange={setIsChatOpen} />
 				<DebugDialog
 					open={isDebugDialogOpen}
 					onOpenChange={handleDebugDialogOpenChange}

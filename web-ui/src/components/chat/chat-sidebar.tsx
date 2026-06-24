@@ -1,11 +1,14 @@
-import { MessageSquarePlus, Send, Trash2 } from "lucide-react";
+import { MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
+import { ResizeHandle } from "@/resize/resize-handle";
+import { clampBetween } from "@/resize/resize-persistence";
+import { CHAT_SIDEBAR_WIDTH_BOUNDS, useChatSidebarLayout } from "@/resize/use-chat-sidebar-layout";
+import { useResizeDrag } from "@/resize/use-resize-drag";
 import type {
 	RuntimeChatMessage,
 	RuntimeChatSession,
@@ -183,14 +186,9 @@ function MessageBubble({ message }: { message: RuntimeChatMessage }): React.Reac
 	);
 }
 
-export function ChatDialog({
-	open,
-	onOpenChange,
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-}): React.ReactElement {
-	const chat = useChatData(open);
+/** The chat content (session list + transcript + composer) — rendered inside the right sidebar (todo §5.M). */
+function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () => void }): React.ReactElement {
+	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
@@ -218,8 +216,22 @@ export function ChatDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-6xl h-[80vh]">
-			<DialogHeader title="Chat" icon={<MessageSquarePlus size={16} />} />
+		<div className="flex h-full min-h-0 flex-col bg-surface-1">
+			<div className="flex items-center justify-between px-3 py-2 bg-surface-2 border-b border-border shrink-0">
+				<div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+					<MessageSquare size={16} className="text-text-secondary" /> Chat
+				</div>
+				<button
+					type="button"
+					aria-label="Collapse chat"
+					title="Collapse chat"
+					data-testid="chat-collapse-button"
+					onClick={onCollapse}
+					className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3"
+				>
+					<PanelRightClose size={16} />
+				</button>
+			</div>
 			<div className="flex flex-1 min-h-0">
 				{/* Session list */}
 				<aside className="w-60 shrink-0 border-r border-border flex flex-col bg-surface-1">
@@ -347,6 +359,59 @@ export function ChatDialog({
 					{chat.error}
 				</div>
 			) : null}
-		</Dialog>
+		</div>
+	);
+}
+
+/**
+ * The board-independent chat as a **resizeable right sidebar** (todo §5.M) — a VS-Code-coding-agent-style rail.
+ * Collapsed by default to a thin bar (expand button); when open it shows the full chat and can be dragged wider via
+ * the handle on its left edge. Width + collapsed state persist (`useChatSidebarLayout`). Replaces the old modal.
+ */
+export function ChatSidebar(): React.ReactElement {
+	const { width, isCollapsed, setWidth, setCollapsed } = useChatSidebarLayout();
+	const { startDrag } = useResizeDrag();
+
+	if (isCollapsed) {
+		return (
+			<div className="flex h-full w-10 shrink-0 flex-col items-center border-l border-border bg-surface-1 py-2">
+				<button
+					type="button"
+					aria-label="Open chat"
+					title="Open chat"
+					data-testid="open-chat-button"
+					onClick={() => setCollapsed(false)}
+					className="p-1.5 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-3"
+				>
+					<MessageSquare size={18} />
+				</button>
+			</div>
+		);
+	}
+
+	return (
+		<aside className="flex h-full min-h-0 shrink-0" style={{ width }} data-testid="chat-sidebar">
+			<ResizeHandle
+				orientation="vertical"
+				ariaLabel="Resize chat sidebar"
+				onMouseDown={(event) =>
+					startDrag(event, {
+						axis: "x",
+						cursor: "ew-resize",
+						onMove: (pointerX) =>
+							setWidth(
+								clampBetween(
+									window.innerWidth - pointerX,
+									CHAT_SIDEBAR_WIDTH_BOUNDS.min,
+									CHAT_SIDEBAR_WIDTH_BOUNDS.max,
+								),
+							),
+					})
+				}
+			/>
+			<div className="flex flex-1 min-w-0 min-h-0">
+				<ChatPanel enabled onCollapse={() => setCollapsed(true)} />
+			</div>
+		</aside>
 	);
 }

@@ -823,15 +823,18 @@ deep analysis:
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
   - [ ] still owed: an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today),
         **memory-scope toggles**, and **Signal pairing/status** (with the bridge, LATER).
-  - [ ] **Chat → resizeable RIGHT sidebar; drop the modal + the home-agent tab** *(DECIDED with the user 2026-06-24)* —
-        move the §5.M Chat **out of the modal into a persistent, resizeable right sidebar** (VS-Code-coding-agent feel),
-        and **remove the "Chat" top-bar button + the `ChatDialog` modal**. Mirror the left sidebar's collapse/resize
-        (`ResizeHandle` + a `use-*-layout` width hook + persisted width). **Drop the home "!Klein Agent" tab fully**:
-        the left sidebar becomes projects-only (remove the Projects/Agent `homeSidebarSection` toggle); **merge the
-        home-agent functionality into the new right-side chat** ("we'll grow the new chat to what we need"). Remove the
-        now-dead home-session infra — `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`, `useHomeAgentSession`,
-        the home synthetic-session wiring + its tests. **Keep** the per-task card agent chats (card detail) — different
-        thing. *(Trash-lane layout + the chat-width bump already shipped; this is the larger restructure.)*
+  - [x] **Chat → resizeable RIGHT sidebar; modal + Chat button dropped (2026-06-24)** — the §5.M chat is now a
+        persistent right sidebar ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx), renamed from
+        chat-dialog): `ChatSidebar` (collapsed-by-default thin rail with an expand button) + `ChatPanel` (the chat
+        content). Drags wider via a `ResizeHandle` on its left edge; width + collapsed state persist
+        ([use-chat-sidebar-layout.ts](web-ui/src/resize/use-chat-sidebar-layout.ts) + new `ChatSidebarWidth/Collapsed`
+        storage keys). Removed the `ChatDialog` modal, the top-bar Chat button + `onOpenChat`, and the `top-bar.chat`
+        tooltip. web tsc + full web vitest (705) green; Playwright re-verified (expand → create session → send → reply).
+  - [ ] **still owed: drop the home "!Klein Agent" tab + merge into the chat (increment 2)** — left sidebar becomes
+        projects-only (remove the Projects/Agent `homeSidebarSection` toggle in `project-navigation-panel.tsx`);
+        merge the home-agent functionality into the right-side chat ("grow the new chat to what we need"); remove the
+        now-dead home-session infra — `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`, `useHomeAgentSession`
+        + wiring + tests. **Keep** the per-task card agent chats (card detail) — different thing.
 - [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
   - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy
