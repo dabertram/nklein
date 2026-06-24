@@ -1368,8 +1368,14 @@ deep analysis:
         - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat) — the bigger,
               harder refactor (methods close over `createRuntimeApi`'s deps; deserves fresh context). Small leftover
               module-level helpers worth a later pass: the board-card lookups + git-commit resolution.
-  - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989)** — provider selection + OAuth (nklein/oca/codex) +
+  - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989 → 1744)** — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
+        - [x] **slice 1 (2026-06-24):** extracted the pure discovered-model parsing/normalization (LM Studio `/api/v0|v1`
+              + generic OpenAI-style payloads → `RuntimeNKleinProviderModel[]`, context-window normalization, dedupe,
+              registry/fallback merges) into `nklein-sdk/nklein-provider-model-parsing.ts`. Pathnames passed as `string`
+              so the module stays decoupled from the service's pathname unions. provider-service 1989→1744 (−245/−12%).
+        - [ ] still TODO: the OAuth/account subsystem, the model-list *fetchers* (LiteLLM/LM Studio/generic endpoint
+              discovery — these do I/O), the MCP settings, and the launch-config resolution.
   - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
         many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract the
         skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.

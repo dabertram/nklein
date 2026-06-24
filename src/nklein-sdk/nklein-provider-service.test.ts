@@ -34,11 +34,8 @@ vi.mock("./sdk-provider-boundary", () => ({
 }));
 
 import type { NKleinModelRegistryEntry } from "./nklein-model-registry";
-import {
-	createNKleinProviderService,
-	loadProviderModelsWithFallback,
-	mergeProviderModelsWithModelRegistry,
-} from "./nklein-provider-service";
+import { mergeProviderModelsWithModelRegistry } from "./nklein-provider-model-parsing";
+import { createNKleinProviderService, loadProviderModelsWithFallback } from "./nklein-provider-service";
 
 const providerSelectionPath = join(tmpdir(), "kanban-nklein-provider-service-test-selection.json");
 
