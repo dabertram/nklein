@@ -688,7 +688,10 @@ deep analysis:
 - [ ] **Move the model-roles model selector up next to the default model selector** (group role models with the default).
 - [ ] **Revisit the bottom "Project" reference + "script shortcuts"** — unclear what they're for; might be useful later.
       Decide keep/relabel/remove (leaning keep for now; revisit).
-- [ ] **Deactivate the "read the docs" links** (we're not at that point yet) — keep them but mark "(not yet available)".
+- [x] **Deactivate the "read the docs" links** *(DONE 2026-06-24)* — the only such link (Settings dialog footer, → the
+      not-yet-published `docs.nklein.bot`) is now a **disabled** "Read the docs (not yet available)" button with a
+      "coming soon" tooltip, instead of opening a dead link. (The onboarding carousel's other external links go to real
+      ollama/lmstudio download pages — left as-is.) web tsc + biome clean; no test referenced it.
 
 ### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24)*
 > **Goal (meta-task):** do a deliberate, whole-codebase reasoning pass over !Klein's architecture and structure and

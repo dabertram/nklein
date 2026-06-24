@@ -65,6 +65,7 @@ import { cn } from "@/components/ui/cn";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip } from "@/components/ui/tooltip";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import {
@@ -3832,15 +3833,15 @@ export function RuntimeSettingsDialog({
 					</div>
 				</div>
 				<DialogFooter>
-					<Button
-						size="sm"
-						variant="ghost"
-						className="mr-auto mt-[3px]"
-						icon={<ExternalLink size={14} />}
-						onClick={() => window.open("https://docs.nklein.bot/kanban/overview", "_blank")}
-					>
-						Read the docs
-					</Button>
+					{/* Docs aren't published yet (todo §5.T): keep the entry point visible but disabled so it doesn't
+					    open a dead link, with a tooltip explaining why. Re-enable once docs.nklein.bot is live. */}
+					<Tooltip content="Documentation isn't available yet — coming soon.">
+						<span className="mr-auto mt-[3px] inline-flex">
+							<Button size="sm" variant="ghost" icon={<ExternalLink size={14} />} disabled>
+								Read the docs (not yet available)
+							</Button>
+						</span>
+					</Tooltip>
 					<Button onClick={() => handleDialogOpenChange(false)} disabled={controlsDisabled}>
 						Cancel
 					</Button>
