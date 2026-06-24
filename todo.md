@@ -644,8 +644,14 @@ deep analysis:
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
 - [ ] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
       memory-scope toggles, Signal pairing/status; tooltips per §5.I #5.
-- [ ] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
+- [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
+  - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy
+        ([chat-execution-mode.ts](src/chat/chat-execution-mode.ts), above) decides allow/confirm/deny per action, and
+        [chat-host-action-audit-store.ts](src/chat/chat-host-action-audit-store.ts) durably records **every** host
+        action (session, mode, action, decision, confirmed, executed, detail) — append-only JSONL, read newest-first
+        with session filter + limit. Both pure/store-level + unit-tested. Still owed: the runtime that calls the gate,
+        prompts the typed confirmation, executes, and writes the audit entry; + messenger access-control.
 - [ ] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
       (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star).
 - [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
