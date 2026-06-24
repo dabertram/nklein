@@ -445,7 +445,11 @@ deep analysis:
 - [ ] **Python core default-ON + Settings health** *(decided 2026-06-22)*:
   - [ ] bundle/package the `core-py` sidecar so auto-start is reliable
   - [ ] auto-start on launch; keep auto-fallback when unreachable
-  - [ ] Settings health line (running, model loaded, port) — safe additive piece, can land first
+  - [~] Settings health line (running, model loaded, port) — safe additive piece, can land first
+    - [x] **running + endpoint/port (2026-06-24)** — `getKleinCorePyHealth` tRPC query (config `enabled` + live
+          `probeKleinCorePyHealth`) feeds a self-contained `KleinCorePyHealthLine` rendered under the Settings model
+          panel: Running / Not reachable / Disabled + endpoint, with an `NKLEIN_CORE_PY=1` hint. Component unit-tested.
+    - [ ] model-loaded detail (needs the core `/health` to report the resident model)
 
 ### 5.I — Newly raised in chat (2026-06-22)
 - [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process)** — Python core embeds an in-process

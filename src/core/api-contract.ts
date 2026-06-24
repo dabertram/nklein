@@ -1473,6 +1473,15 @@ export type RuntimeNKleinCodeIntelligenceStatusResponse = z.infer<
 	typeof runtimeNKleinCodeIntelligenceStatusResponseSchema
 >;
 
+// Python core (`core-py`) sidecar health for the Settings health line (todo §5.H). `enabled` reflects the
+// NKLEIN_CORE_PY opt-out flag; `reachable` is a live `GET /health` probe; `sidecarUrl` carries the host:port.
+export const runtimeKleinCorePyHealthResponseSchema = z.object({
+	enabled: z.boolean(),
+	reachable: z.boolean(),
+	sidecarUrl: z.string(),
+});
+export type RuntimeKleinCorePyHealthResponse = z.infer<typeof runtimeKleinCorePyHealthResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

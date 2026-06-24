@@ -242,6 +242,11 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildNKleinAdvisorRequest: buildNKleinAdvisorRequestMock,
 	discoverNKleinEndpointModels: discoverNKleinEndpointModelsMock,
+	fetchKleinCorePyHealth: vi.fn(async () => ({
+		enabled: false,
+		reachable: false,
+		sidecarUrl: "http://127.0.0.1:3585",
+	})),
 	fetchNKleinCodeIntelligenceStatus: fetchNKleinCodeIntelligenceStatusMock,
 	fetchNKleinModelRegistry: fetchNKleinModelRegistryMock,
 	fetchNKleinProviderModels: fetchNKleinProviderModelsMock,
@@ -250,6 +255,7 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 	removeNKleinModelRegistryEntry: removeNKleinModelRegistryEntryMock,
 	runNKleinSmokeEval: runNKleinSmokeEvalMock,
 	saveNKleinModelContextWindowOverride: saveNKleinModelContextWindowOverrideMock,
+	saveNKleinModelMaxConcurrentRequests: vi.fn(async () => ({})),
 	sendNKleinAdvisorRequest: sendNKleinAdvisorRequestMock,
 	writeNKleinDogfoodBacklog: writeNKleinDogfoodBacklogMock,
 }));

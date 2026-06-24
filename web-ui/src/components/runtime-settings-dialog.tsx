@@ -53,6 +53,7 @@ import {
 	filterRegistryEntriesToLoadedModels,
 	NKleinModelRegistryPanel,
 } from "@/components/detail-panels/nklein-model-registry-panel";
+import { KleinCorePyHealthLine } from "@/components/klein-core-py-health-line";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
@@ -1323,6 +1324,7 @@ function NKleinModelContextWindowSettingsPanel({
 				onRemoveEntry={disabled ? undefined : removeEntry}
 				onPruneStale={disabled ? undefined : pruneStale}
 			/>
+			<KleinCorePyHealthLine workspaceId={workspaceId} />
 		</div>
 	);
 }

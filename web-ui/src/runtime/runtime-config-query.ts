@@ -10,6 +10,7 @@ import type {
 	RuntimeDevTestProjectPreset,
 	RuntimeDevTestProjectResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
@@ -77,6 +78,11 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+export async function fetchKleinCorePyHealth(workspaceId: string | null): Promise<RuntimeKleinCorePyHealthResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getKleinCorePyHealth.query();
 }
 
 export async function fetchKnowledgeToolUsageStats(

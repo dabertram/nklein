@@ -27,6 +27,7 @@ import type {
 	RuntimeGitSummaryResponse,
 	RuntimeGitSyncAction,
 	RuntimeGitSyncResponse,
+	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
@@ -161,6 +162,7 @@ import {
 	runtimeGitSummaryResponseSchema,
 	runtimeGitSyncActionSchema,
 	runtimeGitSyncResponseSchema,
+	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
@@ -430,6 +432,7 @@ export interface RuntimeTrpcContext {
 		getNKleinCodeIntelligenceStatus: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
+		getKleinCorePyHealth: () => Promise<RuntimeKleinCorePyHealthResponse>;
 		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinAdvisorRequest>;
@@ -848,6 +851,9 @@ export const runtimeAppRouter = t.router({
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getNKleinCodeIntelligenceStatus(ctx.workspaceScope);
 			}),
+		getKleinCorePyHealth: t.procedure.output(runtimeKleinCorePyHealthResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getKleinCorePyHealth();
+		}),
 		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);
 		}),

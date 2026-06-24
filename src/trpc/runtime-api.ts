@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { resolveKleinCorePyConfig } from "../config/klein-core-config";
+import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
@@ -1906,6 +1906,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				repoMap,
 				codeIndex,
 			};
+		},
+		getKleinCorePyHealth: async () => {
+			const config = resolveKleinCorePyConfig();
+			if (!config.enabled) {
+				return { enabled: false, reachable: false, sidecarUrl: config.sidecarUrl };
+			}
+			const health = await probeKleinCorePyHealth({ config });
+			return { enabled: true, reachable: health.reachable, sidecarUrl: health.sidecarUrl };
 		},
 		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildNKleinModelFreshnessAdvisorRequest();
