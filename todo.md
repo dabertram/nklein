@@ -933,9 +933,19 @@ deep analysis:
         e4b gave a vague non-answer). That's a model-capability issue, **out of the parse-and-recover lane** ("don't
         teach the model"); candidate soft mitigation (more imperative tool-result framing) logged in
         [local-llm-tests.md](local-llm-tests.md), not implemented speculatively.
-  - [ ] **Round 3 (next)** — the **swarm/`recoverNarratedToolCalls` path** (richer tool suite, raw output): needs the
-        Round-0 observation harness (`test-project` can't surface raw output) + tracing why the card-less dev-test
-        seed doesn't run via the CLI (Finding 4). Optionally weigh the imperative tool-result framing (Finding 6).
+  - [x] **Round 3 — CORRECTION: the dev-test projects DO run small models (2026-06-24)** — Round 0's "the seed
+        doesn't run / can't observe output" was a measurement error (watched **board columns**, decoupled from the
+        **session**). Correct vehicle+lens (per the user's "use the dev test projects"): `projects.createDevTestProject`
+        → pin the small model → **start the seed card** (`startTaskSession` with `prompt`+`baseRef`) → observe
+        `getState().sessions[taskId]` (`state`/`reviewReason`/`latestHookActivity`) + the captured **result branch**
+        (the scaffold evidence bundle is *not* updated by the run). **Verified live**: gemma-4-e2b drove `mid_task` to
+        `awaiting_review` + a coherent result branch (`specification.md` +34/−12) through the swarm+Docker — the 2B
+        model completed a real task; no new failure to harden (existing hardening held). Details in
+        [local-llm-tests.md](local-llm-tests.md).
+  - [ ] **Round 4 (next) — catalog failure modes by tailing the live activity stream.** Now that the dev-test run
+        vehicle works, drive a run on the pinned small model and **tail the runtime's hook-activity stream** (every
+        `tool_call`/delta) looking for malformations/recoveries/loops to harden; sweep gemma-e2b/e4b/qwen3-8b on richer
+        presets (`complex_dag`, `wide_fanout`). Optionally weigh the imperative tool-result framing (Finding 6).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

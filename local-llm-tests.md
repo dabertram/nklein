@@ -8,6 +8,31 @@
 > no-tool-call stalls, structured-output misses, reasoning runaways, repeated-call loops). **Out of scope until the
 > user calls a version release-able:** any performance/efficiency comparison and the size × quant × context matrix.
 
+## ⚠️ Round 3 correction (2026-06-24): the dev-test projects DO run small models — observe the SESSION, not the board
+
+Round 0's Findings 3–4 ("`test-project` doesn't run the seed / can't observe output") were a **measurement error**:
+I watched **board card columns**, which are decoupled from the **session** that actually executes. The correct,
+working vehicle + lens (use the **dev-test projects**, as directed):
+
+1. `projects.createDevTestProject({ preset })` (needs `NODE_ENV=development`, which `dev:full` sets) scaffolds a real
+   fixture project + a **seed card in backlog** + an evidence dir, and makes it the active workspace.
+2. Pin the small model (`runtime.saveNKleinProviderSettings`), then **start the seed card** with the full request
+   (`taskId` + `prompt` + `baseRef:"main"`; the scenario supplies prompt/title) — `runtime.startTaskSession`.
+3. **Observe via the session, not the board:** poll `workspace.getState().sessions[taskId]` for `state` /
+   `reviewReason` / `latestHookActivity`, and read the captured **result branch** (`nklein/tasks/<taskId>-<hash>`) for
+   what the model produced. The scaffold-time **evidence bundle** under `~/.nklein/nklein/dev-runs/<run>/` is *not*
+   updated by the run (it's a scaffold artifact: `Transcripts: 0`); the live signal is the hook-activity stream + the
+   result branch. (The board card may sit in `backlog` even as the session reaches `awaiting_review` — they're
+   separate stores.)
+
+**Verified live (gemma-4-e2b, `mid_task` "Decompose Add habit insight summaries"):** the session reached
+`awaiting_review` (`reviewReason:"exit"`), emitted `sandbox_patch_captured`, and produced a coherent result branch
+(`specification.md`, +34/−12) — i.e. the 2B model **drove a real swarm+Docker task to a captured result**. The run
+**succeeded**, so it surfaced no new output-failure to harden here — !Klein's existing hardening held for gemma on
+this task. To *catalog* failure modes, a future round should **tail the live hook-activity stream** during a run (the
+runtime emits every `tool_call` / delta) and look for malformations/recoveries/loops; the dev-test project is the run
+vehicle, the activity stream is the lens.
+
 ## Methodology (how to run a round)
 
 The agent that small models drive lives in the **runtime swarm** (decomposition + Docker task agents). To sweep one
