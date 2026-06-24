@@ -661,6 +661,18 @@ function runtimeConfigStateHasChanges(
 	return fields.some((field) => field.changed(next, current));
 }
 
+// Per-field save-merge helpers (todo §5.U): "keep the current value unless the update explicitly provided
+// one" — flattening the repetitive `updates.X === undefined ? current.X : …` ternaries in the two update
+// builders to one uniform line per field. `keepUpdatedValue` is the pass-through form; `keepNormalizedValue`
+// runs the field's normalizer on an explicitly-provided value. Locked by the per-field save-coverage test.
+function keepUpdatedValue<T>(updateValue: T | undefined, currentValue: T): T {
+	return updateValue === undefined ? currentValue : updateValue;
+}
+
+function keepNormalizedValue<U, T>(updateValue: U | undefined, currentValue: T, normalize: (value: U) => T): T {
+	return updateValue === undefined ? currentValue : normalize(updateValue);
+}
+
 function normalizeShortcutLabel(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -1589,99 +1601,104 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			throw new Error("Cannot save project shortcuts without a selected project.");
 		}
 		const nextConfig = {
-			selectedAgentId: updates.selectedAgentId ?? current.selectedAgentId,
-			selectedShortcutLabel:
-				updates.selectedShortcutLabel === undefined ? current.selectedShortcutLabel : updates.selectedShortcutLabel,
-			developerModeEnabled:
-				updates.developerModeEnabled === undefined
-					? current.developerModeEnabled
-					: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
-			replayCardsEnabled:
-				updates.replayCardsEnabled === undefined
-					? current.replayCardsEnabled
-					: normalizeBoolean(updates.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
-			agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
-			agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
-			agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
-			requestTimeoutMs: updates.requestTimeoutMs === undefined ? current.requestTimeoutMs : updates.requestTimeoutMs,
-			streamTimeoutMs: updates.streamTimeoutMs === undefined ? current.streamTimeoutMs : updates.streamTimeoutMs,
-			toolTimeoutMs: updates.toolTimeoutMs === undefined ? current.toolTimeoutMs : updates.toolTimeoutMs,
-			agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
-			conversationTimeoutMs:
-				updates.conversationTimeoutMs === undefined ? current.conversationTimeoutMs : updates.conversationTimeoutMs,
-			maxAgentWritableFileLines:
-				updates.maxAgentWritableFileLines === undefined
-					? current.maxAgentWritableFileLines
-					: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
-			maxConcurrentTasks:
-				updates.maxConcurrentTasks === undefined
-					? current.maxConcurrentTasks
-					: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
-			sandboxMaxContainers:
-				updates.sandboxMaxContainers === undefined
-					? current.sandboxMaxContainers
-					: normalizePositiveInteger(updates.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-			sandboxAgentsPerContainer:
-				updates.sandboxAgentsPerContainer === undefined
-					? current.sandboxAgentsPerContainer
-					: normalizeNonNegativeInteger(
-							updates.sandboxAgentsPerContainer,
-							DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-						),
-			sandboxMemoryPerContainerMb:
-				updates.sandboxMemoryPerContainerMb === undefined
-					? current.sandboxMemoryPerContainerMb
-					: normalizePositiveInteger(
-							updates.sandboxMemoryPerContainerMb,
-							DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-						),
-			sandboxCpusPerContainer:
-				updates.sandboxCpusPerContainer === undefined
-					? current.sandboxCpusPerContainer
-					: normalizePositiveNumber(updates.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
-			sandboxIdleTimeoutMinutes:
-				updates.sandboxIdleTimeoutMinutes === undefined
-					? current.sandboxIdleTimeoutMinutes
-					: normalizePositiveInteger(
-							updates.sandboxIdleTimeoutMinutes,
-							DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-						),
-			lostHeartbeatPolicy:
-				updates.lostHeartbeatPolicy === undefined
-					? current.lostHeartbeatPolicy
-					: normalizeLostHeartbeatPolicy(updates.lostHeartbeatPolicy),
-			decompositionAutoApplyEnabled:
-				updates.decompositionAutoApplyEnabled === undefined
-					? current.decompositionAutoApplyEnabled
-					: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
-			secondOpinionReviewEnabled:
-				updates.secondOpinionReviewEnabled === undefined
-					? current.secondOpinionReviewEnabled
-					: normalizeBoolean(updates.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
-			reviewMaxRounds:
-				updates.reviewMaxRounds === undefined
-					? current.reviewMaxRounds
-					: normalizePositiveInteger(updates.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
-			readyForReviewNotificationsEnabled:
-				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
-			codeEmbeddingDefaults:
-				updates.codeEmbeddingDefaults === undefined
-					? current.codeEmbeddingDefaults
-					: normalizeCodeEmbeddingSettings(updates.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
-			codeEmbeddingOverride:
-				updates.codeEmbeddingOverride === undefined
-					? current.codeEmbeddingOverride
-					: normalizeCodeEmbeddingOverride(updates.codeEmbeddingOverride),
-			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
-			agentRulesets:
-				updates.agentRulesets === undefined ? current.agentRulesets : normalizeAgentRulesets(updates.agentRulesets),
-			swarmGuardrails:
-				updates.swarmGuardrails === undefined
-					? current.swarmGuardrails
-					: normalizeRuntimeSwarmGuardrails(updates.swarmGuardrails),
+			selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
+			selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
+			developerModeEnabled: keepNormalizedValue(
+				updates.developerModeEnabled,
+				current.developerModeEnabled,
+				(value) => normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
+			),
+			replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
+				normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
+			),
+			agentAutonomousModeEnabled: keepUpdatedValue(
+				updates.agentAutonomousModeEnabled,
+				current.agentAutonomousModeEnabled,
+			),
+			agentTimeoutMode: keepUpdatedValue(updates.agentTimeoutMode, current.agentTimeoutMode),
+			agentTimeoutProfile: keepUpdatedValue(updates.agentTimeoutProfile, current.agentTimeoutProfile),
+			requestTimeoutMs: keepUpdatedValue(updates.requestTimeoutMs, current.requestTimeoutMs),
+			streamTimeoutMs: keepUpdatedValue(updates.streamTimeoutMs, current.streamTimeoutMs),
+			toolTimeoutMs: keepUpdatedValue(updates.toolTimeoutMs, current.toolTimeoutMs),
+			agentTimeoutMs: keepUpdatedValue(updates.agentTimeoutMs, current.agentTimeoutMs),
+			conversationTimeoutMs: keepUpdatedValue(updates.conversationTimeoutMs, current.conversationTimeoutMs),
+			maxAgentWritableFileLines: keepNormalizedValue(
+				updates.maxAgentWritableFileLines,
+				current.maxAgentWritableFileLines,
+				normalizeMaxAgentWritableFileLines,
+			),
+			maxConcurrentTasks: keepNormalizedValue(
+				updates.maxConcurrentTasks,
+				current.maxConcurrentTasks,
+				normalizeMaxConcurrentTasks,
+			),
+			sandboxMaxContainers: keepNormalizedValue(
+				updates.sandboxMaxContainers,
+				current.sandboxMaxContainers,
+				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+			),
+			sandboxAgentsPerContainer: keepNormalizedValue(
+				updates.sandboxAgentsPerContainer,
+				current.sandboxAgentsPerContainer,
+				(value) => normalizeNonNegativeInteger(value, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER),
+			),
+			sandboxMemoryPerContainerMb: keepNormalizedValue(
+				updates.sandboxMemoryPerContainerMb,
+				current.sandboxMemoryPerContainerMb,
+				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB),
+			),
+			sandboxCpusPerContainer: keepNormalizedValue(
+				updates.sandboxCpusPerContainer,
+				current.sandboxCpusPerContainer,
+				(value) => normalizePositiveNumber(value, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+			),
+			sandboxIdleTimeoutMinutes: keepNormalizedValue(
+				updates.sandboxIdleTimeoutMinutes,
+				current.sandboxIdleTimeoutMinutes,
+				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES),
+			),
+			lostHeartbeatPolicy: keepNormalizedValue(
+				updates.lostHeartbeatPolicy,
+				current.lostHeartbeatPolicy,
+				normalizeLostHeartbeatPolicy,
+			),
+			decompositionAutoApplyEnabled: keepNormalizedValue(
+				updates.decompositionAutoApplyEnabled,
+				current.decompositionAutoApplyEnabled,
+				(value) => normalizeBoolean(value, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
+			),
+			secondOpinionReviewEnabled: keepNormalizedValue(
+				updates.secondOpinionReviewEnabled,
+				current.secondOpinionReviewEnabled,
+				(value) => normalizeBoolean(value, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
+			),
+			reviewMaxRounds: keepNormalizedValue(updates.reviewMaxRounds, current.reviewMaxRounds, (value) =>
+				normalizePositiveInteger(value, DEFAULT_REVIEW_MAX_ROUNDS),
+			),
+			readyForReviewNotificationsEnabled: keepUpdatedValue(
+				updates.readyForReviewNotificationsEnabled,
+				current.readyForReviewNotificationsEnabled,
+			),
+			codeEmbeddingDefaults: keepNormalizedValue(
+				updates.codeEmbeddingDefaults,
+				current.codeEmbeddingDefaults,
+				(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
+			),
+			codeEmbeddingOverride: keepNormalizedValue(
+				updates.codeEmbeddingOverride,
+				current.codeEmbeddingOverride,
+				normalizeCodeEmbeddingOverride,
+			),
+			modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
+			agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
+			swarmGuardrails: keepNormalizedValue(
+				updates.swarmGuardrails,
+				current.swarmGuardrails,
+				normalizeRuntimeSwarmGuardrails,
+			),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
-			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
-			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
+			commitPromptTemplate: keepUpdatedValue(updates.commitPromptTemplate, current.commitPromptTemplate),
+			openPrPromptTemplate: keepUpdatedValue(updates.openPrPromptTemplate, current.openPrPromptTemplate),
 		};
 
 		const hasChanges = runtimeConfigStateHasChanges(RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS, nextConfig, current);
@@ -1779,103 +1796,100 @@ export async function updateGlobalRuntimeConfig(
 		],
 		async () => {
 			const nextConfig = {
-				selectedAgentId: updates.selectedAgentId ?? current.selectedAgentId,
-				selectedShortcutLabel:
-					updates.selectedShortcutLabel === undefined
-						? current.selectedShortcutLabel
-						: updates.selectedShortcutLabel,
-				developerModeEnabled:
-					updates.developerModeEnabled === undefined
-						? current.developerModeEnabled
-						: normalizeBoolean(updates.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
-				replayCardsEnabled:
-					updates.replayCardsEnabled === undefined
-						? current.replayCardsEnabled
-						: normalizeBoolean(updates.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
-				agentAutonomousModeEnabled: updates.agentAutonomousModeEnabled ?? current.agentAutonomousModeEnabled,
-				agentTimeoutMode: updates.agentTimeoutMode ?? current.agentTimeoutMode,
-				agentTimeoutProfile: updates.agentTimeoutProfile ?? current.agentTimeoutProfile,
-				requestTimeoutMs:
-					updates.requestTimeoutMs === undefined ? current.requestTimeoutMs : updates.requestTimeoutMs,
-				streamTimeoutMs: updates.streamTimeoutMs === undefined ? current.streamTimeoutMs : updates.streamTimeoutMs,
-				toolTimeoutMs: updates.toolTimeoutMs === undefined ? current.toolTimeoutMs : updates.toolTimeoutMs,
-				agentTimeoutMs: updates.agentTimeoutMs === undefined ? current.agentTimeoutMs : updates.agentTimeoutMs,
-				conversationTimeoutMs:
-					updates.conversationTimeoutMs === undefined
-						? current.conversationTimeoutMs
-						: updates.conversationTimeoutMs,
-				maxAgentWritableFileLines:
-					updates.maxAgentWritableFileLines === undefined
-						? current.maxAgentWritableFileLines
-						: normalizeMaxAgentWritableFileLines(updates.maxAgentWritableFileLines),
-				maxConcurrentTasks:
-					updates.maxConcurrentTasks === undefined
-						? current.maxConcurrentTasks
-						: normalizeMaxConcurrentTasks(updates.maxConcurrentTasks),
-				sandboxMaxContainers:
-					updates.sandboxMaxContainers === undefined
-						? current.sandboxMaxContainers
-						: normalizePositiveInteger(updates.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-				sandboxAgentsPerContainer:
-					updates.sandboxAgentsPerContainer === undefined
-						? current.sandboxAgentsPerContainer
-						: normalizeNonNegativeInteger(
-								updates.sandboxAgentsPerContainer,
-								DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-							),
-				sandboxMemoryPerContainerMb:
-					updates.sandboxMemoryPerContainerMb === undefined
-						? current.sandboxMemoryPerContainerMb
-						: normalizePositiveInteger(
-								updates.sandboxMemoryPerContainerMb,
-								DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-							),
-				sandboxCpusPerContainer:
-					updates.sandboxCpusPerContainer === undefined
-						? current.sandboxCpusPerContainer
-						: normalizePositiveNumber(updates.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
-				sandboxIdleTimeoutMinutes:
-					updates.sandboxIdleTimeoutMinutes === undefined
-						? current.sandboxIdleTimeoutMinutes
-						: normalizePositiveInteger(
-								updates.sandboxIdleTimeoutMinutes,
-								DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-							),
-				lostHeartbeatPolicy:
-					updates.lostHeartbeatPolicy === undefined
-						? current.lostHeartbeatPolicy
-						: normalizeLostHeartbeatPolicy(updates.lostHeartbeatPolicy),
-				decompositionAutoApplyEnabled:
-					updates.decompositionAutoApplyEnabled === undefined
-						? current.decompositionAutoApplyEnabled
-						: normalizeBoolean(updates.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
-				secondOpinionReviewEnabled:
-					updates.secondOpinionReviewEnabled === undefined
-						? current.secondOpinionReviewEnabled
-						: normalizeBoolean(updates.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
-				reviewMaxRounds:
-					updates.reviewMaxRounds === undefined
-						? current.reviewMaxRounds
-						: normalizePositiveInteger(updates.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
-				readyForReviewNotificationsEnabled:
-					updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
-				codeEmbeddingDefaults:
-					updates.codeEmbeddingDefaults === undefined
-						? current.codeEmbeddingDefaults
-						: normalizeCodeEmbeddingSettings(updates.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
+				selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
+				selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
+				developerModeEnabled: keepNormalizedValue(
+					updates.developerModeEnabled,
+					current.developerModeEnabled,
+					(value) => normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
+				),
+				replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
+					normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
+				),
+				agentAutonomousModeEnabled: keepUpdatedValue(
+					updates.agentAutonomousModeEnabled,
+					current.agentAutonomousModeEnabled,
+				),
+				agentTimeoutMode: keepUpdatedValue(updates.agentTimeoutMode, current.agentTimeoutMode),
+				agentTimeoutProfile: keepUpdatedValue(updates.agentTimeoutProfile, current.agentTimeoutProfile),
+				requestTimeoutMs: keepUpdatedValue(updates.requestTimeoutMs, current.requestTimeoutMs),
+				streamTimeoutMs: keepUpdatedValue(updates.streamTimeoutMs, current.streamTimeoutMs),
+				toolTimeoutMs: keepUpdatedValue(updates.toolTimeoutMs, current.toolTimeoutMs),
+				agentTimeoutMs: keepUpdatedValue(updates.agentTimeoutMs, current.agentTimeoutMs),
+				conversationTimeoutMs: keepUpdatedValue(updates.conversationTimeoutMs, current.conversationTimeoutMs),
+				maxAgentWritableFileLines: keepNormalizedValue(
+					updates.maxAgentWritableFileLines,
+					current.maxAgentWritableFileLines,
+					normalizeMaxAgentWritableFileLines,
+				),
+				maxConcurrentTasks: keepNormalizedValue(
+					updates.maxConcurrentTasks,
+					current.maxConcurrentTasks,
+					normalizeMaxConcurrentTasks,
+				),
+				sandboxMaxContainers: keepNormalizedValue(
+					updates.sandboxMaxContainers,
+					current.sandboxMaxContainers,
+					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
+				),
+				sandboxAgentsPerContainer: keepNormalizedValue(
+					updates.sandboxAgentsPerContainer,
+					current.sandboxAgentsPerContainer,
+					(value) => normalizeNonNegativeInteger(value, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER),
+				),
+				sandboxMemoryPerContainerMb: keepNormalizedValue(
+					updates.sandboxMemoryPerContainerMb,
+					current.sandboxMemoryPerContainerMb,
+					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB),
+				),
+				sandboxCpusPerContainer: keepNormalizedValue(
+					updates.sandboxCpusPerContainer,
+					current.sandboxCpusPerContainer,
+					(value) => normalizePositiveNumber(value, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+				),
+				sandboxIdleTimeoutMinutes: keepNormalizedValue(
+					updates.sandboxIdleTimeoutMinutes,
+					current.sandboxIdleTimeoutMinutes,
+					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES),
+				),
+				lostHeartbeatPolicy: keepNormalizedValue(
+					updates.lostHeartbeatPolicy,
+					current.lostHeartbeatPolicy,
+					normalizeLostHeartbeatPolicy,
+				),
+				decompositionAutoApplyEnabled: keepNormalizedValue(
+					updates.decompositionAutoApplyEnabled,
+					current.decompositionAutoApplyEnabled,
+					(value) => normalizeBoolean(value, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
+				),
+				secondOpinionReviewEnabled: keepNormalizedValue(
+					updates.secondOpinionReviewEnabled,
+					current.secondOpinionReviewEnabled,
+					(value) => normalizeBoolean(value, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
+				),
+				reviewMaxRounds: keepNormalizedValue(updates.reviewMaxRounds, current.reviewMaxRounds, (value) =>
+					normalizePositiveInteger(value, DEFAULT_REVIEW_MAX_ROUNDS),
+				),
+				readyForReviewNotificationsEnabled: keepUpdatedValue(
+					updates.readyForReviewNotificationsEnabled,
+					current.readyForReviewNotificationsEnabled,
+				),
+				codeEmbeddingDefaults: keepNormalizedValue(
+					updates.codeEmbeddingDefaults,
+					current.codeEmbeddingDefaults,
+					(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
+				),
 				codeEmbeddingOverride: null,
-				modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
-				agentRulesets:
-					updates.agentRulesets === undefined
-						? current.agentRulesets
-						: normalizeAgentRulesets(updates.agentRulesets),
-				swarmGuardrails:
-					updates.swarmGuardrails === undefined
-						? current.swarmGuardrails
-						: normalizeRuntimeSwarmGuardrails(updates.swarmGuardrails),
+				modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
+				agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
+				swarmGuardrails: keepNormalizedValue(
+					updates.swarmGuardrails,
+					current.swarmGuardrails,
+					normalizeRuntimeSwarmGuardrails,
+				),
 				shortcuts: current.shortcuts,
-				commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
-				openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
+				commitPromptTemplate: keepUpdatedValue(updates.commitPromptTemplate, current.commitPromptTemplate),
+				openPrPromptTemplate: keepUpdatedValue(updates.openPrPromptTemplate, current.openPrPromptTemplate),
 			};
 
 			const hasChanges = runtimeConfigStateHasChanges(RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS, nextConfig, current);

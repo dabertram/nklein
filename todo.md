@@ -948,9 +948,16 @@ deep analysis:
         the registry is the single source of truth and adding a field now *fails* until registered. Byte-identical (32
         config tests green incl. the guard; full fast suite 1387 green). Note: the `nextConfig` builders + the `next`
         param of the helper are typed `RuntimeConfigChangeComparable` (state minus the 5 derived/path fields).
-  - [ ] still owed: extend the registry to the **resolve** (`toRuntimeConfigState`) + the **nextConfig builders** +
-        the diff-gated **payload writes** (each field still hand-threaded there) so one descriptor (`{ key, default,
-        normalize, equals }`) drives all sites. The change-detection slice above is the proof-of-shape.
+  - [x] **per-field save-coverage test + nextConfig DRY (2026-06-24)** — added a data-driven test that round-trips
+        each of the 25 simple scalar fields through `updateRuntimeConfig` + reload (closing the coverage gap for the
+        timeouts / sandbox-pool / mode-profile / prompt-template fields and acting as a nextConfig drift guard), then
+        flattened both update builders' repetitive `updates.X === undefined ? current.X : …` ternaries with shared
+        `keepUpdatedValue` / `keepNormalizedValue` helpers (one uniform line per field; only the bespoke `shortcuts` /
+        `codeEmbeddingOverride` per-builder lines stay explicit). Byte-identical (33 config tests + full fast 1388 green).
+  - [ ] still owed (lower value): extend a `{ key, default, normalize }` descriptor to the **resolve**
+        (`toRuntimeConfigState`) + the diff-gated **payload writes**. The drift risk those guard against is now already
+        covered (change-detection registry + the per-field save-coverage test), so this is readability-only — pick up
+        only if the resolve/payload sites grow.
       Every config field is hand-threaded through ~10–14 near-identical sites: 3 interfaces (`*FileShape`/`*State`/
       `*UpdateInput`), the `toRuntimeConfigState` resolve, `writeRuntimeGlobalConfigFile` (param + resolve + diff-gated
       payload), `createRuntimeConfigStateFromValues` (param + return), `toGlobalRuntimeConfigState`, and both
