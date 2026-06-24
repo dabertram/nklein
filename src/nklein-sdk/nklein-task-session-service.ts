@@ -300,6 +300,11 @@ function normalizePlanArtifactFailureTarget(value: string | null | undefined): s
 
 export interface StartNKleinTaskSessionRequest {
 	taskId: string;
+	/**
+	 * The HOST workspace path. The service derives the agent-perceived cwd from it
+	 * (`sandboxWorkspace?.workdir ?? cwd`) before handing it to the session runtime, and keeps the host
+	 * path for trusted control-plane reads. Never pass this through to an agent-facing surface directly.
+	 */
 	cwd: string;
 	workspaceRoot?: string | null;
 	baseRef?: string | null;
@@ -2018,11 +2023,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			throw error;
 		}
-		const effectiveCwd = sandboxWorkspace?.workdir ?? request.cwd;
+		// The agent-perceived working directory: the in-container sandbox workdir when isolation is active,
+		// else the host path. This is what the session runtime receives as `cwd` (host control-plane reads
+		// keep using `request.workspaceRoot ?? request.cwd`); see the StartNKleinSessionRuntimeRequest docs.
+		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? request.cwd;
 		entry.summary = {
 			...entry.summary,
 			state: initialState,
-			workspacePath: effectiveCwd,
+			workspacePath: agentPerceivedCwd,
 			reviewReason: initialReviewReason,
 			role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
 			warningMessage: queuedForSandboxCapacity ? null : entry.summary.warningMessage,
@@ -2126,10 +2134,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				this.markModelRequestStarted(request.taskId);
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
-					cwd: effectiveCwd,
+					cwd: agentPerceivedCwd,
 					// Always hand the runtime a host workspace root so the trusted control-plane decomposition
 					// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
-					// container workdir (effectiveCwd points inside the sandbox volume when isolation is active).
+					// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
 					workspaceRoot: request.workspaceRoot ?? request.cwd,
 					prompt: runtimePrompt,
 					taskTitle: request.taskTitle,

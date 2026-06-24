@@ -847,15 +847,29 @@ deep analysis:
 
 > **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
 > per the §5.U convention rather than lost. The full deliberate pass (above) is still owed.
-- [ ] **Establish + enforce a sandbox-cwd vs host-path naming convention in the agent runtime.** This session fixed a
+- [~] **Establish + enforce a sandbox-cwd vs host-path naming convention in the agent runtime.** This session fixed a
       *class* of bug where the agent-perceived working directory (the in-container sandbox path) was conflated with the
       host-side control-plane read path, because both flowed through a single `request.cwd`: `config.cwd`, the SDK
       system-prompt `<env>` "Working Directory", and the repo-map/`getWorkspaceChanges` orientation reads all used it,
       so two leaked the host mount to the agent and one (repo map) silently read a nonexistent path. Now centralized via
-      `resolveNKleinAgentPerceivedCwd` (sandbox) vs `orientationWorkspacePath`/`artifactWorkspacePath` (host). **Finding:**
-      audit *every* `request.cwd`/`workspacePath` use across `nklein-session-runtime.ts` + `nklein-task-session-service.ts`
-      and rename to make the sandbox-vs-host intent explicit + greppable (e.g. `agentPerceivedCwd` vs `hostWorkspaceRoot`),
-      so a future surface can't silently pick the wrong one. Touches invariant #2 (strict isolation) — high value.
+      `resolveNKleinAgentPerceivedCwd` (sandbox) vs `orientationWorkspacePath`/`artifactWorkspacePath` (host).
+  - [x] **convention applied to the hot path (2026-06-24)** — established the greppable vocabulary `agentPerceivedCwd`
+        (sandbox-under-isolation / host for home) vs `hostWorkspaceRoot` and applied it behavior-preservingly across
+        `nklein-session-runtime.ts` (the `StartNKleinSessionRuntimeRequest.cwd`/`workspaceRoot` fields are now
+        documented; the dispatch defines the two named locals once and threads them; the default workspace tools +
+        large-file key + agent `config.cwd` + focus-extension agent arg use `agentPerceivedCwd`; the trusted
+        decomposition tool + repo-map/git orientation use `hostWorkspaceRoot`, which also **removed the latent trap**
+        of passing the sandbox `request.cwd` as the decomposition tool's `workspacePath`) and the
+        `nklein-task-session-service.ts` main start dispatch (`effectiveCwd` → `agentPerceivedCwd`; its `cwd` field
+        documented as the host path). tsc + biome + full nklein-sdk suite (693) green.
+  - [ ] **needs the careful behavior pass (NOT a rename):** the **restart** path
+        (`startRuntimeTaskSessionFromLaunchConfig`) and several host-side consumers
+        (`ensureRuntimeSetup(input.cwd)`, `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })`) receive
+        `record.cwd`/`summary.workspacePath`/`input.cwd`, all of which carry the **agent-perceived** path (the sandbox
+        workdir under isolation) — so a host-side op may be handed a `/workspaces/<taskId>` path that doesn't exist on
+        the host. This is a potential latent correctness issue (or these paths are inert legacy under isolation); it must
+        be untangled by tracing the persistence + restart + sandbox-prep flow, not papered over with a rename. Touches
+        invariant #2 — high value.
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply

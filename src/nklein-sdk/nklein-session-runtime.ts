@@ -314,7 +314,7 @@ function createKanbanContextFocusExtension(
 	sessionId: string,
 	// The agent-perceived (sandbox) cwd. Used only for the large-file workflow's per-session state key; under
 	// strict isolation that workflow is inert anyway (the agent's real read_large_file is the sandbox-proxied tool).
-	workspacePath: string,
+	agentPerceivedCwd: string,
 	// The HOST project root, used for the trusted-runtime *orientation* reads (repo map + git changes) that the
 	// runtime builds host-side and injects as context. These render WORKSPACE-RELATIVE paths only (no host leak).
 	// It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does not exist on the host, which left
@@ -323,7 +323,7 @@ function createKanbanContextFocusExtension(
 	orientationWorkspacePath: string,
 	contextWindow?: number | null,
 ): NKleinSdkRuntimeExtension {
-	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, workspacePath);
+	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
 	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
 	const getCachedRepoMap = async (personalizationText: string) => {
@@ -359,7 +359,7 @@ function createKanbanContextFocusExtension(
 			async beforeModel(context) {
 				const result = await appendRepoMapBeforeModel(
 					context,
-					workspacePath,
+					agentPerceivedCwd,
 					contextWindow,
 					await largeFileWorkflow.beforeModel(context),
 					getCachedRepoMap,
@@ -384,7 +384,7 @@ function createKanbanContextFocusExtension(
 						signal: "tool_argument_error",
 						severity: "info",
 						message: `!Klein recovered ${recoveredToolCalls.length} tool call(s) the model emitted as <tool_call> text instead of a structured tool call.`,
-						workspacePath,
+						workspacePath: agentPerceivedCwd,
 						metadata: {
 							category: "narrated_tool_call_recovered",
 							toolNames: recoveredToolCalls.map((part) => part.toolName),
@@ -512,7 +512,18 @@ export function buildNKleinContextCompactionConfig(
 
 export interface StartNKleinSessionRuntimeRequest {
 	taskId: string;
+	/**
+	 * The AGENT-PERCEIVED working directory: the in-container sandbox workdir (`/workspaces/<taskId>`)
+	 * for an isolated task, or the host project path for home/chat/non-isolated sessions. This is what
+	 * the agent sees and writes paths relative to — never feed it to a host-side surface (use
+	 * `workspaceRoot` for that). The service resolves it (`sandboxWorkspace?.workdir ?? hostCwd`) before
+	 * calling in, so a real task's value is already the sandbox path.
+	 */
 	cwd: string;
+	/**
+	 * ALWAYS the host workspace root. Trusted control-plane reads (plan artifacts, repo-map / git-changes
+	 * orientation) must use this, never `cwd`, because the sandbox workdir does not exist on the host.
+	 */
 	workspaceRoot?: string | null;
 	prompt: string;
 	/** Normalized !Klein task title; persisted to SDK session metadata when supported. */
@@ -705,8 +716,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			}
 		}
 		this.replaceTaskMcpToolBundle(request.taskId, mcpToolBundle);
-		const largeFileWorkflow = getNKleinLargeFileWorkflow(requestedSessionId, request.cwd);
-		const artifactWorkspacePath = request.workspaceRoot?.trim() || request.cwd;
+		// The two distinct path concepts, named so a future surface can't silently pick the wrong one
+		// (see the StartNKleinSessionRuntimeRequest field docs). `agentPerceivedCwd` is what the agent sees
+		// (sandbox under isolation); `hostWorkspaceRoot` is the host path for trusted control-plane reads.
+		const agentPerceivedCwd = request.cwd;
+		const hostWorkspaceRoot = request.workspaceRoot?.trim() || request.cwd;
+		const largeFileWorkflow = getNKleinLargeFileWorkflow(requestedSessionId, agentPerceivedCwd);
 		const baseRequestToolApproval = request.requestToolApproval;
 		const fileReadToolByTurn = new Map<string, { toolName: string; toolCallId: string }>();
 		const approvedReadFilesRequestFingerprints = new Set<string>();
@@ -818,28 +833,28 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			request.extraTools ??
 			([
 				...createNKleinRetrievalTools({
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					embeddingProvider: request.codeEmbeddingProvider ?? createNKleinCodeEmbeddingProvider(),
 				}),
 				...createFileDiscoveryTools({
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					contextWindow: request.contextWindow,
 				}),
 				createReadLargeFileTool({
 					sessionId: requestedSessionId,
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					contextWindow: request.contextWindow,
 				}),
 				createWriteFilesTool({
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),
 				createWriteFileTool({
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),
 				createEditFileTool({
-					workspacePath: request.cwd,
+					workspacePath: agentPerceivedCwd,
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),
 			] satisfies AgentTool[]);
@@ -851,8 +866,9 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// Keeping them available is what lets a sandboxed planning agent turn a 1-shot idea into a
 			// Planning-lane DAG of cards. Data-plane file/shell/edit/patch/search stay sandboxed below.
 			...createNKleinDecompositionTools({
-				workspacePath: request.cwd,
-				artifactWorkspacePath,
+				// Host-side trusted control-plane: the plan artifacts + board mutations resolve against the
+				// host workspace root, never the sandbox workdir (which doesn't exist on the host).
+				workspacePath: hostWorkspaceRoot,
 				sourceTaskId: request.taskId,
 				onApplied: request.onDecompositionApplied,
 			}),
@@ -914,7 +930,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// that sandbox, so this is the logical cwd the model sees and writes paths relative to. Home/chat sessions
 			// are not sandbox-backed, so they keep the host project cwd. Shared with the system-prompt working-dir
 			// line via resolveNKleinAgentPerceivedCwd so the two never diverge.
-			cwd: resolveNKleinAgentPerceivedCwd(request.taskId, request.cwd),
+			cwd: resolveNKleinAgentPerceivedCwd(request.taskId, agentPerceivedCwd),
 			mode: resolvedMode,
 			enableTools: true,
 			enableSpawnAgent: teamDelegation.enabled,
@@ -942,7 +958,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					taskId: request.taskId,
 					providerId: request.providerId,
 					modelId: request.modelId,
-					workspacePath: request.cwd,
+					// NOTE: preserves the prior value (the agent-perceived cwd) verbatim. Whether host-side
+					// telemetry should instead key on `hostWorkspaceRoot` for stable per-workspace scoping is a
+					// separate behavior question tracked in todo.md §5.U, not part of this rename.
+					workspacePath: agentPerceivedCwd,
 					metadata: {
 						guardrail: "consecutive_mistake_limit",
 						iteration: context.iteration,
@@ -971,10 +990,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					extensions: [
 						createKanbanContextFocusExtension(
 							requestedSessionId,
-							request.cwd,
-							// Host project root for orientation reads (repo map / git changes); request.cwd is the sandbox
-							// path under isolation, which left the repo map empty. artifactWorkspacePath = host workspaceRoot.
-							artifactWorkspacePath,
+							// The agent-perceived cwd keys the per-session large-file workflow state only.
+							agentPerceivedCwd,
+							// Host workspace root for orientation reads (repo map / git changes) — the sandbox workdir
+							// doesn't exist on the host, which previously left the repo map silently empty.
+							hostWorkspaceRoot,
 							request.contextWindow,
 						),
 					],
