@@ -344,4 +344,58 @@ describe("NKleinLargeFileWorkflow", () => {
 		const index = await readFile(indexPath, "utf8");
 		expect(index).toContain('"toolName": "read_large_file"');
 	});
+
+	it('drives the whole workflow with only cursor "next" and reports index/total progress (§5.O)', async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await writeFile(join(workspacePath, "large.txt"), createLargeContent(4_000), "utf8");
+		const workflow = new NKleinLargeFileWorkflow("session-next", workspacePath, join(workspacePath, ".runtime"));
+
+		const phasesSeen = new Set<string>();
+		let sawReadingProgress = false;
+		let sawStitchingProgress = false;
+		let reachedSynthesis = false;
+
+		// Never compute a cursor — just keep asking for "next" the way a small model now can.
+		for (let attempt = 0; attempt < 400; attempt += 1) {
+			const result = await workflow.readNext("large.txt", 16_000, "next");
+			phasesSeen.add(String(result.phase));
+			if (result.phase === "reading") {
+				expect(String(result.progress)).toMatch(/Covered \d+ of 4000 lines \(\d+%\)\./);
+				expect(result.instruction).toContain('cursor "next"');
+				sawReadingProgress = true;
+			} else if (result.phase === "stitching") {
+				expect(String(result.progress)).toMatch(/Verified \d+ of \d+ stitching area/);
+				sawStitchingProgress = true;
+			} else if (result.phase === "synthesis") {
+				reachedSynthesis = true;
+				break;
+			}
+		}
+
+		expect(sawReadingProgress).toBe(true);
+		expect(sawStitchingProgress).toBe(true);
+		expect(reachedSynthesis).toBe(true);
+		expect(phasesSeen).toContain("reading");
+		expect(phasesSeen).toContain("stitching");
+	});
+
+	it('treats an empty/omitted cursor the same as "next" (advance from persisted state)', async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await writeFile(join(workspacePath, "large.txt"), createLargeContent(4_000), "utf8");
+		const workflow = new NKleinLargeFileWorkflow(
+			"session-empty-cursor",
+			workspacePath,
+			join(workspacePath, ".runtime"),
+		);
+
+		const first = await workflow.readNext("large.txt", 16_000, "");
+		expect(first.phase).toBe("reading");
+		expect(first.startLine).toBe(1);
+		// Empty cursor again advances (does not re-read from the start or throw a stale-cursor error).
+		const second = await workflow.readNext("large.txt", 16_000, "");
+		expect(second.phase).toBe("reading");
+		expect(second.startLine).toBe((first.endLine as number) + 1);
+	});
 });

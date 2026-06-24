@@ -15,6 +15,13 @@ import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein
 
 const STITCH_CONTEXT_LINES = 20;
 const READ_LARGE_FILE_TOOL_NAME = "read_large_file";
+/**
+ * Simplified protocol (todo §5.O): the model only has to *trigger* the workflow and then keep asking for the
+ * "next" step — it never composes the opaque `read:`/`stitch:` cursors (which trip small models). Any of these
+ * aliases (or an empty cursor) means "advance from the workflow's own persisted state", which the tool already
+ * tracks authoritatively. The explicit cursors are still accepted for back-compat with models that echo them.
+ */
+const SIMPLE_ADVANCE_CURSORS = new Set(["next", "continue", "auto", "more"]);
 
 export interface ReadFileRequest {
 	path: string;
@@ -155,6 +162,11 @@ function mergeRanges(ranges: readonly LineRange[]): LineRange[] {
 function hasEofCoverage(ranges: readonly LineRange[], totalLines: number): boolean {
 	const firstRange = mergeRanges(ranges)[0];
 	return Boolean(firstRange && firstRange.start === 1 && firstRange.end >= totalLines);
+}
+
+/** Distinct lines covered so far (overlaps merged) — drives the index/total progress in read results (§5.O). */
+function coveredLineCount(ranges: readonly LineRange[]): number {
+	return mergeRanges(ranges).reduce((total, range) => total + (range.end - range.start + 1), 0);
 }
 
 function buildStitchBoundaries(ranges: readonly LineRange[]): StitchBoundary[] {
@@ -337,7 +349,7 @@ export class NKleinLargeFileWorkflow {
 		if (incompleteFiles.length > 0) {
 			const instructions = incompleteFiles.map(
 				(file) =>
-					`- Continue ${file.path} from line ${nextUnreadLine(file)} through line ${file.totalLines}; call read_large_file with cursor \`${expectedCursorForFile(file)}\`; do not summarize yet.`,
+					`- Continue ${file.path} from line ${nextUnreadLine(file)} of ${file.totalLines}; call read_large_file with cursor "next"; do not summarize yet.`,
 			);
 			return {
 				messages: [
@@ -360,8 +372,6 @@ export class NKleinLargeFileWorkflow {
 		if (filesWithPendingStitches.length > 0) {
 			const instructions = filesWithPendingStitches.map((file) => {
 				const pendingBoundaries = file.stitchBoundaries.filter((boundary) => !boundary.verified);
-				const stitchedBefore = file.stitchBoundaries.filter((entry) => entry.verified).length;
-				const cursor = stitchBoundaryCursor(pendingBoundaries[0] ?? file.stitchBoundaries[0], stitchedBefore + 1);
 				const previews = pendingBoundaries
 					.slice(0, 8)
 					.map((boundary) => {
@@ -371,7 +381,7 @@ export class NKleinLargeFileWorkflow {
 					})
 					.join(", ");
 				const remainingText = pendingBoundaries.length > 8 ? `, +${pendingBoundaries.length - 8} more` : "";
-				return `- ${file.path}: ${pendingBoundaries.length} pending stitching area${pendingBoundaries.length === 1 ? "" : "s"} [${previews}${remainingText}]. Make one read_large_file call with cursor \`${cursor}\`; the tool will return as many pending areas as fit. Do not call each boundary separately.`;
+				return `- ${file.path}: ${pendingBoundaries.length} pending stitching area${pendingBoundaries.length === 1 ? "" : "s"} [${previews}${remainingText}]. Make one read_large_file call with cursor "next"; the tool will return as many pending areas as fit. Do not call each boundary separately.`;
 			});
 			return {
 				messages: [
@@ -493,9 +503,15 @@ export class NKleinLargeFileWorkflow {
 		}
 
 		const expectedCursor = expectedCursorForFile(file);
-		const providedCursor =
-			typeof cursorInput === "string" && cursorInput.trim().length > 0 ? cursorInput.trim() : "start";
 		const normalizedExpectedCursor = expectedCursor.startsWith("read:1:") ? "start" : expectedCursor;
+		// Simplified protocol (§5.O): an empty cursor or a `next`/`continue`/`auto`/`more` alias means "advance from
+		// the workflow's own persisted state", so the model never has to compose `read:`/`stitch:` cursors. Explicit
+		// cursors are still validated against the expected step (back-compat with models that echo `nextCursor`).
+		const rawCursor = typeof cursorInput === "string" ? cursorInput.trim() : "";
+		const providedCursor =
+			rawCursor.length === 0 || SIMPLE_ADVANCE_CURSORS.has(rawCursor.toLowerCase())
+				? normalizedExpectedCursor
+				: rawCursor;
 		const legacyExpectedCursor = toLegacyCursor(normalizedExpectedCursor);
 		const allowsLegacySynthesisCursor = normalizedExpectedCursor === "complete" && providedCursor === "synthesis";
 		if (
@@ -508,7 +524,7 @@ export class NKleinLargeFileWorkflow {
 					? ` ${path} is already fully covered through EOF and all stitching areas are verified. Do not read more from this file; either move to other required source files or synthesize from the persisted context.`
 					: "";
 			throw new Error(
-				`read_large_file expected cursor "${normalizedExpectedCursor}" for ${path}.${synthesisHint} Retry with {"path":"${path}","cursor":"${normalizedExpectedCursor}"}.`,
+				`read_large_file expected the next step for ${path} (cursor "${normalizedExpectedCursor}").${synthesisHint} Just retry with {"path":"${path}","cursor":"next"} to continue.`,
 			);
 		}
 
@@ -560,6 +576,8 @@ export class NKleinLargeFileWorkflow {
 				`Returned ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"}. Each area is laid over its own primary-chunk boundary; do not treat the first start line through the last end line as one continuous read.`,
 				...stitchingAreas.map((area) => area.content),
 			].join("\n\n");
+			const verifiedBoundaries = file.stitchBoundaries.filter((boundary) => boundary.verified).length;
+			const totalBoundaries = file.stitchBoundaries.length;
 			return {
 				phase: "stitching",
 				path,
@@ -567,10 +585,14 @@ export class NKleinLargeFileWorkflow {
 				boundary: firstArea.boundary,
 				stitchingAreas,
 				windows: stitchingAreas,
+				// Index/total progress so the model iterates by "areas done" instead of composing stitch cursors (§5.O).
+				progress: `Verified ${verifiedBoundaries} of ${totalBoundaries} stitching area${totalBoundaries === 1 ? "" : "s"}.`,
+				verifiedStitchingAreas: verifiedBoundaries,
+				totalStitchingAreas: totalBoundaries,
 				nextCursor: nextStitchCursor(file) ?? "synthesis",
 				content: chunk,
 				instruction: file.stitchBoundaries.some((boundary) => !boundary.verified)
-					? `Analyze these ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"} against the running notes, reconcile only the marked boundary in each area, then wait until the next assistant response before making exactly one read_large_file call with cursor \`${nextStitchCursor(file)}\` for the next batch. Do not call read_large_file in parallel.`
+					? `Analyze these ${stitchingAreas.length} separate stitching area${stitchingAreas.length === 1 ? "" : "s"} against the running notes, reconcile only the marked boundary in each area, then wait until the next assistant response before making exactly one read_large_file call with cursor "next" for the next batch. Do not call read_large_file in parallel.`
 					: `Analyze these ${stitchingAreas.length} final separate stitching area${stitchingAreas.length === 1 ? "" : "s"} against the running notes and reconcile only the marked boundary in each area. Do not call read_large_file in parallel or make another read_large_file call now; the next model request will require final synthesis.`,
 			};
 		}
@@ -613,19 +635,25 @@ export class NKleinLargeFileWorkflow {
 		await this.persistToolOutput("primary", path, startLine, endLine, chunk);
 		const nextCursor = expectedCursorForFile(file);
 		const normalizedNextCursor = nextCursor.startsWith("read:1:") ? "start" : nextCursor;
+		const coveredLines = coveredLineCount(file.primaryRanges);
+		const percentCovered = Math.min(100, Math.round((coveredLines / Math.max(1, file.totalLines)) * 100));
 		return {
 			phase: "reading",
 			path,
 			startLine,
 			endLine,
 			totalLines: file.totalLines,
+			// Index/total progress so the model can iterate by "where am I" instead of bookkeeping cursors (§5.O).
+			progress: `Covered ${coveredLines} of ${file.totalLines} lines (${percentCovered}%).`,
+			coveredLines,
+			percentCovered,
 			nextCursor: normalizedNextCursor,
 			content: chunk,
 			instruction: file.eofCovered
 				? file.stitchBoundaries.length > 0
-					? `EOF is covered. Analyze this chunk, update running notes, then call read_large_file again with cursor \`${normalizedNextCursor}\` to begin stitching verification.`
+					? 'EOF is covered. Analyze this chunk, update running notes, then call read_large_file again with cursor "next" to begin stitching verification.'
 					: "EOF is covered in one chunk. Analyze it; the next model request will require final synthesis."
-				: `Analyze this chunk and update durable running notes, then call read_large_file again with cursor \`${normalizedNextCursor}\`. Next unread line: ${endLine + 1}.`,
+				: `Analyze this chunk and update durable running notes, then call read_large_file again with cursor "next" for the following chunk (next unread line ${endLine + 1} of ${file.totalLines}).`,
 		};
 	}
 
@@ -798,7 +826,7 @@ function createReadLargeFileToolForWorkflow(
 	return {
 		name: "read_large_file",
 		description:
-			"Read and analyze a large text file through !Klein's enforced workflow. Make one call at a time with the current cursor; each stitching call may return a batch of separate stitching areas, so never call this tool in parallel for boundaries.",
+			'Read and analyze a large text file through !Klein\'s enforced workflow. Trigger it with just the file `path`; then call it again with `cursor: "next"` to advance through each chunk and, afterwards, each stitching area, until it reports the synthesis phase. !Klein tracks where you are — you never compute offsets or cursors. Each result reports your progress (lines/areas covered of the total). Make one call at a time; never call this tool in parallel.',
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -809,26 +837,19 @@ function createReadLargeFileToolForWorkflow(
 				cursor: {
 					type: "string",
 					description:
-						"Workflow cursor from the previous read_large_file result (`nextCursor`). Use `start` for the first call on a file.",
+						'Use "next" to advance to the next step (the tool tracks your position); omit it for the same effect. A `nextCursor` value echoed from a previous result is also accepted.',
 				},
 			},
-			required: ["path", "cursor"],
+			required: ["path"],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			if (
-				!input ||
-				typeof input !== "object" ||
-				typeof (input as Record<string, unknown>).path !== "string" ||
-				typeof (input as Record<string, unknown>).cursor !== "string"
-			) {
-				throw new Error("read_large_file requires string path and cursor fields.");
+			if (!input || typeof input !== "object" || typeof (input as Record<string, unknown>).path !== "string") {
+				throw new Error("read_large_file requires a string path field.");
 			}
-			return await workflow.readNext(
-				(input as Record<string, unknown>).path as string,
-				contextWindow,
-				(input as Record<string, unknown>).cursor as string,
-			);
+			const record = input as Record<string, unknown>;
+			const cursor = typeof record.cursor === "string" ? record.cursor : "next";
+			return await workflow.readNext(record.path as string, contextWindow, cursor);
 		},
 	};
 }

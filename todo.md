@@ -584,13 +584,15 @@ deep analysis:
         the OpenAI-shaped nested `function:{name,arguments}` object, and the Functionary `<function=NAME>{…}</function>`
         named-tag form, on top of the existing Hermes/Qwen `<tool_call>`/`<|tool_call|>`/`<function_call>`. Fixtures per
         family + a false-positive guard test. (Remaining tail: exotic per-fine-tune variants as they surface in sweeps.)
-- [ ] **Simplify `read_large_file` to pure iteration** *(raised 2026-06-23)* — the model should only need to *trigger* it;
-      !Klein returns the first right-sized chunk and each result tells the model to fetch the **next by index/total**
-      (not by composing `read:`/`stitch:` cursors), through every chunk, then the same for stitching areas; the model only
-      iterates + summarizes each chunk/area + does the final dedup **synthesis**. Reason about whether to re-run the whole
-      pass if the final synthesis is still too large (hopefully unnecessary — verify). Cuts the cursor-bookkeeping burden
-      that trips small models. *(The false-pause that surfaced this — the repeat-guard fingerprint ignoring the cursor —
-      is already fixed; this is the ergonomics rework on top.)*
+- [x] **Simplify `read_large_file` to pure iteration (2026-06-24)** — the model now only *triggers* it with a `path`
+      and advances with `cursor: "next"` (or an empty/omitted cursor); it never composes `read:`/`stitch:` cursors.
+      !Klein tracks position authoritatively from its own persisted state and each result reports **index/total**
+      progress (`Covered N of M lines (P%)` for chunks, `Verified N of M stitching areas` for stitching). Tool
+      description + `beforeModel` rails + result instructions all steer to `"next"`; `cursor` is now optional in the
+      schema (defaults to advance). Explicit cursors still validate for back-compat (stale-cursor rejection intact).
+      Unit-tested: full workflow driven with only `"next"`, empty-cursor advance, plus the existing explicit-cursor
+      suite. *(Re-running the whole pass when synthesis is still too large remains unaddressed — the workflow already
+      parks/persists chunk context, so synthesis works from running notes; revisit only if a real case surfaces.)*
 
 ### 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*
 > User saw the same model listed multiple times. **Diagnosed (2026-06-23): the data is clean** (registry +
