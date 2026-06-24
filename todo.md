@@ -172,6 +172,35 @@ deep analysis:
 > work lands, **flip the nested boxes** (and tag each with its short commit hash) rather than appending DONE-notes;
 > the verbose per-commit detail belongs in CHANGELOG `## [Upcoming]` + git, not here. §5.A is the worked example.
 
+### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
+> The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
+> **fully-resolved todo.md**. Meta-rules: **work every item**; escalate only a genuine missing-decision blocker
+> (HIGH bar — not minor reworkable choices: take the sensible default + **log it in
+> [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md)** for end-of-run review). **Ship mode: local
+> commits only — no push / no PRs.** Runtime restart to live-verify backend fixes is OK. Decisions:
+> - **Run order:** (1) quick wins — chat sidebar inner-resize fix + chat-session relabel + flip the two defaults;
+>   (2) **§5.B planning/refinement lane** (full design); (3) **comprehensive test coverage** (two layers); (4)
+>   **systems-analysis safe simplifications** (state/data/activity flows + ownership/SoC). §5.U file-decomposition +
+>   §5.R SDK-boundary inlining stay **deferred**; only the behavior-preserving systems simplifications run now.
+> - **§5.B:** Planning→In-Progress promotion = an **explicit tool the agent calls** when the plan still holds (else it
+>   replans/decomposes). **Always refine, no skip-guard.** Every started card routes through Planning/Refinement first.
+> - **Defaults:** **hard-flip both now** — native NKlein agent core = default runtime (SDK host = fallback path only),
+>   core-py = on by default. No silent fallback; clear error if genuinely unavailable.
+> - **Testing:** two layers — fast deterministic gate + real live-model/Docker punch-through e2e (new dev-test
+>   projects covering all use cases + all chat functions + deep UI/UX path coverage). No CI infra yet → run the full
+>   suite incl. slow e2e periodically and keep green. (New §5.V below.)
+> - **§5.J look & feel:** I mock up 2–3 restyle directions as screenshots; the user picks.
+- [ ] **Chat sidebar polish (2026-06-25, user)** — (a) the right chat sidebar's **inner elements must resize properly**
+      when the sidebar width is dragged (currently they don't reflow). (b) **Session list relabel:** every session shows
+      "New chat" — instead show a **started timestamp + message count + token count + last-message timestamp** (later: a
+      generated title via embedding/LLM). Single source of truth for the label.
+- [ ] **Autonomous chat agent (follow-up, later)** *(2026-06-25, user)* — the right-sidebar chat agent should do **real
+      autonomous work**: focus chain, memory, tools, knowledge fetching, browser, etc. — like Cline but stronger, and
+      able to use the project/card/task structure in the background (work an existing project or create a new one). Big
+      follow-up; not now.
+- [ ] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
+      [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
+
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
 > clarification; the per-section items below are annotated to match.
@@ -1505,6 +1534,35 @@ deep analysis:
       terminal run-summary capture now reuses the same helper so the live + run summaries agree. Unit-tested
       (worker + reviewer stamp). **Unblocks §5.G #425** — the board role strip can now read `summary.role` instead of
       inferring from `startInPlanMode`.
+
+### 5.V — Comprehensive test coverage *(2026-06-25, user — "really complete coverage to control the whole complexity")*
+> Two layers (no CI infra yet → run locally; agent keeps the full suite incl. slow e2e green periodically). **(1) Fast
+> deterministic gate** — component/integration + Playwright against a built app with a mocked runtime; always green.
+> **(2) Real punch-through e2e** — live LM Studio + Docker, driving NEW dev-test projects that exercise *all* use cases,
+> like the existing `verify-*.mts` harnesses. **Goal: complete coverage** of every workflow + user-facing feature + UI
+> element + configuration, and that everything stays **smooth**. North-star tie-in: the e2e must prove small models can
+> grind a decomposed-into-tiny-pieces complex project to delivery.
+- [ ] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
+      dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
+- [ ] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
+      memory, the (later) autonomous-work mode.
+- [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
+      trash, drag rules — Playwright, deep.
+- [ ] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
+      isolation status/pool UI, project-settings menu. Pair with §5.W.
+- [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
+
+### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
+- [ ] **Feature-vs-UI audit** — systematically catalog every capability (CLI/config/runtime) and confirm it's reachable
+      in the UI; surface anything that's CLI-only but should be user-facing.
+- [ ] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
+      for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
+      the override model + storage; wire it through.
+- [ ] **Project Settings discoverability** — add a **visible gear on the active project** (and/or board header) for
+      one-click access to the existing Project Settings dialog; keep the `⋯`-menu item too. (Dialog exists; was hidden.)
+- [ ] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
+      Intelligence, Advanced, …) so nothing is scattered; consistent layout. Pair with the §5.U `runtime-settings-dialog`
+      decomposition when that runs.
 
 ### 5.J — LATER (deferred by decision)
 - LATER follow-up: **Distinct look & feel from the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual
