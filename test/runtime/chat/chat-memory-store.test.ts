@@ -8,6 +8,7 @@ import {
 	type ChatMemory,
 	cosineSimilarity,
 	lexicalSimilarity,
+	proposeConsolidatedMemories,
 	readChatMemories,
 	recallChatMemories,
 } from "../../../src/chat/chat-memory-store";
@@ -80,5 +81,38 @@ describe("chat-memory-store", () => {
 		];
 		const recalled = await recallChatMemories({ query: "merge conflict", sessionId: "s1", memories }, {});
 		expect(recalled.map((m) => m.id)).toEqual(["hit"]);
+	});
+
+	it("consolidates short→long: extracts candidates, dropping near-duplicates of existing + within the batch", async () => {
+		const existing = [memory({ id: "e", text: "the user prefers tabs over spaces" })];
+		const kept = await proposeConsolidatedMemories(
+			{ sessionId: "s1", summary: "...", existingMemories: existing },
+			{
+				extract: async () => [
+					"the user prefers tabs over spaces", // near-dup of existing → dropped
+					"  ", // empty → dropped
+					"the project uses zustand for state",
+					"the project uses zustand for state", // dup within batch → dropped
+				],
+				similarityThreshold: 0.7,
+			},
+		);
+		expect(kept.map((m) => m.text)).toEqual(["the project uses zustand for state"]);
+		expect(kept[0]?.embedding).toBeNull();
+	});
+
+	it("uses embedding similarity for dedup when an embedder is supplied", async () => {
+		const existing = [memory({ id: "e", text: "alpha", embedding: [1, 0] })];
+		const kept = await proposeConsolidatedMemories(
+			{ sessionId: "s1", summary: "...", existingMemories: existing },
+			{
+				extract: async () => ["alpha-restated", "beta-distinct"],
+				// alpha-restated embeds identical to existing → dropped; beta-distinct is orthogonal → kept.
+				embed: async (text) => (text === "beta-distinct" ? [0, 1] : [1, 0]),
+				similarityThreshold: 0.9,
+			},
+		);
+		expect(kept.map((m) => m.text)).toEqual(["beta-distinct"]);
+		expect(kept[0]?.embedding).toEqual([0, 1]);
 	});
 });

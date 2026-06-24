@@ -652,8 +652,12 @@ deep analysis:
         lexical (Jaccard) token overlap** when the embedder is the lexical fallback (the embedder is injected; never
         fails closed), dropping zero-score matches. `accessibleChatMemories` enforces the scope (own session + shared).
         Unit-tested (append/read, scope filter, cosine+lexical similarity, embedding recall, lexical-degradation recall).
-        Still owed for long-term: consolidate short→long + wiring the real in-process embedder + a prune/consolidation pass.
-  - [ ] short→long consolidation + the ≥32k-floor budget integration + opt-in access-all-loaded-projects scope.
+  - [x] **short→long consolidation (2026-06-24)** — `proposeConsolidatedMemories` (same module) extracts candidate
+        long-term memories from a session's rolling summary (extractor injected — a model call) and keeps only the
+        genuinely new ones, dropping any that near-duplicate an already-accessible memory or an earlier candidate in
+        the batch (embedding cosine when available, else lexical). Pure + unit-tested (existing-dup + within-batch-dup +
+        empty drop; embedding-based dedup). Still owed: wire the real embedder + extractor model + persist on session end.
+  - [ ] the ≥32k-floor budget integration + opt-in access-all-loaded-projects scope.
 - [ ] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
 - [ ] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,

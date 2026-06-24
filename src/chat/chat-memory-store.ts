@@ -131,6 +131,52 @@ export function lexicalSimilarity(a: string, b: string): number {
 	return intersection / (left.size + right.size - intersection);
 }
 
+/** Similarity between two memory texts: cosine when both have embeddings, else lexical token overlap. */
+function memorySimilarity(
+	a: { text: string; embedding: number[] | null },
+	b: { text: string; embedding: number[] | null },
+): number {
+	return a.embedding && b.embedding ? cosineSimilarity(a.embedding, b.embedding) : lexicalSimilarity(a.text, b.text);
+}
+
+export interface ConsolidateChatMemoriesDeps {
+	/** Extract candidate long-term memories from a short-term summary (a model call). */
+	extract: (summary: string) => Promise<string[]>;
+	/** The in-process embedder; when present, dedup uses embedding similarity. */
+	embed?: (text: string) => Promise<number[] | null>;
+	/** Near-duplicate threshold (default 0.85) — a candidate at/above this to any kept/existing memory is dropped. */
+	similarityThreshold?: number;
+}
+
+export interface ConsolidatedChatMemory {
+	text: string;
+	embedding: number[] | null;
+}
+
+/**
+ * Consolidate short→long (todo §5.M): extract candidate memories from a session's rolling summary and keep only
+ * the genuinely new ones — dropping any that near-duplicate an already-accessible memory or an earlier candidate
+ * in this batch. Returns the texts (+ embeddings, when the embedder is present) to persist via `appendChatMemory`.
+ */
+export async function proposeConsolidatedMemories(
+	input: { sessionId: string; summary: string; existingMemories: readonly ChatMemory[] },
+	deps: ConsolidateChatMemoriesDeps,
+): Promise<ConsolidatedChatMemory[]> {
+	const threshold = deps.similarityThreshold ?? 0.85;
+	const existing = accessibleChatMemories(input.existingMemories, input.sessionId);
+	const candidates = (await deps.extract(input.summary)).map((text) => text.trim()).filter((text) => text.length > 0);
+	const kept: ConsolidatedChatMemory[] = [];
+	for (const text of candidates) {
+		const embedding = deps.embed ? await deps.embed(text) : null;
+		const candidate = { text, embedding };
+		const isDuplicate = [...existing, ...kept].some((other) => memorySimilarity(candidate, other) >= threshold);
+		if (!isDuplicate) {
+			kept.push(candidate);
+		}
+	}
+	return kept;
+}
+
 export interface ChatMemoryRecallDeps {
 	/** The in-process embedder; returns null when unavailable so recall falls back to lexical overlap. */
 	embed?: (text: string) => Promise<number[] | null>;
