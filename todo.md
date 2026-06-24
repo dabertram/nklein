@@ -731,9 +731,18 @@ deep analysis:
       (consecutive-proposal similarity **AND** the agent's self-check) force `give_up_with_assumption`; else
       `keep_asking`. Similarity is injected so the core is pure (the wiring supplies the embedder). `applyAutoClarify
       Decision` projects the result onto the `NKleinPlanQuestion` (answered / assumed-default / open). 10 unit tests.
-- [ ] **Wire into the flow** — run after decomposition (+ wherever questions are raised), reusing the reviewer
+- [~] **Wire into the flow** — run after decomposition (+ wherever questions are raised), reusing the reviewer
       role/model; persist resolved/remaining state onto the card/plan; settings (global + per-project) for
       auto-vs-manual + the hard limit.
+  - [x] **orchestration driver (DONE 2026-06-24)** — `runAutoClarifyLoop(question, deps, config)` in
+        [src/core/auto-clarify.ts](src/core/auto-clarify.ts) drives the architect→reviewer→architect exchange to a
+        terminal `decideAutoClarifyStep` decision (a confident proposal skips the reviewer + answers; otherwise the
+        reviewer opines and it continues while progressing), persists via `applyAutoClarifyDecision`, and has a hard
+        iteration bound so it always terminates. The architect `propose` / reviewer `review` / `similarity` are
+        injected (`AutoClarifyTurnDeps`) — fully unit-tested (3 cases: confident-answer, stall→assumption, hard-limit).
+  - [ ] still owed (needs live model + flow plumbing): connect `propose` to the architect turn + `review` to the
+        §5.K reviewer model + `similarity` to the embedder; invoke after `decompose_project` applies; persist onto the
+        plan `questions.md`/card; settings (global + per-project) for auto-vs-manual + the hard limit.
 - [ ] **Manual-mode UI** — board-header badge + per-card indicators → clarifying dialog (≥4 options + free-text,
       multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
 

@@ -119,3 +119,64 @@ export function applyAutoClarifyDecision(
 			return { ...question, status: "open" };
 	}
 }
+
+/** The architect's proposal for a clarify round. `resolved` ends the loop with a confident answer. */
+export interface AutoClarifyProposal {
+	proposal: string;
+	resolved: boolean;
+	selfReportedProgress: boolean;
+}
+
+/**
+ * I/O for one auto-clarify loop (§5.S "wire into the flow"): the architect proposes/refines (a real model turn in
+ * production, a stub in tests), the reviewer (§5.K) opines on a non-final proposal, and `similarity` is the
+ * embedder-backed text similarity used by the no-progress detector. Injecting these keeps the loop pure-ish and
+ * fully unit-testable while the wiring supplies the real reviewer model + embedder.
+ */
+export interface AutoClarifyTurnDeps {
+	propose: (question: NKleinPlanQuestion, rounds: readonly AutoClarifyRound[]) => Promise<AutoClarifyProposal>;
+	review: (question: NKleinPlanQuestion, proposal: string) => Promise<string | null>;
+	similarity: TextSimilarity;
+}
+
+export interface AutoClarifyLoopResult {
+	/** The question with the resolved/assumed state applied (open only if it somehow never terminated). */
+	question: NKleinPlanQuestion;
+	rounds: AutoClarifyRound[];
+	decision: AutoClarifyDecision;
+}
+
+/**
+ * Drive the architect→reviewer→architect exchange for one open question until `decideAutoClarifyStep` answers or
+ * gives up with an assumption (so planning never blocks). A confident architect proposal skips the reviewer and
+ * resolves immediately; otherwise the reviewer opines and the loop continues while progressing. A hard outer bound
+ * (the round budget + 1) guarantees termination even if a dep misbehaves.
+ */
+export async function runAutoClarifyLoop(
+	question: NKleinPlanQuestion,
+	deps: AutoClarifyTurnDeps,
+	config: AutoClarifyConfig = DEFAULT_AUTO_CLARIFY_CONFIG,
+): Promise<AutoClarifyLoopResult> {
+	const rounds: AutoClarifyRound[] = [];
+	const hardBound = resolveAutoClarifyRoundBudget(config) + 1;
+	for (let iteration = 0; iteration < hardBound; iteration++) {
+		const proposal = await deps.propose(question, rounds);
+		const reviewerOpinion = proposal.resolved ? null : await deps.review(question, proposal.proposal);
+		rounds.push({
+			proposal: proposal.proposal,
+			reviewerOpinion,
+			selfReportedProgress: proposal.selfReportedProgress,
+			resolved: proposal.resolved,
+		});
+		const decision = decideAutoClarifyStep(rounds, config, deps.similarity);
+		if (decision.action !== "keep_asking") {
+			return { question: applyAutoClarifyDecision(question, decision), rounds, decision };
+		}
+	}
+	const fallback: AutoClarifyDecision = {
+		action: "give_up_with_assumption",
+		assumption: rounds[rounds.length - 1]?.proposal.trim() ?? "",
+		reason: "Auto-clarify hit its hard iteration bound; proceeding on the latest assumption.",
+	};
+	return { question: applyAutoClarifyDecision(question, fallback), rounds, decision: fallback };
+}

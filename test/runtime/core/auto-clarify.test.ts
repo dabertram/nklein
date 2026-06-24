@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	type AutoClarifyConfig,
 	type AutoClarifyRound,
+	type AutoClarifyTurnDeps,
 	applyAutoClarifyDecision,
 	DEFAULT_AUTO_CLARIFY_CONFIG,
 	decideAutoClarifyStep,
 	resolveAutoClarifyRoundBudget,
+	runAutoClarifyLoop,
 } from "../../../src/core/auto-clarify";
 import type { NKleinPlanQuestion } from "../../../src/nklein-sdk/nklein-plan-artifacts";
 
@@ -121,5 +123,70 @@ describe("applyAutoClarifyDecision", () => {
 	it("leaves a question open while still asking", () => {
 		const next = applyAutoClarifyDecision(baseQuestion, { action: "keep_asking", reason: "more" });
 		expect(next.status).toBe("open");
+	});
+});
+
+describe("runAutoClarifyLoop", () => {
+	const question: NKleinPlanQuestion = {
+		id: "q1",
+		question: "Which database?",
+		status: "open",
+		options: [],
+		answer: null,
+		assumption: null,
+	};
+	const exactSimilarity = (a: string, b: string): number => (a.trim() === b.trim() ? 1 : 0);
+
+	it("resolves with an answer once the architect is confident, skipping the reviewer on the final round", async () => {
+		const review = vi.fn(async () => "looks fine");
+		const deps: AutoClarifyTurnDeps = {
+			propose: vi.fn(async (_question, rounds) =>
+				rounds.length === 0
+					? { proposal: "Maybe SQLite", resolved: false, selfReportedProgress: true }
+					: { proposal: "Use SQLite (final)", resolved: true, selfReportedProgress: true },
+			),
+			review,
+			similarity: exactSimilarity,
+		};
+		const result = await runAutoClarifyLoop(question, deps, DEFAULT_AUTO_CLARIFY_CONFIG);
+		expect(result.decision.action).toBe("answer");
+		expect(result.question.status).toBe("answered");
+		expect(result.question.answer).toBe("Use SQLite (final)");
+		// Reviewer was consulted on round 1 (non-final) but not the resolved round 2.
+		expect(review).toHaveBeenCalledTimes(1);
+		expect(result.rounds).toHaveLength(2);
+	});
+
+	it("gives up with an assumption when the architect stalls (converged + no self-progress)", async () => {
+		const deps: AutoClarifyTurnDeps = {
+			propose: vi.fn(async () => ({ proposal: "Use SQLite", resolved: false, selfReportedProgress: false })),
+			review: vi.fn(async () => "no strong opinion"),
+			similarity: exactSimilarity,
+		};
+		const result = await runAutoClarifyLoop(question, deps, {
+			...DEFAULT_AUTO_CLARIFY_CONFIG,
+			minRoundsBeforeStallCheck: 2,
+		});
+		expect(result.decision.action).toBe("give_up_with_assumption");
+		expect(result.question.status).toBe("assumed-default");
+		expect(result.question.assumption).toBe("Use SQLite");
+	});
+
+	it("terminates at the operator hard limit even if the architect never resolves", async () => {
+		let n = 0;
+		const deps: AutoClarifyTurnDeps = {
+			propose: vi.fn(async () => {
+				n += 1;
+				return { proposal: `attempt ${n}`, resolved: false, selfReportedProgress: true };
+			}),
+			review: vi.fn(async () => "keep going"),
+			similarity: () => 0,
+		};
+		const result = await runAutoClarifyLoop(question, deps, {
+			...DEFAULT_AUTO_CLARIFY_CONFIG,
+			userHardLimit: 3,
+		});
+		expect(result.decision.action).toBe("give_up_with_assumption");
+		expect(result.rounds.length).toBeLessThanOrEqual(3);
 	});
 });
