@@ -386,11 +386,6 @@ export function ProjectNavigationPanel({
 						active={currentProjectId !== null}
 						disabled={removingProjectId !== null}
 						compact
-						onError={(message) => {
-							if (message) {
-								showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
-							}
-						}}
 						onOpenProjectSettings={() => {
 							const found = sortedProjects.find((item) => item.id === currentProjectId);
 							if (found) {

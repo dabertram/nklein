@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { fetchNKleinCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
 import type { RuntimeNKleinCodeIntelligenceStatusResponse } from "@/runtime/types";
 
+/** Bounded quiet retries for a transient status-fetch failure before the panel gives up (no toast, no spam). */
+const MAX_STATUS_RETRIES = 3;
+
 function formatCodeIntelligenceUpdatedAt(updatedAt: number | null): string {
 	if (updatedAt === null) {
 		return "never";
@@ -105,14 +108,12 @@ export function CodeIntelligencePanel({
 	workspaceId,
 	active,
 	disabled,
-	onError,
 	compact = false,
 	onOpenProjectSettings,
 }: {
 	workspaceId: string | null;
 	active: boolean;
 	disabled: boolean;
-	onError: (message: string | null) => void;
 	compact?: boolean;
 	/** Opens the Project Settings dialog (where the per-project embedding override lives, todo §5.I-1#3). */
 	onOpenProjectSettings?: () => void;
@@ -120,27 +121,39 @@ export function CodeIntelligencePanel({
 	const [isLoading, setIsLoading] = useState(false);
 	const [status, setStatus] = useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
 	const [detailsOpen, setDetailsOpen] = useState(false);
+	// Code intelligence is a best-effort background panel: the runtime can be briefly unreachable (startup, a
+	// transient blip), failing the status query with "Failed to fetch". That must never raise a user-facing error
+	// toast or refetch on every render — it degrades to a quiet inline "unavailable" line and self-heals with a few
+	// backed-off retries. (Previously an inline `onError` prop fired a danger toast, and because that callback was a
+	// fresh closure each parent render it also kept `refreshStatus` unstable, so the effect refetched — and toasted —
+	// on every render. Both are gone now.)
+	const [loadFailed, setLoadFailed] = useState(false);
+	const [retryAttempts, setRetryAttempts] = useState(0);
 
 	const refreshStatus = useCallback(() => {
 		if (!active || !workspaceId) {
 			return;
 		}
-		onError(null);
 		setIsLoading(true);
 		void fetchNKleinCodeIntelligenceStatus(workspaceId)
 			.then((response) => {
 				setStatus(response);
+				setLoadFailed(false);
+				setRetryAttempts(0);
 			})
-			.catch((error) => {
-				const message = error instanceof Error ? error.message : String(error);
-				onError(`Could not load code intelligence status: ${message}`);
+			.catch(() => {
+				// Best-effort: no toast, no spam — mark unavailable and let the bounded retry effect self-heal.
+				setLoadFailed(true);
 			})
 			.finally(() => {
 				setIsLoading(false);
 			});
-	}, [active, onError, workspaceId]);
+	}, [active, workspaceId]);
 
+	// Load on mount and when the target workspace/active state changes — NOT on every render.
 	useEffect(() => {
+		setLoadFailed(false);
+		setRetryAttempts(0);
 		refreshStatus();
 	}, [refreshStatus]);
 
@@ -156,6 +169,22 @@ export function CodeIntelligencePanel({
 		};
 	}, [active, codeIndex, refreshStatus]);
 
+	// Quietly self-heal a transient fetch failure with a few backed-off retries (2s, 4s, 8s), then give up. No toast,
+	// capped, so a runtime that is genuinely down never produces a retry storm.
+	useEffect(() => {
+		if (!active || !workspaceId || !loadFailed || status !== null || retryAttempts >= MAX_STATUS_RETRIES) {
+			return;
+		}
+		const delayMs = 2_000 * 2 ** retryAttempts;
+		const timeoutId = window.setTimeout(() => {
+			setRetryAttempts((attempts) => attempts + 1);
+			refreshStatus();
+		}, delayMs);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [active, workspaceId, loadFailed, status, retryAttempts, refreshStatus]);
+
 	if (!workspaceId) {
 		return null;
 	}
@@ -165,7 +194,11 @@ export function CodeIntelligencePanel({
 		? `${progressText ?? `${formatCodeIndexCoverage(codeIndex)} indexed`} · repo map ${
 				repoMap?.available ? "ready" : "unavailable"
 			}`
-		: "Status not loaded";
+		: loadFailed
+			? "Status unavailable"
+			: isLoading
+				? "Loading…"
+				: "Status not loaded";
 
 	return (
 		<div
