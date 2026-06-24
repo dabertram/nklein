@@ -1418,9 +1418,14 @@ deep analysis:
               awaiting a decision + apply/reject handlers with toasts) + its `formatArtifactTimestamp` into
               `detail-panels/pending-plan-artifacts-panel.tsx`. web typecheck + vitest (690) green. card-detail-view 1491→1328
               (cumulative 2384→1328, −44%).
-        - [ ] still TODO: `TaskRecoveryActionsPanel` (verify/merge/recover/evidence actions — larger, with its own runtime
-              handlers + the hasAcceptanceCheck/formatVerifyResult/formatMergeResult helpers), and lifting the resize/keyboard
-              orchestration into a hook.
+        - [x] **slice 10 (2026-06-24):** extracted the `TaskRecoveryActionsPanel` (verify/merge/mark-interrupted/collect-
+              evidence actions + the inline TaskEvidenceDrawer) and its hasAcceptanceCheck/formatVerifyResult/formatMergeResult
+              helpers into `detail-panels/task-recovery-actions-panel.tsx`. **All card-detail panels now extracted.**
+              card-detail-view 1328→1072 (cumulative 2384→1072, **−55%**, 10 new `detail-panels/*` modules). web typecheck +
+              vitest (690) green.
+        - [ ] still TODO (lower priority): lift the resize/keyboard orchestration (`useResizeHandler` + the hotkey/escape
+              effects) into a `use-card-detail-keyboard`/layout hook; the remaining file is mostly the `CardDetailView`
+              composition root + the small DiffToolbar/MobileDetailTabBar/BottomTerminalSection/TaskActivitySurface helpers.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
