@@ -315,7 +315,15 @@ async function appendRepoMapBeforeModel(
 
 function createKanbanContextFocusExtension(
 	sessionId: string,
+	// The agent-perceived (sandbox) cwd. Used only for the large-file workflow's per-session state key; under
+	// strict isolation that workflow is inert anyway (the agent's real read_large_file is the sandbox-proxied tool).
 	workspacePath: string,
+	// The HOST project root, used for the trusted-runtime *orientation* reads (repo map + git changes) that the
+	// runtime builds host-side and injects as context. These render WORKSPACE-RELATIVE paths only (no host leak).
+	// It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does not exist on the host, which left
+	// the repo map silently empty under isolation). It reflects the live project, not the sandbox baseRef checkout —
+	// acceptable for codebase orientation.
+	orientationWorkspacePath: string,
 	contextWindow?: number | null,
 ): NKleinSdkRuntimeExtension {
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, workspacePath);
@@ -327,7 +335,7 @@ function createKanbanContextFocusExtension(
 			cachedRepoMap = {
 				key: cacheKey,
 				value: buildNKleinRepoMap({
-					workspacePath,
+					workspacePath: orientationWorkspacePath,
 					tokenBudget: contextPressure.repoMapTokenBudget,
 					personalizationText,
 				})
@@ -339,7 +347,7 @@ function createKanbanContextFocusExtension(
 	};
 	const hasChangedFiles = async (): Promise<boolean | null> => {
 		try {
-			const changes = await getWorkspaceChanges(workspacePath);
+			const changes = await getWorkspaceChanges(orientationWorkspacePath);
 			return changes.files.length > 0;
 		} catch {
 			return null;
@@ -963,7 +971,16 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				interactive: true,
 				localRuntime: {
 					modelCatalogDefaults: NKLEIN_MODEL_CATALOG_DEFAULTS,
-					extensions: [createKanbanContextFocusExtension(requestedSessionId, request.cwd, request.contextWindow)],
+					extensions: [
+						createKanbanContextFocusExtension(
+							requestedSessionId,
+							request.cwd,
+							// Host project root for orientation reads (repo map / git changes); request.cwd is the sandbox
+							// path under isolation, which left the repo map empty. artifactWorkspacePath = host workspaceRoot.
+							artifactWorkspacePath,
+							request.contextWindow,
+						),
+					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
 					...(request.userInstructionService ? { configExtensions: ["skills"] } : {}),
 					...(compaction ? { compaction: { ...compaction, compact: compactKanbanFocusedMessages } } : {}),

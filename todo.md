@@ -327,16 +327,18 @@ deep analysis:
           isolation mechanism is now proven on the shared code path.
     - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
     - [ ] only exception: user intentionally opted out of Docker isolation (future full-privileged host-agent mode).
-- [ ] **Repo-map (+ host-side context-focus reads) are dead under isolation** *(found 2026-06-24 while fixing the
-      system-prompt leak; functionality regression, NOT a leak)*. The context-focus extension + large-file workflow are
-      created with `request.cwd`, which under isolation is the **sandbox** path `/workspaces/<taskId>` — nonexistent on
-      the host — so `buildNKleinRepoMap`/`getWorkspaceChanges` read nothing and the agent gets **no repo-map orientation
-      rail** (silently empty). These are host-side *control-plane* context builders that render **relative** paths, so
-      they should read the **host** `request.workspaceRoot` (available right there in `nklein-session-runtime.ts:704`),
-      not the sandbox cwd. Design nuance to settle: the host workspaceRoot reflects the live project, not the sandbox's
-      `baseRef` checkout — acceptable for orientation, but decide explicitly. Must keep rendering relative (no host-path
-      leak) and not double up with the sandbox-proxied `read_large_file` tool. Separate from the agent-perceived-cwd
-      (`resolveNKleinAgentPerceivedCwd`), which must stay the sandbox path.
+- [x] **Repo-map orientation restored under isolation (DONE 2026-06-24)** *(found while fixing the system-prompt leak;
+      functionality regression, NOT a leak)*. The context-focus extension built the repo map + git-changes from
+      `request.cwd`, which under isolation is the **sandbox** path `/workspaces/<taskId>` — nonexistent on the host — so
+      `buildNKleinRepoMap` read nothing and the agent got **no orientation rail** (silently empty) on every isolated
+      task. Fix: `createKanbanContextFocusExtension` now takes a separate `orientationWorkspacePath` (the host
+      `workspaceRoot`, via `artifactWorkspacePath`) for the host-side *control-plane* orientation reads (repo map +
+      `getWorkspaceChanges`), which render **relative** paths only — no host-path leak. The large-file workflow keeps
+      the sandbox cwd (it's already inert under isolation — the agent's real `read_large_file` is the sandbox-proxied
+      tool — so no behavior change there), and the agent-perceived `config.cwd`/system-prompt stay the sandbox path via
+      `resolveNKleinAgentPerceivedCwd`. **Design default taken:** the host workspaceRoot reflects the live project, not
+      the sandbox `baseRef` checkout — acceptable for codebase orientation. **Live-verified**: `verify-decompose-isolation.mts`
+      now shows the repo-map rail injected (154–156 chars of symbols from a 2-file fixture) AND still zero host-path leaks.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean

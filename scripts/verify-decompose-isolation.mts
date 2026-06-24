@@ -91,6 +91,18 @@ async function main(): Promise<void> {
 	const project = await mkdtemp(join(tmpdir(), "nklein-verify-decompose-"));
 	const projectReal = await realpath(project);
 	await writeFile(join(project, "specification.md"), SPEC, "utf8");
+	// A couple of real TS files so the repo-map orientation rail has symbols to render (verifies the repo map is
+	// built from the HOST project root again under isolation, not the nonexistent sandbox path).
+	await writeFile(
+		join(project, "storage.ts"),
+		"export interface Habit { id: string; name: string }\nexport function saveHabit(h: Habit): void {}\n",
+		"utf8",
+	);
+	await writeFile(
+		join(project, "app.ts"),
+		"import { saveHabit } from './storage';\nexport function addHabit(name: string) { saveHabit({ id: '1', name }); }\n",
+		"utf8",
+	);
 	await execFileAsync("git", ["-C", project, "init", "-q"]);
 	await execFileAsync("git", ["-C", project, "config", "user.email", "verify@nklein.local"]);
 	await execFileAsync("git", ["-C", project, "config", "user.name", "nklein-verify"]);
