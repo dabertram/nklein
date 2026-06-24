@@ -10,7 +10,6 @@ import {
 	Command,
 	GitBranch,
 	Menu,
-	MessageSquare,
 	Play,
 	Plus,
 	Settings,
