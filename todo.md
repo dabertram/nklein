@@ -619,7 +619,10 @@ deep analysis:
           (store round-trip).
     - [ ] per-step timing/telemetry
     - [ ] link a step to the files/cards it touched
-- [ ] **Reference & parity** — match Cline/Claude-Code/Cursor focus-chain ergonomics (visible work-through; later user nudge/edit)
+- [x] **Reference & parity** *(DONE 2026-06-24)* — the board focus-chain now matches Cline/Claude-Code/Cursor
+      ergonomics: a visible live checklist with ✓/▸/○/– markers + an N/total progress count (visible work-through),
+      re-anchored into context after compaction, reviewer-checked, **and now user-editable** (toggle/add/delete from
+      the card). Remaining nicety (drag-reorder) tracked above; the chat-surface variant is §5.M.
 
 ### 5.O — Robustness sweeps: harden across model sizes/families/quants + parallelism *(raised 2026-06-23)*
 > Make !Klein robust on as many small local LLMs as possible (≤4-bit weight quant + low K/V-cache quant) AND
@@ -797,9 +800,11 @@ deep analysis:
       utilities (the `model-identity` extraction is the template); dead or back-compat-only code; data-flow and
       hot-path performance (startup, event adapter, telemetry reads, embedding/index build); extension points for
       new tools/agents/providers; type-safety gaps; test coverage shape. Capture concrete findings, not vibes.
-- [ ] **Write findings into todo.md as concrete items** — promote each finding to a checkbox item under the most
+- [~] **Write findings into todo.md as concrete items** — promote each finding to a checkbox item under the most
       fitting §5 section (or a new one), with enough spec to be landable independently and a note on which invariant(s)
-      it touches. Cross-link duplicates to §5.R / §5.P / §5.A.
+      it touches. Cross-link duplicates to §5.R / §5.P / §5.A. *(2026-06-24: wrote 3 concrete findings — DRY the
+      runtime-config field plumbing, decompose `runtime-settings-dialog.tsx`, persist launch role on the summary —
+      alongside the 2 earlier seed findings. The full whole-codebase pass is still owed.)*
 - [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
 
 > **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
@@ -819,6 +824,27 @@ deep analysis:
       wiring. Extract focused modules (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs, prompt-assembly) behind
       the existing service. Overlaps §5.A "Isolation polish" (extract sandbox-lifecycle/pause) — do together. Pure
       refactor, no behavior change; lock with the existing suite. (Respects invariants; navigability win per §5.U.)
+
+- [ ] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
+      Every config field is hand-threaded through ~10–14 near-identical sites: 3 interfaces (`*FileShape`/`*State`/
+      `*UpdateInput`), the `toRuntimeConfigState` resolve, `writeRuntimeGlobalConfigFile` (param + resolve + diff-gated
+      payload), `createRuntimeConfigStateFromValues` (param + return), `toGlobalRuntimeConfigState`, and both
+      `updateRuntimeConfig`/`updateGlobalRuntimeConfig` (nextConfig + hasChanges + write + state). Adding one field
+      touches ~14 spots and is error-prone. A **field-descriptor registry** (`{ key, schema, default, normalize,
+      equals }` per field) iterated by generic load/save/update helpers would collapse this to one entry per field.
+      High maintainability value; no invariant touched; lock with the existing `runtime-config.test.ts` (behaviour must
+      stay byte-identical).
+- [ ] **Decompose the oversized `runtime-settings-dialog.tsx` (~3700 lines).** It conflates dozens of settings
+      sections + their state/dirty/save wiring in one component. This session set the precedent: self-contained
+      `KleinCorePyHealthLine` + `AgentRulesetsSettingsPanel` panels. Extract more sections (the swarm-guardrails
+      editor, the model-roles block, the sandbox-pool fields, the timeouts) into focused `*-settings-panel.tsx`
+      components that own their inputs and expose `value`/`onChange`, shrinking the dialog to composition. web-ui-only
+      navigability win; lock with the existing dialog suite.
+- [ ] **Persist the resolved launch role on the session summary** — add an optional `role`
+      (`RuntimeModelPerformanceRole`) to `runtimeTaskSessionSummarySchema`, populated at task start from the resolved
+      launch config, so the cockpit (§5.G #425 board role-visibility) and telemetry stop *inferring* role from
+      `startInPlanMode` / the `::review` id suffix. Small contract + runtime change; unblocks the clean §5.G
+      main-board role/agent visibility.
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error

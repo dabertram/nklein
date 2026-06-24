@@ -34,7 +34,13 @@
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
           "updatedAt": 1782290232058
-        },
+        }
+      ]
+    },
+    {
+      "id": "in_progress",
+      "title": "In Progress",
+      "cards": [
         {
           "id": "habit-insights-summary-render-ui",
           "title": "Implement UI components",
@@ -59,8 +65,19 @@
           },
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
-          "updatedAt": 1782290232058
-        },
+          "updatedAt": 1782290605164
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "Review",
+      "cards": []
+    },
+    {
+      "id": "completed",
+      "title": "Completed",
+      "cards": [
         {
           "id": "habit-insights-summary-calculate-insights",
           "title": "Calculate summary metrics",
@@ -85,14 +102,8 @@
           },
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
-          "updatedAt": 1782290232058
-        }
-      ]
-    },
-    {
-      "id": "in_progress",
-      "title": "In Progress",
-      "cards": [
+          "updatedAt": 1782290603737
+        },
         {
           "id": "habit-insights-summary-parse-habit-data",
           "title": "Parse habit data from sources",
@@ -117,19 +128,9 @@
           },
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
-          "updatedAt": 1782290233514
+          "updatedAt": 1782290499751
         }
       ]
-    },
-    {
-      "id": "review",
-      "title": "Review",
-      "cards": []
-    },
-    {
-      "id": "completed",
-      "title": "Completed",
-      "cards": []
     },
     {
       "id": "trash",
@@ -138,18 +139,6 @@
     }
   ],
   "dependencies": [
-    {
-      "id": "43dc6c4a",
-      "fromTaskId": "habit-insights-summary-calculate-insights",
-      "toTaskId": "habit-insights-summary-parse-habit-data",
-      "createdAt": 1782290232059
-    },
-    {
-      "id": "1955b918",
-      "fromTaskId": "habit-insights-summary-render-ui",
-      "toTaskId": "habit-insights-summary-calculate-insights",
-      "createdAt": 1782290232059
-    },
     {
       "id": "81b3f15d",
       "fromTaskId": "habit-insights-summary-integrate-dashboard",
