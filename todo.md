@@ -1202,6 +1202,23 @@ deep analysis:
 > independently shippable + test-backed. Coordinate with the already-planned structural work so we don't duplicate:
 > §5.R (dissolve the `src/nklein-sdk/` boundary / one unified codebase), §5.P (eventual Python backend port), and the
 > §5.A worktree-module shrink (plan.md §2.B) — note overlaps rather than re-deriving them.
+>
+> **SCOPE EXPANSION (2026-06-25, user — this is now explicitly part of §5.U, not just "no monoliths"):** the pass must
+> also do a **systems-level analysis + improvement**, not only file-size decomposition. Apply the toolkit modern
+> complex-systems / software-architecture analysis uses to *understand, describe, and improve a large grown system*,
+> and then **implement every safe improvement it surfaces** (analysis is not the deliverable; the improved system is):
+> - **State flows & state dependencies** — map where state lives, who reads/writes it, and the dependency edges between
+>   stateful pieces; collapse redundant/derived state, remove hidden coupling, make ownership of each state explicit.
+> - **Data flows** — trace how data moves end-to-end (CLI/UI → tRPC → runtime → session/SDK → board/workspace state →
+>   back); simplify convoluted paths, kill needless transforms/round-trips, make the canonical source of each datum clear.
+> - **Activity / control flow** — the dynamic behaviour: task lifecycle, the agent loop, event/summary streams, guards,
+>   reconciles, broadcasts; find races/ordering hazards (e.g. the start-vs-running-transition lane bug), redundant
+>   triggers, and over-/under-firing effects; simplify the orchestration while keeping the exact intended task workflow.
+> - **Ownership & separation of concerns** — who *owns* each responsibility (runtime vs SDK vs web-ui vs core/state);
+>   pull cross-cutting logic to one owner, remove duplicated/forked logic (e.g. the lane reconcile that had drifted into
+>   two copies — now one shared helper), keep layers' boundaries clean, name seams by concern.
+> The hard invariant on all of the above: **preserve the exact *wanted* behaviour the task workflows need** — simplify
+> structure and flow, never change the product semantics. Each improvement still ships independently + test-backed (§3).
 - [ ] **Run the review pass** — systematically read across the runtime (`src/`), the web-ui (`web-ui/src/`), the
       vendored SDK boundary (`src/nklein-sdk/` + `vendor/`), the Python core (`core-py/`), state/telemetry, and the
       tRPC/contract seam. For each area assess: module boundaries & separation of concerns; oversized/multi-purpose
