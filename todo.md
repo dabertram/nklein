@@ -1394,8 +1394,12 @@ deep analysis:
               the dependency graph, complexity/model-fit prompt parsing, revised-card classification, node label/tone) into
               `detail-panels/planning-dag-model.ts`. No JSX; web typecheck + vitest (690) green. card-detail-view 2126→1994
               (cumulative 2384→1994, −16%).
-        - [ ] still TODO: the various presentational panels (PlanningDagReviewPanel/FocusChainPanel/PendingPlanArtifactsPanel/
-              Task*Panel — each self-contained, extractable to `detail-panels/`), and the resize/keyboard orchestration into a hook.
+        - [x] **slice 4 (2026-06-24):** extracted the self-contained `FocusChainPanel` (live editable focus-chain todo list)
+              + its status consts + duration formatter into `detail-panels/focus-chain-panel.tsx`. web typecheck + vitest (690)
+              green. card-detail-view 1994→1810 (cumulative 2384→1810, −24%).
+        - [ ] still TODO: the remaining self-contained panels (PlanningDagReviewPanel/SecondOpinionReviewPanel/
+              PendingPlanArtifactsPanel/TaskRecoveryActionsPanel/TaskDiagnosticsPanel/TaskEvidenceDrawer — each extractable to
+              `detail-panels/`), and the resize/keyboard orchestration into a hook.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
