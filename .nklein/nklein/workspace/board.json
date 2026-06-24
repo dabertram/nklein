@@ -1,0 +1,160 @@
+{
+  "columns": [
+    {
+      "id": "backlog",
+      "title": "Backlog",
+      "cards": []
+    },
+    {
+      "id": "planning",
+      "title": "Planning",
+      "cards": [
+        {
+          "id": "habit-insights-summary-integrate-dashboard",
+          "title": "Integrate with main dashboard",
+          "prompt": "/nklein-ui\n\nGuidance topic: ui\n\nAdd habit insight cards to existing project overview panel.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/integration-dashboard.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "startInPlanMode": false,
+          "autoReviewEnabled": true,
+          "autoReviewMode": "commit",
+          "agentId": "nklein",
+          "nkleinSettings": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "generatedFromPlan": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "integrate-dashboard",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "baseRef": "feat/kanban-reliability-context-upgrade",
+          "createdAt": 1782290232058,
+          "updatedAt": 1782290232058
+        },
+        {
+          "id": "habit-insights-summary-render-ui",
+          "title": "Implement UI components",
+          "prompt": "/nklein-ui\n\nGuidance topic: ui\n\nCreate dashboard cards for displaying insight metrics.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/ui-habit-summary.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "startInPlanMode": false,
+          "autoReviewEnabled": true,
+          "autoReviewMode": "commit",
+          "agentId": "nklein",
+          "nkleinSettings": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "generatedFromPlan": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "render-ui",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "baseRef": "feat/kanban-reliability-context-upgrade",
+          "createdAt": 1782290232058,
+          "updatedAt": 1782290232058
+        },
+        {
+          "id": "habit-insights-summary-calculate-insights",
+          "title": "Calculate summary metrics",
+          "prompt": "Compute streaks, completion rates, and time tracking from parsed data.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/calculate-insights.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "startInPlanMode": false,
+          "autoReviewEnabled": true,
+          "autoReviewMode": "commit",
+          "agentId": "nklein",
+          "nkleinSettings": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "generatedFromPlan": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "calculate-insights",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "baseRef": "feat/kanban-reliability-context-upgrade",
+          "createdAt": 1782290232058,
+          "updatedAt": 1782290232058
+        }
+      ]
+    },
+    {
+      "id": "in_progress",
+      "title": "In Progress",
+      "cards": [
+        {
+          "id": "habit-insights-summary-parse-habit-data",
+          "title": "Parse habit data from sources",
+          "prompt": "Implement parser for CSV/JSON habit logs and convert to internal format.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/parse-habit-data.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "startInPlanMode": false,
+          "autoReviewEnabled": true,
+          "autoReviewMode": "commit",
+          "agentId": "nklein",
+          "nkleinSettings": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "generatedFromPlan": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "parse-habit-data",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "baseRef": "feat/kanban-reliability-context-upgrade",
+          "createdAt": 1782290232058,
+          "updatedAt": 1782290233514
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "Review",
+      "cards": []
+    },
+    {
+      "id": "completed",
+      "title": "Completed",
+      "cards": []
+    },
+    {
+      "id": "trash",
+      "title": "Trash",
+      "cards": []
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "43dc6c4a",
+      "fromTaskId": "habit-insights-summary-calculate-insights",
+      "toTaskId": "habit-insights-summary-parse-habit-data",
+      "createdAt": 1782290232059
+    },
+    {
+      "id": "1955b918",
+      "fromTaskId": "habit-insights-summary-render-ui",
+      "toTaskId": "habit-insights-summary-calculate-insights",
+      "createdAt": 1782290232059
+    },
+    {
+      "id": "81b3f15d",
+      "fromTaskId": "habit-insights-summary-integrate-dashboard",
+      "toTaskId": "habit-insights-summary-render-ui",
+      "createdAt": 1782290232059
+    }
+  ]
+}

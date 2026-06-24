@@ -1,0 +1,499 @@
+{
+  "schemaVersion": 1,
+  "cards": {
+    "habit-insights-summary-integrate-dashboard": {
+      "id": "habit-insights-summary-integrate-dashboard",
+      "fields": {
+        "__column": {
+          "value": "planning",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "title": {
+          "value": "Integrate with main dashboard",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "prompt": {
+          "value": "/nklein-ui\n\nGuidance topic: ui\n\nAdd habit insight cards to existing project overview panel.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/integration-dashboard.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "startInPlanMode": {
+          "value": false,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewEnabled": {
+          "value": true,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewMode": {
+          "value": "commit",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "images": {
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "agentId": {
+          "value": "nklein",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "nkleinSettings": {
+          "value": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "generatedFromPlan": {
+          "value": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "integrate-dashboard",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "baseRef": {
+          "value": "feat/kanban-reliability-context-upgrade",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "createdAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "updatedAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        }
+      },
+      "deleted": {
+        "value": false,
+        "stamp": {
+          "counter": 1782290232058,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    },
+    "habit-insights-summary-render-ui": {
+      "id": "habit-insights-summary-render-ui",
+      "fields": {
+        "__column": {
+          "value": "planning",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "title": {
+          "value": "Implement UI components",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "prompt": {
+          "value": "/nklein-ui\n\nGuidance topic: ui\n\nCreate dashboard cards for displaying insight metrics.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/ui-habit-summary.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "startInPlanMode": {
+          "value": false,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewEnabled": {
+          "value": true,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewMode": {
+          "value": "commit",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "images": {
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "agentId": {
+          "value": "nklein",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "nkleinSettings": {
+          "value": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "generatedFromPlan": {
+          "value": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "render-ui",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "baseRef": {
+          "value": "feat/kanban-reliability-context-upgrade",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "createdAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "updatedAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        }
+      },
+      "deleted": {
+        "value": false,
+        "stamp": {
+          "counter": 1782290232058,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    },
+    "habit-insights-summary-calculate-insights": {
+      "id": "habit-insights-summary-calculate-insights",
+      "fields": {
+        "__column": {
+          "value": "planning",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "title": {
+          "value": "Calculate summary metrics",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "prompt": {
+          "value": "Compute streaks, completion rates, and time tracking from parsed data.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/calculate-insights.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "startInPlanMode": {
+          "value": false,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewEnabled": {
+          "value": true,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewMode": {
+          "value": "commit",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "images": {
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "agentId": {
+          "value": "nklein",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "nkleinSettings": {
+          "value": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "generatedFromPlan": {
+          "value": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "calculate-insights",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "baseRef": {
+          "value": "feat/kanban-reliability-context-upgrade",
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "createdAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "updatedAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        }
+      },
+      "deleted": {
+        "value": false,
+        "stamp": {
+          "counter": 1782290232058,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    },
+    "habit-insights-summary-parse-habit-data": {
+      "id": "habit-insights-summary-parse-habit-data",
+      "fields": {
+        "__column": {
+          "value": "in_progress",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "title": {
+          "value": "Parse habit data from sources",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "prompt": {
+          "value": "Implement parser for CSV/JSON habit logs and convert to internal format.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/parse-habit-data.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "startInPlanMode": {
+          "value": false,
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewEnabled": {
+          "value": true,
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "autoReviewMode": {
+          "value": "commit",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "images": {
+          "stamp": {
+            "counter": 1782290232058,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "agentId": {
+          "value": "nklein",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "nkleinSettings": {
+          "value": {
+            "timeoutMode": "normal",
+            "requestTimeoutMs": 1800000,
+            "streamTimeoutMs": 360000,
+            "toolTimeoutMs": 600000,
+            "agentTimeoutMs": 1800000,
+            "conversationTimeoutMs": 14400000
+          },
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "generatedFromPlan": {
+          "value": {
+            "artifactKind": "decomposition",
+            "planSlug": "habit-insights-summary",
+            "planTaskId": "parse-habit-data",
+            "sourceTaskId": "devtest-habit-insights-mid-1782290146660"
+          },
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "baseRef": {
+          "value": "feat/kanban-reliability-context-upgrade",
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "createdAt": {
+          "value": 1782290232058,
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        },
+        "updatedAt": {
+          "value": 1782290233514,
+          "stamp": {
+            "counter": 1782290233514,
+            "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+          }
+        }
+      },
+      "deleted": {
+        "value": false,
+        "stamp": {
+          "counter": 1782290233514,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "habit-insights-summary-calculate-insights->habit-insights-summary-parse-habit-data": {
+      "fromTaskId": "habit-insights-summary-calculate-insights",
+      "toTaskId": "habit-insights-summary-parse-habit-data",
+      "createdAt": 1782290232059,
+      "present": {
+        "value": true,
+        "stamp": {
+          "counter": 1782290232059,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    },
+    "habit-insights-summary-render-ui->habit-insights-summary-calculate-insights": {
+      "fromTaskId": "habit-insights-summary-render-ui",
+      "toTaskId": "habit-insights-summary-calculate-insights",
+      "createdAt": 1782290232059,
+      "present": {
+        "value": true,
+        "stamp": {
+          "counter": 1782290232059,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    },
+    "habit-insights-summary-integrate-dashboard->habit-insights-summary-render-ui": {
+      "fromTaskId": "habit-insights-summary-integrate-dashboard",
+      "toTaskId": "habit-insights-summary-render-ui",
+      "createdAt": 1782290232059,
+      "present": {
+        "value": true,
+        "stamp": {
+          "counter": 1782290232059,
+          "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
+        }
+      }
+    }
+  }
+}

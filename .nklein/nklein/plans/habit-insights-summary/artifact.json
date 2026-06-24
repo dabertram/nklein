@@ -1,0 +1,12 @@
+{
+  "artifactId": "decomposition:habit-insights-summary",
+  "workspaceId": "kanban",
+  "workspacePath": "/Users/david/GIT/kanban",
+  "sourceTaskId": "devtest-habit-insights-mid-1782290146660",
+  "artifactKind": "decomposition",
+  "planSlug": "habit-insights-summary",
+  "createdAt": 1782290194118,
+  "updatedAt": 1782290232096,
+  "validationStatus": "valid",
+  "applicationStatus": "applied"
+}

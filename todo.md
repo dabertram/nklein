@@ -393,7 +393,13 @@ deep analysis:
 - [~] **Real wiring for `runDevTestProject`** — side-effecting seams (`createDevTestStateReader`,
       `discoverDevTestCleanupEntries`) wired into `nklein dev test-project` + `dev cleanup-report`
       ([src/commands/dev.ts](src/commands/dev.ts)).
-  - [ ] live-path verification debt: `dev test-project` end-to-end + `dev cleanup-report` sizing (Docker session, §5.A)
+  - [x] **live-path verification (2026-06-24)** — ran against the live runtime (:4173) + Docker + LM Studio:
+        `dev cleanup-report --json` correctly discovered + **sized** a real leftover dev-test workspace (468 KiB,
+        one `dev_test_workspace` entry, retained 0 for the active run); `dev test-project --preset mid_task --json`
+        ran the full **start → monitor → classify → JSON** path end-to-end (exit 0, `runtimeReachable: true`,
+        emitted a classification). *(The seeded card didn't execute an agent because this runtime has no loaded
+        project to seed into — the real agent-in-Docker run is covered by `scripts/verify-strict-isolation.mts`,
+        which scaffolds its own isolated project. The command path + cleanup sizing are the parts this debt owed.)*
 
 ### 5.E — Cache-key hygiene & fuzz coverage
 - [x] **Telemetry/session caches keyed beyond task-id** — model-performance + knowledge-tool caches include
