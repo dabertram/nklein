@@ -209,6 +209,24 @@ export function KanbanBoard({
 			.map((summary) => titleByTaskId.get(summary.taskId) ?? summary.taskId);
 		return { running, waiting, blocked, queued: queuedTitles.length, queuedTitles };
 	}, [data.columns, taskSessions]);
+	// Active work grouped by the persisted launch role (todo §5.G #425), for a board-header strip with
+	// click-to-focus. Reads `summary.role` (stamped at start) — no startInPlanMode inference.
+	const roleGroups = useMemo(() => {
+		const groups: Record<"architect" | "worker" | "reviewer", { count: number; firstTaskId: string | null }> = {
+			architect: { count: 0, firstTaskId: null },
+			worker: { count: 0, firstTaskId: null },
+			reviewer: { count: 0, firstTaskId: null },
+		};
+		for (const summary of Object.values(taskSessions)) {
+			if (summary.state !== "running") {
+				continue;
+			}
+			const role = summary.role === "architect" || summary.role === "reviewer" ? summary.role : "worker";
+			groups[role].count += 1;
+			groups[role].firstTaskId ??= summary.taskId;
+		}
+		return groups;
+	}, [taskSessions]);
 	const endpointUtilization = useMemo<EndpointUtilizationSummary[]>(() => {
 		const endpoints = new Map<string, { running: number; modelIds: Set<string> }>();
 		for (const summary of Object.values(taskSessions)) {
@@ -708,6 +726,28 @@ export function KanbanBoard({
 							Queued {swarmCounts.queued}
 						</span>
 					) : null}
+					{(["architect", "worker", "reviewer"] as const).map((role) => {
+						const group = roleGroups[role];
+						if (group.count === 0) {
+							return null;
+						}
+						const label = role === "architect" ? "Architect" : role === "worker" ? "Worker" : "Reviewer";
+						return (
+							<button
+								key={role}
+								type="button"
+								onClick={() => {
+									if (group.firstTaskId) {
+										onCardSelect(group.firstTaskId);
+									}
+								}}
+								className="rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-accent hover:bg-accent/20"
+								title={`Focus a running ${label} agent`}
+							>
+								{label} {group.count}
+							</button>
+						);
+					})}
 					{endpointUtilization.slice(0, 2).map((endpoint) => (
 						<span
 							key={endpoint.endpointId}

@@ -416,8 +416,11 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("lmstudio:default 1 active (qwen3)");
 		expect(container.textContent).toContain("One endpoint is serializing work");
 		expect(container.textContent).toContain("Code intel");
-		expect(container.querySelector("button")?.textContent).toContain("Pause");
-		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+		const pauseButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Pause"),
+		);
+		expect(pauseButton?.textContent).toContain("Pause");
+		expect(pauseButton?.hasAttribute("disabled")).toBe(true);
 	});
 
 	it("surfaces an explicit sandbox queue count in the swarm header (§5.G)", async () => {
@@ -464,6 +467,45 @@ describe("KanbanBoard", () => {
 			);
 		});
 		expect(container.textContent).toContain("Queued 1");
+	});
+
+	it("groups active work by role in the swarm header with click-to-focus (§5.G #425)", async () => {
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const onCardSelect = vi.fn();
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{
+						"task-a": { ...createRunningSession("task-a", "lmstudio:default", "qwen3"), role: "architect" },
+						"task-w": { ...createRunningSession("task-w", "lmstudio:default", "qwen3"), role: "worker" },
+					}}
+					onCardSelect={onCardSelect}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(container.textContent).toContain("Architect 1");
+		expect(container.textContent).toContain("Worker 1");
+		const architectButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Architect 1"),
+		);
+		await act(async () => {
+			architectButton?.click();
+		});
+		expect(onCardSelect).toHaveBeenCalledWith("task-a");
 	});
 
 	it("warns in the swarm header when Docker agent isolation is unavailable (§5.A)", async () => {

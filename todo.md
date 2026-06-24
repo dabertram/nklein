@@ -448,9 +448,10 @@ deep analysis:
 - [x] **Explicit in-UI sandbox queue list** *(DONE 2026-06-24)* — the Local-swarm header now shows a **Queued N**
       chip (when any task is in the sandbox pool's FIFO `queued` state) whose hover title lists the queued task
       titles in wait order. Previously only the per-card "queued" state existed. web tsc + biome + suite (700) green.
-- [ ] **Main-board role/agent visibility** — board-header strip grouping active work by role (Architect/Worker/
-      Reviewer) with click-to-focus; persist the resolved launch role on session summaries (don't rely on
-      `startInPlanMode` inference).
+- [x] **Main-board role/agent visibility** *(DONE 2026-06-24)* — the Local-swarm header now shows a role strip:
+      clickable **Architect / Worker / Reviewer** chips (only for roles with running work) that focus a running
+      agent of that role on click. Reads the **persisted** `summary.role` (stamped at start, §5.U finding above) —
+      no `startInPlanMode` inference. web-tested (chips render + click-to-focus calls onCardSelect); live render clean.
 - [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
 - [x] **Acceptance-failure classification taxonomy** — pure classifier
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
