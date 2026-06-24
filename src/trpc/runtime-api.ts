@@ -142,6 +142,10 @@ import {
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
+import {
+	countActiveProjectTaskSessions,
+	createConcurrencyLimitStartError,
+} from "./runtime-api/task-concurrency-gate.js";
 import { buildTaskEvidencePromptBlock, renderWorkspaceChangesEvidence } from "./runtime-api/task-evidence-prompt.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./runtime-api/task-timeout-settings.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
@@ -204,29 +208,6 @@ async function resolveGitCommit(cwd: string, ref: string): Promise<string | null
 	} catch {
 		return null;
 	}
-}
-
-function isActiveProjectTaskSession(summary: RuntimeTaskSessionSummary): boolean {
-	return (
-		!isHomeAgentSessionId(summary.taskId) &&
-		summary.state !== "idle" &&
-		(summary.state === "queued" || summary.state === "running" || summary.state === "awaiting_review")
-	);
-}
-
-function countActiveProjectTaskSessions(summaries: RuntimeTaskSessionSummary[], startingTaskId: string): number {
-	const activeTaskIds = new Set<string>();
-	for (const summary of summaries) {
-		if (summary.taskId === startingTaskId || !isActiveProjectTaskSession(summary)) {
-			continue;
-		}
-		activeTaskIds.add(summary.taskId);
-	}
-	return activeTaskIds.size;
-}
-
-function createConcurrencyLimitStartError(maxConcurrentTasks: number): string {
-	return `Maximum concurrent task limit reached (${maxConcurrentTasks}). Wait for a running task to finish, or stop an active task before starting another.`;
 }
 
 function findBoardCardById(cards: readonly RuntimeBoardCard[], taskId: string): RuntimeBoardCard | null {

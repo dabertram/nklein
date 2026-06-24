@@ -1362,9 +1362,12 @@ deep analysis:
         - [x] **slice 4 (2026-06-24):** extracted the pure task-evidence rendering (bounded workspace-changes diff preview +
               the evidence-bundle diagnosing-prompt block) into `trpc/runtime-api/task-evidence-prompt.ts`. runtime-api.ts
               2106→2047 (cumulative 2449→2047, −402/−16%).
-        - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat). Remaining
-              module-level helpers worth a later pass: the board-card lookups + git-commit resolution, and the concurrency
-              gate (isActiveProjectTaskSession/countActiveProjectTaskSessions/createConcurrencyLimitStartError).
+        - [x] **slice 5 (2026-06-24):** extracted the pure task-start concurrency-gate accounting (count *other* active
+              project sessions + the limit-reached error) into `trpc/runtime-api/task-concurrency-gate.ts`. runtime-api.ts
+              2047→2028 (cumulative 2449→2028, −421/−17%).
+        - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat) — the bigger,
+              harder refactor (methods close over `createRuntimeApi`'s deps; deserves fresh context). Small leftover
+              module-level helpers worth a later pass: the board-card lookups + git-commit resolution.
   - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989)** — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
   - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
