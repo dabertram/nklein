@@ -3,9 +3,108 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import type { RuntimeChatMessage, RuntimeChatSession } from "@/runtime/types";
+import type {
+	RuntimeChatMessage,
+	RuntimeChatSession,
+	RuntimeChatSessionRole,
+	RuntimeChatSessionScope,
+} from "@/runtime/types";
 import { useChatData } from "./use-chat-data";
+
+const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string }> = [
+	{ value: "planner_architect", label: "Planner / architect" },
+	{ value: "reviewer", label: "Reviewer" },
+	{ value: "debugger", label: "Debugger" },
+	{ value: "researcher", label: "Researcher" },
+	{ value: "system_operator", label: "System operator" },
+];
+
+const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: string }> = [
+	{ value: "project_sandboxed", label: "Project (sandboxed)" },
+	{ value: "all_projects", label: "All projects" },
+	{ value: "host_access", label: "Host access" },
+];
+
+/**
+ * Editable header for the selected session: title + goal (commit on blur/Enter) and role + scope selects, all
+ * wired to `updateSession`. Keyed by session id by the caller so its local draft state resets on session switch.
+ */
+function SessionHeader({
+	session,
+	onUpdate,
+}: {
+	session: RuntimeChatSession;
+	onUpdate: (input: {
+		id: string;
+		title?: string;
+		goal?: string | null;
+		role?: RuntimeChatSessionRole;
+		scope?: RuntimeChatSessionScope;
+	}) => void;
+}): React.ReactElement {
+	const [title, setTitle] = useState(session.title);
+	const [goal, setGoal] = useState(session.goal ?? "");
+
+	return (
+		<div className="border-b border-border px-4 py-2 bg-surface-1 flex flex-col gap-2">
+			<input
+				data-testid="chat-session-title"
+				className="bg-transparent text-[14px] font-semibold text-text-primary focus:outline-none border-b border-transparent focus:border-border-focus"
+				value={title}
+				onChange={(event) => setTitle(event.target.value)}
+				onBlur={() => title.trim() && title !== session.title && onUpdate({ id: session.id, title: title.trim() })}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") {
+						event.currentTarget.blur();
+					}
+				}}
+			/>
+			<div className="flex items-center gap-2 flex-wrap">
+				<NativeSelect
+					size="sm"
+					aria-label="Role"
+					data-testid="chat-session-role"
+					value={session.role}
+					onChange={(event) => onUpdate({ id: session.id, role: event.target.value as RuntimeChatSessionRole })}
+				>
+					{ROLE_OPTIONS.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</NativeSelect>
+				<NativeSelect
+					size="sm"
+					aria-label="Scope"
+					data-testid="chat-session-scope"
+					value={session.scope}
+					onChange={(event) => onUpdate({ id: session.id, scope: event.target.value as RuntimeChatSessionScope })}
+				>
+					{SCOPE_OPTIONS.map((option) => (
+						<option key={option.value} value={option.value}>
+							{option.label}
+						</option>
+					))}
+				</NativeSelect>
+				<input
+					data-testid="chat-session-goal"
+					className="flex-1 min-w-40 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+					placeholder="Session goal (kept in focus across turns)…"
+					value={goal}
+					onChange={(event) => setGoal(event.target.value)}
+					onBlur={() => goal !== (session.goal ?? "") && onUpdate({ id: session.id, goal: goal.trim() || null })}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") {
+							event.currentTarget.blur();
+						}
+					}}
+				/>
+			</div>
+		</div>
+	);
+}
 
 /**
  * Board-independent chat surface (todo §5.M) — a dialog over the `chat` tRPC sub-router: a session list on the
@@ -90,6 +189,7 @@ export function ChatDialog({
 	const chat = useChatData(open);
 	const [draft, setDraft] = useState("");
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
 
 	// Keep the latest message in view as the transcript grows.
 	useEffect(() => {
@@ -160,6 +260,13 @@ export function ChatDialog({
 						</div>
 					) : (
 						<>
+							{selectedSession ? (
+								<SessionHeader
+									key={selectedSession.id}
+									session={selectedSession}
+									onUpdate={chat.updateSession}
+								/>
+							) : null}
 							<div
 								className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
 								data-testid="chat-transcript"

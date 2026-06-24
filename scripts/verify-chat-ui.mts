@@ -48,6 +48,14 @@ async function main(): Promise<void> {
 		await newSession.click();
 		await page.locator('[data-testid="chat-session-item"]').first().waitFor({ timeout: 10_000 });
 
+		// The editable session header (title + role + scope + goal) should render for the selected session.
+		await page.locator('[data-testid="chat-session-title"]').waitFor({ state: "visible", timeout: 10_000 });
+		for (const id of ["chat-session-role", "chat-session-scope", "chat-session-goal"]) {
+			if ((await page.locator(`[data-testid="${id}"]`).count()) === 0) {
+				failures.push(`missing session-header control: ${id}`);
+			}
+		}
+
 		// Send a message.
 		const composer = page.locator('[data-testid="chat-composer-input"]');
 		await composer.waitFor({ state: "visible", timeout: 10_000 });

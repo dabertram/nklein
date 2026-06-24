@@ -737,8 +737,14 @@ deep analysis:
           [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts) (headless Chromium against the running dev stack +
           live LM Studio): opened the dialog, created a session, sent a message, and a real assistant reply ("pong")
           rendered — screenshot `/tmp/nklein-chat-ui.png`. Non-streaming for now.
+    - [x] **session header: editable title / role / scope / goal (2026-06-24)** — the chat dialog's right pane now
+          opens with a `SessionHeader` exposing everything the backend already supported: an editable title + goal
+          (commit on blur/Enter) and role + scope `NativeSelect`s, all wired to a new `updateSession` on the data hook
+          → `chat.updateSession`. Keyed by session id so drafts reset on switch. web tsc + biome + full web vitest
+          (705) green; **live-verified** via [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts) (the four header
+          controls render for the selected session).
   - [ ] still owed (next live layer): optional **token streaming** over tRPC (the turn currently arrives whole);
-        session **rename / scope+role pickers** in the UI (create uses defaults today); the **Signal bridge**.
+        the **Signal bridge** (external integration — needs the user's Signal setup/credentials).
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):

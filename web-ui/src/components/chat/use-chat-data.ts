@@ -1,6 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
-import type { RuntimeChatCreateSessionRequest, RuntimeChatMessage, RuntimeChatSession } from "@/runtime/types";
+import type {
+	RuntimeChatCreateSessionRequest,
+	RuntimeChatMessage,
+	RuntimeChatSession,
+	RuntimeChatUpdateSessionRequest,
+} from "@/runtime/types";
 import { useTrpcQuery } from "@/runtime/use-trpc-query";
 
 /**
@@ -20,6 +25,7 @@ export interface UseChatDataResult {
 	sending: boolean;
 	error: string | null;
 	createSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession | null>;
+	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
 	deleteSession: (id: string) => Promise<void>;
 	sendMessage: (message: string) => Promise<void>;
 	refetchSessions: () => Promise<unknown>;
@@ -61,6 +67,19 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			} catch (caught) {
 				setError(caught instanceof Error ? caught.message : String(caught));
 				return null;
+			}
+		},
+		[client, sessionsQuery],
+	);
+
+	const updateSession = useCallback(
+		async (input: RuntimeChatUpdateSessionRequest) => {
+			setError(null);
+			try {
+				await client.chat.updateSession.mutate(input);
+				await sessionsQuery.refetch();
+			} catch (caught) {
+				setError(caught instanceof Error ? caught.message : String(caught));
 			}
 		},
 		[client, sessionsQuery],
@@ -114,6 +133,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		sending,
 		error,
 		createSession,
+		updateSession,
 		deleteSession,
 		sendMessage,
 		refetchSessions: sessionsQuery.refetch,
