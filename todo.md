@@ -1553,8 +1553,19 @@ deep analysis:
 - [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
 
 ### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
-- [ ] **Feature-vs-UI audit** — systematically catalog every capability (CLI/config/runtime) and confirm it's reachable
-      in the UI; surface anything that's CLI-only but should be user-facing.
+- [x] **Feature-vs-UI audit (2026-06-25, subagent)** — cataloged all 29 runtime-config fields (26 exposed / 3 config-only),
+      CLI commands, agent/plan actions, and global-vs-project scoping. Concrete gaps to close below.
+  - [ ] **expose config-only fields:** `maxConcurrentTasks` (global parallel-task cap — add to Tasks settings),
+        `maxAgentWritableFileLines` (write-guard limit — Advanced), and decide `replayCardsEnabled` (expose or mark internal).
+  - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
+        per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
+  - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm
+        stop/resume control to the board header (backend already exists).
+  - [ ] **dependency link/unlink dialog** — CLI `task link`/`unlink` exist; add a non-drag "Add dependency" picker.
+  - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (currently JSON-only) + `plan-gap` reporting
+        in the pending-artifacts / card menus.
+  - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
+        de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
 - [ ] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
       for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
       the override model + storage; wire it through.

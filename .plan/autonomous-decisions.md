@@ -49,5 +49,26 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
 - **Ship mode:** local commits only — no `git push`, no PRs.
 - **Runtime restart:** OK to restart the runtime (+ rebuild) to live-verify backend fixes end-to-end.
 
+## Working mode (2026-06-25, user) — heavy parallel subagents
+- **Use subagents heavily**, with **fast coding models / lower reasoning** where the task suits it (mechanical, well-
+  scoped UI/refactor/test work). Keep core/risky/cross-cutting work (default flips, §5.B core flow, security) careful
+  (me or a higher-reasoning agent).
+- **Coordinate to avoid collisions:** partition into **disjoint file sets**; parallelize independent chunks (prefer
+  `isolation: "worktree"` + background for parallel *coding* agents so they never fight the working tree/index; merge
+  their branches when done), sequence dependent ones. Read-only audits (Explore) can run alongside anything. Goal:
+  maximize output/throughput, minimize rework from collisions.
+
 ## Autonomous decisions (below the escalation bar)
-_(none yet — appended as I work)_
+- **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
+  explicit > inferring from turn-end, robust against weak local models (parse-and-recover principle). Low rework.
+- **(2026-06-25) ⚠️ CONTRADICTION — defaults "hard flip both now" NOT done; deferred.** The user decided to hard-flip
+  native-agent-core=default + core-py=on now (no fallback). But these are **not flag-flips**: per §5.H's own engineering
+  note + the unchecked prereqs, (a) the native core `src/agent-core/` is **not imported by any runtime/session code yet**
+  (the native-core→task-execution integration is unbuilt) — flipping the default points the runtime at nothing; (b)
+  core-py default-on needs the sidecar **bundled + auto-started** first, and "default-on, no fallback" before that would
+  hard-fail every task. Hard-flipping now would BREAK the runtime — counter to "never run blindly into the dark." So:
+  sensible default = **do NOT flip**; these become the §5.H prerequisite workstream. **Needs the user** to decide:
+  build the (large) prereqs now, or keep both opt-in until then. Flagged to the user in-session; revisit at the end-review.
+- **(2026-06-25) Orchestration of the first parallel batch:** chat-polish (web-ui) delegated to a worktree subagent;
+  feature/UI exposure audit delegated to a read-only Explore subagent; the risky **defaults hard-flip** kept by me
+  (needs runtime verify). Disjoint file sets, so no collisions.
