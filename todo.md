@@ -942,10 +942,15 @@ deep analysis:
         `awaiting_review` + a coherent result branch (`specification.md` +34/−12) through the swarm+Docker — the 2B
         model completed a real task; no new failure to harden (existing hardening held). Details in
         [local-llm-tests.md](local-llm-tests.md).
-  - [ ] **Round 4 (next) — catalog failure modes by tailing the live activity stream.** Now that the dev-test run
-        vehicle works, drive a run on the pinned small model and **tail the runtime's hook-activity stream** (every
-        `tool_call`/delta) looking for malformations/recoveries/loops to harden; sweep gemma-e2b/e4b/qwen3-8b on richer
-        presets (`complex_dag`, `wide_fanout`). Optionally weigh the imperative tool-result framing (Finding 6).
+  - [~] **Round 4 — gemma-4-e2b also completes `complex_dag`; cataloging needs a stream subscription (2026-06-24)** —
+        ran the heavier `complex_dag` preset on gemma-4-e2b: it too reached `awaiting_review` + a captured result
+        branch (~171s). Both presets succeed → existing hardening holds for this 2B model (no new fix). **Lesson:**
+        *polling* `getState().sessions[].latestHookActivity` only catches the terminal `sandbox_patch_captured` event;
+        per-`tool_call` cataloging needs **subscribing to the runtime's live activity stream** (the WS/event feed the
+        UI consumes) for the run's duration.
+  - [ ] **Round 5 (next) — subscribe to the live activity stream during a dev-test run** to catalog gemma's per-
+        tool-call output (malformations/recoveries/loops) and harden anything `recoverNarratedToolCalls`/the guards
+        don't already cover; sweep e2b/e4b/qwen3-8b. Optionally weigh the imperative tool-result framing (Finding 6).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

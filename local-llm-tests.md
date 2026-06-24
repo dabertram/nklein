@@ -25,13 +25,18 @@ working vehicle + lens (use the **dev-test projects**, as directed):
    result branch. (The board card may sit in `backlog` even as the session reaches `awaiting_review` — they're
    separate stores.)
 
-**Verified live (gemma-4-e2b, `mid_task` "Decompose Add habit insight summaries"):** the session reached
-`awaiting_review` (`reviewReason:"exit"`), emitted `sandbox_patch_captured`, and produced a coherent result branch
-(`specification.md`, +34/−12) — i.e. the 2B model **drove a real swarm+Docker task to a captured result**. The run
-**succeeded**, so it surfaced no new output-failure to harden here — !Klein's existing hardening held for gemma on
-this task. To *catalog* failure modes, a future round should **tail the live hook-activity stream** during a run (the
-runtime emits every `tool_call` / delta) and look for malformations/recoveries/loops; the dev-test project is the run
-vehicle, the activity stream is the lens.
+**Verified live (gemma-4-e2b):** both `mid_task` ("Decompose Add habit insight summaries") and the heavier
+`complex_dag` ran to `awaiting_review` (`reviewReason:"exit"`), each emitting `sandbox_patch_captured` + a coherent
+result branch (`mid_task`: `specification.md` +34/−12; `complex_dag`: a captured patch in ~171s) — i.e. the 2B model
+**drove real swarm+Docker tasks to captured results on two presets**. Both runs **succeeded**, so they surfaced no
+new output-failure to harden — !Klein's existing hardening held for gemma on these tasks (good news for §5.O: the
+robustness shipped so far is sufficient here).
+
+**Cataloging lesson for Round 4:** *polling* `latestHookActivity` only ever captured the **terminal**
+`sandbox_patch_captured` event — the per-`tool_call` activity flew by between polls. To actually catalog silent
+recoveries / malformations / loops, **subscribe to the runtime's live activity stream** (the WS/event feed the UI
+consumes) for the duration of the run, not poll the session snapshot. The dev-test project is the run vehicle; the
+**activity-stream subscription** is the lens.
 
 ## Methodology (how to run a round)
 
