@@ -902,12 +902,25 @@ deep analysis:
       identical input ⇒ every tool, **including future ones**, is immune by construction; a real identical-input
       loop still pauses. Extensively tested (fingerprint unit suite + guard-level end-to-end for an arbitrary
       "future" tool, both progress→no-pause and identical→pause).
-- [ ] **Small-model output robustness (IN SCOPE — the only sweep work now)** — run the dev-test presets across the
+- [~] **Small-model output robustness (IN SCOPE — the only sweep work now)** — run the dev-test presets across the
       *small* local models the user loads; for each, catalog the **output** failure modes (tool-call malformation,
       narration-as-tool-call, no-tool-call stalls, structured-output misses, reasoning runaways) and **harden !Klein**
       (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
       findings to [local-llm-tests.md](local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
       robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
+  - [x] **Round 0 — methodology + harness frictions (2026-06-24)** — stood up the sweep loop and wrote
+        [local-llm-tests.md](local-llm-tests.md). Established the model-pin lever (the swarm resolves its model from
+        the NKlein **provider settings**, not just live discovery — set/restore via `runtime.saveNKleinProviderSettings`;
+        `lms ps` lists loaded ids). Surfaced two **harness** blockers that must be fixed for clean rounds: (1)
+        `dev test-project` against the !Klein repo's own board **short-circuits** on pre-existing completed cards
+        (`polls:1`) — sweep a **fresh** throwaway workspace; (2) running it against a fresh `--project-path` **while
+        `dev:full` runs** fails with "Lock file is already being held" (cross-process `proper-lockfile` contention from
+        `loadWorkspaceContext` autoCreate + the CLI runtime touch) — sweep with the shared dev server stopped or under
+        an isolated HOME. No gemma-4-e2b *output* findings yet (Round 0 was consumed by setup).
+  - [ ] **Round 1 (next)** — gemma-4-e2b (then e4b, qwen3-8b) against a fresh repo with the dev server stopped / an
+        isolated-HOME sweep runtime; catalog real output failure modes + harden. Candidate harness hardening to weigh:
+        a clearer "another !Klein is already running for this home" acquire error + retry, instead of the raw lockfile
+        throw (Finding 2). Consider a small isolated-runtime sweep harness (à la `verify-strict-isolation.mts`).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version
