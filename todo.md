@@ -339,13 +339,20 @@ deep analysis:
       `resolveNKleinAgentPerceivedCwd`. **Design default taken:** the host workspaceRoot reflects the live project, not
       the sandbox `baseRef` checkout — acceptable for codebase orientation. **Live-verified**: `verify-decompose-isolation.mts`
       now shows the repo-map rail injected (154–156 chars of symbols from a 2-file fixture) AND still zero host-path leaks.
-- [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
+- [~] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
-      telemetry). **Still owed in-browser (verify via Playwright):** Settings isolation status + pool-control
-      inspection; and dev-build UX (no cloud default, model-registry prune, live loaded-model line, Developer Mode
-      persistence, embedding auto-discovery). Also verify the swarm concurrency cap and sandbox-pool queue compose
-      visibly in the card/header UI.
+      telemetry).
+  - [x] **Settings render + isolation status verified live (2026-06-24)** via a new headless-Playwright harness
+        [scripts/verify-settings-ui.mts](scripts/verify-settings-ui.mts) (drives the running dev app, dismisses the
+        first-run dialog, opens Settings): **Agent isolation** status renders (Docker sandbox ready, daemon
+        Available, image `nklein/agent-sandbox:0.0.1`), Developer Mode toggle + "Local !Klein agent (cloud disabled)"
+        show, and this session's editors render — the **swarm-guardrails** number inputs + Reset, **Parallel
+        requests** concurrency field, and the **Python core** health line — with **zero console/page errors**.
+        Screenshot evidence at `/tmp/nklein-settings-ui.png`.
+  - [ ] **Still owed (needs a loaded project + live models/tasks):** pool-control inspection with a real pool +
+        queue, model-registry prune with entries, live loaded-model line, embedding auto-discovery; and the swarm
+        concurrency cap + sandbox-pool queue composing visibly in the card/header UI during a run.
 - [ ] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
