@@ -155,6 +155,10 @@ interface NKleinModelRegistryPanelProps {
 		entry: RuntimeNKleinModelRegistryEntry,
 		contextWindow: number | null,
 	) => Promise<void> | void;
+	onMaxConcurrentRequestsSave?: (
+		entry: RuntimeNKleinModelRegistryEntry,
+		maxConcurrentRequests: number | null,
+	) => Promise<void> | void;
 	onRemoveEntry?: (entry: RuntimeNKleinModelRegistryEntry) => Promise<void> | void;
 	onPruneStale?: () => Promise<void> | void;
 }
@@ -166,6 +170,7 @@ export function NKleinModelRegistryPanel({
 	nowMs,
 	isLoading = false,
 	onContextWindowOverrideSave,
+	onMaxConcurrentRequestsSave,
 	onRemoveEntry,
 	onPruneStale,
 }: NKleinModelRegistryPanelProps) {
@@ -175,10 +180,13 @@ export function NKleinModelRegistryPanel({
 		[entries, selectedEntry],
 	);
 	const [overrideInputs, setOverrideInputs] = useState<Record<string, string>>({});
+	const [concurrencyInputs, setConcurrencyInputs] = useState<Record<string, string>>({});
 	const [savingKey, setSavingKey] = useState<string | null>(null);
+	const [savingConcurrencyKey, setSavingConcurrencyKey] = useState<string | null>(null);
 	const [removingKey, setRemovingKey] = useState<string | null>(null);
 	const [isPruning, setIsPruning] = useState(false);
 	const [saveErrorByKey, setSaveErrorByKey] = useState<Record<string, string>>({});
+	const [concurrencyErrorByKey, setConcurrencyErrorByKey] = useState<Record<string, string>>({});
 	const [removeErrorByKey, setRemoveErrorByKey] = useState<Record<string, string>>({});
 	const [pruneError, setPruneError] = useState("");
 
@@ -204,6 +212,26 @@ export function NKleinModelRegistryPanel({
 			setSaveErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: message }));
 		} finally {
 			setSavingKey(null);
+		}
+	};
+
+	const saveConcurrency = async (entry: RuntimeNKleinModelRegistryEntry, maxConcurrentRequests: number | null) => {
+		if (!onMaxConcurrentRequestsSave) {
+			return;
+		}
+		setSavingConcurrencyKey(entry.key);
+		setConcurrencyErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: "" }));
+		try {
+			await onMaxConcurrentRequestsSave(entry, maxConcurrentRequests);
+			setConcurrencyInputs((currentInputs) => ({
+				...currentInputs,
+				[entry.key]: maxConcurrentRequests === null ? "" : String(maxConcurrentRequests),
+			}));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setConcurrencyErrorByKey((currentErrors) => ({ ...currentErrors, [entry.key]: message }));
+		} finally {
+			setSavingConcurrencyKey(null);
 		}
 	};
 
@@ -282,9 +310,22 @@ export function NKleinModelRegistryPanel({
 							Boolean(onContextWindowOverrideSave) &&
 							hasValidOverride &&
 							parsedOverride !== entry.contextWindow.userOverride;
+						const currentConcurrency = entry.constraints.maxConcurrentRequests ?? null;
+						const concurrencyInput = concurrencyInputs[entry.key] ?? String(currentConcurrency ?? "");
+						const trimmedConcurrencyInput = concurrencyInput.trim();
+						const parsedConcurrency =
+							trimmedConcurrencyInput.length > 0 ? Number.parseInt(trimmedConcurrencyInput, 10) : null;
+						const hasValidConcurrency =
+							parsedConcurrency !== null && Number.isFinite(parsedConcurrency) && parsedConcurrency >= 1;
+						const canSaveConcurrency =
+							Boolean(onMaxConcurrentRequestsSave) &&
+							hasValidConcurrency &&
+							parsedConcurrency !== currentConcurrency;
 						const isSaving = savingKey === entry.key;
+						const isSavingConcurrency = savingConcurrencyKey === entry.key;
 						const isRemoving = removingKey === entry.key;
 						const saveError = saveErrorByKey[entry.key]?.trim();
+						const concurrencyError = concurrencyErrorByKey[entry.key]?.trim();
 						const removeError = removeErrorByKey[entry.key]?.trim();
 						return (
 							<div
@@ -401,6 +442,61 @@ export function NKleinModelRegistryPanel({
 											</div>
 										) : null}
 										{saveError ? <div className="text-[11px] text-status-red">{saveError}</div> : null}
+									</div>
+								) : null}
+								{onMaxConcurrentRequestsSave ? (
+									<div className="mt-2 grid gap-1">
+										<div className="flex flex-wrap items-center gap-2">
+											<input
+												type="number"
+												min={1}
+												step={1}
+												value={concurrencyInput}
+												onChange={(event) => {
+													const nextValue = event.currentTarget.value;
+													setConcurrencyInputs((currentInputs) => ({
+														...currentInputs,
+														[entry.key]: nextValue,
+													}));
+												}}
+												className="h-8 w-36 rounded-md border border-border bg-surface-0 px-2 text-xs text-text-primary outline-none focus:border-border-focus"
+												placeholder="Parallel requests"
+												aria-label={`Max concurrent requests for ${entry.providerId}/${entry.modelId}`}
+											/>
+											<Button
+												size="sm"
+												variant="default"
+												icon={<Save size={14} />}
+												disabled={!canSaveConcurrency || isSavingConcurrency}
+												onClick={() => {
+													if (hasValidConcurrency && parsedConcurrency !== null) {
+														void saveConcurrency(entry, parsedConcurrency);
+													}
+												}}
+											>
+												{isSavingConcurrency ? "Saving..." : "Save"}
+											</Button>
+											<Button
+												size="sm"
+												variant="ghost"
+												icon={<RotateCcw size={14} />}
+												disabled={currentConcurrency === null || isSavingConcurrency}
+												onClick={() => {
+													void saveConcurrency(entry, null);
+												}}
+											>
+												Clear
+											</Button>
+											<span className="text-[11px] text-text-tertiary">
+												Parallel requests this model accepts (default 1).
+											</span>
+										</div>
+										{trimmedConcurrencyInput && !hasValidConcurrency ? (
+											<div className="text-[11px] text-status-orange">Use a whole number of 1 or more.</div>
+										) : null}
+										{concurrencyError ? (
+											<div className="text-[11px] text-status-red">{concurrencyError}</div>
+										) : null}
 									</div>
 								) : null}
 								{removeError ? <div className="mt-2 text-[11px] text-status-red">{removeError}</div> : null}

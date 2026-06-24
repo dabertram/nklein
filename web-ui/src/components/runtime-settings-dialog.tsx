@@ -99,6 +99,7 @@ import {
 	removeNKleinModelRegistryEntry,
 	runNKleinSmokeEval,
 	saveNKleinModelContextWindowOverride,
+	saveNKleinModelMaxConcurrentRequests,
 	sendNKleinAdvisorRequest,
 	writeNKleinDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
@@ -1231,6 +1232,22 @@ function NKleinModelContextWindowSettingsPanel({
 		[disabled, refreshRegistry, workspaceId],
 	);
 
+	const saveMaxConcurrentRequests = useCallback(
+		async (entry: RuntimeNKleinModelRegistryEntry, maxConcurrentRequests: number | null) => {
+			if (disabled) {
+				return;
+			}
+			await saveNKleinModelMaxConcurrentRequests(workspaceId, {
+				providerId: entry.providerId,
+				modelId: entry.modelId,
+				endpoint: entry.endpoint,
+				maxConcurrentRequests,
+			});
+			await refreshRegistry();
+		},
+		[disabled, refreshRegistry, workspaceId],
+	);
+
 	const removeEntry = useCallback(
 		async (entry: RuntimeNKleinModelRegistryEntry) => {
 			if (disabled) {
@@ -1302,6 +1319,7 @@ function NKleinModelContextWindowSettingsPanel({
 				nowMs={nowMs}
 				isLoading={isLoading}
 				onContextWindowOverrideSave={disabled ? undefined : saveOverride}
+				onMaxConcurrentRequestsSave={disabled ? undefined : saveMaxConcurrentRequests}
 				onRemoveEntry={disabled ? undefined : removeEntry}
 				onPruneStale={disabled ? undefined : pruneStale}
 			/>

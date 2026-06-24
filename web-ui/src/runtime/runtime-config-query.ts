@@ -32,6 +32,7 @@ import type {
 	RuntimeNKleinMcpServer,
 	RuntimeNKleinMcpSettingsResponse,
 	RuntimeNKleinModelContextWindowOverrideResponse,
+	RuntimeNKleinModelMaxConcurrentRequestsResponse,
 	RuntimeNKleinModelRegistryPruneResponse,
 	RuntimeNKleinModelRegistryRemoveResponse,
 	RuntimeNKleinModelRegistryResponse,
@@ -226,6 +227,19 @@ export async function saveNKleinModelContextWindowOverride(
 ): Promise<RuntimeNKleinModelContextWindowOverrideResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.saveNKleinModelContextWindowOverride.mutate(input);
+}
+
+export async function saveNKleinModelMaxConcurrentRequests(
+	workspaceId: string | null,
+	input: {
+		providerId: string;
+		modelId: string;
+		endpoint?: string | null;
+		maxConcurrentRequests: number | null;
+	},
+): Promise<RuntimeNKleinModelMaxConcurrentRequestsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.saveNKleinModelMaxConcurrentRequests.mutate(input);
 }
 
 export async function removeNKleinModelRegistryEntry(

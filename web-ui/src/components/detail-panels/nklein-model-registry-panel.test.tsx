@@ -51,6 +51,7 @@ function createModelRegistryEntry(
 			sharedEndpointId: "ollama-local",
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
+			maxConcurrentRequests: null,
 		},
 		createdAt: 10,
 		updatedAt: 120_000,
@@ -209,5 +210,42 @@ describe("NKleinModelRegistryPanel", () => {
 		});
 
 		expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ providerId: "ollama", modelId: "qwen" }), 64_000);
+	});
+
+	it("saves a per-model max-concurrent-requests override when enabled (§5.T)", async () => {
+		const onSave = vi.fn().mockResolvedValue(undefined);
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinModelRegistryPanel
+					entries={[createModelRegistryEntry()]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+					onMaxConcurrentRequestsSave={onSave}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const input = container.querySelector("input[aria-label='Max concurrent requests for ollama/qwen']");
+		expect(input).toBeInstanceOf(HTMLInputElement);
+		await act(async () => {
+			if (input instanceof HTMLInputElement) {
+				input.value = "3";
+				Simulate.change(input);
+			}
+			await Promise.resolve();
+		});
+		const saveButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Save"),
+		);
+		expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			saveButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ providerId: "ollama", modelId: "qwen" }), 3);
 	});
 });

@@ -43,6 +43,7 @@ import {
 	pruneNKleinModelRegistry,
 	removeNKleinModelRegistryEntry,
 	saveNKleinModelContextWindowOverride,
+	saveNKleinModelMaxConcurrentRequests,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeConfigResponse,
@@ -763,6 +764,18 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 			},
 			[modelRegistryQuery.refetch, workspaceId],
 		);
+		const handleSaveModelMaxConcurrentRequests = useCallback(
+			async (entry: RuntimeNKleinModelRegistryEntry, maxConcurrentRequests: number | null) => {
+				await saveNKleinModelMaxConcurrentRequests(workspaceId, {
+					providerId: entry.providerId,
+					modelId: entry.modelId,
+					endpoint: entry.endpoint,
+					maxConcurrentRequests,
+				});
+				await modelRegistryQuery.refetch();
+			},
+			[modelRegistryQuery.refetch, workspaceId],
+		);
 		const handleRemoveModelRegistryEntry = useCallback(
 			async (entry: RuntimeNKleinModelRegistryEntry) => {
 				const response = await removeNKleinModelRegistryEntry(workspaceId, { key: entry.key });
@@ -1300,6 +1313,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 								nowMs={nowMs}
 								isLoading={modelRegistryQuery.isLoading}
 								onContextWindowOverrideSave={handleSaveModelContextWindowOverride}
+								onMaxConcurrentRequestsSave={handleSaveModelMaxConcurrentRequests}
 								onRemoveEntry={handleRemoveModelRegistryEntry}
 								onPruneStale={handlePruneModelRegistry}
 							/>
