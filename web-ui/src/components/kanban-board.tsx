@@ -17,10 +17,12 @@ import { BoardColumn } from "@/components/board-column";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import {
 	collectTaskEvidence,
+	fetchMergeHistory,
 	fetchNKleinCodeIntelligenceStatus,
 	pauseTask,
 	resumeTask,
@@ -29,6 +31,7 @@ import {
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeConfigResponse,
+	RuntimeMergeHistoryRecord,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeSwarmStopSignal,
 	RuntimeTaskSessionSummary,
@@ -56,6 +59,35 @@ function formatCodeIntelligenceChip(status: RuntimeNKleinCodeIntelligenceStatusR
 		return `Code index ${percent}%`;
 	}
 	return status.repoMap.available ? "Repo map ready" : "Code intel warming";
+}
+
+// Condensed board-header view of the durable merge history (todo §5.G). Highlights the most recent
+// dependency-ordered auto-merge pass and whether any of the recent passes hit a conflict.
+interface MergeHistorySummary {
+	latest: RuntimeMergeHistoryRecord;
+	conflictCount: number;
+}
+
+function summarizeMergeHistory(records: readonly RuntimeMergeHistoryRecord[]): MergeHistorySummary | null {
+	const latest = records[0];
+	if (!latest) {
+		return null;
+	}
+	return { latest, conflictCount: records.filter((record) => !record.ok).length };
+}
+
+function formatMergeHistoryTooltip(records: readonly RuntimeMergeHistoryRecord[]): string {
+	return records
+		.slice(0, 8)
+		.map((record) => {
+			const when = new Date(record.recordedAt).toLocaleString();
+			if (record.ok) {
+				return `✓ ${when} — merged ${record.mergedTaskIds.length}, skipped ${record.skippedTaskIds.length}`;
+			}
+			const where = record.conflictedPaths.length > 0 ? ` (${record.conflictedPaths.length} paths)` : "";
+			return `✗ ${when} — ${record.reason ?? "conflict"}${where}`;
+		})
+		.join("\n");
 }
 
 interface EndpointUtilizationSummary {
@@ -176,6 +208,7 @@ export function KanbanBoard({
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
+	const [mergeHistory, setMergeHistory] = useState<RuntimeMergeHistoryRecord[]>([]);
 	const displayTaskSessions = useMemo(() => {
 		if (pausedTaskIds.size === 0) {
 			return taskSessions;
@@ -227,6 +260,7 @@ export function KanbanBoard({
 		}
 		return groups;
 	}, [taskSessions]);
+	const mergeSummary = useMemo(() => summarizeMergeHistory(mergeHistory), [mergeHistory]);
 	const endpointUtilization = useMemo<EndpointUtilizationSummary[]>(() => {
 		const endpoints = new Map<string, { running: number; modelIds: Set<string> }>();
 		for (const summary of Object.values(taskSessions)) {
@@ -300,6 +334,32 @@ export function KanbanBoard({
 			cancelled = true;
 		};
 	}, [currentProjectId]);
+
+	// Refresh the durable merge history (todo §5.G) on project switch and whenever the running count
+	// changes — the dependency-ordered auto-merge runs as tasks complete, so a drop in `running` is the
+	// cheapest signal that a new merge record may have landed.
+	useEffect(() => {
+		if (!currentProjectId) {
+			setMergeHistory([]);
+			return;
+		}
+		let cancelled = false;
+		void fetchMergeHistory(currentProjectId).then(
+			(response) => {
+				if (!cancelled) {
+					setMergeHistory(response.records);
+				}
+			},
+			() => {
+				if (!cancelled) {
+					setMergeHistory([]);
+				}
+			},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [currentProjectId, swarmCounts.running]);
 
 	const handleSaveConcurrencyCap = useCallback(
 		async (nextCap: number) => {
@@ -774,6 +834,21 @@ export function KanbanBoard({
 							}
 						>
 							Sandbox unavailable
+						</span>
+					) : null}
+					{mergeSummary ? (
+						<span
+							className={cn(
+								"cursor-help rounded-md border px-1.5 py-0.5",
+								mergeSummary.conflictCount > 0
+									? "border-status-red/40 bg-status-red/10 text-status-red"
+									: "border-status-green/40 bg-status-green/10 text-status-green",
+							)}
+							title={formatMergeHistoryTooltip(mergeHistory)}
+						>
+							{mergeSummary.conflictCount > 0
+								? `Merge conflicts ${mergeSummary.conflictCount}`
+								: `Merged ${mergeSummary.latest.mergedTaskIds.length}`}
 						</span>
 					) : null}
 					<ElementTooltip id="board.code-intel" side="bottom">

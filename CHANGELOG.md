@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- The board header now surfaces a **merge-status chip** for the dependency-ordered auto-merge (todo §5.G). When the swarm finishes a card it merges the ready task worktrees back in dependency order; each pass is now recorded durably (per workspace) and the swarm header shows the latest outcome — green **"Merged N"** on success or red **"Merge conflicts N"** when recent passes hit a conflict — with a hover tooltip listing the recent passes (timestamp, merged/skipped counts, or the conflict reason and path count). It refreshes when you switch projects and as running tasks complete. Previously merge results were only visible in CLI/integration output.
+
 - Settings now shows a **Python core (core-py) health line** under the !Klein model panel (todo §5.H): whether the local ML sidecar is enabled, running/not-reachable (a live `GET /health` probe), and its endpoint — with a hint to set `NKLEIN_CORE_PY=1` when it's disabled. Previously the `probeKleinCorePyHealth` helper existed but was never surfaced.
 
 - The swarm can now run **multiple agents in parallel on one model** when you tell it the model's capacity (todo §5.T). Each model in the Model Performance registry (Settings → !Klein, and the agent chat model panel) gets a **"Parallel requests" field** to set its per-model concurrent-request capacity (e.g. to match LM Studio's per-model concurrent-requests setting); the endpoint scheduler, which previously serialized one task at a time per shared local endpoint, now allows up to that many concurrent sessions before holding the next start (with a "shared endpoint is at its N concurrent-request capacity" note). The default stays 1, so behavior is unchanged until a capacity is set.

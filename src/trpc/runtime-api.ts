@@ -129,6 +129,7 @@ import {
 } from "../nklein-sdk/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../nklein-sdk/nklein-timeout-scaling";
 import { openInBrowser } from "../server/browser";
+import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries, type TaskRunTimeoutSource } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
@@ -1914,6 +1915,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}
 			const health = await probeKleinCorePyHealth({ config });
 			return { enabled: true, reachable: health.reachable, sidecarUrl: health.sidecarUrl };
+		},
+		getMergeHistory: async (workspaceScope) => {
+			const records = workspaceScope
+				? await readMergeHistory({ workspacePath: workspaceScope.workspacePath, limit: 50 })
+				: [];
+			return {
+				records: records.map((record) => ({
+					recordedAt: record.recordedAt,
+					taskId: record.taskId,
+					ok: record.ok,
+					mergedTaskIds: record.mergedTaskIds,
+					skippedTaskIds: record.skippedTaskIds,
+					conflictedPaths: record.conflictedPaths,
+					reason: record.reason,
+				})),
+			};
 		},
 		buildNKleinModelFreshnessAdvisor: async (_workspaceScope) => {
 			return await buildNKleinModelFreshnessAdvisorRequest();

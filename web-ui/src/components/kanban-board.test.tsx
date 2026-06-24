@@ -16,6 +16,7 @@ const dndMock = vi.hoisted(() => ({
 }));
 const runtimeConfigQueryMocks = vi.hoisted(() => ({
 	collectTaskEvidence: vi.fn(),
+	fetchMergeHistory: vi.fn(),
 	fetchNKleinCodeIntelligenceStatus: vi.fn(),
 	pauseTask: vi.fn(),
 	resumeTask: vi.fn(),
@@ -110,6 +111,7 @@ vi.mock("@/components/dependencies/use-dependency-linking", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	collectTaskEvidence: runtimeConfigQueryMocks.collectTaskEvidence,
+	fetchMergeHistory: runtimeConfigQueryMocks.fetchMergeHistory,
 	fetchNKleinCodeIntelligenceStatus: runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus,
 	pauseTask: runtimeConfigQueryMocks.pauseTask,
 	resumeTask: runtimeConfigQueryMocks.resumeTask,
@@ -280,6 +282,8 @@ describe("KanbanBoard", () => {
 		});
 		runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus.mockReset();
 		runtimeConfigQueryMocks.fetchNKleinCodeIntelligenceStatus.mockResolvedValue(null);
+		runtimeConfigQueryMocks.fetchMergeHistory.mockReset();
+		runtimeConfigQueryMocks.fetchMergeHistory.mockResolvedValue({ records: [] });
 		runtimeConfigQueryMocks.pauseTask.mockReset();
 		runtimeConfigQueryMocks.pauseTask.mockResolvedValue({
 			ok: true,
@@ -467,6 +471,57 @@ describe("KanbanBoard", () => {
 			);
 		});
 		expect(container.textContent).toContain("Queued 1");
+	});
+
+	it("surfaces durable merge history in the swarm header (§5.G)", async () => {
+		runtimeConfigQueryMocks.fetchMergeHistory.mockResolvedValue({
+			records: [
+				{
+					recordedAt: 2_000,
+					taskId: "task-merge",
+					ok: false,
+					mergedTaskIds: [],
+					skippedTaskIds: [],
+					conflictedPaths: ["src/a.ts"],
+					reason: "merge conflict",
+				},
+				{
+					recordedAt: 1_000,
+					taskId: "task-merge-prior",
+					ok: true,
+					mergedTaskIds: ["a", "b"],
+					skippedTaskIds: [],
+					conflictedPaths: [],
+					reason: null,
+				},
+			],
+		});
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					currentProjectId="proj-1"
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(runtimeConfigQueryMocks.fetchMergeHistory).toHaveBeenCalledWith("proj-1");
+		expect(container.textContent).toContain("Merge conflicts 1");
 	});
 
 	it("groups active work by role in the swarm header with click-to-focus (§5.G #425)", async () => {

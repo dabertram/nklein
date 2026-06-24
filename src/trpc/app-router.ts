@@ -29,6 +29,7 @@ import type {
 	RuntimeGitSyncResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeMergeHistoryResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -164,6 +165,7 @@ import {
 	runtimeGitSyncResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
+	runtimeMergeHistoryResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
 	runtimeNKleinAccountOrganizationsResponseSchema,
@@ -433,6 +435,7 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
 		getKleinCorePyHealth: () => Promise<RuntimeKleinCorePyHealthResponse>;
+		getMergeHistory: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeMergeHistoryResponse>;
 		buildNKleinModelFreshnessAdvisor: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinAdvisorRequest>;
@@ -853,6 +856,9 @@ export const runtimeAppRouter = t.router({
 			}),
 		getKleinCorePyHealth: t.procedure.output(runtimeKleinCorePyHealthResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getKleinCorePyHealth();
+		}),
+		getMergeHistory: t.procedure.output(runtimeMergeHistoryResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getMergeHistory(ctx.workspaceScope);
 		}),
 		buildNKleinModelFreshnessAdvisor: t.procedure.output(runtimeNKleinAdvisorRequestSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.buildNKleinModelFreshnessAdvisor(ctx.workspaceScope);

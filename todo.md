@@ -452,12 +452,16 @@ deep analysis:
       clickable **Architect / Worker / Reviewer** chips (only for roles with running work) that focus a running
       agent of that role on click. Reads the **persisted** `summary.role` (stamped at start, §5.U finding above) —
       no `startInPlanMode` inference. web-tested (chips render + click-to-focus calls onCardSelect); live render clean.
-- [~] **Board-level merge-status history surface** (today CLI/integration-card only).
+- [x] **Board-level merge-status history surface** *(2026-06-24)*.
   - [x] **durable store + recording (2026-06-24)** — added [merge-history-store.ts](src/state/merge-history-store.ts)
         (JSONL per workspace, `recordMergeHistory`/`readMergeHistory`/`buildMergeHistoryRecord`); the runtime-server
         auto-merge site now records each dependency-ordered merge pass (ok / mergedTaskIds / skippedTaskIds /
         conflictedPaths / reason), best-effort so it never blocks the merge. Unit-tested (build + round-trip).
-  - [ ] still owed: a tRPC read procedure + a board-header/history UI surface to display it.
+  - [x] **tRPC read procedure + board-header surface (2026-06-24)** — `runtimeMergeHistoryRecord/ResponseSchema`
+        in the contract, `getMergeHistory` handler (reads newest-first, limit 50) + procedure, `fetchMergeHistory`
+        web-ui client, and a swarm-header merge chip in [kanban-board.tsx](web-ui/src/components/kanban-board.tsx)
+        (green "Merged N" / red "Merge conflicts N" with a per-pass `title` tooltip), refreshed on project switch
+        and whenever the running count changes. Board chip render-tested.
 - [x] **Acceptance-failure classification taxonomy** — pure classifier
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
       missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,

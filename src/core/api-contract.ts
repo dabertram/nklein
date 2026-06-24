@@ -1489,6 +1489,22 @@ export const runtimeKleinCorePyHealthResponseSchema = z.object({
 });
 export type RuntimeKleinCorePyHealthResponse = z.infer<typeof runtimeKleinCorePyHealthResponseSchema>;
 
+// Board-level merge history (todo §5.G) — durable record of each dependency-ordered auto-merge pass.
+export const runtimeMergeHistoryRecordSchema = z.object({
+	recordedAt: z.number(),
+	taskId: z.string(),
+	ok: z.boolean(),
+	mergedTaskIds: z.array(z.string()),
+	skippedTaskIds: z.array(z.string()),
+	conflictedPaths: z.array(z.string()),
+	reason: z.string().nullable(),
+});
+export type RuntimeMergeHistoryRecord = z.infer<typeof runtimeMergeHistoryRecordSchema>;
+export const runtimeMergeHistoryResponseSchema = z.object({
+	records: z.array(runtimeMergeHistoryRecordSchema),
+});
+export type RuntimeMergeHistoryResponse = z.infer<typeof runtimeMergeHistoryResponseSchema>;
+
 export const runtimeNKleinAdvisorKindSchema = z.enum([
 	"model_freshness",
 	"mcp_discovery",

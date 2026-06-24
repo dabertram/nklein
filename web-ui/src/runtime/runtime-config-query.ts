@@ -12,6 +12,7 @@ import type {
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeMergeHistoryResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -90,6 +91,11 @@ export async function fetchKnowledgeToolUsageStats(
 ): Promise<RuntimeKnowledgeToolUsageStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getKnowledgeToolUsageStats.query();
+}
+
+export async function fetchMergeHistory(workspaceId: string | null): Promise<RuntimeMergeHistoryResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getMergeHistory.query();
 }
 
 export async function saveNKleinProviderSettings(
