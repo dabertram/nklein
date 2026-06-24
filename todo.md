@@ -616,8 +616,13 @@ deep analysis:
         render ordering + empty-note omission). Still owed: the live multi-turn loop on the NKlein core (entry point +
         streaming + tool suite) that drives this, persists turns via the transcript store, and writes/consolidates
         memories — the genuinely-live integration layer.
-- [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
+- [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
+  - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
+        `resolveChatModalities` / `isChatModalityAllowed` map a model's `supportsVision`/`supportsAttachments`
+        (existing provider/registry metadata) to allowed modalities — text always on, image/attachment gated, audio
+        degraded to text (no flag yet). Pure + unit-tested. Still owed: wire it into the chat runtime + UI (offer/accept
+        attachments per the gate) + carry images over the bridge.
 - [~] **Execution-access modes (default = most isolated)**
   - [x] **policy gate (2026-06-24)** — [src/chat/chat-execution-mode.ts](src/chat/chat-execution-mode.ts):
         `decideChatActionAccess(mode, action)` → allow | confirm | deny, the pure single-source policy for the three
