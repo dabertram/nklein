@@ -567,6 +567,100 @@ function areCodeEmbeddingSettingsEqual(
 	return JSON.stringify(left) === JSON.stringify(right);
 }
 
+// Field-equality registry (todo §5.U): one declarative entry per RuntimeConfigState field that participates
+// in a save's change detection. Replaces the two long, parallel `!==` OR-chains that `updateRuntimeConfig`
+// and `updateGlobalRuntimeConfig` each hand-maintained (a drift risk: add a field, forget a chain → a real
+// change is silently treated as no-op). Each entry captures its field's comparison — referential `!==` by
+// default, or a custom deep-equality for nested objects/arrays. (First slice toward the full field-descriptor
+// registry; the resolve/update/write sites can adopt the same source of truth next.)
+// The change-detection input: a resolved config minus the derived/path fields a save never round-trips
+// (those are recomputed on load), so the partial `nextConfig` the update functions build satisfies it too.
+type RuntimeConfigChangeComparable = Omit<
+	RuntimeConfigState,
+	| "globalConfigPath"
+	| "projectConfigPath"
+	| "effectiveCodeEmbeddingSettings"
+	| "commitPromptTemplateDefault"
+	| "openPrPromptTemplateDefault"
+>;
+
+interface RuntimeConfigChangeField {
+	key: keyof RuntimeConfigChangeComparable;
+	changed: (next: RuntimeConfigChangeComparable, current: RuntimeConfigChangeComparable) => boolean;
+}
+
+function runtimeConfigChangeField<K extends keyof RuntimeConfigChangeComparable>(
+	key: K,
+	equals?: (a: RuntimeConfigChangeComparable[K], b: RuntimeConfigChangeComparable[K]) => boolean,
+): RuntimeConfigChangeField {
+	return {
+		key,
+		changed: (next, current) => (equals ? !equals(next[key], current[key]) : next[key] !== current[key]),
+	};
+}
+
+// Global-scoped fields (written to the global config file). Order is irrelevant to the result (it's an OR).
+const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
+	runtimeConfigChangeField("selectedAgentId"),
+	runtimeConfigChangeField("selectedShortcutLabel"),
+	runtimeConfigChangeField("developerModeEnabled"),
+	runtimeConfigChangeField("replayCardsEnabled"),
+	runtimeConfigChangeField("agentAutonomousModeEnabled"),
+	runtimeConfigChangeField("agentTimeoutMode"),
+	runtimeConfigChangeField("agentTimeoutProfile"),
+	runtimeConfigChangeField("requestTimeoutMs"),
+	runtimeConfigChangeField("streamTimeoutMs"),
+	runtimeConfigChangeField("toolTimeoutMs"),
+	runtimeConfigChangeField("agentTimeoutMs"),
+	runtimeConfigChangeField("conversationTimeoutMs"),
+	runtimeConfigChangeField("maxAgentWritableFileLines"),
+	runtimeConfigChangeField("maxConcurrentTasks"),
+	runtimeConfigChangeField("sandboxMaxContainers"),
+	runtimeConfigChangeField("sandboxAgentsPerContainer"),
+	runtimeConfigChangeField("sandboxMemoryPerContainerMb"),
+	runtimeConfigChangeField("sandboxCpusPerContainer"),
+	runtimeConfigChangeField("sandboxIdleTimeoutMinutes"),
+	runtimeConfigChangeField("lostHeartbeatPolicy"),
+	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
+	runtimeConfigChangeField("secondOpinionReviewEnabled"),
+	runtimeConfigChangeField("reviewMaxRounds"),
+	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),
+	runtimeConfigChangeField("codeEmbeddingDefaults", areCodeEmbeddingSettingsEqual),
+	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
+	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
+	runtimeConfigChangeField("swarmGuardrails", areRuntimeSwarmGuardrailsEqual),
+	runtimeConfigChangeField("commitPromptTemplate"),
+	runtimeConfigChangeField("openPrPromptTemplate"),
+];
+
+// Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).
+const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
+	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
+	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
+	runtimeConfigChangeField("shortcuts", areRuntimeProjectShortcutsEqual),
+];
+
+/** Derived/path fields a save never round-trips (recomputed on load), excluded from change detection. */
+export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
+	"globalConfigPath",
+	"projectConfigPath",
+	"effectiveCodeEmbeddingSettings",
+	"commitPromptTemplateDefault",
+	"openPrPromptTemplateDefault",
+] as const satisfies readonly (keyof RuntimeConfigState)[];
+
+/** The keys diffed by a project-scoped save (the full comparable set). Exposed for a completeness guard. */
+export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS: readonly (keyof RuntimeConfigChangeComparable)[] =
+	RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS.map((field) => field.key);
+
+function runtimeConfigStateHasChanges(
+	fields: readonly RuntimeConfigChangeField[],
+	next: RuntimeConfigChangeComparable,
+	current: RuntimeConfigChangeComparable,
+): boolean {
+	return fields.some((field) => field.changed(next, current));
+}
+
 function normalizeShortcutLabel(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -1590,39 +1684,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
 		};
 
-		const hasChanges =
-			nextConfig.selectedAgentId !== current.selectedAgentId ||
-			nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
-			nextConfig.developerModeEnabled !== current.developerModeEnabled ||
-			nextConfig.replayCardsEnabled !== current.replayCardsEnabled ||
-			nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
-			nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
-			nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
-			nextConfig.requestTimeoutMs !== current.requestTimeoutMs ||
-			nextConfig.streamTimeoutMs !== current.streamTimeoutMs ||
-			nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
-			nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
-			nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
-			nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
-			nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
-			nextConfig.sandboxMaxContainers !== current.sandboxMaxContainers ||
-			nextConfig.sandboxAgentsPerContainer !== current.sandboxAgentsPerContainer ||
-			nextConfig.sandboxMemoryPerContainerMb !== current.sandboxMemoryPerContainerMb ||
-			nextConfig.sandboxCpusPerContainer !== current.sandboxCpusPerContainer ||
-			nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
-			nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
-			nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
-			nextConfig.secondOpinionReviewEnabled !== current.secondOpinionReviewEnabled ||
-			nextConfig.reviewMaxRounds !== current.reviewMaxRounds ||
-			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
-			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
-			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingOverride, current.codeEmbeddingOverride) ||
-			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
-			!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
-			!areRuntimeSwarmGuardrailsEqual(nextConfig.swarmGuardrails, current.swarmGuardrails) ||
-			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
-			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
-			!areRuntimeProjectShortcutsEqual(nextConfig.shortcuts, current.shortcuts);
+		const hasChanges = runtimeConfigStateHasChanges(RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS, nextConfig, current);
 
 		if (!hasChanges) {
 			return current;
@@ -1816,37 +1878,7 @@ export async function updateGlobalRuntimeConfig(
 				openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
 			};
 
-			const hasChanges =
-				nextConfig.selectedAgentId !== current.selectedAgentId ||
-				nextConfig.selectedShortcutLabel !== current.selectedShortcutLabel ||
-				nextConfig.developerModeEnabled !== current.developerModeEnabled ||
-				nextConfig.replayCardsEnabled !== current.replayCardsEnabled ||
-				nextConfig.agentAutonomousModeEnabled !== current.agentAutonomousModeEnabled ||
-				nextConfig.agentTimeoutMode !== current.agentTimeoutMode ||
-				nextConfig.agentTimeoutProfile !== current.agentTimeoutProfile ||
-				nextConfig.requestTimeoutMs !== current.requestTimeoutMs ||
-				nextConfig.streamTimeoutMs !== current.streamTimeoutMs ||
-				nextConfig.toolTimeoutMs !== current.toolTimeoutMs ||
-				nextConfig.agentTimeoutMs !== current.agentTimeoutMs ||
-				nextConfig.conversationTimeoutMs !== current.conversationTimeoutMs ||
-				nextConfig.maxAgentWritableFileLines !== current.maxAgentWritableFileLines ||
-				nextConfig.maxConcurrentTasks !== current.maxConcurrentTasks ||
-				nextConfig.sandboxMaxContainers !== current.sandboxMaxContainers ||
-				nextConfig.sandboxAgentsPerContainer !== current.sandboxAgentsPerContainer ||
-				nextConfig.sandboxMemoryPerContainerMb !== current.sandboxMemoryPerContainerMb ||
-				nextConfig.sandboxCpusPerContainer !== current.sandboxCpusPerContainer ||
-				nextConfig.sandboxIdleTimeoutMinutes !== current.sandboxIdleTimeoutMinutes ||
-				nextConfig.lostHeartbeatPolicy !== current.lostHeartbeatPolicy ||
-				nextConfig.decompositionAutoApplyEnabled !== current.decompositionAutoApplyEnabled ||
-				nextConfig.secondOpinionReviewEnabled !== current.secondOpinionReviewEnabled ||
-				nextConfig.reviewMaxRounds !== current.reviewMaxRounds ||
-				nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
-				!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
-				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
-				!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
-				!areRuntimeSwarmGuardrailsEqual(nextConfig.swarmGuardrails, current.swarmGuardrails) ||
-				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
-				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
+			const hasChanges = runtimeConfigStateHasChanges(RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS, nextConfig, current);
 
 			if (!hasChanges) {
 				return current;

@@ -7,6 +7,8 @@ import {
 	loadGlobalRuntimeConfig,
 	loadRuntimeConfig,
 	pickBestInstalledAgentIdFromDetected,
+	RUNTIME_CONFIG_DERIVED_FIELD_KEYS,
+	RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS,
 	saveRuntimeConfig,
 	updateRuntimeConfig,
 } from "../../../src/config/runtime-config";
@@ -121,6 +123,23 @@ describe.sequential("runtime-config auto agent selection", () => {
 		expect(pickBestInstalledAgentIdFromDetected(["claude", "droid"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected(["nklein"])).toBeNull();
 		expect(pickBestInstalledAgentIdFromDetected([])).toBeNull();
+	});
+
+	it("registers every comparable config field for change detection (drift guard, §5.U)", async () => {
+		const { path: tempHome, cleanup } = createTempDir("kanban-home-runtime-config-change-fields-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const state = await loadRuntimeConfig(tempHome);
+				const derived = new Set<string>(RUNTIME_CONFIG_DERIVED_FIELD_KEYS);
+				const comparableKeys = Object.keys(state).filter((key) => !derived.has(key));
+				// Every non-derived RuntimeConfigState field must be registered so a save's change detection can't
+				// silently miss it — and the registry must not reference a stale field. Adding a config field now
+				// fails here until it is registered (or marked derived), making the registry the single source of truth.
+				expect(new Set(RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS)).toEqual(new Set(comparableKeys));
+			});
+		} finally {
+			cleanup();
+		}
 	});
 
 	it("keeps fresh config on local NKlein even when external CLIs are installed", async () => {

@@ -938,8 +938,19 @@ deep analysis:
         `writeRuntimeGlobalConfigFile`'s resolve section to plain `normalizeX(config.X, DEFAULT_X)` (the four scalar
         normalizers all fall back on `undefined`). Behaviour-identical (31 round-trip tests green, typecheck clean,
         −9 net lines). Excluded the profile-coupled timeouts and `selectedAgentId`/`selectedShortcutLabel`.
-  - [ ] still owed: the same simplification in the `updateRuntimeConfig`/`updateGlobalRuntimeConfig` `nextConfig`
-        builders (those use `current.X` as the fallback, a different shape), and the full field-descriptor registry.
+  - [x] **change-detection registry (DONE 2026-06-24)** — the first field-descriptor slice. The two long, parallel
+        `nextConfig.X !== current.X` OR-chains that `updateRuntimeConfig` (project, 33 lines) and
+        `updateGlobalRuntimeConfig` (global, 31 lines) each hand-maintained — a real drift risk (add a field, forget a
+        chain → a genuine change silently treated as no-op) — are now one declarative `RUNTIME_*_CONFIG_CHANGE_FIELDS`
+        registry (`{ key, changed }`, referential `!==` by default or a captured deep-equality for the nested
+        object/array fields) consumed by `runtimeConfigStateHasChanges(...)`. A **completeness drift-guard test** asserts
+        the registry covers exactly the non-derived `RuntimeConfigState` keys (red-green: dropping a field fails it), so
+        the registry is the single source of truth and adding a field now *fails* until registered. Byte-identical (32
+        config tests green incl. the guard; full fast suite 1387 green). Note: the `nextConfig` builders + the `next`
+        param of the helper are typed `RuntimeConfigChangeComparable` (state minus the 5 derived/path fields).
+  - [ ] still owed: extend the registry to the **resolve** (`toRuntimeConfigState`) + the **nextConfig builders** +
+        the diff-gated **payload writes** (each field still hand-threaded there) so one descriptor (`{ key, default,
+        normalize, equals }`) drives all sites. The change-detection slice above is the proof-of-shape.
       Every config field is hand-threaded through ~10–14 near-identical sites: 3 interfaces (`*FileShape`/`*State`/
       `*UpdateInput`), the `toRuntimeConfigState` resolve, `writeRuntimeGlobalConfigFile` (param + resolve + diff-gated
       payload), `createRuntimeConfigStateFromValues` (param + return), `toGlobalRuntimeConfigState`, and both
