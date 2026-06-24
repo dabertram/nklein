@@ -1374,8 +1374,13 @@ deep analysis:
               + generic OpenAI-style payloads → `RuntimeNKleinProviderModel[]`, context-window normalization, dedupe,
               registry/fallback merges) into `nklein-sdk/nklein-provider-model-parsing.ts`. Pathnames passed as `string`
               so the module stays decoupled from the service's pathname unions. provider-service 1989→1744 (−245/−12%).
-        - [ ] still TODO: the OAuth/account subsystem, the model-list *fetchers* (LiteLLM/LM Studio/generic endpoint
-              discovery — these do I/O), the MCP settings, and the launch-config resolution.
+        - [x] **slice 2 (2026-06-24):** consolidated the remaining pure model helpers (`toRuntimeProviderModel`,
+              `sortDiscoveredProviderModels` + private `getDiscoveredModelSortRank`) into the same parsing module.
+              provider-service 1744→1723 (cumulative 1989→1723, −266/−13%).
+        - [ ] still TODO: the OAuth/account token helpers (pure but *pervasively* used — extracting them is high-churn /
+              low navigability gain, so likely leave in place), the model-list *fetchers* (LiteLLM/LM Studio/generic endpoint
+              discovery — I/O + const/schema deps, ~340 lines, a cohesive next module but deserves fresh context), the MCP
+              settings, and the launch-config resolution.
   - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
         many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract the
         skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.

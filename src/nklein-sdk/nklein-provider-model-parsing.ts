@@ -46,6 +46,29 @@ export function normalizeContextWindow(value: number | null | undefined): number
 	return null;
 }
 
+export function toRuntimeProviderModel(model: RuntimeNKleinProviderModel): RuntimeNKleinProviderModel {
+	return {
+		id: model.id,
+		name: model.name?.trim() || model.id,
+		...(model.type?.trim() ? { type: model.type.trim() } : {}),
+		contextWindow: model.contextWindow,
+		supportsVision: model.supportsVision || undefined,
+		supportsAttachments: model.supportsAttachments || undefined,
+		supportsReasoningEffort: model.supportsReasoningEffort || undefined,
+	};
+}
+
+function getDiscoveredModelSortRank(model: RuntimeNKleinProviderModel): number {
+	return model.type?.trim().toLowerCase() === "embeddings" ? 0 : 1;
+}
+
+export function sortDiscoveredProviderModels(models: RuntimeNKleinProviderModel[]): RuntimeNKleinProviderModel[] {
+	return [...models].sort((left, right) => {
+		const rankComparison = getDiscoveredModelSortRank(left) - getDiscoveredModelSortRank(right);
+		return rankComparison !== 0 ? rankComparison : left.name.localeCompare(right.name);
+	});
+}
+
 export function mergeProviderModelsWithContextWindowFallback(
 	models: RuntimeNKleinProviderModel[],
 	fallbackModels: RuntimeNKleinProviderModel[],
