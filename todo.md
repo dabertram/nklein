@@ -1387,8 +1387,12 @@ deep analysis:
         - [x] **slice 1 (2026-06-24):** extracted the workspace-changes loading + empty presentational panels (and their
               private skeleton primitives) into `detail-panels/workspace-changes-skeleton.tsx`. Pure prop-driven, no
               behavior change; verified `web typecheck` + `web vitest` (690) green. card-detail-view 2384→2330.
-        - [ ] still TODO: the pure activity/diagnostic + planning-DAG formatting helpers (good next slice — pure, no JSX),
-              the bottom-terminal/workspace-changes *sections*, and the resize/keyboard orchestration into a hook.
+        - [x] **slice 2 (2026-06-24):** extracted the pure task-activity model + formatters (`buildTaskActivitySteps` +
+              tone/label/detail helpers + `formatDiagnosticTime`) into `detail-panels/task-activity-model.ts`. No JSX,
+              no behavior change; web typecheck + vitest (690) green. card-detail-view 2330→2126 (cumulative 2384→2126, −11%).
+        - [ ] still TODO: the planning-DAG helpers (parseComplexity/parseModelFit/buildPlanningDagNodes…), the various
+              presentational panels (PlanningDagReviewPanel/FocusChainPanel/PendingPlanArtifactsPanel/Task*Panel), and the
+              resize/keyboard orchestration into a hook.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
