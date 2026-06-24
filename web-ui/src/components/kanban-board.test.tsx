@@ -466,6 +466,43 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("Queued 1");
 	});
 
+	it("warns in the swarm header when Docker agent isolation is unavailable (§5.A)", async () => {
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const blockedConfig = createRuntimeConfig(3);
+		blockedConfig.agentSandboxStatus = {
+			state: "blocked",
+			dockerAvailable: false,
+			imageAvailable: null,
+			image: "nklein/agent-sandbox:0.0.1",
+			message: "Docker daemon is not running.",
+			checkedAt: 1,
+		};
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					runtimeConfig={blockedConfig}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(container.textContent).toContain("Sandbox unavailable");
+	});
+
 	it("collects and copies task evidence from board cards", async () => {
 		const board: BoardData = {
 			columns: [

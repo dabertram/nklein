@@ -8,12 +8,36 @@
     {
       "id": "planning",
       "title": "Planning",
+      "cards": []
+    },
+    {
+      "id": "in_progress",
+      "title": "In Progress",
+      "cards": []
+    },
+    {
+      "id": "review",
+      "title": "Review",
+      "cards": []
+    },
+    {
+      "id": "completed",
+      "title": "Completed",
       "cards": [
         {
           "id": "habit-insights-summary-integrate-dashboard",
           "title": "Integrate with main dashboard",
           "prompt": "/nklein-ui\n\nGuidance topic: ui\n\nAdd habit insight cards to existing project overview panel.\n\nLeaf scope: complete only this card's explicit objective. Treat shared spec and decisions as context, not permission to implement dependent or downstream cards early.\n\nExecution pace: read only the files needed for this card once, then make the smallest correct edit and run the acceptance check. To change an existing file, prefer the edit_file tool with a small search/replace block over rewriting the whole file. Do not repeatedly re-read unchanged files or write a chat-only plan instead of acting.\n\nShared spec:\nSee specification.md for product requirements.\n\nShared decisions:\n# Decisions\n\nNo shared decisions have been recorded yet.\n\nAcceptance check: npm test -- ./test/integration-dashboard.test.ts\n\nComplexity: 50/100\n\nModel fit: not validated before card creation; connected-local-model fit is checked when the card starts",
           "startInPlanMode": false,
+          "focusChain": {
+            "steps": [
+              {
+                "text": "Verify existing file paths and adjust if /test/integration-dashboard.test.ts is missing",
+                "status": "done"
+              }
+            ],
+            "updatedAt": 1782290831893
+          },
           "autoReviewEnabled": true,
           "autoReviewMode": "commit",
           "agentId": "nklein",
@@ -33,14 +57,8 @@
           },
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
-          "updatedAt": 1782290232058
-        }
-      ]
-    },
-    {
-      "id": "in_progress",
-      "title": "In Progress",
-      "cards": [
+          "updatedAt": 1782290873408
+        },
         {
           "id": "habit-insights-summary-render-ui",
           "title": "Implement UI components",
@@ -65,19 +83,8 @@
           },
           "baseRef": "feat/kanban-reliability-context-upgrade",
           "createdAt": 1782290232058,
-          "updatedAt": 1782290605164
-        }
-      ]
-    },
-    {
-      "id": "review",
-      "title": "Review",
-      "cards": []
-    },
-    {
-      "id": "completed",
-      "title": "Completed",
-      "cards": [
+          "updatedAt": 1782290732733
+        },
         {
           "id": "habit-insights-summary-calculate-insights",
           "title": "Calculate summary metrics",
@@ -138,12 +145,5 @@
       "cards": []
     }
   ],
-  "dependencies": [
-    {
-      "id": "81b3f15d",
-      "fromTaskId": "habit-insights-summary-integrate-dashboard",
-      "toTaskId": "habit-insights-summary-render-ui",
-      "createdAt": 1782290232059
-    }
-  ]
+  "dependencies": []
 }

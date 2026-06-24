@@ -353,10 +353,16 @@ deep analysis:
   - [ ] **Still owed (needs a loaded project + live models/tasks):** pool-control inspection with a real pool +
         queue, model-registry prune with entries, live loaded-model line, embedding auto-discovery; and the swarm
         concurrency cap + sandbox-pool queue composing visibly in the card/header UI during a run.
-- [ ] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
+- [~] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
       docs so the planning ("L3") story isn't overstated.
+  - [x] **queued state surfaced** (the swarm-header "Queued N" list, above) and **sandbox-unavailable surfaced**
+        (2026-06-24): the swarm header shows a red **"Sandbox unavailable"** chip (with the daemon/image failure
+        message as its title) whenever `agentSandboxStatus.state === "blocked"`, so the operator sees that
+        fail-closed isolation will stop tasks from starting. web-tested.
+  - [ ] still TODO: a dedicated isolation **empty state**, paused-card polish, and the session-service
+        sandbox-lifecycle extraction (overlaps the §5.U decompose finding).
 - [ ] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /

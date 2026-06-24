@@ -725,6 +725,17 @@ export function KanbanBoard({
 						</span>
 					) : null}
 					{swarmStopSignal ? <span className="text-status-orange">Paused</span> : null}
+					{runtimeConfig?.agentSandboxStatus?.state === "blocked" ? (
+						<span
+							className="rounded-md border border-status-red/40 bg-status-red/10 px-1.5 py-0.5 text-status-red"
+							title={
+								runtimeConfig.agentSandboxStatus.message ??
+								"Docker agent isolation is unavailable, so agent tasks cannot start (fail-closed)."
+							}
+						>
+							Sandbox unavailable
+						</span>
+					) : null}
 					<ElementTooltip id="board.code-intel" side="bottom">
 						<span className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-text-secondary">
 							<Database size={12} />
