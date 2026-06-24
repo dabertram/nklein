@@ -1397,9 +1397,13 @@ deep analysis:
         - [x] **slice 4 (2026-06-24):** extracted the self-contained `FocusChainPanel` (live editable focus-chain todo list)
               + its status consts + duration formatter into `detail-panels/focus-chain-panel.tsx`. web typecheck + vitest (690)
               green. card-detail-view 1994→1810 (cumulative 2384→1810, −24%).
-        - [ ] still TODO: the remaining self-contained panels (PlanningDagReviewPanel/SecondOpinionReviewPanel/
-              PendingPlanArtifactsPanel/TaskRecoveryActionsPanel/TaskDiagnosticsPanel/TaskEvidenceDrawer — each extractable to
-              `detail-panels/`), and the resize/keyboard orchestration into a hook.
+        - [x] **slice 5 (2026-06-24):** extracted the self-contained `SecondOpinionReviewPanel` (+ its REVIEW_STATUS_META)
+              into `detail-panels/second-opinion-review-panel.tsx`. web typecheck + vitest (690) green. card-detail-view
+              1810→1760 (cumulative 2384→1760, −26%).
+        - [ ] still TODO: the remaining self-contained panels (PlanningDagReviewPanel/PendingPlanArtifactsPanel/
+              TaskRecoveryActionsPanel/TaskDiagnosticsPanel/TaskEvidenceDrawer — each extractable to `detail-panels/`), and the
+              resize/keyboard orchestration into a hook. (A Playwright smoke-render of the card detail is a good capstone once
+              the panel extractions are done — the 690 web unit tests already render these components, so risk is low.)
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
