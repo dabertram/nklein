@@ -1378,6 +1378,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					codeEmbeddingProvider,
 				});
 
+				// Starting a task must move its card out of backlog (→ planning / in_progress) so the board reflects
+				// that the agent is now working it — a card should never show agent activity while it sits in backlog.
+				// Previously only the input/resume paths reconciled the lane, so a freshly-started card (e.g. a
+				// dev-test seed started programmatically) stayed in backlog. Best-effort; never blocks the start.
+				await reconcileRunningTaskBoardLane(workspaceScope, summary);
+
 				return {
 					ok: true,
 					summary,

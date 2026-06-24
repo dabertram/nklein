@@ -58,6 +58,22 @@ granularity, not a runaway — the turn completed within guardrails.)
 run `sweep-capture.mts` across models/presets and harden anything it flags (leaks / true repeats / non-terminal
 stalls). So far gemma-4-e2b is robust on `mid_task`+`complex_dag`.
 
+## Round 8 — the sweep surfaced a real board bug + finished the gemma-e2b preset matrix (2026-06-24)
+
+- **gemma-4-e2b on `audio_vst`:** completed (`awaiting_review`), 32 tool calls (`write_file×24`, `update_focus_chain×4`,
+  `list_files×2`, `read_files×2`), **0 leaks, 0 repeats** — robust on a heavy 24-file domain task.
+- **gemma-4-e2b on `daw_foundation`:** non-terminal in the 5.5-min window (read_large_file×4 + heavy reasoning), **0
+  leaks, 0 repeats** — slow on a big-context task, not stuck (like qwen3, governed by the wall-time guardrail).
+- **Tally clean: gemma-e2b {mid_task, complex_dag, audio_vst} + gemma-e4b {complex_dag}; qwen3-8b reasoning-heavy/slow.**
+
+**The sweep work paid off beyond robustness: it surfaced a real board bug.** Watching the dev-test seed via
+`getState().sessions` (Round 3) showed the session running while the **board card stayed in Backlog** — which the user
+flagged as wrong (a card shouldn't show agent activity in Backlog). **Fixed:** `runtime.startTaskSession` now calls
+`reconcileRunningTaskBoardLane` on a successful start (previously only the input/resume paths did), so a started card
+moves Backlog → Planning/In-Progress regardless of entry point (web-ui, CLI, or programmatic). Live-verified (lane
+`backlog` → `planning` on start) + a regression test. (The deeper "all cards through a planning/refinement lane"
+workflow the user proposed is scoped separately in todo §5.B.)
+
 ## Round 7 — qwen3-8b (reasoning model): harness leak-detection refined; reasoning-heavy + slow, not stuck (2026-06-24)
 
 Swept qwen3-8b (a **reasoning** model). First pass flagged "narration leaks", but they were **harness false positives**:

@@ -956,6 +956,68 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(terminalManager.startTaskSession).not.toHaveBeenCalled();
 	});
 
+	it("moves a started backlog card out of backlog into its working lane (regression: card stayed in backlog)", async () => {
+		const workspacePath = mkdtempSync(join(tmpdir(), "kanban-nklein-start-lane-"));
+		try {
+			setSelectedProviderSettings({ provider: "ollama", model: "qwen3.5-9b", baseUrl: "http://127.0.0.1:11434" });
+			execFileSync("git", ["init"], { cwd: workspacePath, stdio: "ignore" });
+			const board: RuntimeBoardData = {
+				columns: [
+					{
+						id: "backlog",
+						title: "Backlog",
+						cards: [
+							{
+								id: "task-1",
+								title: "Do the work",
+								prompt: "Implement it",
+								startInPlanMode: false,
+								baseRef: "main",
+								createdAt: 1,
+								updatedAt: 1,
+							},
+						],
+					},
+					{ id: "planning", title: "Planning", cards: [] },
+					{ id: "in_progress", title: "In Progress", cards: [] },
+					{ id: "review", title: "Review", cards: [] },
+					{ id: "completed", title: "Completed", cards: [] },
+					{ id: "trash", title: "Trash", cards: [] },
+				],
+				dependencies: [],
+			};
+			await saveWorkspaceState(workspacePath, { board, sessions: {} });
+			const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+			nkleinTaskSessionService.startTaskSession.mockResolvedValue(
+				createSummary({ agentId: "nklein", pid: null, taskId: "task-1", state: "running" }),
+			);
+			const api = createTestRuntimeApi({
+				getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+				loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+				setActiveRuntimeConfig: vi.fn(),
+				getScopedTerminalManager: vi.fn(async () => ({}) as never),
+				getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+				resolveInteractiveShellCommand: vi.fn(),
+				runCommand: vi.fn(),
+			});
+
+			const response = await api.startTaskSession(
+				{ workspaceId: "workspace-1", workspacePath },
+				{ taskId: "task-1", baseRef: "main", prompt: "Implement it", startInPlanMode: false },
+			);
+
+			expect(response.ok).toBe(true);
+			const saved = await loadWorkspaceState(workspacePath);
+			// The card must not sit in backlog while the agent is working it.
+			expect(saved.board.columns.find((column) => column.id === "backlog")?.cards).toHaveLength(0);
+			expect(saved.board.columns.find((column) => column.id === "in_progress")?.cards).toMatchObject([
+				{ id: "task-1" },
+			]);
+		} finally {
+			rmSync(workspacePath, { recursive: true, force: true });
+		}
+	});
+
 	it("blocks NKlein starts when the agent sandbox preflight is unavailable", async () => {
 		const terminalManager = {
 			listSummaries: vi.fn(() => []),
