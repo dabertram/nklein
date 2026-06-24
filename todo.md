@@ -616,10 +616,15 @@ deep analysis:
         renders this context, persists turns via the transcript store, and writes/consolidates memories.
 - [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
-- [ ] **Execution-access modes (default = most isolated)**
-  - [ ] (a) Docker-isolated, read-only (opt-in write) to explicitly user-mounted folders only
-  - [ ] (b) sandbox-by-default + double-confirmed per-action host escape hatch (each host command/edit, audit-logged)
-  - [ ] (c) host-mode toggle (whole session on host) behind a typed confirmation phrase
+- [~] **Execution-access modes (default = most isolated)**
+  - [x] **policy gate (2026-06-24)** — [src/chat/chat-execution-mode.ts](src/chat/chat-execution-mode.ts):
+        `decideChatActionAccess(mode, action)` → allow | confirm | deny, the pure single-source policy for the three
+        modes (a) `isolated_readonly` (sandbox reads free, writes confirm, **all host denied**), (b)
+        `sandbox_with_host_escape` (sandbox free, **every** host action confirmed), (c) `host` (host reads free, host
+        **mutations still confirmed**). Conservative by construction — a host write/command is *never* silently
+        allowed in any mode (exhaustive matrix test asserts this). The runtime enforces + audit-logs the decision.
+  - [ ] still owed (runtime enforcement, per mode): (a) read-only sandbox + opt-in user-mounted write paths;
+        (b) the double-confirmed per-action host escape hatch UI + execution; (c) the typed host-mode phrase + audit log.
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
   - [x] **short-term lean window (2026-06-24)** — [src/chat/chat-context-window.ts](src/chat/chat-context-window.ts):
         `splitChatContextWindow` (pure, token-estimator-injected) splits a transcript into the most-recent messages
