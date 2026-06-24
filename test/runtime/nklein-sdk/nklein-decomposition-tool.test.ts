@@ -778,11 +778,66 @@ describe("nklein decomposition tools", () => {
 		expect(result.instruction).toContain("Apply them through !Klein, not by editing task files");
 		expect(result.instruction).toContain("connected local model fit was not validated in this tool call");
 		expect(result.instruction).toContain("connected-model fit is checked during apply/start");
-		await expect(readFile(result.questionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
-		await expect(readFile(result.decisionsPath, "utf8")).resolves.toContain("Reminders are out of scope");
-		await expect(readFile(result.revisionsPath, "utf8")).resolves.toContain("No plan revisions");
-		await expect(readFile(result.summaryPath, "utf8")).resolves.toContain("two cards");
-		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"slug": "habit-tracker"');
+		await expect(readFile(join(workspacePath, result.questionsPath), "utf8")).resolves.toContain(
+			"Reminders are out of scope",
+		);
+		await expect(readFile(join(workspacePath, result.decisionsPath), "utf8")).resolves.toContain(
+			"Reminders are out of scope",
+		);
+		await expect(readFile(join(workspacePath, result.revisionsPath), "utf8")).resolves.toContain("No plan revisions");
+		await expect(readFile(join(workspacePath, result.summaryPath), "utf8")).resolves.toContain("two cards");
+		await expect(readFile(join(workspacePath, result.taskGraphPath), "utf8")).resolves.toContain(
+			'"slug": "habit-tracker"',
+		);
+	});
+
+	it("never leaks the host workspace path into the agent-facing decompose result (AGENTS.md isolation)", async () => {
+		// Agents must never see host details: plan artifacts are written host-side, but the decompose tool's
+		// return value is the agent-facing tool result. Every path it surfaces must be workspace-relative, and no
+		// instruction string may embed the absolute host workspace path. Locks the §5.A HARDEN host-path-leak fix.
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-host-leak-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Habit Tracker",
+				title: "Habit Tracker",
+				spec: "Track habits.",
+				plan: "Build storage before UI.",
+				summary: "Build the habit tracker in two cards.",
+				tasks: createTaskGraph().tasks,
+			},
+			undefined as never,
+		)) as {
+			specPath: string;
+			planPath: string;
+			questionsPath: string;
+			decisionsPath: string;
+			revisionsPath: string;
+			summaryPath: string;
+			taskGraphPath: string;
+			instruction: string;
+		};
+
+		const pathFields = [
+			result.specPath,
+			result.planPath,
+			result.questionsPath,
+			result.decisionsPath,
+			result.revisionsPath,
+			result.summaryPath,
+			result.taskGraphPath,
+		];
+		for (const value of pathFields) {
+			// Workspace-relative (not absolute), under the plan artifacts dir, and free of the host mount path.
+			expect(value).not.toContain(workspacePath);
+			expect(value.startsWith("/")).toBe(false);
+			expect(value).toContain(".nklein/nklein/plans/habit-tracker/");
+		}
+		// The instruction text must not embed the host workspace path either.
+		expect(result.instruction).not.toContain(workspacePath);
+		// The CLI hint must not surface a host `--project-path <absolute>` argument to the agent.
+		expect(result.instruction).not.toContain("--project-path");
 	});
 
 	it("accepts stringified task arrays from small-model decompose_project calls", async () => {
@@ -807,7 +862,7 @@ describe("nklein decomposition tools", () => {
 
 		expect(result.ok).toBe(true);
 		expect(result.taskCount).toBe(2);
-		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
+		await expect(readFile(join(workspacePath, result.taskGraphPath), "utf8")).resolves.toContain('"id": "storage"');
 	});
 
 	it("recovers stringified task arrays with stray trailing closing braces", async () => {
@@ -832,7 +887,7 @@ describe("nklein decomposition tools", () => {
 
 		expect(result.ok).toBe(true);
 		expect(result.taskCount).toBe(2);
-		await expect(readFile(result.taskGraphPath, "utf8")).resolves.toContain('"id": "storage"');
+		await expect(readFile(join(workspacePath, result.taskGraphPath), "utf8")).resolves.toContain('"id": "storage"');
 	});
 
 	it("advertises stringified decomposition payloads in the tool schema", async () => {
@@ -1006,7 +1061,7 @@ describe("nklein decomposition tools", () => {
 			});
 			expect(result.instruction).toContain("created 2 Planning cards and 1 dependency");
 			expect(result.instruction).toContain("Dry-run preview:");
-			expect(result.instruction).toContain("sandboxed agents must not try to inspect them");
+			expect(result.instruction).toContain("do not try to inspect them");
 			expect(result.instruction).toContain("Stop this planning card now");
 			expect(result.preview.taskCount).toBe(2);
 			expect(result.preview.summary).toContain("across 2 cards");
@@ -1271,7 +1326,7 @@ describe("nklein decomposition tools", () => {
 
 		expect(result.ok).toBe(true);
 		expect(result.taskCount).toBe(2);
-		const taskGraph = await readFile(result.taskGraphPath, "utf8");
+		const taskGraph = await readFile(join(workspacePath, result.taskGraphPath), "utf8");
 		expect(taskGraph).toContain('"schemaVersion": 1');
 		expect(taskGraph).toContain('"acceptanceCommand": "npm test"');
 		expect(taskGraph).not.toContain("grep -q");
@@ -1354,11 +1409,13 @@ describe("nklein decomposition tools", () => {
 
 		expect(result.ok).toBe(true);
 		expect(result.taskCount).toBe(4);
-		const taskGraph = JSON.parse(await readFile(result.taskGraphPath, "utf8")) as NKleinPlanTaskGraph;
+		const taskGraph = JSON.parse(
+			await readFile(join(workspacePath, result.taskGraphPath), "utf8"),
+		) as NKleinPlanTaskGraph;
 		expect(taskGraph.tasks.map((task) => task.id)).toEqual(["storage", "ui-state", "ui-view", "release"]);
 		expect(taskGraph.tasks.find((task) => task.id === "release")?.dependsOn).toEqual(["ui-view"]);
 		expect(taskGraph.tasks.every((task) => task.acceptanceCommand === "npm test")).toBe(true);
-		const revisionsMarkdown = await readFile(result.revisionsPath, "utf8");
+		const revisionsMarkdown = await readFile(join(workspacePath, result.revisionsPath), "utf8");
 		expect(revisionsMarkdown).toContain("recursive_split");
 		expect(revisionsMarkdown).toContain("- feature -> storage, ui");
 		expect(revisionsMarkdown).toContain("- ui -> ui-state, ui-view");

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { relative, sep } from "node:path";
 import type { AgentTool } from "@nklein/shared";
 import { z } from "zod";
 import { loadRuntimeConfig } from "../config/runtime-config";
@@ -1203,6 +1204,31 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	}
 }
 
+/**
+ * Relativize a host artifact path against the workspace root for agent-facing copy. Agents must never see
+ * host details (AGENTS.md "agents must never see host details"): plan artifacts are written host-side under
+ * `<workspace>/.nklein/nklein/plans/...`, so the absolute path is a host-mount leak. We surface the
+ * workspace-relative POSIX path instead — which is also honest, since these trusted control-plane artifacts
+ * live outside the agent's sandbox and are not meant to be read by the agent at all.
+ */
+function toWorkspaceRelativeArtifactPath(workspacePath: string, absolutePath: string): string {
+	return relative(workspacePath, absolutePath).split(sep).join("/");
+}
+
+/**
+ * Strip the host workspace mount path out of agent-facing copy, leaving workspace-relative references. The
+ * decompose apply path can surface an underlying error message (e.g. a git/filesystem failure) that embeds the
+ * absolute host path; that message is interpolated into the agent-facing `instruction`, so it must be redacted
+ * to honor "agents must never see host details" (AGENTS.md): host paths must not leak into error messages.
+ */
+function redactWorkspacePathForAgent(workspacePath: string, text: string): string {
+	if (!workspacePath) {
+		return text;
+	}
+	// "<workspace>/sub/path" → "sub/path"; a bare "<workspace>" → "." (the agent's sandbox root).
+	return text.split(`${workspacePath}${sep}`).join("").split(workspacePath).join(".");
+}
+
 function createDecomposeProjectTool(
 	workspacePath: string,
 	sourceTaskId?: string | null,
@@ -1351,16 +1377,16 @@ function createDecomposeProjectTool(
 				rootTaskIds: applied.rootTaskIds,
 				preview: applied.preview,
 				modelFitValidated: false,
-				specPath: artifacts.specPath,
-				planPath: artifacts.planPath,
-				questionsPath: artifacts.questionsPath,
-				decisionsPath: artifacts.decisionsPath,
-				revisionsPath: artifacts.revisionsPath,
-				summaryPath: artifacts.summaryPath,
-				taskGraphPath: artifacts.taskGraphPath,
+				specPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.specPath),
+				planPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.planPath),
+				questionsPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.questionsPath),
+				decisionsPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.decisionsPath),
+				revisionsPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.revisionsPath),
+				summaryPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.summaryPath),
+				taskGraphPath: toWorkspaceRelativeArtifactPath(workspacePath, artifacts.taskGraphPath),
 				instruction: applied.applied
-					? `${applied.message} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. The artifact paths in this result are trusted control-plane references for !Klein/UI recovery; sandboxed agents must not try to inspect them with read_files, list_files, find_files, read_large_file, or run_commands. Stop this planning card now and continue by starting the newly created !Klein cards; do not implement this planning card directly.`
-					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${applied.message} Apply them through !Klein, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug} --project-path ${workspacePath}; connected-model fit is checked during apply/start.`,
+					? `${redactWorkspacePathForAgent(workspacePath, applied.message)} Dry-run preview:\n${applied.preview.summary}\nSchema and sizing validation passed; connected local model fit will be enforced when each card starts. The artifact paths in this result are workspace-relative !Klein control-plane references (not files in your sandbox); do not try to inspect them with read_files, list_files, find_files, read_large_file, or run_commands. Stop this planning card now and continue by starting the newly created !Klein cards; do not implement this planning card directly.`
+					: `Artifacts passed schema and sizing validation, but connected local model fit was not validated in this tool call. Dry-run preview:\n${applied.preview.summary}\n${redactWorkspacePathForAgent(workspacePath, applied.message)} Apply them through !Klein, not by editing task files: nklein task decompose --slug ${artifacts.taskGraph.slug}; connected-model fit is checked during apply/start.`,
 			};
 		},
 	};

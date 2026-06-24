@@ -297,6 +297,14 @@ deep analysis:
           (`readRequest.path`), and with the cwd fix the agent now requests sandbox/relative paths, so no host path
           leaks there. Evidence `summary.md`/`config-snapshot.json` keep the host workspace path **on purpose** (it's
           host-side: the user needs it to locate the bundle's workspace) — not an agent-facing leak.
+    - [x] **`decompose_project` tool result no longer leaks host paths to the agent (DONE 2026-06-24).** The result
+          is agent-facing but returned absolute host `*Path` fields (`specPath`/`planPath`/…/`taskGraphPath`), a
+          `--project-path <host>` CLI hint, and could interpolate a host path from an apply-error message into the
+          `instruction`. Now: the `*Path` fields are **workspace-relative** (`toWorkspaceRelativeArtifactPath`), the
+          `--project-path` arg is dropped, and `applied.message` is run through `redactWorkspacePathForAgent` before it
+          enters the instruction. Host-side consumers (runtime-api / CLI / evidence) read absolute paths straight from
+          the plan-artifact writer — unchanged. Regression test asserts no `*Path`/instruction contains the host
+          workspace path. ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
     - [ ] confirm on a real dev-test **decompose** transcript that the agent now emits only sandbox/relative paths
           (fold into the live Playwright/dev-test pass).
     - [ ] **dev-test projects run through the same Docker sandbox isolation as real tasks** — host mounts stay for
