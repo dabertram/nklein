@@ -38,6 +38,26 @@ recoveries / malformations / loops, **subscribe to the runtime's live activity s
 consumes) for the duration of the run, not poll the session snapshot. The dev-test project is the run vehicle; the
 **activity-stream subscription** is the lens.
 
+## Round 5 — the capture harness lands; gemma-4-e2b's swarm-path output is clean (2026-06-24)
+
+Built the reusable **[scripts/sweep-capture.mts](scripts/sweep-capture.mts)** — one command pins a model, scaffolds a
+dev-test project, **subscribes to the runtime's `/api/runtime/ws` activity stream**, records every `task_chat_message`
+the agent emits, runs to a terminal session state, then **catalogs** the output (tool-call tally, narration-markup
+leaks, genuinely-repeated calls by *full* content, role tally) and restores the model + removes the project. This is
+the per-`tool_call` lens Rounds 0–4 said §5.O needs.
+
+**gemma-4-e2b on `mid_task` (1329 messages captured):** tool calls `update_focus_chain×4, read_files×2, write_file×2`;
+**narration-markup leaks: 0**; **genuinely-repeated tool calls: 0**; terminal `awaiting_review`. So the swarm path is
+**clean** for this 2B model — no leaked narration (that was a *chat-path* issue, Round 1; the swarm SDK path emits
+structured calls), and the full-input-fingerprint guard correctly let the *advancing* `update_focus_chain` through (a
+first coarse 120-char-prefix dedup mis-flagged it "6×" — fixed to full-content comparison, which is the guard's own
+semantics). Existing hardening holds end-to-end; no new fix. (Aside: ~1062 `reasoning` messages = streaming-delta
+granularity, not a runaway — the turn completed within guardrails.)
+
+**Round 5 takeaway:** the §5.O sweep is now a **one-command capture** for any loaded model/preset. Future rounds just
+run `sweep-capture.mts` across models/presets and harden anything it flags (leaks / true repeats / non-terminal
+stalls). So far gemma-4-e2b is robust on `mid_task`+`complex_dag`.
+
 ## Methodology (how to run a round)
 
 The agent that small models drive lives in the **runtime swarm** (decomposition + Docker task agents). To sweep one

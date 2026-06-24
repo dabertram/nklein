@@ -948,9 +948,17 @@ deep analysis:
         *polling* `getState().sessions[].latestHookActivity` only catches the terminal `sandbox_patch_captured` event;
         per-`tool_call` cataloging needs **subscribing to the runtime's live activity stream** (the WS/event feed the
         UI consumes) for the run's duration.
-  - [ ] **Round 5 (next) — subscribe to the live activity stream during a dev-test run** to catalog gemma's per-
-        tool-call output (malformations/recoveries/loops) and harden anything `recoverNarratedToolCalls`/the guards
-        don't already cover; sweep e2b/e4b/qwen3-8b. Optionally weigh the imperative tool-result framing (Finding 6).
+  - [x] **Round 5 — the capture harness lands; gemma-4-e2b swarm output is clean (2026-06-24)** — built reusable
+        [scripts/sweep-capture.mts](scripts/sweep-capture.mts): one command pins a model, scaffolds a dev-test project,
+        **subscribes to the `/api/runtime/ws` activity stream**, records every `task_chat_message`, runs to a terminal
+        state, catalogs (tool tally / narration leaks / genuinely-repeated calls by full content / role tally), and
+        restores the model + removes the project (retried). `mid_task` on gemma-4-e2b: 1329 msgs, tools
+        `update_focus_chain×4/read_files×2/write_file×2`, **0 narration leaks, 0 true repeats**, `awaiting_review` —
+        swarm path clean (the fingerprint guard correctly passed the *advancing* focus chain; a first coarse dedup
+        mis-flagged it, fixed to full-content). Existing hardening holds; no new fix.
+  - [ ] **Round 6 (next, now one command)** — run `sweep-capture.mts` across the small models × presets (gemma-e2b/
+        e4b, qwen3-8b × `complex_dag`/`wide_fanout`/`many_small`) and harden anything it flags (leaks / true repeats /
+        non-terminal stalls). Optionally weigh the imperative tool-result framing (Finding 6).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version
