@@ -621,8 +621,13 @@ deep analysis:
         prompt anchoring; query-matched recall). **Live-verified** by
         [scripts/verify-chat-runtime.mts](scripts/verify-chat-runtime.mts): a real turn against LM Studio `qwen3-8b`
         recalled a seeded memory, anchored the goal, got an on-topic reply *reflecting the recalled preferences*, and
-        persisted both messages — PASS. Still owed (next live layer): the **tool-using** multi-turn agent loop on the
-        NKlein core + streaming + a new entry point; short→long memory consolidation.
+        persisted both messages — PASS.
+  - [x] **local-model adapter (2026-06-24)** — [src/chat/chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts):
+        `createChatModelDeps(client)` provides `runChatTurn`'s `complete` + `summarize` from a `LocalLlmClient`
+        (fail-closed vs cloud, invariant #1), mapping the rendered prompt to the client's messages and stripping inline
+        `<think>` reasoning (the robustness fix found during live qwen3 verification). Interface-typed client → unit-
+        tested with a fake. Reused by the future CLI/tRPC wiring. Still owed (next live layer): the **tool-using**
+        multi-turn agent loop on the NKlein core + streaming + a new entry point (CLI/tRPC) discovering the loaded model.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
