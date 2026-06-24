@@ -613,9 +613,16 @@ deep analysis:
         recalledMemories, recentMessages }`); `renderChatTurnPrompt` then renders that into the ordered model message
         list (goal + summary + recalled memories as leading `system` notes, then the verbatim recent transcript, then
         the new user message). Model calls (summarize, embed) injected → fully unit-tested (window/summary/recall +
-        render ordering + empty-note omission). Still owed: the live multi-turn loop on the NKlein core (entry point +
-        streaming + tool suite) that drives this, persists turns via the transcript store, and writes/consolidates
-        memories — the genuinely-live integration layer.
+        render ordering + empty-note omission).
+  - [x] **turn loop + LIVE verification (2026-06-24)** — [src/chat/chat-runtime.ts](src/chat/chat-runtime.ts):
+        `runChatTurn` drives a turn end-to-end — load prior transcript + memories, compose+render the prompt (goal +
+        lean window + recalled memories), call the model, persist the user message + assistant reply. All side effects
+        (stores, model `complete`, summarize, embed, token estimate) injected → unit-tested (compose+persist order +
+        prompt anchoring; query-matched recall). **Live-verified** by
+        [scripts/verify-chat-runtime.mts](scripts/verify-chat-runtime.mts): a real turn against LM Studio `qwen3-8b`
+        recalled a seeded memory, anchored the goal, got an on-topic reply *reflecting the recalled preferences*, and
+        persisted both messages — PASS. Still owed (next live layer): the **tool-using** multi-turn agent loop on the
+        NKlein core + streaming + a new entry point; short→long memory consolidation.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
