@@ -661,8 +661,14 @@ deep analysis:
           ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) offers OpenAI function `tools`
           (`tool_choice: auto`) and parses returned `tool_calls` (decoding the JSON-string args; malformed → `{}`,
           unnamed dropped); empty tools ⇒ a plain completion. Unit-tested (tools sent + parsed; no-tools plain path).
-    - [ ] still owed: the chat-agent model/exchange adapter + a concrete tool set, then wire loop+executor+completion
-          into a `runChatAgentTurn` + live-verify the agent actually using a tool. (Non-OpenAI tool-call shapes remain
+    - [x] **agent model/exchange adapter + `runChatAgentTurn` (2026-06-24)** — `createChatAgentModel` +
+          `appendChatToolExchange` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) give the loop its
+          `complete` (offers tools only when allowed; strips reasoning) and fold tool results back as `system` notes;
+          [chat-agent-turn.ts](src/chat/chat-agent-turn.ts) `runChatAgentTurn` ties context-compose → render → the
+          agent loop (model → gated tool exec → repeat) → persist the user msg + final reply. All deps injected →
+          unit-tested (tool-call→execute→answer + direct-answer paths).
+    - [ ] still owed: a concrete chat tool set (e.g. a workspace file-read tool) wired to the gated executor, then a
+          live verification of the agent actually calling a tool against qwen3-8b. (Non-OpenAI tool-call shapes remain
           the NKlein agent's `recoverNarratedToolCalls` concern — §5.O formats.)
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities

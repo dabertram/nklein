@@ -2,7 +2,10 @@ import type {
 	LocalLlmChatMessage,
 	LocalLlmCompletion,
 	LocalLlmSamplingOptions,
+	LocalLlmToolCompletion,
+	LocalLlmToolDefinition,
 } from "../nklein-sdk/nklein-local-llm-client";
+import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
 
@@ -72,4 +75,55 @@ export function createChatModelDeps(
 			return stripReasoning(content);
 		},
 	};
+}
+
+export interface ChatAgentCompletionClient {
+	completeWithTools(
+		request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
+		tools: readonly LocalLlmToolDefinition[],
+	): Promise<LocalLlmToolCompletion>;
+}
+
+/**
+ * Provides the agent loop's `complete(messages, allowTools)` from a tools-aware local client: it offers the tool
+ * definitions only when `allowTools` is set (so the forced final turn can't request more), maps the prompt to the
+ * client's messages, and returns the reasoning-stripped text + parsed tool calls.
+ */
+export function createChatAgentModel(
+	client: ChatAgentCompletionClient,
+	toolDefinitions: readonly LocalLlmToolDefinition[],
+	options: { sampling?: LocalLlmSamplingOptions } = {},
+): (messages: readonly ChatPromptMessage[], allowTools: boolean) => Promise<ChatAgentModelResponse> {
+	const sampling = options.sampling ?? DEFAULT_SAMPLING;
+	return async (messages, allowTools) => {
+		const { content, toolCalls } = await client.completeWithTools(
+			{ messages: messages.map((message) => ({ role: message.role, content: message.content })), sampling },
+			allowTools ? toolDefinitions : [],
+		);
+		return {
+			text: stripReasoning(content),
+			toolCalls: toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
+		};
+	};
+}
+
+/**
+ * Fold an assistant turn's text + its tool results back into the message list for the next agent turn. Rather
+ * than the strict OpenAI assistant-tool_calls + tool-role protocol (which the simple prompt-message shape can't
+ * carry), the results are appended as plain `system` notes — robust across local models, which then see what each
+ * tool returned and continue.
+ */
+export function appendChatToolExchange(
+	messages: readonly ChatPromptMessage[],
+	response: ChatAgentModelResponse,
+	results: readonly ChatToolResult[],
+): ChatPromptMessage[] {
+	const appended: ChatPromptMessage[] = [];
+	if (response.text.trim().length > 0) {
+		appended.push({ role: "assistant", content: response.text });
+	}
+	for (const result of results) {
+		appended.push({ role: "system", content: `Tool result (${result.callId}):\n${result.content}` });
+	}
+	return [...messages, ...appended];
 }

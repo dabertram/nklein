@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { type ChatCompletionClient, createChatModelDeps } from "../../../src/chat/chat-local-llm-adapter";
+import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
+import {
+	appendChatToolExchange,
+	type ChatAgentCompletionClient,
+	type ChatCompletionClient,
+	createChatAgentModel,
+	createChatModelDeps,
+} from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
-import type { LocalLlmChatMessage } from "../../../src/nklein-sdk/nklein-local-llm-client";
+import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
+import type { LocalLlmChatMessage, LocalLlmToolDefinition } from "../../../src/nklein-sdk/nklein-local-llm-client";
 
 function fakeClient(reply: string): { client: ChatCompletionClient; calls: LocalLlmChatMessage[][] } {
 	const calls: LocalLlmChatMessage[][] = [];
@@ -68,5 +76,49 @@ describe("createChatModelDeps", () => {
 		expect(calls[0]?.[0]?.role).toBe("system");
 		expect(calls[0]?.[1]?.content).toContain("user: about the merge");
 		expect(calls[0]?.[1]?.content).toContain("assistant: ok");
+	});
+});
+
+describe("createChatAgentModel + appendChatToolExchange", () => {
+	function toolClient(): { client: ChatAgentCompletionClient; toolsOffered: number[] } {
+		const toolsOffered: number[] = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (_request, tools) => {
+				toolsOffered.push(tools.length);
+				return {
+					content: "<think>plan</think>done",
+					toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "a" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		return { client, toolsOffered };
+	}
+
+	const tools: LocalLlmToolDefinition[] = [{ name: "read_file", description: "read", parameters: { type: "object" } }];
+
+	it("offers tools only when allowTools is set and strips reasoning from the text", async () => {
+		const { client, toolsOffered } = toolClient();
+		const model = createChatAgentModel(client, tools);
+		const withTools = await model([{ role: "user", content: "go" }], true);
+		expect(withTools.text).toBe("done");
+		expect(withTools.toolCalls).toEqual([{ id: "c1", name: "read_file", arguments: { path: "a" } }]);
+		await model([{ role: "user", content: "go" }], false);
+		expect(toolsOffered).toEqual([1, 0]);
+	});
+
+	it("folds assistant text + tool results back as system notes", () => {
+		const base: ChatPromptMessage[] = [{ role: "user", content: "go" }];
+		const response: ChatAgentModelResponse = { text: "let me check", toolCalls: [] };
+		const folded = appendChatToolExchange(base, response, [{ callId: "c1", content: "file body" }]);
+		expect(folded).toEqual([
+			{ role: "user", content: "go" },
+			{ role: "assistant", content: "let me check" },
+			{ role: "system", content: "Tool result (c1):\nfile body" },
+		]);
+		// No assistant note when the turn produced no text.
+		const noText = appendChatToolExchange(base, { text: "", toolCalls: [] }, [{ callId: "c2", content: "x" }]);
+		expect(noText.map((m) => m.role)).toEqual(["user", "system"]);
 	});
 });
