@@ -197,6 +197,18 @@ function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSummary): bo
 	return DECOMPOSITION_CHAT_REPORT_PATTERN.test(text);
 }
 
+/**
+ * Resolve a task's coarse launch role (todo §5.G/§5.U): reviewer for the synthetic `<taskId>::review` session,
+ * architect for an explicit decomposition, worker otherwise. Single source for both the live summary stamp and
+ * the terminal run-summary role attribution so they can't drift.
+ */
+function resolveNKleinTaskRole(taskId: string, isDecomposition: boolean): RuntimeModelPerformanceRole {
+	if (taskId.endsWith("::review")) {
+		return "reviewer";
+	}
+	return isDecomposition ? "architect" : "worker";
+}
+
 function getRepeatedToolCallLimit(toolName: string, baseLimit: number): number {
 	const normalized = toolName.trim().toLowerCase();
 	if (normalized === "read_files" || normalized === "run_commands") {
@@ -2108,6 +2120,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			state: initialState,
 			workspacePath: effectiveCwd,
 			reviewReason: initialReviewReason,
+			role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
 			warningMessage: queuedForSandboxCapacity ? null : entry.summary.warningMessage,
 			latestHookActivity: queuedForSandboxCapacity ? null : entry.summary.latestHookActivity,
 			updatedAt: now(),
@@ -3416,14 +3429,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTimeoutReasonByTaskId.delete(taskId);
 		const timeoutSource = this.pendingTimeoutSourceByTaskId.get(taskId) ?? null;
 		this.pendingTimeoutSourceByTaskId.delete(taskId);
-		// Coarse role attribution (todo §5.C) for by-role timeout breakdowns: reviewer sessions use the synthetic
-		// `<taskId>::review` id, decomposition turns are tracked in explicitDecompositionTaskIds (still set at this
-		// awaiting_review capture), everything else is worker. Finer card/config-based role lives in the model-perf obs.
-		const role: RuntimeModelPerformanceRole = taskId.endsWith("::review")
-			? "reviewer"
-			: this.explicitDecompositionTaskIds.has(taskId)
-				? "architect"
-				: "worker";
+		// Coarse role attribution (todo §5.C) for by-role timeout breakdowns — same resolution as the live summary
+		// stamp (resolveNKleinTaskRole), so the run summary and the session summary agree.
+		const role = resolveNKleinTaskRole(taskId, this.explicitDecompositionTaskIds.has(taskId));
 		// Dev-test runs seed tasks as `devtest-<scenarioId>-<timestamp>` (see `nklein dev test-project`), so the
 		// scenario is parseable from the id for by-scenario timeout breakdowns (§5.C/§5.O). Null for ordinary runs.
 		const scenario = /^devtest-(.+)-\d+$/.exec(taskId)?.[1] ?? null;

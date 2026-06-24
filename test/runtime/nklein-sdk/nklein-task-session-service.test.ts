@@ -566,6 +566,24 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
 	});
 
+	it("stamps the resolved launch role on the session summary (todo §5.G/§5.U)", async () => {
+		const { service } = createTrackedService();
+
+		const workerSummary = await service.startTaskSession({
+			taskId: "task-worker",
+			cwd: "/tmp/worktree",
+			prompt: "Implement the feature",
+		});
+		expect(workerSummary.role).toBe("worker");
+
+		const reviewerSummary = await service.startTaskSession({
+			taskId: "task-1::review",
+			cwd: "/tmp/worktree",
+			prompt: "Review the change",
+		});
+		expect(reviewerSummary.role).toBe("reviewer");
+	});
+
 	it("records model-specific shared endpoint ids for local task sessions", async () => {
 		const { service } = createTrackedService();
 

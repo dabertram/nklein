@@ -851,11 +851,13 @@ deep analysis:
       editor, the model-roles block, the sandbox-pool fields, the timeouts) into focused `*-settings-panel.tsx`
       components that own their inputs and expose `value`/`onChange`, shrinking the dialog to composition. web-ui-only
       navigability win; lock with the existing dialog suite.
-- [ ] **Persist the resolved launch role on the session summary** — add an optional `role`
-      (`RuntimeModelPerformanceRole`) to `runtimeTaskSessionSummarySchema`, populated at task start from the resolved
-      launch config, so the cockpit (§5.G #425 board role-visibility) and telemetry stop *inferring* role from
-      `startInPlanMode` / the `::review` id suffix. Small contract + runtime change; unblocks the clean §5.G
-      main-board role/agent visibility.
+- [x] **Persist the resolved launch role on the session summary** *(DONE 2026-06-24)* — added an optional `role`
+      (`RuntimeModelPerformanceRole`) to `runtimeTaskSessionSummarySchema`, stamped at task start (the `entry.summary`
+      chokepoint, persisting through `updateSummary`'s spread) via a shared `resolveNKleinTaskRole(taskId,
+      isDecomposition)` — reviewer for `::review`, architect for an explicit decomposition, worker otherwise. The
+      terminal run-summary capture now reuses the same helper so the live + run summaries agree. Unit-tested
+      (worker + reviewer stamp). **Unblocks §5.G #425** — the board role strip can now read `summary.role` instead of
+      inferring from `startInPlanMode`.
 
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error

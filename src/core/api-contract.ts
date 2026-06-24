@@ -547,10 +547,16 @@ export const runtimeContextBudgetBreakdownSchema = z.object({
 });
 export type RuntimeContextBudgetBreakdown = z.infer<typeof runtimeContextBudgetBreakdownSchema>;
 
+export const runtimeModelPerformanceRoleSchema = z.enum(["architect", "worker", "reviewer", "unknown"]);
+export type RuntimeModelPerformanceRole = z.infer<typeof runtimeModelPerformanceRoleSchema>;
+
 export const runtimeTaskSessionSummarySchema = z.object({
 	taskId: z.string(),
 	state: runtimeTaskSessionStateSchema,
 	mode: runtimeTaskSessionModeSchema.nullable().optional(),
+	// Resolved launch role (todo §5.G/§5.U): reviewer for a `<taskId>::review` session, architect for an
+	// explicit decomposition, worker otherwise. Stamped at start so the cockpit/telemetry don't re-infer it.
+	role: runtimeModelPerformanceRoleSchema.nullable().optional(),
 	agentId: runtimeAgentIdSchema.nullable(),
 	workspacePath: z.string().nullable(),
 	pid: z.number().nullable(),
@@ -576,9 +582,6 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	previousTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
 });
 export type RuntimeTaskSessionSummary = z.infer<typeof runtimeTaskSessionSummarySchema>;
-
-export const runtimeModelPerformanceRoleSchema = z.enum(["architect", "worker", "reviewer", "unknown"]);
-export type RuntimeModelPerformanceRole = z.infer<typeof runtimeModelPerformanceRoleSchema>;
 
 export const runtimeModelPerformanceOutcomeSchema = z.enum([
 	"completed",
