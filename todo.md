@@ -592,8 +592,9 @@ deep analysis:
 > typed-confirmed + logged; cloud lockdown (#1) + ≥32k floor everywhere. **Presets:** base = coding + board ops;
 > scopes = project-sandboxed (default) / all-loaded-projects / host-access (typed-confirm); roles =
 > planner-architect, reviewer (§5.K), debugger, researcher (§5.L tiers), system-operator (host persona).
-- [~] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
-      concurrent; separate from board/task state (not kanban cards).
+- [x] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
+      concurrent; separate from board/task state (not kanban cards). **(store + transcript + tRPC surface + UI all
+      shipped 2026-06-24.)**
   - [x] **session store (2026-06-24)** — [src/chat/chat-session-store.ts](src/chat/chat-session-store.ts): the
         durable session-metadata layer (`ChatSession` = id / title / scope / role / timestamps; scope ∈
         project_sandboxed|all_projects|host_access, role ∈ planner_architect|reviewer|debugger|researcher|
@@ -605,9 +606,10 @@ deep analysis:
         append-only JSONL file per session (hashed id filename, concurrency-/crash-safe), with `appendChatMessage` /
         `readChatTranscript` (optional `limit` → most-recent N for the lean window) / `clearChatTranscript`. Unit-tested
         (per-session isolation, ordering, recent-N limit, clear).
-  - [ ] still owed: the tRPC/contract surface to expose sessions + transcripts to the chat UI + the messenger bridge,
-        and the chat agent runtime that drives them.
-- [~] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
+  - [x] **tRPC/contract surface + agent runtime (2026-06-24)** — the `chat` sub-router
+        ([app-router.ts](src/trpc/app-router.ts)) over [chat-service.ts](src/chat/chat-service.ts) exposes sessions +
+        transcripts + send/stream to the web-ui (and, later, the bridge). (Messenger bridge consumer still LATER.)
+- [x] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming. **(shipped 2026-06-24: tool-using agent loop + read/write tools + confirm gate + §5.O dedup; CLI `nklein chat`; tRPC send/stream + web-ui dialog with token streaming.)**
   - [x] **context → prompt pipeline (2026-06-24)** — [src/chat/chat-turn-context.ts](src/chat/chat-turn-context.ts):
         `composeChatTurnContext` ties the §5.M memory foundations together into the pure heart of a turn (short-term
         lean-window split + overflow summary + long-term semantic recall + the standing goal → `{ goal, summary,
@@ -754,8 +756,11 @@ deep analysis:
           persisted transcript replaces on `done`. Unit-tested (async-queue; the subscription yields token events then
           a terminal `done`) and **live-verified** end-to-end via [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts)
           (the reply renders through the SSE path). Root (1476) + web (705) green.
-  - [ ] still owed: the **Signal bridge** — BLOCKED on the user (external integration needing their Signal
-        account/linking + credentials; not actionable autonomously).
+  - LATER: the **Signal bridge** — **deferred by the user (2026-06-24): "defer signal credential based testing, we'll
+        do later."** It needs a live Signal account/linking + credentials to integrate & test against, so it's not
+        actionable autonomously right now. When resumed, the open spec question is the transport approach (e.g.
+        `signal-cli` linked-device vs. a bridge service) — that choice shapes the bridge abstraction, so we build it
+        together with the credentials rather than scaffolding speculatively now.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
@@ -793,24 +798,34 @@ deep analysis:
   - [ ] the ≥32k-floor budget integration + opt-in access-all-loaded-projects scope.
 - [ ] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
-- [ ] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
+- [~] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
       memory-scope toggles, Signal pairing/status; tooltips per §5.I #5.
+  - [x] **core dialog (2026-06-24)** — navbar Chat button → [chat-dialog.tsx](web-ui/src/components/chat/chat-dialog.tsx):
+        session list (create/select/delete), editable session header (title/role/scope/goal), transcript with
+        user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
+  - [ ] still owed: an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today),
+        **memory-scope toggles**, and **Signal pairing/status** (with the bridge, LATER).
 - [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
   - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy
         ([chat-execution-mode.ts](src/chat/chat-execution-mode.ts), above) decides allow/confirm/deny per action, and
         [chat-host-action-audit-store.ts](src/chat/chat-host-action-audit-store.ts) durably records **every** host
         action (session, mode, action, decision, confirmed, executed, detail) — append-only JSONL, read newest-first
-        with session filter + limit. Both pure/store-level + unit-tested. Still owed: the runtime that calls the gate,
-        prompts the typed confirmation, executes, and writes the audit entry; + messenger access-control.
-- [~] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
-      (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star).
+        with session filter + limit. Both pure/store-level + unit-tested.
+  - [x] **runtime enforcement wired (2026-06-24)** — `createGatedChatToolExecutor`
+        ([chat-tool-executor.ts](src/chat/chat-tool-executor.ts)) calls the gate per tool call, prompts the typed
+        confirmation (the CLI's `--allow-write` stdin `y/N`), executes only on approval, and writes the audit entry
+        every time. Live-verified: a spammed `write_file` ran only the one confirmed call; the rest were refused +
+        audited. Still owed: messenger access-control (with the bridge, LATER); a web-ui confirm affordance.
+- [x] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
+      (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star). **(shipped 2026-06-24: persisted +
+      re-anchored into every turn + editable in the chat UI's session header; bridge surfacing LATER with the bridge.)**
   - [x] **persisted + re-anchored (2026-06-24)** — `goal` is now a first-class `ChatSession` field
         ([chat-session-store.ts](src/chat/chat-session-store.ts)): set on create, editable on update (explicit `null`
         clears, absent leaves unchanged), back-compat-defaulted for older records. `composeChatTurnContext`
         ([chat-turn-context.ts](src/chat/chat-turn-context.ts)) carries it into **every** turn's context so it stays
         in focus across turns. Unit-tested (goal create/update/clear/preserve + goal in the composed turn context).
-        Still owed: surface/edit it in the chat UI + over the bridge (with the rest of the chat surface).
+        Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
 - [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
       `"queue" | "steer"` delivery mode; wire through UI + bridge.
 
