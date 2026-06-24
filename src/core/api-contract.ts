@@ -3,6 +3,10 @@ import { ACCEPTANCE_FAILURE_CATEGORIES } from "./acceptance-failure-taxonomy.js"
 import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } from "./agent-rulesets.js";
 import { resolveTaskTitle } from "./task-title.js";
 
+// Board-independent unified chat (todo §5.M) lives in its own contract module; re-exported here so the single
+// `@runtime-contract` alias (and `@/runtime/types` in the web-ui) surfaces the chat wire types too.
+export * from "./chat-api-contract.js";
+
 export const runtimeWorkspaceFileStatusSchema = z.enum([
 	"modified",
 	"added",

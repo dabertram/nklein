@@ -727,8 +727,18 @@ deep analysis:
           (service send + read-only-throws + unknown-session-null; router send end-to-end) and **live-verified** via
           [scripts/verify-chat-send.mts](scripts/verify-chat-send.mts) against qwen2.5-coder-14b (real reply + both
           messages persisted). Still non-streaming (returns the full reply); tRPC streaming is a later refinement.
-  - [ ] still owed (next live layer): the **web-ui chat surface** (session list + transcript view + composer) on the
-        `chat` sub-router; optional **token streaming** over tRPC; the **Signal bridge**.
+    - [x] **web-ui chat surface (2026-06-24)** — the board-independent chat is now usable in the app. A navbar Chat
+          button (always visible, next to Settings) opens [chat-dialog.tsx](web-ui/src/components/chat/chat-dialog.tsx):
+          a session list (create/select/delete) on the left, the selected transcript (user/assistant/system bubbles)
+          on the right, and a composer that sends a turn. Data flows through [use-chat-data.ts]
+          (web-ui/src/components/chat/use-chat-data.ts) on the non-workspace `chat` tRPC client (`useTrpcQuery` +
+          mutations that refetch). The chat wire types are re-exported from `api-contract.ts` so `@/runtime/types`
+          surfaces them. web tsc + biome + full web vitest (705) green. **Live-verified** end-to-end via
+          [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts) (headless Chromium against the running dev stack +
+          live LM Studio): opened the dialog, created a session, sent a message, and a real assistant reply ("pong")
+          rendered — screenshot `/tmp/nklein-chat-ui.png`. Non-streaming for now.
+  - [ ] still owed (next live layer): optional **token streaming** over tRPC (the turn currently arrives whole);
+        session **rename / scope+role pickers** in the UI (create uses defaults today); the **Signal bridge**.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
