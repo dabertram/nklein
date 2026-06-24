@@ -67,9 +67,13 @@ describe("runChatAgentLoop", () => {
 			{
 				complete: async (_messages, allow) => {
 					allowTools.push(allow);
-					// Always asks for a tool while allowed; the final forced turn (allow=false) concludes.
+					// Asks for a *distinct* tool each allowed turn (distinct args ⇒ not deduped), so it genuinely
+					// exhausts the cap; the final forced turn (allow=false) concludes.
 					return allow
-						? { text: "", toolCalls: [{ id: `c${allowTools.length}`, name: "loop", arguments: {} }] }
+						? {
+								text: "",
+								toolCalls: [{ id: `c${allowTools.length}`, name: "loop", arguments: { n: allowTools.length } }],
+							}
 						: { text: "Best effort answer.", toolCalls: [] };
 				},
 				executeTool: async (call) => ({ callId: call.id, content: "ok" }),
@@ -80,5 +84,64 @@ describe("runChatAgentLoop", () => {
 		expect(result.steps).toHaveLength(2);
 		expect(result.finalText).toBe("Best effort answer.");
 		expect(result.hitIterationLimit).toBe(true);
+	});
+
+	it("de-duplicates a repeated identical tool call: runs it once, then forces an answer (todo §5.O)", async () => {
+		// A weak model that re-requests the exact same read every allowed turn, then would answer if forced.
+		const allowTools: boolean[] = [];
+		const executed: ChatToolCall[] = [];
+		const result = await runChatAgentLoop(
+			{ messages: start, maxIterations: 8 },
+			{
+				complete: async (_messages, allow) => {
+					allowTools.push(allow);
+					return allow
+						? {
+								text: "",
+								toolCalls: [
+									{ id: `c${allowTools.length}`, name: "read_file", arguments: { path: "README.md" } },
+								],
+							}
+						: { text: "It documents the project.", toolCalls: [] };
+				},
+				executeTool: async (call) => {
+					executed.push(call);
+					return { callId: call.id, content: "# Project" };
+				},
+				appendToolExchange,
+			},
+		);
+		// The tool ran exactly once despite being re-requested; the loop then forced a final answer early
+		// (not via the iteration cap), well under maxIterations.
+		expect(executed).toHaveLength(1);
+		expect(result.steps).toHaveLength(1);
+		expect(allowTools).toEqual([true, true, false]);
+		expect(result.finalText).toBe("It documents the project.");
+		expect(result.hitIterationLimit).toBe(false);
+	});
+
+	it("still runs genuinely new calls that differ only in arguments", async () => {
+		const executed: string[] = [];
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "a.md" } }] },
+			{ text: "", toolCalls: [{ id: "c2", name: "read_file", arguments: { path: "b.md" } }] },
+			{ text: "Done.", toolCalls: [] },
+		];
+		let turn = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start },
+			{
+				complete: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => {
+					executed.push(String(call.arguments.path));
+					return { callId: call.id, content: "ok" };
+				},
+				appendToolExchange,
+			},
+		);
+		expect(executed).toEqual(["a.md", "b.md"]);
+		expect(result.steps).toHaveLength(2);
+		expect(result.finalText).toBe("Done.");
+		expect(result.hitIterationLimit).toBe(false);
 	});
 });

@@ -676,9 +676,18 @@ deep analysis:
           (read/truncate/escape/absolute/missing/list, all asserting no host path leaks). **Live-verified** via
           [scripts/verify-chat-agent-tools.mts](scripts/verify-chat-agent-tools.mts) against qwen2.5-coder-14b: the
           real model called `read_file` through the gated+audited executor and answered from the file's content (a
-          unique secret token), and the bounded loop terminated safely when the model kept re-reading (4 steps →
-          forced final answer). The repeated-read trait is a §5.O small-model robustness note (a fingerprint dedup
-          guard, like the NKlein agent's, could later short-circuit it; the bounded loop already makes it safe).
+          unique secret token). (Initially the small model re-read 4× → forced answer; now short-circuited by the
+          §5.O dedup guard below — re-verified at **1 step, no cap hit**, with a clean non-narrated answer.)
+    - [x] **§5.O: repeated-tool-call dedup in the chat agent loop (2026-06-24)** — weak local models re-request the
+          *same* tool call until the iteration cap (observed live: read 4×, write 6×), wasting turns and ending in a
+          forced, often-narrated answer. [chat-agent-loop.ts](src/chat/chat-agent-loop.ts) now de-dups by the same
+          full-input fingerprint the NKlein agent uses (`computeNKleinToolInputFingerprint` over `{name, arguments}`):
+          an identical call already made this turn is **not** re-executed (the model gets a "you already have that,
+          answer now" nudge), and a response that is *only* repeats short-circuits straight to the final answer.
+          Genuinely new calls (differing args) always run, so an advancing workflow is never blocked. Unit-tested
+          (dedup-once + force-answer, distinct-args-still-run, genuine-cap path). **Re-verified live** on both
+          harnesses: read + write each dropped from 4–6 steps + cap-hit to **1 step, `hitIterationLimit: false`**, and
+          the model now returns a natural answer instead of narrating the tool call.
     - [x] **tool-using `nklein chat --workspace` + REPL (2026-06-24)** — [src/commands/chat.ts](src/commands/chat.ts):
           `--workspace <dir>` flips the shipped command to the tool-using path — it offers the read-only workspace
           tools, builds the policy-gated + audited executor (`isolated_readonly`, `recordChatHostAction` sink), and
