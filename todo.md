@@ -890,8 +890,11 @@ deep analysis:
         B (the "restarted process") `reloadTaskSession`s it and **re-preps a sandbox container** — proving the rebuild now
         prepares the sandbox. **PASS:** resume re-prepped a container, no host worktree, **no host project path leaked to
         the agent**, no containers leftover after dispose. (Pre-fix, phase 2 would show no container.)
-  - [ ] **minor remaining:** confirm `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })` (passes the sandbox path
-        host-side; likely legacy/inert under isolation — the turn-checkpoint subsystem predates the worktree retirement).
+  - [x] **`captureTaskTurnCheckpoint` confirmed inert under isolation (2026-06-24).** It's fire-and-forget
+        (`void captureTaskTurnCheckpoint({ cwd: summary.workspacePath }).then(…)`), so on a sandbox `cwd` the git ref
+        command fails silently and the matching `deleteTaskTurnCheckpointRef` no-ops too — a vestige of the
+        host-worktree era, superseded by the `nklein/tasks/<task>` result-branch resume path. No correctness impact; a
+        candidate for removal in the §5.U service-decomposition / worktree-module cleanup, not a bug to fix here.
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply
