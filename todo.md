@@ -871,17 +871,22 @@ deep analysis:
         input.cwd`), mirroring the main start path. Locked by a **red-green** unit test (a fake-runtime
         `simulateProcessRestart()` drives the rebuild and asserts the runtime setup resolves against `/host/project-root`,
         never `/workspaces/<taskId>`). tsc + full nklein-sdk suite (694) green.
-  - [ ] **still owed (sibling site + deeper concern — needs the live restart verification):** (a) the **send path**
-        (`sendTaskSessionInput` ~line 2470) has the *same* shape — `runtimeSetupWorkspacePath =
-        sandboxRepoPathByTaskId.get(taskId) ?? entry.summary.workspacePath` falls back to the agent-perceived (sandbox)
-        `workspacePath` when `sandboxRepoPathByTaskId` is empty (which it is after a process restart, since the rebuild
-        does no sandbox prep) → same degraded-rules bug; needs the host root threaded there too (the cached launch config
-        isn't resolved until later in the flow, so this is a reorder, not a one-liner). (b) The deeper concern stands:
-        the rebuild path does **no** sandbox re-prep — it threads the persisted sandbox `cwd` straight into
-        `sessionRuntime.startTaskSession` with no sandbox tool executors, so a restarted isolated task may run with host
-        file tools on a non-existent sandbox path. Both want an end-to-end trace + a **live** start→process-restart→resume
-        verification (offered). Touches invariant #2 — high value. Also `captureTaskTurnCheckpoint({ cwd:
-        summary.workspacePath })` passes the sandbox path host-side (likely legacy/inert under isolation — confirm).
+  - [x] **restart-rebuild now re-preps the Docker sandbox + passes sandbox tools (2026-06-24).** The deeper fix:
+        `startRuntimeTaskSessionFromLaunchConfig` (the chokepoint all rebuild callers funnel through) now calls
+        `prepareSandboxWorkspace` (checks out the task's result branch via `resolveTaskResultBranchCommit`), perceives
+        the in-container `workdir` as the agent cwd, and passes `createAgentSandboxToolExecutors`/`ExtraTools` — so a
+        restarted isolated task runs with **sandbox-proxied** tools on `/workspaces/<taskId>`, never host file tools on a
+        non-existent sandbox path (invariant #2). It disposes the freshly-prepped sandbox on a failed start. This also
+        **fixes the send-path sibling**: `prepareSandboxWorkspace` records `sandboxRepoPathByTaskId` (host repo path), so
+        `sendTaskSessionInput`'s `runtimeSetupWorkspacePath = sandboxRepoPathByTaskId.get(taskId) ?? …` now resolves the
+        host root after a rebuild instead of falling back to the sandbox `workspacePath`. Skipped when the caller already
+        supplied sandbox executors (it owns the sandbox). Locked by a second **red-green** unit test (fake sandbox
+        manager: asserts the rebuild `prepareWorkspace`s the task against the host repo path and starts with the sandbox
+        cwd + sandbox `extraTools`/`toolExecutors`). tsc + biome + full nklein-sdk suite (695) green.
+  - [ ] **live verification (in progress):** end-to-end start→process-restart→resume of a real isolated task against
+        LM Studio + Docker, asserting a sandbox container is re-prepped for the resumed task and the agent emits only
+        sandbox/relative paths. Also still confirm `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })` (passes the
+        sandbox path host-side; likely legacy/inert under isolation).
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply

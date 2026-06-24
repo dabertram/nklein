@@ -957,13 +957,30 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// persisted launch config (mirrors the main start path, which passes the host `request.cwd`). See the
 		// StartNKleinTaskSessionRequest.cwd docs + todo §5.U.
 		const hostWorkspaceRoot = input.workspaceRoot?.trim() || launchConfig.workspaceRoot?.trim() || input.cwd;
+		// Re-prep the Docker sandbox on a restart-rebuild (invariant #2). The callers reach this path with no
+		// live session and no sandbox (e.g. resuming an isolated task after a runtime process restart). Without
+		// this, the rebuilt session ran with HOST file tools on a non-existent sandbox `cwd`. prepareSandbox
+		// Workspace checks out the task's result branch so accumulated work is present, and records the host
+		// repo path so host-side consumers (the send-path `ensureRuntimeSetup`) resolve the host root. Skipped
+		// only when the caller already supplied sandbox executors (it then owns the sandbox + cwd).
+		const sandboxWorkspace =
+			input.toolExecutors || input.extraTools
+				? null
+				: await this.prepareSandboxWorkspace({
+						taskId: input.taskId,
+						cwd: hostWorkspaceRoot,
+						workspaceRoot: hostWorkspaceRoot,
+						prompt: input.prompt,
+						resumeFromTrash: true,
+					});
+		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? input.cwd;
 		const runtimeSetup = await this.ensureRuntimeSetup(hostWorkspaceRoot);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
 		let systemPrompt =
 			input.systemPrompt?.trim() ||
 			(await resolveNKleinSdkSystemPrompt({
 				// Sandbox-aware working directory for the `<env>` block; never the host mount (AGENTS.md).
-				cwd: resolveNKleinAgentPerceivedCwd(input.taskId, input.cwd),
+				cwd: resolveNKleinAgentPerceivedCwd(input.taskId, agentPerceivedCwd),
 				providerId: launchConfig.providerId,
 				rules: runtimeSetup.loadRules(),
 			}));
@@ -980,46 +997,69 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.markModelRequestStarted(input.taskId);
-		const startResult = await this.sessionRuntime.startTaskSession({
-			taskId: input.taskId,
-			cwd: input.cwd,
-			workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
-			prompt: input.prompt,
-			initialMessages: input.initialMessages,
-			images: input.images,
-			providerId: launchConfig.providerId,
-			modelId: launchConfig.modelId,
-			mode: input.mode,
-			apiKey: launchConfig.apiKey,
-			baseUrl: launchConfig.baseUrl,
-			reasoningEffort: launchConfig.reasoningEffort,
-			contextWindow: requestContextWindow,
-			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines,
-			codeEmbeddingProvider: input.codeEmbeddingProvider,
-			apiTimeoutMs: launchConfig.apiTimeoutMs,
-			turnTimeoutMs: launchConfig.turnTimeoutMs,
-			systemPrompt,
-			...(input.toolExecutors ? { toolExecutors: input.toolExecutors } : {}),
-			...(input.extraTools ? { extraTools: input.extraTools } : {}),
-			userInstructionService: runtimeSetup.userInstructionService,
-			requestToolApproval: runtimeSetup.createToolApproval({
+		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
+		const sandboxToolExecutors =
+			input.toolExecutors ??
+			(sandboxWorkspace
+				? createAgentSandboxToolExecutors(sandboxWorkspace.manager, input.taskId, {
+						pauseController: this.pauseController,
+					})
+				: undefined);
+		const sandboxExtraTools =
+			input.extraTools ??
+			(sandboxWorkspace
+				? createAgentSandboxExtraTools(sandboxWorkspace.manager, input.taskId, {
+						sessionId: createSessionId(input.taskId),
+						contextWindow: requestContextWindow,
+						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					})
+				: undefined);
+		const startResult = await this.sessionRuntime
+			.startTaskSession({
 				taskId: input.taskId,
+				cwd: agentPerceivedCwd,
+				workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
+				prompt: input.prompt,
+				initialMessages: input.initialMessages,
+				images: input.images,
+				providerId: launchConfig.providerId,
+				modelId: launchConfig.modelId,
+				mode: input.mode,
+				apiKey: launchConfig.apiKey,
+				baseUrl: launchConfig.baseUrl,
+				reasoningEffort: launchConfig.reasoningEffort,
 				contextWindow: requestContextWindow,
-				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-				filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
-			}),
-			toolPolicies: runtimeSetup.toolPolicies,
-			onDecompositionApplied: this.onDecompositionApplied,
-			onReviewSubmitted: input.onReviewSubmitted,
-			onFocusChainUpdated: (chain) => {
-				const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
-				this.focusChainByTaskId.set(input.taskId, timed);
-				void this.onFocusChainUpdated?.(input.taskId, timed);
-			},
-			onTeamEvent: (event, teamName) => {
-				this.emitTeamProgress(input.taskId, event, teamName);
-			},
-		});
+				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines,
+				codeEmbeddingProvider: input.codeEmbeddingProvider,
+				apiTimeoutMs: launchConfig.apiTimeoutMs,
+				turnTimeoutMs: launchConfig.turnTimeoutMs,
+				systemPrompt,
+				...(sandboxToolExecutors ? { toolExecutors: sandboxToolExecutors } : {}),
+				...(sandboxExtraTools ? { extraTools: sandboxExtraTools } : {}),
+				userInstructionService: runtimeSetup.userInstructionService,
+				requestToolApproval: runtimeSetup.createToolApproval({
+					taskId: input.taskId,
+					contextWindow: requestContextWindow,
+					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
+				}),
+				toolPolicies: runtimeSetup.toolPolicies,
+				onDecompositionApplied: this.onDecompositionApplied,
+				onReviewSubmitted: input.onReviewSubmitted,
+				onFocusChainUpdated: (chain) => {
+					const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
+					this.focusChainByTaskId.set(input.taskId, timed);
+					void this.onFocusChainUpdated?.(input.taskId, timed);
+				},
+				onTeamEvent: (event, teamName) => {
+					this.emitTeamProgress(input.taskId, event, teamName);
+				},
+			})
+			.catch(async (error: unknown): Promise<never> => {
+				// On a failed restart-rebuild start, release the freshly-prepped sandbox so it isn't leaked.
+				await sandboxWorkspace?.manager.disposeWorkspace(input.taskId).catch(() => null);
+				throw error;
+			});
 		return {
 			result: startResult.result,
 			warnings: startResult.warnings,

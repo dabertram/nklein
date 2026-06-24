@@ -1459,6 +1459,84 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(createRuntimeSetupPaths).not.toContain("/workspaces/task-rebuild");
 	});
 
+	it("re-preps the Docker sandbox + passes sandbox tools when rebuilding a restarted isolated task (§5.A invariant #2)", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createInMemoryNKleinTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+		});
+		services.push(service);
+
+		// Start + complete an isolated task (the first start preps a sandbox).
+		await service.startTaskSession({
+			taskId: "task-iso-rebuild",
+			cwd: "/host/project-root",
+			workspaceRoot: "/host/project-root",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			prompt: "Do the work",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-iso-rebuild");
+		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "done" });
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-iso-rebuild")?.state).toBe("awaiting_review");
+		});
+
+		// Simulate a process restart (in-memory session + launch maps gone), then resume.
+		runtime.simulateProcessRestart();
+		sandboxManager.prepareWorkspaceMock.mockClear();
+		runtime.startTaskSessionMock.mockClear();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-iso-rebuild-persisted",
+				source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "qwen3-8b",
+				cwd: "/workspaces/task-iso-rebuild",
+				workspaceRoot: "/host/project-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: { providerId: "lmstudio", modelId: "qwen3-8b", workspaceRoot: "/host/project-root" },
+					},
+				},
+			},
+			messages: [],
+		});
+
+		await service.sendTaskSessionInput("task-iso-rebuild", "Continue the work");
+
+		// The rebuild must re-prep the sandbox for the task against the HOST repo path…
+		await vi.waitFor(() => {
+			expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith(
+				expect.objectContaining({ taskId: "task-iso-rebuild", projectRepoPath: "/host/project-root" }),
+			);
+		});
+		// …and start the session with the in-container sandbox workdir + sandbox-proxied tools, never host file
+		// tools on a non-existent sandbox cwd (the invariant-#2 bug this locks).
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-iso-rebuild",
+					cwd: "/workspaces/task-iso-rebuild",
+					workspaceRoot: "/host/project-root",
+					extraTools: expect.anything(),
+					toolExecutors: expect.anything(),
+				}),
+			);
+		});
+	});
+
 	it("clears a task session, removes history, and allows a fresh turn", async () => {
 		const { service, runtime } = createTrackedService();
 
