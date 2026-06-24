@@ -22,6 +22,8 @@ const REQUIRED_TEXT = [
 	"Autonomous turns",
 	"Wall time (hours)",
 	"Python core",
+	"Agent rulesets",
+	"Delivery autonomy",
 ];
 const REQUIRED_INPUT_IDS = [
 	"runtime-settings-guardrail-turns",

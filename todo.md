@@ -536,8 +536,14 @@ deep analysis:
         **remaining:** auto-perform commit/open_pr, a measured regression delta, per-project + per-card overrides
   - [ ] per-role network override (needs policy-keyed pools — a pooled container's `--network` is fixed at creation;
         allowlist needs a real egress proxy)
-  - [ ] Settings UI + write-path — global preset picker + per-role tier overrides (both dials); thread
-        `agentRulesets` through `updateRuntimeConfig`/`updateGlobalRuntimeConfig` (read/preserve already work)
+  - [x] **Settings UI + write-path (DONE 2026-06-24)** — surfaced `agentRulesets` in the config response
+        (`buildRuntimeConfigResponse`, the missing read-path half) and added a self-contained
+        [AgentRulesetsSettingsPanel](web-ui/src/components/agent-rulesets-settings-panel.tsx): both dials
+        (Capability + Delivery autonomy) with a global preset picker + per-role override selects (architect/worker/
+        reviewer, "Use global" clears), tier copy sourced from the contract's `AGENT_*_TIER_INFO`. Wired into the
+        General settings section; the dialog already tracked `agentRulesets` state + threaded it through the save
+        path (`updateRuntimeConfig`/`updateGlobalRuntimeConfig`). Component-tested (render + change + add/clear
+        override) + dialog suite (35) green; live Playwright Settings render clean.
 
 ### 5.M — Unified agentic coding chat + private messenger bridge *(raised + decided 2026-06-22/23)*
 > **Goal:** a board-independent strong coding agent (Claude/Codex/Cline-class) on small local models via good memory

@@ -41,6 +41,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AgentRulesetsSettingsPanel } from "@/components/agent-rulesets-settings-panel";
 import { showAppToast } from "@/components/app-toaster";
 import {
 	areCodeEmbeddingSettingsEqual,
@@ -3268,6 +3269,20 @@ export function RuntimeSettingsDialog({
 											</div>
 										))}
 									</div>
+								</div>
+								<div
+									style={{ gridColumn: "1 / span 2" }}
+									className="rounded-md border border-border bg-surface-1 p-3"
+								>
+									<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+										<ShieldCheck size={14} />
+										<span>Agent rulesets</span>
+									</div>
+									<AgentRulesetsSettingsPanel
+										value={agentRulesets}
+										disabled={controlsDisabled}
+										onChange={setAgentRulesets}
+									/>
 								</div>
 							</div>
 						</div>
