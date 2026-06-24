@@ -16,10 +16,14 @@ import type {
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
+	RuntimeSwarmGuardrails,
 	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	agentRulesetsConfigSchema,
+	areRuntimeSwarmGuardrailsEqual,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	normalizeRuntimeSwarmGuardrails,
 	runtimeCodeEmbeddingSettingsSchema,
 	runtimeRoleModelSettingsSchema,
 } from "../core/api-contract";
@@ -70,6 +74,7 @@ interface RuntimeGlobalConfigFileShape {
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 }
@@ -111,6 +116,7 @@ export interface RuntimeConfigState {
 	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
 	modelRoles: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	swarmGuardrails: RuntimeSwarmGuardrails;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -147,6 +153,7 @@ export interface RuntimeConfigUpdateInput {
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	swarmGuardrails?: RuntimeSwarmGuardrails;
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
@@ -709,6 +716,7 @@ function toRuntimeConfigState({
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
 		agentRulesets: normalizeAgentRulesets(globalConfig?.agentRulesets),
+		swarmGuardrails: normalizeRuntimeSwarmGuardrails(globalConfig?.swarmGuardrails),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			globalConfig?.commitPromptTemplate,
@@ -764,6 +772,7 @@ async function writeRuntimeGlobalConfigFile(
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
+		swarmGuardrails?: RuntimeSwarmGuardrails;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
 	},
@@ -879,6 +888,10 @@ async function writeRuntimeGlobalConfigFile(
 		config.agentRulesets === undefined
 			? normalizeAgentRulesets(existing?.agentRulesets)
 			: normalizeAgentRulesets(config.agentRulesets);
+	const swarmGuardrails =
+		config.swarmGuardrails === undefined
+			? normalizeRuntimeSwarmGuardrails(existing?.swarmGuardrails)
+			: normalizeRuntimeSwarmGuardrails(config.swarmGuardrails);
 	const commitPromptTemplate =
 		config.commitPromptTemplate === undefined
 			? DEFAULT_COMMIT_PROMPT_TEMPLATE
@@ -1023,6 +1036,12 @@ async function writeRuntimeGlobalConfigFile(
 	if (hasOwnKey(existing, "agentRulesets") || !areAgentRulesetsEqual(agentRulesets, DEFAULT_AGENT_RULESETS_CONFIG)) {
 		payload.agentRulesets = agentRulesets;
 	}
+	if (
+		hasOwnKey(existing, "swarmGuardrails") ||
+		!areRuntimeSwarmGuardrailsEqual(swarmGuardrails, DEFAULT_RUNTIME_SWARM_GUARDRAILS)
+	) {
+		payload.swarmGuardrails = swarmGuardrails;
+	}
 	if (hasOwnKey(existing, "commitPromptTemplate") || commitPromptTemplate !== DEFAULT_COMMIT_PROMPT_TEMPLATE) {
 		payload.commitPromptTemplate = commitPromptTemplate;
 	}
@@ -1137,6 +1156,7 @@ function createRuntimeConfigStateFromValues(input: {
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	modelRoles: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
@@ -1202,6 +1222,7 @@ function createRuntimeConfigStateFromValues(input: {
 			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 		modelRoles: normalizeModelRoles(input.modelRoles),
 		agentRulesets: normalizeAgentRulesets(input.agentRulesets),
+		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
 			input.commitPromptTemplate,
@@ -1250,6 +1271,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		codeEmbeddingOverride: null,
 		modelRoles: current.modelRoles,
 		agentRulesets: current.agentRulesets,
+		swarmGuardrails: current.swarmGuardrails,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
 		openPrPromptTemplate: current.openPrPromptTemplate,
@@ -1309,6 +1331,7 @@ export async function saveRuntimeConfig(
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
+		swarmGuardrails?: RuntimeSwarmGuardrails;
 		shortcuts: RuntimeProjectShortcut[];
 		commitPromptTemplate: string;
 		openPrPromptTemplate: string;
@@ -1365,6 +1388,7 @@ export async function saveRuntimeConfig(
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
 			modelRoles: config.modelRoles,
 			agentRulesets: config.agentRulesets,
+			swarmGuardrails: config.swarmGuardrails,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
@@ -1424,6 +1448,7 @@ export async function saveRuntimeConfig(
 			codeEmbeddingOverride: config.codeEmbeddingOverride ?? null,
 			modelRoles: normalizeModelRoles(config.modelRoles),
 			agentRulesets: normalizeAgentRulesets(config.agentRulesets),
+			swarmGuardrails: normalizeRuntimeSwarmGuardrails(config.swarmGuardrails),
 			shortcuts: config.shortcuts,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
@@ -1525,6 +1550,10 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			modelRoles: updates.modelRoles === undefined ? current.modelRoles : normalizeModelRoles(updates.modelRoles),
 			agentRulesets:
 				updates.agentRulesets === undefined ? current.agentRulesets : normalizeAgentRulesets(updates.agentRulesets),
+			swarmGuardrails:
+				updates.swarmGuardrails === undefined
+					? current.swarmGuardrails
+					: normalizeRuntimeSwarmGuardrails(updates.swarmGuardrails),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
 			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -1559,6 +1588,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingOverride, current.codeEmbeddingOverride) ||
 			!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 			!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
+			!areRuntimeSwarmGuardrailsEqual(nextConfig.swarmGuardrails, current.swarmGuardrails) ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
 			!areRuntimeProjectShortcutsEqual(nextConfig.shortcuts, current.shortcuts);
@@ -1595,6 +1625,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			modelRoles: nextConfig.modelRoles,
 			agentRulesets: nextConfig.agentRulesets,
+			swarmGuardrails: nextConfig.swarmGuardrails,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 		});
@@ -1633,6 +1664,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelRoles: nextConfig.modelRoles,
 			agentRulesets: nextConfig.agentRulesets,
+			swarmGuardrails: nextConfig.swarmGuardrails,
 			shortcuts: nextConfig.shortcuts,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
@@ -1744,6 +1776,10 @@ export async function updateGlobalRuntimeConfig(
 					updates.agentRulesets === undefined
 						? current.agentRulesets
 						: normalizeAgentRulesets(updates.agentRulesets),
+				swarmGuardrails:
+					updates.swarmGuardrails === undefined
+						? current.swarmGuardrails
+						: normalizeRuntimeSwarmGuardrails(updates.swarmGuardrails),
 				shortcuts: current.shortcuts,
 				commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 				openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
@@ -1777,6 +1813,7 @@ export async function updateGlobalRuntimeConfig(
 				!areCodeEmbeddingSettingsEqual(nextConfig.codeEmbeddingDefaults, current.codeEmbeddingDefaults) ||
 				!areModelRolesEqual(nextConfig.modelRoles, current.modelRoles) ||
 				!areAgentRulesetsEqual(nextConfig.agentRulesets, current.agentRulesets) ||
+				!areRuntimeSwarmGuardrailsEqual(nextConfig.swarmGuardrails, current.swarmGuardrails) ||
 				nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 				nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate;
 
@@ -1812,6 +1849,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				modelRoles: nextConfig.modelRoles,
 				agentRulesets: nextConfig.agentRulesets,
+				swarmGuardrails: nextConfig.swarmGuardrails,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 			});
@@ -1847,6 +1885,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingOverride: null,
 				modelRoles: nextConfig.modelRoles,
 				agentRulesets: nextConfig.agentRulesets,
+				swarmGuardrails: nextConfig.swarmGuardrails,
 				shortcuts: nextConfig.shortcuts,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,

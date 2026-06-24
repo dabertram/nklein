@@ -687,9 +687,18 @@ deep analysis:
         (`RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK` / `_WALL_TIME_MS` / `_MAX_REPEATED_NO_DIFF_CHECKPOINTS`,
         next to `RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH`); the runtime guardrail logic imports them (aliased) and the
         Settings rows now render straight from them (`formatWallTimeHours`). Display is byte-identical; web 689 tests green.
-  - [ ] still TODO: schema fields + config plumbing (read/preserve in runtime-config) + editable Settings inputs +
-        per-guardrail validation + a "Reset to defaults" button (the actual configurability). The guardrail logic must
-        read the configured value instead of the contract default.
+  - [x] **Backend configurability (2026-06-24).** Added `swarmGuardrails` to the runtime config — a nested
+        object (`maxAutonomousTurnsPerTask` / `maxAutonomousWallTimeMs` / `maxRepeatedNoDiffCheckpoints` /
+        `maxRepeatedToolCallsPerTask`) with `DEFAULT_RUNTIME_SWARM_GUARDRAILS` + bounded `normalizeRuntimeSwarmGuardrails`
+        + `areRuntimeSwarmGuardrailsEqual` in [src/core/api-contract.ts](src/core/api-contract.ts), threaded through
+        `runtime-config.ts` (read/preserve/round-trip, modeled on `agentRulesets`) + the config response builder. The
+        guardrail watchdog (`enforceAutonomyBudgets` + the repeated-tool-limit) now reads the **configured** values via a
+        new `service.setSwarmGuardrails(...)` seam (set at construction + refreshed on the cached service in
+        `runtime-server.ts`), not the contract constants. Each value clamps to a sane range (turns 1–1000, wall-time
+        1 min–7 days, no-diff 1–100, tool-calls 2–100). Unit-tested: config defaults/round-trip/clamp/preserve +
+        guard-honors-lowered-and-raised-limit. tsc + biome + fast (1349) green.
+  - [ ] still TODO (web-ui, commit 2): editable Settings inputs in the "Local swarm guardrails" section (render from
+        the loaded config, not the static contract constants) + per-guardrail validation + a "Reset to defaults" button.
 - [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
       attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
 - [x] **Clarify "concurrent cards" vs "parallel agents"** *(DONE 2026-06-24)* — they **map 1:1** (each running card

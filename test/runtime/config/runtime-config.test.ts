@@ -10,6 +10,7 @@ import {
 	saveRuntimeConfig,
 	updateRuntimeConfig,
 } from "../../../src/config/runtime-config";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { createTempDir } from "../../utilities/temp-dir";
 
 function withTemporaryEnv<T>(
@@ -250,6 +251,55 @@ describe.sequential("runtime-config auto agent selection", () => {
 				const reloaded = await loadRuntimeConfig(tempProject);
 				expect(reloaded.secondOpinionReviewEnabled).toBe(false);
 				expect(reloaded.reviewMaxRounds).toBe(5);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("defaults swarm guardrails, round-trips overrides, clamps bad values, and preserves on unrelated saves (§5.T)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-guardrails-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-guardrails-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.swarmGuardrails).toEqual(DEFAULT_RUNTIME_SWARM_GUARDRAILS);
+
+				await updateRuntimeConfig(tempProject, {
+					swarmGuardrails: {
+						maxAutonomousTurnsPerTask: 24,
+						maxAutonomousWallTimeMs: 30 * 60 * 1000,
+						maxRepeatedNoDiffCheckpoints: 6,
+						maxRepeatedToolCallsPerTask: 5,
+					},
+				});
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.swarmGuardrails).toEqual({
+					maxAutonomousTurnsPerTask: 24,
+					maxAutonomousWallTimeMs: 30 * 60 * 1000,
+					maxRepeatedNoDiffCheckpoints: 6,
+					maxRepeatedToolCallsPerTask: 5,
+				});
+
+				// Out-of-bounds values are clamped to the sane range (turns max 1000, tool-call floor 2).
+				await updateRuntimeConfig(tempProject, {
+					swarmGuardrails: {
+						maxAutonomousTurnsPerTask: 999_999,
+						maxAutonomousWallTimeMs: 30 * 60 * 1000,
+						maxRepeatedNoDiffCheckpoints: 6,
+						maxRepeatedToolCallsPerTask: 1,
+					},
+				});
+				const clamped = await loadRuntimeConfig(tempProject);
+				expect(clamped.swarmGuardrails.maxAutonomousTurnsPerTask).toBe(1000);
+				expect(clamped.swarmGuardrails.maxRepeatedToolCallsPerTask).toBe(2);
+
+				// An unrelated update preserves the saved guardrails.
+				await updateRuntimeConfig(tempProject, { maxConcurrentTasks: 4 });
+				const after = await loadRuntimeConfig(tempProject);
+				expect(after.swarmGuardrails.maxRepeatedNoDiffCheckpoints).toBe(6);
+				expect(after.swarmGuardrails.maxAutonomousTurnsPerTask).toBe(1000);
 			});
 		} finally {
 			cleanupProject();

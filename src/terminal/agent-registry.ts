@@ -164,6 +164,7 @@ export function buildRuntimeConfigResponse(
 		shortcuts: runtimeConfig.shortcuts,
 		nkleinProviderSettings,
 		modelRoles: runtimeConfig.modelRoles,
+		swarmGuardrails: runtimeConfig.swarmGuardrails,
 		commitPromptTemplate: runtimeConfig.commitPromptTemplate,
 		openPrPromptTemplate: runtimeConfig.openPrPromptTemplate,
 		commitPromptTemplateDefault: runtimeConfig.commitPromptTemplateDefault,

@@ -704,6 +704,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (!service) {
 			service = createInMemoryNKleinTaskSessionService({
 				watcherRegistry: nkleinWatcherRegistry,
+				swarmGuardrails: runtimeConfig.swarmGuardrails,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -753,6 +754,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
+			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
 		}
 		return service;
 	};

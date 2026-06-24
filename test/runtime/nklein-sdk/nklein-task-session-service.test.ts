@@ -1,9 +1,10 @@
 import type { ToolApprovalRequest, ToolApprovalResult } from "@nklein/core";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import type {
-	RuntimeTaskImage,
-	RuntimeTaskSessionMode,
-	RuntimeTaskSessionSummary,
+import {
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	type RuntimeTaskImage,
+	type RuntimeTaskSessionMode,
+	type RuntimeTaskSessionSummary,
 } from "../../../src/core/api-contract";
 import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/nklein-sdk/nklein-agent-sandbox";
 import type { NKleinRuntimeSetup } from "../../../src/nklein-sdk/nklein-runtime-setup";
@@ -2732,6 +2733,62 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			}),
 		);
 		expect(service.listMessages("task-1").at(-1)?.content).toContain("paused this task");
+	});
+
+	it("honors a lowered configurable autonomous-turn guardrail", async () => {
+		const { service, runtime } = createTrackedService();
+		// Operator tightens the turn budget below the default 12.
+		service.setSwarmGuardrails({ ...DEFAULT_RUNTIME_SWARM_GUARDRAILS, maxAutonomousTurnsPerTask: 3 });
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		const summary = service.applyTurnCheckpoint("task-1", {
+			turn: 3,
+			ref: "refs/kanban/checkpoints/task-1/turn/3",
+			commit: "commit-3",
+			createdAt: 3,
+		});
+
+		expect(summary).toMatchObject({
+			state: "awaiting_review",
+			reviewReason: "attention",
+			warningMessage: expect.stringContaining("3 autonomous turns"),
+		});
+		expect(runtime.abortTaskSessionMock).toHaveBeenCalledWith("task-1");
+		expect(selfObservationMocks.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ guardrail: "max_autonomous_turns", turn: 3, limit: 3 }),
+			}),
+		);
+	});
+
+	it("honors a raised configurable autonomous-turn guardrail (does not park at the default limit)", async () => {
+		const { service, runtime } = createTrackedService();
+		// Operator loosens the turn budget above the default 12.
+		service.setSwarmGuardrails({ ...DEFAULT_RUNTIME_SWARM_GUARDRAILS, maxAutonomousTurnsPerTask: 20 });
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Keep working autonomously.",
+			providerId: "lmstudio",
+			modelId: "qwen3",
+		});
+
+		const summary = service.applyTurnCheckpoint("task-1", {
+			turn: 12,
+			ref: "refs/kanban/checkpoints/task-1/turn/12",
+			commit: "commit-12",
+			createdAt: 12,
+		});
+
+		// At turn 12 the default would have parked, but the raised limit lets it keep running.
+		expect(summary?.state).not.toBe("awaiting_review");
+		expect(runtime.abortTaskSessionMock).not.toHaveBeenCalled();
 	});
 
 	it("parks a running task as paused at a checkpoint and resumes it when unpaused", async () => {

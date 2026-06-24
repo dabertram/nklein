@@ -95,8 +95,10 @@ export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoning
 export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 export const RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH = 12;
 export const RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK = 3;
-// Autonomous-run swarm guardrail limits. Single source of truth shared by the runtime guardrail logic
-// (nklein-task-session-service) and the Settings "Local swarm guardrails" display, so the two can't drift.
+// Autonomous-run swarm guardrail default limits. These are the *defaults* — the live values come from the
+// user-configurable `swarmGuardrails` runtime config (Settings → "Local swarm guardrails"), which falls back to
+// these. Both the runtime guardrail logic (nklein-task-session-service) and the Settings editor resolve through
+// `DEFAULT_RUNTIME_SWARM_GUARDRAILS`/`normalizeRuntimeSwarmGuardrails` so the two can't drift.
 export const RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
 export const RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS = 2 * 60 * 60 * 1000;
 export const RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS = 4;
@@ -106,6 +108,82 @@ export function clampRuntimeSwarmCardStartBatchSize(value: number): number {
 		return 0;
 	}
 	return Math.min(RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH, Math.trunc(value));
+}
+
+// Per-task autonomous-run guardrails the operator can tune (and reset) from Settings. Each is bounded to a sane
+// range so a typo can't disable a guardrail or starve a real task. `maxRepeatedToolCallsPerTask` has a hard floor
+// of 2 because the guard counts from the *first* call (count starts at 1), so a limit of 1 would park every task
+// on its very first tool use.
+export const RUNTIME_SWARM_GUARDRAIL_BOUNDS = {
+	maxAutonomousTurnsPerTask: { min: 1, max: 1000 },
+	maxAutonomousWallTimeMs: { min: 60_000, max: 7 * 24 * 60 * 60 * 1000 },
+	maxRepeatedNoDiffCheckpoints: { min: 1, max: 100 },
+	maxRepeatedToolCallsPerTask: { min: 2, max: 100 },
+} as const;
+
+export const runtimeSwarmGuardrailsSchema = z.object({
+	maxAutonomousTurnsPerTask: z.number().int().positive(),
+	maxAutonomousWallTimeMs: z.number().int().positive(),
+	maxRepeatedNoDiffCheckpoints: z.number().int().positive(),
+	maxRepeatedToolCallsPerTask: z.number().int().positive(),
+});
+export type RuntimeSwarmGuardrails = z.infer<typeof runtimeSwarmGuardrailsSchema>;
+
+export const DEFAULT_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = {
+	maxAutonomousTurnsPerTask: RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
+	maxAutonomousWallTimeMs: RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
+	maxRepeatedNoDiffCheckpoints: RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
+	maxRepeatedToolCallsPerTask: RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+};
+
+function clampGuardrailInteger(value: unknown, bounds: { min: number; max: number }, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return fallback;
+	}
+	const truncated = Math.trunc(value);
+	if (truncated < bounds.min) {
+		return bounds.min;
+	}
+	if (truncated > bounds.max) {
+		return bounds.max;
+	}
+	return truncated;
+}
+
+export function normalizeRuntimeSwarmGuardrails(
+	input: Partial<RuntimeSwarmGuardrails> | null | undefined,
+): RuntimeSwarmGuardrails {
+	return {
+		maxAutonomousTurnsPerTask: clampGuardrailInteger(
+			input?.maxAutonomousTurnsPerTask,
+			RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask,
+			DEFAULT_RUNTIME_SWARM_GUARDRAILS.maxAutonomousTurnsPerTask,
+		),
+		maxAutonomousWallTimeMs: clampGuardrailInteger(
+			input?.maxAutonomousWallTimeMs,
+			RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousWallTimeMs,
+			DEFAULT_RUNTIME_SWARM_GUARDRAILS.maxAutonomousWallTimeMs,
+		),
+		maxRepeatedNoDiffCheckpoints: clampGuardrailInteger(
+			input?.maxRepeatedNoDiffCheckpoints,
+			RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints,
+			DEFAULT_RUNTIME_SWARM_GUARDRAILS.maxRepeatedNoDiffCheckpoints,
+		),
+		maxRepeatedToolCallsPerTask: clampGuardrailInteger(
+			input?.maxRepeatedToolCallsPerTask,
+			RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask,
+			DEFAULT_RUNTIME_SWARM_GUARDRAILS.maxRepeatedToolCallsPerTask,
+		),
+	};
+}
+
+export function areRuntimeSwarmGuardrailsEqual(a: RuntimeSwarmGuardrails, b: RuntimeSwarmGuardrails): boolean {
+	return (
+		a.maxAutonomousTurnsPerTask === b.maxAutonomousTurnsPerTask &&
+		a.maxAutonomousWallTimeMs === b.maxAutonomousWallTimeMs &&
+		a.maxRepeatedNoDiffCheckpoints === b.maxRepeatedNoDiffCheckpoints &&
+		a.maxRepeatedToolCallsPerTask === b.maxRepeatedToolCallsPerTask
+	);
 }
 
 export const runtimeAgentTimeoutModeSchema = z.preprocess(
@@ -1773,6 +1851,7 @@ export const runtimeConfigResponseSchema = z.object({
 	// Optional during rollout: the runtime omits it until the config loader populates it (consumers default to
 	// DEFAULT_AGENT_RULESETS_CONFIG). See src/core/agent-rulesets.ts.
 	agentRulesets: agentRulesetsConfigSchema.optional(),
+	swarmGuardrails: runtimeSwarmGuardrailsSchema,
 	commitPromptTemplate: z.string(),
 	openPrPromptTemplate: z.string(),
 	commitPromptTemplateDefault: z.string(),
@@ -1809,6 +1888,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
 	agentRulesets: agentRulesetsConfigSchema.optional(),
+	swarmGuardrails: runtimeSwarmGuardrailsSchema.optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),
 	openPrPromptTemplate: z.string().optional(),

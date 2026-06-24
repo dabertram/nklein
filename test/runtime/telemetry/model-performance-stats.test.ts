@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import {
 	buildModelPerformanceObservation,
 	readModelPerformanceStats,
@@ -49,6 +50,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
 			reviewer: { providerId: "lmstudio", modelId: "deepseek-coder" },
 		},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",

@@ -15,10 +15,11 @@ import {
 	runVerifyTaskAcceptanceCommand,
 } from "../../../src/commands/task";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
-import type {
-	RuntimeBoardColumnId,
-	RuntimeTaskAcceptanceResult,
-	RuntimeWorkspaceStateResponse,
+import {
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	type RuntimeBoardColumnId,
+	type RuntimeTaskAcceptanceResult,
+	type RuntimeWorkspaceStateResponse,
 } from "../../../src/core/api-contract";
 import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
 
@@ -99,6 +100,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 			baseUrl: null,
 		},
 		modelRoles,
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "",
 		openPrPromptTemplate: "",

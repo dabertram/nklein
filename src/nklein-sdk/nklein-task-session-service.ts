@@ -9,18 +9,14 @@ import type {
 	RuntimeModelPerformanceRole,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
+	RuntimeSwarmGuardrails,
 	RuntimeTaskAcceptanceResult,
 	RuntimeTaskImage,
 	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
-import {
-	RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK as NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
-	RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS as NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
-	RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS as NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
-	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
-} from "../core/api-contract";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -201,12 +197,14 @@ function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSummary): bo
 	return DECOMPOSITION_CHAT_REPORT_PATTERN.test(text);
 }
 
-function getRepeatedToolCallLimit(toolName: string): number {
+function getRepeatedToolCallLimit(toolName: string, baseLimit: number): number {
 	const normalized = toolName.trim().toLowerCase();
 	if (normalized === "read_files" || normalized === "run_commands") {
-		return NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD;
+		// Read/search tools legitimately repeat more, so give them extra headroom — but never below the
+		// operator-configured base limit (so raising the base also raises these).
+		return Math.max(NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD, baseLimit);
 	}
-	return RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK;
+	return baseLimit;
 }
 
 /**
@@ -523,6 +521,8 @@ export interface NKleinTaskSessionService {
 	applyTurnCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): RuntimeTaskSessionSummary | null;
 	setBoardPaused(paused: boolean): void;
 	setCardPaused(taskId: string, paused: boolean): void;
+	/** Apply the operator-configurable autonomous-run guardrail limits (Settings → "Local swarm guardrails"). */
+	setSwarmGuardrails(guardrails: RuntimeSwarmGuardrails): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	verifyTaskAcceptanceInSandbox(input: {
 		taskId: string;
@@ -553,6 +553,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** Persist an agent's focus chain (todo §5.N) when it calls `update_focus_chain`. */
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
+	/** Operator-configurable autonomous-run guardrail limits; defaults to DEFAULT_RUNTIME_SWARM_GUARDRAILS. */
+	swarmGuardrails?: RuntimeSwarmGuardrails;
 }
 
 export type CreateInMemoryNKleinTaskSessionServiceOptions =
@@ -862,6 +864,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pauseController: NKleinPauseController;
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
+	private swarmGuardrails: RuntimeSwarmGuardrails;
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<NKleinRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeNKleinTeamProgressEvent) => void>();
 
@@ -888,6 +891,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.onDecompositionApplied = options.onDecompositionApplied;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
+		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 	}
 
 	private async prepareSandboxWorkspace(
@@ -2816,6 +2820,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 	}
 
+	setSwarmGuardrails(guardrails: RuntimeSwarmGuardrails): void {
+		this.swarmGuardrails = normalizeRuntimeSwarmGuardrails(guardrails);
+	}
+
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
 		await this.pauseController.waitUntilResumed(taskId);
 	}
@@ -3062,7 +3070,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				},
 			});
 		}
-		if (checkpoint.turn >= NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK) {
+		if (checkpoint.turn >= this.swarmGuardrails.maxAutonomousTurnsPerTask) {
 			return this.parkTaskForAutonomyBudget({
 				taskId,
 				entry,
@@ -3070,14 +3078,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				metadata: {
 					guardrail: "max_autonomous_turns",
 					turn: checkpoint.turn,
-					limit: NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
+					limit: this.swarmGuardrails.maxAutonomousTurnsPerTask,
 					checkpointRef: checkpoint.ref,
 					checkpointCommit: checkpoint.commit,
 				},
 			});
 		}
 		const noDiffState = this.recordNoDiffCheckpoint(taskId, checkpoint);
-		if (noDiffState.count >= NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS) {
+		if (noDiffState.count >= this.swarmGuardrails.maxRepeatedNoDiffCheckpoints) {
 			return this.parkTaskForAutonomyBudget({
 				taskId,
 				entry,
@@ -3085,7 +3093,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				metadata: {
 					guardrail: "repeated_no_diff_checkpoints",
 					count: noDiffState.count,
-					limit: NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
+					limit: this.swarmGuardrails.maxRepeatedNoDiffCheckpoints,
 					turn: checkpoint.turn,
 					checkpointRef: checkpoint.ref,
 					checkpointCommit: checkpoint.commit,
@@ -3095,7 +3103,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const startedAt = entry.summary.startedAt;
 		const elapsedMs =
 			typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0 ? now() - startedAt : null;
-		if (elapsedMs === null || elapsedMs < NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS) {
+		if (elapsedMs === null || elapsedMs < this.swarmGuardrails.maxAutonomousWallTimeMs) {
 			return null;
 		}
 		return this.parkTaskForAutonomyBudget({
@@ -3105,7 +3113,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			metadata: {
 				guardrail: "max_autonomous_wall_time",
 				elapsedMs,
-				limitMs: NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
+				limitMs: this.swarmGuardrails.maxAutonomousWallTimeMs,
 				turn: checkpoint.turn,
 				checkpointRef: checkpoint.ref,
 				checkpointCommit: checkpoint.commit,
@@ -3145,7 +3153,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						count: 1,
 					};
 		this.repeatedToolCallByTaskId.set(summary.taskId, nextState);
-		const repeatedToolCallLimit = getRepeatedToolCallLimit(nextState.toolName);
+		const repeatedToolCallLimit = getRepeatedToolCallLimit(
+			nextState.toolName,
+			this.swarmGuardrails.maxRepeatedToolCallsPerTask,
+		);
 		if (nextState.count < repeatedToolCallLimit) {
 			return null;
 		}

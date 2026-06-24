@@ -9,6 +9,7 @@ vi.mock("../../../src/terminal/command-discovery.js", () => ({
 }));
 
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import {
 	buildRuntimeConfigResponse,
 	detectInstalledCommands,
@@ -55,6 +56,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 			baseUrl: null,
 		},
 		modelRoles: {},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",

@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
 import type { NKleinModelRegistryEntry } from "../../../src/nklein-sdk/nklein-model-registry";
@@ -372,6 +373,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 			baseUrl: null,
 		},
 		modelRoles: {},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",

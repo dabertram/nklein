@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeTaskSessionSummary, RuntimeWorkspaceStateResponse } from "../../../src/core/api-contract";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-sdk/nklein-acceptance-auto-repair";
 
 const COLUMN_IDS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
@@ -119,6 +120,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 				reasoningEffort: "high",
 			},
 		},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "",
 		openPrPromptTemplate: "",
