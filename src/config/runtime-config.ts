@@ -582,6 +582,25 @@ function hasOwnKey<T extends object>(value: T | null, key: keyof T): boolean {
 	return Object.hasOwn(value, key);
 }
 
+/**
+ * Diff-gated config-file write (todo §5.U DRY finding): persist a scalar field only when it differs from its
+ * default OR the existing file already carried it (so explicit non-default values survive, and defaults stay out
+ * of the file). Collapses the many repetitive `if (hasOwnKey(existing, "x") || x !== DEFAULT_X) payload.x = x`
+ * blocks for simple `===`-comparable fields. (Profile-coupled timeouts and nested-object fields keep their bespoke
+ * comparisons.)
+ */
+function assignChangedConfigField<K extends keyof RuntimeGlobalConfigFileShape>(
+	payload: RuntimeGlobalConfigFileShape,
+	existing: RuntimeGlobalConfigFileShape | null,
+	key: K,
+	value: RuntimeGlobalConfigFileShape[K],
+	defaultValue: RuntimeGlobalConfigFileShape[K],
+): void {
+	if (hasOwnKey(existing, key) || value !== defaultValue) {
+		payload[key] = value;
+	}
+}
+
 export function getRuntimeGlobalConfigPath(): string {
 	return join(getRuntimeHomePath(), CONFIG_FILENAME);
 }
@@ -931,21 +950,21 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.developerModeEnabled = developerModeEnabled;
 	}
-	if (hasOwnKey(existing, "replayCardsEnabled") || replayCardsEnabled !== DEFAULT_REPLAY_CARDS_ENABLED) {
-		payload.replayCardsEnabled = replayCardsEnabled;
-	}
+	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	if (
 		hasOwnKey(existing, "agentAutonomousModeEnabled") ||
 		agentAutonomousModeEnabled !== DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED
 	) {
 		payload.agentAutonomousModeEnabled = agentAutonomousModeEnabled;
 	}
-	if (hasOwnKey(existing, "agentTimeoutMode") || agentTimeoutMode !== DEFAULT_AGENT_TIMEOUT_MODE) {
-		payload.agentTimeoutMode = agentTimeoutMode;
-	}
-	if (hasOwnKey(existing, "agentTimeoutProfile") || agentTimeoutProfile !== DEFAULT_AGENT_TIMEOUT_PROFILE) {
-		payload.agentTimeoutProfile = agentTimeoutProfile;
-	}
+	assignChangedConfigField(payload, existing, "agentTimeoutMode", agentTimeoutMode, DEFAULT_AGENT_TIMEOUT_MODE);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"agentTimeoutProfile",
+		agentTimeoutProfile,
+		DEFAULT_AGENT_TIMEOUT_PROFILE,
+	);
 	if (hasOwnKey(existing, "requestTimeoutMs") || requestTimeoutMs !== defaultTimeouts.requestTimeoutMs) {
 		payload.requestTimeoutMs = requestTimeoutMs;
 	}
@@ -970,12 +989,14 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.maxAgentWritableFileLines = maxAgentWritableFileLines;
 	}
-	if (hasOwnKey(existing, "maxConcurrentTasks") || maxConcurrentTasks !== DEFAULT_MAX_CONCURRENT_TASKS) {
-		payload.maxConcurrentTasks = maxConcurrentTasks;
-	}
-	if (hasOwnKey(existing, "sandboxMaxContainers") || sandboxMaxContainers !== DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS) {
-		payload.sandboxMaxContainers = sandboxMaxContainers;
-	}
+	assignChangedConfigField(payload, existing, "maxConcurrentTasks", maxConcurrentTasks, DEFAULT_MAX_CONCURRENT_TASKS);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxMaxContainers",
+		sandboxMaxContainers,
+		DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+	);
 	if (
 		hasOwnKey(existing, "sandboxAgentsPerContainer") ||
 		sandboxAgentsPerContainer !== DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER
@@ -1000,9 +1021,13 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.sandboxIdleTimeoutMinutes = sandboxIdleTimeoutMinutes;
 	}
-	if (hasOwnKey(existing, "lostHeartbeatPolicy") || lostHeartbeatPolicy !== DEFAULT_LOST_HEARTBEAT_POLICY) {
-		payload.lostHeartbeatPolicy = lostHeartbeatPolicy;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"lostHeartbeatPolicy",
+		lostHeartbeatPolicy,
+		DEFAULT_LOST_HEARTBEAT_POLICY,
+	);
 	if (
 		hasOwnKey(existing, "decompositionAutoApplyEnabled") ||
 		decompositionAutoApplyEnabled !== DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
@@ -1015,9 +1040,7 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.secondOpinionReviewEnabled = secondOpinionReviewEnabled;
 	}
-	if (hasOwnKey(existing, "reviewMaxRounds") || reviewMaxRounds !== DEFAULT_REVIEW_MAX_ROUNDS) {
-		payload.reviewMaxRounds = reviewMaxRounds;
-	}
+	assignChangedConfigField(payload, existing, "reviewMaxRounds", reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
 	if (
 		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
 		readyForReviewNotificationsEnabled !== DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
@@ -1042,12 +1065,20 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.swarmGuardrails = swarmGuardrails;
 	}
-	if (hasOwnKey(existing, "commitPromptTemplate") || commitPromptTemplate !== DEFAULT_COMMIT_PROMPT_TEMPLATE) {
-		payload.commitPromptTemplate = commitPromptTemplate;
-	}
-	if (hasOwnKey(existing, "openPrPromptTemplate") || openPrPromptTemplate !== DEFAULT_OPEN_PR_PROMPT_TEMPLATE) {
-		payload.openPrPromptTemplate = openPrPromptTemplate;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"commitPromptTemplate",
+		commitPromptTemplate,
+		DEFAULT_COMMIT_PROMPT_TEMPLATE,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"openPrPromptTemplate",
+		openPrPromptTemplate,
+		DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+	);
 
 	await lockedFileSystem.writeJsonFileAtomic(configPath, payload, {
 		lock: null,

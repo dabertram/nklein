@@ -839,7 +839,11 @@ deep analysis:
       the existing service. Overlaps §5.A "Isolation polish" (extract sandbox-lifecycle/pause) — do together. Pure
       refactor, no behavior change; lock with the existing suite. (Respects invariants; navigability win per §5.U.)
 
-- [ ] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
+- [~] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
+      *(2026-06-24: first safe slice landed — added `assignChangedConfigField(payload, existing, key, value, default)`
+      and collapsed the 9 simple `===`-comparable diff-gated payload-write blocks to one-liners. Behaviour identical
+      (31 config round-trip tests green). The full field-descriptor registry across the interfaces/resolve/update
+      functions is still owed; profile-coupled timeouts + nested-object fields keep bespoke comparisons.)*
       Every config field is hand-threaded through ~10–14 near-identical sites: 3 interfaces (`*FileShape`/`*State`/
       `*UpdateInput`), the `toRuntimeConfigState` resolve, `writeRuntimeGlobalConfigFile` (param + resolve + diff-gated
       payload), `createRuntimeConfigStateFromValues` (param + return), `toGlobalRuntimeConfigState`, and both
