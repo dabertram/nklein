@@ -679,8 +679,15 @@ deep analysis:
           unique secret token), and the bounded loop terminated safely when the model kept re-reading (4 steps →
           forced final answer). The repeated-read trait is a §5.O small-model robustness note (a fingerprint dedup
           guard, like the NKlein agent's, could later short-circuit it; the bounded loop already makes it safe).
-    - [ ] still owed: a write/mutating tool exercising the `confirm` gate, then wire the tool set into the
-          `nklein chat` CLI (loop+executor+definitions) so the shipped command is tool-using, not just chat.
+    - [x] **tool-using `nklein chat --workspace` + REPL (2026-06-24)** — [src/commands/chat.ts](src/commands/chat.ts):
+          `--workspace <dir>` flips the shipped command to the tool-using path — it offers the read-only workspace
+          tools, builds the policy-gated + audited executor (`isolated_readonly`, `recordChatHostAction` sink), and
+          drives `runChatAgentTurn` (single `--message`, with `toolsUsed` in `--json`) or the new
+          `runChatAgentConversation` REPL (`chat-agent-turn.ts`, surfaces which tools each turn used). Stdin reader
+          extracted to a shared `createStdinLineReader`. Conversation loop unit-tested; **live-verified** end-to-end
+          via the CLI against qwen2.5-coder-14b (the model called `read_file` and answered from the file).
+    - [ ] still owed: a write/mutating chat tool exercising the `confirm` gate (the read-only set is all `allow`),
+          so the confirmation + audit path is exercised by a real tool, not just unit tests.
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.

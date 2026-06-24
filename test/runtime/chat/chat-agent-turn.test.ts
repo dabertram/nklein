@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
-import { runChatAgentTurn } from "../../../src/chat/chat-agent-turn";
+import { runChatAgentConversation, runChatAgentTurn } from "../../../src/chat/chat-agent-turn";
 import { appendChatToolExchange } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
@@ -81,5 +81,38 @@ describe("runChatAgentTurn", () => {
 		);
 		expect(result.steps).toEqual([]);
 		expect(result.assistantMessage.content).toBe("hello there");
+	});
+});
+
+describe("runChatAgentConversation", () => {
+	it("runs a tool-using turn per line, surfaces tools used, and stops at /exit", async () => {
+		const lines = ["read the readme", "", "/exit", "never reached"];
+		let cursor = 0;
+		const output: string[] = [];
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "README.md" } }] },
+			{ text: "It documents the project.", toolCalls: [] },
+		];
+		let turn = 0;
+
+		const taken = await runChatAgentConversation(
+			{ session: session(), tokenBudget: 1000 },
+			{
+				readLine: async () => lines[cursor++] ?? null,
+				write: (text) => output.push(text),
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => ({ callId: call.id, content: "# Project" }),
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+
+		expect(taken).toBe(1);
+		expect(output).toEqual(["  (used: read_file)\n", "It documents the project.\n"]);
 	});
 });

@@ -83,3 +83,53 @@ export async function runChatAgentTurn(
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: loop.finalText });
 	return { userMessage, assistantMessage, steps: loop.steps, context, hitIterationLimit: loop.hitIterationLimit };
 }
+
+export interface ChatAgentConversationDeps extends ChatAgentTurnDeps {
+	/** Read the next user line; resolve null at end-of-input (EOF / closed stream). */
+	readLine: () => Promise<string | null>;
+	/** Emit assistant replies (+ any per-turn notes, e.g. which tools ran). */
+	write: (text: string) => void;
+}
+
+/**
+ * Interactive tool-using conversation (the agent-loop analog of `runChatConversation`): read a line, run a full
+ * tool-using turn against the session, surface which tools ran, emit the final reply, repeat until EOF or `/exit`.
+ * Blank lines are skipped. Returns the number of turns taken. I/O is injected so it's unit-testable; the CLI wires
+ * stdin/stdout.
+ */
+export async function runChatAgentConversation(
+	input: { session: ChatSession; tokenBudget: number; memoryLimit?: number; maxIterations?: number },
+	deps: ChatAgentConversationDeps,
+): Promise<number> {
+	let turns = 0;
+	while (true) {
+		const line = await deps.readLine();
+		if (line === null) {
+			break;
+		}
+		const userMessage = line.trim();
+		if (userMessage.length === 0) {
+			continue;
+		}
+		if (userMessage === "/exit" || userMessage === "/quit") {
+			break;
+		}
+		const result = await runChatAgentTurn(
+			{
+				session: input.session,
+				userMessage,
+				tokenBudget: input.tokenBudget,
+				...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
+				...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
+			},
+			deps,
+		);
+		if (result.steps.length > 0) {
+			const toolNames = result.steps.map((step) => step.toolCall.name).join(", ");
+			deps.write(`  (used: ${toolNames})\n`);
+		}
+		deps.write(`${result.assistantMessage.content}\n`);
+		turns += 1;
+	}
+	return turns;
+}

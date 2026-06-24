@@ -1,10 +1,15 @@
+import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
-import { createChatModelDeps } from "../chat/chat-local-llm-adapter";
+import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
+import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
+import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { readChatMemories } from "../chat/chat-memory-store";
 import { type ChatRuntimeDeps, runChatConversation, runChatTurn } from "../chat/chat-runtime";
 import { createChatSession, getChatSession } from "../chat/chat-session-store";
+import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
+import { createWorkspaceReadTools } from "../chat/chat-workspace-tools";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
 
 /**
@@ -48,8 +53,46 @@ interface ChatSendOptions {
 	model?: string;
 	provider?: string;
 	tokenBudget?: number;
+	/** When set, the chat is tool-using: read-only workspace tools rooted at this directory are offered to the model. */
+	workspace?: string;
 	json?: boolean;
 	write?: (text: string) => void;
+}
+
+const DEFAULT_CHAT_AGENT_MAX_ITERATIONS = 6;
+
+/** A line reader over stdin for the interactive REPL, with a `close` to release the readline interface. */
+function createStdinLineReader(): { readLine: () => Promise<string | null>; close: () => void } {
+	const rl = createInterface({ input: process.stdin });
+	const queued: string[] = [];
+	const waiters: Array<(line: string | null) => void> = [];
+	let closed = false;
+	rl.on("line", (line) => {
+		const waiter = waiters.shift();
+		if (waiter) {
+			waiter(line);
+		} else {
+			queued.push(line);
+		}
+	});
+	rl.on("close", () => {
+		closed = true;
+		for (const waiter of waiters.splice(0)) {
+			waiter(null);
+		}
+	});
+	const readLine = (): Promise<string | null> =>
+		new Promise((resolveLine) => {
+			const next = queued.shift();
+			if (next !== undefined) {
+				resolveLine(next);
+			} else if (closed) {
+				resolveLine(null);
+			} else {
+				waiters.push(resolveLine);
+			}
+		});
+	return { readLine, close: () => rl.close() };
 }
 
 export async function runChatSendCommand(options: ChatSendOptions = {}): Promise<void> {
@@ -73,8 +116,78 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 
 	// LocalLlmClient fails closed against cloud (invariant #1) in its constructor.
 	const client = new LocalLlmClient({ providerId, modelId, baseUrl });
-	const modelDeps = createChatModelDeps(client);
 	const tokenBudget = options.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
+	const message = options.message?.trim();
+
+	// Tool-using path: `--workspace` offers the read-only workspace tools (sandbox_read; isolated_readonly mode) and
+	// drives the multi-turn agent loop through the policy-gated + audited executor (the §5.M host-access invariant).
+	if (options.workspace) {
+		const workspaceRoot = resolve(options.workspace);
+		const { tools, definitions } = createWorkspaceReadTools(workspaceRoot);
+		const executeTool = createGatedChatToolExecutor({
+			sessionId: session.id,
+			mode: "isolated_readonly",
+			tools,
+			recordAudit: async (record) => {
+				await recordChatHostAction({ ...record });
+			},
+		});
+		const agentDeps: ChatAgentTurnDeps = {
+			readTranscript: (sessionId) => readChatTranscript(sessionId),
+			readMemories: () => readChatMemories(),
+			appendMessage: (sessionId, input) => appendChatMessage(sessionId, input),
+			summarize: createChatModelDeps(client).summarize,
+			estimateTokens: estimateChatTokens,
+			model: createChatAgentModel(client, definitions),
+			executeTool,
+			appendToolExchange: appendChatToolExchange,
+		};
+
+		if (message) {
+			const result = await runChatAgentTurn(
+				{
+					session,
+					userMessage: message,
+					tokenBudget,
+					memoryLimit: 5,
+					maxIterations: DEFAULT_CHAT_AGENT_MAX_ITERATIONS,
+				},
+				agentDeps,
+			);
+			if (options.json) {
+				const toolsUsed = result.steps.map((step) => step.toolCall.name);
+				write(
+					`${JSON.stringify({ sessionId: session.id, reply: result.assistantMessage.content, toolsUsed }, null, 2)}\n`,
+				);
+				return;
+			}
+			write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
+			write(`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}\n\n`);
+			if (result.steps.length > 0) {
+				write(`  (used: ${result.steps.map((step) => step.toolCall.name).join(", ")})\n`);
+			}
+			write(`${result.assistantMessage.content}\n`);
+			return;
+		}
+
+		write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
+		write(
+			`Model: ${providerId}:${modelId}  ·  tools: ${tools.map((tool) => tool.name).join(", ")}  ·  type /exit to quit\n`,
+		);
+		const reader = createStdinLineReader();
+		try {
+			await runChatAgentConversation(
+				{ session, tokenBudget, memoryLimit: 5, maxIterations: DEFAULT_CHAT_AGENT_MAX_ITERATIONS },
+				{ ...agentDeps, readLine: reader.readLine, write },
+			);
+		} finally {
+			reader.close();
+		}
+		return;
+	}
+
+	// Plain completion path (no tools).
+	const modelDeps = createChatModelDeps(client);
 	const runtimeDeps: ChatRuntimeDeps = {
 		readTranscript: (sessionId) => readChatTranscript(sessionId),
 		readMemories: () => readChatMemories(),
@@ -83,7 +196,6 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 		estimateTokens: estimateChatTokens,
 	};
 
-	const message = options.message?.trim();
 	if (message) {
 		const result = await runChatTurn({ session, userMessage: message, tokenBudget, memoryLimit: 5 }, runtimeDeps);
 		if (options.json) {
@@ -99,39 +211,14 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 	// Interactive REPL (no --message): converse until EOF (Ctrl-D) or `/exit`.
 	write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
 	write(`Model: ${providerId}:${modelId}  ·  type /exit to quit\n`);
-	const rl = createInterface({ input: process.stdin });
-	const queued: string[] = [];
-	const waiters: Array<(line: string | null) => void> = [];
-	let closed = false;
-	rl.on("line", (line) => {
-		const waiter = waiters.shift();
-		if (waiter) {
-			waiter(line);
-		} else {
-			queued.push(line);
-		}
-	});
-	rl.on("close", () => {
-		closed = true;
-		for (const waiter of waiters.splice(0)) {
-			waiter(null);
-		}
-	});
-	const readLine = (): Promise<string | null> =>
-		new Promise((resolve) => {
-			const next = queued.shift();
-			if (next !== undefined) {
-				resolve(next);
-			} else if (closed) {
-				resolve(null);
-			} else {
-				waiters.push(resolve);
-			}
-		});
+	const reader = createStdinLineReader();
 	try {
-		await runChatConversation({ session, tokenBudget, memoryLimit: 5 }, { ...runtimeDeps, readLine, write });
+		await runChatConversation(
+			{ session, tokenBudget, memoryLimit: 5 },
+			{ ...runtimeDeps, readLine: reader.readLine, write },
+		);
 	} finally {
-		rl.close();
+		reader.close();
 	}
 }
 
@@ -149,6 +236,10 @@ export function registerChatCommand(program: Command): void {
 		.option("--model <id>", "Model id. Defaults to the loaded model discovered from the endpoint.")
 		.option("--provider <id>", "Local provider id. Defaults to lmstudio.")
 		.option("--token-budget <n>", "Lean-window token budget.", (value) => Number.parseInt(value, 10))
+		.option(
+			"--workspace <dir>",
+			"Make the chat tool-using: offer read-only workspace tools (read_file/list_dir) rooted at this directory.",
+		)
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: ChatSendOptions) => {
 			await runChatSendCommand(options);
