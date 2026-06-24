@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeModelPerformanceRole } from "../core/api-contract";
+import type { FocusChainSummary } from "../core/focus-chain";
 
 /**
  * Durable terminal task-run summaries (follow-up-6 §3.6, §4.2).
@@ -44,6 +45,8 @@ export interface TaskRunSummaryRecord {
 	role?: RuntimeModelPerformanceRole;
 	/** Dev-test scenario id (todo §5.C), for by-scenario timeout breakdowns during sweeps; null for ordinary runs. */
 	scenario?: string | null;
+	/** Snapshot of the agent's focus-chain progress at run end (todo §5.N), if it drafted one; absent otherwise. */
+	focusChain?: FocusChainSummary | null;
 	patchCaptureStatus: string | null;
 }
 

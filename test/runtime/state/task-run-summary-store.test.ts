@@ -70,6 +70,23 @@ describe("task-run-summary-store", () => {
 		expect(limited).toHaveLength(1);
 	});
 
+	it("round-trips the agent focus-chain progress snapshot (todo §5.N)", async () => {
+		await recordTaskRunSummary(
+			baseInput({
+				taskId: "with-chain",
+				focusChain: { total: 4, done: 2, inProgress: 1, pending: 1, skipped: 0, complete: false },
+			}),
+			{ rootDir },
+		);
+		await recordTaskRunSummary(baseInput({ taskId: "no-chain", endedAt: 5 }), { rootDir });
+
+		const summaries = await readTaskRunSummaries({ workspacePath: "/repo", rootDir });
+		const withChain = summaries.find((record) => record.taskId === "with-chain");
+		const noChain = summaries.find((record) => record.taskId === "no-chain");
+		expect(withChain?.focusChain).toMatchObject({ total: 4, done: 2, complete: false });
+		expect(noChain?.focusChain ?? null).toBeNull();
+	});
+
 	it("returns an empty list when no runs exist", async () => {
 		expect(await readTaskRunSummaries({ workspacePath: "/missing", rootDir })).toEqual([]);
 	});

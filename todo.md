@@ -581,7 +581,13 @@ deep analysis:
   - [x] reviewer checks the worker followed/owned its chain (seed prompt includes it; flags unfinished/mismatched steps)
   - [x] re-anchor the chain into context on long runs/after compaction (`reanchorFocusChainMessages`, `beforeModel` hook)
   - [ ] user view/edit/reorder/add steps from the UI
-  - [ ] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
+  - [~] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
+    - [x] **carry the chain into the run summary (2026-06-24)** — the session service tracks each task's latest
+          focus chain (`focusChainByTaskId`) and stamps a `FocusChainSummary` (total/done/in-progress/pending/
+          skipped/complete) onto the terminal `TaskRunSummaryRecord`; absent when no chain was drafted. Unit-tested
+          (store round-trip).
+    - [ ] per-step timing/telemetry
+    - [ ] link a step to the files/cards it touched
 - [ ] **Reference & parity** — match Cline/Claude-Code/Cursor focus-chain ergonomics (visible work-through; later user nudge/edit)
 
 ### 5.O — Robustness sweeps: harden across model sizes/families/quants + parallelism *(raised 2026-06-23)*

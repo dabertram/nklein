@@ -18,7 +18,7 @@ import type {
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
-import type { FocusChain } from "../core/focus-chain";
+import { type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import {
@@ -865,6 +865,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
+	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
+	private readonly focusChainByTaskId = new Map<string, FocusChain>();
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<NKleinRuntimeSetupLease>>();
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeNKleinTeamProgressEvent) => void>();
 
@@ -1082,9 +1084,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			toolPolicies: runtimeSetup.toolPolicies,
 			onDecompositionApplied: this.onDecompositionApplied,
 			onReviewSubmitted: input.onReviewSubmitted,
-			onFocusChainUpdated: this.onFocusChainUpdated
-				? (chain) => this.onFocusChainUpdated?.(input.taskId, chain)
-				: undefined,
+			onFocusChainUpdated: (chain) => {
+				this.focusChainByTaskId.set(input.taskId, chain);
+				void this.onFocusChainUpdated?.(input.taskId, chain);
+			},
 			onTeamEvent: (event, teamName) => {
 				this.emitTeamProgress(input.taskId, event, teamName);
 			},
@@ -2247,9 +2250,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
-					onFocusChainUpdated: this.onFocusChainUpdated
-						? (chain) => this.onFocusChainUpdated?.(request.taskId, chain)
-						: undefined,
+					onFocusChainUpdated: (chain) => {
+						this.focusChainByTaskId.set(request.taskId, chain);
+						void this.onFocusChainUpdated?.(request.taskId, chain);
+					},
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);
 					},
@@ -3368,6 +3372,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxBaseRefByTaskId.clear();
 		this.finalizingSandboxReviewTaskIds.clear();
 		this.taskResultBranchByTaskId.clear();
+		this.focusChainByTaskId.clear();
 		this.teamProgressListeners.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
 		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
@@ -3442,6 +3447,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			timeoutSource,
 			role,
 			scenario,
+			focusChain: this.focusChainByTaskId.has(taskId)
+				? summarizeFocusChain(this.focusChainByTaskId.get(taskId))
+				: null,
 			patchCaptureStatus: null,
 		});
 	}
@@ -3450,6 +3458,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxRepoPathByTaskId.delete(taskId);
 		this.sandboxBaseRefByTaskId.delete(taskId);
 		this.finalizingSandboxReviewTaskIds.delete(taskId);
+		this.focusChainByTaskId.delete(taskId);
 	}
 
 	private emitMessage(taskId: string, message: NKleinTaskMessage): void {
