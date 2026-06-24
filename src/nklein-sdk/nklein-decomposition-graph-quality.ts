@@ -51,16 +51,20 @@ function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
 	return patterns.some((pattern) => pattern.test(text));
 }
 
+/** Test-card signals in a card *title* (the card's declared intent). */
 const TEST_PATTERNS: readonly RegExp[] = [
 	/\btests?\b/,
 	/\bspec(s)?\b/,
 	/\bacceptance\b/,
 	/\bverif(y|ication|ies)\b/,
 	/\bcoverage\b/,
-	/\.(test|spec)\.[a-z]+/,
-	/(^|\/)tests?\//,
+	/\bgolden\b/,
 ];
 
+/** Likely-touched paths that are themselves test files (the file-level "this is a test card" signal). */
+const TEST_FILE_PATTERNS: readonly RegExp[] = [/\.(test|spec)\.[a-z]+$/, /(^|\/)(tests?|__tests__|e2e)\//];
+
+/** Docs-card signals in a card *title*. */
 const DOCS_PATTERNS: readonly RegExp[] = [
 	/\breadme\b/,
 	/\bdocs?\b/,
@@ -68,6 +72,14 @@ const DOCS_PATTERNS: readonly RegExp[] = [
 	/\bchangelog\b/,
 	/\busage notes?\b/,
 ];
+
+/** Likely-touched paths that are themselves documentation files. */
+const DOCS_FILE_PATTERNS: readonly RegExp[] = [/(^|\/)docs?\//, /\breadme\b/, /\.md$/];
+
+/** True only when the card touches files and *every* one of them matches the given (file) patterns. */
+function allFilesMatch(files: readonly string[], patterns: readonly RegExp[]): boolean {
+	return files.length > 0 && files.every((file) => matchesAny(file.toLowerCase(), patterns));
+}
 
 const UI_PATTERNS: readonly RegExp[] = [/\bui\b/, /\buser interface\b/, /\bfrontend\b/, /\bgui\b/];
 
@@ -89,8 +101,17 @@ const DOMAIN_CORE_PATTERNS: readonly RegExp[] = [
 
 function classifyTask(task: NKleinPlanTask): ClassifiedTask {
 	const text = taskText(task);
-	const isTest = matchesAny(text, TEST_PATTERNS);
-	const isDocs = matchesAny(text, DOCS_PATTERNS);
+	const titleText = task.title.toLowerCase();
+	// Classify *test* / *docs* cards by their identity — the title and the files they touch — NOT the prompt body.
+	// Implementation prompts routinely say things like "keep the existing tests passing" or "ensure compatibility
+	// with x.test.js", and a domain spec can repeat "tests must depend on implementation" across every card. Matching
+	// those in the prompt body wrongly reclassified the *implementation* card as a test/docs card, producing an
+	// impossible "test card must depend on an implementation card" violation that the decomposer then looped on
+	// forever (evidence: the DAW-foundation dev run where "Implement TempoMap class … timebase.test.js" — touching
+	// `src/timebase.ts` — was flagged as a test card). A card is a test/docs card only when its title declares that
+	// intent, or when *every* file it touches is itself a test/docs file.
+	const isTest = matchesAny(titleText, TEST_PATTERNS) || allFilesMatch(task.filesLikelyTouched, TEST_FILE_PATTERNS);
+	const isDocs = matchesAny(titleText, DOCS_PATTERNS) || allFilesMatch(task.filesLikelyTouched, DOCS_FILE_PATTERNS);
 	// A test/docs card is not also treated as the implementation/domain work it depends on.
 	const isUi = !isTest && !isDocs && matchesAny(text, UI_PATTERNS);
 	const isDomainCore = !isTest && !isDocs && matchesAny(text, DOMAIN_CORE_PATTERNS);

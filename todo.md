@@ -381,6 +381,24 @@ deep analysis:
   - [ ] still owed: the fresh-config dogfood telemetry-diff day (needs a real multi-card run on the in-use model).
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
+> **PRIORITY PIVOT (2026-06-24, user):** *"postpone the work on monoliths until later and continue with making !Klein
+> actually work."* §5.U (monolith decomposition) is parked mid-flight (lots already landed — task.ts −20%, runtime-api
+> −17%, provider-service −13%, card-detail-view −55%, project-navigation-panel −47%, all green + committed). Focus now:
+> fix the **weird errors/behaviours in planning**, and the new **decompose-graph visualization** below.
+- [x] **Decompose no longer loops on an implementation card whose prompt mentions tests** *(DONE 2026-06-24, from a real
+      DAW-foundation decompose evidence bundle)* — `assessNKleinPlanTaskGraphQuality` classified test/docs cards from the
+      *whole prompt body*, so "Implement TempoMap class … ensure compatibility with timebase.test.js" (touching
+      `src/timebase.ts`) was flagged a **test card** with an impossible "must depend on an implementation card" violation
+      → the decomposer re-submitted against the contradiction until it stalled ("why did processing stall?"). Fix: classify
+      test/docs by **title + touched-files** (the card's identity), not the prompt body. Regression-tested
+      ([nklein-decomposition-graph-quality.test.ts](test/runtime/nklein-sdk/nklein-decomposition-graph-quality.test.ts)).
+- [ ] **Render the decompose graph visually in chat (incl. on validation errors)** *(raised 2026-06-24, user)* — when the
+      agent calls `decompose_project`, show the **proposed task-graph DAG** visually in the chat (nodes = cards, edges =
+      `dependsOn`), and **also render it when the graph fails validation** so the user can see *what* graph the agent
+      proposed and where the bad/missing edges are. Helps debug the "weird planning behaviours" directly from the chat.
+- [ ] **(follow-up) loop-resilience for decompose validation failures** — even with correct classification, a genuinely
+      invalid graph re-submitted with slightly-varied inputs slips past the full-input repeated-call guard. Consider a
+      per-task "decompose validation failed N times" breaker that surfaces the blocker to the user instead of looping.
 - [ ] **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix)* —
       the user's workflow idea: **all** started cards should pass through **Planning** first (rename the lane in spirit
       to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the agent **re-validates the

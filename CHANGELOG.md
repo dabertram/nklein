@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Decomposition no longer loops forever on an implementation card whose prompt mentions tests.** The plan-graph quality check enforces that a *test* card must depend on the implementation it verifies — but it was classifying cards as "test"/"docs" from the whole prompt body, so an **implementation** card like *"Implement TempoMap class with PPQ-based timing … ensure compatibility with timebase.test.js"* (touching `src/timebase.ts`) was flagged as a test card with an impossible-to-satisfy "must depend on an implementation card" violation. The decomposer kept re-submitting against that contradiction until it stalled. Classification now keys off the card's **title and the files it touches** (its identity), not the cross-cutting "keep tests passing" / "golden tests" instructions in the prompt body — so implementation cards stay implementation cards while genuine test cards (titled about testing, or touching only `*.test.*`/`*.spec.*`/`tests/` files) are still required to depend on what they verify.
+
 - **Trash now sits below Completed** instead of taking a full sixth board column — it's stacked under Completed in the same slot at about a fifth of the height, freeing horizontal room for the active lanes.
 
 - **Starting a task now moves its card out of Backlog** (into Planning or In Progress) on the server, so the board always reflects that the agent is working — a card no longer sits in **Backlog** while its agent runs. Previously only sending follow-up input (or resuming) reconciled the lane, so a task started without the web-ui's own optimistic move (e.g. a dev-test seed started programmatically) stayed in Backlog with live agent activity behind it.
