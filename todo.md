@@ -1179,7 +1179,10 @@ deep analysis:
       fitting §5 section (or a new one), with enough spec to be landable independently and a note on which invariant(s)
       it touches. Cross-link duplicates to §5.R / §5.P / §5.A. *(2026-06-24: wrote 3 concrete findings — DRY the
       runtime-config field plumbing, decompose `runtime-settings-dialog.tsx`, persist launch role on the summary —
-      alongside the 2 earlier seed findings. The full whole-codebase pass is still owed.)*
+      alongside the 2 earlier seed findings; then a **monolith-file inventory** promoting ~6 more oversized files to
+      landable decomposition items (task.ts, runtime-api.ts, provider-service, card-detail-view, project-nav-panel, +
+      a lower-priority list). The full whole-codebase pass — data-flow, hot-paths, extension points, dead code — is
+      still owed.)*
 - [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
 
 > **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
@@ -1309,6 +1312,30 @@ deep analysis:
       editor, the model-roles block, the sandbox-pool fields, the timeouts) into focused `*-settings-panel.tsx`
       components that own their inputs and expose `value`/`onChange`, shrinking the dialog to composition. web-ui-only
       navigability win; lock with the existing dialog suite.
+- [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
+      large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
+      (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
+      decomposition item — extract cohesive sub-modules, no behavior change, locked by the existing suites:
+  - [ ] **`src/commands/task.ts` (~2870)** — the `nklein task` CLI conflates many concerns: acceptance-failure +
+        plan-gap classification/evidence, decomposition routing + rejection recording, NKlein-settings build/format
+        helpers, task-command target/workspace resolution, the tRPC client factory, and ~a dozen subcommand
+        registrations. Split into `commands/task/` (e.g. `task-acceptance-plan-gap.ts`, `task-nklein-settings.ts`,
+        `task-target-resolution.ts`, per-subcommand registration files) with `task.ts` as the thin registrar.
+  - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
+        (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
+        (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
+        `chat-service`) composed into the returned object; mirrors the `CreateRuntimeApiDependencies` seam.
+  - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989)** — provider selection + OAuth (nklein/oca/codex) +
+        MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
+  - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
+        many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract the
+        skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.
+  - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
+        §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
+        dev-scenario/self-improvement block, and the per-project actions menu.
+  - [ ] *(also large, lower priority): `web-ui/src/App.tsx` (~1350, composition root — extract more orchestration into
+        hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), `nklein-decomposition-tool.ts` (~1440),
+        `nklein-session-runtime.ts` (~1421), `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.
 - [x] **Persist the resolved launch role on the session summary** *(DONE 2026-06-24)* — added an optional `role`
       (`RuntimeModelPerformanceRole`) to `runtimeTaskSessionSummarySchema`, stamped at task start (the `entry.summary`
       chokepoint, persisting through `updateSummary`'s spread) via a shared `resolveNKleinTaskRole(taskId,
