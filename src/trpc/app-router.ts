@@ -4,6 +4,7 @@
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { createAsyncQueue } from "../chat/async-queue.js";
 import type {
 	RuntimeCommandRunRequest,
 	RuntimeCommandRunResponse,
@@ -282,6 +283,7 @@ import type {
 	RuntimeChatSendMessageRequest,
 	RuntimeChatSendMessageResponse,
 	RuntimeChatSession,
+	RuntimeChatStreamEvent,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract.js";
 import {
@@ -516,7 +518,10 @@ export interface RuntimeTrpcContext {
 		updateChatSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 		deleteChatSession: (id: string) => Promise<boolean>;
 		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
-		sendChatMessage: (input: RuntimeChatSendMessageRequest) => Promise<RuntimeChatSendMessageResponse>;
+		sendChatMessage: (
+			input: RuntimeChatSendMessageRequest,
+			onToken?: (delta: string) => void,
+		) => Promise<RuntimeChatSendMessageResponse>;
 	};
 	workspaceApi: {
 		loadGitSummary: (
@@ -1025,6 +1030,22 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.sendChatMessage(input);
 			}),
+		streamMessage: t.procedure.input(runtimeChatSendMessageRequestSchema).subscription(async function* ({
+			ctx,
+			input,
+		}) {
+			// Bridge the model's push-style onToken into this pull-style generator via an async queue, so tokens
+			// stream to the client as SSE while the turn runs; the terminal `done` carries the persisted messages.
+			const queue = createAsyncQueue<RuntimeChatStreamEvent>();
+			void ctx.runtimeApi
+				.sendChatMessage(input, (delta) => queue.push({ type: "token", delta }))
+				.then((result) => {
+					queue.push({ type: "done", userMessage: result.userMessage, assistantMessage: result.assistantMessage });
+					queue.close();
+				})
+				.catch((error) => queue.fail(error));
+			yield* queue;
+		}),
 	}),
 	workspace: t.router({
 		getGitSummary: workspaceProcedure

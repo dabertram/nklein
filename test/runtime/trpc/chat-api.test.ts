@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createChatService } from "../../../src/chat/chat-service";
 import { appendChatMessage } from "../../../src/chat/chat-transcript-store";
+import type { RuntimeChatStreamEvent } from "../../../src/core/chat-api-contract";
 import { type RuntimeTrpcContext, runtimeAppRouter } from "../../../src/trpc/app-router";
 
 /**
@@ -14,7 +15,15 @@ import { type RuntimeTrpcContext, runtimeAppRouter } from "../../../src/trpc/app
 function makeContext(rootDir: string): RuntimeTrpcContext {
 	const service = createChatService({
 		rootDir,
-		resolveModelDeps: async () => ({ complete: async () => "Acknowledged.", summarize: async () => "" }),
+		resolveModelDeps: async () => ({
+			// Stream the reply in two deltas so the streaming subscription has multiple token events to emit.
+			complete: async (_prompt, onToken) => {
+				onToken?.("Ack");
+				onToken?.("nowledged.");
+				return "Acknowledged.";
+			},
+			summarize: async () => "",
+		}),
 	});
 	// Only the chat methods are exercised; the rest of the context is unused by the chat procedures.
 	return {
@@ -27,8 +36,8 @@ function makeContext(rootDir: string): RuntimeTrpcContext {
 			updateChatSession: service.updateSession,
 			deleteChatSession: (id: string) => service.deleteSession(id),
 			readChatTranscript: (sessionId: string, limit?: number) => service.readTranscript(sessionId, limit),
-			sendChatMessage: async (input: { sessionId: string; message: string }) => {
-				const result = await service.sendMessage(input);
+			sendChatMessage: async (input: { sessionId: string; message: string }, onToken?: (delta: string) => void) => {
+				const result = await service.sendMessage(input, onToken);
 				return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
 			},
 		},
@@ -114,5 +123,31 @@ describe("chat tRPC sub-router", () => {
 		const missing = await caller.chat.sendMessage({ sessionId: "nope", message: "hi" });
 		expect(missing.userMessage).toBeNull();
 		expect(missing.assistantMessage).toBeNull();
+	});
+
+	it("streams token events then a terminal done over the streamMessage subscription", async () => {
+		const caller = runtimeAppRouter.createCaller(makeContext(rootDir));
+		const created = await caller.chat.createSession({ title: "Stream" });
+		const sessionId = created.session?.id ?? "";
+
+		const events: RuntimeChatStreamEvent[] = [];
+		// createCaller returns the subscription's async generator directly.
+		const stream = await caller.chat.streamMessage({ sessionId, message: "go" });
+		for await (const event of stream) {
+			events.push(event);
+		}
+
+		const tokens = events.flatMap((event) => (event.type === "token" ? [event.delta] : []));
+		expect(tokens).toEqual(["Ack", "nowledged."]);
+		const done = events.at(-1);
+		expect(done?.type).toBe("done");
+		if (done?.type !== "done") {
+			throw new Error("expected a terminal done event");
+		}
+		expect(done.assistantMessage?.content).toBe("Acknowledged.");
+
+		// The turn was persisted, so the transcript now has the user + assistant messages.
+		const transcript = await caller.chat.getTranscript({ sessionId });
+		expect(transcript.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
 	});
 });

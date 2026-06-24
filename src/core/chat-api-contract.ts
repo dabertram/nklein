@@ -101,3 +101,14 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 	assistantMessage: runtimeChatMessageSchema.nullable(),
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
+
+/** Events emitted by the `chat.streamMessage` subscription: incremental tokens, then a terminal `done`. */
+export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("token"), delta: z.string() }),
+	z.object({
+		type: z.literal("done"),
+		userMessage: runtimeChatMessageSchema.nullable(),
+		assistantMessage: runtimeChatMessageSchema.nullable(),
+	}),
+]);
+export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;

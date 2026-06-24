@@ -2435,8 +2435,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		updateChatSession: (input) => chatService.updateSession(input),
 		deleteChatSession: (id) => chatService.deleteSession(id),
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
-		sendChatMessage: async (input) => {
-			const result = await chatService.sendMessage(input);
+		sendChatMessage: async (input, onToken) => {
+			const result = await chatService.sendMessage(input, onToken);
 			return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
 		},
 	};

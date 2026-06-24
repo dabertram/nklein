@@ -67,13 +67,17 @@ export interface ChatService {
 	deleteSession: (id: string) => Promise<boolean>;
 	readTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
 	/** Run one chat turn against a session (composes memory + goal, calls the model, persists both messages).
-	 *  Returns null when the session doesn't exist; throws when no model is configured. */
-	sendMessage: (input: {
-		sessionId: string;
-		message: string;
-		tokenBudget?: number;
-		memoryLimit?: number;
-	}) => Promise<ChatSendResult | null>;
+	 *  Returns null when the session doesn't exist; throws when no model is configured. `onToken` (server-side only;
+	 *  callbacks can't cross the tRPC wire) streams the assistant reply incrementally when the model supports it. */
+	sendMessage: (
+		input: {
+			sessionId: string;
+			message: string;
+			tokenBudget?: number;
+			memoryLimit?: number;
+		},
+		onToken?: (delta: string) => void,
+	) => Promise<ChatSendResult | null>;
 }
 
 const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
@@ -133,7 +137,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			});
 			return messages.map(toRuntimeChatMessage);
 		},
-		sendMessage: async (input) => {
+		sendMessage: async (input, onToken) => {
 			if (!options.resolveModelDeps) {
 				throw new Error("This chat service is read-only: no model is configured for sending messages.");
 			}
@@ -148,6 +152,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					userMessage: input.message,
 					tokenBudget: input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET,
 					memoryLimit: input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT,
+					...(onToken ? { onToken } : {}),
 				},
 				{
 					readTranscript: (sessionId) => readChatTranscript(sessionId, transcriptOptions),

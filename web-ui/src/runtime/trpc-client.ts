@@ -1,5 +1,5 @@
 import type { RuntimeAppRouter } from "@runtime-trpc";
-import { createTRPCProxyClient, httpBatchLink, TRPCClientError } from "@trpc/client";
+import { createTRPCProxyClient, httpBatchLink, httpSubscriptionLink, splitLink, TRPCClientError } from "@trpc/client";
 
 const WORKSPACE_ID_HEADER = "x-nklein-workspace-id";
 
@@ -18,11 +18,14 @@ export function getRuntimeTrpcClient(workspaceId: string | null): RuntimeTrpcCli
 	if (existing) {
 		return existing;
 	}
+	const headers = () => (workspaceId ? { [WORKSPACE_ID_HEADER]: workspaceId } : {});
 	const created = createTRPCProxyClient<RuntimeAppRouter>({
 		links: [
-			httpBatchLink({
-				url: "/api/trpc",
-				headers: () => (workspaceId ? { [WORKSPACE_ID_HEADER]: workspaceId } : {}),
+			// Subscriptions (e.g. chat token streaming, todo §5.M) go over SSE; everything else stays batched HTTP.
+			splitLink({
+				condition: (op) => op.type === "subscription",
+				true: httpSubscriptionLink({ url: "/api/trpc" }),
+				false: httpBatchLink({ url: "/api/trpc", headers }),
 			}),
 		],
 	});

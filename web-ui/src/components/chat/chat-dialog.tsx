@@ -109,8 +109,9 @@ function SessionHeader({
 /**
  * Board-independent chat surface (todo §5.M) — a dialog over the `chat` tRPC sub-router: a session list on the
  * left (create / select / delete), the selected session's transcript on the right, and a composer that sends a
- * turn to the local model. Styling follows the design system (Tailwind tokens + UI primitives). The live turn is
- * non-streaming for now (the reply arrives whole); streaming is a later refinement.
+ * turn to the local model. The reply streams in token-by-token over the SSE subscription (an optimistic user
+ * bubble + a growing assistant bubble), then the persisted transcript replaces the placeholders. Styling follows
+ * the design system (Tailwind tokens + UI primitives).
  */
 
 function SessionRow({
@@ -191,10 +192,10 @@ export function ChatDialog({
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
 
-	// Keep the latest message in view as the transcript grows.
+	// Keep the latest message in view as the transcript grows and as the reply streams in.
 	useEffect(() => {
 		transcriptEndRef.current?.scrollIntoView({ block: "end" });
-	}, [chat.transcript]);
+	}, [chat.transcript, chat.streamingText]);
 
 	const handleSubmit = (event: FormEvent): void => {
 		event.preventDefault();
@@ -274,10 +275,36 @@ export function ChatDialog({
 								{chat.transcript.map((message) => (
 									<MessageBubble key={message.id} message={message} />
 								))}
-								{chat.sending ? (
-									<div className="flex items-center gap-2 text-[12px] text-text-tertiary">
-										<Spinner size={14} /> Thinking…
-									</div>
+								{/* Optimistic user bubble while the turn is in flight (before the transcript catches up). */}
+								{chat.pendingUserText !== null ? (
+									<MessageBubble
+										message={{
+											id: "pending-user",
+											role: "user",
+											content: chat.pendingUserText,
+											createdAt: 0,
+										}}
+									/>
+								) : null}
+								{/* The assistant reply as it streams; show a spinner until the first token lands. */}
+								{chat.streamingText !== null ? (
+									chat.streamingText.length === 0 ? (
+										<div
+											className="flex items-center gap-2 text-[12px] text-text-tertiary"
+											data-testid="chat-streaming"
+										>
+											<Spinner size={14} /> Thinking…
+										</div>
+									) : (
+										<MessageBubble
+											message={{
+												id: "streaming",
+												role: "assistant",
+												content: chat.streamingText,
+												createdAt: 0,
+											}}
+										/>
+									)
 								) : null}
 								<div ref={transcriptEndRef} />
 							</div>

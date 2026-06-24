@@ -23,6 +23,10 @@ export interface UseChatDataResult {
 	transcript: RuntimeChatMessage[];
 	transcriptLoading: boolean;
 	sending: boolean;
+	/** The user message being sent, shown optimistically until the persisted transcript catches up. */
+	pendingUserText: string | null;
+	/** The assistant reply as it streams in (token by token); null when not streaming. */
+	streamingText: string | null;
 	error: string | null;
 	createSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession | null>;
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
@@ -35,6 +39,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const client = useMemo(() => getRuntimeTrpcClient(null), []);
 	const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
+	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const sessionsQuery = useTrpcQuery({
@@ -109,16 +115,32 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			}
 			setSending(true);
 			setError(null);
-			try {
-				await client.chat.sendMessage.mutate({ sessionId: selectedSessionId, message: trimmed });
-				await transcriptQuery.refetch();
-				// The session's updatedAt advanced; refresh the list so ordering stays correct.
-				await sessionsQuery.refetch();
-			} catch (caught) {
-				setError(caught instanceof Error ? caught.message : String(caught));
-			} finally {
-				setSending(false);
-			}
+			setPendingUserText(trimmed);
+			setStreamingText("");
+			// Stream the reply token-by-token over the SSE subscription; resolve when the terminal `done` arrives.
+			await new Promise<void>((resolve) => {
+				client.chat.streamMessage.subscribe(
+					{ sessionId: selectedSessionId, message: trimmed },
+					{
+						onData: (event) => {
+							if (event.type === "token") {
+								setStreamingText((current) => (current ?? "") + event.delta);
+							}
+						},
+						onError: (caught: unknown) => {
+							setError(caught instanceof Error ? caught.message : String(caught));
+							resolve();
+						},
+						onComplete: () => resolve(),
+					},
+				);
+			});
+			// The turn is persisted; refresh the transcript + list, then drop the optimistic placeholders.
+			await transcriptQuery.refetch();
+			await sessionsQuery.refetch();
+			setPendingUserText(null);
+			setStreamingText(null);
+			setSending(false);
 		},
 		[client, selectedSessionId, transcriptQuery, sessionsQuery],
 	);
@@ -131,6 +153,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		transcript: transcriptQuery.data ?? [],
 		transcriptLoading: transcriptQuery.isLoading,
 		sending,
+		pendingUserText,
+		streamingText,
 		error,
 		createSession,
 		updateSession,

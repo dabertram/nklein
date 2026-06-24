@@ -743,8 +743,19 @@ deep analysis:
           → `chat.updateSession`. Keyed by session id so drafts reset on switch. web tsc + biome + full web vitest
           (705) green; **live-verified** via [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts) (the four header
           controls render for the selected session).
-  - [ ] still owed (next live layer): optional **token streaming** over tRPC (the turn currently arrives whole);
-        the **Signal bridge** (external integration — needs the user's Signal setup/credentials).
+    - [x] **token streaming over tRPC SSE (2026-06-24)** — the assistant reply now streams in token-by-token instead
+          of arriving whole. Server: a `chat.streamMessage` **subscription** ([app-router.ts](src/trpc/app-router.ts))
+          bridges the model's push-style `onToken` into the pull-style async generator a tRPC v11 subscription yields,
+          via a tested [async-queue.ts](src/chat/async-queue.ts) (`createAsyncQueue`); the service's `sendMessage`
+          gained a server-side `onToken` param threaded through `runChatTurn`. Transport: the web-ui tRPC client now
+          uses `splitLink` → `httpSubscriptionLink` (SSE) for subscriptions, `httpBatchLink` otherwise (the standalone
+          server passes `/api/trpc` straight through, and Vite proxies `/api` un-buffered). UI: `use-chat-data`'s send
+          subscribes, accumulating tokens into a growing assistant bubble (+ an optimistic user bubble) that the
+          persisted transcript replaces on `done`. Unit-tested (async-queue; the subscription yields token events then
+          a terminal `done`) and **live-verified** end-to-end via [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts)
+          (the reply renders through the SSE path). Root (1476) + web (705) green.
+  - [ ] still owed: the **Signal bridge** — BLOCKED on the user (external integration needing their Signal
+        account/linking + credentials; not actionable autonomously).
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
