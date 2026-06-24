@@ -1354,8 +1354,12 @@ deep analysis:
               local floor + source precedence) into `trpc/runtime-api/task-timeout-settings.ts`. runtime-api.ts 2449→2314.
         - [x] **slice 2 (2026-06-24):** extracted the GitHub-context-import subsystem (gh-CLI issue/PR-diff → import response)
               into `trpc/runtime-api/github-context-import.ts`. runtime-api.ts 2314→2253.
-        - [ ] still TODO: the local-advisor-completion subsystem (blocked on lifting the local `ResolvedNKleinLaunchConfig`
-              type to a shared spot), then the object-literal method grouping into factory modules.
+        - [x] **slice 3 (2026-06-24):** extracted the local-advisor-completion subsystem (Ollama `/api/chat` + OpenAI-compat
+              `/chat/completions`, base-URL normalization, tolerant response parse, 120s abort) into
+              `trpc/runtime-api/local-advisor-completion.ts`. Also dropped the redundant local `ResolvedNKleinLaunchConfig`
+              derivation in favour of the canonical exported interface from `nklein-provider-service`. runtime-api.ts 2253→2106
+              (cumulative 2449→2106, −343/−14%).
+        - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat).
   - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989)** — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
   - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
