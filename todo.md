@@ -327,6 +327,16 @@ deep analysis:
           isolation mechanism is now proven on the shared code path.
     - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
     - [ ] only exception: user intentionally opted out of Docker isolation (future full-privileged host-agent mode).
+- [ ] **Repo-map (+ host-side context-focus reads) are dead under isolation** *(found 2026-06-24 while fixing the
+      system-prompt leak; functionality regression, NOT a leak)*. The context-focus extension + large-file workflow are
+      created with `request.cwd`, which under isolation is the **sandbox** path `/workspaces/<taskId>` — nonexistent on
+      the host — so `buildNKleinRepoMap`/`getWorkspaceChanges` read nothing and the agent gets **no repo-map orientation
+      rail** (silently empty). These are host-side *control-plane* context builders that render **relative** paths, so
+      they should read the **host** `request.workspaceRoot` (available right there in `nklein-session-runtime.ts:704`),
+      not the sandbox cwd. Design nuance to settle: the host workspaceRoot reflects the live project, not the sandbox's
+      `baseRef` checkout — acceptable for orientation, but decide explicitly. Must keep rendering relative (no host-path
+      leak) and not double up with the sandbox-proxied `read_large_file` tool. Separate from the agent-perceived-cwd
+      (`resolveNKleinAgentPerceivedCwd`), which must stay the sandbox path.
 - [ ] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
