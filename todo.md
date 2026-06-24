@@ -361,8 +361,13 @@ deep analysis:
         (2026-06-24): the swarm header shows a red **"Sandbox unavailable"** chip (with the daemon/image failure
         message as its title) whenever `agentSandboxStatus.state === "blocked"`, so the operator sees that
         fail-closed isolation will stop tasks from starting. web-tested.
-  - [ ] still TODO: a dedicated isolation **empty state**, paused-card polish, and the session-service
-        sandbox-lifecycle extraction (overlaps the §5.U decompose finding).
+  - [x] **empty-board getting-started banner (2026-06-24)** — when a project is loaded but the board has no cards
+        (across all non-trash lanes), a banner below the swarm header invites "create your first task" with a CTA, and
+        surfaces an **"Isolation unavailable"** marker (with the daemon/image failure message) when the Docker sandbox
+        is `blocked`, so a new/empty board explains itself instead of showing six blank columns. Web-tested (renders +
+        CTA fires + hidden once any card exists).
+  - [ ] still TODO: paused-card polish, and the session-service sandbox-lifecycle extraction (overlaps the §5.U
+        decompose finding — coupled, needs the careful pass).
 - [~] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /

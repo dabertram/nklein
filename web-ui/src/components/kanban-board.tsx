@@ -8,7 +8,7 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
-import { Database, PauseCircle, PlayCircle, SlidersHorizontal } from "lucide-react";
+import { Database, PauseCircle, PlayCircle, Plus, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -913,6 +913,31 @@ export function KanbanBoard({
 					</ElementTooltip>
 				</div>
 			</div>
+			{currentProjectId && data.columns.every((column) => column.id === "trash" || column.cards.length === 0) ? (
+				<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-1 px-4 py-3 text-sm">
+					<div className="flex min-w-0 items-center gap-2 text-text-secondary">
+						<Sparkles size={16} className="shrink-0 text-accent" />
+						<span>This board is empty — create your first task to start the local swarm on it.</span>
+					</div>
+					<div className="flex items-center gap-3">
+						{runtimeConfig?.agentSandboxStatus?.state === "blocked" ? (
+							<span
+								className="inline-flex items-center gap-1 text-status-red"
+								title={
+									runtimeConfig.agentSandboxStatus.message ??
+									"Docker agent isolation is unavailable, so agent tasks cannot start (fail-closed)."
+								}
+							>
+								<ShieldAlert size={14} />
+								Isolation unavailable
+							</span>
+						) : null}
+						<Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={onCreateTask}>
+							Create task
+						</Button>
+					</div>
+				</div>
+			) : null}
 			<DragDropContext
 				onBeforeCapture={handleBeforeCapture}
 				onDragStart={handleDragStart}

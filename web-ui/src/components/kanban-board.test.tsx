@@ -473,6 +473,88 @@ describe("KanbanBoard", () => {
 		expect(container.textContent).toContain("Queued 1");
 	});
 
+	it("shows an empty-board getting-started banner with a working create-task CTA (§5.A)", async () => {
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const onCreateTask = vi.fn();
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					currentProjectId="proj-1"
+					onCardSelect={() => {}}
+					onCreateTask={onCreateTask}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(container.textContent).toContain("This board is empty");
+		const createButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Create task"),
+		);
+		expect(createButton).toBeTruthy();
+		act(() => {
+			if (createButton) {
+				Simulate.click(createButton);
+			}
+		});
+		expect(onCreateTask).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the empty-board banner once the board has any card (§5.A)", async () => {
+		const board: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							id: "task-1",
+							title: "Ready",
+							prompt: "Build",
+							startInPlanMode: false,
+							agentId: "nklein",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{}}
+					currentProjectId="proj-1"
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(container.textContent).not.toContain("This board is empty");
+	});
+
 	it("surfaces durable merge history in the swarm header (§5.G)", async () => {
 		runtimeConfigQueryMocks.fetchMergeHistory.mockResolvedValue({
 			records: [

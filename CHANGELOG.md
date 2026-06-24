@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- An **empty board now explains itself** instead of showing six blank columns (todo §5.A). When a project is loaded but has no cards, a banner under the swarm header invites you to **create your first task** with a one-click CTA — and if Docker agent isolation is unavailable, it shows an **"Isolation unavailable"** marker (with the daemon/image failure reason) so it's clear why tasks couldn't start anyway.
+
 - The board header now surfaces a **merge-status chip** for the dependency-ordered auto-merge (todo §5.G). When the swarm finishes a card it merges the ready task worktrees back in dependency order; each pass is now recorded durably (per workspace) and the swarm header shows the latest outcome — green **"Merged N"** on success or red **"Merge conflicts N"** when recent passes hit a conflict — with a hover tooltip listing the recent passes (timestamp, merged/skipped counts, or the conflict reason and path count). It refreshes when you switch projects and as running tasks complete. Previously merge results were only visible in CLI/integration output.
 
 - Settings now shows a **Python core (core-py) health line** under the !Klein model panel (todo §5.H): whether the local ML sidecar is enabled, running/not-reachable (a live `GET /health` probe), and its endpoint — with a hint to set `NKLEIN_CORE_PY=1` when it's disabled. Previously the `probeKleinCorePyHealth` helper existed but was never surfaced.
