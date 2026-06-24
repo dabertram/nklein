@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Trash now sits below Completed** instead of taking a full sixth board column — it's stacked under Completed in the same slot at about a fifth of the height, freeing horizontal room for the active lanes.
+
 - **Starting a task now moves its card out of Backlog** (into Planning or In Progress) on the server, so the board always reflects that the agent is working — a card no longer sits in **Backlog** while its agent runs. Previously only sending follow-up input (or resuming) reconciled the lane, so a task started without the web-ui's own optimistic move (e.g. a dev-test seed started programmatically) stayed in Backlog with live agent activity behind it.
 
 - New **`nklein chat`** command — a first, board-independent way to talk to a unified chat agent on a loaded local model (todo §5.M). It discovers the loaded model from your local endpoint (LM Studio / Ollama; `--model`/`--base-url` to override), keeps a persisted session you can continue with `--session`, accepts a standing `--goal` kept in focus across turns, and recalls relevant long-term memories into each reply — all local, fail-closed against cloud. This is the simple-completion entry point; the tool-using multi-turn agent, streaming, and a chat UI build on top of it.

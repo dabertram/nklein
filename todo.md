@@ -390,8 +390,12 @@ deep analysis:
       plan.** *(Today's start-lane fix moves a started card to Planning OR In-Progress by its `startInPlanMode`; this
       makes it always-Planning-first + adds the refinement step + the agent-driven Planning→In-Progress transition —
       a real workflow feature: a refinement prompt/seam, a lane transition the agent triggers, and a no-progress/skip
-      guard so trivially-still-valid cards don't burn turns. **Clarify scope with the user before building** — e.g.
-      how heavy the refinement pass should be, and whether it can auto-skip when nothing changed.)*
+      guard so trivially-still-valid cards don't burn turns.)* **Refinement weight is DYNAMIC (decided with the user
+      2026-06-24): the agent picks how heavy to go — from a lightweight "does the card's content/acceptance still
+      hold?" confirmation, up to deep re-reasoning + rewriting the card and even **re-decomposing / replanning the task
+      graph** when the project's direction or merged follow-ups have moved on. The point is to never work an outdated
+      plan, so a large replanning is on-purpose when warranted, not avoided.** Build the seam so the agent can choose
+      lightweight→XXXL per what the task + current project state need (and skip fast when nothing changed).
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
@@ -819,18 +823,15 @@ deep analysis:
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
   - [ ] still owed: an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today),
         **memory-scope toggles**, and **Signal pairing/status** (with the bridge, LATER).
-  - [ ] **Reconcile the two chat surfaces** *(user-flagged 2026-06-24: "feels confusing and a bit off")* — there are now
-        two: the **new §5.M board-independent Chat dialog** (multi-session, scope/role, goal, memory, tools, streaming)
-        and the older **per-project "!Klein Agent" sidebar tab** (`use-home-sidebar-agent-panel` → `NKleinAgentChatPanel`
-        / `useHomeAgentSession`, a synthetic project-home agent chat). They overlap → **merge or drop one.**
-        **Recommendation: drop the home "!Klein Agent" sidebar panel and make the §5.M Chat the single chat surface**
-        (it's the superset — the home panel's project-scoped chat is just the `project_sandboxed` scope; the §5.M chat
-        adds sessions/memory/tools/streaming). Distinguish from the **per-task card agent chats** (the swarm task
-        sessions in card detail) — those are a *different* thing and **stay**. Removal touches: the sidebar
-        Projects/Agent tab toggle (`homeSidebarSection`), `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`,
-        `useHomeAgentSession`/`use-nklein-chat-runtime-actions`, the home synthetic-session infra + its tests.
-        **Confirm drop-vs-merge with the user before ripping out the home-session infra** (a real product call; don't
-        do it speculatively). Until then the two coexist (confusingly).
+  - [ ] **Chat → resizeable RIGHT sidebar; drop the modal + the home-agent tab** *(DECIDED with the user 2026-06-24)* —
+        move the §5.M Chat **out of the modal into a persistent, resizeable right sidebar** (VS-Code-coding-agent feel),
+        and **remove the "Chat" top-bar button + the `ChatDialog` modal**. Mirror the left sidebar's collapse/resize
+        (`ResizeHandle` + a `use-*-layout` width hook + persisted width). **Drop the home "!Klein Agent" tab fully**:
+        the left sidebar becomes projects-only (remove the Projects/Agent `homeSidebarSection` toggle); **merge the
+        home-agent functionality into the new right-side chat** ("we'll grow the new chat to what we need"). Remove the
+        now-dead home-session infra — `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`, `useHomeAgentSession`,
+        the home synthetic-session wiring + its tests. **Keep** the per-task card agent chats (card detail) — different
+        thing. *(Trash-lane layout + the chat-width bump already shipped; this is the larger restructure.)*
 - [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
   - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy

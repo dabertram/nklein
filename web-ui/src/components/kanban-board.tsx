@@ -768,6 +768,58 @@ export function KanbanBoard({
 		programmaticCardMoveInFlight?.toColumnId ??
 		(activeDragTaskId !== null && activeDragSourceColumnId === "backlog" ? "in_progress" : null);
 
+	const renderColumn = (column: (typeof data.columns)[number]) => (
+		<BoardColumn
+			key={column.id}
+			column={column}
+			taskSessions={displayTaskSessions}
+			onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
+			onStartTask={column.id === "backlog" || column.id === "planning" ? onStartTask : undefined}
+			onPauseTask={currentProjectId ? handlePauseTask : undefined}
+			onResumeTask={currentProjectId ? handleResumeTask : undefined}
+			onReplayTask={onReplayTask}
+			onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
+			onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
+			onClearTrash={column.id === "trash" ? onClearTrash : undefined}
+			editingTaskId={column.id === "backlog" ? editingTaskId : null}
+			inlineTaskEditor={column.id === "backlog" ? inlineTaskEditor : undefined}
+			onEditTask={column.id === "backlog" ? onEditTask : undefined}
+			onSaveTitle={column.id !== "trash" ? onSaveTaskTitle : undefined}
+			onCommitTask={column.id === "review" ? onCommitTask : undefined}
+			onOpenPrTask={column.id === "review" ? onOpenPrTask : undefined}
+			onCopyTaskEvidence={currentProjectId ? handleCopyTaskEvidence : undefined}
+			onCancelAutomaticTaskAction={onCancelAutomaticTaskAction}
+			onMoveToTrashTask={column.id === "review" ? onMoveToTrashTask : undefined}
+			onRestoreFromTrashTask={column.id === "trash" ? onRestoreFromTrashTask : undefined}
+			commitTaskLoadingById={column.id === "review" ? commitTaskLoadingById : undefined}
+			openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
+			copyEvidenceLoadingById={copyEvidenceTaskId ? { [copyEvidenceTaskId]: true } : undefined}
+			moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
+			replayTaskLoadingById={replayTaskLoadingById}
+			activeDragTaskId={activeDragTaskId}
+			activeDragSourceColumnId={activeDragSourceColumnId}
+			programmaticCardMoveInFlight={programmaticCardMoveInFlight}
+			onDependencyPointerDown={dependencyLinking.onDependencyPointerDown}
+			onDependencyPointerEnter={dependencyLinking.onDependencyPointerEnter}
+			dependencySourceTaskId={dependencyLinking.draft?.sourceTaskId ?? null}
+			dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
+			isDependencyLinking={dependencyLinking.draft !== null}
+			workspacePath={workspacePath}
+			replayCardsEnabled={replayCardsEnabled}
+			defaultNKleinModelId={defaultNKleinModelId}
+			onCardClick={(card) => {
+				if (!dragOccurredRef.current) {
+					onCardSelect(card.id);
+				}
+			}}
+		/>
+	);
+	// Trash sits stacked *below* Completed (smaller, ~1/5 height) rather than as its own full column (user request).
+	const stackedColumnIds = new Set(["completed", "trash"]);
+	const flowColumns = data.columns.filter((column) => !stackedColumnIds.has(column.id));
+	const completedColumn = data.columns.find((column) => column.id === "completed");
+	const trashColumn = data.columns.find((column) => column.id === "trash");
+
 	return (
 		<div className="flex flex-1 min-h-0 min-w-0 flex-col">
 			<div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-1 px-3">
@@ -949,52 +1001,21 @@ export function KanbanBoard({
 					className="kb-board kb-dependency-surface"
 					data-programmatic-card-move={programmaticCardMoveInFlight ? "true" : undefined}
 				>
-					{data.columns.map((column) => (
-						<BoardColumn
-							key={column.id}
-							column={column}
-							taskSessions={displayTaskSessions}
-							onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
-							onStartTask={column.id === "backlog" || column.id === "planning" ? onStartTask : undefined}
-							onPauseTask={currentProjectId ? handlePauseTask : undefined}
-							onResumeTask={currentProjectId ? handleResumeTask : undefined}
-							onReplayTask={onReplayTask}
-							onDecomposeTask={column.id === "backlog" ? onDecomposeTask : undefined}
-							onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
-							onClearTrash={column.id === "trash" ? onClearTrash : undefined}
-							editingTaskId={column.id === "backlog" ? editingTaskId : null}
-							inlineTaskEditor={column.id === "backlog" ? inlineTaskEditor : undefined}
-							onEditTask={column.id === "backlog" ? onEditTask : undefined}
-							onSaveTitle={column.id !== "trash" ? onSaveTaskTitle : undefined}
-							onCommitTask={column.id === "review" ? onCommitTask : undefined}
-							onOpenPrTask={column.id === "review" ? onOpenPrTask : undefined}
-							onCopyTaskEvidence={currentProjectId ? handleCopyTaskEvidence : undefined}
-							onCancelAutomaticTaskAction={onCancelAutomaticTaskAction}
-							onMoveToTrashTask={column.id === "review" ? onMoveToTrashTask : undefined}
-							onRestoreFromTrashTask={column.id === "trash" ? onRestoreFromTrashTask : undefined}
-							commitTaskLoadingById={column.id === "review" ? commitTaskLoadingById : undefined}
-							openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
-							copyEvidenceLoadingById={copyEvidenceTaskId ? { [copyEvidenceTaskId]: true } : undefined}
-							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
-							replayTaskLoadingById={replayTaskLoadingById}
-							activeDragTaskId={activeDragTaskId}
-							activeDragSourceColumnId={activeDragSourceColumnId}
-							programmaticCardMoveInFlight={programmaticCardMoveInFlight}
-							onDependencyPointerDown={dependencyLinking.onDependencyPointerDown}
-							onDependencyPointerEnter={dependencyLinking.onDependencyPointerEnter}
-							dependencySourceTaskId={dependencyLinking.draft?.sourceTaskId ?? null}
-							dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
-							isDependencyLinking={dependencyLinking.draft !== null}
-							workspacePath={workspacePath}
-							replayCardsEnabled={replayCardsEnabled}
-							defaultNKleinModelId={defaultNKleinModelId}
-							onCardClick={(card) => {
-								if (!dragOccurredRef.current) {
-									onCardSelect(card.id);
-								}
-							}}
-						/>
-					))}
+					{flowColumns.map((column) => renderColumn(column))}
+					{completedColumn || trashColumn ? (
+						<div className="flex min-w-0 min-h-0 flex-col gap-2" style={{ flex: "1 1 0" }}>
+							{completedColumn ? (
+								<div className="flex min-h-0 min-w-0 flex-col" style={{ flex: "4 1 0" }}>
+									{renderColumn(completedColumn)}
+								</div>
+							) : null}
+							{trashColumn ? (
+								<div className="flex min-h-0 min-w-0 flex-col" style={{ flex: "1 1 0" }}>
+									{renderColumn(trashColumn)}
+								</div>
+							) : null}
+						</div>
+					) : null}
 					<DependencyOverlay
 						containerRef={boardRef}
 						dependencies={dependencies}
