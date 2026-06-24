@@ -803,21 +803,15 @@ async function writeRuntimeGlobalConfigFile(
 		: undefined;
 	const selectedShortcutLabel =
 		config.selectedShortcutLabel === undefined ? undefined : normalizeShortcutLabel(config.selectedShortcutLabel);
-	const developerModeEnabled =
-		config.developerModeEnabled === undefined
-			? DEFAULT_DEVELOPER_MODE_ENABLED
-			: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
-	const replayCardsEnabled =
-		config.replayCardsEnabled === undefined
-			? DEFAULT_REPLAY_CARDS_ENABLED
-			: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
+	const developerModeEnabled = normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
+	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
-	const agentAutonomousModeEnabled =
-		config.agentAutonomousModeEnabled === undefined
-			? DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED
-			: normalizeBoolean(config.agentAutonomousModeEnabled, DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED);
+	const agentAutonomousModeEnabled = normalizeBoolean(
+		config.agentAutonomousModeEnabled,
+		DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	);
 	const agentTimeoutMode =
 		config.agentTimeoutMode === undefined
 			? DEFAULT_AGENT_TIMEOUT_MODE
@@ -855,46 +849,43 @@ async function writeRuntimeGlobalConfigFile(
 		config.maxConcurrentTasks === undefined
 			? DEFAULT_MAX_CONCURRENT_TASKS
 			: normalizeMaxConcurrentTasks(config.maxConcurrentTasks);
-	const sandboxMaxContainers =
-		config.sandboxMaxContainers === undefined
-			? DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS
-			: normalizePositiveInteger(config.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS);
-	const sandboxAgentsPerContainer =
-		config.sandboxAgentsPerContainer === undefined
-			? DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER
-			: normalizeNonNegativeInteger(config.sandboxAgentsPerContainer, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER);
-	const sandboxMemoryPerContainerMb =
-		config.sandboxMemoryPerContainerMb === undefined
-			? DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB
-			: normalizePositiveInteger(config.sandboxMemoryPerContainerMb, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
-	const sandboxCpusPerContainer =
-		config.sandboxCpusPerContainer === undefined
-			? DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER
-			: normalizePositiveNumber(config.sandboxCpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER);
-	const sandboxIdleTimeoutMinutes =
-		config.sandboxIdleTimeoutMinutes === undefined
-			? DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES
-			: normalizePositiveInteger(config.sandboxIdleTimeoutMinutes, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES);
+	const sandboxMaxContainers = normalizePositiveInteger(
+		config.sandboxMaxContainers,
+		DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
+	);
+	const sandboxAgentsPerContainer = normalizeNonNegativeInteger(
+		config.sandboxAgentsPerContainer,
+		DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+	);
+	const sandboxMemoryPerContainerMb = normalizePositiveInteger(
+		config.sandboxMemoryPerContainerMb,
+		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+	);
+	const sandboxCpusPerContainer = normalizePositiveNumber(
+		config.sandboxCpusPerContainer,
+		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	);
+	const sandboxIdleTimeoutMinutes = normalizePositiveInteger(
+		config.sandboxIdleTimeoutMinutes,
+		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	);
 	const lostHeartbeatPolicy =
 		config.lostHeartbeatPolicy === undefined
 			? DEFAULT_LOST_HEARTBEAT_POLICY
 			: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy);
-	const decompositionAutoApplyEnabled =
-		config.decompositionAutoApplyEnabled === undefined
-			? DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
-			: normalizeBoolean(config.decompositionAutoApplyEnabled, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED);
-	const secondOpinionReviewEnabled =
-		config.secondOpinionReviewEnabled === undefined
-			? DEFAULT_SECOND_OPINION_REVIEW_ENABLED
-			: normalizeBoolean(config.secondOpinionReviewEnabled, DEFAULT_SECOND_OPINION_REVIEW_ENABLED);
-	const reviewMaxRounds =
-		config.reviewMaxRounds === undefined
-			? DEFAULT_REVIEW_MAX_ROUNDS
-			: normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
-	const readyForReviewNotificationsEnabled =
-		config.readyForReviewNotificationsEnabled === undefined
-			? DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
-			: normalizeBoolean(config.readyForReviewNotificationsEnabled, DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED);
+	const decompositionAutoApplyEnabled = normalizeBoolean(
+		config.decompositionAutoApplyEnabled,
+		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+	);
+	const secondOpinionReviewEnabled = normalizeBoolean(
+		config.secondOpinionReviewEnabled,
+		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+	);
+	const reviewMaxRounds = normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
+	const readyForReviewNotificationsEnabled = normalizeBoolean(
+		config.readyForReviewNotificationsEnabled,
+		DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
+	);
 	const codeEmbeddingDefaults =
 		config.codeEmbeddingDefaults === undefined
 			? DEFAULT_CODE_EMBEDDING_SETTINGS

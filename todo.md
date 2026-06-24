@@ -846,13 +846,13 @@ deep analysis:
       payload gates keep their custom comparisons: developer-mode's legacy check, the profile-coupled timeouts, and
       the nested-object equality fields (codeEmbeddingDefaults / swarmGuardrails). The full field-descriptor registry
       across the interfaces/resolve/update functions is still owed.)*
-  - [ ] **next safe slice (verified 2026-06-24, deferred to a fresh pass):** in `writeRuntimeGlobalConfigFile`'s
-        resolve section, the `config.X === undefined ? DEFAULT_X : normalizeX(config.X, DEFAULT_X)` ternaries are
-        **provably redundant** — `normalizeBoolean`/`normalizePositiveInteger`/`normalizeNonNegativeInteger`/
-        `normalizePositiveNumber` all already return the fallback for `undefined`, so each collapses to
-        `normalizeX(config.X, DEFAULT_X)`. Behaviour-identical; do it as careful individual edits (not a bulk regex)
-        and re-run biome + the 31 round-trip tests. (Excludes the timeouts, which compare against profile-derived
-        `defaultTimeouts.X`, and `selectedAgentId`/`selectedShortcutLabel`, which intentionally resolve to `undefined`.)
+  - [x] **resolve-ternary simplification (DONE 2026-06-24)** — collapsed the provably-redundant
+        `config.X === undefined ? DEFAULT_X : normalizeX(config.X, DEFAULT_X)` ternaries in
+        `writeRuntimeGlobalConfigFile`'s resolve section to plain `normalizeX(config.X, DEFAULT_X)` (the four scalar
+        normalizers all fall back on `undefined`). Behaviour-identical (31 round-trip tests green, typecheck clean,
+        −9 net lines). Excluded the profile-coupled timeouts and `selectedAgentId`/`selectedShortcutLabel`.
+  - [ ] still owed: the same simplification in the `updateRuntimeConfig`/`updateGlobalRuntimeConfig` `nextConfig`
+        builders (those use `current.X` as the fallback, a different shape), and the full field-descriptor registry.
       Every config field is hand-threaded through ~10–14 near-identical sites: 3 interfaces (`*FileShape`/`*State`/
       `*UpdateInput`), the `toRuntimeConfigState` resolve, `writeRuntimeGlobalConfigFile` (param + resolve + diff-gated
       payload), `createRuntimeConfigStateFromValues` (param + return), `toGlobalRuntimeConfigState`, and both
