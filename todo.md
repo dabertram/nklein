@@ -645,8 +645,15 @@ deep analysis:
         non-streaming completion), and `runChatTurn`/`runChatConversation` thread `onToken` so the REPL prints tokens
         as they arrive (persisting the reasoning-stripped reply). Unit-tested (stream path + fallback); **live-verified**
         — the `nklein chat` REPL streamed a real qwen3-8b reply token-by-token.
-  - [ ] still owed (next live layer): the **tool-using** agent loop on the NKlein core (sandboxed tools) + the
-        tRPC/web-ui chat surface + the Signal bridge.
+  - [~] **tool-using agent loop — core (2026-06-24)** — [src/chat/chat-agent-loop.ts](src/chat/chat-agent-loop.ts):
+        `runChatAgentLoop` is the pure orchestration of "model → (maybe) tool calls → execute → feed results back →
+        repeat until it answers", bounded by `maxIterations` with a forced tools-disabled final turn. Model call +
+        tool execution + the message-fold are injected → unit-tested (executes-then-answers, no-tools-immediate-answer,
+        iteration-limit-forces-final). Tool governance (the §5.M host-access invariant) lives in the injected
+        executor (the execution-mode gate + audit store, already built). Still owed: a **tools-aware** local-model
+        completion (pass tool schemas, parse `tool_calls`/narrated), the concrete chat tool set + executor that applies
+        the gate + audit, and live verification of the agent using a tool.
+  - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
