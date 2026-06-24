@@ -951,12 +951,13 @@ async function writeRuntimeGlobalConfigFile(
 		payload.developerModeEnabled = developerModeEnabled;
 	}
 	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
-	if (
-		hasOwnKey(existing, "agentAutonomousModeEnabled") ||
-		agentAutonomousModeEnabled !== DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED
-	) {
-		payload.agentAutonomousModeEnabled = agentAutonomousModeEnabled;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"agentAutonomousModeEnabled",
+		agentAutonomousModeEnabled,
+		DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	);
 	assignChangedConfigField(payload, existing, "agentTimeoutMode", agentTimeoutMode, DEFAULT_AGENT_TIMEOUT_MODE);
 	assignChangedConfigField(
 		payload,
@@ -983,12 +984,13 @@ async function writeRuntimeGlobalConfigFile(
 	) {
 		payload.conversationTimeoutMs = conversationTimeoutMs;
 	}
-	if (
-		hasOwnKey(existing, "maxAgentWritableFileLines") ||
-		maxAgentWritableFileLines !== DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
-	) {
-		payload.maxAgentWritableFileLines = maxAgentWritableFileLines;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"maxAgentWritableFileLines",
+		maxAgentWritableFileLines,
+		DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
+	);
 	assignChangedConfigField(payload, existing, "maxConcurrentTasks", maxConcurrentTasks, DEFAULT_MAX_CONCURRENT_TASKS);
 	assignChangedConfigField(
 		payload,
@@ -997,30 +999,34 @@ async function writeRuntimeGlobalConfigFile(
 		sandboxMaxContainers,
 		DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	);
-	if (
-		hasOwnKey(existing, "sandboxAgentsPerContainer") ||
-		sandboxAgentsPerContainer !== DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER
-	) {
-		payload.sandboxAgentsPerContainer = sandboxAgentsPerContainer;
-	}
-	if (
-		hasOwnKey(existing, "sandboxMemoryPerContainerMb") ||
-		sandboxMemoryPerContainerMb !== DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB
-	) {
-		payload.sandboxMemoryPerContainerMb = sandboxMemoryPerContainerMb;
-	}
-	if (
-		hasOwnKey(existing, "sandboxCpusPerContainer") ||
-		sandboxCpusPerContainer !== DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER
-	) {
-		payload.sandboxCpusPerContainer = sandboxCpusPerContainer;
-	}
-	if (
-		hasOwnKey(existing, "sandboxIdleTimeoutMinutes") ||
-		sandboxIdleTimeoutMinutes !== DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES
-	) {
-		payload.sandboxIdleTimeoutMinutes = sandboxIdleTimeoutMinutes;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxAgentsPerContainer",
+		sandboxAgentsPerContainer,
+		DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxMemoryPerContainerMb",
+		sandboxMemoryPerContainerMb,
+		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxCpusPerContainer",
+		sandboxCpusPerContainer,
+		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxIdleTimeoutMinutes",
+		sandboxIdleTimeoutMinutes,
+		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	);
 	assignChangedConfigField(
 		payload,
 		existing,
@@ -1028,25 +1034,28 @@ async function writeRuntimeGlobalConfigFile(
 		lostHeartbeatPolicy,
 		DEFAULT_LOST_HEARTBEAT_POLICY,
 	);
-	if (
-		hasOwnKey(existing, "decompositionAutoApplyEnabled") ||
-		decompositionAutoApplyEnabled !== DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED
-	) {
-		payload.decompositionAutoApplyEnabled = decompositionAutoApplyEnabled;
-	}
-	if (
-		hasOwnKey(existing, "secondOpinionReviewEnabled") ||
-		secondOpinionReviewEnabled !== DEFAULT_SECOND_OPINION_REVIEW_ENABLED
-	) {
-		payload.secondOpinionReviewEnabled = secondOpinionReviewEnabled;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"decompositionAutoApplyEnabled",
+		decompositionAutoApplyEnabled,
+		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"secondOpinionReviewEnabled",
+		secondOpinionReviewEnabled,
+		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+	);
 	assignChangedConfigField(payload, existing, "reviewMaxRounds", reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
-	if (
-		hasOwnKey(existing, "readyForReviewNotificationsEnabled") ||
-		readyForReviewNotificationsEnabled !== DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED
-	) {
-		payload.readyForReviewNotificationsEnabled = readyForReviewNotificationsEnabled;
-	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"readyForReviewNotificationsEnabled",
+		readyForReviewNotificationsEnabled,
+		DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
+	);
 	if (
 		hasOwnKey(existing, "codeEmbeddingDefaults") ||
 		!areCodeEmbeddingSettingsEqual(codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS)
