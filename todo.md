@@ -599,8 +599,13 @@ deep analysis:
         system_operator, defaults = most-isolated + planner). Append-only JSONL event log replayed to the current
         set (crash-safe, concurrency-safe like the other stores), with create/list/get/update/delete + injectable
         `rootDir`/`now`. Unit-tested (round-trip, update bumps updatedAt, delete, newest-first replay, defaults).
-  - [ ] still owed: the **transcript** store (messages per session, layered on top) + the tRPC/contract surface to
-        expose sessions to the chat UI + the messenger bridge.
+  - [x] **transcript store (2026-06-24)** — [src/chat/chat-transcript-store.ts](src/chat/chat-transcript-store.ts):
+        the per-session message log (`ChatMessage` = id / role user|assistant|system / content / createdAt), one
+        append-only JSONL file per session (hashed id filename, concurrency-/crash-safe), with `appendChatMessage` /
+        `readChatTranscript` (optional `limit` → most-recent N for the lean window) / `clearChatTranscript`. Unit-tested
+        (per-session isolation, ordering, recent-N limit, clear).
+  - [ ] still owed: the tRPC/contract surface to expose sessions + transcripts to the chat UI + the messenger bridge,
+        and the chat agent runtime that drives them.
 - [ ] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
 - [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
