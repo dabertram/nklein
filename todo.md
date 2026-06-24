@@ -717,8 +717,18 @@ deep analysis:
           [app-router.ts](src/trpc/app-router.ts). Unit-tested: the service CRUD + transcript (temp root) and the
           sub-router end-to-end (`{ sessions }`/`{ session }`/`{ deleted }`/`{ messages }` wrapping). Full fast suite
           (1468) green.
+    - [x] **send-a-turn endpoint (`chat.sendMessage`) (2026-06-24)** — the live turn endpoint is wired. The chat
+          service gained `sendMessage` (composes memory + goal via `runChatTurn`, persists both messages) with an
+          injectable `resolveModelDeps` (read-only when omitted → throws). [src/chat/local-chat-model.ts]
+          (src/chat/local-chat-model.ts) is the shared "discover a loaded local model + build its fail-closed client"
+          helper now used by **both** the CLI and the runtime API (the CLI's inline copy was removed). The runtime API
+          builds its chat service with `resolveLocalChatModelDeps` (per-send discovery → "no model loaded" surfaces
+          as a clear error at send time), exposed as the non-workspace `chat.sendMessage` mutation. Unit-tested
+          (service send + read-only-throws + unknown-session-null; router send end-to-end) and **live-verified** via
+          [scripts/verify-chat-send.mts](scripts/verify-chat-send.mts) against qwen2.5-coder-14b (real reply + both
+          messages persisted). Still non-streaming (returns the full reply); tRPC streaming is a later refinement.
   - [ ] still owed (next live layer): the **web-ui chat surface** (session list + transcript view + composer) on the
-        new `chat` sub-router; the live **send-a-turn** endpoint (model + streaming over tRPC); the **Signal bridge**.
+        `chat` sub-router; optional **token streaming** over tRPC; the **Signal bridge**.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):

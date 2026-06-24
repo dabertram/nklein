@@ -71,4 +71,40 @@ describe("createChatService", () => {
 		const session = await service.createSession({ title: "Quiet" });
 		expect(await service.readTranscript(session.id)).toEqual([]);
 	});
+
+	it("runs a turn via sendMessage, persisting both messages, and reflects the session goal in the prompt", async () => {
+		const prompts: Array<{ role: string; content: string }[]> = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				complete: async (prompt) => {
+					prompts.push(prompt.map((m) => ({ role: m.role, content: m.content })));
+					return "Use strict mode and tabs.";
+				},
+				summarize: async () => "",
+			}),
+		});
+		const session = await service.createSession({ title: "Help", goal: "Help with TypeScript settings" });
+
+		const result = await service.sendMessage({ sessionId: session.id, message: "What settings?" });
+		expect(result?.userMessage.content).toBe("What settings?");
+		expect(result?.assistantMessage.content).toBe("Use strict mode and tabs.");
+
+		const transcript = await service.readTranscript(session.id);
+		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
+		// The session goal is anchored into the model prompt.
+		expect(prompts[0]?.some((m) => m.content.includes("Help with TypeScript settings"))).toBe(true);
+	});
+
+	it("returns null from sendMessage for an unknown session and throws when read-only", async () => {
+		const withModel = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "x", summarize: async () => "" }),
+		});
+		expect(await withModel.sendMessage({ sessionId: "nope", message: "hi" })).toBeNull();
+
+		const readOnly = createChatService({ rootDir });
+		const session = await readOnly.createSession({ title: "RO" });
+		await expect(readOnly.sendMessage({ sessionId: session.id, message: "hi" })).rejects.toThrow(/read-only/);
+	});
 });

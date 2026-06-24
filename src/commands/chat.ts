@@ -10,6 +10,7 @@ import { createChatSession, getChatSession } from "../chat/chat-session-store";
 import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
 import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../chat/chat-workspace-tools";
+import { DEFAULT_LOCAL_CHAT_BASE_URL, discoverLoadedModelId } from "../chat/local-chat-model";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
 
 /**
@@ -20,28 +21,12 @@ import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
  * the simple-completion entry point; the tool-using multi-turn agent loop + streaming + web-ui are the next layer.
  */
 
-const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:1234/v1";
+const DEFAULT_LOCAL_BASE_URL = DEFAULT_LOCAL_CHAT_BASE_URL;
 const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
 
 /** Rough token estimate for the lean-window budget (≈4 chars/token); the runtime can supply a precise one later. */
 function estimateChatTokens(text: string): number {
 	return Math.ceil(text.length / 4);
-}
-
-/** Discover a currently-loaded, non-embedding model from the live local endpoint. */
-export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-	try {
-		const res = await fetchImpl(`${baseUrl.replace(/\/+$/u, "")}/models`);
-		if (!res.ok) {
-			return null;
-		}
-		const payload = (await res.json()) as { data?: Array<{ id?: string }> };
-		const models = payload.data ?? [];
-		const chatModel = models.find((entry) => entry.id && !entry.id.includes("embed")) ?? models[0];
-		return chatModel?.id ?? null;
-	} catch {
-		return null;
-	}
 }
 
 interface ChatSendOptions {

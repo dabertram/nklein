@@ -12,7 +12,10 @@ import { type RuntimeTrpcContext, runtimeAppRouter } from "../../../src/trpc/app
  * router's request/response wrapping ({ sessions } / { session } / { deleted } / { messages }) over the real service.
  */
 function makeContext(rootDir: string): RuntimeTrpcContext {
-	const service = createChatService({ rootDir });
+	const service = createChatService({
+		rootDir,
+		resolveModelDeps: async () => ({ complete: async () => "Acknowledged.", summarize: async () => "" }),
+	});
 	// Only the chat methods are exercised; the rest of the context is unused by the chat procedures.
 	return {
 		requestedWorkspaceId: null,
@@ -24,6 +27,10 @@ function makeContext(rootDir: string): RuntimeTrpcContext {
 			updateChatSession: service.updateSession,
 			deleteChatSession: (id: string) => service.deleteSession(id),
 			readChatTranscript: (sessionId: string, limit?: number) => service.readTranscript(sessionId, limit),
+			sendChatMessage: async (input: { sessionId: string; message: string }) => {
+				const result = await service.sendMessage(input);
+				return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
+			},
 		},
 	} as unknown as RuntimeTrpcContext;
 }
@@ -86,5 +93,26 @@ describe("chat tRPC sub-router", () => {
 
 		const last = await caller.chat.getTranscript({ sessionId, limit: 1 });
 		expect(last.messages.map((m) => m.content)).toEqual(["a1"]);
+	});
+
+	it("runs a turn via sendMessage and persists it to the transcript", async () => {
+		const caller = runtimeAppRouter.createCaller(makeContext(rootDir));
+		const created = await caller.chat.createSession({ title: "Talk" });
+		const sessionId = created.session?.id ?? "";
+
+		const sent = await caller.chat.sendMessage({ sessionId, message: "ping" });
+		expect(sent.userMessage?.content).toBe("ping");
+		expect(sent.assistantMessage?.content).toBe("Acknowledged.");
+
+		const transcript = await caller.chat.getTranscript({ sessionId });
+		expect(transcript.messages.map((m) => ({ role: m.role, content: m.content }))).toEqual([
+			{ role: "user", content: "ping" },
+			{ role: "assistant", content: "Acknowledged." },
+		]);
+
+		// Unknown session → both messages null (the procedure stays well-typed).
+		const missing = await caller.chat.sendMessage({ sessionId: "nope", message: "hi" });
+		expect(missing.userMessage).toBeNull();
+		expect(missing.assistantMessage).toBeNull();
 	});
 });

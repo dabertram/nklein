@@ -5,6 +5,9 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
+import type { ChatModelDeps } from "./chat-local-llm-adapter";
+import { readChatMemories } from "./chat-memory-store";
+import { runChatTurn } from "./chat-runtime";
 import type { ChatSession } from "./chat-session-store";
 import {
 	createChatSession,
@@ -14,7 +17,7 @@ import {
 	updateChatSession,
 } from "./chat-session-store";
 import type { ChatMessage } from "./chat-transcript-store";
-import { readChatTranscript } from "./chat-transcript-store";
+import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
 
 /**
  * Board-independent chat service (todo §5.M) — the single aggregation seam over the chat session + transcript
@@ -28,6 +31,16 @@ export interface ChatServiceOptions {
 	/** Base directory for all chat stores; each store lives in its own subdir. Omit for the real runtime home. */
 	rootDir?: string;
 	now?: () => number;
+	/** Resolves the model completion deps for `sendMessage` (called per turn so discovery/errors surface then).
+	 *  Omit for a read-only service (sessions + transcript only); `sendMessage` then throws. */
+	resolveModelDeps?: () => Promise<ChatModelDeps>;
+	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
+	estimateTokens?: (text: string) => number;
+}
+
+export interface ChatSendResult {
+	userMessage: RuntimeChatMessage;
+	assistantMessage: RuntimeChatMessage;
 }
 
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
@@ -53,7 +66,18 @@ export interface ChatService {
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 	deleteSession: (id: string) => Promise<boolean>;
 	readTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
+	/** Run one chat turn against a session (composes memory + goal, calls the model, persists both messages).
+	 *  Returns null when the session doesn't exist; throws when no model is configured. */
+	sendMessage: (input: {
+		sessionId: string;
+		message: string;
+		tokenBudget?: number;
+		memoryLimit?: number;
+	}) => Promise<ChatSendResult | null>;
 }
+
+const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
+const DEFAULT_CHAT_MEMORY_LIMIT = 5;
 
 export function createChatService(options: ChatServiceOptions = {}): ChatService {
 	const { rootDir, now } = options;
@@ -63,6 +87,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		...(rootDir ? { rootDir: join(rootDir, "transcripts") } : {}),
 		...(now ? { now } : {}),
 	};
+	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
+	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
 
 	return {
 		listSessions: async () => {
@@ -106,6 +132,35 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				...(typeof limit === "number" ? { limit } : {}),
 			});
 			return messages.map(toRuntimeChatMessage);
+		},
+		sendMessage: async (input) => {
+			if (!options.resolveModelDeps) {
+				throw new Error("This chat service is read-only: no model is configured for sending messages.");
+			}
+			const session = await getChatSession(input.sessionId, sessionOptions);
+			if (!session) {
+				return null;
+			}
+			const modelDeps = await options.resolveModelDeps();
+			const result = await runChatTurn(
+				{
+					session,
+					userMessage: input.message,
+					tokenBudget: input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET,
+					memoryLimit: input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT,
+				},
+				{
+					readTranscript: (sessionId) => readChatTranscript(sessionId, transcriptOptions),
+					readMemories: () => readChatMemories(memoryOptions),
+					appendMessage: (sessionId, message) => appendChatMessage(sessionId, message, transcriptOptions),
+					estimateTokens,
+					...modelDeps,
+				},
+			);
+			return {
+				userMessage: toRuntimeChatMessage(result.userMessage),
+				assistantMessage: toRuntimeChatMessage(result.assistantMessage),
+			};
 		},
 	};
 }

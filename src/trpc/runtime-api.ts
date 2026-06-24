@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { type ChatService, createChatService } from "../chat/chat-service";
+import { resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
@@ -841,8 +842,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		join(homedir(), ".nklein", "nklein"),
 		join(homedir(), ".nklein", "worktrees"),
 	] as const;
-	// Board-independent chat service (todo §5.M); production uses the real runtime home (no rootDir).
-	const chatService = deps.chatService ?? createChatService();
+	// Board-independent chat service (todo §5.M); production uses the real runtime home (no rootDir) and resolves a
+	// loaded local model per send (so "no model loaded" surfaces as a clear error at send time, not at startup).
+	const chatService = deps.chatService ?? createChatService({ resolveModelDeps: () => resolveLocalChatModelDeps() });
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
 		buildRuntimeConfigResponse(
@@ -2433,5 +2435,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		updateChatSession: (input) => chatService.updateSession(input),
 		deleteChatSession: (id) => chatService.deleteSession(id),
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
+		sendChatMessage: async (input) => {
+			const result = await chatService.sendMessage(input);
+			return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
+		},
 	};
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discoverLoadedModelId } from "../../../src/commands/chat";
+import { discoverLoadedModelId } from "../../../src/chat/local-chat-model";
 
 function jsonResponse(body: unknown, ok = true): Response {
 	return { ok, json: async () => body } as unknown as Response;

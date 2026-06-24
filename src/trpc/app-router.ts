@@ -279,6 +279,8 @@ import {
 import type {
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
+	RuntimeChatSendMessageRequest,
+	RuntimeChatSendMessageResponse,
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract.js";
@@ -286,6 +288,8 @@ import {
 	runtimeChatCreateSessionRequestSchema,
 	runtimeChatDeleteSessionRequestSchema,
 	runtimeChatDeleteSessionResponseSchema,
+	runtimeChatSendMessageRequestSchema,
+	runtimeChatSendMessageResponseSchema,
 	runtimeChatSessionResponseSchema,
 	runtimeChatSessionsResponseSchema,
 	runtimeChatTranscriptRequestSchema,
@@ -512,6 +516,7 @@ export interface RuntimeTrpcContext {
 		updateChatSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 		deleteChatSession: (id: string) => Promise<boolean>;
 		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
+		sendChatMessage: (input: RuntimeChatSendMessageRequest) => Promise<RuntimeChatSendMessageResponse>;
 	};
 	workspaceApi: {
 		loadGitSummary: (
@@ -1013,6 +1018,12 @@ export const runtimeAppRouter = t.router({
 					sessionId: input.sessionId,
 					messages: await ctx.runtimeApi.readChatTranscript(input.sessionId, input.limit),
 				};
+			}),
+		sendMessage: t.procedure
+			.input(runtimeChatSendMessageRequestSchema)
+			.output(runtimeChatSendMessageResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.sendChatMessage(input);
 			}),
 	}),
 	workspace: t.router({

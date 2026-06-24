@@ -86,3 +86,18 @@ export const runtimeChatTranscriptResponseSchema = z.object({
 	messages: z.array(runtimeChatMessageSchema),
 });
 export type RuntimeChatTranscriptResponse = z.infer<typeof runtimeChatTranscriptResponseSchema>;
+
+export const runtimeChatSendMessageRequestSchema = z.object({
+	sessionId: z.string(),
+	message: z.string().min(1),
+	tokenBudget: z.number().int().positive().optional(),
+	memoryLimit: z.number().int().positive().optional(),
+});
+export type RuntimeChatSendMessageRequest = z.infer<typeof runtimeChatSendMessageRequestSchema>;
+
+export const runtimeChatSendMessageResponseSchema = z.object({
+	/** Null when the session no longer exists; otherwise the persisted user + assistant messages. */
+	userMessage: runtimeChatMessageSchema.nullable(),
+	assistantMessage: runtimeChatMessageSchema.nullable(),
+});
+export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
