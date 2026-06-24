@@ -9,17 +9,12 @@ import type {
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
 	RuntimeBoardDependency,
-	RuntimeNKleinReasoningEffort,
 	RuntimeTaskAcceptanceVerifyRequest,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskNKleinSettings,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
-import {
-	clampRuntimeSwarmCardStartBatchSize,
-	runtimeAgentIdSchema,
-	runtimeNKleinReasoningEffortSchema,
-} from "../core/api-contract";
+import { clampRuntimeSwarmCardStartBatchSize, runtimeAgentIdSchema } from "../core/api-contract";
 import { type PlanGapKind, planGapKindSchema, recordPlanGap } from "../core/plan-gap";
 import { buildKanbanRuntimeUrl, getKanbanRuntimeOrigin, getRuntimeFetch } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
@@ -66,6 +61,13 @@ import {
 	type TaskWorktreeAutoMergeConflict,
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
+import {
+	buildTaskNKleinSettingsForCreate,
+	buildTaskNKleinSettingsForUpdate,
+	formatTaskNKleinSettings,
+	type ParsedTaskNKleinReasoningEffort,
+	parseTaskNKleinReasoningEffort,
+} from "./task/task-nklein-settings.js";
 
 const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
@@ -425,130 +427,6 @@ function parseOptionalStringOrDefault(value: string | undefined): string | null 
 		return null;
 	}
 	return value;
-}
-
-type ParsedTaskNKleinReasoningEffort = RuntimeNKleinReasoningEffort | "default" | null | undefined;
-
-function parseTaskNKleinReasoningEffort(value: string | undefined): ParsedTaskNKleinReasoningEffort {
-	if (value === undefined) {
-		return undefined;
-	}
-	if (value === "inherit") {
-		return null;
-	}
-	if (value === "default") {
-		return "default";
-	}
-	const result = runtimeNKleinReasoningEffortSchema.safeParse(value);
-	if (result.success) {
-		return result.data;
-	}
-	throw new Error("Invalid !Klein reasoning effort. Expected one of: default, low, medium, high, xhigh, inherit.");
-}
-
-function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings | undefined {
-	if (settings === undefined) {
-		return undefined;
-	}
-	const providerId = settings.providerId?.trim();
-	const modelId = settings.modelId?.trim();
-	return {
-		...(providerId ? { providerId } : {}),
-		...(modelId ? { modelId } : {}),
-		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
-		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
-		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
-		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
-		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
-		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
-		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
-		...(settings.conversationTimeoutMs !== undefined
-			? { conversationTimeoutMs: settings.conversationTimeoutMs }
-			: {}),
-	};
-}
-
-function formatTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): JsonRecord {
-	if (settings === undefined) {
-		return {};
-	}
-	return {
-		nkleinSettings: cloneTaskNKleinSettings(settings) ?? {},
-	};
-}
-
-function buildTaskNKleinSettingsForCreate(input: {
-	providerId?: string;
-	modelId?: string;
-	reasoningEffort?: ParsedTaskNKleinReasoningEffort;
-}): RuntimeTaskNKleinSettings | undefined {
-	const providerId = input.providerId?.trim();
-	const modelId = input.modelId?.trim();
-	const reasoningEffort = input.reasoningEffort === null ? undefined : input.reasoningEffort;
-	if (!providerId && !modelId && reasoningEffort === undefined) {
-		return undefined;
-	}
-	return {
-		...(providerId ? { providerId } : {}),
-		...(modelId ? { modelId } : {}),
-		...(reasoningEffort && reasoningEffort !== "default" ? { reasoningEffort } : {}),
-	};
-}
-
-function buildTaskNKleinSettingsForUpdate(
-	currentSettings: RuntimeTaskNKleinSettings | undefined,
-	input: {
-		providerId?: string | null;
-		modelId?: string | null;
-		reasoningEffort?: ParsedTaskNKleinReasoningEffort;
-	},
-): RuntimeTaskNKleinSettings | null | undefined {
-	if (input.providerId === undefined && input.modelId === undefined && input.reasoningEffort === undefined) {
-		return undefined;
-	}
-	const nextSettings = cloneTaskNKleinSettings(currentSettings) ?? {};
-	let preserveEmptyOverride = currentSettings !== undefined && Object.keys(currentSettings).length === 0;
-
-	if (input.providerId !== undefined) {
-		const providerId = input.providerId?.trim();
-		if (providerId) {
-			nextSettings.providerId = providerId;
-		} else {
-			delete nextSettings.providerId;
-		}
-	}
-
-	if (input.modelId !== undefined) {
-		const modelId = input.modelId?.trim();
-		if (modelId) {
-			nextSettings.modelId = modelId;
-		} else {
-			delete nextSettings.modelId;
-		}
-	}
-
-	if (input.reasoningEffort !== undefined) {
-		if (input.reasoningEffort === "default") {
-			delete nextSettings.reasoningEffort;
-			preserveEmptyOverride = true;
-		} else if (input.reasoningEffort === null) {
-			delete nextSettings.reasoningEffort;
-			preserveEmptyOverride = false;
-		} else {
-			nextSettings.reasoningEffort = input.reasoningEffort;
-		}
-	}
-
-	if (
-		nextSettings.providerId === undefined &&
-		nextSettings.modelId === undefined &&
-		nextSettings.reasoningEffort === undefined &&
-		!preserveEmptyOverride
-	) {
-		return null;
-	}
-
-	return nextSettings;
 }
 
 function resolveTaskCommandTarget(input: TaskCommandTarget, commandName: string): ResolvedTaskCommandTarget {

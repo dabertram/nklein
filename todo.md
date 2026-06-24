@@ -1322,11 +1322,15 @@ deep analysis:
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
       decomposition item — extract cohesive sub-modules, no behavior change, locked by the existing suites:
-  - [ ] **`src/commands/task.ts` (~2870)** — the `nklein task` CLI conflates many concerns: acceptance-failure +
+  - [ ] **`src/commands/task.ts` (~2870 → 2751)** — the `nklein task` CLI conflates many concerns: acceptance-failure +
         plan-gap classification/evidence, decomposition routing + rejection recording, NKlein-settings build/format
         helpers, task-command target/workspace resolution, the tRPC client factory, and ~a dozen subcommand
         registrations. Split into `commands/task/` (e.g. `task-acceptance-plan-gap.ts`, `task-nklein-settings.ts`,
         `task-target-resolution.ts`, per-subcommand registration files) with `task.ts` as the thin registrar.
+        - [x] **slice 1 (2026-06-24):** extracted the 5 pure NKlein-settings helpers + `ParsedTaskNKleinReasoningEffort`
+              into `commands/task/task-nklein-settings.ts` (no I/O; covered by `task-verify.test.ts`).
+        - [ ] still TODO: `task-acceptance-plan-gap.ts`, `task-target-resolution.ts`, the tRPC client factory, and the
+              per-subcommand registration split.
   - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
