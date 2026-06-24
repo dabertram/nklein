@@ -606,7 +606,14 @@ deep analysis:
         (per-session isolation, ordering, recent-N limit, clear).
   - [ ] still owed: the tRPC/contract surface to expose sessions + transcripts to the chat UI + the messenger bridge,
         and the chat agent runtime that drives them.
-- [ ] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
+- [~] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
+  - [x] **context-composition core (2026-06-24)** — [src/chat/chat-turn-context.ts](src/chat/chat-turn-context.ts):
+        `composeChatTurnContext` ties the §5.M memory foundations together into the pure heart of a turn — it runs the
+        short-term lean-window split + overflow summary and the long-term semantic recall for the incoming message,
+        returning `{ summary, recalledMemories, recentMessages }`. Model calls (summarize, embed) injected → fully
+        unit-tested (recent window + overflow-summary + recall; skip-summary-when-fits + memory limit; embedding-ranked
+        recall). Still owed: the live multi-turn loop on the NKlein core (entry point + streaming + tool suite) that
+        renders this context, persists turns via the transcript store, and writes/consolidates memories.
 - [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
 - [ ] **Execution-access modes (default = most isolated)**
