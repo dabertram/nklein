@@ -680,7 +680,16 @@ deep analysis:
       multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
 
 ### 5.T — Settings/UI polish *(raised 2026-06-23, from a Swarm/Settings review)*
-- [ ] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button.
+- [~] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button.
+  - [x] **Prerequisite (2026-06-24): single source of truth.** The turn/wall-time/no-diff limits were module-private
+        constants in `nklein-task-session-service.ts` while the Settings display hardcoded matching strings ("12 turns"/
+        "2 hours"/"4 repeats") — a drift risk. Promoted them to the api-contract
+        (`RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK` / `_WALL_TIME_MS` / `_MAX_REPEATED_NO_DIFF_CHECKPOINTS`,
+        next to `RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH`); the runtime guardrail logic imports them (aliased) and the
+        Settings rows now render straight from them (`formatWallTimeHours`). Display is byte-identical; web 689 tests green.
+  - [ ] still TODO: schema fields + config plumbing (read/preserve in runtime-config) + editable Settings inputs +
+        per-guardrail validation + a "Reset to defaults" button (the actual configurability). The guardrail logic must
+        read the configured value instead of the contract default.
 - [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
       attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
 - [x] **Clarify "concurrent cards" vs "parallel agents"** *(DONE 2026-06-24)* — they **map 1:1** (each running card
@@ -693,8 +702,8 @@ deep analysis:
       Decide keep/relabel/remove (leaning keep for now; revisit).
 - [x] **Deactivate the "read the docs" links** *(DONE 2026-06-24)* — the only such link (Settings dialog footer, → the
       not-yet-published `docs.nklein.bot`) is now a **disabled** "Read the docs (not yet available)" button with a
-      "coming soon" tooltip, instead of opening a dead link. (The onboarding carousel's other external links go to real
-      ollama/lmstudio download pages — left as-is.) web tsc + biome clean; no test referenced it.
+      native-`title` "coming soon" hint, instead of opening a dead link. (The onboarding carousel's other external links
+      go to real ollama/lmstudio download pages — left as-is.) web tsc + biome + full web-ui suite (689) green.
 
 ### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24)*
 > **Goal (meta-task):** do a deliberate, whole-codebase reasoning pass over !Klein's architecture and structure and

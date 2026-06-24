@@ -15,7 +15,12 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
-import { RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK } from "../core/api-contract";
+import {
+	RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK as NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
+	RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS as NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
+	RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS as NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
+	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+} from "../core/api-contract";
 import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -124,9 +129,6 @@ const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
-const NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
-const NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS = 2 * 60 * 60 * 1000;
-const NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS = 4;
 type NKleinSdkContentBlock = Exclude<NKleinSdkPersistedMessage["content"], string>[number];
 type NKleinSdkToolResultBlock = Extract<NKleinSdkContentBlock, { type: "tool_result" }>;
 type NKleinTaskTimeoutKind = "stream" | "tool" | "conversation";

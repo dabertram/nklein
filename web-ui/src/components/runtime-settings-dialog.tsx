@@ -10,6 +10,9 @@ import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
 	DEFAULT_AGENT_RULESETS_CONFIG,
+	RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
+	RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
+	RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
 	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 } from "@runtime-contract";
@@ -65,7 +68,6 @@ import { cn } from "@/components/ui/cn";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { Tooltip } from "@/components/ui/tooltip";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
 import { useRuntimeSettingsNKleinController } from "@/hooks/use-runtime-settings-nklein-controller";
 import {
@@ -224,17 +226,31 @@ export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
+function formatWallTimeHours(ms: number): string {
+	const hours = ms / (60 * 60 * 1000);
+	const rounded = Number.isInteger(hours) ? `${hours}` : hours.toFixed(1);
+	return `${rounded} hour${hours === 1 ? "" : "s"}`;
+}
+
 const LOCAL_SWARM_GUARDRAIL_ROWS = [
 	{
 		label: "Card batch budget",
 		value: `${RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH} cards`,
 		detail: "Caps one swarm start-all or auto-start batch before the next operator or dependency event.",
 	},
-	{ label: "Autonomous turns", value: "12 turns", detail: "Parks !Klein tasks at the turn checkpoint limit." },
-	{ label: "Wall time", value: "2 hours", detail: "Parks !Klein tasks after the autonomous wall-time limit." },
+	{
+		label: "Autonomous turns",
+		value: `${RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK} turns`,
+		detail: "Parks !Klein tasks at the turn checkpoint limit.",
+	},
+	{
+		label: "Wall time",
+		value: formatWallTimeHours(RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS),
+		detail: "Parks !Klein tasks after the autonomous wall-time limit.",
+	},
 	{
 		label: "No-diff checkpoints",
-		value: "4 repeats",
+		value: `${RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS} repeats`,
 		detail: "Parks tasks that checkpoint the same commit repeatedly.",
 	},
 	{
@@ -3834,14 +3850,13 @@ export function RuntimeSettingsDialog({
 				</div>
 				<DialogFooter>
 					{/* Docs aren't published yet (todo §5.T): keep the entry point visible but disabled so it doesn't
-					    open a dead link, with a tooltip explaining why. Re-enable once docs.nklein.bot is live. */}
-					<Tooltip content="Documentation isn't available yet — coming soon.">
-						<span className="mr-auto mt-[3px] inline-flex">
-							<Button size="sm" variant="ghost" icon={<ExternalLink size={14} />} disabled>
-								Read the docs (not yet available)
-							</Button>
-						</span>
-					</Tooltip>
+					    open a dead link. Native title attr (the dialog's tooltip pattern; no TooltipProvider here).
+					    Re-enable once docs.nklein.bot is live. */}
+					<span className="mr-auto mt-[3px] inline-flex" title="Documentation isn't available yet — coming soon.">
+						<Button size="sm" variant="ghost" icon={<ExternalLink size={14} />} disabled>
+							Read the docs (not yet available)
+						</Button>
+					</span>
 					<Button onClick={() => handleDialogOpenChange(false)} disabled={controlsDisabled}>
 						Cancel
 					</Button>

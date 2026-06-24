@@ -95,6 +95,11 @@ export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoning
 export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
 export const RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH = 12;
 export const RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK = 3;
+// Autonomous-run swarm guardrail limits. Single source of truth shared by the runtime guardrail logic
+// (nklein-task-session-service) and the Settings "Local swarm guardrails" display, so the two can't drift.
+export const RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK = 12;
+export const RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS = 2 * 60 * 60 * 1000;
+export const RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS = 4;
 
 export function clampRuntimeSwarmCardStartBatchSize(value: number): number {
 	if (!Number.isFinite(value) || value <= 0) {
