@@ -680,9 +680,17 @@ deep analysis:
 - [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
   - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
         ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
+  - [x] **CLI sweep orchestrator (2026-06-24)** — `nklein dev sweep` runs several dev-test presets in sequence
+        (default = the parallel-fan-out set `wide_fanout,deep_chain,mixed_dag,many_small`, `--presets` overridable)
+        and reports each run's classified terminal outcome. The orchestration core
+        ([src/core/dev-test-sweep.ts](src/core/dev-test-sweep.ts) — `runDevTestSweep` / `summarizeDevTestSweep` /
+        `formatDevTestSweepReport`) is pure with the per-preset execution injected, so it's fully unit-tested (4 cases);
+        the CLI wires it to a real live run via the shared `executeDevTestPreset` (extracted from `test-project`). `--json`
+        emits the structured summary (per-preset outcome + `byOutcome` rollup + `allSucceeded`) for a future CI gate.
   - [ ] run under concurrency + harden from observed failures (gated on the user's quant/K-V configs)
-- [ ] **Autonomous sweep tooling** (designed when we start) — iterate the model/quant/config matrix unattended on top
-      of `dev test-project` + `collect evidence` + `cleanup-report`; capture evidence per run + summarize. Discuss shape then.
+- [ ] **Autonomous sweep tooling** (designed when we start) — the `dev sweep` orchestrator above is the per-model
+      driver; still owed: iterate the model/quant/config **matrix** unattended on top of it (swap the loaded model per
+      iteration) + capture evidence per run + a cleanup pass. Gated on the user's quant/K-V configs; discuss shape then.
 - [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
       families/variants emit tool calls in different shapes (OpenAI `tool_calls`, `<tool_call>{…}</tool_call>` narration,
       Hermes/Qwen/Mistral/Anthropic-ish templates, etc.). Parse-and-recover **every** publicly-known format at the

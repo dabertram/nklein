@@ -8,6 +8,7 @@ import type { Command } from "commander";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
+import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-sdk/nklein-advisor";
@@ -233,33 +234,40 @@ function createDevRuntimeClient(workspaceId: string | null) {
 	});
 }
 
-export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
-	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const cwd = options.cwd ?? process.cwd();
-	const preset = parseDevTestPreset(options.preset);
-	const scenario = resolveNKleinDevTestProjectScenario(preset);
-	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
-	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
-	const client = createDevRuntimeClient(workspace.workspaceId);
-	const baseRef = options.baseRef ?? "main";
+/**
+ * Run one dev-test preset against an already-resolved runtime client + workspace, returning the raw run
+ * result + wall time. Shared by the single-preset command and the sweep orchestrator (todo §5.O).
+ */
+async function executeDevTestPreset(input: {
+	client: ReturnType<typeof createDevRuntimeClient>;
+	workspaceId: string;
+	preset: NKleinDevTestProjectPreset;
+	baseRef: string;
+	pollIntervalMs?: number;
+	maxWaitMs?: number;
+}): Promise<{
+	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
+	result: Awaited<ReturnType<typeof runDevTestProject>>;
+	durationMs: number;
+}> {
+	const scenario = resolveNKleinDevTestProjectScenario(input.preset);
 	const seedTaskId = `devtest-${scenario.id}-${Date.now()}`;
-
 	const readState = createDevTestStateReader({
-		readLiveBoard: async () => (await client.workspace.getState.query()).board,
-		readPersistedBoard: async () => await loadWorkspaceBoardById(workspace.workspaceId),
+		readLiveBoard: async () => (await input.client.workspace.getState.query()).board,
+		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
 	});
-
+	const startedAt = Date.now();
 	const result = await runDevTestProject(
 		{
 			scenario,
 			seedTaskId,
-			baseRef,
-			...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
-			...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+			baseRef: input.baseRef,
+			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
+			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
 		},
 		{
 			startSeedTask: async (payload) => {
-				const started = await client.runtime.startTaskSession.mutate({
+				const started = await input.client.runtime.startTaskSession.mutate({
 					taskId: payload.taskId,
 					prompt: payload.prompt,
 					taskTitle: payload.taskTitle,
@@ -275,6 +283,24 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 			now: () => Date.now(),
 		},
 	);
+	return { scenario, result, durationMs: Date.now() - startedAt };
+}
+
+export async function runDevTestProjectCommand(options: DevTestProjectOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const cwd = options.cwd ?? process.cwd();
+	const preset = parseDevTestPreset(options.preset);
+	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
+	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
+	const client = createDevRuntimeClient(workspace.workspaceId);
+	const { scenario, result } = await executeDevTestPreset({
+		client,
+		workspaceId: workspace.workspaceId,
+		preset,
+		baseRef: options.baseRef ?? "main",
+		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
+		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+	});
 
 	if (options.json) {
 		write(`${JSON.stringify(result, null, 2)}\n`);
@@ -287,6 +313,74 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		} after ${result.polls} poll(s)\n`,
 	);
 	write(`${result.classification.summary}\n`);
+}
+
+const DEFAULT_DEV_TEST_SWEEP_PRESETS: readonly NKleinDevTestProjectPreset[] = [
+	"wide_fanout",
+	"deep_chain",
+	"mixed_dag",
+	"many_small",
+];
+
+interface DevTestSweepOptions {
+	presets?: string;
+	projectPath?: string;
+	baseRef?: string;
+	pollIntervalMs?: number;
+	maxWaitMs?: number;
+	json?: boolean;
+	cwd?: string;
+	write?: (text: string) => void;
+}
+
+function parseDevTestSweepPresets(value: string | undefined): NKleinDevTestProjectPreset[] {
+	if (value === undefined || value.trim().length === 0) {
+		return [...DEFAULT_DEV_TEST_SWEEP_PRESETS];
+	}
+	return value
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter((entry) => entry.length > 0)
+		.map((entry) => parseDevTestPreset(entry));
+}
+
+export async function runDevTestSweepCommand(options: DevTestSweepOptions = {}): Promise<void> {
+	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	const cwd = options.cwd ?? process.cwd();
+	const presets = parseDevTestSweepPresets(options.presets);
+	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
+	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
+	const client = createDevRuntimeClient(workspace.workspaceId);
+	const baseRef = options.baseRef ?? "main";
+
+	const summary = await runDevTestSweep(presets, async (preset) => {
+		const { scenario, result, durationMs } = await executeDevTestPreset({
+			client,
+			workspaceId: workspace.workspaceId,
+			preset: parseDevTestPreset(preset),
+			baseRef,
+			...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
+			...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
+		});
+		return {
+			preset,
+			scenarioTitle: scenario.title,
+			started: result.started,
+			startMessage: result.startMessage ?? null,
+			outcome: result.classification.outcome,
+			success: result.classification.success,
+			incompleteCardCount: result.classification.incompleteCardCount,
+			summary: result.classification.summary,
+			evidenceBundlePath: null,
+			durationMs,
+		} satisfies DevTestSweepEntry;
+	});
+
+	if (options.json) {
+		write(`${JSON.stringify(summary, null, 2)}\n`);
+		return;
+	}
+	write(formatDevTestSweepReport(summary));
 }
 
 interface DevCleanupReportOptions {
@@ -480,6 +574,23 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: DevTestProjectOptions) => {
 			await runDevTestProjectCommand(options);
+		});
+
+	dev.command("sweep")
+		.description("Run several dev-test scenario presets in sequence and report each run's classified outcome.")
+		.option(
+			"--presets <list>",
+			"Comma-separated presets to sweep. Defaults to the parallel-fan-out set (wide_fanout,deep_chain,mixed_dag,many_small).",
+		)
+		.option("--project-path <path>", "Workspace path to run the dev-test scenarios in. Defaults to the cwd.")
+		.option("--base-ref <ref>", "Base git ref for each seed card. Defaults to main.")
+		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
+		.option("--max-wait-ms <ms>", "Maximum monitor duration per preset in milliseconds.", (value) =>
+			Number.parseInt(value, 10),
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: DevTestSweepOptions) => {
+			await runDevTestSweepCommand(options);
 		});
 
 	dev.command("cleanup-report")
