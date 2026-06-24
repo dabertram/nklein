@@ -60,6 +60,7 @@ import {
 	validatePasscode,
 	validateSession,
 } from "../security/passcode-manager";
+import { recordMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
@@ -572,6 +573,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							columns: ["review"],
 							taskIds: [taskId],
 						});
+						// Durable board-level merge history (todo §5.G) — best-effort, never blocks the merge flow.
+						void recordMergeHistory({ workspacePath: scope.workspacePath, taskId, result: mergeResult });
 						if (!mergeResult.ok) {
 							const reason =
 								mergeResult.blocked?.reason ??

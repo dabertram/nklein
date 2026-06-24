@@ -452,7 +452,12 @@ deep analysis:
       clickable **Architect / Worker / Reviewer** chips (only for roles with running work) that focus a running
       agent of that role on click. Reads the **persisted** `summary.role` (stamped at start, §5.U finding above) —
       no `startInPlanMode` inference. web-tested (chips render + click-to-focus calls onCardSelect); live render clean.
-- [ ] **Board-level merge-status history surface** (today CLI/integration-card only).
+- [~] **Board-level merge-status history surface** (today CLI/integration-card only).
+  - [x] **durable store + recording (2026-06-24)** — added [merge-history-store.ts](src/state/merge-history-store.ts)
+        (JSONL per workspace, `recordMergeHistory`/`readMergeHistory`/`buildMergeHistoryRecord`); the runtime-server
+        auto-merge site now records each dependency-ordered merge pass (ok / mergedTaskIds / skippedTaskIds /
+        conflictedPaths / reason), best-effort so it never blocks the merge. Unit-tested (build + round-trip).
+  - [ ] still owed: a tRPC read procedure + a board-header/history UI surface to display it.
 - [x] **Acceptance-failure classification taxonomy** — pure classifier
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
       missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,
