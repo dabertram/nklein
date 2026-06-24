@@ -1,3 +1,4 @@
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import { act, useCallback, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -138,6 +139,7 @@ function createRuntimeConfig(overrides: Partial<RuntimeConfigResponse> = {}): Ru
 		],
 		shortcuts: [],
 		modelRoles: {},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		nkleinProviderSettings: {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",

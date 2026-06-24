@@ -1,3 +1,4 @@
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -199,6 +200,7 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		],
 		shortcuts: [],
 		modelRoles: {},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		nkleinProviderSettings: {
 			providerId: "lmstudio",
 			modelId: "local-model",

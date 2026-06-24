@@ -680,7 +680,7 @@ deep analysis:
       multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
 
 ### 5.T — Settings/UI polish *(raised 2026-06-23, from a Swarm/Settings review)*
-- [~] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button.
+- [x] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button. *(DONE 2026-06-24)*
   - [x] **Prerequisite (2026-06-24): single source of truth.** The turn/wall-time/no-diff limits were module-private
         constants in `nklein-task-session-service.ts` while the Settings display hardcoded matching strings ("12 turns"/
         "2 hours"/"4 repeats") — a drift risk. Promoted them to the api-contract
@@ -697,8 +697,13 @@ deep analysis:
         `runtime-server.ts`), not the contract constants. Each value clamps to a sane range (turns 1–1000, wall-time
         1 min–7 days, no-diff 1–100, tool-calls 2–100). Unit-tested: config defaults/round-trip/clamp/preserve +
         guard-honors-lowered-and-raised-limit. tsc + biome + fast (1349) green.
-  - [ ] still TODO (web-ui, commit 2): editable Settings inputs in the "Local swarm guardrails" section (render from
-        the loaded config, not the static contract constants) + per-guardrail validation + a "Reset to defaults" button.
+  - [x] **Settings editor (2026-06-24, web-ui).** The "Local swarm guardrails" section now renders the four per-task
+        limits as number inputs seeded from the loaded config (wall-time edited in hours), each with an out-of-range
+        inline hint (clamped on save) + a section **"Reset to defaults"** button (disabled when already at defaults).
+        The static "Card batch budget" + "Repeated tool/API mistakes (SDK limit)" rows stay read-only. Shared
+        `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails` round-trip through `normalizeRuntimeSwarmGuardrails`. web
+        tsc + biome + full web suite (84 files / 691 tests incl. new edit-and-save + reset tests) green. *(Visual
+        Playwright pass folds into the §5.A UI verification session; behavior is fully unit-locked.)*
 - [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
       attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
 - [x] **Clarify "concurrent cards" vs "parallel agents"** *(DONE 2026-06-24)* — they **map 1:1** (each running card

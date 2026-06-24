@@ -1,3 +1,4 @@
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -89,6 +90,7 @@ function createRuntimeConfigResponse(
 		],
 		shortcuts: [],
 		modelRoles: {},
+		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		nkleinProviderSettings: {
 			providerId: "nklein",
 			modelId: "sonnet",

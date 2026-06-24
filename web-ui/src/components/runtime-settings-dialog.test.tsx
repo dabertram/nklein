@@ -1,9 +1,9 @@
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "@runtime-contract";
 import type { ReactNode } from "react";
 import { act, createContext, useContext } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Simulate, type SyntheticEventData } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import { RuntimeSettingsDialog } from "@/components/runtime-settings-dialog";
 import type { RuntimeConfigResponse } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
@@ -355,6 +355,7 @@ const savedNKleinOauthConfig = {
 	detectedCommands: [],
 	shortcuts: [],
 	modelRoles: {},
+	swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",
 	commitPromptTemplateDefault: "",
@@ -713,20 +714,93 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("2 containers, 4 pool slots, 4 GB each.");
 		expect(document.body.textContent).toContain("Card batch budget");
 		expect(document.body.textContent).toContain("12 cards");
+		// The four per-task guardrails are now editable inputs (todo §5.T) seeded from the config defaults.
 		expect(document.body.textContent).toContain("Autonomous turns");
-		expect(document.body.textContent).toContain("12 turns");
-		expect(document.body.textContent).toContain("Wall time");
-		expect(document.body.textContent).toContain("2 hours");
+		expect(document.body.textContent).toContain("Wall time (hours)");
 		expect(document.body.textContent).toContain("No-diff checkpoints");
-		expect(document.body.textContent).toContain("4 repeats");
 		expect(document.body.textContent).toContain("Repeated tool calls");
-		expect(document.body.textContent).toContain("3 repeats");
+		expect(document.body.textContent).toContain("Reset to defaults");
+		expect((document.getElementById("runtime-settings-guardrail-turns") as HTMLInputElement).value).toBe("12");
+		expect((document.getElementById("runtime-settings-guardrail-wall-time") as HTMLInputElement).value).toBe("2");
+		expect((document.getElementById("runtime-settings-guardrail-no-diff") as HTMLInputElement).value).toBe("4");
+		expect((document.getElementById("runtime-settings-guardrail-tool-calls") as HTMLInputElement).value).toBe("3");
 		expect(document.body.textContent).toContain("Advanced policy visibility");
 		expect(document.body.textContent).toContain("Routing policy");
 		expect(document.body.textContent).toContain("Context budget policy");
 		expect(document.body.textContent).toContain("Acceptance gate");
 		expect(document.body.textContent).toContain("Telemetry");
 		expect(document.body.textContent).toContain(".nklein/nklein/telemetry, limit 20");
+	});
+
+	it("edits and saves the local swarm guardrails (§5.T)", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		await act(async () => {
+			setInputValue(document.getElementById("runtime-settings-guardrail-turns") as HTMLInputElement, "30");
+		});
+		await act(async () => {
+			setInputValue(document.getElementById("runtime-settings-guardrail-wall-time") as HTMLInputElement, "4");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				swarmGuardrails: expect.objectContaining({
+					maxAutonomousTurnsPerTask: 30,
+					maxAutonomousWallTimeMs: 4 * 60 * 60 * 1000,
+					maxRepeatedNoDiffCheckpoints: 4,
+					maxRepeatedToolCallsPerTask: 3,
+				}),
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("resets the local swarm guardrails to defaults (§5.T)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedNKleinOauthConfig,
+							swarmGuardrails: {
+								maxAutonomousTurnsPerTask: 99,
+								maxAutonomousWallTimeMs: 30 * 60 * 1000,
+								maxRepeatedNoDiffCheckpoints: 8,
+								maxRepeatedToolCallsPerTask: 9,
+							},
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const turnsInput = document.getElementById("runtime-settings-guardrail-turns") as HTMLInputElement;
+		expect(turnsInput.value).toBe("99");
+
+		await act(async () => {
+			findButtonByText(document.body, "Reset to defaults")?.click();
+		});
+
+		expect((document.getElementById("runtime-settings-guardrail-turns") as HTMLInputElement).value).toBe("12");
+		expect((document.getElementById("runtime-settings-guardrail-wall-time") as HTMLInputElement).value).toBe("2");
+		expect((document.getElementById("runtime-settings-guardrail-no-diff") as HTMLInputElement).value).toBe("4");
+		expect((document.getElementById("runtime-settings-guardrail-tool-calls") as HTMLInputElement).value).toBe("3");
 	});
 
 	it("saves sandbox pool settings from general settings", async () => {

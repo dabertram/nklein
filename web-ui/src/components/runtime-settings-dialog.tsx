@@ -9,11 +9,11 @@ import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } fr
 import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
+	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
-	RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK,
-	RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS,
-	RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS,
-	RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	normalizeRuntimeSwarmGuardrails,
+	RUNTIME_SWARM_GUARDRAIL_BOUNDS,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 } from "@runtime-contract";
 import { areRuntimeProjectShortcutsEqual } from "@runtime-shortcuts";
@@ -121,6 +121,7 @@ import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinSmokeEvalResponse,
 	RuntimeProjectShortcut,
+	RuntimeSwarmGuardrails,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
@@ -226,10 +227,47 @@ export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
-function formatWallTimeHours(ms: number): string {
+
+// The configurable per-task guardrails (todo §5.T) are edited as strings so the user can clear/type freely; the
+// wall-time is edited in hours but stored as ms. `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails` convert between
+// the saved shape and the input strings; `inputsToSwarmGuardrails` clamps via the shared contract normalizer so a
+// typo can never persist an out-of-range value.
+const WALL_TIME_BOUNDS_HOURS = {
+	min: RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousWallTimeMs.min / (60 * 60 * 1000),
+	max: RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousWallTimeMs.max / (60 * 60 * 1000),
+} as const;
+interface SwarmGuardrailInputs {
+	maxAutonomousTurnsPerTask: string;
+	maxAutonomousWallTimeHours: string;
+	maxRepeatedNoDiffCheckpoints: string;
+	maxRepeatedToolCallsPerTask: string;
+}
+function formatHoursInput(ms: number): string {
 	const hours = ms / (60 * 60 * 1000);
-	const rounded = Number.isInteger(hours) ? `${hours}` : hours.toFixed(1);
-	return `${rounded} hour${hours === 1 ? "" : "s"}`;
+	return Number.isInteger(hours) ? `${hours}` : `${Number(hours.toFixed(3))}`;
+}
+function swarmGuardrailsToInputs(guardrails: RuntimeSwarmGuardrails): SwarmGuardrailInputs {
+	return {
+		maxAutonomousTurnsPerTask: String(guardrails.maxAutonomousTurnsPerTask),
+		maxAutonomousWallTimeHours: formatHoursInput(guardrails.maxAutonomousWallTimeMs),
+		maxRepeatedNoDiffCheckpoints: String(guardrails.maxRepeatedNoDiffCheckpoints),
+		maxRepeatedToolCallsPerTask: String(guardrails.maxRepeatedToolCallsPerTask),
+	};
+}
+function inputsToSwarmGuardrails(inputs: SwarmGuardrailInputs): RuntimeSwarmGuardrails {
+	const wallTimeHours = Number.parseFloat(inputs.maxAutonomousWallTimeHours);
+	return normalizeRuntimeSwarmGuardrails({
+		maxAutonomousTurnsPerTask: Number.parseInt(inputs.maxAutonomousTurnsPerTask, 10),
+		maxAutonomousWallTimeMs: Number.isFinite(wallTimeHours) ? Math.round(wallTimeHours * 60 * 60 * 1000) : Number.NaN,
+		maxRepeatedNoDiffCheckpoints: Number.parseInt(inputs.maxRepeatedNoDiffCheckpoints, 10),
+		maxRepeatedToolCallsPerTask: Number.parseInt(inputs.maxRepeatedToolCallsPerTask, 10),
+	});
+}
+// True when the typed value is empty / not a number / outside its bound, so the row can flag that it will be
+// clamped (or filled with the default) on save.
+function isGuardrailInputOutOfRange(value: string, bounds: { min: number; max: number }): boolean {
+	const parsed = Number.parseFloat(value);
+	return !Number.isFinite(parsed) || parsed < bounds.min || parsed > bounds.max;
 }
 
 const LOCAL_SWARM_GUARDRAIL_ROWS = [
@@ -237,26 +275,6 @@ const LOCAL_SWARM_GUARDRAIL_ROWS = [
 		label: "Card batch budget",
 		value: `${RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH} cards`,
 		detail: "Caps one swarm start-all or auto-start batch before the next operator or dependency event.",
-	},
-	{
-		label: "Autonomous turns",
-		value: `${RUNTIME_NKLEIN_MAX_AUTONOMOUS_TURNS_PER_TASK} turns`,
-		detail: "Parks !Klein tasks at the turn checkpoint limit.",
-	},
-	{
-		label: "Wall time",
-		value: formatWallTimeHours(RUNTIME_NKLEIN_MAX_AUTONOMOUS_WALL_TIME_MS),
-		detail: "Parks !Klein tasks after the autonomous wall-time limit.",
-	},
-	{
-		label: "No-diff checkpoints",
-		value: `${RUNTIME_NKLEIN_MAX_REPEATED_NO_DIFF_CHECKPOINTS} repeats`,
-		detail: "Parks tasks that checkpoint the same commit repeatedly.",
-	},
-	{
-		label: "Repeated tool calls",
-		value: `${RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK} repeats`,
-		detail: "Parks tasks that keep starting the same tool with the same input.",
 	},
 	{
 		label: "Repeated tool/API mistakes",
@@ -1414,6 +1432,9 @@ export function RuntimeSettingsDialog({
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [secondOpinionReviewEnabled, setSecondOpinionReviewEnabled] = useState(true);
 	const [reviewMaxRounds, setReviewMaxRounds] = useState(20);
+	const [swarmGuardrailInputs, setSwarmGuardrailInputs] = useState<SwarmGuardrailInputs>(() =>
+		swarmGuardrailsToInputs(DEFAULT_RUNTIME_SWARM_GUARDRAILS),
+	);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
@@ -1484,6 +1505,10 @@ export function RuntimeSettingsDialog({
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
 	const secondOpinionReviewLabelId = "runtime-settings-second-opinion-review-label";
 	const reviewMaxRoundsId = "runtime-settings-review-max-rounds";
+	const swarmGuardrailTurnsId = "runtime-settings-guardrail-turns";
+	const swarmGuardrailWallTimeId = "runtime-settings-guardrail-wall-time";
+	const swarmGuardrailNoDiffId = "runtime-settings-guardrail-no-diff";
+	const swarmGuardrailToolCallsId = "runtime-settings-guardrail-tool-calls";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -1565,6 +1590,7 @@ export function RuntimeSettingsDialog({
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
 	const initialReviewMaxRounds = config?.reviewMaxRounds ?? 20;
+	const initialSwarmGuardrails = config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
@@ -1771,6 +1797,9 @@ export function RuntimeSettingsDialog({
 		if (reviewMaxRounds !== initialReviewMaxRounds) {
 			return true;
 		}
+		if (!areRuntimeSwarmGuardrailsEqual(inputsToSwarmGuardrails(swarmGuardrailInputs), initialSwarmGuardrails)) {
+			return true;
+		}
 		if (developerModeEnabled !== initialDeveloperModeEnabled) {
 			return true;
 		}
@@ -1912,6 +1941,7 @@ export function RuntimeSettingsDialog({
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
 		setReviewMaxRounds(config?.reviewMaxRounds ?? 20);
+		setSwarmGuardrailInputs(swarmGuardrailsToInputs(config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS));
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
@@ -1950,6 +1980,7 @@ export function RuntimeSettingsDialog({
 		config?.decompositionAutoApplyEnabled,
 		config?.secondOpinionReviewEnabled,
 		config?.reviewMaxRounds,
+		config?.swarmGuardrails,
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
 		config?.maxAgentWritableFileLines,
@@ -2486,6 +2517,7 @@ export function RuntimeSettingsDialog({
 			decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled,
 			reviewMaxRounds,
+			swarmGuardrails: inputsToSwarmGuardrails(swarmGuardrailInputs),
 			developerModeEnabled,
 			replayCardsEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
@@ -2988,9 +3020,27 @@ export function RuntimeSettingsDialog({
 									style={{ gridColumn: "1 / span 2" }}
 									className="rounded-md border border-border bg-surface-1 p-3"
 								>
-									<div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
-										<ShieldCheck size={14} />
-										<span>Local swarm guardrails</span>
+									<div className="mb-2 flex items-center justify-between gap-2">
+										<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+											<ShieldCheck size={14} />
+											<span>Local swarm guardrails</span>
+										</div>
+										<button
+											type="button"
+											disabled={
+												controlsDisabled ||
+												areRuntimeSwarmGuardrailsEqual(
+													inputsToSwarmGuardrails(swarmGuardrailInputs),
+													DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+												)
+											}
+											onClick={() =>
+												setSwarmGuardrailInputs(swarmGuardrailsToInputs(DEFAULT_RUNTIME_SWARM_GUARDRAILS))
+											}
+											className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-3 disabled:opacity-40"
+										>
+											Reset to defaults
+										</button>
 									</div>
 									<div className="grid gap-2 sm:grid-cols-2">
 										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
@@ -3033,6 +3083,137 @@ export function RuntimeSettingsDialog({
 													? "Creates Planning cards immediately."
 													: "Shows Apply/Reject."}
 											</div>
+										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<label htmlFor={swarmGuardrailTurnsId} className="text-[11px] text-text-tertiary">
+												Autonomous turns
+											</label>
+											<input
+												id={swarmGuardrailTurnsId}
+												type="number"
+												min={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask.min}
+												max={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask.max}
+												value={swarmGuardrailInputs.maxAutonomousTurnsPerTask}
+												disabled={controlsDisabled}
+												onChange={(event) =>
+													setSwarmGuardrailInputs((prev) => ({
+														...prev,
+														maxAutonomousTurnsPerTask: event.target.value,
+													}))
+												}
+												className="mt-0.5 w-full rounded-sm border border-border bg-surface-1 px-2 py-1 text-[13px] text-text-primary disabled:opacity-40"
+											/>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												Parks !Klein tasks at the turn checkpoint limit.
+											</div>
+											{isGuardrailInputOutOfRange(
+												swarmGuardrailInputs.maxAutonomousTurnsPerTask,
+												RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask,
+											) && (
+												<div className="mt-0.5 text-[11px] text-status-red">
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask.min}–
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousTurnsPerTask.max} turns (clamped on
+													save).
+												</div>
+											)}
+										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<label htmlFor={swarmGuardrailWallTimeId} className="text-[11px] text-text-tertiary">
+												Wall time (hours)
+											</label>
+											<input
+												id={swarmGuardrailWallTimeId}
+												type="number"
+												min={WALL_TIME_BOUNDS_HOURS.min}
+												max={WALL_TIME_BOUNDS_HOURS.max}
+												step={0.5}
+												value={swarmGuardrailInputs.maxAutonomousWallTimeHours}
+												disabled={controlsDisabled}
+												onChange={(event) =>
+													setSwarmGuardrailInputs((prev) => ({
+														...prev,
+														maxAutonomousWallTimeHours: event.target.value,
+													}))
+												}
+												className="mt-0.5 w-full rounded-sm border border-border bg-surface-1 px-2 py-1 text-[13px] text-text-primary disabled:opacity-40"
+											/>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												Parks !Klein tasks after the autonomous wall-time limit.
+											</div>
+											{isGuardrailInputOutOfRange(
+												swarmGuardrailInputs.maxAutonomousWallTimeHours,
+												WALL_TIME_BOUNDS_HOURS,
+											) && (
+												<div className="mt-0.5 text-[11px] text-status-red">
+													1 minute–7 days (clamped on save).
+												</div>
+											)}
+										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<label htmlFor={swarmGuardrailNoDiffId} className="text-[11px] text-text-tertiary">
+												No-diff checkpoints
+											</label>
+											<input
+												id={swarmGuardrailNoDiffId}
+												type="number"
+												min={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints.min}
+												max={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints.max}
+												value={swarmGuardrailInputs.maxRepeatedNoDiffCheckpoints}
+												disabled={controlsDisabled}
+												onChange={(event) =>
+													setSwarmGuardrailInputs((prev) => ({
+														...prev,
+														maxRepeatedNoDiffCheckpoints: event.target.value,
+													}))
+												}
+												className="mt-0.5 w-full rounded-sm border border-border bg-surface-1 px-2 py-1 text-[13px] text-text-primary disabled:opacity-40"
+											/>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												Parks tasks that checkpoint the same commit repeatedly.
+											</div>
+											{isGuardrailInputOutOfRange(
+												swarmGuardrailInputs.maxRepeatedNoDiffCheckpoints,
+												RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints,
+											) && (
+												<div className="mt-0.5 text-[11px] text-status-red">
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints.min}–
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedNoDiffCheckpoints.max} repeats
+													(clamped on save).
+												</div>
+											)}
+										</div>
+										<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+											<label htmlFor={swarmGuardrailToolCallsId} className="text-[11px] text-text-tertiary">
+												Repeated tool calls
+											</label>
+											<input
+												id={swarmGuardrailToolCallsId}
+												type="number"
+												min={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask.min}
+												max={RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask.max}
+												value={swarmGuardrailInputs.maxRepeatedToolCallsPerTask}
+												disabled={controlsDisabled}
+												onChange={(event) =>
+													setSwarmGuardrailInputs((prev) => ({
+														...prev,
+														maxRepeatedToolCallsPerTask: event.target.value,
+													}))
+												}
+												className="mt-0.5 w-full rounded-sm border border-border bg-surface-1 px-2 py-1 text-[13px] text-text-primary disabled:opacity-40"
+											/>
+											<div className="mt-1 text-[11px] text-text-secondary">
+												Parks tasks that keep starting the same tool with the same input.
+											</div>
+											{isGuardrailInputOutOfRange(
+												swarmGuardrailInputs.maxRepeatedToolCallsPerTask,
+												RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask,
+											) && (
+												<div className="mt-0.5 text-[11px] text-status-red">
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask.min}–
+													{RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask.max} repeats (clamped
+													on save).
+												</div>
+											)}
 										</div>
 										{LOCAL_SWARM_GUARDRAIL_ROWS.map((row) => (
 											<div
