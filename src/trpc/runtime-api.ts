@@ -68,12 +68,6 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { selectRoleModel } from "../core/role-model-selection";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { moveTaskToColumn } from "../core/task-board-mutations";
-import {
-	formatGitHubContextLabel,
-	type GitHubIssueView,
-	parseGitHubContextTarget,
-	renderGitHubIssueContext,
-} from "../core/task-context-import";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
@@ -147,6 +141,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./runtime-api/task-timeout-settings.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
@@ -155,8 +150,6 @@ type ResolvedNKleinLaunchConfig = Awaited<
 >;
 
 const execFileAsync = promisify(execFile);
-const GITHUB_CONTEXT_IMPORT_TIMEOUT_MS = 20_000;
-const GITHUB_CONTEXT_IMPORT_MAX_BUFFER_BYTES = 512_000;
 
 interface AdvisorChatCompletionInput {
 	launchConfig: ResolvedNKleinLaunchConfig;
@@ -233,60 +226,6 @@ function readAdvisorTextResponse(value: unknown): string {
 		}
 	}
 	return "";
-}
-
-async function runGitHubCli(args: string[], cwd: string): Promise<string> {
-	const { stdout } = await execFileAsync("gh", args, {
-		cwd,
-		timeout: GITHUB_CONTEXT_IMPORT_TIMEOUT_MS,
-		maxBuffer: GITHUB_CONTEXT_IMPORT_MAX_BUFFER_BYTES,
-	});
-	return stdout.toString();
-}
-
-async function importGitHubIssueContext(targetText: string, cwd: string): Promise<RuntimeTaskContextImportResponse> {
-	const target = parseGitHubContextTarget(targetText);
-	const sourceLabel = formatGitHubContextLabel("github_issue", target);
-	const stdout = await runGitHubCli(
-		[
-			"issue",
-			"view",
-			target.number,
-			"--repo",
-			`${target.owner}/${target.repo}`,
-			"--json",
-			"title,body,comments,url,state,labels",
-		],
-		cwd,
-	);
-	const issue = JSON.parse(stdout) as GitHubIssueView;
-	const content = renderGitHubIssueContext(issue);
-	if (!content) {
-		throw new Error("GitHub issue returned no importable content.");
-	}
-	return {
-		ok: true,
-		sourceLabel,
-		title: issue.title?.trim() || null,
-		content,
-	};
-}
-
-async function importGitHubPrDiffContext(targetText: string, cwd: string): Promise<RuntimeTaskContextImportResponse> {
-	const target = parseGitHubContextTarget(targetText);
-	const sourceLabel = formatGitHubContextLabel("github_pr_diff", target);
-	const content = (
-		await runGitHubCli(["pr", "diff", target.number, "--repo", `${target.owner}/${target.repo}`], cwd)
-	).trim();
-	if (!content) {
-		throw new Error("GitHub PR diff returned no importable content.");
-	}
-	return {
-		ok: true,
-		sourceLabel,
-		title: null,
-		content,
-	};
 }
 
 async function fetchAdvisorJson(url: string, init: RequestInit): Promise<unknown> {
