@@ -1440,8 +1440,13 @@ deep analysis:
         - [x] **slice 4 (2026-06-24):** extracted the `DevTestProjectCard` (dev-scenario block: self-improvement + the
               fixture preset projects + copy-evidence/cleanup) into `project-nav/dev-test-project-card.tsx`. web typecheck +
               vitest (690) green. project-navigation-panel 1109→922 (cumulative 1346→922, −31%, 4 new `project-nav/*` modules).
-        - [ ] still TODO: `ProjectRow`/`ProjectRowSkeleton` (project list rows) → `project-nav/`. Then the big
-              `ProjectNavigationPanel` body itself (the drag-resize + project-CRUD orchestration could move to a hook).
+        - [x] **slice 5 (2026-06-24):** extracted the `ProjectRow` + `ProjectRowSkeleton` (project list row with task-count
+              badges + per-project actions menu, and the loading skeleton) + the `TaskCountBadge` type into
+              `project-nav/project-row.tsx`. web typecheck + vitest (690) green. project-navigation-panel 922→708 (cumulative
+              1346→708, **−47%**, 5 new `project-nav/*` modules).
+        - [ ] still TODO (lower priority): the big `ProjectNavigationPanel` body itself — the drag-resize handlers + the
+              project-CRUD / dev-test orchestration (createDevTestProject/cleanup/migrate/self-improvement) could move into a
+              `use-project-nav-actions` hook, leaving the component as mostly layout.
   - [ ] *(also large, lower priority): `web-ui/src/App.tsx` (~1350, composition root — extract more orchestration into
         hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), `nklein-decomposition-tool.ts` (~1440),
         `nklein-session-runtime.ts` (~1421), `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.
