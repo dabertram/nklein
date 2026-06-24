@@ -1329,8 +1329,9 @@ deep analysis:
         `task-target-resolution.ts`, per-subcommand registration files) with `task.ts` as the thin registrar.
         - [x] **slice 1 (2026-06-24):** extracted the 5 pure NKlein-settings helpers + `ParsedTaskNKleinReasoningEffort`
               into `commands/task/task-nklein-settings.ts` (no I/O; covered by `task-verify.test.ts`).
-        - [ ] still TODO: `task-acceptance-plan-gap.ts`, `task-target-resolution.ts`, the tRPC client factory, and the
-              per-subcommand registration split.
+        - [x] **slice 2 (2026-06-24):** extracted the pure acceptance-failure → plan-gap classification (parse / should-record /
+              build-evidence / classifiers / classify) into `commands/task/task-acceptance-plan-gap.ts`. task.ts 2870→2633.
+        - [ ] still TODO: `task-target-resolution.ts`, the tRPC client factory, and the per-subcommand registration split.
   - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
