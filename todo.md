@@ -830,11 +830,13 @@ deep analysis:
         ([use-chat-sidebar-layout.ts](web-ui/src/resize/use-chat-sidebar-layout.ts) + new `ChatSidebarWidth/Collapsed`
         storage keys). Removed the `ChatDialog` modal, the top-bar Chat button + `onOpenChat`, and the `top-bar.chat`
         tooltip. web tsc + full web vitest (705) green; Playwright re-verified (expand → create session → send → reply).
-  - [ ] **still owed: drop the home "!Klein Agent" tab + merge into the chat (increment 2)** — left sidebar becomes
-        projects-only (remove the Projects/Agent `homeSidebarSection` toggle in `project-navigation-panel.tsx`);
-        merge the home-agent functionality into the right-side chat ("grow the new chat to what we need"); remove the
-        now-dead home-session infra — `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`, `useHomeAgentSession`
-        + wiring + tests. **Keep** the per-task card agent chats (card detail) — different thing.
+  - [x] **dropped the home "!Klein Agent" tab; left sidebar is projects-only (2026-06-24)** — removed the
+        Projects/Agent tab bar + the agent-section render from `project-navigation-panel.tsx` (+ the dead
+        `TerminalAgentHints`/tips), the `homeSidebarSection` state + `useHomeSidebarAgentPanel` wiring from App, and
+        **deleted the now-dead home-session infra** (`use-home-sidebar-agent-panel.tsx` + `use-home-agent-session.ts`
+        + their tests). The project-scoped home chat is now the §5.M chat's `project_sandboxed` scope. **Kept** the
+        per-task card agent chats (`NKleinAgentChatPanel` / `use-nklein-chat-*`, still used by card detail). web tsc +
+        full web vitest (690) green; Playwright-verified (no "!Klein Agent" tab; chat sidebar still works).
 - [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
   - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy

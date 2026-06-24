@@ -14,9 +14,8 @@ import {
 	Plus,
 	Settings,
 	Trash2,
-	X,
 } from "lucide-react";
-import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { showAppToast } from "@/components/app-toaster";
 import { CodeIntelligencePanel } from "@/components/code-intelligence-panel";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
@@ -54,12 +53,6 @@ import type {
 } from "@/runtime/types";
 import { fetchWorkspaceState, saveWorkspaceState } from "@/runtime/workspace-state-query";
 import { moveTaskToColumn } from "@/state/board-state";
-import {
-	LocalStorageKey,
-	readLocalStorageItem,
-	removeLocalStorageItem,
-	writeLocalStorageItem,
-} from "@/storage/local-storage-store";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { isMacPlatform, modifierKeyLabel } from "@/utils/platform";
 import { useUnmount, useWindowEvent } from "@/utils/react-use";
@@ -83,10 +76,6 @@ export function ProjectNavigationPanel({
 	isLoadingProjects = false,
 	currentProjectId,
 	removingProjectId,
-	activeSection,
-	onActiveSectionChange,
-	canShowAgentSection,
-	agentSectionContent,
 	selectedAgentId,
 	nkleinProviderSettings,
 	cloudProviderSupportEnabled = false,
@@ -104,10 +93,6 @@ export function ProjectNavigationPanel({
 	isLoadingProjects?: boolean;
 	currentProjectId: string | null;
 	removingProjectId: string | null;
-	activeSection: "projects" | "agent";
-	onActiveSectionChange: (section: "projects" | "agent") => void;
-	canShowAgentSection: boolean;
-	agentSectionContent?: ReactNode;
 	selectedAgentId?: RuntimeAgentId | null;
 	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 	cloudProviderSupportEnabled?: boolean;
@@ -364,331 +349,286 @@ export function ProjectNavigationPanel({
 						/>
 					) : null}
 				</div>
-				<div className="mt-2 rounded-md bg-surface-2 border border-border p-1">
-					<div className="grid grid-cols-2 gap-1">
-						<button
-							type="button"
-							onClick={() => onActiveSectionChange("projects")}
-							className={cn(
-								"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium",
-								activeSection === "projects"
-									? "bg-surface-4 text-text-primary border border-border"
-									: "text-text-secondary hover:text-text-primary border border-transparent",
-							)}
-						>
-							Projects
-						</button>
-						<button
-							type="button"
-							onClick={() => onActiveSectionChange("agent")}
-							disabled={!canShowAgentSection}
-							className={cn(
-								"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium",
-								activeSection === "agent"
-									? "bg-surface-4 text-text-primary border border-border"
-									: "text-text-secondary hover:text-text-primary border border-transparent",
-								!canShowAgentSection ? "cursor-not-allowed opacity-50" : null,
-							)}
-						>
-							!Klein Agent
-						</button>
-					</div>
-				</div>
 			</div>
 
-			{activeSection === "projects" ? (
-				<>
-					<div
-						className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1"
-						style={{ padding: "4px 12px" }}
-					>
-						{sortedProjects.length === 0 && isLoadingProjects ? (
-							<div style={{ padding: "4px 0" }}>
-								{Array.from({ length: 3 }).map((_, index) => (
-									<ProjectRowSkeleton key={`project-skeleton-${index}`} />
-								))}
-							</div>
-						) : null}
+			<>
+				<div
+					className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1"
+					style={{ padding: "4px 12px" }}
+				>
+					{sortedProjects.length === 0 && isLoadingProjects ? (
+						<div style={{ padding: "4px 0" }}>
+							{Array.from({ length: 3 }).map((_, index) => (
+								<ProjectRowSkeleton key={`project-skeleton-${index}`} />
+							))}
+						</div>
+					) : null}
 
-						{sortedProjects.map((project) => (
-							<ProjectRow
-								key={project.id}
-								project={project}
-								isCurrent={currentProjectId === project.id}
-								removingProjectId={removingProjectId}
-								onSelect={(projectId) => {
-									onSelectProject(projectId);
-									if (isMobile) {
-										setCollapsed(true);
-									}
-								}}
-								onRemove={(projectId) => {
-									const found = sortedProjects.find((item) => item.id === projectId);
-									if (!found) {
-										return;
-									}
-									setDeleteGitRepository(false);
-									setPendingProjectRemoval(found);
-								}}
-								onOpenSettings={(projectId) => {
-									const found = sortedProjects.find((item) => item.id === projectId);
-									if (found) {
-										setSettingsProject(found);
-									}
-								}}
-							/>
-						))}
-
-						{!isLoadingProjects ? (
-							<button
-								type="button"
-								className="kb-project-row flex cursor-pointer items-center gap-1.5 rounded-md text-text-secondary hover:text-text-primary"
-								style={{ padding: "6px 8px" }}
-								onClick={onAddProject}
-								disabled={removingProjectId !== null}
-							>
-								<Plus size={14} className="shrink-0" />
-								<span className="text-sm">Add Project</span>
-							</button>
-						) : null}
-						<CodeIntelligencePanel
-							workspaceId={currentProjectId}
-							active={activeSection === "projects" && currentProjectId !== null}
-							disabled={removingProjectId !== null}
-							compact
-							onError={(message) => {
-								if (message) {
-									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+					{sortedProjects.map((project) => (
+						<ProjectRow
+							key={project.id}
+							project={project}
+							isCurrent={currentProjectId === project.id}
+							removingProjectId={removingProjectId}
+							onSelect={(projectId) => {
+								onSelectProject(projectId);
+								if (isMobile) {
+									setCollapsed(true);
 								}
 							}}
-							onOpenProjectSettings={() => {
-								const found = sortedProjects.find((item) => item.id === currentProjectId);
+							onRemove={(projectId) => {
+								const found = sortedProjects.find((item) => item.id === projectId);
+								if (!found) {
+									return;
+								}
+								setDeleteGitRepository(false);
+								setPendingProjectRemoval(found);
+							}}
+							onOpenSettings={(projectId) => {
+								const found = sortedProjects.find((item) => item.id === projectId);
 								if (found) {
 									setSettingsProject(found);
 								}
 							}}
 						/>
-						{projectsWithHealthIssues.length > 0 ? (
-							<ProjectHealthCard
-								projects={projectsWithHealthIssues}
-								currentProjectId={currentProjectId}
-								migratingProjectId={migratingProjectId}
-								disabled={removingProjectId !== null}
-								onInspect={(projectId) => {
-									onSelectProject(projectId);
-									if (isMobile) {
-										setCollapsed(true);
-									}
-								}}
-								onRemove={(project) => {
-									setDeleteGitRepository(false);
-									setPendingProjectRemoval(project);
-								}}
-								onMigrateArtifacts={async (project) => {
-									if (
-										!window.confirm(
-											"Copy this accidental legacy task workspace project's plan artifacts into the detected parent project?",
-										)
-									) {
-										return;
-									}
-									setMigratingProjectId(project.id);
-									try {
-										const migrated = await migrateAccidentalProjectArtifacts(currentProjectId, project.id);
-										if (!migrated.ok) {
-											throw new Error(migrated.error ?? "Could not migrate plan artifacts.");
-										}
-										showAppToast({
-											intent: "success",
-											icon: "clipboard",
-											message: `Migrated ${migrated.migratedArtifacts} plan artifact${migrated.migratedArtifacts === 1 ? "" : "s"}.`,
-											timeout: 6000,
-										});
-									} catch (error) {
-										const message = error instanceof Error ? error.message : String(error);
-										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
-									} finally {
-										setMigratingProjectId(null);
-									}
-								}}
-							/>
-						) : null}
-						{/* dev source tree required -> DEV build AND developer mode */}
-						{import.meta.env.DEV && developerModeEnabled ? (
-							<DevTestProjectCard
-								disabled={
-									removingProjectId !== null ||
-									devTestProjectState.runningPreset !== null ||
-									devTestProjectState.isCleaningUp
+					))}
+
+					{!isLoadingProjects ? (
+						<button
+							type="button"
+							className="kb-project-row flex cursor-pointer items-center gap-1.5 rounded-md text-text-secondary hover:text-text-primary"
+							style={{ padding: "6px 8px" }}
+							onClick={onAddProject}
+							disabled={removingProjectId !== null}
+						>
+							<Plus size={14} className="shrink-0" />
+							<span className="text-sm">Add Project</span>
+						</button>
+					) : null}
+					<CodeIntelligencePanel
+						workspaceId={currentProjectId}
+						active={currentProjectId !== null}
+						disabled={removingProjectId !== null}
+						compact
+						onError={(message) => {
+							if (message) {
+								showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 7000 });
+							}
+						}}
+						onOpenProjectSettings={() => {
+							const found = sortedProjects.find((item) => item.id === currentProjectId);
+							if (found) {
+								setSettingsProject(found);
+							}
+						}}
+					/>
+					{projectsWithHealthIssues.length > 0 ? (
+						<ProjectHealthCard
+							projects={projectsWithHealthIssues}
+							currentProjectId={currentProjectId}
+							migratingProjectId={migratingProjectId}
+							disabled={removingProjectId !== null}
+							onInspect={(projectId) => {
+								onSelectProject(projectId);
+								if (isMobile) {
+									setCollapsed(true);
 								}
-								runningPreset={devTestProjectState.runningPreset}
-								isCleaningUp={devTestProjectState.isCleaningUp}
-								isCreatingSelfImprovementProject={isCreatingSelfImprovementProject}
-								evidencePath={devTestProjectState.evidencePath}
-								selfImprovementNotes={selfImprovementNotes}
-								onSelfImprovementNotesChange={setSelfImprovementNotes}
-								onRun={async (preset) => {
-									setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
-									try {
-										const created = await createDevTestProject(currentProjectId, { preset });
-										if (!created.ok || !created.project) {
-											throw new Error(created.error ?? "Could not create the dev test project.");
-										}
-										setDevTestProjectState({
-											runningPreset: preset,
-											isCleaningUp: false,
-											evidencePath: created.evidenceRootPath,
-										});
-										onSelectProject(created.project.id);
-										if (
-											preset === "mid_task" ||
-											preset === "complex_dag" ||
-											preset === "audio_vst" ||
-											preset === "daw_foundation"
-										) {
-											if (!created.task) {
-												throw new Error("Dev test project did not include a startable task.");
-											}
-											const trpcClient = getRuntimeTrpcClient(created.project.id);
-											const started = await trpcClient.runtime.startTaskSession.mutate({
-												taskId: created.task.id,
-												prompt: created.task.prompt,
-												taskTitle: created.task.title,
-												filesLikelyTouched: created.task.filesLikelyTouched,
-												startInPlanMode: created.task.startInPlanMode,
-												baseRef: created.task.baseRef,
-												agentId: created.task.agentId,
-												nkleinSettings: created.task.nkleinSettings,
-											});
-											if (!started.ok) {
-												throw new Error(started.error ?? "Dev test task could not be started.");
-											}
-											const workspaceState = await fetchWorkspaceState(created.project.id);
-											const targetColumnId = created.task.startInPlanMode ? "planning" : "in_progress";
-											const moved = moveTaskToColumn(workspaceState.board, created.task.id, targetColumnId, {
-												insertAtTop: true,
-											});
-											if (moved.moved) {
-												await saveWorkspaceState(created.project.id, {
-													board: moved.board,
-													expectedRevision: workspaceState.revision,
-												});
-												await trpcClient.workspace.notifyStateUpdated.mutate();
-											}
-										}
-										showAppToast({
-											intent: "success",
-											icon: "check",
-											message:
-												preset === "complex_dag"
-													? "Complex product test project created with one decomposition task."
-													: preset === "audio_vst"
-														? "Audio VST test project created with one decomposition task."
-														: preset === "daw_foundation"
-															? "DAW foundation test project created with one decomposition task."
-															: "Mid task test project created with one decomposition task.",
-											timeout: 5000,
-										});
-									} catch (error) {
-										const message = error instanceof Error ? error.message : String(error);
-										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
-									} finally {
-										setDevTestProjectState((current) => ({ ...current, runningPreset: null }));
+							}}
+							onRemove={(project) => {
+								setDeleteGitRepository(false);
+								setPendingProjectRemoval(project);
+							}}
+							onMigrateArtifacts={async (project) => {
+								if (
+									!window.confirm(
+										"Copy this accidental legacy task workspace project's plan artifacts into the detected parent project?",
+									)
+								) {
+									return;
+								}
+								setMigratingProjectId(project.id);
+								try {
+									const migrated = await migrateAccidentalProjectArtifacts(currentProjectId, project.id);
+									if (!migrated.ok) {
+										throw new Error(migrated.error ?? "Could not migrate plan artifacts.");
 									}
-								}}
-								onCopyEvidence={async () => {
-									if (!devTestProjectState.evidencePath) {
-										return;
-									}
-									await navigator.clipboard.writeText(devTestProjectState.evidencePath);
 									showAppToast({
 										intent: "success",
 										icon: "clipboard",
-										message: "Evidence path copied.",
-										timeout: 3000,
+										message: `Migrated ${migrated.migratedArtifacts} plan artifact${migrated.migratedArtifacts === 1 ? "" : "s"}.`,
+										timeout: 6000,
 									});
-								}}
-								onCleanup={async () => {
-									setDevTestProjectState((current) => ({ ...current, isCleaningUp: true }));
-									try {
-										const cleaned = await cleanupDevTestProjects(currentProjectId);
-										if (!cleaned.ok) {
-											throw new Error(cleaned.error ?? "Could not clean up dev test projects.");
-										}
-										setDevTestProjectState({
-											runningPreset: null,
-											isCleaningUp: false,
-											evidencePath: null,
-										});
-										showAppToast({
-											intent: "success",
-											icon: "trash",
-											message: `Removed ${cleaned.removedProjects} dev projects and ${cleaned.removedTaskWorktrees} task workspaces.`,
-											timeout: 5000,
-										});
-									} catch (error) {
-										const message = error instanceof Error ? error.message : String(error);
-										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
-									} finally {
-										setDevTestProjectState((current) => ({ ...current, isCleaningUp: false }));
-									}
-								}}
-								onCreateSelfImprovementProject={async () => {
-									if (
-										!window.confirm(
-											"Create a !Klein self-improvement project from the currently running development checkout?",
-										)
-									) {
-										return;
-									}
-									setIsCreatingSelfImprovementProject(true);
-									try {
-										const created = await createSelfImprovementProject(currentProjectId, {
-											confirmSelfProject: true,
-											notes: selfImprovementNotes,
-											evidenceBundlePath: devTestProjectState.evidencePath ?? undefined,
-										});
-										if (!created.ok || !created.project || !created.task) {
-											throw new Error(created.error ?? "Could not create the self-improvement project.");
-										}
-										onSelectProject(created.project.id);
-										setSelfImprovementNotes("");
-										showAppToast({
-											intent: "success",
-											icon: "check",
-											message: "Self-improvement project created with a seeded Backlog task.",
-											timeout: 5000,
-										});
-									} catch (error) {
-										const message = error instanceof Error ? error.message : String(error);
-										showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
-									} finally {
-										setIsCreatingSelfImprovementProject(false);
-									}
-								}}
-							/>
-						) : null}
-					</div>
-					<ShortcutsCard />
-					<ProjectSupportFooter
-						shouldShowFeaturebaseFeedback={shouldShowFeaturebaseFeedback}
-						featurebaseFeedbackState={featurebaseFeedbackState}
-					/>
-				</>
-			) : (
-				<div className="flex flex-1 min-h-0 flex-col">
-					{cloudProviderSupportEnabled && selectedAgentId && selectedAgentId !== "nklein" ? (
-						<TerminalAgentHints />
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+								} finally {
+									setMigratingProjectId(null);
+								}
+							}}
+						/>
 					) : null}
-					<div className="flex flex-1 min-h-0 overflow-hidden bg-surface-1 px-2 pb-2 pt-1">
-						{agentSectionContent ?? (
-							<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
-								Select a project to use the agent.
-							</div>
-						)}
-					</div>
+					{/* dev source tree required -> DEV build AND developer mode */}
+					{import.meta.env.DEV && developerModeEnabled ? (
+						<DevTestProjectCard
+							disabled={
+								removingProjectId !== null ||
+								devTestProjectState.runningPreset !== null ||
+								devTestProjectState.isCleaningUp
+							}
+							runningPreset={devTestProjectState.runningPreset}
+							isCleaningUp={devTestProjectState.isCleaningUp}
+							isCreatingSelfImprovementProject={isCreatingSelfImprovementProject}
+							evidencePath={devTestProjectState.evidencePath}
+							selfImprovementNotes={selfImprovementNotes}
+							onSelfImprovementNotesChange={setSelfImprovementNotes}
+							onRun={async (preset) => {
+								setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
+								try {
+									const created = await createDevTestProject(currentProjectId, { preset });
+									if (!created.ok || !created.project) {
+										throw new Error(created.error ?? "Could not create the dev test project.");
+									}
+									setDevTestProjectState({
+										runningPreset: preset,
+										isCleaningUp: false,
+										evidencePath: created.evidenceRootPath,
+									});
+									onSelectProject(created.project.id);
+									if (
+										preset === "mid_task" ||
+										preset === "complex_dag" ||
+										preset === "audio_vst" ||
+										preset === "daw_foundation"
+									) {
+										if (!created.task) {
+											throw new Error("Dev test project did not include a startable task.");
+										}
+										const trpcClient = getRuntimeTrpcClient(created.project.id);
+										const started = await trpcClient.runtime.startTaskSession.mutate({
+											taskId: created.task.id,
+											prompt: created.task.prompt,
+											taskTitle: created.task.title,
+											filesLikelyTouched: created.task.filesLikelyTouched,
+											startInPlanMode: created.task.startInPlanMode,
+											baseRef: created.task.baseRef,
+											agentId: created.task.agentId,
+											nkleinSettings: created.task.nkleinSettings,
+										});
+										if (!started.ok) {
+											throw new Error(started.error ?? "Dev test task could not be started.");
+										}
+										const workspaceState = await fetchWorkspaceState(created.project.id);
+										const targetColumnId = created.task.startInPlanMode ? "planning" : "in_progress";
+										const moved = moveTaskToColumn(workspaceState.board, created.task.id, targetColumnId, {
+											insertAtTop: true,
+										});
+										if (moved.moved) {
+											await saveWorkspaceState(created.project.id, {
+												board: moved.board,
+												expectedRevision: workspaceState.revision,
+											});
+											await trpcClient.workspace.notifyStateUpdated.mutate();
+										}
+									}
+									showAppToast({
+										intent: "success",
+										icon: "check",
+										message:
+											preset === "complex_dag"
+												? "Complex product test project created with one decomposition task."
+												: preset === "audio_vst"
+													? "Audio VST test project created with one decomposition task."
+													: preset === "daw_foundation"
+														? "DAW foundation test project created with one decomposition task."
+														: "Mid task test project created with one decomposition task.",
+										timeout: 5000,
+									});
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+								} finally {
+									setDevTestProjectState((current) => ({ ...current, runningPreset: null }));
+								}
+							}}
+							onCopyEvidence={async () => {
+								if (!devTestProjectState.evidencePath) {
+									return;
+								}
+								await navigator.clipboard.writeText(devTestProjectState.evidencePath);
+								showAppToast({
+									intent: "success",
+									icon: "clipboard",
+									message: "Evidence path copied.",
+									timeout: 3000,
+								});
+							}}
+							onCleanup={async () => {
+								setDevTestProjectState((current) => ({ ...current, isCleaningUp: true }));
+								try {
+									const cleaned = await cleanupDevTestProjects(currentProjectId);
+									if (!cleaned.ok) {
+										throw new Error(cleaned.error ?? "Could not clean up dev test projects.");
+									}
+									setDevTestProjectState({
+										runningPreset: null,
+										isCleaningUp: false,
+										evidencePath: null,
+									});
+									showAppToast({
+										intent: "success",
+										icon: "trash",
+										message: `Removed ${cleaned.removedProjects} dev projects and ${cleaned.removedTaskWorktrees} task workspaces.`,
+										timeout: 5000,
+									});
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+								} finally {
+									setDevTestProjectState((current) => ({ ...current, isCleaningUp: false }));
+								}
+							}}
+							onCreateSelfImprovementProject={async () => {
+								if (
+									!window.confirm(
+										"Create a !Klein self-improvement project from the currently running development checkout?",
+									)
+								) {
+									return;
+								}
+								setIsCreatingSelfImprovementProject(true);
+								try {
+									const created = await createSelfImprovementProject(currentProjectId, {
+										confirmSelfProject: true,
+										notes: selfImprovementNotes,
+										evidenceBundlePath: devTestProjectState.evidencePath ?? undefined,
+									});
+									if (!created.ok || !created.project || !created.task) {
+										throw new Error(created.error ?? "Could not create the self-improvement project.");
+									}
+									onSelectProject(created.project.id);
+									setSelfImprovementNotes("");
+									showAppToast({
+										intent: "success",
+										icon: "check",
+										message: "Self-improvement project created with a seeded Backlog task.",
+										timeout: 5000,
+									});
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+								} finally {
+									setIsCreatingSelfImprovementProject(false);
+								}
+							}}
+						/>
+					) : null}
 				</div>
-			)}
+				<ShortcutsCard />
+				<ProjectSupportFooter
+					shouldShowFeaturebaseFeedback={shouldShowFeaturebaseFeedback}
+					featurebaseFeedbackState={featurebaseFeedbackState}
+				/>
+			</>
 			<AlertDialog
 				open={pendingProjectRemoval !== null}
 				onOpenChange={(open) => {
@@ -790,12 +730,6 @@ export function ProjectNavigationPanel({
 		</aside>
 	);
 }
-
-const TERMINAL_AGENT_HINTS: readonly { label: string; hint: string }[] = [
-	{ label: "Create tasks", hint: "Ask your agent to add tasks, link them, and start working" },
-	{ label: "Break down work", hint: "Ask to decompose a complex feature into linked subtasks" },
-	{ label: "Import issues", hint: "Pull issues into task cards via GitHub CLI or Linear MCP" },
-];
 
 function ProjectHealthCard({
 	projects,
@@ -1095,65 +1029,6 @@ function DevTestProjectCard({
 					{evidencePath}
 				</p>
 			) : null}
-		</div>
-	);
-}
-
-function TerminalAgentHints(): React.ReactElement {
-	const [isDismissed, setIsDismissed] = useState(
-		() => readLocalStorageItem(LocalStorageKey.AgentTipsDismissed) === "true",
-	);
-
-	const dismiss = useCallback(() => {
-		setIsDismissed(true);
-		writeLocalStorageItem(LocalStorageKey.AgentTipsDismissed, "true");
-	}, []);
-
-	const restore = useCallback(() => {
-		setIsDismissed(false);
-		removeLocalStorageItem(LocalStorageKey.AgentTipsDismissed);
-	}, []);
-
-	if (isDismissed) {
-		return (
-			<div className="shrink-0 px-3 pt-1">
-				<button
-					type="button"
-					onClick={restore}
-					className="flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-[11px] text-text-tertiary hover:text-text-secondary"
-				>
-					<Lightbulb size={11} />
-					Show tips
-				</button>
-			</div>
-		);
-	}
-	return (
-		<div className="shrink-0 mx-2 mt-1 mb-1 rounded-md border border-border bg-surface-2/60 px-3 py-2">
-			<div className="flex items-center justify-between mb-1.5">
-				<span className="text-[11px] font-medium text-status-gold flex items-center gap-1">
-					<Lightbulb size={11} />
-					Tips
-				</span>
-				<button
-					type="button"
-					onClick={dismiss}
-					aria-label="Dismiss tips"
-					className="cursor-pointer border-none bg-transparent p-0 text-text-tertiary hover:text-text-secondary"
-				>
-					<X size={12} />
-				</button>
-			</div>
-			<ul className="m-0 list-none space-y-1 pl-0">
-				{TERMINAL_AGENT_HINTS.map((item) => (
-					<li key={item.label} className="flex items-start gap-1.5 text-[11px] text-text-primary">
-						<span className="mt-[5px] block h-1 w-1 shrink-0 rounded-full bg-text-tertiary" />
-						<span>
-							<span className="font-medium">{item.label}.</span> {item.hint}
-						</span>
-					</li>
-				))}
-			</ul>
 		</div>
 	);
 }

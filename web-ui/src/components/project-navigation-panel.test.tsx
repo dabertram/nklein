@@ -273,9 +273,6 @@ describe("ProjectNavigationPanel width persistence", () => {
 					projects={PROJECTS}
 					currentProjectId="project-1"
 					removingProjectId={null}
-					activeSection="projects"
-					onActiveSectionChange={() => {}}
-					canShowAgentSection
 					selectedAgentId={null}
 					nkleinProviderSettings={null}
 					featurebaseFeedbackState={undefined}
@@ -644,31 +641,5 @@ describe("ProjectNavigationPanel width persistence", () => {
 		} finally {
 			confirmSpy.mockRestore();
 		}
-	});
-
-	it("persists terminal tips dismissal", () => {
-		renderPanel({
-			activeSection: "agent",
-			selectedAgentId: "droid",
-			cloudProviderSupportEnabled: true,
-		});
-		expect(container.textContent).toContain("Tips");
-		expect(localStorage.getItem(LocalStorageKey.AgentTipsDismissed)).toBeNull();
-
-		const hideButton = container.querySelector('[aria-label="Dismiss tips"]') as HTMLButtonElement;
-		act(() => {
-			hideButton.click();
-		});
-
-		expect(container.textContent).toContain("Show tips");
-		expect(localStorage.getItem(LocalStorageKey.AgentTipsDismissed)).toBe("true");
-
-		const showTipsButton = getButtonByText(container, "Show tips");
-		act(() => {
-			showTipsButton.click();
-		});
-
-		expect(container.textContent).toContain("Tips");
-		expect(localStorage.getItem(LocalStorageKey.AgentTipsDismissed)).toBeNull();
 	});
 });
