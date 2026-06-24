@@ -675,7 +675,7 @@ export function TopBar({
 
 					{/* Chat: always visible (board-independent unified chat, todo §5.M) */}
 					{onOpenChat ? (
-						<Tooltip content="Chat">
+						<ElementTooltip id="top-bar.chat" side="bottom">
 							<Button
 								variant="ghost"
 								size="sm"
@@ -685,7 +685,7 @@ export function TopBar({
 								data-testid="open-chat-button"
 								className={cn("ml-0.5", isMobile && MOBILE_TOUCH_TARGET)}
 							/>
-						</Tooltip>
+						</ElementTooltip>
 					) : null}
 
 					{/* Settings: always visible */}

@@ -20,6 +20,15 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Settings",
 		description: "Open settings: models, agent roles, sandbox isolation, shortcuts, and runtime options.",
 	},
+	"top-bar.chat": {
+		name: "Chat",
+		description:
+			"Open a board-independent chat with a loaded local model — persisted sessions and streaming replies.",
+	},
+	"chat.delete-session": {
+		name: "Delete chat",
+		description: "Delete this chat session and its transcript.",
+	},
 	"top-bar.debug": {
 		name: "Debug",
 		description: "Open the debug dialog to inspect runtime state, logs, and diagnostics.",

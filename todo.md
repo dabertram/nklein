@@ -537,7 +537,10 @@ deep analysis:
       registry + `ElementTooltip` primitive (§6.13); single source of truth; focus-accessible.
   - [x] high-value icon-only controls: top-bar, board-column, board-card, card-detail, swarm cockpit, git-history
         "Discard", terminal "Close"
-  - [ ] remaining tail: settings section headers/fields, model-registry row actions, project sidebar, §5.M chat surface
+  - [x] **§5.M chat surface (2026-06-24)** — the icon-only chat controls now use the registry: `top-bar.chat` (the
+        navbar Chat button, switched from a plain `Tooltip` to `ElementTooltip`) + `chat.delete-session` (the
+        per-session delete). Web tsc + full web vitest (705) green; chat-UI Playwright re-verified.
+  - [ ] remaining tail: settings section headers/fields, model-registry row actions, project sidebar
 
 ### 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*
 > Every worker card gets a real reviewer-role second opinion (full loop, up to 20 rounds, stall + identical-loop

@@ -3,6 +3,7 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import type {
@@ -138,17 +139,19 @@ function SessionRow({
 				<div className="truncate">{session.title}</div>
 				<div className="text-[11px] text-text-tertiary truncate">{session.role.replace(/_/g, " ")}</div>
 			</div>
-			<button
-				type="button"
-				aria-label="Delete session"
-				className="opacity-0 group-hover:opacity-100 p-1 rounded text-text-tertiary hover:text-status-red hover:bg-surface-3"
-				onClick={(event) => {
-					event.stopPropagation();
-					onDelete();
-				}}
-			>
-				<Trash2 size={14} />
-			</button>
+			<ElementTooltip id="chat.delete-session" side="left">
+				<button
+					type="button"
+					aria-label="Delete session"
+					className="opacity-0 group-hover:opacity-100 p-1 rounded text-text-tertiary hover:text-status-red hover:bg-surface-3"
+					onClick={(event) => {
+						event.stopPropagation();
+						onDelete();
+					}}
+				>
+					<Trash2 size={14} />
+				</button>
+			</ElementTooltip>
 		</div>
 	);
 }
