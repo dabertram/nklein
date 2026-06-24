@@ -650,9 +650,14 @@ deep analysis:
         repeat until it answers", bounded by `maxIterations` with a forced tools-disabled final turn. Model call +
         tool execution + the message-fold are injected → unit-tested (executes-then-answers, no-tools-immediate-answer,
         iteration-limit-forces-final). Tool governance (the §5.M host-access invariant) lives in the injected
-        executor (the execution-mode gate + audit store, already built). Still owed: a **tools-aware** local-model
-        completion (pass tool schemas, parse `tool_calls`/narrated), the concrete chat tool set + executor that applies
-        the gate + audit, and live verification of the agent using a tool.
+        executor (the execution-mode gate + audit store, already built).
+    - [x] **gated tool executor (2026-06-24)** — [src/chat/chat-tool-executor.ts](src/chat/chat-tool-executor.ts):
+          `createGatedChatToolExecutor` is the loop's `executeTool` — per call it applies `decideChatActionAccess`
+          (allow→run / confirm→run-only-if-confirmed / deny→refuse) and records **every** call to the audit log
+          (executed or not), with the tools' side effects + confirm prompt + audit sink injected. Unit-tested (allow/
+          deny/confirm-both-ways/unknown-tool). The §5.M host-access invariant is now enforced at the tool boundary.
+    - [ ] still owed: a **tools-aware** local-model completion (pass tool schemas, parse `tool_calls`/narrated) + the
+          concrete tool set, then wire loop+executor+completion + live-verify the agent using a tool.
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
