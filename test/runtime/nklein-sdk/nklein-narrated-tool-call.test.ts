@@ -111,6 +111,40 @@ describe("parseNarratedToolCalls — model-family tool-call formats (todo §5.O)
 	it("does not fire on plain prose mentioning these tokens without a real block", () => {
 		expect(parseNarratedToolCalls("I'll use the python_tag approach and discuss tool_calls in general.")).toEqual([]);
 	});
+
+	it("recovers the DeepSeek-V3/R1 native format (special tokens, name outside the JSON, fenced args)", () => {
+		const text =
+			'I\'ll read it.\n<｜tool▁call▁begin｜>function<｜tool▁sep｜>read_file\n```json\n{"path":"src/timebase.ts"}\n```<｜tool▁call▁end｜>';
+		expect(parseNarratedToolCalls(text)).toEqual([{ toolName: "read_file", input: { path: "src/timebase.ts" } }]);
+	});
+
+	it("recovers the ASCII-normalized DeepSeek variant some GGUF quantizations emit (<|tool_call_begin|>)", () => {
+		const text =
+			'<|tool_call_begin|>function<|tool_sep|>decompose_project\n```json\n{"slug":"daw","tasks":[{"id":"a"}]}\n```<|tool_call_end|>';
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "decompose_project", input: { slug: "daw", tasks: [{ id: "a" }] } },
+		]);
+	});
+
+	it("recovers multiple DeepSeek calls inside the outer <｜tool▁calls▁begin｜> wrapper", () => {
+		const text =
+			'<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>list_files\n```json\n{"path":"."}\n```<｜tool▁call▁end｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>read_files\n```json\n{"files":["a.ts"]}\n```<｜tool▁call▁end｜><｜tool▁calls▁end｜>';
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "list_files", input: { path: "." } },
+			{ toolName: "read_files", input: { files: ["a.ts"] } },
+		]);
+	});
+
+	it("recovers a DeepSeek call whose args have no ```json fence and a truncated end token", () => {
+		const text = '<｜tool▁call▁begin｜>function<｜tool▁sep｜>list_files {"path":"/workspace"}';
+		expect(parseNarratedToolCalls(text)).toEqual([{ toolName: "list_files", input: { path: "/workspace" } }]);
+	});
+
+	it("strips a DeepSeek narrated call from a final reply for display", () => {
+		const text =
+			'Reading the spec now.\n<｜tool▁call▁begin｜>function<｜tool▁sep｜>read_file\n```json\n{"path":"spec.md"}\n```<｜tool▁call▁end｜>';
+		expect(stripNarratedToolCallMarkup(text)).toBe("Reading the spec now.");
+	});
 });
 
 describe("recoverNarratedToolCalls", () => {

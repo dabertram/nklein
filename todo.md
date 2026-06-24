@@ -1054,6 +1054,11 @@ deep analysis:
         the OpenAI-shaped nested `function:{name,arguments}` object, and the Functionary `<function=NAME>{…}</function>`
         named-tag form, on top of the existing Hermes/Qwen `<tool_call>`/`<|tool_call|>`/`<function_call>`. Fixtures per
         family + a false-positive guard test. (Remaining tail: exotic per-fine-tune variants as they surface in sweeps.)
+  - [x] **2026-06-25 (user loaded a DeepSeek model):** added **DeepSeek-V3/R1** — the special-token
+        `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>` form (name *outside* the
+        JSON), plus the ASCII-normalized `<|tool_call_begin|>` variant some GGUF quantizations emit, multi-call outer
+        `<｜tool▁calls▁begin｜>` wrapper, unfenced args, and a truncated end token. `parseNarratedToolCalls` +
+        `stripNarratedToolCallMarkup` updated; 6 fixtures added.
 - [x] **Simplify `read_large_file` to pure iteration (2026-06-24)** — the model now only *triggers* it with a `path`
       and advances with `cursor: "next"` (or an empty/omitted cursor); it never composes `read:`/`stitch:` cursors.
       !Klein tracks position authoritatively from its own persisted state and each result reports **index/total**

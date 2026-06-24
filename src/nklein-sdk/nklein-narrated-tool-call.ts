@@ -15,8 +15,10 @@
  *
  * Covers the tool-call text formats of the major local-model families (todo §5.O): Hermes/Qwen `<tool_call>`,
  * the pipe-delimited `<|tool_call|>`/`<function_call>`, Llama 3.1 `<|python_tag|>`, Mistral/Mixtral
- * `[TOOL_CALLS][…]` (a JSON array), the OpenAI-shaped nested `function:{name,arguments}` object, and the
- * Functionary `<function=NAME>{…}</function>` named-tag form.
+ * `[TOOL_CALLS][…]` (a JSON array), the OpenAI-shaped nested `function:{name,arguments}` object, the
+ * Functionary `<function=NAME>{…}</function>` named-tag form, and the **DeepSeek-V3/R1** native format
+ * (special-token `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>`, with the
+ * name *outside* the JSON).
  *
  * Deliberately conservative to avoid false positives: recovery only triggers when the turn produced **no real
  * tool call** and the text contains one of those explicit markers around a JSON payload carrying a tool name.
@@ -43,11 +45,29 @@ export interface NarratedToolCall {
  */
 const TOOL_CALL_OPENER = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\[TOOL_CALLS\]/gi;
 
-/** Quick pre-check: does the text contain ANY recognized tool-call marker? Keeps the common no-marker path cheap. */
-const TOOL_CALL_MARKER = /tool_call|function_call|python_tag|\[TOOL_CALLS\]|<function\s*=/i;
+/**
+ * Quick pre-check: does the text contain ANY recognized tool-call marker? Keeps the common no-marker path cheap.
+ * `tool[_▁]call` matches both the underscore form (`tool_call`) and DeepSeek's `▁`-delimited `tool▁call(s)`.
+ */
+const TOOL_CALL_MARKER = /tool[_▁]call|function_call|python_tag|\[TOOL_CALLS\]|<function\s*=/i;
 
 /** Functionary / some Llama fine-tunes: `<function=NAME>{json args}</function>` — the name lives in the tag. */
 const NAMED_FUNCTION_TAG = /<function\s*=\s*([A-Za-z0-9_.-]+)\s*>([\s\S]*?)<\/function\s*>/gi;
+
+/**
+ * DeepSeek-V3 / R1 native tool-call format. It uses special tokens (U+FF5C `｜`, U+2581 `▁`), puts the tool NAME
+ * *outside* the JSON, and the arguments in a fenced ```json block:
+ *   `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME` ```json {…} ``` `<｜tool▁call▁end｜>`
+ * Local GGUF quantizations sometimes emit an ASCII-normalized variant (`<|tool_call_begin|>`, `tool_sep`), so the
+ * wrapper tolerates `｜` or `|` and the separators tolerate `▁`, `_`, or a space. Each call's body is captured up to
+ * its end token (or EOF, for a truncated turn); the name is read from the header (after the separator) and
+ * {@link repairJsonValue} pulls the arguments object out of the `NAME … ```json {…} ``` ` tail.
+ */
+const DEEPSEEK_TOOL_CALL =
+	/<[｜|]\s*tool[▁_ ]call[▁_ ]begin\s*[｜|]>([\s\S]*?)(?:<[｜|]\s*tool[▁_ ]call[▁_ ]end\s*[｜|]>|$)/gi;
+const DEEPSEEK_TOOL_SEP = /<[｜|]\s*tool[▁_ ]sep\s*[｜|]>/i;
+/** Outer-or-inner DeepSeek call opener, for display-stripping a narrated call out of a final reply. */
+const DEEPSEEK_OPENER = /<[｜|]\s*tool[▁_ ]calls?[▁_ ]begin\s*[｜|]>/i;
 
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
@@ -129,6 +149,27 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 		namedMatch = NAMED_FUNCTION_TAG.exec(text);
 	}
 
+	// DeepSeek-V3 / R1: `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>` — the tool
+	// name lives in the header (after the separator), the arguments in the fenced JSON tail.
+	DEEPSEEK_TOOL_CALL.lastIndex = 0;
+	let deepSeekMatch: RegExpExecArray | null = DEEPSEEK_TOOL_CALL.exec(text);
+	while (deepSeekMatch !== null) {
+		const body = deepSeekMatch[1] ?? "";
+		// Drop everything up to and including the separator (the leading `function` type token), then read the name as
+		// the first identifier run before the arguments JSON.
+		const header =
+			body
+				.split(DEEPSEEK_TOOL_SEP)
+				.at(-1)
+				?.replace(/^\s*function\b/i, "") ?? "";
+		const toolName = header.match(/[A-Za-z0-9_.-]+/u)?.[0]?.trim();
+		if (toolName) {
+			const repaired = repairJsonValue(header);
+			calls.push({ toolName, input: repaired.ok ? repaired.value : {} });
+		}
+		deepSeekMatch = DEEPSEEK_TOOL_CALL.exec(text);
+	}
+
 	return calls;
 }
 
@@ -154,6 +195,10 @@ export function stripNarratedToolCallMarkup(text: string): string {
 	const named = /<function\s*=/i.exec(text);
 	if (named) {
 		cut = Math.min(cut, named.index);
+	}
+	const deepSeek = DEEPSEEK_OPENER.exec(text);
+	if (deepSeek) {
+		cut = Math.min(cut, deepSeek.index);
 	}
 	return text.slice(0, cut).trim();
 }
