@@ -626,8 +626,15 @@ deep analysis:
         `createChatModelDeps(client)` provides `runChatTurn`'s `complete` + `summarize` from a `LocalLlmClient`
         (fail-closed vs cloud, invariant #1), mapping the rendered prompt to the client's messages and stripping inline
         `<think>` reasoning (the robustness fix found during live qwen3 verification). Interface-typed client → unit-
-        tested with a fake. Reused by the future CLI/tRPC wiring. Still owed (next live layer): the **tool-using**
-        multi-turn agent loop on the NKlein core + streaming + a new entry point (CLI/tRPC) discovering the loaded model.
+        tested with a fake. Reused by the CLI wiring.
+  - [x] **`nklein chat` entry point + LIVE verification (2026-06-24)** — [src/commands/chat.ts](src/commands/chat.ts):
+        a board-independent CLI that discovers the loaded local model from the endpoint (`discoverLoadedModelId`,
+        AGENTS.md), constructs a fail-closed `LocalLlmClient`, and drives one `runChatTurn` against it — creating/
+        continuing a session (with `--goal`), recalling memory, persisting the turn to the runtime home. `--session`
+        continues, `--json` for scripting. **Live-verified**: `nklein chat --message … --goal …` discovered
+        `qwen/qwen3-8b`, created the session, and returned a correct concise reply (the chat agent is usable from the
+        terminal). Discovery unit-tested. Still owed (next live layer): the **tool-using** multi-turn agent loop on the
+        NKlein core + streaming + the tRPC/web-ui surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):

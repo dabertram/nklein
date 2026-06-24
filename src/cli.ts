@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
+import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
@@ -735,6 +736,7 @@ function createProgram(invocationArgs: string[]): Command {
 
 	registerTaskCommand(program);
 	registerDevCommand(program);
+	registerChatCommand(program);
 
 	program
 		.command("mcp")

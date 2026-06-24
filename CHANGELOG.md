@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- New **`nklein chat`** command — a first, board-independent way to talk to a unified chat agent on a loaded local model (todo §5.M). It discovers the loaded model from your local endpoint (LM Studio / Ollama; `--model`/`--base-url` to override), keeps a persisted session you can continue with `--session`, accepts a standing `--goal` kept in focus across turns, and recalls relevant long-term memories into each reply — all local, fail-closed against cloud. This is the simple-completion entry point; the tool-using multi-turn agent, streaming, and a chat UI build on top of it.
+
 - An **empty board now explains itself** instead of showing six blank columns (todo §5.A). When a project is loaded but has no cards, a banner under the swarm header invites you to **create your first task** with a one-click CTA — and if Docker agent isolation is unavailable, it shows an **"Isolation unavailable"** marker (with the daemon/image failure reason) so it's clear why tasks couldn't start anyway.
 
 - The board header now surfaces a **merge-status chip** for the dependency-ordered auto-merge (todo §5.G). When the swarm finishes a card it merges the ready task worktrees back in dependency order; each pass is now recorded durably (per workspace) and the swarm header shows the latest outcome — green **"Merged N"** on success or red **"Merge conflicts N"** when recent passes hit a conflict — with a hover tooltip listing the recent passes (timestamp, merged/skipped counts, or the conflict reason and path count). It refreshes when you switch projects and as running tasks complete. Previously merge results were only visible in CLI/integration output.
