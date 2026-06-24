@@ -687,9 +687,13 @@ deep analysis:
 > limit (global/project). **Manual mode:** board-header "N pending" badge + per-card indicators → a clarifying
 > dialog; each question shows ≥4 fitting options + free-text, multi-choice/radio (the asking agent picks). **Reuse:**
 > the plan-artifact question schema (`nklein-plan-artifacts.ts`) + `questions.md`; §5.K reviewer infra; the embedder.
-- [ ] **Auto-clarify core (pure + tested)** — architect→reviewer→architect state machine over a card's open
-      questions: per-question state, the no-progress detector (semantic-similarity + agent self-check), safety cap +
-      user hard-limit, transition (answer / keep-asking / give-up-with-assumption); inject I/O like §5.K.
+- [x] **Auto-clarify core (pure + tested)** *(DONE 2026-06-24)* — [src/core/auto-clarify.ts](src/core/auto-clarify.ts):
+      `decideAutoClarifyStep(rounds, config, similarity)` is the pure architect→reviewer→architect decision over a
+      card's open questions — confident answer wins immediately; otherwise the round budget (safety cap tightened by
+      the operator hard limit, `resolveAutoClarifyRoundBudget`) and the multi-layered no-progress detector
+      (consecutive-proposal similarity **AND** the agent's self-check) force `give_up_with_assumption`; else
+      `keep_asking`. Similarity is injected so the core is pure (the wiring supplies the embedder). `applyAutoClarify
+      Decision` projects the result onto the `NKleinPlanQuestion` (answered / assumed-default / open). 10 unit tests.
 - [ ] **Wire into the flow** — run after decomposition (+ wherever questions are raised), reusing the reviewer
       role/model; persist resolved/remaining state onto the card/plan; settings (global + per-project) for
       auto-vs-manual + the hard limit.
