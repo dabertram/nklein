@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMemory } from "../../../src/chat/chat-memory-store";
+import type { ChatMemory, ChatMemoryRecall } from "../../../src/chat/chat-memory-store";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
-import { composeChatTurnContext } from "../../../src/chat/chat-turn-context";
+import { composeChatTurnContext, renderChatTurnPrompt } from "../../../src/chat/chat-turn-context";
 
 function message(id: string, content: string): ChatMessage {
 	return { schemaVersion: 1, id, role: "user", content, createdAt: Number(id) };
@@ -79,5 +79,43 @@ describe("composeChatTurnContext", () => {
 			{ embed: async () => [1, 0], summarize: async () => "" },
 		);
 		expect(context.recalledMemories.map((m) => m.id)).toEqual(["near"]);
+	});
+
+	it("renders the context into ordered model messages (goal + summary + memories + recent + new)", () => {
+		const recalled: ChatMemoryRecall[] = [
+			{
+				schemaVersion: 1,
+				id: "m",
+				sessionId: "s1",
+				shared: false,
+				text: "uses zustand",
+				embedding: null,
+				createdAt: 0,
+				score: 1,
+			},
+		];
+		const prompt = renderChatTurnPrompt(
+			{
+				goal: "Ship it",
+				summary: "talked about the board",
+				recalledMemories: recalled,
+				recentMessages: [message("1", "last user line")],
+			},
+			"the new question",
+		);
+		expect(prompt.map((m) => m.role)).toEqual(["system", "system", "system", "user", "user"]);
+		expect(prompt[0]?.content).toContain("Ship it");
+		expect(prompt[1]?.content).toContain("talked about the board");
+		expect(prompt[2]?.content).toContain("uses zustand");
+		expect(prompt[3]?.content).toBe("last user line");
+		expect(prompt[4]?.content).toBe("the new question");
+	});
+
+	it("omits empty leading system notes when there is no goal/summary/memory", () => {
+		const prompt = renderChatTurnPrompt(
+			{ goal: null, summary: null, recalledMemories: [], recentMessages: [] },
+			"hi",
+		);
+		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
 	});
 });

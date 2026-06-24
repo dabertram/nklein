@@ -1,6 +1,6 @@
 import { consolidateChatContextWindow, splitChatContextWindow } from "./chat-context-window";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store";
-import type { ChatMessage } from "./chat-transcript-store";
+import type { ChatMessage, ChatMessageRole } from "./chat-transcript-store";
 
 /**
  * Compose one chat turn's context (todo §5.M) — the pure heart of the chat agent runtime's memory management.
@@ -58,4 +58,38 @@ export async function composeChatTurnContext(
 		{ embed: deps.embed },
 	);
 	return { goal: input.goal ?? null, summary, recalledMemories, recentMessages: window.recent };
+}
+
+/** An ephemeral prompt message for the model call — role + content only (not persisted; see the transcript store). */
+export interface ChatPromptMessage {
+	role: ChatMessageRole;
+	content: string;
+}
+
+/**
+ * Render a composed turn context + the incoming user message into the ordered message list handed to the model:
+ * the standing goal and the rolled-up summary and the recalled long-term memories become leading `system`
+ * notes, followed by the verbatim recent transcript and finally the new user message. Pure + testable; the
+ * runtime maps these to its provider's message format and streams the reply.
+ */
+export function renderChatTurnPrompt(context: ChatTurnContext, newUserMessage: string): ChatPromptMessage[] {
+	const messages: ChatPromptMessage[] = [];
+	if (context.goal) {
+		messages.push({
+			role: "system",
+			content: `Session objective (keep this in focus across turns): ${context.goal}`,
+		});
+	}
+	if (context.summary) {
+		messages.push({ role: "system", content: `Summary of earlier conversation:\n${context.summary}` });
+	}
+	if (context.recalledMemories.length > 0) {
+		const recalled = context.recalledMemories.map((memory) => `- ${memory.text}`).join("\n");
+		messages.push({ role: "system", content: `Relevant remembered context:\n${recalled}` });
+	}
+	for (const message of context.recentMessages) {
+		messages.push({ role: message.role, content: message.content });
+	}
+	messages.push({ role: "user", content: newUserMessage });
+	return messages;
 }
