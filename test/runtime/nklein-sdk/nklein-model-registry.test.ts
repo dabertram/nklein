@@ -364,6 +364,55 @@ describe("nklein model registry", () => {
 		});
 	});
 
+	it("sets, clamps, and clears the per-model max concurrent requests (§5.T)", async () => {
+		const registry = new NKleinModelRegistry({
+			registryPath: await createRegistryPath(),
+			now: () => 9_000,
+			persistDebounceMs: 60_000,
+		});
+
+		const defaultEntry = await registry.recordContextWindow({
+			providerId: "lmstudio",
+			modelId: "qwen-parallel",
+			endpoint: "http://localhost:1234/v1",
+			advertisedContextWindow: 32_000,
+		});
+		expect(defaultEntry.constraints.maxConcurrentRequests).toBeNull();
+
+		const setEntry = await registry.setMaxConcurrentRequests({
+			providerId: "lmstudio",
+			modelId: "qwen-parallel",
+			endpoint: "http://localhost:1234/v1",
+			maxConcurrentRequests: 4,
+		});
+		expect(setEntry.constraints.maxConcurrentRequests).toBe(4);
+
+		// Non-positive / non-finite values normalize to null (= the default of 1).
+		const clampedEntry = await registry.setMaxConcurrentRequests({
+			providerId: "lmstudio",
+			modelId: "qwen-parallel",
+			endpoint: "http://localhost:1234/v1",
+			maxConcurrentRequests: 0,
+		});
+		expect(clampedEntry.constraints.maxConcurrentRequests).toBeNull();
+
+		const reSetEntry = await registry.setMaxConcurrentRequests({
+			providerId: "lmstudio",
+			modelId: "qwen-parallel",
+			endpoint: "http://localhost:1234/v1",
+			maxConcurrentRequests: 3,
+		});
+		expect(reSetEntry.constraints.maxConcurrentRequests).toBe(3);
+
+		const clearedEntry = await registry.setMaxConcurrentRequests({
+			providerId: "lmstudio",
+			modelId: "qwen-parallel",
+			endpoint: "http://localhost:1234/v1",
+			maxConcurrentRequests: null,
+		});
+		expect(clearedEntry.constraints.maxConcurrentRequests).toBeNull();
+	});
+
 	it("removes single and multiple persisted entries", async () => {
 		const registryPath = await createRegistryPath();
 		const registry = new NKleinModelRegistry({

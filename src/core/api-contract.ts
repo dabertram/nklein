@@ -1349,6 +1349,9 @@ export const runtimeNKleinModelRegistryEntrySchema = z.object({
 		sharedEndpointId: z.string().nullable(),
 		inputCostPerMillionTokens: z.number().nonnegative().nullable(),
 		outputCostPerMillionTokens: z.number().nonnegative().nullable(),
+		// Per-model parallel-request capacity (e.g. LM Studio's per-model concurrent-requests setting). null/absent
+		// means the default of 1 (serialize on the shared endpoint). Optional during rollout for older snapshots.
+		maxConcurrentRequests: z.number().int().positive().nullable().optional(),
 	}),
 	createdAt: z.number().int().nonnegative(),
 	updatedAt: z.number().int().nonnegative(),
@@ -1377,6 +1380,24 @@ export const runtimeNKleinModelContextWindowOverrideResponseSchema = z.object({
 });
 export type RuntimeNKleinModelContextWindowOverrideResponse = z.infer<
 	typeof runtimeNKleinModelContextWindowOverrideResponseSchema
+>;
+
+export const runtimeNKleinModelMaxConcurrentRequestsRequestSchema = z.object({
+	providerId: z.string().min(1),
+	modelId: z.string().min(1),
+	endpoint: z.string().nullable().optional(),
+	// null clears the override (back to the default of 1 concurrent request on the shared endpoint).
+	maxConcurrentRequests: z.number().int().positive().nullable(),
+});
+export type RuntimeNKleinModelMaxConcurrentRequestsRequest = z.infer<
+	typeof runtimeNKleinModelMaxConcurrentRequestsRequestSchema
+>;
+
+export const runtimeNKleinModelMaxConcurrentRequestsResponseSchema = z.object({
+	model: runtimeNKleinModelRegistryEntrySchema,
+});
+export type RuntimeNKleinModelMaxConcurrentRequestsResponse = z.infer<
+	typeof runtimeNKleinModelMaxConcurrentRequestsResponseSchema
 >;
 
 export const runtimeNKleinModelRegistryRemoveRequestSchema = z.object({

@@ -704,8 +704,17 @@ deep analysis:
         `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails` round-trip through `normalizeRuntimeSwarmGuardrails`. web
         tsc + biome + full web suite (84 files / 691 tests incl. new edit-and-save + reset tests) green. *(Visual
         Playwright pass folds into the §5.A UI verification session; behavior is fully unit-locked.)*
-- [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
+- [~] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
       attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
+  - [x] **Backend (2026-06-24).** Added a per-model `maxConcurrentRequests` registry constraint (default null = 1) with
+        `normalizeConstraints` + a `setMaxConcurrentRequests` registry setter, a `saveNKleinModelMaxConcurrentRequests`
+        tRPC procedure (local-only guard, mirrors the context-window override) + contract request/response schemas +
+        parse helper. `scheduleNKleinEndpointStart` ([nklein-endpoint-scheduler.ts](src/nklein-sdk/nklein-endpoint-scheduler.ts))
+        now counts running sessions on the shared endpoint and allows up to the model's limit before holding the next
+        start (capacity note in the block reason). Default 1 = unchanged serialization. Unit-tested: scheduler
+        allows-N-then-blocks + registry set/clamp/clear. tsc + biome + boundary + fast (1351) green.
+  - [ ] still TODO (web-ui, commit 2): a per-model concurrency input in the Model Performance/registry settings
+        (mirror the context-window override input) + client mutation wiring + web tests.
 - [x] **Clarify "concurrent cards" vs "parallel agents"** *(DONE 2026-06-24)* — they **map 1:1** (each running card
       drives exactly one agent session; team-delegation sub-agents are a gated within-task exception, not a separate
       swarm-level dial), so per the decision the board concurrency-cap tooltip is relabeled **"Concurrent cards

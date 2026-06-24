@@ -81,6 +81,9 @@ export interface NKleinModelRegistryConstraints {
 	sharedEndpointId: string | null;
 	inputCostPerMillionTokens: number | null;
 	outputCostPerMillionTokens: number | null;
+	// Per-model parallel-request capacity. null = the default of 1 (serialize on the shared endpoint); N > 1 lets
+	// the swarm scheduler run up to N concurrent sessions on this model's shared endpoint.
+	maxConcurrentRequests: number | null;
 }
 
 export interface NKleinModelRegistryEntry {
@@ -248,6 +251,7 @@ export function createNKleinModelRegistryEntry(
 			sharedEndpointId: getDefaultSharedEndpointId({ providerId, modelId, endpoint }),
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
+			maxConcurrentRequests: null,
 		},
 		createdAt: now,
 		updatedAt: now,
@@ -362,6 +366,7 @@ function normalizeConstraints(
 		sharedEndpointId: normalizeNullableString(record?.sharedEndpointId) ?? fallback.sharedEndpointId,
 		inputCostPerMillionTokens: normalizePositiveNumber(record?.inputCostPerMillionTokens),
 		outputCostPerMillionTokens: normalizePositiveNumber(record?.outputCostPerMillionTokens),
+		maxConcurrentRequests: normalizePositiveInteger(record?.maxConcurrentRequests) ?? fallback.maxConcurrentRequests,
 	};
 }
 
@@ -595,6 +600,19 @@ export class NKleinModelRegistry {
 		const entry = this.getOrCreateEntry(snapshot, input, observedAt);
 		entry.contextWindow.userOverride = normalizePositiveInteger(input.contextWindow);
 		entry.contextWindow.effective = calculateEffectiveContextWindow(entry.contextWindow);
+		entry.updatedAt = observedAt;
+		snapshot.updatedAt = observedAt;
+		this.schedulePersist(snapshot);
+		return cloneEntry(entry);
+	}
+
+	async setMaxConcurrentRequests(
+		input: NKleinModelRegistryKeyInput & { maxConcurrentRequests: number | null; createdAt?: number },
+	): Promise<NKleinModelRegistryEntry> {
+		const snapshot = await this.mutableSnapshot();
+		const observedAt = input.createdAt ?? this.now();
+		const entry = this.getOrCreateEntry(snapshot, input, observedAt);
+		entry.constraints.maxConcurrentRequests = normalizePositiveInteger(input.maxConcurrentRequests);
 		entry.updatedAt = observedAt;
 		snapshot.updatedAt = observedAt;
 		this.schedulePersist(snapshot);

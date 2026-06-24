@@ -59,6 +59,7 @@ function createSnapshot(contextWindow: number, samples: number): NKleinModelRegi
 					sharedEndpointId: "lmstudio:http://localhost:1234/v1",
 					inputCostPerMillionTokens: null,
 					outputCostPerMillionTokens: null,
+					maxConcurrentRequests: null,
 				},
 				createdAt: 1,
 				updatedAt: 1,

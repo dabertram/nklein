@@ -39,6 +39,7 @@ import {
 	parseNKleinMcpOAuthRequest,
 	parseNKleinMcpSettingsSaveRequest,
 	parseNKleinModelContextWindowOverrideRequest,
+	parseNKleinModelMaxConcurrentRequestsRequest,
 	parseNKleinModelRegistryRemoveRequest,
 	parseNKleinOauthLoginRequest,
 	parseNKleinProviderModelsRequest,
@@ -1774,6 +1775,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				modelId: body.modelId,
 				endpoint: body.endpoint,
 				contextWindow: body.contextWindow,
+			});
+			return { model };
+		},
+		saveNKleinModelMaxConcurrentRequests: async (_workspaceScope, input) => {
+			const body = parseNKleinModelMaxConcurrentRequestsRequest(input);
+			if (!isLocalProvider(body.providerId, body.endpoint)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Per-model concurrency limits are only available for local !Klein models.",
+				});
+			}
+			const model = await getDefaultNKleinModelRegistry().setMaxConcurrentRequests({
+				providerId: body.providerId,
+				modelId: body.modelId,
+				endpoint: body.endpoint,
+				maxConcurrentRequests: body.maxConcurrentRequests,
 			});
 			return { model };
 		},

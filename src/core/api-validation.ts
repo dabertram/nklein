@@ -15,6 +15,7 @@ import {
 	type RuntimeNKleinMcpOAuthRequest,
 	type RuntimeNKleinMcpSettingsSaveRequest,
 	type RuntimeNKleinModelContextWindowOverrideRequest,
+	type RuntimeNKleinModelMaxConcurrentRequestsRequest,
 	type RuntimeNKleinModelRegistryRemoveRequest,
 	type RuntimeNKleinOauthLoginRequest,
 	type RuntimeNKleinProviderModelsRequest,
@@ -57,6 +58,7 @@ import {
 	runtimeNKleinMcpOAuthRequestSchema,
 	runtimeNKleinMcpSettingsSaveRequestSchema,
 	runtimeNKleinModelContextWindowOverrideRequestSchema,
+	runtimeNKleinModelMaxConcurrentRequestsRequestSchema,
 	runtimeNKleinModelRegistryRemoveRequestSchema,
 	runtimeNKleinOauthLoginRequestSchema,
 	runtimeNKleinProviderModelsRequestSchema,
@@ -438,6 +440,27 @@ export function parseNKleinModelContextWindowOverrideRequest(
 		modelId,
 		endpoint,
 		contextWindow: parsed.contextWindow,
+	};
+}
+
+export function parseNKleinModelMaxConcurrentRequestsRequest(
+	value: unknown,
+): RuntimeNKleinModelMaxConcurrentRequestsRequest {
+	const parsed = parseWithSchema(runtimeNKleinModelMaxConcurrentRequestsRequestSchema, value);
+	const providerId = parsed.providerId.trim();
+	const modelId = parsed.modelId.trim();
+	const endpoint = parsed.endpoint?.trim() || null;
+	if (!providerId) {
+		throw new Error("Provider ID cannot be empty.");
+	}
+	if (!modelId) {
+		throw new Error("Model ID cannot be empty.");
+	}
+	return {
+		providerId,
+		modelId,
+		endpoint,
+		maxConcurrentRequests: parsed.maxConcurrentRequests,
 	};
 }
 

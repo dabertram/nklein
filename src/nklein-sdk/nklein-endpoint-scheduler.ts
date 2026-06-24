@@ -73,6 +73,18 @@ function getSharedEndpointId(snapshot: NKleinModelRegistrySnapshot, input: NKlei
 	return getFallbackSharedEndpointId(input);
 }
 
+function getMaxConcurrentRequests(snapshot: NKleinModelRegistrySnapshot, input: NKleinModelRegistryKeyInput): number {
+	if (!hasRealModelIdentity(input)) {
+		return 1;
+	}
+	const providerId = normalizeProviderId(input.providerId);
+	const modelId = normalizeModelId(input.modelId);
+	const endpoint = normalizeEndpoint(input.endpoint);
+	const key = buildNKleinModelRegistryKey({ providerId, modelId, endpoint });
+	const limit = snapshot.models[key]?.constraints.maxConcurrentRequests ?? null;
+	return typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 1;
+}
+
 function getObservedWallTimeMs(
 	snapshot: NKleinModelRegistrySnapshot,
 	input: NKleinModelRegistryKeyInput,
@@ -126,23 +138,36 @@ export function scheduleNKleinEndpointStart(
 		return { ok: true };
 	}
 	const now = request.now ?? Date.now();
+	// Per-model parallel-request capacity (default 1 = strict serialization). The swarm may run up to `limit`
+	// concurrent sessions on the same shared endpoint before a new start is held.
+	const limit = getMaxConcurrentRequests(request.modelRegistry, request);
 
-	for (const session of request.runningSessions) {
-		if (session.taskId === request.taskId || session.state !== "running") {
-			continue;
-		}
-		const sessionSharedEndpointId = getSharedEndpointId(request.modelRegistry, session);
-		if (sessionSharedEndpointId === sharedEndpointId) {
-			const estimatedWaitMs = estimateRemainingEndpointWaitMs(request.modelRegistry, session, now);
-			return {
-				ok: false,
-				blockedByTaskId: session.taskId,
-				sharedEndpointId,
-				estimatedWaitMs,
-				reason: `Another !Klein task is already running on shared endpoint "${sharedEndpointId}".${formatEstimatedWait(estimatedWaitMs)}`,
-			};
-		}
+	const concurrentSessions = request.runningSessions.filter(
+		(session) =>
+			session.taskId !== request.taskId &&
+			session.state === "running" &&
+			getSharedEndpointId(request.modelRegistry, session) === sharedEndpointId,
+	);
+	if (concurrentSessions.length < limit) {
+		return { ok: true };
 	}
 
-	return { ok: true };
+	// At capacity: hold behind the session that is estimated to free up soonest, so the reported wait is accurate.
+	let earliest = concurrentSessions[0];
+	let earliestWaitMs = estimateRemainingEndpointWaitMs(request.modelRegistry, earliest, now);
+	for (const session of concurrentSessions.slice(1)) {
+		const waitMs = estimateRemainingEndpointWaitMs(request.modelRegistry, session, now);
+		if (earliestWaitMs === null || (waitMs !== null && waitMs < earliestWaitMs)) {
+			earliest = session;
+			earliestWaitMs = waitMs;
+		}
+	}
+	const capacityNote = limit > 1 ? ` Shared endpoint is at its ${limit} concurrent-request capacity.` : "";
+	return {
+		ok: false,
+		blockedByTaskId: earliest.taskId,
+		sharedEndpointId,
+		estimatedWaitMs: earliestWaitMs,
+		reason: `Another !Klein task is already running on shared endpoint "${sharedEndpointId}".${capacityNote}${formatEstimatedWait(earliestWaitMs)}`,
+	};
 }

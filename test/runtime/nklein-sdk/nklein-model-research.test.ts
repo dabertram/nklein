@@ -49,6 +49,7 @@ function createSnapshot(): NKleinModelRegistrySnapshot {
 					sharedEndpointId: "local-gpu",
 					inputCostPerMillionTokens: null,
 					outputCostPerMillionTokens: null,
+					maxConcurrentRequests: null,
 				},
 				createdAt: 10,
 				updatedAt: 20,

@@ -47,6 +47,7 @@ function createSnapshot(sharedEndpointId: string | null = "gpu-0"): NKleinModelR
 					sharedEndpointId,
 					inputCostPerMillionTokens: null,
 					outputCostPerMillionTokens: null,
+					maxConcurrentRequests: null,
 				},
 				createdAt: 1,
 				updatedAt: 1,
@@ -78,6 +79,53 @@ describe("nklein endpoint scheduler", () => {
 			ok: false,
 			blockedByTaskId: "task-1",
 			sharedEndpointId: "gpu-0",
+		});
+	});
+
+	it("allows concurrent sessions up to a per-model maxConcurrentRequests, then blocks", () => {
+		const runningSession = (taskId: string) => ({
+			taskId,
+			state: "running" as const,
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "local",
+		});
+		const snapshotWithLimit = (limit: number): NKleinModelRegistrySnapshot => {
+			const snapshot = createSnapshot("gpu-0");
+			const entry = snapshot.models["ollama:qwen:local"];
+			if (!entry) {
+				throw new Error("Expected registry entry.");
+			}
+			entry.constraints.maxConcurrentRequests = limit;
+			return snapshot;
+		};
+
+		// limit 2, one already running -> the second is allowed.
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-2",
+				providerId: "ollama",
+				modelId: "qwen",
+				endpoint: "local",
+				modelRegistry: snapshotWithLimit(2),
+				runningSessions: [runningSession("task-1")],
+			}),
+		).toEqual({ ok: true });
+
+		// limit 2, two already running -> at capacity, the third is blocked with a capacity note.
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "ollama",
+				modelId: "qwen",
+				endpoint: "local",
+				modelRegistry: snapshotWithLimit(2),
+				runningSessions: [runningSession("task-1"), runningSession("task-2")],
+			}),
+		).toMatchObject({
+			ok: false,
+			sharedEndpointId: "gpu-0",
+			reason: expect.stringContaining("2 concurrent-request capacity"),
 		});
 	});
 
@@ -150,6 +198,7 @@ describe("nklein endpoint scheduler", () => {
 						sharedEndpointId: "anthropic:default",
 						inputCostPerMillionTokens: null,
 						outputCostPerMillionTokens: null,
+						maxConcurrentRequests: null,
 					},
 				},
 			},

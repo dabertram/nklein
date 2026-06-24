@@ -57,6 +57,8 @@ import type {
 	RuntimeNKleinMcpSettingsSaveResponse,
 	RuntimeNKleinModelContextWindowOverrideRequest,
 	RuntimeNKleinModelContextWindowOverrideResponse,
+	RuntimeNKleinModelMaxConcurrentRequestsRequest,
+	RuntimeNKleinModelMaxConcurrentRequestsResponse,
 	RuntimeNKleinModelRegistryPruneResponse,
 	RuntimeNKleinModelRegistryRemoveRequest,
 	RuntimeNKleinModelRegistryRemoveResponse,
@@ -189,6 +191,8 @@ import {
 	runtimeNKleinMcpSettingsSaveResponseSchema,
 	runtimeNKleinModelContextWindowOverrideRequestSchema,
 	runtimeNKleinModelContextWindowOverrideResponseSchema,
+	runtimeNKleinModelMaxConcurrentRequestsRequestSchema,
+	runtimeNKleinModelMaxConcurrentRequestsResponseSchema,
 	runtimeNKleinModelRegistryPruneResponseSchema,
 	runtimeNKleinModelRegistryRemoveRequestSchema,
 	runtimeNKleinModelRegistryRemoveResponseSchema,
@@ -419,6 +423,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeNKleinModelContextWindowOverrideRequest,
 		) => Promise<RuntimeNKleinModelContextWindowOverrideResponse>;
+		saveNKleinModelMaxConcurrentRequests: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+			input: RuntimeNKleinModelMaxConcurrentRequestsRequest,
+		) => Promise<RuntimeNKleinModelMaxConcurrentRequestsResponse>;
 		getNKleinCodeIntelligenceStatus: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
@@ -828,6 +836,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeNKleinModelContextWindowOverrideResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.saveNKleinModelContextWindowOverride(ctx.workspaceScope, input);
+			}),
+		saveNKleinModelMaxConcurrentRequests: t.procedure
+			.input(runtimeNKleinModelMaxConcurrentRequestsRequestSchema)
+			.output(runtimeNKleinModelMaxConcurrentRequestsResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.saveNKleinModelMaxConcurrentRequests(ctx.workspaceScope, input);
 			}),
 		getNKleinCodeIntelligenceStatus: t.procedure
 			.output(runtimeNKleinCodeIntelligenceStatusResponseSchema)

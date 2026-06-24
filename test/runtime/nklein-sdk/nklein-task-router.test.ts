@@ -49,6 +49,7 @@ function createEntry(input: {
 			sharedEndpointId: endpoint,
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
+			maxConcurrentRequests: null,
 		},
 		createdAt: 1,
 		updatedAt: 1,

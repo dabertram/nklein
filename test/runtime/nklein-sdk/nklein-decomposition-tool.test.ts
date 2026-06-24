@@ -133,6 +133,7 @@ function createRoutingCandidate(input: {
 				sharedEndpointId: "ollama:default",
 				inputCostPerMillionTokens: null,
 				outputCostPerMillionTokens: null,
+				maxConcurrentRequests: null,
 			},
 			createdAt: 1,
 			updatedAt: 1,

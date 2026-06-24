@@ -142,6 +142,7 @@ function createFallbackRegistryEntry(input: {
 			sharedEndpointId: input.endpoint ?? `${input.providerId}:default`,
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
+			maxConcurrentRequests: null,
 		},
 		createdAt: input.now,
 		updatedAt: input.now,
