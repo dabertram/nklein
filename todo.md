@@ -1390,9 +1390,12 @@ deep analysis:
         - [x] **slice 2 (2026-06-24):** extracted the pure task-activity model + formatters (`buildTaskActivitySteps` +
               tone/label/detail helpers + `formatDiagnosticTime`) into `detail-panels/task-activity-model.ts`. No JSX,
               no behavior change; web typecheck + vitest (690) green. card-detail-view 2330→2126 (cumulative 2384→2126, −11%).
-        - [ ] still TODO: the planning-DAG helpers (parseComplexity/parseModelFit/buildPlanningDagNodes…), the various
-              presentational panels (PlanningDagReviewPanel/FocusChainPanel/PendingPlanArtifactsPanel/Task*Panel), and the
-              resize/keyboard orchestration into a hook.
+        - [x] **slice 3 (2026-06-24):** extracted the pure planning-DAG model + formatters (`buildPlanningDagNodes` BFS over
+              the dependency graph, complexity/model-fit prompt parsing, revised-card classification, node label/tone) into
+              `detail-panels/planning-dag-model.ts`. No JSX; web typecheck + vitest (690) green. card-detail-view 2126→1994
+              (cumulative 2384→1994, −16%).
+        - [ ] still TODO: the various presentational panels (PlanningDagReviewPanel/FocusChainPanel/PendingPlanArtifactsPanel/
+              Task*Panel — each self-contained, extractable to `detail-panels/`), and the resize/keyboard orchestration into a hook.
   - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1471)** — the Projects/Agent sidebar; tied to the
         §5.M "reconcile the two chat surfaces" item (dropping the Agent tab shrinks this). Split the project list, the
         dev-scenario/self-improvement block, and the per-project actions menu.
