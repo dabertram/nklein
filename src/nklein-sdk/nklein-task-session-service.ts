@@ -1,4 +1,4 @@
-import { asRecord } from "./nklein-value-guards";
+import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 // Task-oriented facade for native NKlein sessions.
 // runtime-api.ts uses this service to start sessions, send messages, load
 // history, and subscribe to summaries and chat events without knowing SDK
@@ -616,51 +616,6 @@ function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
 		output.includes("no such file or directory") ||
 		output.includes("not a git repository")
 	);
-}
-
-function readSdkAgentEvent(event: unknown): Record<string, unknown> | null {
-	const record = asRecord(event);
-	if (record?.type !== "agent_event") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	return asRecord(payload?.event);
-}
-
-function readSdkSessionEvent(event: unknown): NKleinSdkSessionEvent | null {
-	const record = asRecord(event);
-	if (!record || typeof record.type !== "string") {
-		return null;
-	}
-	switch (record.type) {
-		case "agent_event":
-		case "chunk":
-		case "ended":
-		case "hook":
-		case "pending_prompt_submitted":
-		case "pending_prompts":
-		case "session_snapshot":
-		case "status":
-		case "team_progress":
-			return event as NKleinSdkSessionEvent;
-		default:
-			return null;
-	}
-}
-
-function readAgentResultText(result: unknown): string | null {
-	if (!result || typeof result !== "object") {
-		return null;
-	}
-	if (!("text" in result)) {
-		return null;
-	}
-	const text = result.text;
-	if (typeof text !== "string") {
-		return null;
-	}
-	const normalized = text.trim();
-	return normalized.length > 0 ? normalized : null;
 }
 
 function formatWallTimeDuration(durationMs: number): string {

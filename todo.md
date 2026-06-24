@@ -858,6 +858,11 @@ deep analysis:
         `parseAcceptanceCommand`, `isDecompositionPlanningPrompt`, `isExplicitDecompositionPrompt`) + a dedicated test.
         Behaviour identical (service suite 119 green). Chosen as the lowest-risk slice (zero in-file deps, compiler-
         verified). The bigger stateful extractions (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs) remain.
+  - [x] **second slice (2026-06-24):** extracted the 3 pure SDK-event readers (`readSdkAgentEvent`,
+        `readSdkSessionEvent`, `readAgentResultText`) into
+        [nklein-sdk-event-readers.ts](src/nklein-sdk/nklein-sdk-event-readers.ts) (importing the shared `asRecord`),
+        with a dedicated test; this also made the service's local `asRecord` import dead (removed). Behaviour
+        identical (service suite 109 + readers 6 green).
 - [x] **Consolidate the duplicated `asRecord` helper** *(DONE 2026-06-24)* — `asRecord` was re-defined locally in 5
       `src/nklein-sdk/*` files (event-adapter, model-registry, session-runtime, task-session-service, team-progress).
       Extracted the canonical strict version (non-null, non-array object) to
