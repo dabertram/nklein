@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMemory } from "../../../src/chat/chat-memory-store";
-import { runChatTurn } from "../../../src/chat/chat-runtime";
+import { runChatConversation, runChatTurn } from "../../../src/chat/chat-runtime";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
 import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
@@ -83,5 +83,31 @@ describe("runChatTurn", () => {
 		const memoryNote = receivedPrompt.find((m) => m.role === "system" && m.content.includes("remembered"));
 		expect(memoryNote?.content).toContain("prefers tabs");
 		expect(memoryNote?.content).not.toContain("weather");
+	});
+
+	it("runs an interactive conversation: skips blanks, stops on /exit, replies each turn", async () => {
+		const lines = ["first question", "", "/exit", "never reached"];
+		let index = 0;
+		const written: string[] = [];
+		const transcript: ChatMessage[] = [];
+		const turns = await runChatConversation(
+			{ session: session(), tokenBudget: 1000 },
+			{
+				readLine: async () => (index < lines.length ? (lines[index++] ?? null) : null),
+				write: (text) => written.push(text),
+				readTranscript: async () => transcript,
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => {
+					const message = appendMessageStub(_sessionId, input);
+					transcript.push(await message);
+					return message;
+				},
+				complete: async () => "a reply",
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+			},
+		);
+		expect(turns).toBe(1);
+		expect(written).toEqual(["a reply\n"]);
 	});
 });

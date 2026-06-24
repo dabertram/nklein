@@ -64,3 +64,47 @@ export async function runChatTurn(
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: reply });
 	return { userMessage, assistantMessage, context, prompt };
 }
+
+export interface ChatConversationDeps extends ChatRuntimeDeps {
+	/** Read the next user line; resolve null at end-of-input (EOF / closed stream). */
+	readLine: () => Promise<string | null>;
+	/** Emit the assistant reply (+ any prompts). */
+	write: (text: string) => void;
+}
+
+/**
+ * Run an interactive multi-turn conversation: read a line, run a turn against the session (each turn re-loads the
+ * transcript + recalls memory + re-anchors the goal), emit the reply, repeat until EOF or `/exit`. Blank lines are
+ * skipped. Returns the number of turns taken. I/O is injected so the loop is unit-testable; the CLI wires stdin.
+ */
+export async function runChatConversation(
+	input: { session: ChatSession; tokenBudget: number; memoryLimit?: number },
+	deps: ChatConversationDeps,
+): Promise<number> {
+	let turns = 0;
+	while (true) {
+		const line = await deps.readLine();
+		if (line === null) {
+			break;
+		}
+		const userMessage = line.trim();
+		if (userMessage.length === 0) {
+			continue;
+		}
+		if (userMessage === "/exit" || userMessage === "/quit") {
+			break;
+		}
+		const result = await runChatTurn(
+			{
+				session: input.session,
+				userMessage,
+				tokenBudget: input.tokenBudget,
+				...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
+			},
+			deps,
+		);
+		deps.write(`${result.assistantMessage.content}\n`);
+		turns += 1;
+	}
+	return turns;
+}

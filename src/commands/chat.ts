@@ -1,7 +1,8 @@
+import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { readChatMemories } from "../chat/chat-memory-store";
-import { runChatTurn } from "../chat/chat-runtime";
+import { type ChatRuntimeDeps, runChatConversation, runChatTurn } from "../chat/chat-runtime";
 import { createChatSession, getChatSession } from "../chat/chat-session-store";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
@@ -53,10 +54,6 @@ interface ChatSendOptions {
 
 export async function runChatSendCommand(options: ChatSendOptions = {}): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const message = options.message?.trim();
-	if (!message) {
-		throw new Error("Provide a message with --message.");
-	}
 	const baseUrl = options.baseUrl?.trim() || DEFAULT_LOCAL_BASE_URL;
 	const providerId = options.provider?.trim() || "lmstudio";
 	const modelId = options.model?.trim() || (await discoverLoadedModelId(baseUrl));
@@ -77,32 +74,74 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 	// LocalLlmClient fails closed against cloud (invariant #1) in its constructor.
 	const client = new LocalLlmClient({ providerId, modelId, baseUrl });
 	const modelDeps = createChatModelDeps(client);
+	const tokenBudget = options.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
+	const runtimeDeps: ChatRuntimeDeps = {
+		readTranscript: (sessionId) => readChatTranscript(sessionId),
+		readMemories: () => readChatMemories(),
+		appendMessage: (sessionId, input) => appendChatMessage(sessionId, input),
+		...modelDeps,
+		estimateTokens: estimateChatTokens,
+	};
 
-	const result = await runChatTurn(
-		{ session, userMessage: message, tokenBudget: options.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET, memoryLimit: 5 },
-		{
-			readTranscript: (sessionId) => readChatTranscript(sessionId),
-			readMemories: () => readChatMemories(),
-			appendMessage: (sessionId, input) => appendChatMessage(sessionId, input),
-			...modelDeps,
-			estimateTokens: estimateChatTokens,
-		},
-	);
-
-	if (options.json) {
-		write(`${JSON.stringify({ sessionId: session.id, reply: result.assistantMessage.content }, null, 2)}\n`);
+	const message = options.message?.trim();
+	if (message) {
+		const result = await runChatTurn({ session, userMessage: message, tokenBudget, memoryLimit: 5 }, runtimeDeps);
+		if (options.json) {
+			write(`${JSON.stringify({ sessionId: session.id, reply: result.assistantMessage.content }, null, 2)}\n`);
+			return;
+		}
+		write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
+		write(`Model: ${providerId}:${modelId}\n\n`);
+		write(`${result.assistantMessage.content}\n`);
 		return;
 	}
+
+	// Interactive REPL (no --message): converse until EOF (Ctrl-D) or `/exit`.
 	write(`Session: ${session.id}${session.goal ? ` · goal: ${session.goal}` : ""}\n`);
-	write(`Model: ${providerId}:${modelId}\n\n`);
-	write(`${result.assistantMessage.content}\n`);
+	write(`Model: ${providerId}:${modelId}  ·  type /exit to quit\n`);
+	const rl = createInterface({ input: process.stdin });
+	const queued: string[] = [];
+	const waiters: Array<(line: string | null) => void> = [];
+	let closed = false;
+	rl.on("line", (line) => {
+		const waiter = waiters.shift();
+		if (waiter) {
+			waiter(line);
+		} else {
+			queued.push(line);
+		}
+	});
+	rl.on("close", () => {
+		closed = true;
+		for (const waiter of waiters.splice(0)) {
+			waiter(null);
+		}
+	});
+	const readLine = (): Promise<string | null> =>
+		new Promise((resolve) => {
+			const next = queued.shift();
+			if (next !== undefined) {
+				resolve(next);
+			} else if (closed) {
+				resolve(null);
+			} else {
+				waiters.push(resolve);
+			}
+		});
+	try {
+		await runChatConversation({ session, tokenBudget, memoryLimit: 5 }, { ...runtimeDeps, readLine, write });
+	} finally {
+		rl.close();
+	}
 }
 
 export function registerChatCommand(program: Command): void {
 	program
 		.command("chat")
-		.description("Send one message to the unified chat agent on a loaded local model (board-independent).")
-		.requiredOption("--message <text>", "The message to send.")
+		.description(
+			"Chat with the unified agent on a loaded local model (board-independent). Omit --message for an interactive session.",
+		)
+		.option("--message <text>", "Send a single message and print the reply; omit for an interactive REPL.")
 		.option("--session <id>", "Continue an existing chat session; otherwise a new one is created.")
 		.option("--title <title>", "Title for a newly created session.")
 		.option("--goal <goal>", "Standing objective kept in focus across the session's turns.")

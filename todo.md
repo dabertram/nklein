@@ -633,8 +633,14 @@ deep analysis:
         continuing a session (with `--goal`), recalling memory, persisting the turn to the runtime home. `--session`
         continues, `--json` for scripting. **Live-verified**: `nklein chat --message … --goal …` discovered
         `qwen/qwen3-8b`, created the session, and returned a correct concise reply (the chat agent is usable from the
-        terminal). Discovery unit-tested. Still owed (next live layer): the **tool-using** multi-turn agent loop on the
-        NKlein core + streaming + the tRPC/web-ui surface + the Signal bridge.
+        terminal). Discovery unit-tested.
+  - [x] **interactive multi-turn REPL (2026-06-24)** — `runChatConversation` ([chat-runtime.ts](src/chat/chat-runtime.ts))
+        loops read-line → turn → reply until EOF/`/exit` (blank lines skipped; I/O injected → unit-tested), and
+        `nklein chat` with **no** `--message` enters it (a stdin readline adapter feeds the loop). **Live-verified**:
+        `printf '…\n/exit\n' | nklein chat` held a real multi-turn conversation against `qwen3-8b`. (Across-invocation
+        multi-turn also already works via `--session <id>`, which reloads the transcript + recalls memory each turn.)
+        Still owed (next live layer): the **tool-using** agent loop on the NKlein core + streaming + the tRPC/web-ui
+        surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
