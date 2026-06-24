@@ -21,6 +21,7 @@ import type {
 	RuntimeStateStreamWorkspaceStateMessage,
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
+import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { runNKleinAcceptanceAutoRepair } from "../nklein-sdk/nklein-acceptance-auto-repair";
 import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -603,6 +604,17 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				const previousSummary = previousSummariesByTaskId.get(summary.taskId);
 				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
+				// A freshly-started task is usually still queued/starting when start() returns, so the synchronous lane
+				// reconcile in startTaskSession is a no-op. Move the card out of Backlog the instant it actually
+				// transitions to running, so the board never shows agent activity behind a card still in Backlog (the
+				// reported "dev-test decompose card doing work in Backlog" bug). Best-effort; broadcast on a real move.
+				if (summary.state === "running" && previousSummary?.state !== "running") {
+					void reconcileStartedTaskBoardLane({ workspacePath, summary }).then((boardChanged) => {
+						if (boardChanged) {
+							void broadcastRuntimeWorkspaceStateUpdated(workspaceId, workspacePath);
+						}
+					});
+				}
 				const didCheckpointChange =
 					previousSummary?.latestTurnCheckpoint?.commit !== summary.latestTurnCheckpoint?.commit ||
 					previousSummary?.previousTurnCheckpoint?.commit !== summary.previousTurnCheckpoint?.commit;

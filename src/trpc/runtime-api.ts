@@ -66,7 +66,7 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { selectRoleModel } from "../core/role-model-selection";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
-import { moveTaskToColumn } from "../core/task-board-mutations";
+import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
@@ -239,37 +239,7 @@ async function reconcileRunningTaskBoardLane(
 	workspaceScope: RuntimeTrpcWorkspaceScope,
 	summary: RuntimeTaskSessionSummary,
 ): Promise<void> {
-	if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
-		return;
-	}
-	try {
-		await mutateWorkspaceState(workspaceScope.workspacePath, (state) => {
-			const record = findBoardCardRecordById(state.board, summary.taskId);
-			if (!record || record.columnId === "completed" || record.columnId === "trash") {
-				return {
-					board: state.board,
-					save: false,
-					value: null,
-				};
-			}
-			const targetColumnId = record.card.startInPlanMode ? "planning" : "in_progress";
-			if (record.columnId === targetColumnId) {
-				return {
-					board: state.board,
-					save: false,
-					value: null,
-				};
-			}
-			const movement = moveTaskToColumn(state.board, summary.taskId, targetColumnId);
-			return {
-				board: movement.board,
-				save: movement.moved,
-				value: null,
-			};
-		});
-	} catch {
-		// Chat/input delivery is primary; lane reconciliation is best-effort for real persisted boards.
-	}
+	await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
 }
 
 function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
