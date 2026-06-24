@@ -667,9 +667,20 @@ deep analysis:
           [chat-agent-turn.ts](src/chat/chat-agent-turn.ts) `runChatAgentTurn` ties context-compose → render → the
           agent loop (model → gated tool exec → repeat) → persist the user msg + final reply. All deps injected →
           unit-tested (tool-call→execute→answer + direct-answer paths).
-    - [ ] still owed: a concrete chat tool set (e.g. a workspace file-read tool) wired to the gated executor, then a
-          live verification of the agent actually calling a tool against qwen3-8b. (Non-OpenAI tool-call shapes remain
-          the NKlein agent's `recoverNarratedToolCalls` concern — §5.O formats.)
+    - [x] **concrete read-only workspace tools + live verification (2026-06-24)** —
+          [chat-workspace-tools.ts](src/chat/chat-workspace-tools.ts) `createWorkspaceReadTools(rootDir)` gives the
+          first real tool set: `read_file` + `list_dir` (both `sandbox_read`), returning the runnable `ChatTool[]`
+          (for the executor) **and** the OpenAI `definitions` (for the model). Honors the host-isolation invariant —
+          every arg is resolved + confined to the workspace root (absolute paths and `..` escapes refused) and all
+          agent-facing copy is workspace-relative, so a host path can never leak through a tool arg/result. Unit-tested
+          (read/truncate/escape/absolute/missing/list, all asserting no host path leaks). **Live-verified** via
+          [scripts/verify-chat-agent-tools.mts](scripts/verify-chat-agent-tools.mts) against qwen2.5-coder-14b: the
+          real model called `read_file` through the gated+audited executor and answered from the file's content (a
+          unique secret token), and the bounded loop terminated safely when the model kept re-reading (4 steps →
+          forced final answer). The repeated-read trait is a §5.O small-model robustness note (a fingerprint dedup
+          guard, like the NKlein agent's, could later short-circuit it; the bounded loop already makes it safe).
+    - [ ] still owed: a write/mutating tool exercising the `confirm` gate, then wire the tool set into the
+          `nklein chat` CLI (loop+executor+definitions) so the shipped command is tool-using, not just chat.
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
