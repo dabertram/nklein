@@ -1431,9 +1431,12 @@ deep analysis:
         - [x] **slice 1 (2026-06-24):** extracted the keyboard-shortcuts cheatsheet (ShortcutHint + ShortcutsCard + the
               essential/more shortcut tables + platform modifier glyphs) into `project-nav/shortcuts-card.tsx`. web typecheck +
               vitest (690) green. project-navigation-panel 1346→1276.
+        - [x] **slice 2 (2026-06-24):** extracted the beta `ProjectSupportFooter` (Featurebase feedback / GitHub-issues
+              link) + its GITHUB_ISSUES_URL into `project-nav/project-support-footer.tsx`. web typecheck + vitest (690) green.
+              project-navigation-panel 1276→1233.
         - [ ] still TODO: `ProjectHealthCard` (code-intelligence health), `DevTestProjectCard` (dev-scenario block),
-              `ProjectRow`/`ProjectRowSkeleton` (project list rows), `ProjectSupportFooter` — each self-contained, extractable
-              to `project-nav/`. Then the big `ProjectNavigationPanel` body itself.
+              `ProjectRow`/`ProjectRowSkeleton` (project list rows) — each self-contained, extractable to `project-nav/`.
+              Then the big `ProjectNavigationPanel` body itself.
   - [ ] *(also large, lower priority): `web-ui/src/App.tsx` (~1350, composition root — extract more orchestration into
         hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), `nklein-decomposition-tool.ts` (~1440),
         `nklein-session-runtime.ts` (~1421), `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.

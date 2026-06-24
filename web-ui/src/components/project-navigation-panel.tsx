@@ -3,9 +3,7 @@ import {
 	AlertTriangle,
 	Clipboard,
 	Ellipsis,
-	ExternalLink,
 	FlaskConical,
-	Info,
 	Lightbulb,
 	Play,
 	Plus,
@@ -16,6 +14,7 @@ import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, use
 import { showAppToast } from "@/components/app-toaster";
 import { CodeIntelligencePanel } from "@/components/code-intelligence-panel";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
+import { ProjectSupportFooter } from "@/components/project-nav/project-support-footer";
 import { ShortcutsCard } from "@/components/project-nav/shortcuts-card";
 import { ProjectSettingsDialog } from "@/components/project-settings-dialog";
 import { Button } from "@/components/ui/button";
@@ -57,7 +56,6 @@ const COLLAPSED_WIDTH = 48;
 const SIDEBAR_COLLAPSE_THRESHOLD = 120;
 const SIDEBAR_MIN_EXPANDED_WIDTH = 200;
 const SIDEBAR_MAX_EXPANDED_WIDTH = 600;
-const GITHUB_ISSUES_URL = "https://github.com/dabertram/kanban/issues";
 
 interface TaskCountBadge {
 	id: string;
@@ -1025,47 +1023,6 @@ function DevTestProjectCard({
 					{evidencePath}
 				</p>
 			) : null}
-		</div>
-	);
-}
-
-function ProjectSupportFooter({
-	shouldShowFeaturebaseFeedback,
-	featurebaseFeedbackState,
-}: {
-	shouldShowFeaturebaseFeedback: boolean;
-	featurebaseFeedbackState?: FeaturebaseFeedbackState;
-}): React.ReactElement {
-	const isOpening = featurebaseFeedbackState?.authState === "loading";
-
-	const handleAction = () => {
-		if (shouldShowFeaturebaseFeedback) {
-			void featurebaseFeedbackState?.openFeedbackWidget();
-		} else {
-			window.open(GITHUB_ISSUES_URL, "_blank");
-		}
-	};
-
-	const actionLabel = shouldShowFeaturebaseFeedback ? (isOpening ? "Opening..." : "Send feedback") : "Report issue";
-
-	return (
-		<div style={{ padding: "4px 12px 12px" }}>
-			<div className="flex items-start gap-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
-				<Info size={14} className="mt-px shrink-0 text-text-tertiary" />
-				<div className="flex flex-col gap-1.5">
-					<p className="m-0 text-xs text-text-secondary">
-						!Klein is in beta. Help us improve by sharing your experience.
-					</p>
-					<button
-						type="button"
-						className="m-0 flex cursor-pointer items-center gap-1 self-start border-none bg-transparent p-0 text-xs font-semibold text-text-secondary hover:text-text-primary active:text-text-tertiary disabled:cursor-default disabled:opacity-50"
-						disabled={shouldShowFeaturebaseFeedback && isOpening}
-						onClick={handleAction}
-					>
-						{actionLabel} {!isOpening && <ExternalLink size={11} />}
-					</button>
-				</div>
-			</div>
 		</div>
 	);
 }
