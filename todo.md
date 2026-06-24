@@ -194,9 +194,10 @@ deep analysis:
 >   one-session-per-thread, 3 execution modes, isolated-by-default memory remain as previously decided.)
 > - **§5.Q:** canonical model identity = **provider + model + canonical endpoint** (canonicalize loopback /
 >   trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate globally per model.
-> - **§5.O:** **CLI orchestrator** extending `nklein dev test-project` (+ collect-evidence/cleanup-report);
->   build the orchestrator **and** the parallel-fan-out dev-test projects **now**, sweep when the user makes the
->   quant / K-V-cache configs available.
+> - **§5.O (SCOPE TIGHTENED 2026-06-24 — see the §5.O callout):** the **CLI orchestrator** + parallel-fan-out
+>   dev-test projects are built. In-scope sweep work now is **small-model OUTPUT robustness only** (results →
+>   `local-llmd-tests.md`); **performance/efficiency comparison + quant / K-V-cache / context-size sweeps are HARD +
+>   STRICTLY out of scope** until the user calls a version release-able.
 > - **§5.L:** next delivery follow-up = **per-project delivery override**, built **with the §5.I#3 project-settings
 >   modal** (where per-project settings belong).
 > - **§5.B:** **build** the knowledge-tool-usage decomposition signal (backend correlation + Settings stats
@@ -761,10 +762,21 @@ deep analysis:
       re-anchored into context after compaction, reviewer-checked, **and now user-editable** (toggle/add/delete from
       the card). Remaining nicety (drag-reorder) tracked above; the chat-surface variant is §5.M.
 
-### 5.O — Robustness sweeps: harden across model sizes/families/quants + parallelism *(raised 2026-06-23)*
-> Make !Klein robust on as many small local LLMs as possible (≤4-bit weight quant + low K/V-cache quant) AND
-> efficient on large models — evidence-driven: user supplies models, we sweep the dev-test presets, collect
-> evidence, harden the common failure modes. Heavy sweep automation is designed when we start sweeping (discuss then).
+### 5.O — Small-model output robustness *(raised 2026-06-23; SCOPE TIGHTENED 2026-06-24 — read the callout)*
+> **SCOPE — decided 2026-06-24, FINAL until the user calls a version release-able. Leaves no doubt:**
+>
+> **IN SCOPE (the only sweep work now):** robustness against the varied **output of different *small* local
+> models**. In the first rounds we sweep *only* different small models — run the dev-test presets across the small
+> models the user has loaded, and harden !Klein against whatever malformed/odd output surfaces so it "just works"
+> regardless of the model. Persist each round's findings to **[local-llmd-tests.md](local-llmd-tests.md)** (which
+> models were swept, what broke, what was hardened). The goal is **correctness/robustness, not measurement**.
+>
+> **HARD + STRICTLY OUT OF SCOPE NOW — do NOT start, do NOT measure:** comparing models on **performance or
+> efficiency**, and sweeping **context sizes / weight-quant / K-V-cache quant**. It is far too early to measure or
+> compare perf/efficiency, and the user is **not willing to spend the compute** on it now: the available local
+> compute is for **developing, testing, and maturing !Klein toward a release-able version**. Detailed
+> perf/efficiency/quant/context sweeps are **only reconsidered AFTER the feature set + behavior are stabilized and
+> the user explicitly calls a version release-able** — in *later* rounds, if at all. Until then: don't.
 - [x] **Repeated-tool-call guard hardened against false-pauses (structural; 2026-06-24)** — the guard used to
       fingerprint on the *lossy display summary*, so any stateful workflow tool whose summary collapsed across
       advancing calls was falsely paused as "3 repeated … with the same input" (hit twice: `read_large_file`'s
@@ -776,10 +788,16 @@ deep analysis:
       identical input ⇒ every tool, **including future ones**, is immune by construction; a real identical-input
       loop still pauses. Extensively tested (fingerprint unit suite + guard-level end-to-end for an arbitrary
       "future" tool, both progress→no-pause and identical→pause).
-- [ ] **Model-matrix robustness (small → large)** — sweep size × family × weight-quant × K/V-quant × context; run the
-      presets; catalog the failure taxonomy per config (tool-call malformation, no-tool-call stalls, structured-output
-      misses, context-overflow, host crash/unload under memory pressure, reasoning runaways); feed back into
-      guardrails/prompts/budgets; ensure large models aren't needlessly small-model-hedged (capability-tier off the live model).
+- [ ] **Small-model output robustness (IN SCOPE — the only sweep work now)** — run the dev-test presets across the
+      *small* local models the user loads; for each, catalog the **output** failure modes (tool-call malformation,
+      narration-as-tool-call, no-tool-call stalls, structured-output misses, reasoning runaways) and **harden !Klein**
+      (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
+      findings to [local-llmd-tests.md](local-llmd-tests.md) (models swept · what broke · what was hardened). Goal =
+      robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
+  - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
+        K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
+        HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version
+        release-able.
 - [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
   - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
         ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
@@ -790,10 +808,12 @@ deep analysis:
         `formatDevTestSweepReport`) is pure with the per-preset execution injected, so it's fully unit-tested (4 cases);
         the CLI wires it to a real live run via the shared `executeDevTestPreset` (extracted from `test-project`). `--json`
         emits the structured summary (per-preset outcome + `byOutcome` rollup + `allSucceeded`) for a future CI gate.
-  - [ ] run under concurrency + harden from observed failures (gated on the user's quant/K-V configs)
-- [ ] **Autonomous sweep tooling** (designed when we start) — the `dev sweep` orchestrator above is the per-model
-      driver; still owed: iterate the model/quant/config **matrix** unattended on top of it (swap the loaded model per
-      iteration) + capture evidence per run + a cleanup pass. Gated on the user's quant/K-V configs; discuss shape then.
+  - [ ] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed
+        failures — **output robustness only**; the quant / K-V / context matrix stays out of scope (section callout).
+- [ ] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`,
+      appending each model's robustness findings to [local-llmd-tests.md](local-llmd-tests.md). Design the shape when
+      we start the in-scope small-model rounds. The full model/quant/config **matrix** + perf/efficiency capture stays
+      **out of scope until release-able maturity** (section callout) — do not build matrix/perf tooling now.
 - [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
       families/variants emit tool calls in different shapes (OpenAI `tool_calls`, `<tool_call>{…}</tool_call>` narration,
       Hermes/Qwen/Mistral/Anthropic-ish templates, etc.). Parse-and-recover **every** publicly-known format at the
