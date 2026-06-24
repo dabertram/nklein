@@ -196,7 +196,7 @@ deep analysis:
 >   trailing-slash like the MCSR loopback fix; only true duplicates merge); aggregate globally per model.
 > - **§5.O (SCOPE TIGHTENED 2026-06-24 — see the §5.O callout):** the **CLI orchestrator** + parallel-fan-out
 >   dev-test projects are built. In-scope sweep work now is **small-model OUTPUT robustness only** (results →
->   `local-llmd-tests.md`); **performance/efficiency comparison + quant / K-V-cache / context-size sweeps are HARD +
+>   `local-llm-tests.md`); **performance/efficiency comparison + quant / K-V-cache / context-size sweeps are HARD +
 >   STRICTLY out of scope** until the user calls a version release-able.
 > - **§5.L:** next delivery follow-up = **per-project delivery override**, built **with the §5.I#3 project-settings
 >   modal** (where per-project settings belong).
@@ -770,11 +770,14 @@ deep analysis:
 ### 5.O — Small-model output robustness *(raised 2026-06-23; SCOPE TIGHTENED 2026-06-24 — read the callout)*
 > **SCOPE — decided 2026-06-24, FINAL until the user calls a version release-able. Leaves no doubt:**
 >
-> **IN SCOPE (the only sweep work now):** robustness against the varied **output of different *small* local
-> models**. In the first rounds we sweep *only* different small models — run the dev-test presets across the small
-> models the user has loaded, and harden !Klein against whatever malformed/odd output surfaces so it "just works"
-> regardless of the model. Persist each round's findings to **[local-llmd-tests.md](local-llmd-tests.md)** (which
-> models were swept, what broke, what was hardened). The goal is **correctness/robustness, not measurement**.
+> **IN SCOPE (the only sweep work now) — and this is an IMPLEMENTATION task, not just documentation:** make !Klein
+> robust against the varied **output of different *small* local models**. In the first rounds we sweep *only*
+> different small models — run the dev-test presets across the small models the user has loaded, observe what breaks,
+> and then **change !Klein's code so it handles it** (parse-and-recover, guardrails, prompt/budget fixes) so it "just
+> works" regardless of the model. The deliverable is the **hardened !Klein behavior** (shipped fixes + tests); the
+> findings file is only the running log alongside it. Persist each round's findings to
+> **[local-llm-tests.md](local-llm-tests.md)** (which models were swept · what broke · **what was hardened in
+> code**). The goal is **correctness/robustness, not measurement**.
 >
 > **HARD + STRICTLY OUT OF SCOPE NOW — do NOT start, do NOT measure:** comparing models on **performance or
 > efficiency**, and sweeping **context sizes / weight-quant / K-V-cache quant**. It is far too early to measure or
@@ -797,7 +800,7 @@ deep analysis:
       *small* local models the user loads; for each, catalog the **output** failure modes (tool-call malformation,
       narration-as-tool-call, no-tool-call stalls, structured-output misses, reasoning runaways) and **harden !Klein**
       (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
-      findings to [local-llmd-tests.md](local-llmd-tests.md) (models swept · what broke · what was hardened). Goal =
+      findings to [local-llm-tests.md](local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
       robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
@@ -816,7 +819,7 @@ deep analysis:
   - [ ] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed
         failures — **output robustness only**; the quant / K-V / context matrix stays out of scope (section callout).
 - [ ] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`,
-      appending each model's robustness findings to [local-llmd-tests.md](local-llmd-tests.md). Design the shape when
+      appending each model's robustness findings to [local-llm-tests.md](local-llm-tests.md). Design the shape when
       we start the in-scope small-model rounds. The full model/quant/config **matrix** + perf/efficiency capture stays
       **out of scope until release-able maturity** (section callout) — do not build matrix/perf tooling now.
 - [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
