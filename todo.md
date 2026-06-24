@@ -392,10 +392,12 @@ deep analysis:
       → the decomposer re-submitted against the contradiction until it stalled ("why did processing stall?"). Fix: classify
       test/docs by **title + touched-files** (the card's identity), not the prompt body. Regression-tested
       ([nklein-decomposition-graph-quality.test.ts](test/runtime/nklein-sdk/nklein-decomposition-graph-quality.test.ts)).
-- [ ] **Render the decompose graph visually in chat (incl. on validation errors)** *(raised 2026-06-24, user)* — when the
-      agent calls `decompose_project`, show the **proposed task-graph DAG** visually in the chat (nodes = cards, edges =
-      `dependsOn`), and **also render it when the graph fails validation** so the user can see *what* graph the agent
-      proposed and where the bad/missing edges are. Helps debug the "weird planning behaviours" directly from the chat.
+- [x] **Render the decompose graph visually in chat (incl. on validation errors)** *(DONE 2026-06-24, user)* — the
+      `decompose_project` tool message now renders the proposed task-graph DAG inline (nodes = cards, edges = `dependsOn`,
+      layered by longest-path depth) via `detail-panels/decomposition-graph-view.tsx`, wired into `ToolMessageBlock`
+      (auto-expanded; renders for failed graphs too with a red "failed validation" header). Self-contained layered SVG, no
+      graph lib; tolerant of malformed JSON / cycles / unknown-or-self dependency ids. Unit-tested (4 cases) +
+      `web typecheck` + `web vitest` (694) green. *(Still owed: a live in-chat screenshot from a real decompose run.)*
 - [ ] **(follow-up) loop-resilience for decompose validation failures** — even with correct classification, a genuinely
       invalid graph re-submitted with slightly-varied inputs slips past the full-input repeated-call guard. Consider a
       per-task "decompose validation failed N times" breaker that surfaces the blocker to the user instead of looping.

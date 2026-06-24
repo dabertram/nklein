@@ -1,6 +1,7 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { Brain, ChevronDown, ChevronRight, Clock, XCircle } from "lucide-react";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
+import { DecompositionGraphView } from "@/components/detail-panels/decomposition-graph-view";
 import {
 	formatToolInputForDisplay,
 	getToolDisplay,
@@ -80,7 +81,10 @@ function ToolMessageBlock({ message }: { message: NKleinChatMessage }): ReactEle
 	const isRunning = message.meta?.hookEventName === "tool_call_start";
 	const toolOutputFailed = useMemo(() => hasFailedToolOutput(parsed.output), [parsed.output]);
 	const hasError = Boolean(parsed.error) || toolOutputFailed;
-	const [expanded, setExpanded] = useState(false);
+	const isDecomposition = parsed.toolName === "decompose_project";
+	// Decomposition calls render their proposed task-graph DAG inline, so default them open — the graph is the point of
+	// the message (and on a failed graph it shows the user *what* the agent proposed, errors and all).
+	const [expanded, setExpanded] = useState(isDecomposition);
 
 	const toolDisplay = useMemo(
 		() => getToolDisplay(parsed.toolName, parsed.input, parsed.output),
@@ -140,6 +144,9 @@ function ToolMessageBlock({ message }: { message: NKleinChatMessage }): ReactEle
 
 			{expanded ? (
 				<div className="mt-1 space-y-1.5 pr-1.5 pl-[24px] pb-1">
+					{/* Proposed decomposition task-graph DAG (todo §5.B) — rendered for failures too. */}
+					{isDecomposition ? <DecompositionGraphView input={parsed.input} hasError={hasError} /> : null}
+
 					{/* Full tool input (e.g. complete run_commands commands) */}
 					{fullInput ? (
 						<div>
