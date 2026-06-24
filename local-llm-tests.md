@@ -66,6 +66,36 @@ for the seeded task, or (b) exercise the agent loop against the pinned small mod
 lens, even if it doesn't hit the swarm's `recoverNarratedToolCalls` seam). **No gemma-4-e2b output failure modes
 catalogued yet** — Round 0 established that the *instrument* must change first.
 
+## Round 1 — gemma-4-e2b via the chat tool-using lens (2026-06-24)
+
+Used the **chat tool-using agent** (`nklein chat --workspace --model google/gemma-4-e2b-m5max [--allow-write]`) as the
+observation lens (per Round 0's conclusion) — it takes an explicit `--model`, surfaces every tool call + the final
+reply, and needs no Docker/dev-server/swarm. Caveat: LM Studio normalizes the model's tool calls into the structured
+`tool_calls` API, so this lens tests gemma *driving* tools (not the swarm's raw-output `recoverNarratedToolCalls`
+seam). Two tasks against a tiny 2-file workspace:
+
+- **Read task** ("which functions are in math.js?") — **clean**: gemma called `list_dir` → `read_file` and answered
+  accurately (`add`, `subtract`). No loop, no malformation.
+- **Write task** ("create greet.js…") — the write **executed correctly** (file written), but gemma's **final**
+  (tools-disabled) reply was a **narrated tool call** leaking raw markup to the user:
+  `"<|tool_call>call:write_file\nfile_name: greet.js\ncontent: |\n  function greet(name) {…"`. The action was done; the
+  model just narrated another call as its "answer" (a non-JSON, YAML-ish body — `parseNarratedToolCalls` can't even
+  parse it).
+
+**Finding 5 (output failure) → HARDENED.** Weak models narrate a tool call as text in their final answer instead of
+confirming. Added [`stripNarratedToolCallMarkup`](src/nklein-sdk/nklein-narrated-tool-call.ts) (reuses the existing
+narration-marker regexes: `<tool_call>`/`<|tool_call|>`/`<function_call>`/`<|python_tag|>`/`[TOOL_CALLS]`/
+`<function=…>`): it cuts from the first opener marker to end-of-text, keeping only the natural-language prose before
+it. `runChatAgentTurn` ([chat-agent-turn.ts](src/chat/chat-agent-turn.ts)) cleans the final reply with it and, when
+nothing readable remains but tools ran, substitutes a brief `Done. (used: …)` confirmation. Unit-tested (the exact
+gemma string → `""`; prose-before-markup kept; no-op for plain prose) + the turn-level confirmation fallback.
+**Re-verified live**: the same gemma-4-e2b write task now replies `"Done. (used: write_file)"` (no markup leak; file
+still created). Unlike `recoverNarratedToolCalls` (which *executes* narrated calls in the swarm path), this only
+cleans *display* text on the final tools-disabled turn.
+
+*Next:* gemma-4-e4b + qwen3-8b through the same lens; then the swarm/`recoverNarratedToolCalls` path (which needs the
+Round-0 observation harness, since `test-project` can't surface raw output).
+
 ## Hardening already shipped this session that pre-empts known small-model output failures
 
 These landed via §5.M/§5.O work and directly serve the sweep's goal (recorded here as the running tally):

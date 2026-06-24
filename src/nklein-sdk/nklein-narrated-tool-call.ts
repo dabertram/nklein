@@ -132,6 +132,32 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 	return calls;
 }
 
+/**
+ * Strip narrated tool-call **markup** out of a user-facing reply (todo §5.O). Weak/quantized models sometimes
+ * narrate a tool call as plain text in their *final* answer instead of confirming what they did (observed live:
+ * gemma-4-e2b ending a turn with `<|tool_call>call:write_file …`, a non-JSON body `parseNarratedToolCalls` can't
+ * parse). Since a final reply's narration is the model's "I'm taking this action" tail — and the action already
+ * ran — we cut from the first recognized opener marker to end-of-text and trim, leaving only the natural-language
+ * prose before it (often empty). Unlike `recoverNarratedToolCalls` (which *executes* the narrated call), this only
+ * cleans display text; the caller substitutes a confirmation when nothing readable remains.
+ */
+export function stripNarratedToolCallMarkup(text: string): string {
+	if (!text || !TOOL_CALL_MARKER.test(text)) {
+		return text;
+	}
+	let cut = text.length;
+	TOOL_CALL_OPENER.lastIndex = 0;
+	const opener = TOOL_CALL_OPENER.exec(text);
+	if (opener) {
+		cut = Math.min(cut, opener.index);
+	}
+	const named = /<function\s*=/i.exec(text);
+	if (named) {
+		cut = Math.min(cut, named.index);
+	}
+	return text.slice(0, cut).trim();
+}
+
 let recoveredToolCallSeq = 0;
 
 /** Concatenate the text + reasoning content where a narrated call could hide. */

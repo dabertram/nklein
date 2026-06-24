@@ -917,14 +917,19 @@ deep analysis:
         card-less `startTaskSession` seed reported `started:true` but **did not execute** via the CLI path (gemma
         stayed IDLE; zero session-activity files). So there was no model output to catalog. Tried with the dev server
         both up and stopped; restored the user's model + removed the throwaway project after.
-  - [ ] **Round 1 (next) — needs a real observation harness first (this is §5.O "option A").** Before any model can be
-        swept, build a harness that drives a task on the pinned small model and **captures the agent's raw output**
-        (every `tool_call` + content chunk / NKlein session activity + evidence), since `test-project`'s board-outcome
-        classification can't. Cheapest first lens: the **chat tool-using loop** against the pinned model (already
-        surfaces every tool call), accepting it skips the swarm's `recoverNarratedToolCalls` seam; fuller lens: an
-        isolated-runtime harness (à la `verify-strict-isolation.mts`) that tails the seeded task's session evidence.
-        Then sweep gemma-4-e2b → e4b → qwen3-8b, catalog output failure modes, and harden. (Also: trace why the
-        card-less dev-test seed doesn't run via the CLI — Finding 4.)
+  - [x] **Round 1 — gemma-4-e2b via the chat tool-using lens; first output bug hardened (2026-06-24)** — used
+        `nklein chat --workspace --model google/gemma-4-e2b-m5max` as the lens (takes `--model`, surfaces every tool
+        call + reply, no Docker/swarm needed; caveat: LM Studio normalizes tool calls, so it skips the swarm's
+        raw-output `recoverNarratedToolCalls` seam). Read task: clean. **Write task surfaced Finding 5 → HARDENED:**
+        the write executed but gemma's **final** reply was a **narrated tool call** leaking raw `<|tool_call>…` markup
+        to the user. Added [`stripNarratedToolCallMarkup`](src/nklein-sdk/nklein-narrated-tool-call.ts) (reuses the
+        narration-marker regexes; cuts from the first opener to EOF, keeping prose) and applied it in
+        [runChatAgentTurn](src/chat/chat-agent-turn.ts) with a `Done. (used: …)` confirmation fallback. Unit-tested +
+        **re-verified live** (the same write now replies `"Done. (used: write_file)"`; file still created). Logged in
+        [local-llm-tests.md](local-llm-tests.md).
+  - [ ] **Round 2 (next)** — gemma-4-e4b + qwen3-8b through the same chat lens; then the **swarm/`recoverNarratedTool
+        Calls` path**, which needs the Round-0 observation harness (`test-project` can't surface raw output) + tracing
+        why the card-less dev-test seed doesn't run via the CLI (Finding 4).
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version

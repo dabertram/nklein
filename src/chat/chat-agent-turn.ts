@@ -1,3 +1,4 @@
+import { stripNarratedToolCallMarkup } from "../nklein-sdk/nklein-narrated-tool-call";
 import {
 	type ChatAgentModelResponse,
 	type ChatAgentStep,
@@ -79,9 +80,23 @@ export async function runChatAgentTurn(
 		{ messages: prompt, ...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}) },
 		{ complete: deps.model, executeTool: deps.executeTool, appendToolExchange: deps.appendToolExchange },
 	);
+	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they
+	// did. Strip that markup from the user-facing reply; if nothing readable remains but tools ran, confirm briefly.
+	const cleaned = stripNarratedToolCallMarkup(loop.finalText);
+	const finalText =
+		cleaned.length > 0
+			? cleaned
+			: loop.steps.length > 0
+				? `Done. (used: ${summarizeToolsUsed(loop.steps)})`
+				: loop.finalText;
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
-	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: loop.finalText });
+	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
 	return { userMessage, assistantMessage, steps: loop.steps, context, hitIterationLimit: loop.hitIterationLimit };
+}
+
+/** Distinct tool names used across the turn's steps, in first-seen order — for the narration-fallback confirmation. */
+function summarizeToolsUsed(steps: readonly ChatAgentStep[]): string {
+	return [...new Set(steps.map((step) => step.toolCall.name))].join(", ");
 }
 
 export interface ChatAgentConversationDeps extends ChatAgentTurnDeps {

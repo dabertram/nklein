@@ -1,7 +1,11 @@
 import type { AgentMessage, AgentMessagePart } from "@nklein/shared";
 import { describe, expect, it } from "vitest";
 
-import { parseNarratedToolCalls, recoverNarratedToolCalls } from "../../../src/nklein-sdk/nklein-narrated-tool-call";
+import {
+	parseNarratedToolCalls,
+	recoverNarratedToolCalls,
+	stripNarratedToolCallMarkup,
+} from "../../../src/nklein-sdk/nklein-narrated-tool-call";
 
 function message(...content: AgentMessagePart[]): AgentMessage {
 	return { id: "m1", role: "assistant", content, createdAt: 0 };
@@ -149,5 +153,29 @@ describe("recoverNarratedToolCalls", () => {
 		const msg = message({ type: "text", text: "All done — the files look correct." });
 		expect(recoverNarratedToolCalls(msg)).toEqual([]);
 		expect(msg.content).toHaveLength(1);
+	});
+});
+
+describe("stripNarratedToolCallMarkup", () => {
+	it("strips the exact <|tool_call> narration gemma-4-e2b leaked into its final reply (live §5.O)", () => {
+		// The non-JSON, YAML-ish body parseNarratedToolCalls can't parse — the whole reply was narration.
+		const text =
+			"<|tool_call>call:write_file\nfile_name: greet.js\ncontent: |\n  function greet(name) {\n    return 'Hello, ' + name;\n  }";
+		expect(stripNarratedToolCallMarkup(text)).toBe("");
+	});
+
+	it("keeps the natural-language prose before a narrated call and drops the markup tail", () => {
+		expect(stripNarratedToolCallMarkup('I created the file. <tool_call>{"name":"write_file"}</tool_call>')).toBe(
+			"I created the file.",
+		);
+		expect(stripNarratedToolCallMarkup("Here you go. [TOOL_CALLS][{}]")).toBe("Here you go.");
+		expect(stripNarratedToolCallMarkup("Done. <function=read_file>{}</function>")).toBe("Done.");
+	});
+
+	it("is a no-op for ordinary prose with no tool-call markup", () => {
+		expect(stripNarratedToolCallMarkup("The functions are add and subtract.")).toBe(
+			"The functions are add and subtract.",
+		);
+		expect(stripNarratedToolCallMarkup("")).toBe("");
 	});
 });
