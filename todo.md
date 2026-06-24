@@ -731,6 +731,24 @@ deep analysis:
       it touches. Cross-link duplicates to §5.R / §5.P / §5.A.
 - [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
 
+> **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
+> per the §5.U convention rather than lost. The full deliberate pass (above) is still owed.
+- [ ] **Establish + enforce a sandbox-cwd vs host-path naming convention in the agent runtime.** This session fixed a
+      *class* of bug where the agent-perceived working directory (the in-container sandbox path) was conflated with the
+      host-side control-plane read path, because both flowed through a single `request.cwd`: `config.cwd`, the SDK
+      system-prompt `<env>` "Working Directory", and the repo-map/`getWorkspaceChanges` orientation reads all used it,
+      so two leaked the host mount to the agent and one (repo map) silently read a nonexistent path. Now centralized via
+      `resolveNKleinAgentPerceivedCwd` (sandbox) vs `orientationWorkspacePath`/`artifactWorkspacePath` (host). **Finding:**
+      audit *every* `request.cwd`/`workspacePath` use across `nklein-session-runtime.ts` + `nklein-task-session-service.ts`
+      and rename to make the sandbox-vs-host intent explicit + greppable (e.g. `agentPerceivedCwd` vs `hostWorkspaceRoot`),
+      so a future surface can't silently pick the wrong one. Touches invariant #2 (strict isolation) — high value.
+- [ ] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
+      Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
+      tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply
+      wiring. Extract focused modules (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs, prompt-assembly) behind
+      the existing service. Overlaps §5.A "Isolation polish" (extract sandbox-lifecycle/pause) — do together. Pure
+      refactor, no behavior change; lock with the existing suite. (Respects invariants; navigability win per §5.U.)
+
 ### 5.J — LATER (deferred by decision)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
   + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
