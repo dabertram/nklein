@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyFocusChainStepTiming,
 	formatFocusChainForPrompt,
 	MAX_FOCUS_CHAIN_STEP_TEXT,
 	MAX_FOCUS_CHAIN_STEPS,
@@ -95,5 +96,57 @@ describe("formatFocusChainForPrompt", () => {
 
 	it("notes when there is no chain yet", () => {
 		expect(formatFocusChainForPrompt(null)).toBe("(no focus chain yet)");
+	});
+});
+
+describe("applyFocusChainStepTiming", () => {
+	it("stamps startedAt when a step first becomes active and completedAt when it finishes", () => {
+		const first = applyFocusChainStepTiming(
+			null,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 10 },
+			100,
+		);
+		expect(first.steps[0]).toMatchObject({ status: "in_progress", startedAt: 100 });
+		expect(first.steps[0]?.completedAt).toBeUndefined();
+
+		// Next emission marks it done at a later time — startedAt carried forward, completedAt stamped.
+		const second = applyFocusChainStepTiming(first, { steps: [{ text: "A", status: "done" }], updatedAt: 20 }, 250);
+		expect(second.steps[0]).toMatchObject({ status: "done", startedAt: 100, completedAt: 250 });
+	});
+
+	it("carries timings across reordering (matched by text) and clears completedAt when a step is re-opened", () => {
+		const prior = applyFocusChainStepTiming(
+			null,
+			{
+				steps: [
+					{ text: "A", status: "done" },
+					{ text: "B", status: "in_progress" },
+				],
+				updatedAt: 1,
+			},
+			100,
+		);
+		// Reorder + re-open A back to in_progress.
+		const next = applyFocusChainStepTiming(
+			prior,
+			{
+				steps: [
+					{ text: "B", status: "done" },
+					{ text: "A", status: "in_progress" },
+				],
+				updatedAt: 2,
+			},
+			300,
+		);
+		const byText = new Map(next.steps.map((step) => [step.text, step]));
+		expect(byText.get("B")).toMatchObject({ startedAt: 100, completedAt: 300 });
+		expect(byText.get("A")?.startedAt).toBe(100); // preserved
+		expect(byText.get("A")?.completedAt).toBeUndefined(); // re-opened → cleared
+	});
+
+	it("leaves pending steps untimed", () => {
+		const chain = applyFocusChainStepTiming(null, { steps: [{ text: "A", status: "pending" }], updatedAt: 1 }, 100);
+		expect(chain.steps[0]?.startedAt).toBeUndefined();
+		expect(chain.steps[0]?.completedAt).toBeUndefined();
 	});
 });

@@ -631,7 +631,13 @@ deep analysis:
           focus chain (`focusChainByTaskId`) and stamps a `FocusChainSummary` (total/done/in-progress/pending/
           skipped/complete) onto the terminal `TaskRunSummaryRecord`; absent when no chain was drafted. Unit-tested
           (store round-trip).
-    - [ ] per-step timing/telemetry
+    - [x] **per-step timing/telemetry (2026-06-24)** — `FocusChainStep` gains optional `startedAt`/`completedAt`
+          (contract + core), stamped by !Klein (not the agent) via the pure `applyFocusChainStepTiming(previous,
+          next, now)` which carries timings across the agent's wholesale re-emissions (matched by step text, so a
+          reorder/edit keeps them) — `startedAt` on first-active, `completedAt` on first-finish, cleared on re-open.
+          Wired into both session-service focus-chain forwarders (using the stored previous chain). The card's
+          FocusChainPanel shows a compact per-step duration ("12s"/"3m"/"1h 4m") on completed steps. Core unit-tested
+          (stamp/carry-forward/reorder/re-open/pending); web + fast (1366) green.
     - [ ] link a step to the files/cards it touched
 - [x] **Reference & parity** *(DONE 2026-06-24)* — the board focus-chain now matches Cline/Claude-Code/Cursor
       ergonomics: a visible live checklist with ✓/▸/○/– markers + an N/total progress count (visible work-through),

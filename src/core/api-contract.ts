@@ -340,6 +340,10 @@ export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;
 export const runtimeFocusChainStepSchema = z.object({
 	text: z.string(),
 	status: z.enum(["pending", "in_progress", "done", "skipped"]),
+	// Per-step timing (todo §5.N) — stamped by !Klein (not the agent) when a step first becomes active / finishes,
+	// so the UI/telemetry can show how long each step took. Optional/absent for pre-timing chains.
+	startedAt: z.number().optional(),
+	completedAt: z.number().optional(),
 });
 export type RuntimeFocusChainStep = z.infer<typeof runtimeFocusChainStepSchema>;
 

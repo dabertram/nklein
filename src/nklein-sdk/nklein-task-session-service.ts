@@ -18,7 +18,7 @@ import type {
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
-import { type FocusChain, summarizeFocusChain } from "../core/focus-chain";
+import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import {
@@ -1097,8 +1097,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			onDecompositionApplied: this.onDecompositionApplied,
 			onReviewSubmitted: input.onReviewSubmitted,
 			onFocusChainUpdated: (chain) => {
-				this.focusChainByTaskId.set(input.taskId, chain);
-				void this.onFocusChainUpdated?.(input.taskId, chain);
+				const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
+				this.focusChainByTaskId.set(input.taskId, timed);
+				void this.onFocusChainUpdated?.(input.taskId, timed);
 			},
 			onTeamEvent: (event, teamName) => {
 				this.emitTeamProgress(input.taskId, event, teamName);
@@ -2264,8 +2265,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
 					onFocusChainUpdated: (chain) => {
-						this.focusChainByTaskId.set(request.taskId, chain);
-						void this.onFocusChainUpdated?.(request.taskId, chain);
+						const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(request.taskId), chain, now());
+						this.focusChainByTaskId.set(request.taskId, timed);
+						void this.onFocusChainUpdated?.(request.taskId, timed);
 					},
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);

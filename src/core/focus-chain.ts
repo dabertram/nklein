@@ -14,6 +14,10 @@ export type FocusChainStepStatus = "pending" | "in_progress" | "done" | "skipped
 export interface FocusChainStep {
 	text: string;
 	status: FocusChainStepStatus;
+	/** When the step first became active (in_progress/done/skipped). Stamped by !Klein, not the agent. */
+	startedAt?: number;
+	/** When the step first finished (done/skipped). Cleared if the step is later re-opened. */
+	completedAt?: number;
 }
 
 export interface FocusChain {
@@ -70,6 +74,37 @@ export function normalizeFocusChain(
 		return null;
 	}
 	return { steps, updatedAt: now };
+}
+
+/**
+ * Carry per-step timing across an agent re-emission (todo §5.N). The agent re-emits the whole list (text+status)
+ * each turn with no timestamps; this merges the prior chain's timings into the new one — matched by step text so
+ * a reordered/edited list keeps its timings — and stamps `startedAt` when a step first becomes active and
+ * `completedAt` when it first finishes (cleared if the step is re-opened to a non-final status). Pure.
+ */
+export function applyFocusChainStepTiming(
+	previous: FocusChain | null | undefined,
+	next: FocusChain,
+	now: number = Date.now(),
+): FocusChain {
+	const priorByText = new Map<string, { startedAt?: number; completedAt?: number }>();
+	for (const step of previous?.steps ?? []) {
+		priorByText.set(step.text, { startedAt: step.startedAt, completedAt: step.completedAt });
+	}
+	const steps = next.steps.map((step): FocusChainStep => {
+		const prior = priorByText.get(step.text);
+		const isActive = step.status !== "pending";
+		const isFinished = step.status === "done" || step.status === "skipped";
+		const startedAt = prior?.startedAt ?? (isActive ? now : undefined);
+		const completedAt = isFinished ? (prior?.completedAt ?? now) : undefined;
+		return {
+			text: step.text,
+			status: step.status,
+			...(startedAt !== undefined ? { startedAt } : {}),
+			...(completedAt !== undefined ? { completedAt } : {}),
+		};
+	});
+	return { steps, updatedAt: next.updatedAt };
 }
 
 export function summarizeFocusChain(chain: FocusChain | null | undefined): FocusChainSummary {

@@ -962,6 +962,20 @@ const FOCUS_CHAIN_STATUS_CYCLE: RuntimeFocusChain["steps"][number]["status"][] =
 	"skipped",
 ];
 
+/** Compact per-step duration (todo §5.N timing): "12s" / "3m" / "1h 4m". */
+function formatFocusChainStepDuration(durationMs: number): string {
+	const seconds = Math.max(0, Math.round(durationMs / 1000));
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = Math.floor(minutes / 60);
+	return `${hours}h ${minutes % 60}m`;
+}
+
 /**
  * Renders an agent's focus chain (todo §5.N) as a live todo list on the card. When `onUpdate` is provided the user
  * can edit it: click a step's status marker to cycle it, delete a step, or add a new one. Edits persist through the
@@ -1051,6 +1065,11 @@ function FocusChainPanel({
 								)}
 							>
 								{step.text}
+								{step.startedAt !== undefined && step.completedAt !== undefined ? (
+									<span className="ml-1.5 text-[11px] text-text-tertiary">
+										{formatFocusChainStepDuration(step.completedAt - step.startedAt)}
+									</span>
+								) : null}
 							</span>
 							{editable ? (
 								<span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
