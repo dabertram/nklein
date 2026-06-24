@@ -5,6 +5,7 @@ import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
+import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
@@ -118,14 +119,8 @@ interface NKleinModelRegistryFileShape {
 	models?: unknown;
 }
 
-type JsonRecord = Record<string, unknown>;
-
 function getDefaultModelRegistryPath(): string {
 	return join(resolveNkleinRuntimeHomePath(homedir()), "model-registry.json");
-}
-
-function asRecord(value: unknown): JsonRecord | null {
-	return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : null;
 }
 
 function normalizePositiveInteger(value: unknown): number | null {

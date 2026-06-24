@@ -1,11 +1,8 @@
 import type { RuntimeNKleinTeamProgressEvent } from "../core/api-contract";
+import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkTeamEvent } from "./sdk-runtime-boundary";
 
 const MAX_TEAM_PROGRESS_MESSAGE_LENGTH = 180;
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
 
 function readString(record: Record<string, unknown> | null, key: string): string | null {
 	const value = record?.[key];

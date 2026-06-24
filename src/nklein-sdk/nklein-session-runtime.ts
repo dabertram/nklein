@@ -1,3 +1,4 @@
+import { asRecord } from "./nklein-value-guards";
 // Owns the live SDK session host plus taskId to sessionId bindings.
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native NKlein sessions without exposing SDK details upstream.
@@ -137,10 +138,6 @@ export interface NKleinPersistedLaunchConfig {
 	maxAgentWritableFileLines?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function readOptionalString(record: Record<string, unknown>, key: string): string | null | undefined {

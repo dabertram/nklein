@@ -1,3 +1,4 @@
+import { asRecord } from "./nklein-value-guards";
 // Task-oriented facade for native NKlein sessions.
 // runtime-api.ts uses this service to start sessions, send messages, load
 // history, and subscribe to summaries and chat events without knowing SDK
@@ -615,10 +616,6 @@ function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
 		output.includes("no such file or directory") ||
 		output.includes("not a git repository")
 	);
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function readSdkAgentEvent(event: unknown): Record<string, unknown> | null {

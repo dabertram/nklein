@@ -858,14 +858,15 @@ deep analysis:
         `parseAcceptanceCommand`, `isDecompositionPlanningPrompt`, `isExplicitDecompositionPrompt`) + a dedicated test.
         Behaviour identical (service suite 119 green). Chosen as the lowest-risk slice (zero in-file deps, compiler-
         verified). The bigger stateful extractions (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs) remain.
-- [ ] **Consolidate the duplicated `toErrorMessage` / `asRecord` helpers** *(finding 2026-06-24)* — both are
-      re-defined locally in `nklein-task-session-service.ts` **and** several other `src/nklein-sdk/*` files
-      (event-adapter, model-registry, session-runtime, team-progress). **⚠ NOT a blind merge — the copies differ
-      semantically:** `nklein-event-adapter`'s `asRecord` omits the `!Array.isArray` guard (so arrays pass as
-      "records"), and `nklein-model-registry`'s returns `JsonRecord`. Consolidating to one `nklein-value-guards.ts`
-      must first confirm each call site tolerates the unified contract (esp. the event-adapter array case — changing it
-      could break SDK event parsing), then import everywhere + delete the copies. Genuine DRY win (the §5.U
-      "missing shared utility" template) but a *careful* per-site pass, compiler- **and** behaviour-checked.
+- [x] **Consolidate the duplicated `asRecord` helper** *(DONE 2026-06-24)* — `asRecord` was re-defined locally in 5
+      `src/nklein-sdk/*` files (event-adapter, model-registry, session-runtime, task-session-service, team-progress).
+      Extracted the canonical strict version (non-null, non-array object) to
+      [nklein-value-guards.ts](src/nklein-sdk/nklein-value-guards.ts); all 5 now import it; removed the copies + the
+      now-unused `JsonRecord` alias. The one behavioural reconciliation — the event-adapter copy had omitted the
+      `!Array.isArray` guard — is safe (its inputs are JSON object shapes, not arrays) and locked by the full suite
+      (1376 green). **`toErrorMessage` deliberately NOT consolidated:** its 3 copies have intentionally-different
+      fallback strings per context ("Unknown error" / "An unexpected error occurred." / `String(error)`) — merging
+      them would change user-facing messages, so they stay local.
 
 - [~] **DRY the repetitive `runtime-config.ts` per-field plumbing** *(finding 2026-06-24, from adding `swarmGuardrails`)*.
       *(2026-06-24: safe slice landed — added `assignChangedConfigField(payload, existing, key, value, default)`

@@ -24,6 +24,7 @@ import {
 } from "./nklein-session-state";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
+import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
 function normalizePreviewText(value: string | null | undefined): string | null {
@@ -57,10 +58,6 @@ type NKleinSdkHookEvent = Extract<NKleinSdkSessionEvent, { type: "hook" }>;
 type NKleinSdkEndedEvent = Extract<NKleinSdkSessionEvent, { type: "ended" }>;
 type NKleinSdkStatusEvent = Extract<NKleinSdkSessionEvent, { type: "status" }>;
 type RawNKleinSdkAgentEvent = NKleinSdkAgentEvent | (Record<string, unknown> & { type: string });
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
 
 function normalizeNonNegativeInteger(value: unknown): number | null {
 	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
