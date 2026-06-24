@@ -617,13 +617,15 @@ deep analysis:
 - [~] **More ideas**
   - [x] reviewer checks the worker followed/owned its chain (seed prompt includes it; flags unfinished/mismatched steps)
   - [x] re-anchor the chain into context on long runs/after compaction (`reanchorFocusChainMessages`, `beforeModel` hook)
-  - [~] user view/edit/reorder/add steps from the UI
+  - [x] user view/edit/reorder/add steps from the UI *(DONE 2026-06-24 — toggle/add/delete/reorder all shipped)*
     - [x] **edit / add / delete / toggle (2026-06-24)** — `FocusChainPanel` in card detail is now editable: click a
           step's status marker to cycle pending→in_progress→done→skipped, delete a step (hover ×), and add a step via
           an inline input. Edits persist through the board's normal save flow via a new `updateTaskFocusChain`
           board-state helper + `handleUpdateTaskFocusChain` (use-task-editor) threaded App → CardDetailView →
           FocusChainPanel. board-state unit-tested; web suite (699) green.
-    - [ ] drag-reorder steps (heavier; the order is otherwise edit-by-delete/add for now)
+    - [x] **reorder steps (2026-06-24)** — per-step ▲/▼ move buttons (hover-revealed, disabled at the ends) reorder
+          the chain in place and persist via the same save flow. (Used accessible up/down controls rather than a
+          drag library — simpler, keyboard/focus-friendly, no new dep.)
   - [~] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
     - [x] **carry the chain into the run summary (2026-06-24)** — the session service tracks each task's latest
           focus chain (`focusChainByTaskId`) and stamps a `FocusChainSummary` (total/done/in-progress/pending/

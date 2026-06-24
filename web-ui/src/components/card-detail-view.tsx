@@ -996,6 +996,19 @@ function FocusChainPanel({
 		emit(steps.map((step, i) => (i === index ? { ...step, status: next } : step)));
 	};
 	const deleteStep = (index: number): void => emit(steps.filter((_, i) => i !== index));
+	const moveStep = (index: number, delta: number): void => {
+		const target = index + delta;
+		if (target < 0 || target >= steps.length) {
+			return;
+		}
+		const next = [...steps];
+		const [moved] = next.splice(index, 1);
+		if (!moved) {
+			return;
+		}
+		next.splice(target, 0, moved);
+		emit(next);
+	};
 	const addStep = (): void => {
 		const text = newStepText.trim();
 		if (!text) {
@@ -1040,14 +1053,34 @@ function FocusChainPanel({
 								{step.text}
 							</span>
 							{editable ? (
-								<button
-									type="button"
-									onClick={() => deleteStep(index)}
-									className="text-text-tertiary opacity-0 transition-opacity hover:text-status-red group-hover:opacity-100"
-									aria-label={`Delete step ${index + 1}`}
-								>
-									×
-								</button>
+								<span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+									<button
+										type="button"
+										onClick={() => moveStep(index, -1)}
+										disabled={index === 0}
+										className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+										aria-label={`Move step ${index + 1} up`}
+									>
+										▲
+									</button>
+									<button
+										type="button"
+										onClick={() => moveStep(index, 1)}
+										disabled={index === steps.length - 1}
+										className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+										aria-label={`Move step ${index + 1} down`}
+									>
+										▼
+									</button>
+									<button
+										type="button"
+										onClick={() => deleteStep(index)}
+										className="text-text-tertiary hover:text-status-red"
+										aria-label={`Delete step ${index + 1}`}
+									>
+										×
+									</button>
+								</span>
 							) : null}
 						</li>
 					);
