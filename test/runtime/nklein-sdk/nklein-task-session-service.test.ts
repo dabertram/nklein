@@ -108,6 +108,12 @@ interface FakeNKleinSessionRuntimeController {
 	bindTaskSession(taskId: string, sessionId: string): void;
 	emitAgentEvent(sessionId: string, event: unknown): void;
 	emitChunk(sessionId: string, chunk: string, stream?: string): void;
+	/**
+	 * Simulate a runtime PROCESS restart: drop every in-memory session binding + cached launch request, as
+	 * if the host process had restarted. The SDK session host's persisted records (returned by
+	 * `readPersistedTaskSessionMock`) survive, so a subsequent send rebuilds from the persisted launch config.
+	 */
+	simulateProcessRestart(): void;
 }
 
 interface TaskSessionServiceHarness {
@@ -363,6 +369,11 @@ function createFakeNKleinSessionRuntime(): FakeNKleinSessionRuntimeController {
 		bindTaskSession,
 		emitAgentEvent,
 		emitChunk,
+		simulateProcessRestart() {
+			sessionIdByTaskId.clear();
+			taskIdBySessionId.clear();
+			lastStartRequestByTaskId.clear();
+		},
 	};
 }
 
@@ -1355,6 +1366,97 @@ describe("InMemoryNKleinTaskSessionService", () => {
 
 		await serviceB.dispose();
 		expect(runtimeSetup.disposeMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("rebuilds a restarted task's runtime setup from the HOST root, never the sandbox cwd (§5.U / §5.A invariant #2)", async () => {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const createRuntimeSetupPaths: string[] = [];
+		const watcherRegistry = createNKleinWatcherRegistry({
+			createRuntimeSetup: async (workspacePath: string) => {
+				createRuntimeSetupPaths.push(workspacePath);
+				return runtimeSetup.setup;
+			},
+		});
+		const service = createInMemoryNKleinTaskSessionService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			watcherRegistry,
+			allowUnisolatedTestRuntime: true,
+		});
+		services.push(service);
+
+		// Start + complete a task so the service holds a settled (awaiting_review) entry with a cached launch
+		// config. The cached config carries the HOST workspace root ("/host/project-root"); the first start's
+		// cwd ("/host/initial") is deliberately a third, distinct path so the rebuild's host-root runtime setup
+		// is a cache miss we can observe.
+		await service.startTaskSession({
+			taskId: "task-rebuild",
+			cwd: "/host/initial",
+			workspaceRoot: "/host/project-root",
+			providerId: "lmstudio",
+			modelId: "qwen3-8b",
+			prompt: "Do the work",
+		});
+		const sessionId = await waitForTaskSessionId(runtime, "task-rebuild");
+		runtime.emitAgentEvent(sessionId, { type: "done", reason: "completed", text: "done" });
+		await vi.waitFor(() => {
+			expect(service.getSummary("task-rebuild")?.state).toBe("awaiting_review");
+		});
+
+		// Simulate a runtime process restart: the in-memory session + cached launch maps are gone, but the SDK
+		// host still has the persisted record. Its `cwd` is the agent-perceived sandbox workdir, while the host
+		// workspace root lives in the kanban launch-config metadata.
+		runtime.simulateProcessRestart();
+		createRuntimeSetupPaths.length = 0;
+		runtime.startTaskSessionMock.mockClear();
+		runtime.readPersistedTaskSessionMock.mockResolvedValue({
+			record: {
+				sessionId: "task-rebuild-persisted",
+				source: "core" as NKleinPersistedTaskSessionSnapshot["record"]["source"],
+				status: "completed",
+				startedAt: "2026-03-17T10:00:00.000Z",
+				updatedAt: "2026-03-17T10:05:00.000Z",
+				interactive: true,
+				provider: "lmstudio",
+				model: "qwen3-8b",
+				cwd: "/workspaces/task-rebuild",
+				workspaceRoot: "/host/project-root",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: {
+					kanban: {
+						launchConfig: {
+							providerId: "lmstudio",
+							modelId: "qwen3-8b",
+							workspaceRoot: "/host/project-root",
+						},
+					},
+				},
+			},
+			messages: [],
+		});
+
+		// Sending input now rebuilds from the persisted launch config (no live session, no cached launch).
+		await service.sendTaskSessionInput("task-rebuild", "Continue the work");
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					taskId: "task-rebuild",
+					// The agent still perceives the sandbox workdir as its cwd…
+					cwd: "/workspaces/task-rebuild",
+					// …but the host workspace root is threaded for the trusted control plane.
+					workspaceRoot: "/host/project-root",
+				}),
+			);
+		});
+		// The runtime setup (rules / tool policy / system prompt, keyed on the workspace path) must resolve
+		// against the HOST root, never the sandbox workdir — which does not exist on the host, so feeding it
+		// here previously made a restarted isolated task silently load no rules/setup.
+		expect(createRuntimeSetupPaths).toContain("/host/project-root");
+		expect(createRuntimeSetupPaths).not.toContain("/workspaces/task-rebuild");
 	});
 
 	it("clears a task session, removes history, and allows a fresh turn", async () => {

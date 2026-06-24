@@ -862,20 +862,26 @@ deep analysis:
         of passing the sandbox `request.cwd` as the decomposition tool's `workspacePath`) and the
         `nklein-task-session-service.ts` main start dispatch (`effectiveCwd` → `agentPerceivedCwd`; its `cwd` field
         documented as the host path). tsc + biome + full nklein-sdk suite (693) green.
-  - [ ] **needs the careful behavior pass (NOT a rename) — mechanism now confirmed:** the **restart** path
-        (`startRuntimeTaskSessionFromLaunchConfig`) and several host-side consumers
-        (`ensureRuntimeSetup(input.cwd)`, `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })`) receive
-        `record.cwd`/`summary.workspacePath`/`input.cwd`, all of which carry the **agent-perceived** path. Confirmed:
-        `record.cwd` is the SDK-persisted `config.cwd` (session-runtime stamps `config.cwd =
-        resolveNKleinAgentPerceivedCwd(...)` = `/workspaces/<taskId>` under isolation), so on restart the host
-        `ensureRuntimeSetup` (rules/tool-policy/prompt setup, keyed on the path) is handed a sandbox path that
-        **doesn't exist on the host** — silently degraded rules/setup on resume. The main start path correctly uses the
-        host `request.cwd` for `ensureRuntimeSetup`; only the restart path is wrong. The host root **is** reachable
-        (`launchConfig.workspaceRoot`; the restart callers at ~1502/1557/1626/1874 pass only `cwd: record.cwd` and no
-        `workspaceRoot`), so the `ensureRuntimeSetup` fix is local. **But** the deeper concern: that restart path does
-        **no** sandbox re-prep — it threads the persisted sandbox `cwd` straight into `sessionRuntime.startTaskSession`,
-        so restart-under-isolation needs an end-to-end trace + a live restart verification, not just the one-line
-        `ensureRuntimeSetup` host-root fix. Touches invariant #2 — high value.
+  - [x] **restart-rebuild `ensureRuntimeSetup` host-root fix (2026-06-24).** Confirmed the mechanism end-to-end:
+        `record.cwd` is the SDK-persisted `config.cwd` (`resolveNKleinAgentPerceivedCwd(...)` = `/workspaces/<taskId>`
+        under isolation), so `startRuntimeTaskSessionFromLaunchConfig` (the rebuild path used when `canRestartTaskSession`
+        is false — e.g. after a runtime **process restart**) was handing that sandbox path to the host `ensureRuntimeSetup`
+        (rules / tool-policy / system-prompt setup, keyed on the path), silently loading **no** rules/setup on resume.
+        Fixed: it now keys on the **host** root (`input.workspaceRoot?.trim() || launchConfig.workspaceRoot?.trim() ||
+        input.cwd`), mirroring the main start path. Locked by a **red-green** unit test (a fake-runtime
+        `simulateProcessRestart()` drives the rebuild and asserts the runtime setup resolves against `/host/project-root`,
+        never `/workspaces/<taskId>`). tsc + full nklein-sdk suite (694) green.
+  - [ ] **still owed (sibling site + deeper concern — needs the live restart verification):** (a) the **send path**
+        (`sendTaskSessionInput` ~line 2470) has the *same* shape — `runtimeSetupWorkspacePath =
+        sandboxRepoPathByTaskId.get(taskId) ?? entry.summary.workspacePath` falls back to the agent-perceived (sandbox)
+        `workspacePath` when `sandboxRepoPathByTaskId` is empty (which it is after a process restart, since the rebuild
+        does no sandbox prep) → same degraded-rules bug; needs the host root threaded there too (the cached launch config
+        isn't resolved until later in the flow, so this is a reorder, not a one-liner). (b) The deeper concern stands:
+        the rebuild path does **no** sandbox re-prep — it threads the persisted sandbox `cwd` straight into
+        `sessionRuntime.startTaskSession` with no sandbox tool executors, so a restarted isolated task may run with host
+        file tools on a non-existent sandbox path. Both want an end-to-end trace + a **live** start→process-restart→resume
+        verification (offered). Touches invariant #2 — high value. Also `captureTaskTurnCheckpoint({ cwd:
+        summary.workspacePath })` passes the sandbox path host-side (likely legacy/inert under isolation — confirm).
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply

@@ -950,7 +950,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			providerId: launchConfig.providerId,
 			baseUrl: launchConfig.baseUrl,
 		});
-		const runtimeSetup = await this.ensureRuntimeSetup(input.cwd);
+		// Host-side runtime setup (rules / tool policy / system prompt) is keyed on the workspace path, so it
+		// must use the HOST workspace root — never the agent-perceived `cwd`, which under isolation is the
+		// sandbox workdir (`/workspaces/<taskId>`) and does not exist on the host. Feeding the sandbox path
+		// here made a restarted isolated task silently load no rules/setup. The host root comes from the
+		// persisted launch config (mirrors the main start path, which passes the host `request.cwd`). See the
+		// StartNKleinTaskSessionRequest.cwd docs + todo §5.U.
+		const hostWorkspaceRoot = input.workspaceRoot?.trim() || launchConfig.workspaceRoot?.trim() || input.cwd;
+		const runtimeSetup = await this.ensureRuntimeSetup(hostWorkspaceRoot);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
 		let systemPrompt =
 			input.systemPrompt?.trim() ||
