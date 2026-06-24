@@ -29,6 +29,33 @@ describe("createChatModelDeps", () => {
 		]);
 	});
 
+	it("streams via completeStream when an onToken is provided, returning the stripped reply", async () => {
+		const tokens: string[] = [];
+		const client: ChatCompletionClient = {
+			complete: async () => {
+				throw new Error("should stream, not call complete");
+			},
+			completeStream: async (_request, onChunk) => {
+				onChunk("<think>x</think>");
+				onChunk("Hello");
+				onChunk(" world");
+				return { content: "<think>x</think>Hello world", finishReason: "stop", raw: {} };
+			},
+		};
+		const deps = createChatModelDeps(client);
+		const reply = await deps.complete([{ role: "user", content: "hi" }], (delta) => tokens.push(delta));
+		expect(tokens).toEqual(["<think>x</think>", "Hello", " world"]);
+		expect(reply).toBe("Hello world");
+	});
+
+	it("falls back to non-streaming complete when no onToken is given", async () => {
+		const { client, calls } = fakeClient("plain reply");
+		const deps = createChatModelDeps(client);
+		const reply = await deps.complete([{ role: "user", content: "hi" }]);
+		expect(reply).toBe("plain reply");
+		expect(calls).toHaveLength(1);
+	});
+
 	it("summarizes the overflow via a system+user prompt", async () => {
 		const { client, calls } = fakeClient("Summary: discussed the merge.");
 		const deps = createChatModelDeps(client);

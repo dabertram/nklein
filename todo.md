@@ -639,8 +639,14 @@ deep analysis:
         `nklein chat` with **no** `--message` enters it (a stdin readline adapter feeds the loop). **Live-verified**:
         `printf '…\n/exit\n' | nklein chat` held a real multi-turn conversation against `qwen3-8b`. (Across-invocation
         multi-turn also already works via `--session <id>`, which reloads the transcript + recalls memory each turn.)
-        Still owed (next live layer): the **tool-using** agent loop on the NKlein core + streaming + the tRPC/web-ui
-        surface + the Signal bridge.
+  - [x] **token streaming (2026-06-24)** — `LocalLlmClient.completeStream`
+        ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) parses OpenAI SSE deltas; the chat
+        adapter's `complete(prompt, onToken)` streams via it when an `onToken` is given (else falls back to a
+        non-streaming completion), and `runChatTurn`/`runChatConversation` thread `onToken` so the REPL prints tokens
+        as they arrive (persisting the reasoning-stripped reply). Unit-tested (stream path + fallback); **live-verified**
+        — the `nklein chat` REPL streamed a real qwen3-8b reply token-by-token.
+  - [ ] still owed (next live layer): the **tool-using** agent loop on the NKlein core (sandboxed tools) + the
+        tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):

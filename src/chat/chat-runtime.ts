@@ -21,8 +21,9 @@ export interface ChatRuntimeDeps {
 	readTranscript: (sessionId: string) => Promise<ChatMessage[]>;
 	readMemories: (sessionId: string) => Promise<ChatMemory[]>;
 	appendMessage: (sessionId: string, input: { role: ChatMessage["role"]; content: string }) => Promise<ChatMessage>;
-	/** The model call — the rendered prompt in, the assistant reply text out (a local model under invariant #1). */
-	complete: (prompt: ChatPromptMessage[]) => Promise<string>;
+	/** The model call — the rendered prompt in, the assistant reply text out (a local model under invariant #1).
+	 *  When `onToken` is supplied and the model streams, tokens arrive incrementally before the reply resolves. */
+	complete: (prompt: ChatPromptMessage[], onToken?: (delta: string) => void) => Promise<string>;
 	/** Summarize the lean-window overflow (a model call). */
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	/** Estimate a string's token cost for the lean-window budget. */
@@ -39,7 +40,14 @@ export interface ChatTurnResult {
 }
 
 export async function runChatTurn(
-	input: { session: ChatSession; userMessage: string; tokenBudget: number; memoryLimit?: number },
+	input: {
+		session: ChatSession;
+		userMessage: string;
+		tokenBudget: number;
+		memoryLimit?: number;
+		/** Receives reply tokens as they stream (when the model + deps support it). */
+		onToken?: (delta: string) => void;
+	},
 	deps: ChatRuntimeDeps,
 ): Promise<ChatTurnResult> {
 	// Compose against the prior transcript so the new message is the query, not part of the window.
@@ -59,7 +67,7 @@ export async function runChatTurn(
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
 	const prompt = renderChatTurnPrompt(context, input.userMessage);
-	const reply = await deps.complete(prompt);
+	const reply = await deps.complete(prompt, input.onToken);
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: reply });
 	return { userMessage, assistantMessage, context, prompt };
@@ -94,16 +102,22 @@ export async function runChatConversation(
 		if (userMessage === "/exit" || userMessage === "/quit") {
 			break;
 		}
+		let streamed = false;
 		const result = await runChatTurn(
 			{
 				session: input.session,
 				userMessage,
 				tokenBudget: input.tokenBudget,
 				...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
+				onToken: (delta) => {
+					streamed = true;
+					deps.write(delta);
+				},
 			},
 			deps,
 		);
-		deps.write(`${result.assistantMessage.content}\n`);
+		// When the reply streamed, the tokens were already written — just end the line; otherwise print it whole.
+		deps.write(streamed ? "\n" : `${result.assistantMessage.content}\n`);
 		turns += 1;
 	}
 	return turns;

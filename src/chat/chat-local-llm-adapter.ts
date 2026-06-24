@@ -20,10 +20,16 @@ export interface ChatCompletionClient {
 		messages: LocalLlmChatMessage[];
 		sampling?: LocalLlmSamplingOptions;
 	}): Promise<LocalLlmCompletion>;
+	/** Optional streaming variant; when present and an `onToken` is given, the reply is streamed. */
+	completeStream?(
+		request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
+		onChunk: (delta: string) => void,
+	): Promise<LocalLlmCompletion>;
 }
 
 export interface ChatModelDeps {
-	complete: (prompt: ChatPromptMessage[]) => Promise<string>;
+	/** Completes the prompt; when `onToken` is given and the client streams, tokens arrive incrementally. */
+	complete: (prompt: ChatPromptMessage[], onToken?: (delta: string) => void) => Promise<string>;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 }
 
@@ -40,11 +46,14 @@ export function createChatModelDeps(
 ): ChatModelDeps {
 	const sampling = options.sampling ?? DEFAULT_SAMPLING;
 	return {
-		complete: async (prompt) => {
-			const { content } = await client.complete({
-				messages: prompt.map((message) => ({ role: message.role, content: message.content })),
-				sampling,
-			});
+		complete: async (prompt, onToken) => {
+			const messages = prompt.map((message) => ({ role: message.role, content: message.content }));
+			if (onToken && client.completeStream) {
+				// Stream raw deltas to the caller (live view); persist the reasoning-stripped reply.
+				const { content } = await client.completeStream({ messages, sampling }, onToken);
+				return stripReasoning(content);
+			}
+			const { content } = await client.complete({ messages, sampling });
 			return stripReasoning(content);
 		},
 		summarize: async (overflow) => {

@@ -201,6 +201,85 @@ export class LocalLlmClient {
 		}
 		return input.parse(secondParsed.value);
 	}
+
+	/**
+	 * Streaming chat completion: posts with `stream: true`, parses the OpenAI-style SSE deltas, invoking `onChunk`
+	 * for each content delta and returning the accumulated reply. Lets the chat REPL show tokens as they arrive.
+	 */
+	async completeStream(
+		request: LocalLlmCompletionRequest,
+		onChunk: (delta: string) => void,
+	): Promise<LocalLlmCompletion> {
+		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+		try {
+			const response = await this.fetchImpl(url, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
+				},
+				body: JSON.stringify({ ...this.buildBody(request), stream: true }),
+				signal,
+			});
+			if (!response.ok) {
+				const text = await response.text().catch(() => "");
+				throw new LocalLlmRequestError(
+					`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
+					response.status,
+				);
+			}
+			const body = response.body;
+			if (!body) {
+				throw new LocalLlmRequestError("Streaming response had no body.", response.status);
+			}
+			const reader = body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = "";
+			let content = "";
+			let finishReason: string | null = null;
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) {
+					break;
+				}
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split("\n");
+				buffer = lines.pop() ?? "";
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if (!trimmed.startsWith("data:")) {
+						continue;
+					}
+					const data = trimmed.slice(5).trim();
+					if (data === "[DONE]") {
+						continue;
+					}
+					try {
+						const json = JSON.parse(data) as {
+							choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+						};
+						const choice = json.choices?.[0];
+						const delta = choice?.delta?.content;
+						if (delta) {
+							content += delta;
+							onChunk(delta);
+						}
+						if (choice?.finish_reason) {
+							finishReason = choice.finish_reason;
+						}
+					} catch {
+						// Skip a malformed SSE line rather than failing the stream.
+					}
+				}
+			}
+			return { content, finishReason, raw: null };
+		} finally {
+			clearTimeout(timeout);
+		}
+	}
 }
 
 function tryParseJson(content: string): { ok: true; value: unknown } | { ok: false } {
