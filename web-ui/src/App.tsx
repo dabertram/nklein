@@ -386,6 +386,7 @@ export default function App(): ReactElement {
 		handleSaveEditedTask,
 		handleSaveAndStartEditedTask,
 		handleSaveTaskTitle,
+		handleUpdateTaskFocusChain,
 		handleCreateTask,
 		handleCreateTasks,
 		resetTaskEditorState,
@@ -1149,6 +1150,7 @@ export default function App(): ReactElement {
 										handleOpenEditTask(task, { preserveDetailSelection: true });
 									}}
 									onSaveTaskTitle={handleSaveTaskTitle}
+									onUpdateFocusChain={handleUpdateTaskFocusChain}
 									onCommitTask={handleCommitTask}
 									onOpenPrTask={handleOpenPrTask}
 									onAgentCommitTask={handleAgentCommitTask}

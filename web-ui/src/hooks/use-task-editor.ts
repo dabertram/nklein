@@ -9,7 +9,13 @@ import {
 	TASK_START_IN_PLAN_MODE_STORAGE_KEY,
 } from "@/hooks/app-utils";
 import type { RuntimeAgentId, RuntimeTaskNKleinSettings } from "@/runtime/types";
-import { addTaskToColumnWithResult, findCardSelection, updateTask, updateTaskTitle } from "@/state/board-state";
+import {
+	addTaskToColumnWithResult,
+	findCardSelection,
+	updateTask,
+	updateTaskFocusChain,
+	updateTaskTitle,
+} from "@/state/board-state";
 import { toTelemetrySelectedAgentId, trackTaskCreated } from "@/telemetry/events";
 import type { BoardCard, BoardData, TaskAutoReviewMode, TaskImage } from "@/types";
 import { resolveTaskAutoReviewMode } from "@/types";
@@ -78,6 +84,7 @@ export interface UseTaskEditorResult {
 	handleSaveEditedTask: () => string | null;
 	handleSaveAndStartEditedTask: () => void;
 	handleSaveTaskTitle: (taskId: string, title: string) => void;
+	handleUpdateTaskFocusChain: (taskId: string, focusChain: BoardCard["focusChain"] | null) => void;
 	handleCreateTask: (options?: CreateTaskOptions) => string | null;
 	handleCreateTasks: (prompts: string[], options?: CreateTaskOptions) => string[];
 	resetTaskEditorState: () => void;
@@ -334,6 +341,16 @@ export function useTaskEditor({
 		[setBoard],
 	);
 
+	const handleUpdateTaskFocusChain = useCallback(
+		(taskId: string, focusChain: BoardCard["focusChain"] | null) => {
+			setBoard((currentBoard) => {
+				const updated = updateTaskFocusChain(currentBoard, taskId, focusChain);
+				return updated.updated ? updated.board : currentBoard;
+			});
+		},
+		[setBoard],
+	);
+
 	const handleCreateTask = useCallback(
 		(options?: CreateTaskOptions): string | null => {
 			const prompt = newTaskPrompt.trim();
@@ -532,6 +549,7 @@ export function useTaskEditor({
 		handleSaveEditedTask,
 		handleSaveAndStartEditedTask,
 		handleSaveTaskTitle,
+		handleUpdateTaskFocusChain,
 		handleCreateTask,
 		handleCreateTasks,
 		resetTaskEditorState,

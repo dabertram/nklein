@@ -955,40 +955,124 @@ const FOCUS_CHAIN_STATUS_META: Record<
 	skipped: { mark: "–", className: "text-text-tertiary" },
 };
 
-/** Renders an agent's focus chain (todo §5.N) as a live todo list on the card, when one has been drafted. */
-function FocusChainPanel({ selection }: { selection: CardSelection }): React.ReactElement | null {
+const FOCUS_CHAIN_STATUS_CYCLE: RuntimeFocusChain["steps"][number]["status"][] = [
+	"pending",
+	"in_progress",
+	"done",
+	"skipped",
+];
+
+/**
+ * Renders an agent's focus chain (todo §5.N) as a live todo list on the card. When `onUpdate` is provided the user
+ * can edit it: click a step's status marker to cycle it, delete a step, or add a new one. Edits persist through the
+ * board's normal save flow (the chain object is rebuilt and handed back). Read-only when `onUpdate` is absent.
+ */
+function FocusChainPanel({
+	selection,
+	onUpdate,
+}: {
+	selection: CardSelection;
+	onUpdate?: (taskId: string, focusChain: BoardCard["focusChain"] | null) => void;
+}): React.ReactElement | null {
+	const [newStepText, setNewStepText] = useState("");
 	const chain = selection.card.focusChain;
-	if (!chain || chain.steps.length === 0) {
+	const steps = chain?.steps ?? [];
+	const editable = Boolean(onUpdate);
+	if (steps.length === 0 && !editable) {
 		return null;
 	}
-	const completed = chain.steps.filter((step) => step.status === "done" || step.status === "skipped").length;
+	const taskId = selection.card.id;
+	const completed = steps.filter((step) => step.status === "done" || step.status === "skipped").length;
+	const emit = (nextSteps: RuntimeFocusChain["steps"]): void => {
+		onUpdate?.(taskId, nextSteps.length > 0 ? { steps: nextSteps, updatedAt: Date.now() } : null);
+	};
+	const cycleStatus = (index: number): void => {
+		const current = steps[index];
+		if (!current) {
+			return;
+		}
+		const nextIndex = (FOCUS_CHAIN_STATUS_CYCLE.indexOf(current.status) + 1) % FOCUS_CHAIN_STATUS_CYCLE.length;
+		const next = FOCUS_CHAIN_STATUS_CYCLE[nextIndex] ?? "pending";
+		emit(steps.map((step, i) => (i === index ? { ...step, status: next } : step)));
+	};
+	const deleteStep = (index: number): void => emit(steps.filter((_, i) => i !== index));
+	const addStep = (): void => {
+		const text = newStepText.trim();
+		if (!text) {
+			return;
+		}
+		emit([...steps, { text, status: "pending" }]);
+		setNewStepText("");
+	};
 	return (
 		<div className="rounded-lg border border-border bg-surface-1 px-4 py-3">
 			<div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
 				<span>Focus chain</span>
 				<span className="font-normal text-text-tertiary">
-					{completed}/{chain.steps.length}
+					{completed}/{steps.length}
 				</span>
 			</div>
 			<ul className="mt-2 flex list-none flex-col gap-1 p-0">
-				{chain.steps.map((step, index) => {
+				{steps.map((step, index) => {
 					const meta = FOCUS_CHAIN_STATUS_META[step.status];
 					return (
-						<li key={`${index}-${step.text}`} className="flex items-start gap-2 text-[13px]">
-							<span className={cn("mt-px", meta.className)}>{meta.mark}</span>
+						<li key={`${index}-${step.text}`} className="group flex items-start gap-2 text-[13px]">
+							{editable ? (
+								<button
+									type="button"
+									onClick={() => cycleStatus(index)}
+									className={cn("mt-px cursor-pointer", meta.className)}
+									title="Cycle status (pending → in progress → done → skipped)"
+									aria-label={`Cycle status for step ${index + 1}`}
+								>
+									{meta.mark}
+								</button>
+							) : (
+								<span className={cn("mt-px", meta.className)}>{meta.mark}</span>
+							)}
 							<span
 								className={cn(
-									"text-text-primary",
+									"flex-1 text-text-primary",
 									step.status === "skipped" && "text-text-tertiary line-through",
 									step.status === "in_progress" && "font-medium",
 								)}
 							>
 								{step.text}
 							</span>
+							{editable ? (
+								<button
+									type="button"
+									onClick={() => deleteStep(index)}
+									className="text-text-tertiary opacity-0 transition-opacity hover:text-status-red group-hover:opacity-100"
+									aria-label={`Delete step ${index + 1}`}
+								>
+									×
+								</button>
+							) : null}
 						</li>
 					);
 				})}
 			</ul>
+			{editable ? (
+				<div className="mt-2 flex items-center gap-2">
+					<input
+						value={newStepText}
+						onChange={(event) => setNewStepText(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.preventDefault();
+								addStep();
+							}
+						}}
+						placeholder="Add a step…"
+						aria-label="Add a focus-chain step"
+						className="h-7 flex-1 rounded-md border border-border bg-surface-0 px-2 text-[13px] text-text-primary outline-none focus:border-border-focus"
+					/>
+					<Button size="sm" variant="default" disabled={!newStepText.trim()} onClick={addStep}>
+						Add
+					</Button>
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -1537,6 +1621,7 @@ export function CardDetailView({
 	inlineTaskEditor,
 	onEditTask,
 	onSaveTaskTitle,
+	onUpdateFocusChain,
 	onCommitTask,
 	onOpenPrTask,
 	onAgentCommitTask,
@@ -1601,6 +1686,7 @@ export function CardDetailView({
 	inlineTaskEditor?: ReactNode;
 	onEditTask?: (card: BoardCard) => void;
 	onSaveTaskTitle?: (taskId: string, title: string) => void;
+	onUpdateFocusChain?: (taskId: string, focusChain: BoardCard["focusChain"] | null) => void;
 	onCommitTask?: (taskId: string) => void;
 	onOpenPrTask?: (taskId: string) => void;
 	onAgentCommitTask?: (taskId: string) => void;
@@ -1996,7 +2082,7 @@ export function CardDetailView({
 								sessionSummary={sessionSummary}
 								onMarkTaskInterrupted={onMarkTaskInterrupted}
 							/>
-							<FocusChainPanel selection={selection} />
+							<FocusChainPanel selection={selection} onUpdate={onUpdateFocusChain} />
 							<SecondOpinionReviewPanel selection={selection} />
 							<PendingPlanArtifactsPanel
 								workspaceId={currentProjectId}
@@ -2159,7 +2245,7 @@ export function CardDetailView({
 									sessionSummary={sessionSummary}
 									onMarkTaskInterrupted={onMarkTaskInterrupted}
 								/>
-								<FocusChainPanel selection={selection} />
+								<FocusChainPanel selection={selection} onUpdate={onUpdateFocusChain} />
 								<SecondOpinionReviewPanel selection={selection} />
 								<PendingPlanArtifactsPanel
 									workspaceId={currentProjectId}

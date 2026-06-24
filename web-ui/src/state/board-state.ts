@@ -782,6 +782,31 @@ export function updateTaskTitle(
 	});
 }
 
+/**
+ * Replace a card's focus chain (todo §5.N user-editable checklist). Preserves every other card field; passing
+ * `null` clears the chain. The board's persistence flow (debounced workspace-state save) picks up the change.
+ */
+export function updateTaskFocusChain(
+	board: BoardData,
+	taskId: string,
+	focusChain: BoardCard["focusChain"] | null,
+): { board: BoardData; updated: boolean } {
+	let updated = false;
+	const columns = board.columns.map((column) => {
+		let columnUpdated = false;
+		const cards = column.cards.map((card) => {
+			if (card.id !== taskId) {
+				return card;
+			}
+			columnUpdated = true;
+			updated = true;
+			return { ...card, focusChain: focusChain ?? undefined, updatedAt: Date.now() };
+		});
+		return columnUpdated ? { ...column, cards } : column;
+	});
+	return updated ? { board: withUpdatedColumns(board, columns), updated: true } : { board, updated: false };
+}
+
 export function applyTaskDetailNKleinSettingsSelection(
 	board: BoardData,
 	taskId: string,

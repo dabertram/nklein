@@ -15,6 +15,7 @@ import {
 	normalizeBoardData,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTaskBlockedState,
+	updateTaskFocusChain,
 	updateTaskTitle,
 } from "@/state/board-state";
 import type { ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
@@ -730,6 +731,34 @@ describe("board dependency state", () => {
 			modelId: "openai/gpt-5.4",
 			reasoningEffort: "low",
 		});
+	});
+
+	it("updates and clears a task focus chain while preserving other fields (§5.N)", () => {
+		let board = createInitialBoardData();
+		board = addTaskToColumn(board, "in_progress", {
+			prompt: "Task with a chain",
+			agentId: "nklein",
+			baseRef: "main",
+		});
+		const task = board.columns.find((column) => column.id === "in_progress")?.cards[0];
+		if (!task) {
+			throw new Error("Expected in-progress task to exist");
+		}
+
+		const chain = { steps: [{ text: "Step 1", status: "done" as const }], updatedAt: 1 };
+		const updated = updateTaskFocusChain(board, task.id, chain);
+		expect(updated.updated).toBe(true);
+		const updatedTask = updated.board.columns.find((column) => column.id === "in_progress")?.cards[0];
+		expect(updatedTask?.focusChain?.steps).toEqual([{ text: "Step 1", status: "done" }]);
+		expect(updatedTask?.prompt).toBe("Task with a chain");
+		expect(updatedTask?.agentId).toBe("nklein");
+
+		const cleared = updateTaskFocusChain(updated.board, task.id, null);
+		expect(cleared.updated).toBe(true);
+		const clearedTask = cleared.board.columns.find((column) => column.id === "in_progress")?.cards[0];
+		expect(clearedTask?.focusChain).toBeUndefined();
+
+		expect(updateTaskFocusChain(board, "missing-task", chain).updated).toBe(false);
 	});
 
 	it("preserves model fields when disabling auto-review", () => {
