@@ -657,8 +657,13 @@ deep analysis:
           (allow→run / confirm→run-only-if-confirmed / deny→refuse) and records **every** call to the audit log
           (executed or not), with the tools' side effects + confirm prompt + audit sink injected. Unit-tested (allow/
           deny/confirm-both-ways/unknown-tool). The §5.M host-access invariant is now enforced at the tool boundary.
-    - [ ] still owed: a **tools-aware** local-model completion (pass tool schemas, parse `tool_calls`/narrated) + the
-          concrete tool set, then wire loop+executor+completion + live-verify the agent using a tool.
+    - [x] **tools-aware local completion (2026-06-24)** — `LocalLlmClient.completeWithTools`
+          ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) offers OpenAI function `tools`
+          (`tool_choice: auto`) and parses returned `tool_calls` (decoding the JSON-string args; malformed → `{}`,
+          unnamed dropped); empty tools ⇒ a plain completion. Unit-tested (tools sent + parsed; no-tools plain path).
+    - [ ] still owed: the chat-agent model/exchange adapter + a concrete tool set, then wire loop+executor+completion
+          into a `runChatAgentTurn` + live-verify the agent actually using a tool. (Non-OpenAI tool-call shapes remain
+          the NKlein agent's `recoverNarratedToolCalls` concern — §5.O formats.)
   - [ ] still owed (next live layer): the tRPC/web-ui chat surface + the Signal bridge.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.

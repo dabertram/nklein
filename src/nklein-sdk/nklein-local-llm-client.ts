@@ -64,6 +64,42 @@ export interface LocalLlmCompletion {
 	raw: unknown;
 }
 
+/** An OpenAI-style function tool the model may call. `parameters` is a JSON Schema object. */
+export interface LocalLlmToolDefinition {
+	name: string;
+	description: string;
+	parameters: Record<string, unknown>;
+}
+
+export interface LocalLlmToolCall {
+	id: string;
+	name: string;
+	arguments: Record<string, unknown>;
+}
+
+export interface LocalLlmToolCompletion {
+	content: string;
+	toolCalls: LocalLlmToolCall[];
+	finishReason: string | null;
+	raw: unknown;
+}
+
+/** Parse a tool call's `arguments` (the OpenAI wire shape is a JSON *string*); malformed → empty object. */
+function parseToolCallArguments(raw: unknown): Record<string, unknown> {
+	if (raw && typeof raw === "object") {
+		return raw as Record<string, unknown>;
+	}
+	if (typeof raw !== "string" || raw.trim().length === 0) {
+		return {};
+	}
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+	} catch {
+		return {};
+	}
+}
+
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -276,6 +312,73 @@ export class LocalLlmClient {
 				}
 			}
 			return { content, finishReason, raw: null };
+		} finally {
+			clearTimeout(timeout);
+		}
+	}
+
+	/**
+	 * Tools-aware completion: offers the model the given function `tools` (`tool_choice: auto`) and parses any
+	 * `tool_calls` it returns (arguments decoded from their JSON-string wire form). With an empty `tools` list this
+	 * is a plain completion. The agent loop drives this; recovery of non-OpenAI tool-call formats stays the
+	 * `afterModel`/`recoverNarratedToolCalls` concern of the full NKlein agent (§5.O).
+	 */
+	async completeWithTools(
+		request: LocalLlmCompletionRequest,
+		tools: readonly LocalLlmToolDefinition[],
+	): Promise<LocalLlmToolCompletion> {
+		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+		try {
+			const body: Record<string, unknown> = { ...this.buildBody(request) };
+			if (tools.length > 0) {
+				body.tools = tools.map((tool) => ({
+					type: "function",
+					function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+				}));
+				body.tool_choice = "auto";
+			}
+			const response = await this.fetchImpl(url, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
+				},
+				body: JSON.stringify(body),
+				signal,
+			});
+			if (!response.ok) {
+				const text = await response.text().catch(() => "");
+				throw new LocalLlmRequestError(
+					`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
+					response.status,
+				);
+			}
+			const json = (await response.json()) as {
+				choices?: Array<{
+					message?: {
+						content?: string;
+						tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
+					};
+					finish_reason?: string | null;
+				}>;
+			};
+			const choice = json.choices?.[0];
+			const toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
+				.map((call, index) => ({
+					id: call.id ?? `call_${index}`,
+					name: call.function?.name ?? "",
+					arguments: parseToolCallArguments(call.function?.arguments),
+				}))
+				.filter((call) => call.name.length > 0);
+			return {
+				content: choice?.message?.content ?? "",
+				toolCalls,
+				finishReason: choice?.finish_reason ?? null,
+				raw: json,
+			};
 		} finally {
 			clearTimeout(timeout);
 		}

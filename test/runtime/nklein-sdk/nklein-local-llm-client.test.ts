@@ -144,3 +144,69 @@ describe("LocalLlmClient.generateStructured", () => {
 		expect(retryBody.messages.at(-1).content).toContain("valid JSON");
 	});
 });
+
+describe("LocalLlmClient.completeWithTools", () => {
+	function toolCallResponse(): Response {
+		return new Response(
+			JSON.stringify({
+				choices: [
+					{
+						message: {
+							content: "",
+							tool_calls: [
+								{ id: "call_1", function: { name: "read_file", arguments: '{"path":"README.md"}' } },
+								{ function: { name: "bad_args", arguments: "{not json" } },
+								{ function: { name: "", arguments: "{}" } },
+							],
+						},
+						finish_reason: "tool_calls",
+					},
+				],
+			}),
+			{ status: 200, headers: { "content-type": "application/json" } },
+		);
+	}
+
+	it("offers tools to the endpoint and parses tool_calls (decoding JSON-string args; malformed → {})", async () => {
+		const fetchImpl = vi.fn(async () => toolCallResponse());
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "read it" }] }, [
+			{ name: "read_file", description: "Read a file", parameters: { type: "object" } },
+		]);
+
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.tools[0]).toMatchObject({ type: "function", function: { name: "read_file" } });
+		expect(body.tool_choice).toBe("auto");
+
+		// The unnamed call is dropped; the malformed-args call yields {}.
+		expect(result.toolCalls).toEqual([
+			{ id: "call_1", name: "read_file", arguments: { path: "README.md" } },
+			{ id: "call_1", name: "bad_args", arguments: {} },
+		]);
+	});
+
+	it("is a plain completion when no tools are offered (no tools field sent)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "hi" }] }, []);
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.tools).toBeUndefined();
+		expect(result).toMatchObject({ content: "hi", toolCalls: [] });
+	});
+});
