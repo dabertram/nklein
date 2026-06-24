@@ -58,6 +58,28 @@ granularity, not a runaway — the turn completed within guardrails.)
 run `sweep-capture.mts` across models/presets and harden anything it flags (leaks / true repeats / non-terminal
 stalls). So far gemma-4-e2b is robust on `mid_task`+`complex_dag`.
 
+## Round 7 — qwen3-8b (reasoning model): harness leak-detection refined; reasoning-heavy + slow, not stuck (2026-06-24)
+
+Swept qwen3-8b (a **reasoning** model). First pass flagged "narration leaks", but they were **harness false positives**:
+the model "thinks" `<tool_call>{…}` in its **reasoning channel** (streaming deltas), which is exactly what
+`recoverNarratedToolCalls` recovers (tools executed fine). **Refined `sweep-capture.mts`** to count a *leak* only when
+narration markup survives into a user-facing **`assistant`** message; reasoning-channel narration is reported
+separately as informational (internal, recovered). Re-run with the fix:
+
+- `mid_task`: **0 assistant leaks, 0 reasoning narration, 0 repeats**; tools `decompose_project×2`; 468 reasoning
+  messages; **terminal not reached in 7 min**.
+- `complex_dag` (earlier): tools `decompose_project×6` + `update_focus_chain×2` (all advancing — 0 true repeats); 976
+  reasoning messages; **terminal not reached in 6 min**.
+
+**Finding 7 (characterization, not a parse-recover bug):** qwen3-8b spends almost all its budget in the reasoning
+channel and barely acts (2–8 tool calls, hundreds of reasoning deltas), so it **doesn't reach a terminal state in the
+short sweep window** — but it's **not stuck**: no loops (0 true repeats), no user-facing leaks, and any reasoning-channel
+narration is recovered. This is a model-behavior trait (reasoning-runaway / slowness), governed by the existing
+**wall-time / per-turn timeout guardrails** (2h default), not a parse-and-recover gap. Out of the §5.O harden-the-output
+lane (like Finding 6 grounding). *Candidate future lever (low confidence): a `/no_think`-style reasoning-budget nudge
+for reasoning models on planning turns — but that's prompt-tuning, deferred.* Non-reasoning small models (gemma-e2b/
+e4b) complete the same presets in ~3 min, clean.
+
 ## Round 6 — gemma-4-e4b on the heavier complex_dag: also clean (2026-06-24)
 
 `sweep-capture.mts --model google/gemma-4-e4b-m5max --preset complex_dag`: **5514 messages**, 24 tool calls

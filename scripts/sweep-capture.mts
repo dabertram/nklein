@@ -147,9 +147,15 @@ async function main(): Promise<void> {
 
 	// Catalog.
 	const toolCalls = captured.filter((message) => message.toolName).map((message) => message.toolName as string);
+	// A real *leak* is narration markup surviving into a user-facing `assistant` message. Narration in the
+	// `reasoning` channel is internal + handled by `recoverNarratedToolCalls` (so reasoning models like qwen3 that
+	// "think" `<tool_call>{…}` are fine) — tracked separately as informational, not a leak.
 	const narrationLeaks = captured.filter(
-		(message) => message.role !== "tool" && NARRATION_MARKERS.test(message.content),
+		(message) => message.role === "assistant" && NARRATION_MARKERS.test(message.content),
 	);
+	const reasoningNarration = captured.filter(
+		(message) => message.role === "reasoning" && NARRATION_MARKERS.test(message.content),
+	).length;
 	// Repeat detection uses the FULL tool message content, so a *stateful advancing* tool (e.g. update_focus_chain,
 	// whose chain progresses) isn't mistaken for a loop — only genuinely identical re-emits count (matches the
 	// full-input-fingerprint guard's semantics).
@@ -173,10 +179,11 @@ async function main(): Promise<void> {
 	log(`Terminal session state:     ${terminalState ?? "(not reached within max-wait)"}`);
 	log(`Messages captured:          ${captured.length}`);
 	log(`Tool calls (${toolCalls.length}):            ${[...perTool.entries()].map(([n, c]) => `${n}×${c}`).join(", ") || "(none)"}`);
-	log(`Narration-markup leaks:     ${narrationLeaks.length}${narrationLeaks.length ? " ⚠️" : " ✓"}`);
+	log(`Narration leaks (assistant): ${narrationLeaks.length}${narrationLeaks.length ? " ⚠️" : " ✓"}`);
 	for (const leak of narrationLeaks.slice(0, 5)) {
 		log(`  - [${leak.role}] ${leak.content.replace(/\n/g, " ").slice(0, 120)}`);
 	}
+	log(`Reasoning-channel narration: ${reasoningNarration} (internal; handled by recoverNarratedToolCalls)`);
 	log(`Hot repeated tool calls:    ${repeatedHot.length}${repeatedHot.length ? " ⚠️" : " ✓"}`);
 	for (const [key, count] of repeatedHot.slice(0, 5)) {
 		log(`  - ${count}× ${key.slice(0, 100)}`);

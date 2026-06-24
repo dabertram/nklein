@@ -962,8 +962,15 @@ deep analysis:
   - [~] **Round 6 — sweeping via the one-command harness (2026-06-24)** — gemma-4-e4b on `complex_dag`: 5514 msgs, 24
         tool calls (`read_files×10/edit_file×8/update_focus_chain×4/list_files×2`), **0 leaks, 0 true repeats**,
         `awaiting_review`. **Tally clean so far: gemma-e2b {mid_task, complex_dag} + gemma-e4b {complex_dag}.**
-        Remaining (now one command each): qwen3-8b + the `wide_fanout`/`many_small` presets — harden anything flagged.
+        Remaining (now one command each): the `wide_fanout`/`many_small` presets — harden anything flagged.
         Optionally weigh the imperative tool-result framing (Finding 6).
+  - [x] **Round 7 — qwen3-8b + harness leak-detection refined (2026-06-24)** — swept the *reasoning* model qwen3-8b.
+        First pass flagged false "leaks": it thinks `<tool_call>{…}` in its **reasoning channel** (recovered by
+        `recoverNarratedToolCalls`). **Refined `sweep-capture.mts`** to flag a leak only in user-facing `assistant`
+        content (reasoning narration reported separately, informational). Re-run: **0 assistant leaks, 0 true repeats**
+        on mid_task + complex_dag, but **non-terminal in the 6–7 min window** — qwen3-8b is reasoning-heavy + slow
+        (hundreds of reasoning deltas, 2–8 tool calls), **not stuck**. Characterization (Finding 7), governed by the
+        wall-time guardrail; out of the parse-recover lane. gemma-e2b/e4b finish the same presets in ~3 min clean.
   - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
         HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version
