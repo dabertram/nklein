@@ -381,6 +381,17 @@ deep analysis:
   - [ ] still owed: the fresh-config dogfood telemetry-diff day (needs a real multi-card run on the in-use model).
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
+- [ ] **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix)* —
+      the user's workflow idea: **all** started cards should pass through **Planning** first (rename the lane in spirit
+      to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the agent **re-validates the
+      card against the latest overall project state** before doing the work — a planning card spawns/updates child
+      cards as today; a *work* card gets a quick refinement pass ("do the original idea + acceptance still hold given
+      everything merged since?") and only then transitions itself to In Progress. **Goal: never work an out-of-date
+      plan.** *(Today's start-lane fix moves a started card to Planning OR In-Progress by its `startInPlanMode`; this
+      makes it always-Planning-first + adds the refinement step + the agent-driven Planning→In-Progress transition —
+      a real workflow feature: a refinement prompt/seam, a lane transition the agent triggers, and a no-progress/skip
+      guard so trivially-still-valid cards don't burn turns. **Clarify scope with the user before building** — e.g.
+      how heavy the refinement pass should be, and whether it can auto-skip when nothing changed.)*
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
@@ -1134,7 +1145,7 @@ deep analysis:
       native-`title` "coming soon" hint, instead of opening a dead link. (The onboarding carousel's other external links
       go to real ollama/lmstudio download pages — left as-is.) web tsc + biome + full web-ui suite (689) green.
 
-### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24)*
+### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24; re-affirmed by the user 2026-06-24 — emphasis: **no large monolith files**, SOTA architecture/structure, efficiency in **both development and runtime**)*
 > **Goal (meta-task):** do a deliberate, whole-codebase reasoning pass over !Klein's architecture and structure and
 > surface **every** worthwhile improvement — simplification, maintainability, performance, extensibility,
 > architecture, and code quality — then **write each finding into this todo.md as its own concrete, landable item**
@@ -1295,6 +1306,11 @@ deep analysis:
       inferring from `startInPlanMode`.
 
 ### 5.J — LATER (deferred by decision)
+- LATER follow-up: **Distinct look & feel from the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual
+  identity a bit different from the fork's inherited look. **Nothing fancy** — the current look is great; the user just
+  wants it to read as at least slightly its own (not a re-skin project). **Details TBD with the user** (palette accents?
+  density? typography? iconography? empty-states?) — clarify scope before touching the design tokens
+  (`globals.css @theme`) / component styling. Keep the dark-theme + Tailwind-token system.
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
   + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
 - LATER: **Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify

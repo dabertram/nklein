@@ -218,7 +218,7 @@ export function ChatDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-4xl h-[80vh]">
+		<Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-6xl h-[80vh]">
 			<DialogHeader title="Chat" icon={<MessageSquarePlus size={16} />} />
 			<div className="flex flex-1 min-h-0">
 				{/* Session list */}
