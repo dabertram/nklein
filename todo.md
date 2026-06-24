@@ -614,7 +614,12 @@ deep analysis:
   - [ ] (b) sandbox-by-default + double-confirmed per-action host escape hatch (each host command/edit, audit-logged)
   - [ ] (c) host-mode toggle (whole session on host) behind a typed confirmation phrase
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
-  - [ ] short-term = lean live window via rolling summarization/consolidation (small models sustain long sessions)
+  - [x] **short-term lean window (2026-06-24)** — [src/chat/chat-context-window.ts](src/chat/chat-context-window.ts):
+        `splitChatContextWindow` (pure, token-estimator-injected) splits a transcript into the most-recent messages
+        that fit a token budget (kept verbatim) vs the older overflow, always keeping the current/last turn even if it
+        alone exceeds the budget; `consolidateChatContextWindow` folds the overflow into one summary via an injected
+        summarizer (model call), invoked only when something overflows. Unit-tested (budget split, last-message-kept,
+        no-overflow, summarize-only-when-present). Still owed: wiring the runtime token estimator + the summarizer model.
   - [x] **long-term store + recall (2026-06-24)** — [src/chat/chat-memory-store.ts](src/chat/chat-memory-store.ts):
         persisted memories (append-only JSONL) + `recallChatMemories` — the pure, testable recall core that ranks
         session-accessible memories against a query by **cosine similarity when embeddings are present and degrades to
