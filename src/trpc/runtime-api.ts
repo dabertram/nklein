@@ -132,7 +132,7 @@ import {
 import { applyMcsrAwareLocalTimeoutScaling } from "../nklein-sdk/nklein-timeout-scaling";
 import { openInBrowser } from "../server/browser";
 import { readMergeHistory } from "../state/merge-history-store";
-import { readTaskRunSummaries, type TaskRunTimeoutSource } from "../state/task-run-summary-store";
+import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
@@ -147,6 +147,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import { resolveEffectiveTaskTimeoutSettings } from "./runtime-api/task-timeout-settings.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 type ResolvedNKleinLaunchConfig = Awaited<
@@ -470,142 +471,6 @@ function buildTaskEvidencePromptBlock(input: {
 		"",
 		"Please inspect the files in the evidence bundle, especially summary.md, transcript/, diff.patch, and config-snapshot.json. Then diagnose the issue, propose the smallest safe fix, and update the code/tests accordingly.",
 	].join("\n");
-}
-
-function getProfileTimeoutDefaults(profile: "cloud" | "local" | "custom"): {
-	requestTimeoutMs: number | null;
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	agentTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-} {
-	if (profile === "cloud" || profile === "local") {
-		return {
-			requestTimeoutMs: 60 * 60 * 1000,
-			streamTimeoutMs: 24 * 60 * 60 * 1000,
-			toolTimeoutMs: 24 * 60 * 60 * 1000,
-			agentTimeoutMs: 24 * 60 * 60 * 1000,
-			conversationTimeoutMs: 7 * 24 * 60 * 60 * 1000,
-		};
-	}
-	return {
-		requestTimeoutMs: null,
-		streamTimeoutMs: null,
-		toolTimeoutMs: null,
-		agentTimeoutMs: null,
-		conversationTimeoutMs: null,
-	};
-}
-
-function scaleTimeoutMs(value: number | null, factor: number): number | null {
-	if (value === null) {
-		return null;
-	}
-	return Math.max(0, Math.trunc(value * factor));
-}
-
-const MIN_POSITIVE_NKLEIN_TIMEOUT_MS = 60 * 1000;
-
-function enforceLocalNKleinTimeoutFloor(value: number | null): number | null {
-	if (value === null || value === 0) {
-		return value;
-	}
-	return Math.max(MIN_POSITIVE_NKLEIN_TIMEOUT_MS, value);
-}
-
-/**
- * Provenance of a resolved timeout value, mirroring the precedence in `resolveEffectiveTaskTimeoutSettings`:
- * a per-task/role override wins, then the global runtime config, then the autonomous profile default. Surfaced
- * on terminal run summaries so a timeout-triggered review records *where* the bound that fired came from.
- */
-function resolveTimeoutSource(
-	taskValue: number | null | undefined,
-	globalValue: number | null | undefined,
-): TaskRunTimeoutSource {
-	if (taskValue !== null && taskValue !== undefined) {
-		return "role_override";
-	}
-	if (globalValue !== null && globalValue !== undefined) {
-		return "global_config";
-	}
-	return "autonomous_default";
-}
-
-function resolveEffectiveTaskTimeoutSettings(input: {
-	runtimeConfig: RuntimeConfigState;
-	taskSettings?: {
-		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
-		requestTimeoutMs?: number | null;
-		streamTimeoutMs?: number | null;
-		toolTimeoutMs?: number | null;
-		agentTimeoutMs?: number | null;
-		conversationTimeoutMs?: number | null;
-	};
-}): {
-	timeoutMode: "normal" | "long" | "extended" | "unlimited";
-	requestTimeoutMs: number | null;
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	agentTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-	timeoutProfile: "cloud" | "local" | "custom";
-	streamTimeoutSource: TaskRunTimeoutSource;
-	toolTimeoutSource: TaskRunTimeoutSource;
-	conversationTimeoutSource: TaskRunTimeoutSource;
-} {
-	const timeoutProfile = input.runtimeConfig.agentTimeoutProfile;
-	const timeoutMode = input.taskSettings?.timeoutMode ?? input.runtimeConfig.agentTimeoutMode;
-	const profileDefaults = getProfileTimeoutDefaults(timeoutProfile);
-	const requestTimeoutMs =
-		input.taskSettings?.requestTimeoutMs ?? input.runtimeConfig.requestTimeoutMs ?? profileDefaults.requestTimeoutMs;
-	const streamTimeoutMs =
-		input.taskSettings?.streamTimeoutMs ?? input.runtimeConfig.streamTimeoutMs ?? profileDefaults.streamTimeoutMs;
-	const toolTimeoutMs =
-		input.taskSettings?.toolTimeoutMs ?? input.runtimeConfig.toolTimeoutMs ?? profileDefaults.toolTimeoutMs;
-	const agentTimeoutMs =
-		input.taskSettings?.agentTimeoutMs ?? input.runtimeConfig.agentTimeoutMs ?? profileDefaults.agentTimeoutMs;
-	const conversationTimeoutMs =
-		input.taskSettings?.conversationTimeoutMs ??
-		input.runtimeConfig.conversationTimeoutMs ??
-		profileDefaults.conversationTimeoutMs;
-	const streamTimeoutSource = resolveTimeoutSource(
-		input.taskSettings?.streamTimeoutMs,
-		input.runtimeConfig.streamTimeoutMs,
-	);
-	const toolTimeoutSource = resolveTimeoutSource(input.taskSettings?.toolTimeoutMs, input.runtimeConfig.toolTimeoutMs);
-	const conversationTimeoutSource = resolveTimeoutSource(
-		input.taskSettings?.conversationTimeoutMs,
-		input.runtimeConfig.conversationTimeoutMs,
-	);
-
-	if (timeoutMode === "unlimited") {
-		return {
-			timeoutMode,
-			timeoutProfile,
-			requestTimeoutMs: null,
-			streamTimeoutMs: null,
-			toolTimeoutMs: null,
-			agentTimeoutMs: null,
-			conversationTimeoutMs: null,
-			streamTimeoutSource,
-			toolTimeoutSource,
-			conversationTimeoutSource,
-		};
-	}
-
-	const scale = timeoutMode === "extended" ? 6 : timeoutMode === "long" ? 3 : 1;
-	return {
-		timeoutMode,
-		timeoutProfile,
-		requestTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(requestTimeoutMs, scale)),
-		streamTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(streamTimeoutMs, scale)),
-		toolTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(toolTimeoutMs, scale)),
-		agentTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(agentTimeoutMs, scale)),
-		conversationTimeoutMs: enforceLocalNKleinTimeoutFloor(scaleTimeoutMs(conversationTimeoutMs, scale)),
-		streamTimeoutSource,
-		toolTimeoutSource,
-		conversationTimeoutSource,
-	};
 }
 
 function isActiveProjectTaskSession(summary: RuntimeTaskSessionSummary): boolean {

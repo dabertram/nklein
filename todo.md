@@ -1346,10 +1346,14 @@ deep analysis:
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
-  - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
+  - [ ] **`src/trpc/runtime-api.ts` (~2449 → 2314)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
         `chat-service`) composed into the returned object; mirrors the `CreateRuntimeApiDependencies` seam.
+        - [x] **slice 1 (2026-06-24):** extracted the pure effective-task-timeout resolution (profile defaults + mode scale +
+              local floor + source precedence) into `trpc/runtime-api/task-timeout-settings.ts`. runtime-api.ts 2449→2314.
+        - [ ] still TODO: the GitHub-context-import + local-advisor-completion helper subsystems (also module-level + pure-ish),
+              then the object-literal method grouping into factory modules.
   - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989)** — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
   - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384)** — already composes `detail-panels/*`, but still holds
