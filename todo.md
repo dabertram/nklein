@@ -819,6 +819,18 @@ deep analysis:
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
   - [ ] still owed: an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today),
         **memory-scope toggles**, and **Signal pairing/status** (with the bridge, LATER).
+  - [ ] **Reconcile the two chat surfaces** *(user-flagged 2026-06-24: "feels confusing and a bit off")* — there are now
+        two: the **new §5.M board-independent Chat dialog** (multi-session, scope/role, goal, memory, tools, streaming)
+        and the older **per-project "!Klein Agent" sidebar tab** (`use-home-sidebar-agent-panel` → `NKleinAgentChatPanel`
+        / `useHomeAgentSession`, a synthetic project-home agent chat). They overlap → **merge or drop one.**
+        **Recommendation: drop the home "!Klein Agent" sidebar panel and make the §5.M Chat the single chat surface**
+        (it's the superset — the home panel's project-scoped chat is just the `project_sandboxed` scope; the §5.M chat
+        adds sessions/memory/tools/streaming). Distinguish from the **per-task card agent chats** (the swarm task
+        sessions in card detail) — those are a *different* thing and **stay**. Removal touches: the sidebar
+        Projects/Agent tab toggle (`homeSidebarSection`), `use-home-sidebar-agent-panel.tsx`, `NKleinAgentChatPanel`,
+        `useHomeAgentSession`/`use-nklein-chat-runtime-actions`, the home synthetic-session infra + its tests.
+        **Confirm drop-vs-merge with the user before ripping out the home-session infra** (a real product call; don't
+        do it speculatively). Until then the two coexist (confusingly).
 - [~] **Safety, permissions & audit** — per-action + typed host confirmations, audit log of every host action,
       messenger access-control; first-class + tested; the autonomous swarm can never reach these.
   - [x] **policy gate + audit log (2026-06-24)** — the execution-mode policy
