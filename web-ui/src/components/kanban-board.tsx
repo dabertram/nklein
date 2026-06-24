@@ -195,12 +195,19 @@ export function KanbanBoard({
 	});
 	const swarmCounts = useMemo(() => {
 		const cards = data.columns.flatMap((column) => column.cards);
+		const titleByTaskId = new Map(cards.map((card) => [card.id, card.title]));
 		const running = Object.values(taskSessions).filter((summary) => summary.state === "running").length;
 		const blocked = cards.filter((card) => card.blockedKind).length;
 		const waiting = data.columns
 			.filter((column) => column.id === "backlog" || column.id === "planning")
 			.reduce((total, column) => total + column.cards.filter((card) => !card.blockedKind).length, 0);
-		return { running, waiting, blocked };
+		// Tasks admitted to the sandbox pool's FIFO queue, waiting for a free container (todo §5.G — surface the
+		// explicit queue, not just a per-card state). Ordered by start time so the list reads as the wait order.
+		const queuedTitles = Object.values(taskSessions)
+			.filter((summary) => summary.state === "queued")
+			.sort((left, right) => (left.startedAt ?? 0) - (right.startedAt ?? 0))
+			.map((summary) => titleByTaskId.get(summary.taskId) ?? summary.taskId);
+		return { running, waiting, blocked, queued: queuedTitles.length, queuedTitles };
 	}, [data.columns, taskSessions]);
 	const endpointUtilization = useMemo<EndpointUtilizationSummary[]>(() => {
 		const endpoints = new Map<string, { running: number; modelIds: Set<string> }>();
@@ -691,6 +698,16 @@ export function KanbanBoard({
 					<span>Running {swarmCounts.running}</span>
 					<span>Waiting {swarmCounts.waiting}</span>
 					<span>Blocked {swarmCounts.blocked}</span>
+					{swarmCounts.queued > 0 ? (
+						<span
+							className="cursor-help rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-status-gold"
+							title={`Sandbox queue — waiting for a free container (in order):\n${swarmCounts.queuedTitles
+								.map((title, index) => `${index + 1}. ${title}`)
+								.join("\n")}`}
+						>
+							Queued {swarmCounts.queued}
+						</span>
+					) : null}
 					{endpointUtilization.slice(0, 2).map((endpoint) => (
 						<span
 							key={endpoint.endpointId}

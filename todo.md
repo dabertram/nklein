@@ -428,7 +428,9 @@ deep analysis:
   - [ ] acceptance: fresh machine + Docker → `docker compose up` (user sets endpoint + 2 mounts) → working board/
         decomposition/sandboxed parallel-exec/review-merge, zero internal-model downloads, state survives re-up
 - [ ] **CI-able dogfood smoke** — scripted 1-shot → decomposition → parallel exec → merge on a tiny model, as a CI gate.
-- [ ] **Explicit in-UI sandbox queue list** (today only a per-card "queued" state).
+- [x] **Explicit in-UI sandbox queue list** *(DONE 2026-06-24)* — the Local-swarm header now shows a **Queued N**
+      chip (when any task is in the sandbox pool's FIFO `queued` state) whose hover title lists the queued task
+      titles in wait order. Previously only the per-card "queued" state existed. web tsc + biome + suite (700) green.
 - [ ] **Main-board role/agent visibility** — board-header strip grouping active work by role (Architect/Worker/
       Reviewer) with click-to-focus; persist the resolved launch role on session summaries (don't rely on
       `startInPlanMode` inference).

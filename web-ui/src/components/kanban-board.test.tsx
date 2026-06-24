@@ -420,6 +420,52 @@ describe("KanbanBoard", () => {
 		expect(container.querySelector("button")?.hasAttribute("disabled")).toBe(true);
 	});
 
+	it("surfaces an explicit sandbox queue count in the swarm header (§5.G)", async () => {
+		const board: BoardData = {
+			columns: [
+				{ id: "backlog", title: "Backlog", cards: [] },
+				{ id: "planning", title: "Planning", cards: [] },
+				{
+					id: "in_progress",
+					title: "In Progress",
+					cards: [
+						{
+							id: "task-queued",
+							title: "Queued task",
+							prompt: "p",
+							startInPlanMode: false,
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
+					],
+				},
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={board}
+					taskSessions={{
+						"task-queued": {
+							...createRunningSession("task-queued", "lmstudio:default", "qwen3"),
+							state: "queued",
+						},
+					}}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={[]}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+		expect(container.textContent).toContain("Queued 1");
+	});
+
 	it("collects and copies task evidence from board cards", async () => {
 		const board: BoardData = {
 			columns: [
