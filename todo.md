@@ -883,10 +883,15 @@ deep analysis:
         supplied sandbox executors (it owns the sandbox). Locked by a second **red-green** unit test (fake sandbox
         manager: asserts the rebuild `prepareWorkspace`s the task against the host repo path and starts with the sandbox
         cwd + sandbox `extraTools`/`toolExecutors`). tsc + biome + full nklein-sdk suite (695) green.
-  - [ ] **live verification (in progress):** end-to-end start→process-restart→resume of a real isolated task against
-        LM Studio + Docker, asserting a sandbox container is re-prepped for the resumed task and the agent emits only
-        sandbox/relative paths. Also still confirm `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })` (passes the
-        sandbox path host-side; likely legacy/inert under isolation).
+  - [x] **live-verified (2026-06-24).** New harness
+        [scripts/verify-restart-resume-isolation.mts](scripts/verify-restart-resume-isolation.mts) (isolated HOME, live
+        LM Studio `qwen/qwen3-8b`, real Docker) runs a real isolated task in service A → sandbox container
+        `nklein-agent-sandbox-1` appears + the session advances; disposes A (containers → NONE); then a **fresh** service
+        B (the "restarted process") `reloadTaskSession`s it and **re-preps a sandbox container** — proving the rebuild now
+        prepares the sandbox. **PASS:** resume re-prepped a container, no host worktree, **no host project path leaked to
+        the agent**, no containers leftover after dispose. (Pre-fix, phase 2 would show no container.)
+  - [ ] **minor remaining:** confirm `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })` (passes the sandbox path
+        host-side; likely legacy/inert under isolation — the turn-checkpoint subsystem predates the worktree retirement).
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply
