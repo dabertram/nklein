@@ -363,11 +363,16 @@ deep analysis:
         fail-closed isolation will stop tasks from starting. web-tested.
   - [ ] still TODO: a dedicated isolation **empty state**, paused-card polish, and the session-service
         sandbox-lifecycle extraction (overlaps the §5.U decompose finding).
-- [ ] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
+- [~] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /
-      provider-error events. *(AGENTS.md worktree tribal-knowledgƒe is already reconciled to the
+      provider-error events. *(AGENTS.md worktree tribal-knowledge is already reconciled to the
       container-primary + result-branch model.)*
+  - [x] **DAG dry-run preview + plain-language park reasons render-checks (2026-06-24)** — both are already
+        regression-locked by `card-detail-view.test.tsx` ("shows a planning DAG review panel for linked Planning
+        cards" asserts the "Plan DAG" preview renders; the lost-session / warning tests assert the human-readable
+        `warningMessage` park reason displays). No new work owed for these two.
+  - [ ] still owed: the fresh-config dogfood telemetry-diff day (needs a real multi-card run on the in-use model).
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
