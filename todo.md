@@ -486,7 +486,9 @@ deep analysis:
 - [ ] **Python core default-ON + Settings health** *(decided 2026-06-22)*:
   - [ ] bundle/package the `core-py` sidecar so auto-start is reliable
   - [ ] auto-start on launch; keep auto-fallback when unreachable
-  - [~] Settings health line (running, model loaded, port) — safe additive piece, can land first
+  - [x] **Settings health line (2026-06-24)** — `KleinCorePyHealthLine` under the !Klein model panel: enabled state,
+        a live `GET /health` probe (running / not-reachable), the endpoint, and a hint to set `NKLEIN_CORE_PY=1` when
+        disabled. (Shipped earlier this session; CHANGELOG'd.)
     - [x] **running + endpoint/port (2026-06-24)** — `getKleinCorePyHealth` tRPC query (config `enabled` + live
           `probeKleinCorePyHealth`) feeds a self-contained `KleinCorePyHealthLine` rendered under the Settings model
           panel: Running / Not reachable / Disabled + endpoint, with an `NKLEIN_CORE_PY=1` hint. Component unit-tested.
@@ -589,8 +591,16 @@ deep analysis:
 > typed-confirmed + logged; cloud lockdown (#1) + ≥32k floor everywhere. **Presets:** base = coding + board ops;
 > scopes = project-sandboxed (default) / all-loaded-projects / host-access (typed-confirm); roles =
 > planner-architect, reviewer (§5.K), debugger, researcher (§5.L tiers), system-operator (host persona).
-- [ ] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
+- [~] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
       concurrent; separate from board/task state (not kanban cards).
+  - [x] **session store (2026-06-24)** — [src/chat/chat-session-store.ts](src/chat/chat-session-store.ts): the
+        durable session-metadata layer (`ChatSession` = id / title / scope / role / timestamps; scope ∈
+        project_sandboxed|all_projects|host_access, role ∈ planner_architect|reviewer|debugger|researcher|
+        system_operator, defaults = most-isolated + planner). Append-only JSONL event log replayed to the current
+        set (crash-safe, concurrency-safe like the other stores), with create/list/get/update/delete + injectable
+        `rootDir`/`now`. Unit-tested (round-trip, update bumps updatedAt, delete, newest-first replay, defaults).
+  - [ ] still owed: the **transcript** store (messages per session, layered on top) + the tRPC/contract surface to
+        expose sessions to the chat UI + the messenger bridge.
 - [ ] **Chat agent runtime** — interactive multi-turn loop on the NKlein core + full tool suite; new entry point + streaming.
 - [ ] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
