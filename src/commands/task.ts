@@ -7,7 +7,6 @@ import type {
 	RuntimeAgentId,
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
-	RuntimeBoardDependency,
 	RuntimeTaskAcceptanceVerifyRequest,
 	RuntimeTaskAcceptanceVerifyResponse,
 	RuntimeTaskNKleinSettings,
@@ -24,7 +23,6 @@ import {
 	deleteTasksFromBoard,
 	getTaskColumnId,
 	moveTaskToColumn,
-	type RuntimeAddTaskDependencyResult,
 	removeTaskDependency,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
@@ -55,6 +53,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import { classifyAcceptanceFailurePlanGap, parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
+import type { ListTaskColumn } from "./task/task-command-types.js";
 import {
 	buildTaskNKleinSettingsForCreate,
 	buildTaskNKleinSettingsForUpdate,
@@ -71,6 +70,15 @@ import {
 	buildPlanGapScopeCardPrompt,
 } from "./task/task-plan-gap-prompts.js";
 import {
+	findTaskRecord,
+	findTasksInColumn,
+	formatDependencyRecord,
+	formatTaskRecord,
+	getLinkFailureMessage,
+	parseListColumn,
+	resolveTaskCommandTarget,
+} from "./task/task-record-format.js";
+import {
 	createRuntimeTrpcClient,
 	ensureRuntimeWorkspace,
 	notifyRuntimeWorkspaceStateUpdated,
@@ -80,20 +88,7 @@ import {
 	updateRuntimeWorkspaceState,
 } from "./task/task-runtime-workspace.js";
 
-const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "completed", "trash"] as const;
 const DEFAULT_NEEDS_DECOMPOSITION_REASON = "This task needs to be decomposed before it can start.";
-type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
-type TaskCommandTarget = { taskId?: string; column?: ListTaskColumn };
-
-type ResolvedTaskCommandTarget =
-	| {
-			kind: "task";
-			taskId: string;
-	  }
-	| {
-			kind: "column";
-			column: ListTaskColumn;
-	  };
 
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
@@ -263,26 +258,6 @@ export function markTaskNeedsDecompositionOnBoard(
 	return updated ? { ...board, columns } : board;
 }
 
-function parseListColumn(value: string | undefined): ListTaskColumn | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	if (value === "done") {
-		return "completed";
-	}
-	if (
-		value === "backlog" ||
-		value === "planning" ||
-		value === "in_progress" ||
-		value === "review" ||
-		value === "completed" ||
-		value === "trash"
-	) {
-		return value;
-	}
-	throw new Error(`Invalid column "${value}". Expected one of: ${LIST_TASK_COLUMNS.join(", ")}, done.`);
-}
-
 function parseAutoReviewMode(value: string | undefined): "commit" | "pr" | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -317,120 +292,6 @@ function parseOptionalStringOrDefault(value: string | undefined): string | null 
 		return null;
 	}
 	return value;
-}
-
-function resolveTaskCommandTarget(input: TaskCommandTarget, commandName: string): ResolvedTaskCommandTarget {
-	const taskId = input.taskId?.trim();
-	const column = input.column;
-	if (taskId && column) {
-		throw new Error(`${commandName} accepts exactly one of --task-id or --column.`);
-	}
-	if (taskId) {
-		return {
-			kind: "task",
-			taskId,
-		};
-	}
-	if (column) {
-		return {
-			kind: "column",
-			column,
-		};
-	}
-	throw new Error(`${commandName} requires either --task-id or --column.`);
-}
-
-function findTaskRecord(
-	state: RuntimeWorkspaceStateResponse,
-	taskId: string,
-): { task: RuntimeBoardCard; columnId: RuntimeBoardColumnId } | null {
-	for (const column of state.board.columns) {
-		const task = column.cards.find((candidate) => candidate.id === taskId);
-		if (task) {
-			return {
-				task,
-				columnId: column.id,
-			};
-		}
-	}
-	return null;
-}
-
-function formatTaskRecord(
-	state: RuntimeWorkspaceStateResponse,
-	task: RuntimeBoardCard,
-	columnId: RuntimeBoardColumnId,
-): JsonRecord {
-	const session = state.sessions[task.id] ?? null;
-	return {
-		id: task.id,
-		prompt: task.prompt,
-		column: columnId,
-		baseRef: task.baseRef,
-		startInPlanMode: task.startInPlanMode,
-		autoReviewEnabled: task.autoReviewEnabled === true,
-		autoReviewMode: task.autoReviewMode ?? "commit",
-		...(task.agentId ? { agentId: task.agentId } : {}),
-		...formatTaskNKleinSettings(task.nkleinSettings),
-		createdAt: task.createdAt,
-		updatedAt: task.updatedAt,
-		session: session
-			? {
-					state: session.state,
-					agentId: session.agentId,
-					pid: session.pid,
-					startedAt: session.startedAt,
-					updatedAt: session.updatedAt,
-					lastOutputAt: session.lastOutputAt,
-					reviewReason: session.reviewReason,
-					exitCode: session.exitCode,
-				}
-			: null,
-	};
-}
-
-function formatDependencyRecord(
-	state: RuntimeWorkspaceStateResponse,
-	dependency: RuntimeBoardDependency,
-): Record<string, unknown> {
-	return {
-		id: dependency.id,
-		backlogTaskId: dependency.fromTaskId,
-		backlogTaskColumn: getTaskColumnId(state.board, dependency.fromTaskId),
-		linkedTaskId: dependency.toTaskId,
-		linkedTaskColumn: getTaskColumnId(state.board, dependency.toTaskId),
-		createdAt: dependency.createdAt,
-	};
-}
-
-function getLinkFailureMessage(reason: RuntimeAddTaskDependencyResult["reason"]): string {
-	if (reason === "same_task") {
-		return "A task cannot be linked to itself.";
-	}
-	if (reason === "duplicate") {
-		return "These tasks are already linked.";
-	}
-	if (reason === "trash_task") {
-		return "Links cannot include done tasks.";
-	}
-	if (reason === "non_backlog") {
-		return "Links require at least one backlog task.";
-	}
-	return "One or both tasks could not be found.";
-}
-
-function findTasksInColumn(
-	state: RuntimeWorkspaceStateResponse,
-	columnId: ListTaskColumn,
-): Array<{ task: RuntimeBoardCard; columnId: RuntimeBoardColumnId }> {
-	const column = state.board.columns.find((candidate) => candidate.id === columnId);
-	if (!column) {
-		return [];
-	}
-	return column.cards.map((task) => ({
-		task,
-		columnId: column.id,
-	}));
 }
 
 async function listTasks(input: { cwd: string; projectPath?: string; column?: ListTaskColumn }): Promise<JsonRecord> {

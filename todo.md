@@ -1338,9 +1338,14 @@ deep analysis:
               resolve/ensure workspace, notify, load-mutate-notify `updateRuntimeWorkspaceState`, resolveTaskBaseRef +
               `RuntimeWorkspaceMutationResult`) into `commands/task/task-runtime-workspace.ts`. task.ts 2509→2433
               (cumulative 2870→2433, −437). All ~60 call sites resolve via import (tsc-verified, no call-site changes).
-        - [ ] still TODO: `task-target-resolution.ts` (resolveTaskCommandTarget + findTaskRecord/findTasksInColumn), the
-              per-subcommand registration split (`registerTaskCommand` is ~470 lines), and the command implementations
-              (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern modules.
+        - [x] **slice 5 (2026-06-24):** extracted the shared command types (`LIST_TASK_COLUMNS`/`ListTaskColumn`/
+              `TaskCommandTarget`/`ResolvedTaskCommandTarget` → `commands/task/task-command-types.ts`) and the pure
+              board-record query/format + target/column resolution (`findTaskRecord`, `findTasksInColumn`,
+              `formatTaskRecord`, `formatDependencyRecord`, `getLinkFailureMessage`, `resolveTaskCommandTarget`,
+              `parseListColumn` → `commands/task/task-record-format.ts`). task.ts 2433→2294 (cumulative 2870→2294, −576/−20%).
+        - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
+              implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
+              modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
   - [ ] **`src/trpc/runtime-api.ts` (~2449)** — `createRuntimeApi` is one giant object literal of every method
         (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
