@@ -862,14 +862,20 @@ deep analysis:
         of passing the sandbox `request.cwd` as the decomposition tool's `workspacePath`) and the
         `nklein-task-session-service.ts` main start dispatch (`effectiveCwd` → `agentPerceivedCwd`; its `cwd` field
         documented as the host path). tsc + biome + full nklein-sdk suite (693) green.
-  - [ ] **needs the careful behavior pass (NOT a rename):** the **restart** path
+  - [ ] **needs the careful behavior pass (NOT a rename) — mechanism now confirmed:** the **restart** path
         (`startRuntimeTaskSessionFromLaunchConfig`) and several host-side consumers
         (`ensureRuntimeSetup(input.cwd)`, `captureTaskTurnCheckpoint({ cwd: summary.workspacePath })`) receive
-        `record.cwd`/`summary.workspacePath`/`input.cwd`, all of which carry the **agent-perceived** path (the sandbox
-        workdir under isolation) — so a host-side op may be handed a `/workspaces/<taskId>` path that doesn't exist on
-        the host. This is a potential latent correctness issue (or these paths are inert legacy under isolation); it must
-        be untangled by tracing the persistence + restart + sandbox-prep flow, not papered over with a rename. Touches
-        invariant #2 — high value.
+        `record.cwd`/`summary.workspacePath`/`input.cwd`, all of which carry the **agent-perceived** path. Confirmed:
+        `record.cwd` is the SDK-persisted `config.cwd` (session-runtime stamps `config.cwd =
+        resolveNKleinAgentPerceivedCwd(...)` = `/workspaces/<taskId>` under isolation), so on restart the host
+        `ensureRuntimeSetup` (rules/tool-policy/prompt setup, keyed on the path) is handed a sandbox path that
+        **doesn't exist on the host** — silently degraded rules/setup on resume. The main start path correctly uses the
+        host `request.cwd` for `ensureRuntimeSetup`; only the restart path is wrong. The host root **is** reachable
+        (`launchConfig.workspaceRoot`; the restart callers at ~1502/1557/1626/1874 pass only `cwd: record.cwd` and no
+        `workspaceRoot`), so the `ensureRuntimeSetup` fix is local. **But** the deeper concern: that restart path does
+        **no** sandbox re-prep — it threads the persisted sandbox `cwd` straight into `sessionRuntime.startTaskSession`,
+        so restart-under-isolation needs an end-to-end trace + a live restart verification, not just the one-line
+        `ensureRuntimeSetup` host-root fix. Touches invariant #2 — high value.
 - [~] **Decompose the oversized `nklein-task-session-service.ts` (~3900 lines).** It conflates: session lifecycle,
       Docker sandbox prep/dispose, timeout scheduling, the swarm guardrail watchdogs (turn/wall-time/no-diff/repeated-
       tool limits), prompt assembly, the message repository, second-opinion review orchestration, and decompose-apply
