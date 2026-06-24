@@ -698,8 +698,11 @@ deep analysis:
       (parallel agents)"** with a description spelling out the 1:1 mapping. No separate "parallel agents" setting needed.
       (aria-label kept as "Max concurrent tasks" — relied on by a test + screen readers.)
 - [ ] **Move the model-roles model selector up next to the default model selector** (group role models with the default).
-- [ ] **Revisit the bottom "Project" reference + "script shortcuts"** — unclear what they're for; might be useful later.
-      Decide keep/relabel/remove (leaning keep for now; revisit).
+- [x] **Revisit the bottom "Project" reference + "script shortcuts"** *(DECIDED 2026-06-24: KEEP both)* — inspected:
+      the "Project" reference is a **clickable project-config-path** line (`<project>/.nklein/nklein/config.json`, opens
+      the file) and "Script shortcuts" is a working **per-project command-shortcut editor** (named label + command,
+      add/remove). Both are legitimate, clearly-labeled power-user features, not stray cruft — keep as-is. (If we
+      later want to reduce clutter, they could move behind a "Project advanced" disclosure, but no change now.)
 - [x] **Deactivate the "read the docs" links** *(DONE 2026-06-24)* — the only such link (Settings dialog footer, → the
       not-yet-published `docs.nklein.bot`) is now a **disabled** "Read the docs (not yet available)" button with a
       native-`title` "coming soon" hint, instead of opening a dead link. (The onboarding carousel's other external links
