@@ -1,9 +1,6 @@
-import * as Collapsible from "@radix-ui/react-collapsible";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
 	AlertTriangle,
-	ChevronDown,
-	ChevronUp,
 	Clipboard,
 	Ellipsis,
 	ExternalLink,
@@ -19,6 +16,7 @@ import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, use
 import { showAppToast } from "@/components/app-toaster";
 import { CodeIntelligencePanel } from "@/components/code-intelligence-panel";
 import { canShowFeaturebaseFeedbackButton } from "@/components/featurebase-feedback-button";
+import { ShortcutsCard } from "@/components/project-nav/shortcuts-card";
 import { ProjectSettingsDialog } from "@/components/project-settings-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -32,7 +30,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/dialog";
-import { Kbd } from "@/components/ui/kbd";
 import { NKleinMark } from "@/components/ui/nklein-mark";
 import { Spinner } from "@/components/ui/spinner";
 import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-widget";
@@ -54,7 +51,6 @@ import type {
 import { fetchWorkspaceState, saveWorkspaceState } from "@/runtime/workspace-state-query";
 import { moveTaskToColumn } from "@/state/board-state";
 import { formatPathForDisplay } from "@/utils/path-display";
-import { isMacPlatform, modifierKeyLabel } from "@/utils/platform";
 import { useUnmount, useWindowEvent } from "@/utils/react-use";
 
 const COLLAPSED_WIDTH = 48;
@@ -1069,72 +1065,6 @@ function ProjectSupportFooter({
 						{actionLabel} {!isOpening && <ExternalLink size={11} />}
 					</button>
 				</div>
-			</div>
-		</div>
-	);
-}
-
-const MOD = isMacPlatform ? "⌘" : modifierKeyLabel;
-const ALT = isMacPlatform ? "⌥" : "Alt";
-
-const ESSENTIAL_SHORTCUTS = [
-	{ keys: ["C"], label: "New task" },
-	{ keys: [MOD, "B"], label: "Start backlog tasks" },
-	{ keys: [MOD, "Shift", "S"], label: "Settings" },
-	{ keys: ["Click", MOD], label: "Hold to link tasks" },
-	{ keys: [MOD, "G"], label: "Toggle git view" },
-	{ keys: [MOD, "J"], label: "Toggle terminal" },
-];
-
-const MORE_SHORTCUTS = [
-	{ keys: [MOD, "Shift", "A"], label: "Toggle plan / act" },
-	{ keys: [ALT, "Shift", "Enter"], label: "Start and open task" },
-	{ keys: [MOD, "M"], label: "Expand terminal" },
-	{ keys: ["Esc"], label: "Close / back" },
-];
-
-function ShortcutHint({ keys, label }: { keys: string[]; label: string }): React.ReactElement {
-	return (
-		<div className="flex justify-between items-center py-px">
-			<span className="text-text-tertiary text-xs">{label}</span>
-			<span className="inline-flex items-center gap-0.5">
-				{keys.map((key, i) => (
-					<Kbd key={`${key}-${i}`}>{key}</Kbd>
-				))}
-			</span>
-		</div>
-	);
-}
-
-function ShortcutsCard(): React.ReactElement {
-	const [expanded, setExpanded] = useState(false);
-
-	return (
-		<div style={{ padding: "8px 12px" }}>
-			<div style={{ padding: "0 8px" }}>
-				<div className="flex flex-col gap-0.5">
-					{ESSENTIAL_SHORTCUTS.map((s) => (
-						<ShortcutHint key={s.label} keys={s.keys} label={s.label} />
-					))}
-				</div>
-				<Collapsible.Root open={expanded} onOpenChange={setExpanded}>
-					<Collapsible.Content>
-						<div className="flex flex-col gap-0.5">
-							{MORE_SHORTCUTS.map((s) => (
-								<ShortcutHint key={s.label} keys={s.keys} label={s.label} />
-							))}
-						</div>
-					</Collapsible.Content>
-					<Collapsible.Trigger asChild>
-						<button
-							type="button"
-							className="flex items-center gap-1 mt-1.5 text-xs text-text-tertiary hover:text-text-secondary cursor-pointer bg-transparent border-none p-0"
-						>
-							{expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-							{expanded ? "Less" : "All shortcuts"}
-						</button>
-					</Collapsible.Trigger>
-				</Collapsible.Root>
 			</div>
 		</div>
 	);
