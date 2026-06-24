@@ -53,10 +53,23 @@ async function main(): Promise<void> {
 		baseUrl: "http://127.0.0.1:1234/v1",
 	});
 
-	const created = await base.projects.createDevTestProject.mutate({
-		preset: PRESET as Parameters<typeof resolveNKleinDevTestProjectScenario>[0],
-	});
+	// Restore the original model if anything below fails before the normal end-of-run restore.
+	const restoreModel = () =>
+		base.runtime.saveNKleinProviderSettings
+			.mutate({ providerId: "lmstudio", modelId: original.modelId, baseUrl: original.baseUrl })
+			.catch(() => undefined);
+
+	let created: Awaited<ReturnType<typeof base.projects.createDevTestProject.mutate>>;
+	try {
+		created = await base.projects.createDevTestProject.mutate({
+			preset: PRESET as Parameters<typeof resolveNKleinDevTestProjectScenario>[0],
+		});
+	} catch (error) {
+		await restoreModel();
+		throw error;
+	}
 	if (!created.ok || !created.project || !created.task) {
+		await restoreModel();
 		throw new Error(`createDevTestProject failed: ${(created as { error?: string }).error ?? "unknown"}`);
 	}
 	const workspaceId = created.project.id;
