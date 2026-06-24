@@ -1437,8 +1437,11 @@ deep analysis:
         - [x] **slice 3 (2026-06-24):** extracted the `ProjectHealthCard` (per-project diagnostics + inspect/migrate/remove
               actions) into `project-nav/project-health-card.tsx`. web typecheck + vitest (690) green. project-navigation-panel
               1233→1109.
-        - [ ] still TODO: `DevTestProjectCard` (dev-scenario block), `ProjectRow`/`ProjectRowSkeleton` (project list rows) —
-              each self-contained, extractable to `project-nav/`. Then the big `ProjectNavigationPanel` body itself.
+        - [x] **slice 4 (2026-06-24):** extracted the `DevTestProjectCard` (dev-scenario block: self-improvement + the
+              fixture preset projects + copy-evidence/cleanup) into `project-nav/dev-test-project-card.tsx`. web typecheck +
+              vitest (690) green. project-navigation-panel 1109→922 (cumulative 1346→922, −31%, 4 new `project-nav/*` modules).
+        - [ ] still TODO: `ProjectRow`/`ProjectRowSkeleton` (project list rows) → `project-nav/`. Then the big
+              `ProjectNavigationPanel` body itself (the drag-resize + project-CRUD orchestration could move to a hook).
   - [ ] *(also large, lower priority): `web-ui/src/App.tsx` (~1350, composition root — extract more orchestration into
         hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), `nklein-decomposition-tool.ts` (~1440),
         `nklein-session-runtime.ts` (~1421), `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.
