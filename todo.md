@@ -683,8 +683,11 @@ deep analysis:
 - [ ] **Make the "Local swarm guardrails" values configurable** (they're fixed today) + a **"Reset to defaults"** button.
 - [ ] **Per-model concurrency multiplier** — LM Studio lets the user set concurrent requests per model, so allow
       attaching a "multiplier" to a selected model to reflect its parallel-request capacity (feeds the swarm scheduler).
-- [ ] **Clarify "concurrent cards" vs "parallel agents"** — if they map 1:1, label it "concurrent cards (parallel
-      agents)"; if they do NOT, expose "parallel agents" as a separate setting (only in that case).
+- [x] **Clarify "concurrent cards" vs "parallel agents"** *(DONE 2026-06-24)* — they **map 1:1** (each running card
+      drives exactly one agent session; team-delegation sub-agents are a gated within-task exception, not a separate
+      swarm-level dial), so per the decision the board concurrency-cap tooltip is relabeled **"Concurrent cards
+      (parallel agents)"** with a description spelling out the 1:1 mapping. No separate "parallel agents" setting needed.
+      (aria-label kept as "Max concurrent tasks" — relied on by a test + screen readers.)
 - [ ] **Move the model-roles model selector up next to the default model selector** (group role models with the default).
 - [ ] **Revisit the bottom "Project" reference + "script shortcuts"** — unclear what they're for; might be useful later.
       Decide keep/relabel/remove (leaning keep for now; revisit).

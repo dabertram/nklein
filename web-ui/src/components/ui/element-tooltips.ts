@@ -69,8 +69,9 @@ export const ELEMENT_TOOLTIPS = {
 		description: "Switch between the inline diff and the full-screen split diff view.",
 	},
 	"board.concurrency-cap": {
-		name: "Max concurrent tasks",
-		description: "How many agent tasks the swarm runs at once; drag to change the cap.",
+		name: "Concurrent cards (parallel agents)",
+		description:
+			"How many cards the swarm runs at once. Each running card drives one agent, so this is also the number of agents working in parallel. Drag to change the cap.",
 	},
 	"board.swarm-pause": {
 		name: "Pause / resume the swarm",
