@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { ACCEPTANCE_FAILURE_CATEGORIES } from "./acceptance-failure-taxonomy.js";
 import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } from "./agent-rulesets.js";
-import { planGapKindSchema } from "./plan-gap.js";
+import { planGapKindSchema } from "./plan-gap-kind.js";
 
-export type { PlanGapKind } from "./plan-gap.js";
+export type { PlanGapKind } from "./plan-gap-kind.js";
 
 import { resolveTaskTitle } from "./task-title.js";
 

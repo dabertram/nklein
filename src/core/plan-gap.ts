@@ -1,15 +1,8 @@
-import { z } from "zod";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { type PlanGapKind, planGapKindSchema } from "./plan-gap-kind";
 
-export const planGapKindSchema = z.enum([
-	"missing_decision",
-	"contradictory_requirement",
-	"missing_dependency",
-	"scope_too_large",
-	"integration_needed",
-	"other",
-]);
-export type PlanGapKind = z.infer<typeof planGapKindSchema>;
+// Re-export so existing importers of `plan-gap` keep working (the schema/type now live in the browser-safe module).
+export { type PlanGapKind, planGapKindSchema };
 
 export interface RecordPlanGapInput {
 	workspacePath: string;
