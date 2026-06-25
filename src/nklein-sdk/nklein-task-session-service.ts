@@ -86,7 +86,6 @@ import {
 	createSessionId,
 	isCreditLimitError,
 	isLocalModelRuntimeUnavailableError,
-	isNKleinUserAttentionTool,
 	type NKleinTaskMessage,
 	type NKleinTaskSessionEntry,
 	now,
@@ -105,6 +104,8 @@ import {
 	type NKleinRuntimeSetupLease,
 	type NKleinWatcherRegistry,
 } from "./nklein-watcher-registry";
+import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
+import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
 import {
 	listNKleinSdkWorkflowSlashCommands,
 	type NKleinSdkPersistedMessage,
@@ -118,6 +119,7 @@ import {
 export type { KanbanContextPressurePolicy, KanbanContextSafetyBudgets } from "./nklein-context-budgets";
 export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } from "./nklein-context-budgets";
 export type { NKleinTaskMessage } from "./nklein-session-state";
+export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } from "./repeated-tool-call-guard";
 
 const DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS = 80_000;
 /** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
@@ -164,26 +166,10 @@ interface NKleinTaskNoDiffState {
 	count: number;
 }
 
-interface NKleinTaskRepeatedToolState {
-	fingerprint: string;
-	count: number;
-	toolName: string;
-	toolInputSummary: string | null;
-}
-
-interface NKleinTaskRepeatedFailureTargetState {
-	fingerprint: string;
-	count: number;
-	targetSummary: string;
-	toolNames: string[];
-}
-
 const NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
 // A crashed/unloaded local model won't recover by retrying the dead endpoint, so park after a single
 // transient retry (instead of the generic 3) with reload guidance rather than storming a model that is gone.
 const NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD = 2;
-const NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD = 4;
-const NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD = 6;
 
 /**
  * Resolve a task's coarse launch role (todo §5.G/§5.U): reviewer for the synthetic `<taskId>::review` session,
@@ -195,92 +181,6 @@ function resolveNKleinTaskRole(taskId: string, isDecomposition: boolean): Runtim
 		return "reviewer";
 	}
 	return isDecomposition ? "architect" : "worker";
-}
-
-function getRepeatedToolCallLimit(toolName: string, baseLimit: number): number {
-	const normalized = toolName.trim().toLowerCase();
-	if (normalized === "read_files" || normalized === "run_commands") {
-		// Read/search tools legitimately repeat more, so give them extra headroom — but never below the
-		// operator-configured base limit (so raising the base also raises these).
-		return Math.max(NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD, baseLimit);
-	}
-	return baseLimit;
-}
-
-/**
- * Park message for the repeated-identical-tool-call guard. Repeated *empty* `decompose_project` calls are a
- * specific, common weak-local-model failure: the model reasons the whole plan in its thinking channel but emits
- * the tool call with no arguments (so nothing decomposes). Give that case a diagnostic message naming the cause
- * and the remedy, instead of the generic "same input" notice.
- */
-export function formatRepeatedToolCallParkMessage(state: {
-	toolName: string;
-	count: number;
-	toolInputSummary: string | null;
-}): string {
-	if (state.toolName.trim().toLowerCase() === "decompose_project" && !state.toolInputSummary) {
-		return (
-			`!Klein paused this task: the model called decompose_project ${state.count}× with empty arguments. ` +
-			"It planned the decomposition in its reasoning but did not emit it as the tool's JSON arguments — a " +
-			"common limitation of weaker local models. Switch the Architect/planning role to a more capable model " +
-			"(or reduce the project scope), then resume."
-		);
-	}
-	const toolInputText = state.toolInputSummary ? ` (${state.toolInputSummary})` : "";
-	return `!Klein paused this task after ${state.count} repeated ${state.toolName} tool calls with the same input${toolInputText}. Review progress, then send a new instruction to continue.`;
-}
-
-/**
- * Repeated-tool-call guard candidate for a hook activity (its fingerprint), or `null` to skip the guard.
- *
- * The fingerprint keys on the **lossless full-input fingerprint** (`activity.toolInputFingerprint`, a hash of
- * the entire parsed tool input — see `computeNKleinToolInputFingerprint`) when present, falling back to the lossy
- * display summary only for back-compat with older persisted activities. This is what makes the guard immune **by
- * construction** for every tool — including future ones: two calls collide only when their inputs are genuinely
- * identical, so an advancing stateful workflow can never again be falsely paused for "the same input" just because
- * its human-facing *summary* happened to collapse (the read_large_file cursor / decompose_project question-resolution
- * regressions). `read_large_file` stays **explicitly excluded** as well — it is *designed* to be re-called with an
- * advancing cursor, the workflow rejects stale cursors itself, and the autonomy budget bounds any true loop.
- */
-export function computeRepeatedToolCallCandidate(
-	activity: RuntimeTaskSessionSummary["latestHookActivity"],
-): Omit<NKleinTaskRepeatedToolState, "count"> | null {
-	if (activity?.source !== "nklein-sdk") {
-		return null;
-	}
-	const hookEventName = activity.hookEventName?.trim().toLowerCase();
-	if (hookEventName !== "tool_call" && hookEventName !== "tool_call_start") {
-		return null;
-	}
-	const toolName = activity.toolName?.trim();
-	if (!toolName || isNKleinUserAttentionTool(toolName)) {
-		return null;
-	}
-	if (toolName.toLowerCase() === "read_large_file") {
-		return null;
-	}
-	const toolInputSummary = activity.toolInputSummary?.trim() || null;
-	const fingerprintBasis = activity.toolInputFingerprint?.trim() || toolInputSummary || "";
-	return {
-		fingerprint: `${toolName.toLowerCase()}\n${fingerprintBasis}`,
-		toolName,
-		toolInputSummary,
-	};
-}
-
-function normalizePlanArtifactFailureTarget(value: string | null | undefined): string | null {
-	const normalized = value?.trim();
-	if (!normalized) {
-		return null;
-	}
-	const pathMatch = normalized.match(
-		/(?:^|\s)(["']?)(\/[^"'\s]*\.nklein\/nklein\/plans\/[^"'\s]+|\.nklein\/nklein\/plans\/[^"'\s]+)\1/u,
-	);
-	const rawPath = pathMatch?.[2]?.trim();
-	if (!rawPath) {
-		return null;
-	}
-	return rawPath.replace(/[),.;:]+$/u, "").replace(/\/+$/u, "");
 }
 
 export interface StartNKleinTaskSessionRequest {
@@ -777,12 +677,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTimeoutReasonByTaskId = new Map<string, string>();
 	private readonly pendingTimeoutSourceByTaskId = new Map<string, TaskRunTimeoutSource>();
 	private readonly noDiffCheckpointByTaskId = new Map<string, NKleinTaskNoDiffState>();
-	private readonly repeatedToolCallByTaskId = new Map<string, NKleinTaskRepeatedToolState>();
-	private readonly repeatedFailureTargetByTaskId = new Map<string, NKleinTaskRepeatedFailureTargetState>();
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<NKleinTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
+	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
 	private readonly activeToolTaskIds = new Set<string>();
 	private readonly sandboxRepoPathByTaskId = new Map<string, string>();
 	private readonly sandboxBaseRefByTaskId = new Map<string, string>();
@@ -828,6 +727,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
+		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
+	}
+
+	private buildGuardCallbacks(): RepeatedToolCallGuardCallbacks {
+		return {
+			getMaxRepeatedToolCallsPerTask: () => this.swarmGuardrails.maxRepeatedToolCallsPerTask,
+			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
+			parkTaskForAutonomyBudget: (input) => this.parkTaskForAutonomyBudget(input),
+		};
 	}
 
 	private buildNudgerCallbacks(): DecompositionStallNudgerCallbacks {
@@ -1846,7 +1754,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		this.noDiffCheckpointByTaskId.delete(request.taskId);
-		this.repeatedToolCallByTaskId.delete(request.taskId);
+		this.repeatedToolCallGuard.resetTask(request.taskId);
 		this.decompositionStallNudger.resetTask(request.taskId);
 		if (request.startInPlanMode && isExplicitDecompositionPrompt(request.prompt)) {
 			this.explicitDecompositionTaskIds.add(request.taskId);
@@ -2193,7 +2101,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
-		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
@@ -2237,7 +2145,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
-		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
@@ -2283,7 +2191,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
-		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
@@ -2368,7 +2276,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.failureBackoffByTaskId.delete(taskId);
-		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
 		if (!this.sessionRuntime.getTaskSessionId(taskId)) {
 			if (isHomeAgentSessionId(taskId) && !this.sessionRuntime.canRestartTaskSession(taskId)) {
 				return null;
@@ -2585,7 +2493,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.noDiffCheckpointByTaskId.delete(taskId);
-		this.repeatedToolCallByTaskId.delete(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
@@ -3016,152 +2924,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return nextState;
 	}
 
-	private enforceRepeatedToolCallGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {
-		if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
-			return null;
-		}
-		const toolCall = this.readRepeatedToolCallCandidate(summary);
-		if (!toolCall) {
-			return null;
-		}
-		const previous = this.repeatedToolCallByTaskId.get(summary.taskId);
-		const nextState: NKleinTaskRepeatedToolState =
-			previous?.fingerprint === toolCall.fingerprint
-				? {
-						...toolCall,
-						count: previous.count + 1,
-					}
-				: {
-						...toolCall,
-						count: 1,
-					};
-		this.repeatedToolCallByTaskId.set(summary.taskId, nextState);
-		const repeatedToolCallLimit = getRepeatedToolCallLimit(
-			nextState.toolName,
-			this.swarmGuardrails.maxRepeatedToolCallsPerTask,
-		);
-		if (nextState.count < repeatedToolCallLimit) {
-			return null;
-		}
-		const entry = this.messageRepository.getTaskEntry(summary.taskId);
-		if (!entry || entry.summary.reviewReason === "attention") {
-			return null;
-		}
-		return this.parkTaskForAutonomyBudget({
-			taskId: summary.taskId,
-			entry,
-			message: formatRepeatedToolCallParkMessage(nextState),
-			metadata: {
-				guardrail: "repeated_tool_calls",
-				count: nextState.count,
-				limit: repeatedToolCallLimit,
-				toolName: nextState.toolName,
-				toolInputSummary: nextState.toolInputSummary,
-			},
-		});
-	}
-
-	private enforceRepeatedFailureTargetGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {
-		if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
-			return null;
-		}
-		const target = this.readRepeatedFailureTargetCandidate(summary);
-		if (!target) {
-			return null;
-		}
-		const previous = this.repeatedFailureTargetByTaskId.get(summary.taskId);
-		const toolNames = Array.from(new Set([...(previous?.toolNames ?? []), target.toolName]));
-		const nextState: NKleinTaskRepeatedFailureTargetState =
-			previous?.fingerprint === target.fingerprint
-				? {
-						fingerprint: target.fingerprint,
-						count: previous.count + 1,
-						targetSummary: target.targetSummary,
-						toolNames,
-					}
-				: {
-						fingerprint: target.fingerprint,
-						count: 1,
-						targetSummary: target.targetSummary,
-						toolNames: [target.toolName],
-					};
-		this.repeatedFailureTargetByTaskId.set(summary.taskId, nextState);
-		if (nextState.count < NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD) {
-			return null;
-		}
-		const entry = this.messageRepository.getTaskEntry(summary.taskId);
-		if (!entry || entry.summary.reviewReason === "attention") {
-			return null;
-		}
-		const toolNamesText = nextState.toolNames.join(", ");
-		const isDecomposition = target.kind === "decomposition";
-		const message = isDecomposition
-			? `!Klein paused this task after ${nextState.count} decomposition attempts that kept failing graph validation. Open the proposed plan graph and the validation errors in the chat, then send a corrected instruction (or split the work into smaller cards) instead of re-running decompose_project.`
-			: `!Klein paused this task after ${nextState.count} failed attempts to inspect the same plan artifact path (${nextState.targetSummary}) with ${toolNamesText}. Plan artifacts are trusted control-plane state; review progress, then continue from the generated cards instead of retrying sandbox file reads.`;
-		return this.parkTaskForAutonomyBudget({
-			taskId: summary.taskId,
-			entry,
-			message,
-			metadata: {
-				guardrail: isDecomposition ? "repeated_decomposition_failures" : "repeated_plan_artifact_failures",
-				count: nextState.count,
-				limit: NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD,
-				targetSummary: nextState.targetSummary,
-				toolNames: nextState.toolNames,
-			},
-		});
-	}
-
-	private readRepeatedToolCallCandidate(
-		summary: RuntimeTaskSessionSummary,
-	): Omit<NKleinTaskRepeatedToolState, "count"> | null {
-		return computeRepeatedToolCallCandidate(summary.latestHookActivity);
-	}
-
-	private readRepeatedFailureTargetCandidate(summary: RuntimeTaskSessionSummary): {
-		fingerprint: string;
-		targetSummary: string;
-		toolName: string;
-		kind: "plan-artifact" | "decomposition";
-	} | null {
-		const activity = summary.latestHookActivity;
-		if (activity?.source !== "nklein-sdk") {
-			return null;
-		}
-		if (activity.hookEventName?.trim().toLowerCase() !== "tool_result") {
-			return null;
-		}
-		if (!activity.activityText?.toLowerCase().startsWith("failed ")) {
-			return null;
-		}
-		const toolName = activity.toolName?.trim();
-		if (!toolName || isNKleinUserAttentionTool(toolName)) {
-			return null;
-		}
-		const planArtifactTarget = normalizePlanArtifactFailureTarget(activity.toolInputSummary);
-		if (planArtifactTarget) {
-			return {
-				fingerprint: `plan-artifact\n${planArtifactTarget}`,
-				targetSummary: planArtifactTarget,
-				toolName,
-				kind: "plan-artifact",
-			};
-		}
-		// A `decompose_project` that keeps failing graph validation: small models re-submit a slightly-varied graph
-		// that fails the same coherence check, so the identical-full-input repeated-call guard never fires and the
-		// task loops until it stalls (evidence: the DAW-foundation run). Fingerprint by the tool itself so the
-		// consecutive validation failures accumulate and park the task for review — independent of the input churn.
-		if (toolName === "decompose_project") {
-			return {
-				fingerprint: "decomposition\ndecompose_project",
-				targetSummary: "the proposed decomposition graph",
-				toolName,
-				kind: "decomposition",
-			};
-		}
-		return null;
-	}
-
 	private parkTaskForPause(input: {
 		taskId: string;
 		entry: NKleinTaskSessionEntry;
@@ -3170,7 +2932,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
 		this.noDiffCheckpointByTaskId.delete(input.taskId);
-		this.repeatedToolCallByTaskId.delete(input.taskId);
+		this.repeatedToolCallGuard.resetTask(input.taskId);
 		this.pauseController.markTaskParked(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
@@ -3212,7 +2974,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
 		this.noDiffCheckpointByTaskId.delete(input.taskId);
-		this.repeatedToolCallByTaskId.delete(input.taskId);
+		this.repeatedToolCallGuard.resetTask(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
 			signal: "budget_wall",
@@ -3250,6 +3012,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.clearTaskTimeouts(taskId);
 		}
 		this.decompositionStallNudger.dispose();
+		this.repeatedToolCallGuard.dispose();
 		this.timeoutSettingsByTaskId.clear();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
@@ -3259,8 +3022,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
 		this.noDiffCheckpointByTaskId.clear();
-		this.repeatedToolCallByTaskId.clear();
-		this.repeatedFailureTargetByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxRepoPathByTaskId.clear();
 		this.sandboxBaseRefByTaskId.clear();
@@ -3282,8 +3043,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
-		const guardedSummary =
-			this.enforceRepeatedToolCallGuard(summary) ?? this.enforceRepeatedFailureTargetGuard(summary) ?? summary;
+		const guardedSummary = this.repeatedToolCallGuard.check(summary) ?? summary;
 		this.captureTerminalRunSummary(guardedSummary);
 		this.messageRepository.emitSummary(guardedSummary);
 	}
