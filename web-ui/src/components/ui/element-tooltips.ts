@@ -105,6 +105,11 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Collapse sidebar",
 		description: "Hide the project navigation sidebar to give the board more room.",
 	},
+	"chat.session-scope": {
+		name: "Chat scope",
+		description:
+			"chat-only: read-only browsing. current: agent can act on this project. all: agent can act on every project. host: full host access (⚠️ powerful).",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

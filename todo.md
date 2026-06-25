@@ -804,8 +804,12 @@ deep analysis:
 >         `sandbox_with_host_escape`, host→`host`; every session gets read tools + `get_board` + **`update_focus_chain`**
 >         (G4, always), and **can-act scopes also get `create_card`** (G5, gated `control_plane`); `readFocusChain` threads
 >         into the turn. Contract 77/77 (Suite 5 unaffected — its sessions have no active workspace → plain path). **STILL
->         TODO (wave-2b cont.):** the `chat-only·current·all·host` **scope selector UI** + the **G3b risk-ack confirm UI**
->         (to safely offer `run_command` in the web-ui — held until the confirm dialog exists). Original gap context:
+>         TODO (wave-2b cont.):** ✅ **scope selector UI DONE (2026-06-25)** — `Chat only · Current · All · ⚠️ Host`
+>         in the chat session header (`chat-sidebar.tsx`), wired to `updateSession({scope})`, + a tooltip + a 5-test
+>         Playwright spec (`web-ui/tests/chat-scope.spec.ts`); host shown with ⚠️ + a `TODO(§5.M)` to gate it on a future
+>         global setting + typed confirmation (no such setting exists yet). Verified: web typecheck + web vitest (694) +
+>         Playwright 5/5. **Remaining:** the **G3b risk-ack confirm UI** (to safely offer `run_command` in the web-ui —
+>         held until the confirm dialog exists), and the **G6 browser on/off toggle** wiring. Original gap context:
 >         (`chat-service.sendMessage`/`streamMessage` once called the plain `runChatTurn`) — the biggest gap: the agent the user actually means couldn't call ANY
 >         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode. **DIRECTION
 >         (2026-06-25, user answers — DECISIONS):**

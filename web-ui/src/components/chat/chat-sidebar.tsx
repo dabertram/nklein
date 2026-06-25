@@ -25,10 +25,15 @@ const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string
 	{ value: "system_operator", label: "System operator" },
 ];
 
+// TODO(§5.M): The `host_access` option should be gated behind a global "allow host access" setting
+// (not yet in runtimeConfigSchema) and ideally require a typed confirmation — it gives the agent
+// full host filesystem + command access beyond any sandbox. For now it is shown unconditionally with
+// a ⚠️ label to signal its power. Add the gate once the global toggle lands in the runtime config.
 const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: string }> = [
-	{ value: "project_sandboxed", label: "Project (sandboxed)" },
-	{ value: "all_projects", label: "All projects" },
-	{ value: "host_access", label: "Host access" },
+	{ value: "chat_only", label: "Chat only" },
+	{ value: "project_sandboxed", label: "Current" },
+	{ value: "all_projects", label: "All" },
+	{ value: "host_access", label: "⚠️ Host" },
 ];
 
 // ─── Session metadata helpers ──────────────────────────────────────────────────
@@ -127,19 +132,23 @@ function SessionHeader({
 						</option>
 					))}
 				</NativeSelect>
-				<NativeSelect
-					size="sm"
-					aria-label="Scope"
-					data-testid="chat-session-scope"
-					value={session.scope}
-					onChange={(event) => onUpdate({ id: session.id, scope: event.target.value as RuntimeChatSessionScope })}
-				>
-					{SCOPE_OPTIONS.map((option) => (
-						<option key={option.value} value={option.value}>
-							{option.label}
-						</option>
-					))}
-				</NativeSelect>
+				<ElementTooltip id="chat.session-scope" side="bottom">
+					<NativeSelect
+						size="sm"
+						aria-label="Scope"
+						data-testid="chat-session-scope"
+						value={session.scope}
+						onChange={(event) =>
+							onUpdate({ id: session.id, scope: event.target.value as RuntimeChatSessionScope })
+						}
+					>
+						{SCOPE_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</NativeSelect>
+				</ElementTooltip>
 				<input
 					data-testid="chat-session-goal"
 					className="flex-1 min-w-0 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
