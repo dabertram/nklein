@@ -2057,6 +2057,9 @@ deep analysis:
       (`resolveAgentCommand`, `getCuratedDefinitions`, model-registry discovery) switched to `effectiveSelectedAgentId`,
       new override test.
       Remaining Phase 1 fields: `modelRoles`, `agentRulesets`; then UI `OverrideToggle`.
+      **PHASE 1 UI DONE (2026-06-25):** `maxConcurrentTasksOverride` + `selectedAgentIdOverride` controls in Settings → Project
+      section — `OverrideRow` helper component, inherits-vs-overrides toggle pattern, wired into state/init/change-detection/reset/save.
+      Remaining Phase 1: `modelRoles`, `agentRulesets` overrides.
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.

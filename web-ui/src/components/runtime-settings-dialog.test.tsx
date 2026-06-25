@@ -344,6 +344,10 @@ const savedNKleinOauthConfig = {
 	readyForReviewNotificationsEnabled: false,
 	replayCardsEnabled: false,
 	maxConcurrentTasks: 3,
+	maxConcurrentTasksOverride: null,
+	effectiveMaxConcurrentTasks: 3,
+	selectedAgentIdOverride: null,
+	effectiveSelectedAgentId: "nklein",
 	sandboxMaxContainers: 1,
 	sandboxAgentsPerContainer: 0,
 	sandboxMemoryPerContainerMb: 4096,
@@ -1949,5 +1953,109 @@ describe("RuntimeSettingsDialog", () => {
 		});
 
 		expect(handleSaved).toHaveBeenCalledTimes(1);
+	});
+
+	it("saves per-project overrides for maxConcurrentTasks and selectedAgentId (§5.W Phase 1 UI)", async () => {
+		const handleOpenChange = vi.fn();
+		const projectConfig = {
+			...savedNKleinOauthConfig,
+			projectConfigPath: "/repo/.nklein/nklein/config.json",
+		} as RuntimeConfigResponse;
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={projectConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		// Both override rows should show the "inherit" state initially.
+		expect(document.body.textContent).toContain("Inherits global: 3");
+		expect(document.body.textContent).toContain("Inherits global: nklein");
+
+		// Override maxConcurrentTasks: click "Override for this project" for the first OverrideRow.
+		const overrideButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
+			(b) => b.textContent?.trim() === "Override for this project",
+		);
+		expect(overrideButtons.length).toBeGreaterThanOrEqual(1);
+
+		await act(async () => {
+			overrideButtons[0]?.click();
+		});
+
+		// After clicking, a number input should appear seeded with the global value.
+		const overrideInput = document.getElementById(
+			"runtime-settings-max-concurrent-tasks-override",
+		) as HTMLInputElement | null;
+		expect(overrideInput).not.toBeNull();
+		expect(overrideInput?.value).toBe("3");
+
+		// Change the value to 5.
+		await act(async () => {
+			if (overrideInput) {
+				setInputValue(overrideInput, "5");
+			}
+		});
+
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(expect.objectContaining({ maxConcurrentTasksOverride: 5 }));
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("saves selectedAgentIdOverride when the agent override is set (§5.W Phase 1 UI)", async () => {
+		const handleOpenChange = vi.fn();
+		const projectConfig = {
+			...savedNKleinOauthConfig,
+			projectConfigPath: "/repo/.nklein/nklein/config.json",
+		} as RuntimeConfigResponse;
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={projectConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		// Click "Override for this project" for the Agent row (second override button).
+		const overrideButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
+			(b) => b.textContent?.trim() === "Override for this project",
+		);
+		expect(overrideButtons.length).toBeGreaterThanOrEqual(2);
+
+		await act(async () => {
+			overrideButtons[1]?.click();
+		});
+
+		// A select should appear. Change it to "claude".
+		const agentOverrideSelect = Array.from(document.body.querySelectorAll<HTMLSelectElement>("select")).find((s) =>
+			Array.from(s.options).some((o) => o.value === "claude"),
+		);
+		expect(agentOverrideSelect).toBeInstanceOf(HTMLSelectElement);
+
+		await act(async () => {
+			if (agentOverrideSelect) {
+				setSelectValue(agentOverrideSelect, "claude");
+			}
+		});
+
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({ selectedAgentIdOverride: "claude" }),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 });

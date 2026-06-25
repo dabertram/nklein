@@ -1412,6 +1412,46 @@ function NKleinSmokeEvalTrial({
 	);
 }
 
+function OverrideRow({
+	label,
+	inheritLabel,
+	isOverridden,
+	onOverride,
+	onRevert,
+	disabled,
+	children,
+}: {
+	label: string;
+	inheritLabel: string;
+	isOverridden: boolean;
+	onOverride: () => void;
+	onRevert: () => void;
+	disabled: boolean;
+	children: React.ReactNode;
+}): React.ReactElement {
+	return (
+		<div className="grid gap-1">
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-[13px] text-text-primary">{label}</span>
+				{isOverridden ? (
+					<Button size="sm" variant="ghost" onClick={onRevert} disabled={disabled}>
+						Revert to global
+					</Button>
+				) : (
+					<Button size="sm" variant="default" onClick={onOverride} disabled={disabled}>
+						Override for this project
+					</Button>
+				)}
+			</div>
+			{isOverridden ? (
+				children
+			) : (
+				<p className="text-[12px] text-text-secondary m-0">Inherits global: {inheritLabel}</p>
+			)}
+		</div>
+	);
+}
+
 export function RuntimeSettingsDialog({
 	open,
 	workspaceId,
@@ -1482,6 +1522,8 @@ export function RuntimeSettingsDialog({
 	const [draftThemeId, setDraftThemeId] = useState<ThemeId>(readStoredThemeId);
 	const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>("unsupported");
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
+	const [maxConcurrentTasksOverride, setMaxConcurrentTasksOverride] = useState<number | null>(null);
+	const [selectedAgentIdOverride, setSelectedAgentIdOverride] = useState<RuntimeAgentId | null>(null);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
 	const [modelPerformanceStatsOpen, setModelPerformanceStatsOpen] = useState(false);
@@ -1626,6 +1668,8 @@ export function RuntimeSettingsDialog({
 		baseUrl: null,
 	};
 	const initialShortcuts = config?.shortcuts ?? [];
+	const initialMaxConcurrentTasksOverride = config?.maxConcurrentTasksOverride ?? null;
+	const initialSelectedAgentIdOverride = config?.selectedAgentIdOverride ?? null;
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
 	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
 		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
@@ -1866,6 +1910,12 @@ export function RuntimeSettingsDialog({
 		if (!areRuntimeProjectShortcutsEqual(shortcuts, initialShortcuts)) {
 			return true;
 		}
+		if (maxConcurrentTasksOverride !== initialMaxConcurrentTasksOverride) {
+			return true;
+		}
+		if (selectedAgentIdOverride !== initialSelectedAgentIdOverride) {
+			return true;
+		}
 		if (
 			normalizeTemplateForComparison(commitPromptTemplate) !==
 			normalizeTemplateForComparison(initialCommitPromptTemplate)
@@ -1919,6 +1969,10 @@ export function RuntimeSettingsDialog({
 		initialReplayCardsEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
+		initialMaxConcurrentTasksOverride,
+		initialSelectedAgentIdOverride,
+		maxConcurrentTasksOverride,
+		selectedAgentIdOverride,
 		initialTaskDefaultAutoReviewEnabled,
 		initialTaskDefaultAutoReviewMode,
 		initialTaskDefaultStartInPlanMode,
@@ -1995,6 +2049,8 @@ export function RuntimeSettingsDialog({
 		setTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
 		setInitialTaskDefaultAutoReviewMode(storedTaskDefaultAutoReviewMode);
 		setShortcuts(config?.shortcuts ?? []);
+		setMaxConcurrentTasksOverride(config?.maxConcurrentTasksOverride ?? null);
+		setSelectedAgentIdOverride(config?.selectedAgentIdOverride ?? null);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
 		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
@@ -2029,6 +2085,8 @@ export function RuntimeSettingsDialog({
 		config?.readyForReviewNotificationsEnabled,
 		config?.selectedAgentId,
 		config?.shortcuts,
+		config?.maxConcurrentTasksOverride,
+		config?.selectedAgentIdOverride,
 		config?.modelRoles,
 		config?.streamTimeoutMs,
 		config?.toolTimeoutMs,
@@ -2531,6 +2589,8 @@ export function RuntimeSettingsDialog({
 		}
 		const saved = await save({
 			selectedAgentId,
+			selectedAgentIdOverride,
+			maxConcurrentTasksOverride,
 			agentAutonomousModeEnabled,
 			agentTimeoutMode,
 			agentTimeoutProfile,
@@ -4046,6 +4106,66 @@ export function RuntimeSettingsDialog({
 								<ExternalLink size={12} className="inline ml-1.5 align-middle" />
 							) : null}
 						</p>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
+								Per-project overrides
+							</h6>
+							{config?.projectConfigPath ? (
+								<div className="grid gap-4">
+									<OverrideRow
+										label="Max concurrent tasks"
+										inheritLabel={String(config.maxConcurrentTasks)}
+										isOverridden={maxConcurrentTasksOverride !== null}
+										onOverride={() => setMaxConcurrentTasksOverride(config.maxConcurrentTasks)}
+										onRevert={() => setMaxConcurrentTasksOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<input
+											id="runtime-settings-max-concurrent-tasks-override"
+											type="number"
+											min={1}
+											value={maxConcurrentTasksOverride ?? ""}
+											onChange={(event) => {
+												const parsed = Number.parseInt(event.target.value, 10);
+												setMaxConcurrentTasksOverride(
+													Number.isFinite(parsed) && parsed >= 1 ? parsed : null,
+												);
+											}}
+											disabled={controlsDisabled}
+											className="h-8 w-full max-w-[120px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
+										/>
+									</OverrideRow>
+									<OverrideRow
+										label="Agent"
+										inheritLabel={config.selectedAgentId}
+										isOverridden={selectedAgentIdOverride !== null}
+										onOverride={() => setSelectedAgentIdOverride(config.selectedAgentId)}
+										onRevert={() => setSelectedAgentIdOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<NativeSelect
+											value={selectedAgentIdOverride ?? ""}
+											onChange={(event) =>
+												setSelectedAgentIdOverride((event.target.value as RuntimeAgentId) || null)
+											}
+											disabled={controlsDisabled}
+											style={{ maxWidth: 260 }}
+										>
+											{config.agents.map((agent) => (
+												<option key={agent.id} value={agent.id}>
+													{agent.label}
+												</option>
+											))}
+										</NativeSelect>
+									</OverrideRow>
+								</div>
+							) : (
+								<p className="text-[13px] text-text-secondary m-0">
+									Select a project to set per-project overrides.
+								</p>
+							)}
+						</div>
+
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<div className="flex items-center justify-between mb-2">
 								<h6
