@@ -22,6 +22,11 @@ export default defineConfig({
 			"**/node_modules/**",
 			"**/dist/**",
 			".worktrees/**",
+			// Agent worktrees live under `.claude/worktrees/<id>/` (full repo checkouts). Without this, a bare
+			// `vitest run test/runtime` substring-matches their test copies (and their `packages/**` tests), so the
+			// suite balloons ~4× and picks up other branches' in-progress code. Never recurse into them.
+			".claude/**",
+			"**/.claude/**",
 		],
 		testTimeout: 15_000,
 	},
