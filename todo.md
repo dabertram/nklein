@@ -854,10 +854,16 @@ deep analysis:
 >         `resolveAgentToolDeps(session) → {model, executeTool, appendToolExchange} | null` (mirrors the existing
 >         `resolveModelDeps` seam) that `runtime-api` fills from the active workspace, returning null for non-agent
 >         sessions so they stay plain. Keep `chat-service` decoupled from the tool infrastructure.
->   - [ ] **G4 — focus chain (§5.N) in the chat agent** — persist + surface a self-directed checklist per chat session
->         (the task agents already have `update_focus_chain`; fold the same tool + persistence into the chat loop).
->   - [ ] **G5 — board mutations** — `create_card` / `start_card` tools (trusted control-plane board writes, gated) so
->         the agent can "create a new project or work an existing one" autonomously, not just read it.
+>   - [x] **G4 — focus chain (§5.N) in the chat agent — MODULE DONE (2026-06-25, solo).** `src/chat/chat-focus-chain.ts`:
+>         a per-session focus-chain store (reuses the pure `src/core/focus-chain.ts` shape + normalize/timing/format) +
+>         `createFocusChainTools` (the `update_focus_chain` tool, `sandbox_read` = always-allowed). `runChatAgentTurn` now
+>         re-anchors the chain into the turn (leading system note) when `readFocusChain` is provided. 11 unit tests. **Ready
+>         to wire** into the CLI + web-ui tool sets in Wave 2b (the tool + the `readFocusChain` dep aren't passed by a
+>         caller yet — same ready-to-wire state as G3b/G5).
+>   - [x] **G5 — board mutations — `create_card` MODULE DONE (2026-06-25, agent E, merged).** `createBoardMutationTools`
+>         in `chat-board-tools.ts` + a new `control_plane` action kind (gate: deny in `isolated_readonly`/chat-only, allow
+>         in host-capable modes — board writes are trusted !Klein-owned control-plane, no confirm). 21 board+gate tests.
+>         Ready to wire in Wave 2b. (`start_card` deferred — starting a task is a separate session-start flow.)
 >   - [ ] **G6 — browser + knowledge-fetch tools** in the chat loop. **DECIDED 2026-06-25 = HEADLESS BROWSER (Playwright)**
 >         — the agent drives a real browser (navigate/read rendered pages/click), not just text fetch; reuse the repo's
 >         existing Playwright. Toggleable capability (off by default, user enables; orthogonal to scope per the permission

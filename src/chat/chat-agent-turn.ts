@@ -1,3 +1,4 @@
+import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { stripNarratedToolCallMarkup } from "../nklein-sdk/nklein-narrated-tool-call";
 import {
 	type ChatAgentModelResponse,
@@ -27,6 +28,8 @@ import {
 export interface ChatAgentTurnDeps {
 	readTranscript: (sessionId: string) => Promise<ChatMessage[]>;
 	readMemories: (sessionId: string) => Promise<ChatMemory[]>;
+	/** Load the session's focus chain (todo §5.M G4) so it's re-anchored into the turn; omit for no focus chain. */
+	readFocusChain?: (sessionId: string) => Promise<FocusChain | null>;
 	appendMessage: (sessionId: string, input: { role: ChatMessage["role"]; content: string }) => Promise<ChatMessage>;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	estimateTokens: (text: string) => number;
@@ -84,9 +87,21 @@ export async function runChatAgentTurn(
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
 	const prompt = renderChatTurnPrompt(context, input.userMessage);
+	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
+	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
+	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;
+	const messages: ChatPromptMessage[] = focusChain
+		? [
+				{
+					role: "system",
+					content: `Your current focus chain (update it with the update_focus_chain tool as you make progress):\n${formatFocusChainForPrompt(focusChain)}`,
+				},
+				...prompt,
+			]
+		: prompt;
 	const loop = await runChatAgentLoop(
 		{
-			messages: prompt,
+			messages,
 			...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
 			...(input.onToken ? { onToken: input.onToken } : {}),
 		},

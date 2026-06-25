@@ -62,6 +62,34 @@ describe("runChatAgentTurn", () => {
 		expect(result.hitIterationLimit).toBe(false);
 	});
 
+	it("re-anchors the focus chain into the turn when readFocusChain provides one (todo §5.M G4)", async () => {
+		let seenMessages: Array<{ role: string; content: string }> = [];
+		await runChatAgentTurn(
+			{ session: session(), userMessage: "go", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				readFocusChain: async () => ({ steps: [{ text: "step one", status: "in_progress" }], updatedAt: 1 }),
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async (messages) => {
+					seenMessages = messages as Array<{ role: string; content: string }>;
+					return { text: "ok", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("no tools expected");
+				},
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		const note = seenMessages.find((message) => message.role === "system" && message.content.includes("focus chain"));
+		expect(note).toBeTruthy();
+		expect(note?.content).toContain("step one");
+		expect(note?.content).toContain("[~]");
+	});
+
 	it("persists a direct answer when the model uses no tools", async () => {
 		const result = await runChatAgentTurn(
 			{ session: session(), userMessage: "hi", tokenBudget: 1000 },
