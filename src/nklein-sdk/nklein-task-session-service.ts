@@ -18,7 +18,6 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
-import { decideDecompositionStallRecovery } from "../core/decomposition-stall";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -35,6 +34,8 @@ import {
 	type TaskResultBranch,
 } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
+import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
 import {
 	AgentSandboxExecutionError,
@@ -183,23 +184,6 @@ const NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
 const NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD = 2;
 const NKLEIN_REPEATED_PLAN_ARTIFACT_FAILURE_THRESHOLD = 4;
 const NKLEIN_EXTRA_TOOL_REPEATED_CALL_PARK_THRESHOLD = 6;
-const NKLEIN_DECOMPOSITION_CHAT_NUDGE_MS = 25_000;
-const NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT = 2;
-const DECOMPOSITION_CHAT_REPORT_PATTERN =
-	/\b(?:decompose_project|decompose this project|decomposition tool|based on my (?:analysis|review)|current (?:state|codebase state)|specification summary|implementation plan|task graph|domain analysis)\b/i;
-
-function isChatOnlyDecompositionActivity(summary: RuntimeTaskSessionSummary): boolean {
-	const activity = summary.latestHookActivity;
-	if (activity?.source !== "nklein-sdk" || activity.hookEventName !== "assistant_delta") {
-		return false;
-	}
-	const toolName = activity.toolName?.trim().toLowerCase();
-	if (toolName === "decompose_project") {
-		return false;
-	}
-	const text = `${activity.activityText ?? ""}\n${activity.finalMessage ?? ""}`;
-	return DECOMPOSITION_CHAT_REPORT_PATTERN.test(text);
-}
 
 /**
  * Resolve a task's coarse launch role (todo §5.G/§5.U): reviewer for the synthetic `<taskId>::review` session,
@@ -798,8 +782,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<NKleinTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
-	private readonly decompositionChatNudgeHandlesByTaskId = new Map<string, NodeJS.Timeout>();
-	private readonly decompositionChatNudgeCountsByTaskId = new Map<string, number>();
+	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly activeToolTaskIds = new Set<string>();
 	private readonly sandboxRepoPathByTaskId = new Map<string, string>();
 	private readonly sandboxBaseRefByTaskId = new Map<string, string>();
@@ -844,6 +827,31 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
+		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
+	}
+
+	private buildNudgerCallbacks(): DecompositionStallNudgerCallbacks {
+		return {
+			isExplicitDecompositionTask: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
+			getTaskSummary: (taskId) => this.messageRepository.getTaskEntry(taskId)?.summary ?? null,
+			resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
+			resolveModelId: (taskId) => this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			resolveWorkspacePath: (taskId) => this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ?? null,
+			recordObservation: ({ taskId, workspacePath, providerId, modelId, message, metadata }) => {
+				recordSelfObservation({
+					signal: "budget_wall",
+					severity: "warning",
+					message,
+					taskId,
+					workspacePath,
+					providerId,
+					modelId,
+					metadata,
+				});
+			},
+			cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
+			sendTaskSessionInput: (taskId, text, mode) => this.sendTaskSessionInput(taskId, text, mode),
+		};
 	}
 
 	private async prepareSandboxWorkspace(
@@ -1259,158 +1267,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private clearDecompositionChatNudge(taskId: string): void {
-		const handle = this.decompositionChatNudgeHandlesByTaskId.get(taskId);
-		if (handle) {
-			clearTimeout(handle);
-			this.decompositionChatNudgeHandlesByTaskId.delete(taskId);
-		}
+		this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 	}
 
 	private scheduleDecompositionChatNudge(taskId: string): void {
-		if (!this.explicitDecompositionTaskIds.has(taskId)) {
-			return;
-		}
-		if (this.decompositionChatNudgeHandlesByTaskId.has(taskId)) {
-			return;
-		}
-		if ((this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0) >= NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT) {
-			return;
-		}
-		const handle = setTimeout(() => {
-			this.decompositionChatNudgeHandlesByTaskId.delete(taskId);
-			void this.handleDecompositionChatNudge(taskId);
-		}, NKLEIN_DECOMPOSITION_CHAT_NUDGE_MS);
-		handle.unref();
-		this.decompositionChatNudgeHandlesByTaskId.set(taskId, handle);
-	}
-
-	private async handleDecompositionChatNudge(taskId: string): Promise<void> {
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (entry?.summary.state !== "running" || !isChatOnlyDecompositionActivity(entry.summary)) {
-			return;
-		}
-		const nudgeCount = this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0;
-		if (nudgeCount >= NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT) {
-			return;
-		}
-		this.decompositionChatNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
-		recordSelfObservation({
-			signal: "budget_wall",
-			severity: "warning",
-			message: "!Klein interrupted chat-only decomposition prose and requested a decompose_project tool call.",
-			taskId,
-			workspacePath: entry.summary.workspacePath ?? null,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
-			metadata: {
-				category: "decomposition_chat_only_stall",
-				lastActivity: entry.summary.latestHookActivity?.activityText ?? null,
-				lastTool: entry.summary.latestHookActivity?.toolName ?? null,
-			},
-		});
-		const canceled = await this.cancelTaskTurn(taskId);
-		if (!canceled) {
-			return;
-		}
-		await this.sendTaskSessionInput(
-			taskId,
-			[
-				"The previous turn started writing a chat-only decomposition report. Do not continue that prose.",
-				'Your next assistant output must be the `decompose_project` tool call itself, with no preamble such as "let me call" or "I will".',
-				"Put the summary, assumptions, plan, task graph, `minimumTaskCount`, dependencies, knowledgeDebt, and acceptance command in the tool arguments.",
-				"If a read/list/size request was blocked as duplicate or already available, do not retry it.",
-			].join(" "),
-			canceled.mode ?? "act",
-		);
+		this.decompositionStallNudger.scheduleDecompositionChatNudge(taskId);
 	}
 
 	/**
 	 * When an explicit decomposition turn ends without a `decompose_project` tool call the planning card would
 	 * otherwise sit in Review having never decomposed (and a planning card has no reviewer to pick it up).
-	 * {@link decideDecompositionStallRecovery} classifies the two stall shapes and the side effects happen here:
-	 *
-	 *  - `decompose`: a reasoning-only / chat-only turn (no tool call) — re-prompt to emit the tool call now.
-	 *  - `continue_read`: the turn stopped right after a `read_large_file` chunk (e.g. the model narrated the next
-	 *    read as a `<tool_call>` text block in its reasoning instead of emitting a real call), so the read workflow's
-	 *    `beforeModel` continuation guidance never re-fired — re-prompt to make a real call and finish reading.
-	 *
-	 * Both fire only on a clean, still-live stop (`awaiting_review`/"hook", not a pending user question) and share
-	 * the chat-only nudge budget; a torn-down interrupt or real error/credit stop is left for restart.
+	 * Delegates to {@link DecompositionStallNudger.maybeContinueStalledDecomposition} which classifies the two
+	 * stall shapes (`decompose` / `continue_read`) and re-prompts within the nudge budget.
 	 */
 	private maybeContinueStalledDecomposition(taskId: string): void {
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!entry) {
-			return;
-		}
-		const summary = entry.summary;
-		const activity = summary.latestHookActivity;
-		const finalText = (activity?.finalMessage ?? activity?.activityText ?? "").trim();
-		const nudgeCount = this.decompositionChatNudgeCountsByTaskId.get(taskId) ?? 0;
-		const recovery = decideDecompositionStallRecovery({
-			isDecompositionTask: this.explicitDecompositionTaskIds.has(taskId),
-			state: summary.state,
-			reviewReason: summary.reviewReason ?? null,
-			decomposed: activity?.hookEventName === "decomposition_applied",
-			lastToolName: activity?.toolName ?? null,
-			endedOnQuestion: finalText.endsWith("?"),
-			nudgeCount,
-			nudgeLimit: NKLEIN_DECOMPOSITION_CHAT_NUDGE_LIMIT,
-		});
-		if (recovery.action === "none") {
-			return;
-		}
-		this.decompositionChatNudgeCountsByTaskId.set(taskId, nudgeCount + 1);
-		if (recovery.action === "continue_read") {
-			recordSelfObservation({
-				signal: "budget_wall",
-				severity: "warning",
-				message: "!Klein continued a decomposition turn that stalled mid read_large_file workflow.",
-				taskId,
-				workspacePath: summary.workspacePath ?? null,
-				providerId: this.resolveProviderIdForTask(taskId),
-				modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
-				metadata: {
-					category: "decomposition_read_workflow_stall",
-					lastActivity: activity?.activityText ?? null,
-					lastTool: activity?.toolName ?? null,
-				},
-			});
-			void this.sendTaskSessionInput(
-				taskId,
-				[
-					"Your previous turn ran read_large_file and then stopped without making another real tool call.",
-					"Writing a tool call as text — for example a `<tool_call>{...}</tool_call>` block in your reasoning — does NOT execute anything; you must emit it as an actual tool call.",
-					"If specification.md is not fully read yet, call read_large_file again now with the `nextCursor` value from your last read_large_file result to continue. Do not summarize or decompose until the file is fully read.",
-					"Once the spec is fully read, call `decompose_project` with the full task graph.",
-				].join(" "),
-				"act",
-			).catch(() => undefined);
-			return;
-		}
-		recordSelfObservation({
-			signal: "budget_wall",
-			severity: "warning",
-			message: "!Klein continued a decomposition turn that ended with no decompose_project tool call.",
-			taskId,
-			workspacePath: summary.workspacePath ?? null,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
-			metadata: {
-				category: "decomposition_no_tool_call_stall",
-				lastActivity: activity?.activityText ?? null,
-				hookEventName: activity?.hookEventName ?? null,
-			},
-		});
-		void this.sendTaskSessionInput(
-			taskId,
-			[
-				"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
-				"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
-				"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
-				"specification.md is the authoritative spec; read only what you still need, then call the tool now.",
-			].join(" "),
-			"act",
-		).catch(() => undefined);
+		this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
 	}
 
 	private scheduleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number | null): void {
@@ -1976,8 +1847,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.providerIdByTaskId.set(request.taskId, providerId);
 		this.noDiffCheckpointByTaskId.delete(request.taskId);
 		this.repeatedToolCallByTaskId.delete(request.taskId);
-		this.clearDecompositionChatNudge(request.taskId);
-		this.decompositionChatNudgeCountsByTaskId.delete(request.taskId);
+		this.decompositionStallNudger.resetTask(request.taskId);
 		if (request.startInPlanMode && isExplicitDecompositionPrompt(request.prompt)) {
 			this.explicitDecompositionTaskIds.add(request.taskId);
 		} else {
@@ -2328,9 +2198,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
-		this.clearDecompositionChatNudge(taskId);
+		this.decompositionStallNudger.resetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
-		this.decompositionChatNudgeCountsByTaskId.delete(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
@@ -2373,9 +2242,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
-		this.clearDecompositionChatNudge(taskId);
+		this.decompositionStallNudger.resetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
-		this.decompositionChatNudgeCountsByTaskId.delete(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
@@ -2420,9 +2288,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pauseController.clearTaskParked(taskId);
 		this.pauseController.setCardPaused(taskId, false);
 		this.clearTaskTimeouts(taskId);
-		this.clearDecompositionChatNudge(taskId);
+		this.decompositionStallNudger.resetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
-		this.decompositionChatNudgeCountsByTaskId.delete(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
@@ -3382,9 +3249,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		for (const taskId of this.timeoutHandlesByTaskId.keys()) {
 			this.clearTaskTimeouts(taskId);
 		}
-		for (const taskId of this.decompositionChatNudgeHandlesByTaskId.keys()) {
-			this.clearDecompositionChatNudge(taskId);
-		}
+		this.decompositionStallNudger.dispose();
 		this.timeoutSettingsByTaskId.clear();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
@@ -3397,7 +3262,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.repeatedToolCallByTaskId.clear();
 		this.repeatedFailureTargetByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
-		this.decompositionChatNudgeCountsByTaskId.clear();
 		this.sandboxRepoPathByTaskId.clear();
 		this.sandboxBaseRefByTaskId.clear();
 		this.finalizingSandboxReviewTaskIds.clear();
