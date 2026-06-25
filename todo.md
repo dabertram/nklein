@@ -1742,8 +1742,16 @@ deep analysis:
       flakes; web typecheck + biome clean. *(Establishes the Playwright+route-mock pattern for Suites 8/9. Findings:
       mock must handle BATCHED tRPC paths via `pathname.includes(proc)` + substitute real `workspace.getState`; tRPC
       mutation body without a transformer is `{ "0": { field } }`.)*
-- [ ] **Suite 8 — Playwright: settings + per-project config** (`web-ui/tests/settings.spec.ts`) — guardrails save, provider/MCP dialogs, per-project override.
-- [ ] **Suite 9 — Playwright: second-opinion review + recovery actions** (`web-ui/tests/review-recovery.spec.ts`).
+- [x] **Suite 8 — Playwright: settings (DONE 2026-06-25, 6 tests)** (`web-ui/tests/settings.spec.ts`) — opens the dialog,
+      reads config from mocked `runtime.getConfig` (maxConcurrentTasks, guardrail turns), changing + Save fires
+      `runtime.saveConfig` with the updated value (incl. `swarmGuardrails.maxAutonomousTurnsPerTask`), revert keeps the
+      field, Cancel doesn't save. Route-mocked. *(Findings: the catalog stub must return a real `providers` array or the
+      controller sees phantom unsaved changes; `agentRulesets.capability.globalPreset` must be `"fully_open"`.)*
+- [x] **Suite 9 — Playwright: second-opinion review + recovery (DONE 2026-06-25, 11 tests)** (`web-ui/tests/review-recovery.spec.ts`)
+      — SecondOpinionReviewPanel renders verdict/round/summary/feedback/insight (absent when no `review`);
+      TaskRecoveryActionsPanel fires `collectTaskEvidence` / `mergeTaskWorktrees` / `verifyTaskAcceptance` on the
+      respective buttons, all disable while in-flight. Route-mocked. *(Evidence needs `grantPermissions(["clipboard-*"])`;
+      Verify needs an "Acceptance check:" line in the prompt; assertions use `.first()` to dodge sonner-toast duplicates.)*
 - [ ] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`) — LM Studio + Docker; asserts each phase via HTTP/WS, no host-path leaks. After suites 1–4 green.
 - [ ] **Suite 11 — Core-py contract parity** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X.
 - [x] **Suite 12 — CLI task subcommands (DONE 2026-06-25, 14 tests)** (`test/contract/cli-task-subcommands.test.ts`) —
