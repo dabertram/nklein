@@ -799,7 +799,10 @@ deep analysis:
 >              anything** (read-only — `read_file`/`list_dir`/`get_board` are fine since they change nothing; no
 >              `write_file`/`run_command`/board-mutation). This is a first-class user-selectable mode (the most restrictive,
 >              and a great default for "just talk + read"). **G3a's read-only slice IS the "chat only" mode** — build it
->              first and surface it as that named option.
+>              first and surface it as that named option. **UI DECISION (2026-06-25, user): ONE selector reads
+>              `chat-only · current · all · host`** (chat-only is the read-only floor as a 4th peer entry, NOT a separate
+>              switch). So the chat scope enum gains a `chat_only` value (maps: current=`project_sandboxed`,
+>              all=`all_projects`, host=`host_access`); chat-only ⇒ read-only tools only.
 >           3. **Browser / internet access (reach):** an **independent on/off toggle** the user controls (orthogonal to
 >              scope + mutation) — enable/disable the agent's web/browser + internet tools (ties into G6 + §5.L). Off by
 >              default; a chat-only session can still have browser ON or OFF.
