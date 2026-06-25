@@ -97,6 +97,10 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Project actions",
 		description: "Open per-project actions: edit project settings or remove the project.",
 	},
+	"project.settings-gear": {
+		name: "Project settings",
+		description: "Open this project's settings (agents, isolation, overrides).",
+	},
 	"project.collapse-sidebar": {
 		name: "Collapse sidebar",
 		description: "Hide the project navigation sidebar to give the board more room.",

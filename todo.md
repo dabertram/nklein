@@ -1578,8 +1578,11 @@ deep analysis:
 ### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
 - [x] **Feature-vs-UI audit (2026-06-25, subagent)** — cataloged all 29 runtime-config fields (26 exposed / 3 config-only),
       CLI commands, agent/plan actions, and global-vs-project scoping. Concrete gaps to close below.
-  - [ ] **expose config-only fields:** `maxConcurrentTasks` (global parallel-task cap — add to Tasks settings),
-        `maxAgentWritableFileLines` (write-guard limit — Advanced), and decide `replayCardsEnabled` (expose or mark internal).
+  - [x] **expose/regroup config fields (2026-06-25, subagent + verified)** — `maxConcurrentTasks` now in its own
+        "Swarm Parallelism" card under Tasks; `maxAgentWritableFileLines` ("Max writable file lines") + `replayCardsEnabled`
+        ("Enable card replay", surfaced out of Developer Mode with a destructive note) now in a labelled "Advanced" card.
+        All bound to the existing `useRuntimeConfig`/`save()` path (no new persistence). web typecheck + 694 vitest + biome
+        green. *(These were scattered/semi-hidden, not truly config-only — net change is proper grouping + discoverability.)*
   - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
         per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm
@@ -1592,8 +1595,10 @@ deep analysis:
 - [ ] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
       for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
       the override model + storage; wire it through.
-- [ ] **Project Settings discoverability** — add a **visible gear on the active project** (and/or board header) for
-      one-click access to the existing Project Settings dialog; keep the `⋯`-menu item too. (Dialog exists; was hidden.)
+- [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
+      visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
+      existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
+      ([project-row.tsx](web-ui/src/components/project-nav/project-row.tsx)) *(A board-header entry point is still optional.)*
 - [ ] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
       Intelligence, Advanced, …) so nothing is scattered; consistent layout. Pair with the §5.U `runtime-settings-dialog`
       decomposition when that runs.

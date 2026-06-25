@@ -180,7 +180,26 @@ export function ProjectRow({
 					</div>
 				) : null}
 			</div>
-			<div className="kb-project-row-actions flex items-center" style={isMenuOpen ? { opacity: 1 } : undefined}>
+			<div
+				className="kb-project-row-actions flex items-center gap-0.5"
+				style={isMenuOpen ? { opacity: 1 } : undefined}
+			>
+				{isCurrent ? (
+					<ElementTooltip id="project.settings-gear" side="right">
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={<Settings size={14} />}
+							disabled={hasAnyProjectRemoval}
+							className="text-accent-fg hover:bg-accent-fg/20 hover:text-accent-fg active:bg-accent-fg/30"
+							onClick={(e) => {
+								e.stopPropagation();
+								onOpenSettings(project.id);
+							}}
+							aria-label="Project settings"
+						/>
+					</ElementTooltip>
+				) : null}
 				<DropdownMenu.Root open={isMenuOpen} onOpenChange={setIsMenuOpen}>
 					<ElementTooltip id="project.actions" side="right">
 						<DropdownMenu.Trigger asChild>
