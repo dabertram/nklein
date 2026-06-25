@@ -499,6 +499,15 @@ deep analysis:
         as `begin_implementation`) to move the card to In Progress before the write runs. Idempotent (no-op once in
         progress), self-gates on `startInPlanMode` exactly like the explicit tool. Add a unit test (mutating tool in
         Planning → promotes; non-mutating read tool → no promote; already in_progress → no-op).
+        **CAVEATS confirmed 2026-06-25 (why it's focused work, not a quick change):** the exact insertion point is the
+        **catch-all** `const approval = await baseRequestToolApproval(approvalRequest); if (approval.approved &&
+        REPO_MAP_INVALIDATING_TOOL_NAMES.has(...)) { … }` block (where repo-map caches are already invalidated for
+        mutating tools). BUT the whole `requestToolApproval` wrapper only exists when `request.requestToolApproval` is
+        provided — **verify it's actually wired for Docker-sandboxed work-card tasks** (if sandbox tool execution
+        bypasses it, hook the sandbox tool-executor or the `afterModel` seam instead). And it needs **LIVE verification**
+        (a real sandboxed work card that writes files without calling begin_implementation → assert its card auto-moves
+        Planning→In Progress) — so do it with a clean machine + a dev-test, not rushed. Also makes the live Suite 10
+        reliable (the lane always advances even if a small model skips the explicit tool).
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
