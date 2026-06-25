@@ -388,6 +388,19 @@ export function getTaskColumnId(board: RuntimeBoardData, taskId: string): Runtim
 	return found ? found.columnId : null;
 }
 
+/**
+ * Find a card and the lane it is in, anywhere on the board. The single board-wide card+column lookup — replaces the
+ * per-call-site copies (the start-lane reconcile, the §5.B promotion tool, runtime-api) the systems-analysis pass
+ * flagged as duplicated.
+ */
+export function findBoardCardWithColumn(
+	board: RuntimeBoardData,
+	taskId: string,
+): { card: RuntimeBoardCard; columnId: RuntimeBoardColumnId } | null {
+	const found = findTaskLocation(board, taskId);
+	return found ? { card: found.task, columnId: found.columnId } : null;
+}
+
 export function addTaskDependency(
 	board: RuntimeBoardData,
 	firstTaskId: string,

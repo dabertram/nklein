@@ -1,7 +1,7 @@
 import { mutateWorkspaceState } from "../state/workspace-state";
-import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeTaskSessionSummary } from "./api-contract";
+import type { RuntimeBoardColumnId, RuntimeTaskSessionSummary } from "./api-contract";
 import { isHomeAgentSessionId } from "./home-agent-session";
-import { moveTaskToColumn, STARTED_CARD_ENTRY_LANE } from "./task-board-mutations";
+import { findBoardCardWithColumn, moveTaskToColumn, STARTED_CARD_ENTRY_LANE } from "./task-board-mutations";
 
 /**
  * Where a *running* card should be, keyed by the lane it is in now. Only Backlog and Review are remapped:
@@ -39,7 +39,7 @@ export async function reconcileStartedTaskBoardLane(input: {
 	}
 	try {
 		const response = await mutateWorkspaceState<boolean>(input.workspacePath, (state) => {
-			const record = findBoardCardById(state.board.columns, input.summary.taskId);
+			const record = findBoardCardWithColumn(state.board, input.summary.taskId);
 			const targetColumnId = record ? RUNNING_CARD_ENTRY_LANE_BY_SOURCE[record.columnId] : undefined;
 			if (!targetColumnId) {
 				return { board: state.board, save: false, value: false };
@@ -52,18 +52,4 @@ export async function reconcileStartedTaskBoardLane(input: {
 		// Lane reconciliation is best-effort for real persisted boards; never let it surface or block a start/run.
 		return false;
 	}
-}
-
-function findBoardCardById(
-	columns: readonly { id: RuntimeBoardColumnId; cards: readonly RuntimeBoardCard[] }[],
-	taskId: string,
-): { card: RuntimeBoardCard; columnId: RuntimeBoardColumnId } | null {
-	for (const column of columns) {
-		for (const card of column.cards) {
-			if (card.id === taskId) {
-				return { card, columnId: column.id };
-			}
-		}
-	}
-	return null;
 }

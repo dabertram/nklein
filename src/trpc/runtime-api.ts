@@ -67,6 +67,7 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { selectRoleModel } from "../core/role-model-selection";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
+import { findBoardCardWithColumn } from "../core/task-board-mutations";
 import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
@@ -212,20 +213,6 @@ async function resolveGitCommit(cwd: string, ref: string): Promise<string | null
 
 function findBoardCardById(cards: readonly RuntimeBoardCard[], taskId: string): RuntimeBoardCard | null {
 	return cards.find((card) => card.id === taskId) ?? null;
-}
-
-function findBoardCardRecordById(
-	board: { columns: readonly { id: string; cards: readonly RuntimeBoardCard[] }[] },
-	taskId: string,
-): { card: RuntimeBoardCard; columnId: string } | null {
-	for (const column of board.columns) {
-		for (const card of column.cards) {
-			if (card.id === taskId) {
-				return { card, columnId: column.id };
-			}
-		}
-	}
-	return null;
 }
 
 function findSourceCardBaseRef(cards: readonly RuntimeBoardCard[], sourceTaskId: string | null): string | null {
@@ -599,7 +586,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		verifyTaskAcceptance: async (workspaceScope, input) => {
 			const state = await loadWorkspaceState(workspaceScope.workspacePath);
-			const taskRecord = findBoardCardRecordById(state.board, input.taskId);
+			const taskRecord = findBoardCardWithColumn(state.board, input.taskId);
 			if (!taskRecord) {
 				throw new TRPCError({
 					code: "NOT_FOUND",

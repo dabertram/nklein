@@ -1,6 +1,6 @@
 import type { AgentTool } from "@nklein/shared";
-import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
-import { moveTaskToColumn } from "../core/task-board-mutations";
+import type { RuntimeBoardColumnId } from "../core/api-contract";
+import { findBoardCardWithColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
 
 /**
@@ -55,22 +55,6 @@ function readRefinementNotes(input: unknown): string | null {
 	return typeof notes === "string" && notes.trim() ? notes.trim() : null;
 }
 
-/** Local board lookup (card + its column) — kept self-contained rather than exporting `findTaskLocation`. */
-function findCard(
-	board: RuntimeBoardData,
-	taskId: string,
-): { card: RuntimeBoardCard; columnId: RuntimeBoardColumnId } | null {
-	const normalized = taskId.trim();
-	for (const column of board.columns) {
-		for (const card of column.cards) {
-			if (card.id === normalized) {
-				return { card, columnId: column.id };
-			}
-		}
-	}
-	return null;
-}
-
 export function createNKleinPromotionTool(options: {
 	workspacePath: string;
 	taskId: string;
@@ -100,7 +84,7 @@ export function createNKleinPromotionTool(options: {
 			const refinementNotes = readRefinementNotes(input);
 
 			const outcome = await mutateWorkspaceState<PromotionOutcome>(options.workspacePath, (state) => {
-				const located = findCard(state.board, options.taskId);
+				const located = findBoardCardWithColumn(state.board, options.taskId);
 				if (located === null) {
 					return {
 						board: state.board,
