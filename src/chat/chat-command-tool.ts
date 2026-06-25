@@ -1,7 +1,14 @@
 import { spawn } from "node:child_process";
 import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
+import type { CommandSafetyResult } from "./chat-command-safety";
+import { classifyCommandSafety } from "./chat-command-safety";
 import type { ChatTool } from "./chat-tool-executor";
+
+export type { CommandSafety, CommandSafetyResult } from "./chat-command-safety";
+// Re-export the classifier so consumers of this module (e.g. the risk-acknowledgement flow, G3c+) can
+// reach it from a single import rather than knowing the sibling module name.
+export { classifyCommandSafety } from "./chat-command-safety";
 
 /**
  * The `run_command` execution tool for the chat agent (todo §5.M G2 — "agents running commands, test if things
@@ -11,6 +18,10 @@ import type { ChatTool } from "./chat-tool-executor";
  * It is a `host_command` action, so the execution-mode gate governs it under the §5.M invariant: **denied** outright
  * in the default `isolated_readonly` mode, and a **logged, explicit confirmation** in the host-capable modes — a
  * command is never run silently. The runner is injected so the tool is unit-testable without spawning a process.
+ *
+ * The safety classifier (`classifyCommandSafety`) is called on each command and its result is available via the
+ * `CommandRunRecord.safety` field so callers can implement risk-acknowledgement flows (todo §5.M G3b/G3c) without
+ * changing execution behaviour here.
  */
 
 export interface CommandRunResult {
@@ -19,6 +30,20 @@ export interface CommandRunResult {
 	/** Process exit code, or null when it was killed (e.g. timed out) or failed to spawn. */
 	exitCode: number | null;
 	timedOut: boolean;
+}
+
+/**
+ * Enriched record returned by the `onCommandRun` observer: the raw shell result plus the pre-execution
+ * safety classification (safe / unsafe + reason). Consumers of this data (e.g. the risk-acknowledgement
+ * flow, todo §5.M G3c) can use `safety` to decide whether to prompt the user.
+ *
+ * The classification is computed BEFORE execution so that the future confirm/risk flow can intercept;
+ * for now it is passed through as metadata only — execution is not gated on it here.
+ */
+export interface CommandRunRecord {
+	command: string;
+	safety: CommandSafetyResult;
+	result: CommandRunResult;
 }
 
 export interface CommandRunnerDeps {
@@ -31,6 +56,12 @@ export interface CommandToolOptions {
 	timeoutMs?: number;
 	/** Max characters of stdout/stderr surfaced to the agent (each stream is truncated, default 8000). */
 	maxOutputChars?: number;
+	/**
+	 * Optional observer called after each successful run (not on the empty-command early-return). Receives the
+	 * enriched `CommandRunRecord` including the pre-run safety classification. Intended for the risk-acknowledgement
+	 * flow (todo §5.M G3c) and audit logging; does NOT gate or alter execution.
+	 */
+	onCommandRun?: (record: CommandRunRecord) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -106,11 +137,16 @@ function formatResult(result: CommandRunResult, maxOutputChars: number): string 
 /**
  * Build the `run_command` tool rooted at `rootDir` (commands run with that working directory). Plugs into
  * `createGatedChatToolExecutor`; the gate enforces the §5.M host-access policy before `run` is ever called.
+ *
+ * The safety classifier runs on every command and the result is forwarded to `options.onCommandRun` (if
+ * provided) as part of the `CommandRunRecord`. This is the hook the upcoming risk-acknowledgement flow
+ * (§5.M G3c) will use — no behaviour is changed here, execution is never gated by the classifier.
  */
 export function createCommandRunTool(rootDir: string, options: CommandToolOptions = {}): ChatToolSet {
 	const runner = options.runner ?? DEFAULT_RUNNER;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
+	const { onCommandRun } = options;
 
 	const tools: ChatTool[] = [
 		{
@@ -121,7 +157,10 @@ export function createCommandRunTool(rootDir: string, options: CommandToolOption
 				if (!command) {
 					return "Provide a `command` string to run.";
 				}
+				// Classify BEFORE running so the future risk-acknowledgement flow can intercept here.
+				const safety = classifyCommandSafety(command);
 				const result = await runner.run({ command, cwd: rootDir, timeoutMs });
+				onCommandRun?.({ command, safety, result });
 				return formatResult(result, maxOutputChars);
 			},
 		},
