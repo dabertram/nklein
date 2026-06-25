@@ -787,7 +787,19 @@ deep analysis:
 >   - [ ] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent** (`chat-service.sendMessage`/`streamMessage`
 >         currently call the plain `runChatTurn`) — the biggest gap: the agent the user actually means can't call ANY
 >         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode, streaming tool
->         activity to the UI.
+>         activity to the UI. **DESIGN (assessed 2026-06-25; two real forks — sensible defaults prepared, log on build):**
+>         (1) **Workspace resolution** — `chat-service` has no project root; `runtime-api` has `workspaceScope.workspacePath`
+>         per request. *Default:* thread the **current/active workspace** path into `sendMessage`/`streamMessage` and root
+>         the tools there (the session `scope` — project_sandboxed/all_projects/host_access — later refines this; map
+>         project_sandboxed→`isolated_readonly`, host_access→`host`). (2) **Streaming vs tools** — `runChatAgentTurn` is
+>         **not token-streaming** (model sig is `(messages, allowTools) → full response`), so a tool-using turn can't emit
+>         token deltas like the plain path. *Default:* a tool-using turn streams **tool-activity events + the final reply**
+>         (not per-token); keep plain `runChatTurn` for sessions with no workspace so simple chats still token-stream.
+>         (3) **Confirm UI** — the web-ui has no confirm prompt yet, so the first slice offers only **read-only** tools
+>         (`read_file`/`list_dir`/`get_board`, all `sandbox_read` = always-allowed); `write_file`/`run_command` wait on a
+>         UI confirm dialog (a later slice). **First slice = read-only tools through the agent loop, rooted at the active
+>         workspace, mode isolated_readonly — makes the right-sidebar agent able to read the project + see the board.**
+>         Architecture-heavy + wants Playwright UI verification → build with a fresh, focused pass.
 >   - [ ] **G4 — focus chain (§5.N) in the chat agent** — persist + surface a self-directed checklist per chat session
 >         (the task agents already have `update_focus_chain`; fold the same tool + persistence into the chat loop).
 >   - [ ] **G5 — board mutations** — `create_card` / `start_card` tools (trusted control-plane board writes, gated) so
