@@ -1703,7 +1703,12 @@ deep analysis:
 - [x] **§5.V infra: `test/contract/helpers/` (DONE 2026-06-25)** — `backend.ts` (BackendUnderTest/Factory + `startTsBackend` + `resolveBackendFactory`, TSX_TSCONFIG_PATH-pinned), `http.ts` (`requestJson`), `ws.ts` (`connectRuntimeStream`), `git.ts`, `fixtures/board.ts` (`createBoard`/`seedWorkspace`), barrel `index.ts`. Integration test rewired onto them (8/8 still green). The port-resilient base for every suite.
 - [x] **Suite 1 — HTTP tRPC core CRUD (DONE 2026-06-25, 16 tests)** (`test/contract/trpc-core-contract.test.ts`) — projects.list/add/remove, workspace.getState/saveState (+ a 409 revision-conflict), runtime.getConfig/saveConfig, swarm stop/request/clear, listNKleinPlanArtifacts — all over real HTTP, asserting status + JSON shape + on-disk effects. *(Contract facts: it's `workspace.getState` not `loadState`; a no-input mutation needs `payload:{}` to avoid 415; stale `expectedRevision` → 409.)*
 - [x] **Suite 2 — plan-artifact pipeline (DONE 2026-06-25, 12 tests)** (`test/contract/plan-artifact-pipeline-contract.test.ts`) — list→apply (cards land in Planning, deps wired)→reject over HTTP + on-disk plan format; re-apply is idempotent (0 new cards, deduped by plan-task-id). *(Agent hit an API error mid-run at 11/12; I fixed the one wrong assumption — re-apply does NOT duplicate cards — to 12/12.)*
-- [ ] **Suite 3 — CLI + WS task lifecycle** (`test/contract/task-lifecycle-contract.test.ts`) — `nklein task` create/list/update/done/trash/delete subprocess + WS board events.
+- [x] **Suite 3 — CLI task mutation → WS board event (DONE 2026-06-25, 2 tests)** (`test/contract/task-lifecycle-contract.test.ts`)
+      — the CLI task CRUD itself is covered exhaustively by **Suite 12**, and the `workspace_state_updated` WS push on a
+      **tRPC** mutation (+ per-project isolation) by `runtime-state-stream.integration.test.ts`; this closes the one seam
+      neither covers — the **CLI→WS chain**: subscribe to the runtime state stream, drive `nklein task create`/`done` as
+      black-box subprocesses, and assert the board event reaches the socket (new card lands in Backlog; `done` moves it to
+      Completed). Confirms a CLI persistence path can't silently skip the broadcast hook and leave the live UI stale.
 - [x] **§5.V mock-LLM harness (DONE + self-verified 2026-06-25)** — `test/contract/helpers/mock-llm.ts`: a scriptable
       OpenAI-compatible `node:http` mock (`startMockLlm` → `{ baseUrl, enqueue, setDefault, requests, close }`) serving
       `GET /models` + `POST /chat/completions` (non-stream JSON + SSE stream + tool_calls). Smoke test `mock-llm.test.ts`
