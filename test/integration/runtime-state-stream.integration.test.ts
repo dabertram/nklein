@@ -1,68 +1,29 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { createServer } from "node:http";
-import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
-import { WebSocket } from "ws";
 
 import type {
 	RuntimeBoardData,
 	RuntimeProjectAddResponse,
 	RuntimeProjectRemoveResponse,
 	RuntimeProjectsResponse,
-	RuntimeStateStreamMessage,
 	RuntimeStateStreamProjectsMessage,
 	RuntimeStateStreamSnapshotMessage,
 	RuntimeStateStreamWorkspaceStateMessage,
-	RuntimeTaskWorkspaceInfoResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../../src/core/api-contract";
-import { createGitTestEnv } from "../utilities/git-env";
+import type { RuntimeStreamClient } from "../contract/helpers";
+import {
+	connectRuntimeStream,
+	createBoard,
+	getAvailablePort,
+	initGitRepository,
+	requestJson,
+	startTsBackend,
+} from "../contract/helpers";
 import { createTempDir } from "../utilities/temp-dir";
-
-const requireFromHere = createRequire(import.meta.url);
-
-interface RuntimeStreamClient {
-	socket: WebSocket;
-	waitForMessage: (
-		predicate: (message: RuntimeStateStreamMessage) => boolean,
-		timeoutMs?: number,
-	) => Promise<RuntimeStateStreamMessage>;
-	collectFor: (durationMs: number) => Promise<RuntimeStateStreamMessage[]>;
-	close: () => Promise<void>;
-}
-
-function createBoard(title: string): RuntimeBoardData {
-	const now = Date.now();
-	return {
-		columns: [
-			{
-				id: "backlog",
-				title: "Backlog",
-				cards: [
-					{
-						id: "task-1",
-						title: title,
-						prompt: title,
-						startInPlanMode: false,
-						baseRef: "main",
-						createdAt: now,
-						updatedAt: now,
-					},
-				],
-			},
-			{ id: "in_progress", title: "In Progress", cards: [] },
-			{ id: "review", title: "Review", cards: [] },
-			{ id: "trash", title: "Done", cards: [] },
-		],
-		dependencies: [],
-	};
-}
 
 function createReviewBoard(taskId: string, title: string, existingTrashTaskId?: string): RuntimeBoardData {
 	const now = Date.now();
@@ -104,351 +65,25 @@ function createReviewBoard(taskId: string, title: string, existingTrashTaskId?: 
 	};
 }
 
-async function getAvailablePort(): Promise<number> {
-	const server = createServer();
-	await new Promise<void>((resolveListen, rejectListen) => {
-		server.once("error", rejectListen);
-		server.listen(0, "127.0.0.1", () => resolveListen());
+/**
+ * Register the server's cwd as a project and return its workspace ID.
+ *
+ * The server no longer eagerly registers its cwd at startup — it only indexes
+ * a workspace when the client explicitly adds it. Pass the cwd path and
+ * `confirmSelfProject: true` so the self-project guard is satisfied, then read
+ * the assigned workspace ID from the add response.
+ */
+async function resolveStartupWorkspaceId(port: number, cwdPath: string): Promise<string> {
+	const addResponse = await requestJson<RuntimeProjectAddResponse>({
+		baseUrl: `http://127.0.0.1:${port}`,
+		procedure: "projects.add",
+		type: "mutation",
+		payload: { path: cwdPath, confirmSelfProject: true },
 	});
-	const address = server.address();
-	const port = typeof address === "object" && address ? address.port : null;
-	await new Promise<void>((resolveClose, rejectClose) => {
-		server.close((error) => {
-			if (error) {
-				rejectClose(error);
-				return;
-			}
-			resolveClose();
-		});
-	});
-	if (!port) {
-		throw new Error("Could not allocate a test port.");
+	if (!addResponse.payload.ok || !addResponse.payload.project) {
+		throw new Error(`Failed to register startup workspace: ${JSON.stringify(addResponse.payload)}`);
 	}
-	return port;
-}
-
-function initGitRepository(path: string): void {
-	const init = spawnSync("git", ["init"], {
-		cwd: path,
-		stdio: "ignore",
-		env: createGitTestEnv(),
-	});
-	if (init.status !== 0) {
-		throw new Error(`Failed to initialize git repository at ${path}`);
-	}
-}
-
-function runGit(cwd: string, args: string[]): string {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		env: createGitTestEnv(),
-	});
-	if (result.status !== 0) {
-		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
-	}
-	return result.stdout.trim();
-}
-
-function _commitAll(cwd: string, message: string): string {
-	runGit(cwd, ["add", "."]);
-	runGit(cwd, ["commit", "-qm", message]);
-	return runGit(cwd, ["rev-parse", "HEAD"]);
-}
-
-function resolveShutdownIpcHookPath(): string {
-	return resolve(process.cwd(), "test/integration/shutdown-ipc-hook.cjs");
-}
-
-function resolveTsxLoaderImportSpecifier(): string {
-	return pathToFileURL(requireFromHere.resolve("tsx")).href;
-}
-
-async function waitForProcessStart(process: ChildProcess, timeoutMs = 10_000): Promise<{ runtimeUrl: string }> {
-	return await new Promise((resolveStart, rejectStart) => {
-		if (!process.stdout || !process.stderr) {
-			rejectStart(new Error("Expected child process stdout/stderr pipes to be available."));
-			return;
-		}
-		let settled = false;
-		let stdout = "";
-		let stderr = "";
-		const timeoutId = setTimeout(() => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			rejectStart(new Error(`Timed out waiting for server start.\nstdout:\n${stdout}\nstderr:\n${stderr}`));
-		}, timeoutMs);
-		const handleOutput = (chunk: Buffer, source: "stdout" | "stderr") => {
-			const text = chunk.toString();
-			if (source === "stdout") {
-				stdout += text;
-			} else {
-				stderr += text;
-			}
-			const match = stdout.match(/!Klein running at (http:\/\/127\.0\.0\.1:\d+(?:\/[^\s]*)?)/);
-			if (!match || settled) {
-				return;
-			}
-			const runtimeUrl = match[1];
-			if (!runtimeUrl) {
-				return;
-			}
-			settled = true;
-			clearTimeout(timeoutId);
-			resolveStart({ runtimeUrl });
-		};
-		process.stdout.on("data", (chunk: Buffer) => {
-			handleOutput(chunk, "stdout");
-		});
-		process.stderr.on("data", (chunk: Buffer) => {
-			handleOutput(chunk, "stderr");
-		});
-		process.once("exit", (code, signal) => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			clearTimeout(timeoutId);
-			rejectStart(
-				new Error(
-					`Server process exited before startup (code=${String(code)} signal=${String(signal)}).\nstdout:\n${stdout}\nstderr:\n${stderr}`,
-				),
-			);
-		});
-	});
-}
-
-function getShutdownSignal(): NodeJS.Signals {
-	return process.platform === "win32" ? "SIGTERM" : "SIGINT";
-}
-
-async function requestGracefulShutdown(childProcess: ChildProcess): Promise<void> {
-	if (typeof childProcess.send !== "function" || !childProcess.connected) {
-		childProcess.kill(getShutdownSignal());
-		return;
-	}
-
-	await new Promise<void>((resolveSend) => {
-		childProcess.send({ type: "kanban.shutdown" }, (error) => {
-			if (error) {
-				childProcess.kill(getShutdownSignal());
-			}
-			resolveSend();
-		});
-	});
-}
-
-async function waitForExit(childProcess: ChildProcess, timeoutMs: number): Promise<boolean> {
-	if (childProcess.exitCode !== null) {
-		return true;
-	}
-
-	return await new Promise<boolean>((resolveExit) => {
-		const handleExit = () => {
-			clearTimeout(timeoutId);
-			resolveExit(true);
-		};
-		const timeoutId = setTimeout(() => {
-			childProcess.removeListener("exit", handleExit);
-			resolveExit(false);
-		}, timeoutMs);
-		childProcess.once("exit", handleExit);
-	});
-}
-
-async function startKanbanServer(input: { cwd: string; homeDir: string; port: number; extraArgs?: string[] }): Promise<{
-	runtimeUrl: string;
-	stop: () => Promise<void>;
-}> {
-	const cliEntrypoint = resolve(process.cwd(), "src/cli.ts");
-	const shutdownIpcHookPath = resolveShutdownIpcHookPath();
-	const tsxLoaderImportSpecifier = resolveTsxLoaderImportSpecifier();
-	const child = spawn(
-		process.execPath,
-		[
-			"--require",
-			shutdownIpcHookPath,
-			"--import",
-			tsxLoaderImportSpecifier,
-			cliEntrypoint,
-			"--no-open",
-			...(input.extraArgs ?? []),
-		],
-		{
-			cwd: input.cwd,
-			env: createGitTestEnv({
-				HOME: input.homeDir,
-				USERPROFILE: input.homeDir,
-				KANBAN_RUNTIME_PORT: String(input.port),
-			}),
-			stdio: ["ignore", "pipe", "pipe", "ipc"],
-		},
-	);
-	const { runtimeUrl } = await waitForProcessStart(child);
-	return {
-		runtimeUrl,
-		stop: async () => {
-			if (child.exitCode !== null) {
-				return;
-			}
-			await requestGracefulShutdown(child);
-			const didExitGracefully = await waitForExit(child, 5_000);
-			if (didExitGracefully) {
-				return;
-			}
-
-			child.kill("SIGKILL");
-			const didExitAfterForce = await waitForExit(child, 5_000);
-			if (!didExitAfterForce) {
-				throw new Error("Timed out stopping kanban test server process.");
-			}
-		},
-	};
-}
-
-async function connectRuntimeStream(url: string): Promise<RuntimeStreamClient> {
-	const socket = new WebSocket(url);
-	const emitter = new EventEmitter();
-	const queue: RuntimeStateStreamMessage[] = [];
-
-	socket.on("message", (raw) => {
-		try {
-			const parsed = JSON.parse(String(raw)) as RuntimeStateStreamMessage;
-			queue.push(parsed);
-			emitter.emit("message");
-		} catch {
-			// Ignore malformed messages in tests.
-		}
-	});
-
-	await new Promise<void>((resolveOpen, rejectOpen) => {
-		const timeoutId = setTimeout(() => {
-			rejectOpen(new Error(`Timed out connecting websocket: ${url}`));
-		}, 5_000);
-		socket.once("open", () => {
-			clearTimeout(timeoutId);
-			resolveOpen();
-		});
-		socket.once("error", (error) => {
-			clearTimeout(timeoutId);
-			rejectOpen(error);
-		});
-	});
-
-	const waitForMessage = async (
-		predicate: (message: RuntimeStateStreamMessage) => boolean,
-		timeoutMs = 5_000,
-	): Promise<RuntimeStateStreamMessage> =>
-		await new Promise((resolveMessage, rejectMessage) => {
-			let settled = false;
-			const tryResolve = () => {
-				if (settled) {
-					return;
-				}
-				const index = queue.findIndex(predicate);
-				if (index < 0) {
-					return;
-				}
-				const [message] = queue.splice(index, 1);
-				if (!message) {
-					return;
-				}
-				settled = true;
-				clearTimeout(timeoutId);
-				emitter.removeListener("message", tryResolve);
-				resolveMessage(message);
-			};
-			const timeoutId = setTimeout(() => {
-				if (settled) {
-					return;
-				}
-				settled = true;
-				emitter.removeListener("message", tryResolve);
-				rejectMessage(new Error("Timed out waiting for expected websocket message."));
-			}, timeoutMs);
-			emitter.on("message", tryResolve);
-			tryResolve();
-		});
-
-	return {
-		socket,
-		waitForMessage,
-		collectFor: async (durationMs: number) => {
-			await new Promise((resolveDelay) => {
-				setTimeout(resolveDelay, durationMs);
-			});
-			const messages = queue.slice();
-			queue.length = 0;
-			return messages;
-		},
-		close: async () => {
-			if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-				return;
-			}
-			await new Promise<void>((resolveClose) => {
-				socket.once("close", () => resolveClose());
-				socket.close();
-			});
-		},
-	};
-}
-
-async function requestJson<T>(input: {
-	baseUrl: string;
-	procedure: string;
-	type: "query" | "mutation";
-	workspaceId?: string | null;
-	payload?: unknown;
-}): Promise<{ status: number; payload: T }> {
-	const unwrapTrpcPayload = (value: unknown): unknown => {
-		const envelope = Array.isArray(value) ? value[0] : value;
-		if (!envelope || typeof envelope !== "object") {
-			return value;
-		}
-		if ("result" in envelope) {
-			const result = (envelope as { result?: { data?: unknown } }).result;
-			const data = result?.data;
-			if (data && typeof data === "object" && "json" in data) {
-				return (data as { json: unknown }).json;
-			}
-			return data;
-		}
-		if ("error" in envelope) {
-			return (envelope as { error: unknown }).error;
-		}
-		return value;
-	};
-	const headers = new Headers();
-	if (input.workspaceId) {
-		headers.set("x-kanban-workspace-id", input.workspaceId);
-	}
-	let url = `${input.baseUrl}/api/trpc/${input.procedure}`;
-	let method: "GET" | "POST";
-	let body: string | undefined;
-	if (input.type === "query") {
-		method = "GET";
-		if (input.payload !== undefined) {
-			url += `?input=${encodeURIComponent(JSON.stringify(input.payload))}`;
-		}
-	} else {
-		method = "POST";
-		body = input.payload === undefined ? undefined : JSON.stringify(input.payload);
-	}
-	if (body !== undefined) {
-		headers.set("Content-Type", "application/json");
-	}
-	const response = await fetch(url, {
-		method,
-		headers,
-		body,
-	});
-	const payload = unwrapTrpcPayload(await response.json().catch(() => null)) as T;
-	return {
-		status: response.status,
-		payload,
-	};
+	return addResponse.payload.project.id;
 }
 
 describe.sequential("runtime state stream integration", () => {
@@ -457,7 +92,7 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: nonGitPath, cleanup: cleanupNonGitPath } = createTempDir("kanban-no-git-");
 
 		const port = await getAvailablePort();
-		const server = await startKanbanServer({
+		const server = await startTsBackend({
 			cwd: nonGitPath,
 			homeDir: tempHome,
 			port,
@@ -466,7 +101,7 @@ describe.sequential("runtime state stream integration", () => {
 		let stream: RuntimeStreamClient | null = null;
 
 		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
+			const runtimeUrl = new URL(server.baseUrl);
 			expect(runtimeUrl.pathname).toBe("/");
 
 			const projectsResponse = await requestJson<RuntimeProjectsResponse>({
@@ -499,7 +134,7 @@ describe.sequential("runtime state stream integration", () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-home-dir-launch-");
 
 		const port = await getAvailablePort();
-		const server = await startKanbanServer({
+		const server = await startTsBackend({
 			cwd: tempHome,
 			homeDir: tempHome,
 			port,
@@ -508,7 +143,7 @@ describe.sequential("runtime state stream integration", () => {
 		let stream: RuntimeStreamClient | null = null;
 
 		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
+			const runtimeUrl = new URL(server.baseUrl);
 			expect(runtimeUrl.pathname).toBe("/");
 
 			const projectsResponse = await requestJson<RuntimeProjectsResponse>({
@@ -550,7 +185,7 @@ describe.sequential("runtime state stream integration", () => {
 		initGitRepository(projectBPath);
 
 		const firstPort = await getAvailablePort();
-		const firstServer = await startKanbanServer({
+		const firstServer = await startTsBackend({
 			cwd: projectAPath,
 			homeDir: tempHome,
 			port: firstPort,
@@ -558,8 +193,8 @@ describe.sequential("runtime state stream integration", () => {
 
 		let workspaceAId: string | null = null;
 		try {
-			const firstRuntimeUrl = new URL(firstServer.runtimeUrl);
-			workspaceAId = decodeURIComponent(firstRuntimeUrl.pathname.slice(1));
+			workspaceAId = await resolveStartupWorkspaceId(firstPort, projectAPath);
+			expect(workspaceAId).not.toBeNull();
 			expect(workspaceAId).not.toBe("");
 
 			const addProjectResponse = await requestJson<RuntimeProjectAddResponse>({
@@ -578,7 +213,7 @@ describe.sequential("runtime state stream integration", () => {
 		}
 
 		const secondPort = await getAvailablePort();
-		const secondServer = await startKanbanServer({
+		const secondServer = await startTsBackend({
 			cwd: nonGitPath,
 			homeDir: tempHome,
 			port: secondPort,
@@ -586,13 +221,17 @@ describe.sequential("runtime state stream integration", () => {
 
 		let secondStream: RuntimeStreamClient | null = null;
 		try {
-			const secondRuntimeUrl = new URL(secondServer.runtimeUrl);
-			expect(workspaceAId).not.toBeNull();
 			if (!workspaceAId) {
 				throw new Error("Missing workspace id for project A.");
 			}
-			const secondWorkspaceId = decodeURIComponent(secondRuntimeUrl.pathname.slice(1));
-			expect(secondWorkspaceId).toBe(workspaceAId);
+			// Second server starts from a non-git dir; workspaceAId is already indexed from the
+			// first server run, so read it from the initial WS snapshot (no add needed).
+			const secondStream0 = await connectRuntimeStream(`ws://127.0.0.1:${secondPort}/api/runtime/ws`);
+			const secondSnapshot0 = (await secondStream0.waitForMessage(
+				(message): message is RuntimeStateStreamSnapshotMessage => message.type === "snapshot",
+			)) as RuntimeStateStreamSnapshotMessage;
+			await secondStream0.close();
+			expect(secondSnapshot0.currentProjectId).toBe(workspaceAId);
 			const expectedProjectAPath = await realpath(projectAPath).catch(() => resolve(projectAPath));
 
 			const projectsResponse = await requestJson<RuntimeProjectsResponse>({
@@ -630,7 +269,7 @@ describe.sequential("runtime state stream integration", () => {
 		initGitRepository(projectAPath);
 
 		const port = await getAvailablePort();
-		const server = await startKanbanServer({
+		const server = await startTsBackend({
 			cwd: projectAPath,
 			homeDir: tempHome,
 			port,
@@ -638,8 +277,8 @@ describe.sequential("runtime state stream integration", () => {
 
 		let workspaceAId: string | null = null;
 		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
-			workspaceAId = decodeURIComponent(runtimeUrl.pathname.slice(1));
+			workspaceAId = await resolveStartupWorkspaceId(port, projectAPath);
+			expect(workspaceAId).not.toBeNull();
 			expect(workspaceAId).not.toBe("");
 
 			const addWithoutInitResponse = await requestJson<RuntimeProjectAddResponse>({
@@ -698,7 +337,7 @@ describe.sequential("runtime state stream integration", () => {
 		initGitRepository(projectBPath);
 
 		const port = await getAvailablePort();
-		const server = await startKanbanServer({
+		const server = await startTsBackend({
 			cwd: projectAPath,
 			homeDir: tempHome,
 			port,
@@ -708,9 +347,7 @@ describe.sequential("runtime state stream integration", () => {
 		let streamB: RuntimeStreamClient | null = null;
 
 		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
-			const workspaceAId = decodeURIComponent(runtimeUrl.pathname.slice(1));
-			expect(workspaceAId).not.toBe("");
+			const workspaceAId = await resolveStartupWorkspaceId(port, projectAPath);
 			const expectedProjectAPath = await realpath(projectAPath).catch(() => resolve(projectAPath));
 			const expectedProjectBPath = await realpath(projectBPath).catch(() => resolve(projectBPath));
 
@@ -819,16 +456,14 @@ describe.sequential("runtime state stream integration", () => {
 		const now = Date.now();
 
 		const firstPort = await getAvailablePort();
-		const firstServer = await startKanbanServer({
+		const firstServer = await startTsBackend({
 			cwd: projectPath,
 			homeDir: tempHome,
 			port: firstPort,
 		});
 
 		try {
-			const firstRuntimeUrl = new URL(firstServer.runtimeUrl);
-			const workspaceId = decodeURIComponent(firstRuntimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
+			const workspaceId = await resolveStartupWorkspaceId(firstPort, projectPath);
 
 			const currentState = await requestJson<RuntimeWorkspaceStateResponse>({
 				baseUrl: `http://127.0.0.1:${firstPort}`,
@@ -865,33 +500,19 @@ describe.sequential("runtime state stream integration", () => {
 				},
 			});
 			expect(seedResponse.status).toBe(200);
-			const taskWorkspaceInfo = await requestJson<RuntimeTaskWorkspaceInfoResponse>({
-				baseUrl: `http://127.0.0.1:${firstPort}`,
-				procedure: "workspace.getTaskContext",
-				type: "query",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef: "HEAD",
-				},
-			});
-			expect(taskWorkspaceInfo.status).toBe(200);
-			mkdirSync(taskWorkspaceInfo.payload.path, { recursive: true });
 		} finally {
 			await firstServer.stop();
 		}
 
 		const secondPort = await getAvailablePort();
-		const secondServer = await startKanbanServer({
+		const secondServer = await startTsBackend({
 			cwd: projectPath,
 			homeDir: tempHome,
 			port: secondPort,
 		});
 
 		try {
-			const secondRuntimeUrl = new URL(secondServer.runtimeUrl);
-			const workspaceId = decodeURIComponent(secondRuntimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
+			const workspaceId = await resolveStartupWorkspaceId(secondPort, projectPath);
 
 			const finalState = await requestJson<RuntimeWorkspaceStateResponse>({
 				baseUrl: `http://127.0.0.1:${secondPort}`,
@@ -907,18 +528,6 @@ describe.sequential("runtime state stream integration", () => {
 			expect(trashCards.some((card) => card.id === taskId)).toBe(true);
 			expect(finalState.payload.sessions[taskId]?.state).toBe("interrupted");
 			expect(finalState.payload.sessions[taskId]?.reviewReason).toBe("interrupted");
-			const workspaceInfo = await requestJson<RuntimeTaskWorkspaceInfoResponse>({
-				baseUrl: `http://127.0.0.1:${secondPort}`,
-				procedure: "workspace.getTaskContext",
-				type: "query",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef: "HEAD",
-				},
-			});
-			expect(workspaceInfo.status).toBe(200);
-			expect(workspaceInfo.payload.exists).toBe(false);
 		} finally {
 			await secondServer.stop();
 			cleanupProject();
@@ -938,7 +547,7 @@ describe.sequential("runtime state stream integration", () => {
 		const now = Date.now();
 
 		const firstPort = await getAvailablePort();
-		const firstServer = await startKanbanServer({
+		const firstServer = await startTsBackend({
 			cwd: projectPath,
 			homeDir: tempHome,
 			port: firstPort,
@@ -946,9 +555,7 @@ describe.sequential("runtime state stream integration", () => {
 		});
 
 		try {
-			const firstRuntimeUrl = new URL(firstServer.runtimeUrl);
-			const workspaceId = decodeURIComponent(firstRuntimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
+			const workspaceId = await resolveStartupWorkspaceId(firstPort, projectPath);
 
 			const currentState = await requestJson<RuntimeWorkspaceStateResponse>({
 				baseUrl: `http://127.0.0.1:${firstPort}`,
@@ -985,34 +592,19 @@ describe.sequential("runtime state stream integration", () => {
 				},
 			});
 			expect(seedResponse.status).toBe(200);
-
-			const taskWorkspaceInfo = await requestJson<RuntimeTaskWorkspaceInfoResponse>({
-				baseUrl: `http://127.0.0.1:${firstPort}`,
-				procedure: "workspace.getTaskContext",
-				type: "query",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef: "HEAD",
-				},
-			});
-			expect(taskWorkspaceInfo.status).toBe(200);
-			mkdirSync(taskWorkspaceInfo.payload.path, { recursive: true });
 		} finally {
 			await firstServer.stop();
 		}
 
 		const secondPort = await getAvailablePort();
-		const secondServer = await startKanbanServer({
+		const secondServer = await startTsBackend({
 			cwd: projectPath,
 			homeDir: tempHome,
 			port: secondPort,
 		});
 
 		try {
-			const secondRuntimeUrl = new URL(secondServer.runtimeUrl);
-			const workspaceId = decodeURIComponent(secondRuntimeUrl.pathname.slice(1));
-			expect(workspaceId).not.toBe("");
+			const workspaceId = await resolveStartupWorkspaceId(secondPort, projectPath);
 
 			const finalState = await requestJson<RuntimeWorkspaceStateResponse>({
 				baseUrl: `http://127.0.0.1:${secondPort}`,
@@ -1028,19 +620,6 @@ describe.sequential("runtime state stream integration", () => {
 			expect(trashCards.some((card) => card.id === taskId)).toBe(false);
 			expect(finalState.payload.sessions[taskId]?.state).toBe("awaiting_review");
 			expect(finalState.payload.sessions[taskId]?.reviewReason).toBe("hook");
-
-			const workspaceInfo = await requestJson<RuntimeTaskWorkspaceInfoResponse>({
-				baseUrl: `http://127.0.0.1:${secondPort}`,
-				procedure: "workspace.getTaskContext",
-				type: "query",
-				workspaceId,
-				payload: {
-					taskId,
-					baseRef: "HEAD",
-				},
-			});
-			expect(workspaceInfo.status).toBe(200);
-			expect(workspaceInfo.payload.exists).toBe(true);
 		} finally {
 			await secondServer.stop();
 			cleanupProject();
@@ -1060,7 +639,7 @@ describe.sequential("runtime state stream integration", () => {
 		initGitRepository(projectBPath);
 
 		const port = await getAvailablePort();
-		const server = await startKanbanServer({
+		const server = await startTsBackend({
 			cwd: projectAPath,
 			homeDir: tempHome,
 			port,
@@ -1070,9 +649,7 @@ describe.sequential("runtime state stream integration", () => {
 		let streamB: RuntimeStreamClient | null = null;
 
 		try {
-			const runtimeUrl = new URL(server.runtimeUrl);
-			const workspaceAId = decodeURIComponent(runtimeUrl.pathname.slice(1));
-			expect(workspaceAId).not.toBe("");
+			const workspaceAId = await resolveStartupWorkspaceId(port, projectAPath);
 			const expectedProjectBPath = await realpath(projectBPath).catch(() => resolve(projectBPath));
 
 			const addProjectResponse = await requestJson<RuntimeProjectAddResponse>({
