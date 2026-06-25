@@ -1668,9 +1668,24 @@ deep analysis:
 > fixtures, not imported Zod). **13 landable suites (each a disjoint file → a separate authoring agent):**
 - [x] **§5.V infra: `test/contract/helpers/` (DONE 2026-06-25)** — `backend.ts` (BackendUnderTest/Factory + `startTsBackend` + `resolveBackendFactory`, TSX_TSCONFIG_PATH-pinned), `http.ts` (`requestJson`), `ws.ts` (`connectRuntimeStream`), `git.ts`, `fixtures/board.ts` (`createBoard`/`seedWorkspace`), barrel `index.ts`. Integration test rewired onto them (8/8 still green). The port-resilient base for every suite.
 - [x] **Suite 1 — HTTP tRPC core CRUD (DONE 2026-06-25, 16 tests)** (`test/contract/trpc-core-contract.test.ts`) — projects.list/add/remove, workspace.getState/saveState (+ a 409 revision-conflict), runtime.getConfig/saveConfig, swarm stop/request/clear, listNKleinPlanArtifacts — all over real HTTP, asserting status + JSON shape + on-disk effects. *(Contract facts: it's `workspace.getState` not `loadState`; a no-input mutation needs `payload:{}` to avoid 415; stale `expectedRevision` → 409.)*
-- [ ] **Suite 2 — HTTP contract: plan-artifact pipeline** (`test/contract/plan-artifact-pipeline-contract.test.ts`) — list→apply→reject over HTTP + on-disk plan format.
+- [x] **Suite 2 — plan-artifact pipeline (DONE 2026-06-25, 12 tests)** (`test/contract/plan-artifact-pipeline-contract.test.ts`) — list→apply (cards land in Planning, deps wired)→reject over HTTP + on-disk plan format; re-apply is idempotent (0 new cards, deduped by plan-task-id). *(Agent hit an API error mid-run at 11/12; I fixed the one wrong assumption — re-apply does NOT duplicate cards — to 12/12.)*
 - [ ] **Suite 3 — CLI + WS task lifecycle** (`test/contract/task-lifecycle-contract.test.ts`) — `nklein task` create/list/update/done/trash/delete subprocess + WS board events.
-- [ ] **Suite 4 — Planning lane + promotion + review pipeline** (`test/contract/planning-review-pipeline-contract.test.ts`) — backlog→planning reconcile (WS) → `begin_implementation` → in_progress → verify/merge → completed. **Covers the §5.B lane just built.**
+- [x] **§5.V mock-LLM harness (DONE + self-verified 2026-06-25)** — `test/contract/helpers/mock-llm.ts`: a scriptable
+      OpenAI-compatible `node:http` mock (`startMockLlm` → `{ baseUrl, enqueue, setDefault, requests, close }`) serving
+      `GET /models` + `POST /chat/completions` (non-stream JSON + SSE stream + tool_calls). Smoke test `mock-llm.test.ts`
+      (5 tests) drives the REAL `LocalLlmClient` (`complete`/`completeStream`/`completeWithTools`) + `discoverLoadedModelId`
+      against it → all pass, proving the wire format matches exactly. Unblocks Suites 4 + 5. *(Originally designed below;
+      built ahead of schedule while a server-spawning suite ran, since it's a disjoint helper file.)*
+  - [ ] *(original design notes)* New `test/contract/helpers/mock-llm.ts`:
+      a tiny `node:http` OpenAI-compatible server: `GET /models` (so `discoverLoadedModelId` in
+      [local-chat-model.ts](src/chat/local-chat-model.ts) finds a "loaded" model) + `POST /chat/completions`
+      (non-streaming AND SSE streaming — match `LocalLlmClient` in
+      [nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts); read it for the exact request/response +
+      stream-chunk shape). Make it **scriptable** (a per-test queue of canned responses: plain text for chat; tool-call
+      JSON for the agent loop) so Suite 4 drives decompose_project→begin_implementation deterministically. Point the
+      spawned server at it via the chat/provider `baseUrl` (saveNKleinProviderSettings/saveConfig over HTTP, or an env
+      override if one exists). Build with fresh focus — it's the gateway to the chat/pipeline fast-gate e2e.
+- [ ] **Suite 4 — Planning lane + promotion + review pipeline** (`test/contract/planning-review-pipeline-contract.test.ts`) — backlog→planning reconcile (WS) → `begin_implementation` → in_progress → verify/merge → completed (drive the agent loop with the scripted mock-LLM above). **Covers the §5.B lane just built.**
 - [ ] **Suite 5 — Chat HTTP + streaming** (`test/contract/chat-contract.test.ts`) — chat CRUD + `streamMessage` WS token/done, stub LLM.
 - [x] **Suite 6 — On-disk format parity (DONE 2026-06-25, 10 tests)** (`test/contract/on-disk-formats.test.ts`) — board.json round-trip + raw-shape pin (6 fixed columns in order + card fields), Python-writer direction (hand-crafted JSON parses), board-crdt.json round-trip + schema-too-new refusal + v0→current migration, plan-artifact tasks.json shape + default-fill + required-field rejection. No server; the cross-language convergence point. *(Surprise: runtime-home `~/.nklein/nklein/workspaces/<id>/board.json` takes read priority over the repo mirror — fixtures must write both.)*
 - [ ] **Suite 7 — Playwright: plan-artifact review panel** (`web-ui/tests/plan-artifact-review.spec.ts`) — `pending-plan-artifacts-panel` + `planning-dag-review-panel` (currently zero coverage; critical for the §5.B pipeline).
@@ -1679,7 +1694,7 @@ deep analysis:
 - [ ] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`) — LM Studio + Docker; asserts each phase via HTTP/WS, no host-path leaks. After suites 1–4 green.
 - [ ] **Suite 11 — Core-py contract parity** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X.
 - [ ] **Suite 12 — CLI task subcommands** (`test/contract/cli-task-subcommands.test.ts`) — start/plan-gap/decompose/verify/swarm-stop/resume.
-- [ ] **Suite 13 — Smoothness/perf** (`test/contract/server-responsiveness.test.ts`) — startup time, `loadState`/`list` P99 latency bounds, WS snapshot latency.
+- [x] **Suite 13 — Smoothness/perf (DONE 2026-06-25, 4 tests)** (`test/contract/server-responsiveness.test.ts`) — server startup (~2s, ceiling 15s), `projects.list` warm P90 (~55ms, ceiling 500ms), `workspace.getState` warm on a 40-card board (~130ms, ceiling 500ms), WS snapshot delivery (~150ms, ceiling 5s). Generous bounds (6–35× headroom) → catches a gross regression, won't flake. Stable across 3 runs.
 - [ ] **Build order:** helpers + Suite 6 → Suites 1 & 5 & 11 (parallel) → Suites 2/3/4/12 (parallel) → Suites 7/8/9/13 (parallel) → Suite 10. **The refactor (§5.X Phase 1) may start once Suites 1+5+6 (+11) are green** (a baseline contract oracle); each later suite gates the workflow it covers. **Standing rule: every new feature gets BOTH a TS-internal unit test AND an HTTP-level contract test** — the contract test is the one that survives the port.
 
 ### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
