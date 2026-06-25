@@ -1983,8 +1983,12 @@ deep analysis:
         with a component test asserting it renders + saves `workspaceBaseDir`. CHANGELOG entry added. Root+web tsc, fast,
         web vitest, biome all green. **Complete end-to-end** — the user's "user configured path (global settings)" ask is
         fully delivered.
-  - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
-        per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
+  - [x] **per-task NKlein settings — ALREADY EXPOSED (audit was stale, verified 2026-06-25).** `contextScope`
+        (Full/Smart/Minimal/Custom) and the per-task `timeoutMode` (Normal/Long/Extended/Unlimited) are already rendered as
+        `NativeSelect` controls in the card's NKlein agent chat panel ([nklein-agent-chat-panel.tsx](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx)
+        ~L1235–1262), wired to `persistNKleinModelSettings` → `onTaskNKleinSettingsChanged` → `applyTaskDetailNKleinSettingsChange`.
+        The "5 explicit timeout values" are a **global** concept (Settings → Tasks); per-task uses the mode selector, which
+        is present. No gap. *(Second stale §5.W audit item after swarm stop/resume — the feature-vs-UI audit over-reported.)*
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm
         stop/resume control to the board header (backend already exists).
   - [ ] **dependency link/unlink dialog** — CLI `task link`/`unlink` exist; add a non-drag "Add dependency" picker.
