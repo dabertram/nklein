@@ -182,6 +182,12 @@ deep analysis:
 >   (2) **§5.B planning/refinement lane** (full design); (3) **comprehensive test coverage** (two layers); (4)
 >   **systems-analysis safe simplifications** (state/data/activity flows + ownership/SoC). §5.U file-decomposition +
 >   §5.R SDK-boundary inlining stay **deferred**; only the behavior-preserving systems simplifications run now.
+> - **THE BIG ARC (2026-06-25, user) → new [§5.X](#5x):** a **deep whole-codebase refactor** (clear structure,
+>   testability, maintainability, efficiency, correctness), possibly **porting the entire server/backend to Python** —
+>   **gated on §5.V full deep test coverage as the port-resilient regression oracle** (tests assert behavior through
+>   stable seams, not TS internals, so they survive a backend rewrite). Sequencing: **§5.V first → §5.X Phase 1 TS-internal
+>   refactor → §5.X Phase 2 Python port (high-bar DECISION, prepared not started).** This raises §5.V's priority: it is now
+>   the linchpin precondition, not just "more coverage."
 > - **§5.B:** Planning→In-Progress promotion = an **explicit tool the agent calls** when the plan still holds (else it
 >   replans/decomposes). **Always refine, no skip-guard.** Every started card routes through Planning/Refinement first.
 > - **Defaults:** **hard-flip both now** — native NKlein agent core = default runtime (SDK host = fallback path only),
@@ -1595,6 +1601,15 @@ deep analysis:
 > like the existing `verify-*.mts` harnesses. **Goal: complete coverage** of every workflow + user-facing feature + UI
 > element + configuration, and that everything stays **smooth**. North-star tie-in: the e2e must prove small models can
 > grind a decomposed-into-tiny-pieces complex project to delivery.
+>
+> **⭐ THIS IS THE PRECONDITION FOR §5.X (the deep whole-codebase refactor / possible backend→Python port) (2026-06-25,
+> user).** Before any large structural refactor we need a test net thick enough that a behavior regression cannot pass
+> unseen. **So the tests must assert BEHAVIOR through STABLE SEAMS, not TS internals** — the tRPC/HTTP contract, the CLI,
+> the web-ui, the on-disk state/CRDT formats, the Docker/agent boundaries, the live decompose→merge pipeline. Those seams
+> survive a backend rewrite (incl. a Python port); tests bound to TypeScript module internals do **not** and would have to
+> be rewritten in lockstep, defeating the safety net. Treat contract/e2e/UI/CLI coverage as the **port-resilient
+> regression oracle**: the same suite must be runnable against the current TS backend AND a future Python backend and
+> assert identical externally-observable behavior. **Sequencing: complete §5.V first → then §5.X.**
 - [ ] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
 - [ ] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
@@ -1632,6 +1647,43 @@ deep analysis:
 - [ ] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
       Intelligence, Advanced, …) so nothing is scattered; consistent layout. Pair with the §5.U `runtime-settings-dialog`
       decomposition when that runs.
+- [x] **swarm stop/resume in the UI — ALREADY DONE** *(audit 2026-06-25)* — the board header already exposes it:
+      [kanban-board.tsx](web-ui/src/components/kanban-board.tsx) has the `board.swarm-pause` control (Pause/Resume button +
+      a "Paused" status driven by `swarmStopSignal`/`RuntimeSwarmStopSignal`). The §5.W "CLI-only" note was stale.
+
+### 5.X — Deep whole-codebase refactor (gated on §5.V) + possible backend→Python port *(2026-06-25, user)*
+> **The big arc.** The user wants a **deep refactor of the whole codebase** for *clear structure, testability,
+> maintainability, efficiency, and correctness* — the execution arm of the §5.U analysis, taken all the way (not just
+> the safe-now dedups). **It may go hand-in-hand with porting the entire server/backend side to Python** (which aligns
+> with the existing §5.H native-core / `core-py` direction — the ML/sidecar is already Python). **Hard precondition: §5.V
+> full deep test coverage (incl. extensive e2e + UI) must land FIRST** as the behavior safety-net / regression oracle, and
+> must be **port-resilient** (assert behavior through stable seams — tRPC/HTTP contract, CLI, web-ui, on-disk formats,
+> Docker boundaries — see §5.V). Do **not** start the structural refactor or any port before that net is real and green.
+> The whole arc is behavior-preserving: externally-observable behavior stays identical; only the internal structure
+> (and possibly the implementation language of the backend) changes.
+- [ ] **Phase 0 — land §5.V** (the port-resilient test oracle). Blocks everything below.
+- [ ] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
+      monoliths (`nklein-task-session-service` ~3800, `runtime-server`, `nklein-decomposition-tool`, `workspace-state`,
+      web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
+      map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
+      (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
+- [ ] **Phase 2 (DECISION REQUIRED — high bar) — backend→Python port.** Open questions to settle with the user before
+      committing (prepare options now, decide later): **(a) scope** — the whole server/runtime (tRPC API, runtime-state
+      hub, workspace/CRDT state, NKlein session orchestration, Docker sandbox mgmt, telemetry) or only some layers? **(b)
+      boundary** — keep the web-ui (stays TypeScript/React) talking to a Python backend over the SAME contract (so the
+      §5.V contract tests are the acceptance oracle on both sides); what about the CLI (port to Python, or keep a thin TS
+      shell)? **(c) stack** — FastAPI/Pydantic + an async runtime; how the NKlein agent SDK (currently `@nkleinbot/*` TS)
+      is replaced/bridged (this is the crux — the agent runtime is the largest TS surface; a Python agent runtime or a
+      bridge is its own project). **(d) migration shape** — strangler-fig (stand up the Python backend behind the same
+      contract, move endpoints over one at a time, contract tests gating each) vs big-bang. **(e) what stays TS** —
+      web-ui certainly; shared schemas/contract (generate from one source so TS + Python agree). **(f) sequencing vs the
+      north star** — the port must not stall "make small local LLMs deliver real products"; likely Phase 1 first, port
+      only once value delivery is proven. *Recommendation to prepare: strangler-fig behind the §5.V contract oracle,
+      web-ui stays TS, contract schemas generated from one source; the agent-runtime port is the long pole and may be
+      staged last or kept as a bridged service.*
+- [ ] **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition oracle), §5.H (native-core /
+      core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side cleanup that also de-risks a port
+      by shrinking the `@nkleinbot/*` coupling first).
 
 ### 5.J — LATER (deferred by decision)
 - LATER follow-up: **Distinct look & feel from the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual

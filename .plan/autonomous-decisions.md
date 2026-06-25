@@ -58,6 +58,22 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   their branches when done), sequence dependent ones. Read-only audits (Explore) can run alongside anything. Goal:
   maximize output/throughput, minimize rework from collisions.
 
+## Prepared, high-bar decisions DEFERRED to the user (not autonomous — staged so finalization is low-effort)
+- **(2026-06-25) ⭐ THE BIG ARC — deep whole-codebase refactor + possible backend→Python port (todo §5.X).** The user
+  set the direction: refactor the whole codebase for clear structure/testability/maintainability/efficiency/correctness,
+  **possibly porting the entire server/backend to Python**, with **full deep test coverage (§5.V, incl. e2e + UI) as the
+  hard precondition / safety net**. I prepared (no code yet, per the gate): (1) reframed §5.V as the **port-resilient
+  regression oracle** — tests must assert behavior through STABLE SEAMS (tRPC/HTTP contract, CLI, web-ui, on-disk
+  formats, Docker boundaries), NOT TS internals, so the same suite validates a TS or a Python backend identically;
+  (2) wrote §5.X with Phase 0 (land §5.V) → Phase 1 (TS-internal deep refactor = execute §5.U findings end-to-end,
+  behavior-preserving) → Phase 2 (the Python port, **high-bar DECISION REQUIRED**). **Open questions staged for the user
+  (Phase 2):** port scope (whole server vs some layers), the web-ui/CLI boundary, stack (FastAPI/Pydantic + how the
+  `@nkleinbot/*` TS agent SDK is replaced/bridged — the long pole), migration shape (strangler-fig vs big-bang), what
+  stays TS (web-ui; shared contract generated from one source), and sequencing vs the north star. **My prepared
+  recommendation:** strangler-fig behind the §5.V contract oracle; web-ui stays TS; contract schemas from one source;
+  port the agent-runtime last or keep it as a bridged service. **Nothing starts until §5.V is real + green.** Low-effort
+  for the user to finalize: pick the Phase-2 scope/shape from the staged options (or say "Phase 1 only for now").
+
 ## Autonomous decisions (below the escalation bar)
 - **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
   explicit > inferring from turn-end, robust against weak local models (parse-and-recover principle). Low rework.
