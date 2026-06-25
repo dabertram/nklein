@@ -1,3 +1,4 @@
+import { RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS } from "../core/api-contract";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import {
@@ -7,7 +8,6 @@ import {
 } from "./nklein-model-registry";
 import type { NKleinTaskRoutingDecision } from "./nklein-task-router";
 
-const DEFAULT_START_GUARD_CONTEXT_WINDOW = 80_000;
 const START_GUARD_MIN_WORKING_ROOM_TOKENS = 4_000;
 const START_GUARD_BASE_DIFFICULTY = 25;
 const START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS = 35;
@@ -68,7 +68,9 @@ export function estimateNKleinStartDifficulty(promptTokens: number): number {
 }
 
 export function estimateNKleinStartFitBudgetTokens(promptTokens: number, largestContextWindow: number | null): number {
-	const budgets = buildKanbanContextSafetyBudgets(largestContextWindow ?? DEFAULT_START_GUARD_CONTEXT_WINDOW);
+	const budgets = buildKanbanContextSafetyBudgets(
+		largestContextWindow ?? RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
+	);
 	return (
 		promptTokens +
 		budgets.outputReserveTokens +

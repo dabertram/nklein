@@ -100,7 +100,11 @@ export type RuntimeTaskAutoReviewMode = z.infer<typeof runtimeTaskAutoReviewMode
 
 export const runtimeNKleinReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
 export type RuntimeNKleinReasoningEffort = z.infer<typeof runtimeNKleinReasoningEffortSchema>;
+/** Minimum context window (tokens) a model must report before NKlein will activate it. */
 export const RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
+/** Assumed context window (tokens) when a model does not report one; used as a conservative fallback in
+ *  runtime guards and context-budget calculations. */
+export const RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS = 80_000;
 export const RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH = 12;
 export const RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK = 3;
 // Autonomous-run swarm guardrail default limits. These are the *defaults* — the live values come from the

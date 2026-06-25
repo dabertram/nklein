@@ -1,4 +1,6 @@
-export const NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
+import { RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS } from "../core/api-contract";
+
+export const NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS;
 
 export interface NKleinContextWindowPolicyInput {
 	providerId: string;

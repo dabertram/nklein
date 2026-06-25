@@ -1,6 +1,7 @@
+import { RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS } from "@runtime-contract";
 import type { RuntimeNKleinProviderModel } from "@/runtime/types";
 
-export const NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000;
+export const NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS;
 export const LM_STUDIO_PROVIDER_ID = "lmstudio";
 
 export function isLmStudioProviderId(providerId: string | null | undefined): boolean {

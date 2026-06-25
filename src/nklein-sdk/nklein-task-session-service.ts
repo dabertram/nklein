@@ -17,7 +17,11 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
-import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import {
+	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	normalizeRuntimeSwarmGuardrails,
+	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
+} from "../core/api-contract";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -123,7 +127,6 @@ export { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } fro
 export type { NKleinTaskMessage } from "./nklein-session-state";
 export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } from "./repeated-tool-call-guard";
 
-const DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS = 80_000;
 /** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
 const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
 /** Re-prompt budget when a reviewer turn ends without calling `submit_review` (small models often forget). */
@@ -1552,7 +1555,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
 		const contextWindow =
-			this.resolveContextWindowForTask(taskId, launchContextWindow) ?? DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS;
+			this.resolveContextWindowForTask(taskId, launchContextWindow) ?? RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS;
 		return this.normalizeEffectiveContextWindow(contextWindow);
 	}
 

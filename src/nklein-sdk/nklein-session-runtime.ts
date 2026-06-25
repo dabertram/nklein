@@ -12,6 +12,7 @@ import type {
 	AgentTool,
 } from "@nklein/shared";
 import {
+	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 	type RuntimeNKleinReasoningEffort,
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
@@ -75,7 +76,6 @@ import {
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_MAX_CONSECUTIVE_MISTAKES = 3;
-const DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS = 80_000;
 const NKLEIN_CONTEXT_COMPACTION_RESERVE_TOKENS = 16_384;
 const NKLEIN_CONTEXT_COMPACTION_PRESERVE_RECENT_TOKENS = 20_000;
 const NKLEIN_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
@@ -493,7 +493,8 @@ function resolveContextWindowTokens(contextWindow: number | null | undefined): n
 export function buildNKleinContextCompactionConfig(
 	contextWindow: number | null | undefined,
 ): NKleinSdkContextCompactionConfig | undefined {
-	const contextWindowTokens = resolveContextWindowTokens(contextWindow) ?? DEFAULT_NKLEIN_CONTEXT_WINDOW_TOKENS;
+	const contextWindowTokens =
+		resolveContextWindowTokens(contextWindow) ?? RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS;
 	return {
 		enabled: true,
 		strategy: "basic",
