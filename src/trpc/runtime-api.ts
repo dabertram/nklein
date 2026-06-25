@@ -10,8 +10,21 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { type ChatService, createChatService } from "../chat/chat-service";
-import { resolveLocalChatModelDeps } from "../chat/local-chat-model";
+import type { ChatAgentModelResponse } from "../chat/chat-agent-loop";
+import { createBoardReadTools } from "../chat/chat-board-tools";
+import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
+import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
+import { type ChatAgentToolDeps, type ChatService, createChatService } from "../chat/chat-service";
+import type { ChatSession } from "../chat/chat-session-store";
+import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
+import type { ChatPromptMessage } from "../chat/chat-turn-context";
+import { createWorkspaceReadTools } from "../chat/chat-workspace-tools";
+import {
+	DEFAULT_LOCAL_CHAT_BASE_URL,
+	DEFAULT_LOCAL_CHAT_PROVIDER_ID,
+	discoverLoadedModelId,
+	resolveLocalChatModelDeps,
+} from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
@@ -86,6 +99,7 @@ import {
 } from "../nklein-sdk/nklein-embedding-model-manager";
 import { scheduleNKleinEndpointStart } from "../nklein-sdk/nklein-endpoint-scheduler";
 import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
+import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
 import {
 	assertLocalProviderAllowed,
 	isCloudProviderDisabledError,
@@ -162,6 +176,10 @@ function withTaskPausedState(
 
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
+	/** The active workspace's repo root, or null when no project is active. Drives the chat agent's read-only tools
+	 *  (todo §5.M G3a): with an active workspace the chat routes through the tool-using loop; without one it stays
+	 *  plain. */
+	getActiveWorkspacePath: () => string | null;
 	getActiveRuntimeConfig?: () => RuntimeConfigState;
 	loadScopedRuntimeConfig: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeConfigState>;
 	setActiveRuntimeConfig: (config: RuntimeConfigState) => void;
@@ -365,6 +383,69 @@ function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKle
 	};
 }
 
+/**
+ * Build the chat service's `resolveAgentToolDeps` (todo §5.M G3a): for a session, when there IS an active workspace,
+ * return the READ-ONLY tool-using agent deps — `read_file`/`list_dir` (`createWorkspaceReadTools`) + `get_board`
+ * (`createBoardReadTools`), an `isolated_readonly` gated executor (every read tool is `sandbox_read` = always allowed,
+ * so no confirm is ever needed), and a tools-aware local model — so the right-sidebar chat can read the project + see
+ * the board. Returns null when there is no active workspace OR no loaded local model, so the session falls back to the
+ * plain completion path. The audit log is written like the CLI (`recordChatHostAction`). The model dep also exposes a
+ * final-answer streaming path: when the loop passes an `onToken` (the no-tool final reply), it streams via the client's
+ * SSE completion (hybrid streaming) so a tool-routed turn that ends in plain text still emits token deltas.
+ */
+function buildChatAgentToolDepsResolver(input: {
+	getActiveWorkspacePath: () => string | null;
+	getLocalChatBaseUrl: () => string | null;
+}): (session: ChatSession) => Promise<ChatAgentToolDeps | null> {
+	return async (session) => {
+		const workspacePath = input.getActiveWorkspacePath();
+		if (!workspacePath) {
+			return null;
+		}
+		const baseUrl = input.getLocalChatBaseUrl()?.trim() || DEFAULT_LOCAL_CHAT_BASE_URL;
+		const modelId = await discoverLoadedModelId(baseUrl);
+		if (!modelId) {
+			// No loaded model: stay on the plain path (which resolves its own deps and surfaces a clear error).
+			return null;
+		}
+		// LocalLlmClient fails closed against cloud (invariant #1) in its constructor.
+		const client = new LocalLlmClient({ providerId: DEFAULT_LOCAL_CHAT_PROVIDER_ID, modelId, baseUrl });
+		const read = createWorkspaceReadTools(workspacePath);
+		const board = createBoardReadTools(workspacePath);
+		const tools = [...read.tools, ...board.tools];
+		const definitions = [...read.definitions, ...board.definitions];
+
+		const executeTool = createGatedChatToolExecutor({
+			sessionId: session.id,
+			// "chat only" read-only floor: isolated_readonly gates every read as always-allowed and would deny any
+			// host/mutating tool (none are offered here). Audited like the CLI.
+			mode: "isolated_readonly",
+			tools,
+			recordAudit: async (record) => {
+				await recordChatHostAction({ ...record });
+			},
+		});
+
+		const toolModel = createChatAgentModel(client, definitions);
+		// Streaming final-answer dep: the tools-disabled final reply streams via the plain SSE completion (no tools);
+		// tool-discovery turns use the non-streaming tools-aware completion so the model can still request tools.
+		const streamComplete = createChatModelDeps(client).complete;
+		const model = async (
+			messages: readonly ChatPromptMessage[],
+			allowTools: boolean,
+			onToken?: (delta: string) => void,
+		): Promise<ChatAgentModelResponse> => {
+			if (onToken) {
+				const text = await streamComplete([...messages], onToken);
+				return { text, toolCalls: [] };
+			}
+			return toolModel(messages, allowTools);
+		};
+
+		return { model, executeTool, appendToolExchange: appendChatToolExchange };
+	};
+}
+
 export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrpcContext["runtimeApi"] {
 	const nkleinProviderService = createNKleinProviderService();
 	const nkleinMcpSettingsService = createNKleinMcpSettingsService();
@@ -388,6 +469,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// chat falls back to its own default local endpoint (the chat is local-only).
 			resolveModelDeps: () =>
 				resolveLocalChatModelDeps({ baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? undefined }),
+			// G3a: when a project is active, route the chat through the tool-using agent loop with READ-ONLY tools
+			// (read_file/list_dir/get_board); without an active workspace this returns null and the chat stays plain.
+			resolveAgentToolDeps: buildChatAgentToolDepsResolver({
+				getActiveWorkspacePath: deps.getActiveWorkspacePath,
+				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
+			}),
 		});
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>

@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
 import { createChatService } from "../../../src/chat/chat-service";
 import { appendChatMessage } from "../../../src/chat/chat-transcript-store";
 
@@ -94,6 +95,97 @@ describe("createChatService", () => {
 		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
 		// The session goal is anchored into the model prompt.
 		expect(prompts[0]?.some((m) => m.content.includes("Help with TypeScript settings"))).toBe(true);
+	});
+
+	it("routes through the tool-using agent loop when resolveAgentToolDeps is non-null (todo §5.M G3a)", async () => {
+		const executed: string[] = [];
+		let turn = 0;
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "README.md" } }] },
+			{ text: "The README documents the project.", toolCalls: [] },
+		];
+		const service = createChatService({
+			rootDir,
+			// summarize comes from the plain model deps even on the tool path.
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => {
+					executed.push(call.name);
+					return { callId: call.id, content: "# Project" };
+				},
+				appendToolExchange: (messages, _response, results) => [
+					...messages,
+					...results.map((result) => ({ role: "system" as const, content: result.content })),
+				],
+			}),
+		});
+		const session = await service.createSession({ title: "Tooling", scope: "chat_only" });
+
+		const result = await service.sendMessage({ sessionId: session.id, message: "what's in the readme?" });
+		// The tool ran (proving the tool-using loop, not plain completion) and the final answer persisted.
+		expect(executed).toEqual(["read_file"]);
+		expect(result?.assistantMessage.content).toBe("The README documents the project.");
+		const transcript = await service.readTranscript(session.id);
+		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
+	});
+
+	it("falls back to plain completion when resolveAgentToolDeps returns null (no active workspace)", async () => {
+		let plainCalls = 0;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				complete: async () => {
+					plainCalls += 1;
+					return "plain reply";
+				},
+				summarize: async () => "",
+			}),
+			// Mirrors "no active workspace ⇒ null" so the session stays on runChatTurn.
+			resolveAgentToolDeps: async () => null,
+		});
+		const session = await service.createSession({ title: "Plain" });
+
+		const result = await service.sendMessage({ sessionId: session.id, message: "hi" });
+		expect(result?.assistantMessage.content).toBe("plain reply");
+		expect(plainCalls).toBe(1);
+	});
+
+	it("streams the final (no-tool) reply through onToken on the tool path (hybrid streaming, §5.M G3a)", async () => {
+		const reply = "streamed reply in chunks";
+		const allowToolsSeen: boolean[] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				// No tools requested ⇒ the loop re-issues a streaming, tools-disabled final call (onToken present).
+				model: async (_messages, allowTools, onToken) => {
+					allowToolsSeen.push(allowTools);
+					if (onToken) {
+						// Emit several deltas so the hybrid stream produces >= 2 tokens, like the live SSE client.
+						for (const delta of [reply.slice(0, 8), reply.slice(8, 16), reply.slice(16)]) {
+							onToken(delta);
+						}
+						return { text: reply, toolCalls: [] };
+					}
+					return { text: reply, toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+		});
+		const session = await service.createSession({ title: "Streaming", scope: "chat_only" });
+
+		const tokens: string[] = [];
+		const result = await service.sendMessage({ sessionId: session.id, message: "say something" }, (delta) =>
+			tokens.push(delta),
+		);
+		// The no-tool answer still streams multiple deltas that reconstruct the reply.
+		expect(tokens.length).toBeGreaterThanOrEqual(2);
+		expect(tokens.join("")).toBe(reply);
+		expect(result?.assistantMessage.content).toBe(reply);
+		// The discovery turn offered tools (true); the streamed final turn disabled them (false).
+		expect(allowToolsSeen).toEqual([true, false]);
 	});
 
 	it("returns null from sendMessage for an unknown session and throws when read-only", async () => {

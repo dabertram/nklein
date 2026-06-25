@@ -813,6 +813,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 
 	runtimeApi = createRuntimeApi({
 		getActiveWorkspaceId: deps.workspaceRegistry.getActiveWorkspaceId,
+		getActiveWorkspacePath: deps.workspaceRegistry.getActiveWorkspacePath,
 		getActiveRuntimeConfig: deps.workspaceRegistry.getActiveRuntimeConfig,
 		loadScopedRuntimeConfig: deps.workspaceRegistry.loadScopedRuntimeConfig,
 		setActiveRuntimeConfig: deps.workspaceRegistry.setActiveRuntimeConfig,

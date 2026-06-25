@@ -819,9 +819,20 @@ deep analysis:
 >         - **Streaming = HYBRID (user pick).** Workspace-less/simple chats keep **token-by-token** streaming via plain
 >           `runChatTurn`; tool-using turns go through the agent loop and stream **tool-activity events + the final reply**
 >           (the loop isn't token-streaming, so emit per-tool-call/result events then the reply).
->         **Build order:** (a) **G3a — read-only slice** (route scope-resolved sessions through the agent loop with
->         `read_file`/`list_dir`/`get_board`, all `sandbox_read` = always-allowed, hybrid streaming) — the foundation, no
->         confirm UI needed, makes the right-sidebar agent able to read the project + see the board. (b) **G3b — the
+>         **Build order:** (a) **[x] G3a — read-only slice BACKEND (2026-06-25)** — the web-ui right-sidebar chat now
+>         routes through the tool-using agent loop with READ-ONLY tools when a project is active. `chat-service` gains a
+>         `resolveAgentToolDeps(session) → {model, executeTool, appendToolExchange} | null` seam (mirrors `resolveModelDeps`,
+>         keeps the service decoupled from the tool infra); `sendMessage` runs `runChatAgentTurn` when it's non-null, else
+>         plain `runChatTurn`. `runtime-api` fills it from the **active workspace** (`getActiveWorkspacePath`): builds
+>         `createWorkspaceReadTools` (`read_file`/`list_dir`) + `createBoardReadTools` (`get_board`), an `isolated_readonly`
+>         `createGatedChatToolExecutor` (all `sandbox_read` = always-allowed, no confirm) + `createChatAgentModel`, audited via
+>         `recordChatHostAction`; returns **null** with no active workspace → plain path (so §5.V Suite 5, which has no active
+>         workspace, stays token-streaming — verified, full contract suite green). **Hybrid streaming** implemented: the loop
+>         threads an optional `onToken` to the FINAL (no-tool) answer (re-issued as a tools-disabled streaming call), so a
+>         tool-routed turn that uses no tools still emits token deltas. Chat scope enum gains `chat_only` (contract zod +
+>         store union/list). Unit + contract tests added/green (tsc + biome clean). **Still TODO for G3a:** the scope selector
+>         **UI** (`chat-only · current · all · host`) + mapping all→every loaded project / host→host mode (this backend uses
+>         the active workspace + isolated_readonly only) — separate web-ui task. (b) **G3b — the
 >         safe/unsafe command risk model + confirm UI** (write_file/run_command in the web-ui, classification + the
 >         risk-ack flow above) — security-sensitive, dedicated focused pass + Playwright verification.
 >         **⚠️ G3a IMPLEMENTATION CAVEATS (found while scoping 2026-06-25 — handle in the focused build):**
