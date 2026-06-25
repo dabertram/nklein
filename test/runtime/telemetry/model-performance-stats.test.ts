@@ -55,6 +55,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
 			reviewer: { providerId: "lmstudio", modelId: "deepseek-coder" },
 		},
+		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "commit",

@@ -2057,7 +2057,15 @@ deep analysis:
       Remaining Phase 1 fields: `modelRoles`, `agentRulesets`; then UI `OverrideToggle`.
       **PHASE 1 UI DONE (2026-06-25):** `maxConcurrentTasksOverride` + `selectedAgentIdOverride` controls in Settings → Project
       section — `OverrideRow` helper component, inherits-vs-overrides toggle pattern, wired into state/init/change-detection/reset/save.
-      Remaining Phase 1: `modelRoles`, `agentRulesets` overrides.
+      **PHASE 1 THIRD FIELD DONE (2026-06-25):** `agentRulesetsOverride` wired end-to-end (backend only, UI is separate follow-up).
+      `normalizeAgentRulesetsOverride` (null-when-default), threaded through `RuntimeProjectConfigFileShape`,
+      `RuntimeConfigState` (+ `effectiveAgentRulesets`), `RuntimeConfigUpdateInput`, `createRuntimeConfigStateFromValues`,
+      `toRuntimeConfigState`, `toGlobalRuntimeConfigState`, `saveRuntimeConfig`, `updateRuntimeConfig`,
+      `updateGlobalRuntimeConfig`, `writeRuntimeProjectConfigFile`. API contract (`runtimeConfigResponseSchema` +
+      `runtimeConfigSaveRequestSchema`) + `buildRuntimeConfigResponse`. `runtime-server.ts` delivery-tier + sandbox-network
+      consumers switched to `effectiveAgentRulesets`. `effectiveAgentRulesets` in `RUNTIME_CONFIG_DERIVED_FIELD_KEYS`;
+      `agentRulesetsOverride` in `RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS`. New override test + all fixtures patched.
+      Remaining Phase 1: `modelRoles` override; then full UI `OverrideToggle` for the nested fields.
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.

@@ -125,6 +125,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 				reasoningEffort: "high",
 			},
 		},
+		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "",

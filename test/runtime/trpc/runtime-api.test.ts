@@ -383,6 +383,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 			baseUrl: null,
 		},
 		modelRoles: {},
+		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
 		commitPromptTemplate: "commit",

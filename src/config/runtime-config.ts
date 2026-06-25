@@ -85,6 +85,7 @@ interface RuntimeProjectConfigFileShape {
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;
+	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 }
 
 export interface RuntimeConfigState {
@@ -123,6 +124,8 @@ export interface RuntimeConfigState {
 	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
 	modelRoles: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
+	effectiveAgentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails: RuntimeSwarmGuardrails;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -162,6 +165,7 @@ export interface RuntimeConfigUpdateInput {
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;
+	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: RuntimeSwarmGuardrails;
@@ -493,6 +497,15 @@ function areAgentRulesetsEqual(
 	return JSON.stringify(normalizeAgentRulesets(left)) === JSON.stringify(normalizeAgentRulesets(right));
 }
 
+function normalizeAgentRulesetsOverride(value: unknown): AgentRulesetsConfigPayload | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const normalized = normalizeAgentRulesets(value);
+	// Keep the file clean: if the override is identical to the default, treat as no-op.
+	return areAgentRulesetsEqual(normalized, DEFAULT_AGENT_RULESETS_CONFIG) ? null : normalized;
+}
+
 function normalizePromptTemplate(value: unknown, fallback: string): string {
 	if (typeof value !== "string") {
 		return fallback;
@@ -687,6 +700,7 @@ const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] 
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("selectedAgentIdOverride"),
+	runtimeConfigChangeField("agentRulesetsOverride", (a, b) => areAgentRulesetsEqual(a ?? undefined, b ?? undefined)),
 	runtimeConfigChangeField("shortcuts", areRuntimeProjectShortcutsEqual),
 ];
 
@@ -697,6 +711,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveCodeEmbeddingSettings",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",
+	"effectiveAgentRulesets",
 	"commitPromptTemplateDefault",
 	"openPrPromptTemplateDefault",
 ] as const satisfies readonly (keyof RuntimeConfigState)[];
@@ -847,6 +862,8 @@ function toRuntimeConfigState({
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(projectConfig?.maxConcurrentTasksOverride);
 	const selectedAgentId = normalizeAgentId(globalConfig?.selectedAgentId);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
+	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
+	const agentRulesets = normalizeAgentRulesets(globalConfig?.agentRulesets);
 	return {
 		globalConfigPath,
 		projectConfigPath,
@@ -909,7 +926,9 @@ function toRuntimeConfigState({
 		codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 		modelRoles: normalizeModelRoles(globalConfig?.modelRoles),
-		agentRulesets: normalizeAgentRulesets(globalConfig?.agentRulesets),
+		agentRulesets,
+		agentRulesetsOverride,
+		effectiveAgentRulesets: agentRulesetsOverride ?? agentRulesets,
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(globalConfig?.swarmGuardrails),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
@@ -1281,12 +1300,14 @@ async function writeRuntimeProjectConfigFile(
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
+		agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(config.codeEmbeddingOverride);
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
+	const agentRulesetsOverride = normalizeAgentRulesetsOverride(config.agentRulesetsOverride);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
@@ -1300,13 +1321,17 @@ async function writeRuntimeProjectConfigFile(
 		if (selectedAgentIdOverride !== null) {
 			throw new Error("Cannot save project agent override without a selected project.");
 		}
+		if (agentRulesetsOverride !== null) {
+			throw new Error("Cannot save project agent rulesets override without a selected project.");
+		}
 		return;
 	}
 	if (
 		normalizedShortcuts.length === 0 &&
 		codeEmbeddingOverride === null &&
 		maxConcurrentTasksOverride === null &&
-		selectedAgentIdOverride === null
+		selectedAgentIdOverride === null &&
+		agentRulesetsOverride === null
 	) {
 		await rm(configPath, { force: true });
 		try {
@@ -1323,6 +1348,7 @@ async function writeRuntimeProjectConfigFile(
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
 			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),
+			...(agentRulesetsOverride !== null ? { agentRulesetsOverride } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,
@@ -1398,6 +1424,7 @@ function createRuntimeConfigStateFromValues(input: {
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	modelRoles: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
+	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
 	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
@@ -1472,6 +1499,9 @@ function createRuntimeConfigStateFromValues(input: {
 			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
 		modelRoles: normalizeModelRoles(input.modelRoles),
 		agentRulesets: normalizeAgentRulesets(input.agentRulesets),
+		agentRulesetsOverride: normalizeAgentRulesetsOverride(input.agentRulesetsOverride),
+		effectiveAgentRulesets:
+			normalizeAgentRulesetsOverride(input.agentRulesetsOverride) ?? normalizeAgentRulesets(input.agentRulesets),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
@@ -1525,6 +1555,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		codeEmbeddingOverride: null,
 		modelRoles: current.modelRoles,
 		agentRulesets: current.agentRulesets,
+		agentRulesetsOverride: null,
 		swarmGuardrails: current.swarmGuardrails,
 		shortcuts: [],
 		commitPromptTemplate: current.commitPromptTemplate,
@@ -1586,6 +1617,7 @@ export async function saveRuntimeConfig(
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
+		agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
 		swarmGuardrails?: RuntimeSwarmGuardrails;
@@ -1655,6 +1687,7 @@ export async function saveRuntimeConfig(
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
 			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: config.selectedAgentIdOverride,
+			agentRulesetsOverride: config.agentRulesetsOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -1676,6 +1709,7 @@ export async function saveRuntimeConfig(
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
 			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride ?? null,
 			selectedAgentIdOverride: config.selectedAgentIdOverride ?? null,
+			agentRulesetsOverride: config.agentRulesetsOverride ?? null,
 			sandboxMaxContainers: normalizePositiveInteger(
 				config.sandboxMaxContainers,
 				DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
@@ -1826,6 +1860,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.selectedAgentIdOverride,
 				normalizeSelectedAgentIdOverride,
 			),
+			agentRulesetsOverride: keepNormalizedValue(
+				updates.agentRulesetsOverride,
+				current.agentRulesetsOverride,
+				normalizeAgentRulesetsOverride,
+			),
 			modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
 			agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
 			swarmGuardrails: keepNormalizedValue(
@@ -1882,6 +1921,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: nextConfig.selectedAgentIdOverride,
+			agentRulesetsOverride: nextConfig.agentRulesetsOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -1903,6 +1943,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: nextConfig.selectedAgentIdOverride,
+			agentRulesetsOverride: nextConfig.agentRulesetsOverride,
 			sandboxMaxContainers: nextConfig.sandboxMaxContainers,
 			sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
 			sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
@@ -2026,6 +2067,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingOverride: null,
 				maxConcurrentTasksOverride: null,
 				selectedAgentIdOverride: null,
+				agentRulesetsOverride: null,
 				modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
 				agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
 				swarmGuardrails: keepNormalizedValue(
@@ -2098,6 +2140,7 @@ export async function updateGlobalRuntimeConfig(
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
 				maxConcurrentTasksOverride: null,
 				selectedAgentIdOverride: null,
+				agentRulesetsOverride: null,
 				sandboxMaxContainers: nextConfig.sandboxMaxContainers,
 				sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
 				sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,

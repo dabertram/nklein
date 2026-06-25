@@ -552,7 +552,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							.catch(() => [] as string[]);
 						const deliveryDecision = decideDeliveryAction(
 							deliveryPolicyForTier(
-								resolveEffectiveDeliveryTier(deliveryConfig?.agentRulesets?.delivery, "worker", {
+								resolveEffectiveDeliveryTier(deliveryConfig?.effectiveAgentRulesets?.delivery, "worker", {
 									cardTier: deliveryCard?.deliveryTierOverride ?? null,
 								}),
 							),
@@ -703,7 +703,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		// The shared container pool's egress is governed by the GLOBAL capability ruleset preset (default
 		// fully_open -> full egress). Per-role network overrides would need policy-keyed pools (follow-up).
 		const sandboxNetworkPolicy = capabilitiesForTier(
-			runtimeConfig.agentRulesets?.capability.globalPreset ?? DEFAULT_AGENT_CAPABILITY_TIER,
+			runtimeConfig.effectiveAgentRulesets?.capability.globalPreset ?? DEFAULT_AGENT_CAPABILITY_TIER,
 		).network;
 		let service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {

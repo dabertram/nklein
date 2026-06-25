@@ -1918,6 +1918,8 @@ export const runtimeConfigResponseSchema = z.object({
 	// Optional during rollout: the runtime omits it until the config loader populates it (consumers default to
 	// DEFAULT_AGENT_RULESETS_CONFIG). See src/core/agent-rulesets.ts.
 	agentRulesets: agentRulesetsConfigSchema.optional(),
+	agentRulesetsOverride: agentRulesetsConfigSchema.nullable().optional(),
+	effectiveAgentRulesets: agentRulesetsConfigSchema.optional(),
 	swarmGuardrails: runtimeSwarmGuardrailsSchema,
 	commitPromptTemplate: z.string(),
 	openPrPromptTemplate: z.string(),
@@ -1958,6 +1960,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
 	agentRulesets: agentRulesetsConfigSchema.optional(),
+	agentRulesetsOverride: agentRulesetsConfigSchema.nullable().optional(),
 	swarmGuardrails: runtimeSwarmGuardrailsSchema.optional(),
 	readyForReviewNotificationsEnabled: z.boolean().optional(),
 	commitPromptTemplate: z.string().optional(),

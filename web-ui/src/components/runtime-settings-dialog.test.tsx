@@ -365,6 +365,7 @@ const savedNKleinOauthConfig = {
 	detectedCommands: [],
 	shortcuts: [],
 	modelRoles: {},
+	agentRulesetsOverride: null,
 	swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",

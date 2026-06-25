@@ -1141,6 +1141,54 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists project agentRulesetsOverride and derives effectiveAgentRulesets (§5.W Phase 1)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir(
+			"kanban-home-runtime-config-agent-rulesets-override-",
+		);
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-agent-rulesets-override-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				// Set a non-default global agentRulesets so we can distinguish override from global.
+				await updateRuntimeConfig(tempProject, {
+					agentRulesets: { capability: { globalPreset: "strict" }, delivery: { globalPreset: "fully_open" } },
+				});
+
+				const overridden = await updateRuntimeConfig(tempProject, {
+					agentRulesetsOverride: {
+						capability: { globalPreset: "more_open" },
+						delivery: { globalPreset: "medium" },
+					},
+				});
+
+				expect(overridden.agentRulesets?.capability.globalPreset).toBe("strict");
+				expect(overridden.agentRulesetsOverride?.capability.globalPreset).toBe("more_open");
+				expect(overridden.effectiveAgentRulesets?.capability.globalPreset).toBe("more_open");
+				expect(overridden.effectiveAgentRulesets?.delivery.globalPreset).toBe("medium");
+
+				// The override is persisted to the project config file.
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.agentRulesetsOverride?.capability.globalPreset).toBe("more_open");
+				expect(reloaded.effectiveAgentRulesets?.capability.globalPreset).toBe("more_open");
+				expect(reloaded.agentRulesets?.capability.globalPreset).toBe("strict");
+
+				// Resetting to null falls back to the global value.
+				const reset = await updateRuntimeConfig(tempProject, {
+					agentRulesetsOverride: null,
+				});
+				expect(reset.agentRulesetsOverride).toBeNull();
+				expect(reset.effectiveAgentRulesets?.capability.globalPreset).toBe(
+					reset.agentRulesets?.capability.globalPreset,
+				);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists non-default lost heartbeat policy", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-heartbeat-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-heartbeat-");

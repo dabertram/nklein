@@ -171,6 +171,8 @@ export function buildRuntimeConfigResponse(
 		nkleinProviderSettings,
 		modelRoles: runtimeConfig.modelRoles,
 		agentRulesets: runtimeConfig.agentRulesets,
+		agentRulesetsOverride: runtimeConfig.agentRulesetsOverride,
+		effectiveAgentRulesets: runtimeConfig.effectiveAgentRulesets,
 		swarmGuardrails: runtimeConfig.swarmGuardrails,
 		commitPromptTemplate: runtimeConfig.commitPromptTemplate,
 		openPrPromptTemplate: runtimeConfig.openPrPromptTemplate,
