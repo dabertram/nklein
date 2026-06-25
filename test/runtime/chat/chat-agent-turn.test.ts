@@ -83,6 +83,36 @@ describe("runChatAgentTurn", () => {
 		expect(result.assistantMessage.content).toBe("hello there");
 	});
 
+	it("streams the final no-tool reply through onToken while persisting the full text (hybrid streaming §5.M G3a)", async () => {
+		const reply = "streamed turn reply";
+		const tokens: string[] = [];
+		const result = await runChatAgentTurn(
+			{ session: session(), userMessage: "say hi", tokenBudget: 1000, onToken: (delta) => tokens.push(delta) },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async (_messages, _allowTools, onToken) => {
+					if (onToken) {
+						onToken(reply.slice(0, 9));
+						onToken(reply.slice(9));
+					}
+					return { text: reply, toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("no tools expected");
+				},
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(tokens.join("")).toBe(reply);
+		expect(tokens.length).toBeGreaterThanOrEqual(2);
+		expect(result.assistantMessage.content).toBe(reply);
+	});
+
 	it("cleans a narrated tool call from the final reply, confirming the action instead (§5.O)", async () => {
 		// Weak model: first turn calls the tool, then narrates another call as its final text (gemma-4-e2b live).
 		const turns: ChatAgentModelResponse[] = [

@@ -31,8 +31,13 @@ export interface ChatAgentTurnDeps {
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	estimateTokens: (text: string) => number;
 	embed?: (text: string) => Promise<number[] | null>;
-	/** The agent model: prompt + whether tools are offered → text + requested tool calls. */
-	model: (messages: readonly ChatPromptMessage[], allowTools: boolean) => Promise<ChatAgentModelResponse>;
+	/** The agent model: prompt + whether tools are offered → text + requested tool calls. `onToken` is passed only on
+	 *  the final (no-tool) answer call (hybrid streaming, todo §5.M G3a) — the model streams the reply when it can. */
+	model: (
+		messages: readonly ChatPromptMessage[],
+		allowTools: boolean,
+		onToken?: (delta: string) => void,
+	) => Promise<ChatAgentModelResponse>;
 	/** Executes one tool call (the policy-gated + audited executor in the live wiring). */
 	executeTool: (call: ChatToolCall) => Promise<ChatToolResult>;
 	appendToolExchange: (
@@ -57,6 +62,9 @@ export async function runChatAgentTurn(
 		tokenBudget: number;
 		memoryLimit?: number;
 		maxIterations?: number;
+		/** Streams the final reply token-by-token (hybrid streaming, todo §5.M G3a); server-side only — callbacks
+		 *  can't cross the tRPC wire. Persisted reply is still the cleaned/stripped text. */
+		onToken?: (delta: string) => void;
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -77,7 +85,11 @@ export async function runChatAgentTurn(
 	);
 	const prompt = renderChatTurnPrompt(context, input.userMessage);
 	const loop = await runChatAgentLoop(
-		{ messages: prompt, ...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}) },
+		{
+			messages: prompt,
+			...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
+			...(input.onToken ? { onToken: input.onToken } : {}),
+		},
 		{ complete: deps.model, executeTool: deps.executeTool, appendToolExchange: deps.appendToolExchange },
 	);
 	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they

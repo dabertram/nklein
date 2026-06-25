@@ -50,8 +50,14 @@ export interface ChatAgentStep {
 }
 
 export interface ChatAgentLoopDeps {
-	/** Call the model; `allowTools` is false on the final, forced answer turn so it stops requesting tools. */
-	complete: (messages: readonly ChatPromptMessage[], allowTools: boolean) => Promise<ChatAgentModelResponse>;
+	/** Call the model; `allowTools` is false on the final, forced answer turn so it stops requesting tools. `onToken`
+	 *  is supplied only on the FINAL (no-tool) answer call: when present the model may stream the reply incrementally
+	 *  (hybrid streaming, todo §5.M G3a) so a tool-routed turn that ends in plain text still emits token deltas. */
+	complete: (
+		messages: readonly ChatPromptMessage[],
+		allowTools: boolean,
+		onToken?: (delta: string) => void,
+	) => Promise<ChatAgentModelResponse>;
 	/** Execute one tool call (after the policy gate + audit, in the live wiring); returns the result content. */
 	executeTool: (call: ChatToolCall) => Promise<ChatToolResult>;
 	/** Fold an assistant turn's tool calls + their results back into the message list for the next turn. */
@@ -70,17 +76,32 @@ export interface ChatAgentLoopResult {
 }
 
 export async function runChatAgentLoop(
-	input: { messages: readonly ChatPromptMessage[]; maxIterations?: number },
+	input: {
+		messages: readonly ChatPromptMessage[];
+		maxIterations?: number;
+		/** When set, the FINAL (no-tool) answer is streamed token-by-token through this callback (hybrid streaming,
+		 *  todo §5.M G3a). Tool-discovery turns never stream — the model must still be free to request tools there. */
+		onToken?: (delta: string) => void;
+	},
 	deps: ChatAgentLoopDeps,
 ): Promise<ChatAgentLoopResult> {
 	const maxIterations = Math.max(1, input.maxIterations ?? 8);
+	const onToken = input.onToken;
 	let messages: readonly ChatPromptMessage[] = input.messages;
 	const steps: ChatAgentStep[] = [];
 	const executedFingerprints = new Set<string>();
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
+		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering).
 		const response = await deps.complete(messages, true);
 		if (response.toolCalls.length === 0) {
+			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
+			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
+			// offer tools and stream); without one we return the text we already have (no extra model call).
+			if (onToken) {
+				const streamed = await deps.complete(messages, false, onToken);
+				return { finalText: streamed.text, steps, hitIterationLimit: false };
+			}
 			return { finalText: response.text, steps, hitIterationLimit: false };
 		}
 		const results: ChatToolResult[] = [];
@@ -100,13 +121,13 @@ export async function runChatAgentLoop(
 		}
 		messages = deps.appendToolExchange(messages, response, results);
 		if (executedNew === 0) {
-			// The whole response was repeats — the model is stuck. Force a final answer now (not a cap hit).
-			const finalResponse = await deps.complete(messages, false);
+			// The whole response was repeats — the model is stuck. Force a final (streamed) answer now (not a cap hit).
+			const finalResponse = await deps.complete(messages, false, onToken);
 			return { finalText: finalResponse.text, steps, hitIterationLimit: false };
 		}
 	}
 
-	// Out of tool iterations — force one final answer turn with tools disabled so it must conclude.
-	const finalResponse = await deps.complete(messages, false);
+	// Out of tool iterations — force one final (streamed) answer turn with tools disabled so it must conclude.
+	const finalResponse = await deps.complete(messages, false, onToken);
 	return { finalText: finalResponse.text, steps, hitIterationLimit: true };
 }

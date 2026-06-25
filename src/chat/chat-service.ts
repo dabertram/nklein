@@ -5,6 +5,7 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
+import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { readChatMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
@@ -27,6 +28,14 @@ import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
  * stores directly. The root is injectable: production omits it (real runtime home); tests pass a temp dir.
  */
 
+/**
+ * The tool-using subset of {@link ChatAgentTurnDeps} a session needs to run through the agent loop instead of plain
+ * completion: the tools-aware model, the policy-gated executor, and the message-fold. The service stays decoupled
+ * from the concrete tool infrastructure — it only consumes this injected shape (the live wiring in `runtime-api`
+ * builds the read-only tools + gated executor + agent model and supplies them).
+ */
+export type ChatAgentToolDeps = Pick<ChatAgentTurnDeps, "model" | "executeTool" | "appendToolExchange">;
+
 export interface ChatServiceOptions {
 	/** Base directory for all chat stores; each store lives in its own subdir. Omit for the real runtime home. */
 	rootDir?: string;
@@ -34,6 +43,11 @@ export interface ChatServiceOptions {
 	/** Resolves the model completion deps for `sendMessage` (called per turn so discovery/errors surface then).
 	 *  Omit for a read-only service (sessions + transcript only); `sendMessage` then throws. */
 	resolveModelDeps?: () => Promise<ChatModelDeps>;
+	/** Resolves the tool-using agent deps for a session (todo §5.M G3a). Non-null ⇒ `sendMessage` routes the turn
+	 *  through the tool-using agent loop (`runChatAgentTurn`) with those deps; null ⇒ the plain `runChatTurn` path.
+	 *  Mirrors the `resolveModelDeps` seam so the service never touches the tool infrastructure. Omitted ⇒ always
+	 *  plain (every session stays on `runChatTurn`). */
+	resolveAgentToolDeps?: (session: ChatSession) => Promise<ChatAgentToolDeps | null>;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
 }
@@ -146,21 +160,47 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				return null;
 			}
 			const modelDeps = await options.resolveModelDeps();
+			const tokenBudget = input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
+			const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
+			const storeDeps = {
+				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
+				readMemories: () => readChatMemories(memoryOptions),
+				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
+					appendChatMessage(sessionId, message, transcriptOptions),
+				estimateTokens,
+			};
+
+			// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
+			// loop instead of plain completion. `onToken` still streams the FINAL (no-tool) reply (hybrid streaming), so
+			// a turn that uses no tools keeps token-by-token streaming. `summarize` for the lean window comes from the
+			// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
+			const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
+			if (agentToolDeps) {
+				const agentResult = await runChatAgentTurn(
+					{
+						session,
+						userMessage: input.message,
+						tokenBudget,
+						memoryLimit,
+						...(onToken ? { onToken } : {}),
+					},
+					{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+				);
+				return {
+					userMessage: toRuntimeChatMessage(agentResult.userMessage),
+					assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
+				};
+			}
+
 			const result = await runChatTurn(
 				{
 					session,
 					userMessage: input.message,
-					tokenBudget: input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET,
-					memoryLimit: input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT,
+					tokenBudget,
+					memoryLimit,
 					...(onToken ? { onToken } : {}),
 				},
-				{
-					readTranscript: (sessionId) => readChatTranscript(sessionId, transcriptOptions),
-					readMemories: () => readChatMemories(memoryOptions),
-					appendMessage: (sessionId, message) => appendChatMessage(sessionId, message, transcriptOptions),
-					estimateTokens,
-					...modelDeps,
-				},
+				{ ...storeDeps, ...modelDeps },
 			);
 			return {
 				userMessage: toRuntimeChatMessage(result.userMessage),

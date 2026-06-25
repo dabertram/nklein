@@ -12,12 +12,19 @@ import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
  * to the current session set on read — so a crash mid-write never corrupts the index.
  */
 
-/** Where a chat session may reach — most-isolated by default (invariant #2: host access is opt-in + typed). */
-export type ChatSessionScope = "project_sandboxed" | "all_projects" | "host_access";
+/** Where a chat session may reach — most-isolated by default (invariant #2: host access is opt-in + typed).
+ *  `chat_only` is the read-only floor (todo §5.M G3a): the agent may read (read_file/list_dir/get_board) but use no
+ *  mutating tool. Must stay aligned with `runtimeChatSessionScopeSchema` in core/chat-api-contract.ts. */
+export type ChatSessionScope = "project_sandboxed" | "all_projects" | "host_access" | "chat_only";
 /** The agent persona a session runs as (mirrors the §5.M preset roles). */
 export type ChatSessionRole = "planner_architect" | "reviewer" | "debugger" | "researcher" | "system_operator";
 
-export const CHAT_SESSION_SCOPES: readonly ChatSessionScope[] = ["project_sandboxed", "all_projects", "host_access"];
+export const CHAT_SESSION_SCOPES: readonly ChatSessionScope[] = [
+	"project_sandboxed",
+	"all_projects",
+	"host_access",
+	"chat_only",
+];
 export const CHAT_SESSION_ROLES: readonly ChatSessionRole[] = [
 	"planner_architect",
 	"reviewer",

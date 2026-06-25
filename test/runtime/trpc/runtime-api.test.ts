@@ -234,11 +234,14 @@ function withDefaultTerminalListSummaries(manager: ScopedTerminalManager): Scope
 }
 
 function createTestRuntimeApi(
-	deps: Omit<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow"> &
-		Partial<Pick<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow">>,
+	deps: Omit<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow" | "getActiveWorkspacePath"> &
+		Partial<Pick<CreateRuntimeApiDependencies, "getUpdateStatus" | "runUpdateNow" | "getActiveWorkspacePath">>,
 ): RuntimeTrpcContext["runtimeApi"] {
 	return createRuntimeApi({
 		...deps,
+		// No active workspace by default ⇒ chat stays on the plain completion path (todo §5.M G3a); tests that need
+		// the tool-using path can pass their own getActiveWorkspacePath.
+		getActiveWorkspacePath: deps.getActiveWorkspacePath ?? (() => null),
 		getScopedTerminalManager: async (scope) =>
 			withDefaultTerminalListSummaries(await deps.getScopedTerminalManager(scope)),
 		getUpdateStatus:

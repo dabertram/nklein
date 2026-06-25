@@ -8,7 +8,15 @@ import { z } from "zod";
  * top. Kept in its own module rather than the 2500-line `api-contract.ts` so the chat surface stays navigable.
  */
 
-export const runtimeChatSessionScopeSchema = z.enum(["project_sandboxed", "all_projects", "host_access"]);
+export const runtimeChatSessionScopeSchema = z.enum([
+	"project_sandboxed",
+	"all_projects",
+	"host_access",
+	// "chat only": the most-restrictive, read-only floor — the agent may use read tools (read_file/list_dir/get_board)
+	// but nothing that mutates (no write_file/run_command/board-mutation). Additive 4th peer (todo §5.M G3a); the
+	// default scope stays `project_sandboxed` (set in the session store).
+	"chat_only",
+]);
 export type RuntimeChatSessionScope = z.infer<typeof runtimeChatSessionScopeSchema>;
 
 export const runtimeChatSessionRoleSchema = z.enum([

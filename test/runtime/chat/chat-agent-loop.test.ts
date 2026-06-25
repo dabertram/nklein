@@ -120,6 +120,76 @@ describe("runChatAgentLoop", () => {
 		expect(result.hitIterationLimit).toBe(false);
 	});
 
+	it("streams the final no-tool answer through onToken via a tools-disabled re-call (hybrid streaming §5.M G3a)", async () => {
+		const allowTools: boolean[] = [];
+		const tokens: string[] = [];
+		const result = await runChatAgentLoop(
+			{ messages: start, onToken: (delta) => tokens.push(delta) },
+			{
+				complete: async (_messages, allow, onToken) => {
+					allowTools.push(allow);
+					// Discovery call returns no tools; the loop then re-issues a tools-disabled streaming call.
+					if (onToken) {
+						onToken("Direct ");
+						onToken("answer.");
+					}
+					return { text: "Direct answer.", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("should not execute tools");
+				},
+				appendToolExchange,
+			},
+		);
+		expect(result.finalText).toBe("Direct answer.");
+		expect(result.steps).toEqual([]);
+		// One discovery call (allow=true) then one streamed final call (allow=false).
+		expect(allowTools).toEqual([true, false]);
+		expect(tokens.join("")).toBe("Direct answer.");
+		expect(tokens.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("streams the forced final answer through onToken when it hits the iteration limit (§5.M G3a)", async () => {
+		const tokens: string[] = [];
+		const result = await runChatAgentLoop(
+			{ messages: start, maxIterations: 1, onToken: (delta) => tokens.push(delta) },
+			{
+				complete: async (_messages, allow, onToken) => {
+					if (allow) {
+						return { text: "", toolCalls: [{ id: "c1", name: "loop", arguments: {} }] };
+					}
+					onToken?.("Best ");
+					onToken?.("effort.");
+					return { text: "Best effort.", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "ok" }),
+				appendToolExchange,
+			},
+		);
+		expect(result.hitIterationLimit).toBe(true);
+		expect(result.finalText).toBe("Best effort.");
+		expect(tokens.join("")).toBe("Best effort.");
+	});
+
+	it("makes no extra model call for the no-tool answer when no onToken is given", async () => {
+		let calls = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start },
+			{
+				complete: async () => {
+					calls++;
+					return { text: "Direct answer.", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("should not execute tools");
+				},
+				appendToolExchange,
+			},
+		);
+		expect(result.finalText).toBe("Direct answer.");
+		expect(calls).toBe(1);
+	});
+
 	it("still runs genuinely new calls that differ only in arguments", async () => {
 		const executed: string[] = [];
 		const turns: ChatAgentModelResponse[] = [
