@@ -14,7 +14,13 @@ export type ChatExecutionMode =
 	/** (c) Whole session on the host (entered behind a typed phrase); host mutations still per-action confirmed. */
 	| "host";
 
-export type ChatActionKind = "sandbox_read" | "sandbox_write" | "host_read" | "host_write" | "host_command";
+export type ChatActionKind =
+	| "sandbox_read"
+	| "sandbox_write"
+	| "control_plane"
+	| "host_read"
+	| "host_write"
+	| "host_command";
 
 export type ChatActionDecision = "allow" | "confirm" | "deny";
 
@@ -31,6 +37,10 @@ const HOST_ACTIONS: ReadonlySet<ChatActionKind> = new Set(["host_read", "host_wr
  * Decide access for one action under the active mode. Conservative by construction: host *mutations*
  * (write/command) are never silently allowed — they always require an explicit confirmation (and are logged by
  * the caller), and any host access at all is denied in the most-isolated mode.
+ *
+ * `control_plane` is a trusted !Klein-owned board mutation (e.g. creating a card) — it never touches the user's
+ * working tree or a shell, so it needs no confirmation in the host-capable modes. In `isolated_readonly` it is
+ * denied: that mode is read-only even for internal board mutations so the user retains full control.
  */
 export function decideChatActionAccess(mode: ChatExecutionMode, action: ChatActionKind): ChatActionAccess {
 	const isHostAction = HOST_ACTIONS.has(action);
@@ -38,6 +48,19 @@ export function decideChatActionAccess(mode: ChatExecutionMode, action: ChatActi
 
 	if (action === "sandbox_read") {
 		return { decision: "allow", reason: "Reads inside the sandbox are always allowed." };
+	}
+
+	if (action === "control_plane") {
+		if (mode === "isolated_readonly") {
+			return {
+				decision: "deny",
+				reason: "Isolated read-only mode does not permit board mutations.",
+			};
+		}
+		return {
+			decision: "allow",
+			reason: "Control-plane board mutations are allowed — they only touch the !Klein-owned board, never the host.",
+		};
 	}
 
 	if (mode === "isolated_readonly") {

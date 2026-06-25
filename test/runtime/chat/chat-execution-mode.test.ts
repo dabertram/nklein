@@ -41,4 +41,17 @@ describe("chat-execution-mode", () => {
 			expect(decision(mode, "host_command")).not.toBe("allow");
 		}
 	});
+
+	it("control_plane: denied in isolated_readonly, allowed in both host-capable modes", () => {
+		expect(decision("isolated_readonly", "control_plane")).toBe("deny");
+		expect(decision("sandbox_with_host_escape", "control_plane")).toBe("allow");
+		expect(decision("host", "control_plane")).toBe("allow");
+	});
+
+	it("control_plane: never requires confirmation (no shell or host filesystem involved)", () => {
+		const modes: ChatExecutionMode[] = ["sandbox_with_host_escape", "host"];
+		for (const mode of modes) {
+			expect(decision(mode, "control_plane")).toBe("allow");
+		}
+	});
 });
