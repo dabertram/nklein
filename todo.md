@@ -755,6 +755,43 @@ deep analysis:
 > typed-confirmed + logged; cloud lockdown (#1) + ≥32k floor everywhere. **Presets:** base = coding + board ops;
 > scopes = project-sandboxed (default) / all-loaded-projects / host-access (typed-confirm); roles =
 > planner-architect, reviewer (§5.K), debugger, researcher (§5.L tiers), system-operator (host persona).
+
+> **⭐ CAPABILITY-COVERAGE AUDIT (2026-06-25, user: "agents running commands, test if things execute at runtime, and
+> focus_chain etc — make sure we cover everything properly").** Audited the chat agent's real capability surface and
+> found two agents with very different coverage — this is the gap to close so the **right-sidebar** agent is genuinely
+> "Cline but stronger":
+> | Capability | CLI agent (`nklein chat --workspace`) | Web-UI right-sidebar (`chat.sendMessage`/`streamMessage`) |
+> |---|---|---|
+> | turn loop | **tool-using** (`runChatAgentTurn` + gated executor) | **plain completion** (`runChatTurn`) — **NO TOOLS** ⚠️ |
+> | read_file / list_dir | ✅ | ❌ |
+> | write_file (confirm-gated) | ✅ (`--allow-write`) | ❌ |
+> | get_board (board awareness) | ✅ (2026-06-25, this pass) | ❌ |
+> | **run_command / execute at runtime** | ❌ **(nobody has it)** | ❌ |
+> | board mutations (create/start card) | ❌ | ❌ |
+> | focus chain (§5.N) | ❌ | ❌ |
+> | browser (§5.L) / knowledge-fetch (§5.B) | ❌ | ❌ |
+> The **execution-mode gate** (`chat-execution-mode.ts`) + the **audit log** already exist and are sound — the work is
+> wiring the capabilities through them. **Prioritized gap checklist (build incrementally, live-verify execution):**
+>   - [x] **G1 — `get_board` board-awareness tool (read-only, 2026-06-25)** — [chat-board-tools.ts](src/chat/chat-board-tools.ts)
+>         (`sandbox_read`, path-free summary, injected loader, 6 unit tests); wired into the CLI agent. The read half of
+>         "use the project/card/task structure".
+>   - [ ] **G2 — `run_command` execution tool (the user's #1: "test if things execute at runtime")** — a gated
+>         `host_command` tool that runs a shell command in the workspace + returns stdout/stderr/exit. Honors the §5.M
+>         invariant (host access is chat-only, never default, typed-confirm + audited; denied outright in
+>         `isolated_readonly`). **LIVE-verify** the agent actually runs a command end-to-end (the user explicitly wants
+>         runtime execution proven, not just unit-mocked).
+>   - [ ] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent** (`chat-service.sendMessage`/`streamMessage`
+>         currently call the plain `runChatTurn`) — the biggest gap: the agent the user actually means can't call ANY
+>         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode, streaming tool
+>         activity to the UI.
+>   - [ ] **G4 — focus chain (§5.N) in the chat agent** — persist + surface a self-directed checklist per chat session
+>         (the task agents already have `update_focus_chain`; fold the same tool + persistence into the chat loop).
+>   - [ ] **G5 — board mutations** — `create_card` / `start_card` tools (trusted control-plane board writes, gated) so
+>         the agent can "create a new project or work an existing one" autonomously, not just read it.
+>   - [ ] **G6 — browser (§5.L) + knowledge-fetch (§5.B) tools** in the chat loop (per-role capability rulesets).
+>   - [ ] **G7 — comprehensive live coverage** — a dev-test that drives the FULL tool-using chat agent (read → run a
+>         command → see output → edit → create a card → focus chain) against a live local model, asserting each executes.
+
 - [x] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
       concurrent; separate from board/task state (not kanban cards). **(store + transcript + tRPC surface + UI all
       shipped 2026-06-24.)**

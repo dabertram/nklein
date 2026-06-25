@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
+import { createBoardReadTools } from "../chat/chat-board-tools";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { readChatMemories } from "../chat/chat-memory-store";
@@ -112,9 +113,10 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 	if (options.workspace) {
 		const workspaceRoot = resolve(options.workspace);
 		const read = createWorkspaceReadTools(workspaceRoot);
+		const boardTools = createBoardReadTools(workspaceRoot);
 		const writeTools = options.allowWrite ? createWorkspaceWriteTools(workspaceRoot) : { tools: [], definitions: [] };
-		const tools = [...read.tools, ...writeTools.tools];
-		const definitions = [...read.definitions, ...writeTools.definitions];
+		const tools = [...read.tools, ...boardTools.tools, ...writeTools.tools];
+		const definitions = [...read.definitions, ...boardTools.definitions, ...writeTools.definitions];
 
 		// A confirm-gated tool needs an interactive prompt; the REPL also needs stdin. Open one reader for both.
 		const reader = options.allowWrite || !message ? createStdinLineReader() : null;
