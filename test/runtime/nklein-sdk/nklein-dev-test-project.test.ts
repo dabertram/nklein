@@ -62,6 +62,18 @@ describe("nklein dev test project", () => {
 		await expect(access(join(project.workspacePath, "kanban-dev-scenario.json"))).rejects.toThrow();
 	});
 
+	it("honors a configured workspaceBaseDir (the §5.W global setting) when no explicit parentDir is given", async () => {
+		// `workspaceBaseDir` is the value the runtime threads from the global `workspaceBaseDir` setting; with no
+		// explicit parentDir, the safe-location resolver creates the workspace under that configured base.
+		const workspaceBaseDir = await createParentDir();
+		const project = await scaffoldNKleinDevTestProject({
+			workspaceBaseDir,
+			initializeGit: false,
+			now: () => 1_700_000_000_000,
+		});
+		expect(project.workspacePath.startsWith(workspaceBaseDir)).toBe(true);
+	});
+
 	it("initializes git with !Klein ownership metadata", async () => {
 		const parentDir = await createParentDir();
 		const project = await scaffoldNKleinDevTestProject({

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
+import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
@@ -105,8 +106,11 @@ function parseAdvisorKind(value: string): NKleinAdvisorKind {
 
 export async function runDevSmokeEvalCommand(options: DevSmokeEvalOptions = {}): Promise<void> {
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
+	// §5.W: honor the configured workspace base dir (global setting) for the CLI dev-test's created workspace.
+	const globalConfig = await loadGlobalRuntimeConfig();
 	const result = await runNKleinDevSmokeEval({
 		parentDir: options.parentDir,
+		...(globalConfig.workspaceBaseDir ? { workspaceBaseDir: globalConfig.workspaceBaseDir } : {}),
 		evidenceRootDir: options.evidenceRoot,
 		telemetryRootDir: options.telemetryRoot ?? DEFAULT_TELEMETRY_ROOT,
 		initializeGit: options.git !== false,

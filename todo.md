@@ -1972,11 +1972,13 @@ deep analysis:
         update-input / normalizer / change-registry / read+write + all merge/snapshot fns — tsc-driven, 0 misses),
         `runtimeConfigResponseSchema` + `runtimeConfigSaveRequestSchema`, and `buildRuntimeConfigResponse`; saveConfig
         passes it through generically. All fixtures updated; root+web tsc, fast 1728, web vitest 694, biome green.
-        **STILL TODO:** (a) the settings-dialog **UI field** (a text/path input mirroring `maxConcurrentTasks`'s
-        state/id/init/change/save/JSX) so the user can edit it; (b) **thread** the configured value into the
-        workspace-creation call sites (`scaffoldNKleinDevTestProject` already accepts `workspaceBaseDir` — source it from
-        the active runtime config at the dev-test/CLI call sites) so the setting actually takes effect; (c) a CHANGELOG
-        entry once it's user-facing.
+        **THREADING DONE (solo):** the configured value is now sourced from the global config (`loadGlobalRuntimeConfig`)
+        and passed to `scaffoldNKleinDevTestProject` at **all three** creation paths — the tRPC dev-test mutation
+        (`projects-api.ts`), the runtime eval (`runtime-api.ts` `runNKleinSmokeEval`), and the CLI (`dev.ts`
+        `runDevSmokeEvalCommand`) — via the eval-harness's new `workspaceBaseDir` option. A new scaffold test asserts a
+        configured `workspaceBaseDir` is honored when no explicit `parentDir` is given. **STILL TODO:** (a) the
+        settings-dialog **UI field** (a text/path input mirroring `maxConcurrentTasks`'s state/id/init/change/save/JSX) so
+        the user can edit it; then (b) a CHANGELOG entry once it's user-facing.
   - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
         per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm

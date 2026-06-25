@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { loadRuntimeConfig } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardData,
 	RuntimeDevTestCleanupResponse,
@@ -437,9 +437,13 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 			try {
 				const preset = input?.preset ?? "mid_task";
 				const scenario = resolveNKleinDevTestProjectScenario(preset);
+				// §5.W: honor the user-configured workspace base dir (global setting) for where the dev-test project is
+				// created; null falls back to the env var / home default inside resolveSafeCreatedWorkspaceParentDir.
+				const globalConfig = await loadGlobalRuntimeConfig();
 				const scaffolded = await scaffoldNKleinDevTestProject({
 					scenario,
 					initializeGit: true,
+					...(globalConfig.workspaceBaseDir ? { workspaceBaseDir: globalConfig.workspaceBaseDir } : {}),
 				});
 				const context = await loadWorkspaceContext(scaffolded.workspacePath, {
 					gitRepositoryCreatedByKanban: true,

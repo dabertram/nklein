@@ -32,7 +32,7 @@ import {
 } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
-import { updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeBoardCard,
@@ -1708,7 +1708,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		runNKleinSmokeEval: async (_workspaceScope) => {
 			const launchConfig = await nkleinProviderService.resolveLaunchConfig();
 			const modelId = launchConfig.modelId?.trim() || "unknown";
+			// §5.W: honor the configured workspace base dir (global setting) for the eval's created workspace.
+			const globalConfig = await loadGlobalRuntimeConfig();
 			const result = await runNKleinDevSmokeEval({
+				...(globalConfig.workspaceBaseDir ? { workspaceBaseDir: globalConfig.workspaceBaseDir } : {}),
 				modelObservation: {
 					providerId: launchConfig.providerId,
 					modelId,

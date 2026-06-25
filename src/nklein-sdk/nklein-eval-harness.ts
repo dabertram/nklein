@@ -24,6 +24,8 @@ const DEV_SMOKE_EVIDENCE_SIGNALS = new Set<SelfObservationSignal>([
 export interface NKleinEvalHarnessOptions {
 	scenario?: NKleinDevTestProjectScenario;
 	parentDir?: string;
+	/** §5.W: configured safe base dir (global setting) for the created workspace; null/undefined → env/home default. */
+	workspaceBaseDir?: string;
 	evidenceRootDir?: string;
 	telemetryRootDir?: string;
 	initializeGit?: boolean;
@@ -190,6 +192,7 @@ export async function runNKleinDevSmokeEval(options: NKleinEvalHarnessOptions = 
 	const project = await scaffoldNKleinDevTestProject({
 		scenario,
 		parentDir: options.parentDir,
+		...(options.workspaceBaseDir ? { workspaceBaseDir: options.workspaceBaseDir } : {}),
 		initializeGit: options.initializeGit ?? true,
 		now: options.now,
 	});
