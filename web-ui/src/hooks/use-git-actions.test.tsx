@@ -94,6 +94,8 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 		maxConcurrentTasks: 3,
 		maxConcurrentTasksOverride: null,
 		effectiveMaxConcurrentTasks: 3,
+		selectedAgentIdOverride: null,
+		effectiveSelectedAgentId: selectedAgentId,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,

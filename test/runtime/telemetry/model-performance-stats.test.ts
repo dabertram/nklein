@@ -36,6 +36,8 @@ function createRuntimeConfig(): RuntimeConfigState {
 		maxConcurrentTasks: 2,
 		maxConcurrentTasksOverride: null,
 		effectiveMaxConcurrentTasks: 2,
+		selectedAgentIdOverride: null,
+		effectiveSelectedAgentId: "nklein",
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,

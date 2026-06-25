@@ -1379,11 +1379,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
 			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
 			const launchConfig =
-				runtimeConfig?.selectedAgentId === "nklein"
+				runtimeConfig?.effectiveSelectedAgentId === "nklein"
 					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
 					: null;
 			const providerSettings =
-				runtimeConfig?.selectedAgentId === "nklein" ? nkleinProviderService.getProviderSettingsSummary() : null;
+				runtimeConfig?.effectiveSelectedAgentId === "nklein"
+					? nkleinProviderService.getProviderSettingsSummary()
+					: null;
 			const models = addConfiguredLocalModelRegistryEntries({
 				models: snapshot.models,
 				runtimeConfig,
@@ -1420,11 +1422,13 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const snapshot = await registry.getSnapshot();
 			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
 			const launchConfig =
-				runtimeConfig?.selectedAgentId === "nklein"
+				runtimeConfig?.effectiveSelectedAgentId === "nklein"
 					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
 					: null;
 			const providerSettings =
-				runtimeConfig?.selectedAgentId === "nklein" ? nkleinProviderService.getProviderSettingsSummary() : null;
+				runtimeConfig?.effectiveSelectedAgentId === "nklein"
+					? nkleinProviderService.getProviderSettingsSummary()
+					: null;
 			const configuredModels = addConfiguredLocalModelRegistryEntries({
 				models: {},
 				runtimeConfig,

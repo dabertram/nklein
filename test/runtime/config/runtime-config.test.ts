@@ -1111,6 +1111,36 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists project selectedAgentIdOverride and derives effectiveSelectedAgentId (§5.W)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-agent-override-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-agent-override-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				await updateRuntimeConfig(tempProject, { selectedAgentId: "nklein" });
+
+				const overridden = await updateRuntimeConfig(tempProject, {
+					selectedAgentIdOverride: "claude",
+				});
+
+				expect(overridden.selectedAgentId).toBe("nklein");
+				expect(overridden.selectedAgentIdOverride).toBe("claude");
+				expect(overridden.effectiveSelectedAgentId).toBe("claude");
+
+				const reset = await updateRuntimeConfig(tempProject, {
+					selectedAgentIdOverride: null,
+				});
+				expect(reset.selectedAgentIdOverride).toBeNull();
+				expect(reset.effectiveSelectedAgentId).toBe(reset.selectedAgentId);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists non-default lost heartbeat policy", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-heartbeat-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-heartbeat-");

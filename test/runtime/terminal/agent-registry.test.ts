@@ -37,6 +37,8 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		maxConcurrentTasks: 3,
 		maxConcurrentTasksOverride: null,
 		effectiveMaxConcurrentTasks: 3,
+		selectedAgentIdOverride: null,
+		effectiveSelectedAgentId: "claude",
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 2048,

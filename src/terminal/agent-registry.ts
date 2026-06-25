@@ -68,7 +68,7 @@ export function detectInstalledCommands(): string[] {
 
 function getCuratedDefinitions(runtimeConfig: RuntimeConfigState, detected: string[]): RuntimeAgentDefinition[] {
 	const detectedSet = new Set(detected);
-	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
+	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.effectiveSelectedAgentId);
 	const supportedAgents = CLOUD_ENABLED
 		? getRuntimeLaunchSupportedAgentCatalog()
 		: getRuntimeLaunchSupportedAgentCatalog().filter((entry) => entry.id === "nklein");
@@ -89,7 +89,7 @@ function getCuratedDefinitions(runtimeConfig: RuntimeConfigState, detected: stri
 }
 
 export function resolveAgentCommand(runtimeConfig: RuntimeConfigState): ResolvedAgentCommand | null {
-	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
+	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.effectiveSelectedAgentId);
 	const selected = getRuntimeLaunchSupportedAgentCatalog().find((entry) => entry.id === selectedAgentId);
 	if (!selected) {
 		return null;
@@ -125,6 +125,7 @@ export function buildRuntimeConfigResponse(
 	const resolved = resolveAgentCommand(runtimeConfig);
 	const effectiveCommand = resolved ? joinCommand(resolved.binary, resolved.args) : null;
 	const selectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.selectedAgentId);
+	const effectiveSelectedAgentId = resolveSelectedAgentIdForLocalOnly(runtimeConfig.effectiveSelectedAgentId);
 
 	return {
 		selectedAgentId,
@@ -143,6 +144,8 @@ export function buildRuntimeConfigResponse(
 		maxConcurrentTasks: runtimeConfig.maxConcurrentTasks,
 		maxConcurrentTasksOverride: runtimeConfig.maxConcurrentTasksOverride,
 		effectiveMaxConcurrentTasks: runtimeConfig.effectiveMaxConcurrentTasks,
+		selectedAgentIdOverride: runtimeConfig.selectedAgentIdOverride,
+		effectiveSelectedAgentId,
 		sandboxMaxContainers: runtimeConfig.sandboxMaxContainers,
 		sandboxAgentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,
