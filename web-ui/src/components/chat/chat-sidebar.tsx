@@ -2,6 +2,16 @@ import { MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from 
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogBody,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/dialog";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
@@ -35,6 +45,9 @@ const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: stri
 	{ value: "all_projects", label: "All" },
 	{ value: "host_access", label: "⚠️ Host" },
 ];
+
+/** Scopes where the agent can run commands (not read-only). The risk toggle is only relevant here. */
+const CAN_ACT_SCOPES = new Set<RuntimeChatSessionScope>(["project_sandboxed", "all_projects", "host_access"]);
 
 // ─── Session metadata helpers ──────────────────────────────────────────────────
 
@@ -82,6 +95,63 @@ function buildSessionMeta(session: RuntimeChatSession, messages: RuntimeChatMess
 	return { startedLabel, lastActivityLabel, messageCount };
 }
 
+// ─── RiskAckConfirmDialog ──────────────────────────────────────────────────────
+
+/**
+ * Extra-confirmation AlertDialog shown before enabling `riskAcknowledged`. The user must explicitly
+ * click "Allow unsafe commands" to proceed — cancel/escape leaves the flag false.
+ */
+function RiskAckConfirmDialog({
+	open,
+	onConfirm,
+	onCancel,
+}: {
+	open: boolean;
+	onConfirm: () => void;
+	onCancel: () => void;
+}): React.ReactElement {
+	return (
+		<AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+			<AlertDialogHeader>
+				<AlertDialogTitle>Allow unsafe commands?</AlertDialogTitle>
+			</AlertDialogHeader>
+			<AlertDialogBody>
+				<AlertDialogDescription>
+					Enabling this allows the agent to run potentially-destructive shell commands — such as{" "}
+					<code className="bg-surface-2 px-1 rounded text-text-primary">rm</code>,{" "}
+					<code className="bg-surface-2 px-1 rounded text-text-primary">npm install</code>, network requests, and
+					other side-effecting operations — without per-command approval during this session.
+				</AlertDialogDescription>
+				<AlertDialogDescription>
+					Only proceed if you trust the current session goal and accept responsibility for any changes the agent
+					makes.
+				</AlertDialogDescription>
+			</AlertDialogBody>
+			<AlertDialogFooter>
+				<AlertDialogCancel asChild>
+					<button
+						type="button"
+						className="h-7 px-3 rounded-md text-[12px] font-medium bg-surface-2 text-text-secondary border border-border hover:bg-surface-3 hover:text-text-primary transition-colors"
+						onClick={onCancel}
+					>
+						Cancel
+					</button>
+				</AlertDialogCancel>
+				<AlertDialogAction asChild>
+					<button
+						type="button"
+						data-testid="risk-ack-confirm-button"
+						className="h-7 px-3 rounded-md text-[12px] font-medium bg-status-red text-white hover:opacity-90 transition-opacity"
+						onClick={onConfirm}
+					>
+						Allow unsafe commands
+					</button>
+				</AlertDialogAction>
+			</AlertDialogFooter>
+		</AlertDialog>
+	);
+}
+
 // ─── SessionHeader ─────────────────────────────────────────────────────────────
 
 /**
@@ -99,71 +169,121 @@ function SessionHeader({
 		goal?: string | null;
 		role?: RuntimeChatSessionRole;
 		scope?: RuntimeChatSessionScope;
+		riskAcknowledged?: boolean;
 	}) => void;
 }): React.ReactElement {
 	const [title, setTitle] = useState(session.title);
 	const [goal, setGoal] = useState(session.goal ?? "");
+	const [riskDialogOpen, setRiskDialogOpen] = useState(false);
+
+	const showRiskToggle = CAN_ACT_SCOPES.has(session.scope);
+
+	const handleRiskToggle = (): void => {
+		if (session.riskAcknowledged) {
+			// Turning OFF is immediate — no confirmation needed.
+			onUpdate({ id: session.id, riskAcknowledged: false });
+		} else {
+			// Turning ON requires an explicit confirmation dialog.
+			setRiskDialogOpen(true);
+		}
+	};
+
+	const handleRiskConfirm = (): void => {
+		setRiskDialogOpen(false);
+		onUpdate({ id: session.id, riskAcknowledged: true });
+	};
+
+	const handleRiskCancel = (): void => {
+		setRiskDialogOpen(false);
+	};
 
 	return (
-		<div className="border-b border-border px-4 py-2 bg-surface-1 flex flex-col gap-2 min-w-0">
-			<input
-				data-testid="chat-session-title"
-				className="bg-transparent text-[14px] font-semibold text-text-primary focus:outline-none border-b border-transparent focus:border-border-focus w-full min-w-0"
-				value={title}
-				onChange={(event) => setTitle(event.target.value)}
-				onBlur={() => title.trim() && title !== session.title && onUpdate({ id: session.id, title: title.trim() })}
-				onKeyDown={(event) => {
-					if (event.key === "Enter") {
-						event.currentTarget.blur();
-					}
-				}}
-			/>
-			<div className="flex items-center gap-2 flex-wrap min-w-0">
-				<NativeSelect
-					size="sm"
-					aria-label="Role"
-					data-testid="chat-session-role"
-					value={session.role}
-					onChange={(event) => onUpdate({ id: session.id, role: event.target.value as RuntimeChatSessionRole })}
-				>
-					{ROLE_OPTIONS.map((option) => (
-						<option key={option.value} value={option.value}>
-							{option.label}
-						</option>
-					))}
-				</NativeSelect>
-				<ElementTooltip id="chat.session-scope" side="bottom">
-					<NativeSelect
-						size="sm"
-						aria-label="Scope"
-						data-testid="chat-session-scope"
-						value={session.scope}
-						onChange={(event) =>
-							onUpdate({ id: session.id, scope: event.target.value as RuntimeChatSessionScope })
-						}
-					>
-						{SCOPE_OPTIONS.map((option) => (
-							<option key={option.value} value={option.value}>
-								{option.label}
-							</option>
-						))}
-					</NativeSelect>
-				</ElementTooltip>
+		<>
+			<div className="border-b border-border px-4 py-2 bg-surface-1 flex flex-col gap-2 min-w-0">
 				<input
-					data-testid="chat-session-goal"
-					className="flex-1 min-w-0 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
-					placeholder="Session goal…"
-					value={goal}
-					onChange={(event) => setGoal(event.target.value)}
-					onBlur={() => goal !== (session.goal ?? "") && onUpdate({ id: session.id, goal: goal.trim() || null })}
+					data-testid="chat-session-title"
+					className="bg-transparent text-[14px] font-semibold text-text-primary focus:outline-none border-b border-transparent focus:border-border-focus w-full min-w-0"
+					value={title}
+					onChange={(event) => setTitle(event.target.value)}
+					onBlur={() =>
+						title.trim() && title !== session.title && onUpdate({ id: session.id, title: title.trim() })
+					}
 					onKeyDown={(event) => {
 						if (event.key === "Enter") {
 							event.currentTarget.blur();
 						}
 					}}
 				/>
+				<div className="flex items-center gap-2 flex-wrap min-w-0">
+					<NativeSelect
+						size="sm"
+						aria-label="Role"
+						data-testid="chat-session-role"
+						value={session.role}
+						onChange={(event) => onUpdate({ id: session.id, role: event.target.value as RuntimeChatSessionRole })}
+					>
+						{ROLE_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</NativeSelect>
+					<ElementTooltip id="chat.session-scope" side="bottom">
+						<NativeSelect
+							size="sm"
+							aria-label="Scope"
+							data-testid="chat-session-scope"
+							value={session.scope}
+							onChange={(event) =>
+								onUpdate({ id: session.id, scope: event.target.value as RuntimeChatSessionScope })
+							}
+						>
+							{SCOPE_OPTIONS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</NativeSelect>
+					</ElementTooltip>
+					<input
+						data-testid="chat-session-goal"
+						className="flex-1 min-w-0 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+						placeholder="Session goal…"
+						value={goal}
+						onChange={(event) => setGoal(event.target.value)}
+						onBlur={() =>
+							goal !== (session.goal ?? "") && onUpdate({ id: session.id, goal: goal.trim() || null })
+						}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.currentTarget.blur();
+							}
+						}}
+					/>
+				</div>
+				{showRiskToggle ? (
+					<div className="flex items-center gap-1.5 min-w-0">
+						<button
+							type="button"
+							role="checkbox"
+							aria-checked={session.riskAcknowledged}
+							data-testid="chat-risk-ack-toggle"
+							onClick={handleRiskToggle}
+							className={cn(
+								"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer",
+								session.riskAcknowledged
+									? "border-status-orange text-status-orange bg-surface-2 hover:bg-surface-3"
+									: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+							)}
+						>
+							<span aria-hidden="true">⚠️</span>
+							<span>{session.riskAcknowledged ? "Unsafe commands allowed" : "Allow unsafe commands"}</span>
+						</button>
+					</div>
+				) : null}
 			</div>
-		</div>
+			<RiskAckConfirmDialog open={riskDialogOpen} onConfirm={handleRiskConfirm} onCancel={handleRiskCancel} />
+		</>
 	);
 }
 
