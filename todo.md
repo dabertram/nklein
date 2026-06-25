@@ -793,6 +793,16 @@ deep analysis:
 >           maps that existing scope → which workspace root(s) the tools see + the execution mode (current→active
 >           workspace + sandbox-ish; all→every loaded project; host→host mode). Don't invent a new default; honor the
 >           session scope.
+>         - **Permission AXES (2026-06-25, user) — scope is one of THREE orthogonal controls:**
+>           1. **Scope (where):** current project / all projects / host (above).
+>           2. **Mutation capability (what):** a **"chat only"** option = the agent **cannot use any tool that changes
+>              anything** (read-only — `read_file`/`list_dir`/`get_board` are fine since they change nothing; no
+>              `write_file`/`run_command`/board-mutation). This is a first-class user-selectable mode (the most restrictive,
+>              and a great default for "just talk + read"). **G3a's read-only slice IS the "chat only" mode** — build it
+>              first and surface it as that named option.
+>           3. **Browser / internet access (reach):** an **independent on/off toggle** the user controls (orthogonal to
+>              scope + mutation) — enable/disable the agent's web/browser + internet tools (ties into G6 + §5.L). Off by
+>              default; a chat-only session can still have browser ON or OFF.
 >         - **Host / unsafe commands = a RISK-ACKNOWLEDGEMENT model, not a hard limit (user: "we don't limit the user
 >           strictly, but we definitely inform about risk and pass responsibility to the user").** Two requirements:
 >           (1) **differentiate SAFE vs POTENTIALLY-UNSAFE commands** (classify `run_command` invocations — e.g. read-only/
