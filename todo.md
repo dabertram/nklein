@@ -1337,8 +1337,11 @@ deep analysis:
       `runtime-server.ts` + `runtime-state-hub.ts` into one exported `isReviewableNKleinSummary` in
       [src/core/task-session-guards.ts](src/core/task-session-guards.ts); both import it now. The review-gate reason set
       can no longer diverge. Pure refactor, tsc + biome + fast suite green.
-- [ ] **(S2, safe) Dedupe `isWorkspaceStateLockError` + lift `retryWorkspaceStateLock`** — the lock-error check is
-      redefined in `runtime-server.ts` (already in `workspace-state.ts`); make both importable so lock-retry policy has one home.
+- [x] **(S2, DONE 2026-06-25) Dedupe `isWorkspaceStateLockError`** — exported it from
+      [workspace-state.ts](src/state/workspace-state.ts) (the canonical home) and removed the byte-identical copy in
+      `runtime-server.ts`, which now imports it (its `retryWorkspaceStateLock` uses the shared one). tsc + biome + fast
+      suite green. *(Left `retryWorkspaceStateLock` in runtime-server — it's the only copy, not duplicated; lifting it to
+      the state layer is optional polish, not needed for the dedup.)*
 - [x] **(S3, safe — DONE 2026-06-25) Export one `findBoardCardWithColumn` from `task-board-mutations.ts`** — added the
       single board-wide card+column lookup (wraps the internal `findTaskLocation`) and replaced 3 private copies: the
       start-lane reconcile's `findBoardCardById`, the §5.B promotion tool's `findCard` (the wart §5.B just added), and

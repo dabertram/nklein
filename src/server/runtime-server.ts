@@ -67,7 +67,12 @@ import {
 	validateSession,
 } from "../security/passcode-manager";
 import { recordMergeHistory } from "../state/merge-history-store";
-import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
+import {
+	isWorkspaceStateLockError,
+	loadWorkspaceContextById,
+	loadWorkspaceState,
+	mutateWorkspaceState,
+} from "../state/workspace-state";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -140,11 +145,6 @@ function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): 
 		}
 	}
 	return null;
-}
-
-function isWorkspaceStateLockError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.includes("Lock file is already being held");
 }
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {

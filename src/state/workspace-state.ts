@@ -853,7 +853,8 @@ export class WorkspaceStateConflictError extends Error {
 	}
 }
 
-function isWorkspaceStateLockError(error: unknown): boolean {
+/** True when an error is the proper-lockfile contention error (the workspace-state lock is held elsewhere). */
+export function isWorkspaceStateLockError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	return message.includes("Lock file is already being held");
 }
