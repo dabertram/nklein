@@ -1965,6 +1965,18 @@ deep analysis:
         ("Enable card replay", surfaced out of Developer Mode with a destructive note) now in a labelled "Advanced" card.
         All bound to the existing `useRuntimeConfig`/`save()` path (no new persistence). web typecheck + 694 vitest + biome
         green. *(These were scattered/semi-hidden, not truly config-only — net change is proper grouping + discoverability.)*
+  - [~] **workspace base dir as a global setting (user safety directive, 2026-06-25).** The user asked that created
+        workspaces use "a user configured path (global settings)" outside !Klein's parent folder. The safety confinement
+        already exists (`resolveSafeCreatedWorkspaceParentDir`, env + home-default). **DATA LAYER + CONTRACT DONE (solo):**
+        a new global `workspaceBaseDir: string | null` threaded through `runtime-config.ts` (file shape / state /
+        update-input / normalizer / change-registry / read+write + all merge/snapshot fns — tsc-driven, 0 misses),
+        `runtimeConfigResponseSchema` + `runtimeConfigSaveRequestSchema`, and `buildRuntimeConfigResponse`; saveConfig
+        passes it through generically. All fixtures updated; root+web tsc, fast 1728, web vitest 694, biome green.
+        **STILL TODO:** (a) the settings-dialog **UI field** (a text/path input mirroring `maxConcurrentTasks`'s
+        state/id/init/change/save/JSX) so the user can edit it; (b) **thread** the configured value into the
+        workspace-creation call sites (`scaffoldNKleinDevTestProject` already accepts `workspaceBaseDir` — source it from
+        the active runtime config at the dev-test/CLI call sites) so the setting actually takes effect; (c) a CHANGELOG
+        entry once it's user-facing.
   - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
         per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm

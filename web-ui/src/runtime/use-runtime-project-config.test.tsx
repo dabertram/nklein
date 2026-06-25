@@ -29,6 +29,7 @@ function createRuntimeConfigResponse(
 	return {
 		selectedAgentId,
 		selectedShortcutLabel: shortcuts[0]?.label ?? null,
+		workspaceBaseDir: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",

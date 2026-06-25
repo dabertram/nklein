@@ -25,6 +25,7 @@ function createRuntimeConfigResponse(
 	const nextConfig: RuntimeConfigResponse = {
 		selectedAgentId,
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",

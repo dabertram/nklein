@@ -1870,6 +1870,8 @@ export type RuntimeAgentSandboxStatus = z.infer<typeof runtimeAgentSandboxStatus
 export const runtimeConfigResponseSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema,
 	selectedShortcutLabel: z.string().nullable(),
+	// §5.W: user-configured base directory for workspaces !Klein creates; null → home default.
+	workspaceBaseDir: z.string().nullable(),
 	cloudProviderSupportEnabled: z.boolean().optional(),
 	agentAutonomousModeEnabled: z.boolean(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema,
@@ -1919,6 +1921,7 @@ export type RuntimeConfigResponse = z.infer<typeof runtimeConfigResponseSchema>;
 export const runtimeConfigSaveRequestSchema = z.object({
 	selectedAgentId: runtimeAgentIdSchema.optional(),
 	selectedShortcutLabel: z.string().nullable().optional(),
+	workspaceBaseDir: z.string().nullable().optional(),
 	developerModeEnabled: z.boolean().optional(),
 	replayCardsEnabled: z.boolean().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),

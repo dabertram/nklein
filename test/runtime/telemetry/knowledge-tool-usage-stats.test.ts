@@ -22,6 +22,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		projectConfigPath: "/tmp/project.json",
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
 		agentAutonomousModeEnabled: true,

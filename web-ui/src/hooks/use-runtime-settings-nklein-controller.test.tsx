@@ -71,6 +71,7 @@ function createRuntimeConfigResponse(
 	return {
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",

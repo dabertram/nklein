@@ -77,6 +77,7 @@ interface RuntimeGlobalConfigFileShape {
 	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
+	workspaceBaseDir?: string | null;
 }
 
 interface RuntimeProjectConfigFileShape {
@@ -122,6 +123,8 @@ export interface RuntimeConfigState {
 	openPrPromptTemplate: string;
 	commitPromptTemplateDefault: string;
 	openPrPromptTemplateDefault: string;
+	/** §5.W: user-configured base directory under which !Klein creates workspaces; null → home default. */
+	workspaceBaseDir: string | null;
 }
 
 export interface RuntimeConfigUpdateInput {
@@ -157,6 +160,7 @@ export interface RuntimeConfigUpdateInput {
 	shortcuts?: RuntimeProjectShortcut[];
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
+	workspaceBaseDir?: string | null;
 }
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
@@ -631,6 +635,7 @@ const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] =
 	runtimeConfigChangeField("swarmGuardrails", areRuntimeSwarmGuardrailsEqual),
 	runtimeConfigChangeField("commitPromptTemplate"),
 	runtimeConfigChangeField("openPrPromptTemplate"),
+	runtimeConfigChangeField("workspaceBaseDir"),
 ];
 
 // Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).
@@ -674,6 +679,15 @@ function keepNormalizedValue<U, T>(updateValue: U | undefined, currentValue: T, 
 }
 
 function normalizeShortcutLabel(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const normalized = value.trim();
+	return normalized.length > 0 ? normalized : null;
+}
+
+/** §5.W: trim a configured workspace base dir to a non-empty string, or null to fall back to the home default. */
+function normalizeWorkspaceBaseDir(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
 	}
@@ -855,6 +869,7 @@ function toRuntimeConfigState({
 		),
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+		workspaceBaseDir: normalizeWorkspaceBaseDir(globalConfig?.workspaceBaseDir),
 	};
 }
 
@@ -900,6 +915,7 @@ async function writeRuntimeGlobalConfigFile(
 		swarmGuardrails?: RuntimeSwarmGuardrails;
 		commitPromptTemplate?: string;
 		openPrPromptTemplate?: string;
+		workspaceBaseDir?: string | null;
 	},
 ): Promise<void> {
 	const existing = await readRuntimeConfigFile<RuntimeGlobalConfigFileShape>(configPath);
@@ -913,6 +929,11 @@ async function writeRuntimeGlobalConfigFile(
 	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
+		: undefined;
+	const workspaceBaseDir =
+		config.workspaceBaseDir === undefined ? undefined : normalizeWorkspaceBaseDir(config.workspaceBaseDir);
+	const existingWorkspaceBaseDir = hasOwnKey(existing, "workspaceBaseDir")
+		? normalizeWorkspaceBaseDir(existing?.workspaceBaseDir)
 		: undefined;
 	const agentAutonomousModeEnabled = normalizeBoolean(
 		config.agentAutonomousModeEnabled,
@@ -1039,6 +1060,13 @@ async function writeRuntimeGlobalConfigFile(
 		}
 	} else if (existingSelectedShortcutLabel) {
 		payload.selectedShortcutLabel = existingSelectedShortcutLabel;
+	}
+	if (workspaceBaseDir !== undefined) {
+		if (workspaceBaseDir) {
+			payload.workspaceBaseDir = workspaceBaseDir;
+		}
+	} else if (existingWorkspaceBaseDir) {
+		payload.workspaceBaseDir = existingWorkspaceBaseDir;
 	}
 	if (
 		hasOwnKey(existing, "developerModeEnabled") ||
@@ -1297,6 +1325,7 @@ function createRuntimeConfigStateFromValues(input: {
 	shortcuts: RuntimeProjectShortcut[];
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
+	workspaceBaseDir: string | null;
 }): RuntimeConfigState {
 	return {
 		globalConfigPath: input.globalConfigPath,
@@ -1373,6 +1402,7 @@ function createRuntimeConfigStateFromValues(input: {
 		),
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
 		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
+		workspaceBaseDir: normalizeWorkspaceBaseDir(input.workspaceBaseDir),
 	};
 }
 
@@ -1382,6 +1412,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		projectConfigPath: null,
 		selectedAgentId: current.selectedAgentId,
 		selectedShortcutLabel: current.selectedShortcutLabel,
+		workspaceBaseDir: current.workspaceBaseDir,
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
@@ -1442,6 +1473,7 @@ export async function saveRuntimeConfig(
 	config: {
 		selectedAgentId: RuntimeAgentId;
 		selectedShortcutLabel: string | null;
+		workspaceBaseDir: string | null;
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
 		agentAutonomousModeEnabled: boolean;
@@ -1479,6 +1511,7 @@ export async function saveRuntimeConfig(
 		await writeRuntimeGlobalConfigFile(globalConfigPath, {
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
+			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
@@ -1538,6 +1571,7 @@ export async function saveRuntimeConfig(
 			projectConfigPath,
 			selectedAgentId: config.selectedAgentId,
 			selectedShortcutLabel: config.selectedShortcutLabel,
+			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
@@ -1603,6 +1637,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		const nextConfig = {
 			selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
 			selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
+			workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
 			developerModeEnabled: keepNormalizedValue(
 				updates.developerModeEnabled,
 				current.developerModeEnabled,
@@ -1710,6 +1745,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		await writeRuntimeGlobalConfigFile(globalConfigPath, {
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+			workspaceBaseDir: nextConfig.workspaceBaseDir,
 			developerModeEnabled: nextConfig.developerModeEnabled,
 			replayCardsEnabled: nextConfig.replayCardsEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
@@ -1748,6 +1784,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			projectConfigPath,
 			selectedAgentId: nextConfig.selectedAgentId,
 			selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+			workspaceBaseDir: nextConfig.workspaceBaseDir,
 			developerModeEnabled: nextConfig.developerModeEnabled,
 			replayCardsEnabled: nextConfig.replayCardsEnabled,
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
@@ -1798,6 +1835,7 @@ export async function updateGlobalRuntimeConfig(
 			const nextConfig = {
 				selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
 				selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
+				workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
 				developerModeEnabled: keepNormalizedValue(
 					updates.developerModeEnabled,
 					current.developerModeEnabled,
@@ -1901,6 +1939,7 @@ export async function updateGlobalRuntimeConfig(
 			await writeRuntimeGlobalConfigFile(globalConfigPath, {
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+				workspaceBaseDir: nextConfig.workspaceBaseDir,
 				developerModeEnabled: nextConfig.developerModeEnabled,
 				replayCardsEnabled: nextConfig.replayCardsEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
@@ -1936,6 +1975,7 @@ export async function updateGlobalRuntimeConfig(
 				projectConfigPath: current.projectConfigPath,
 				selectedAgentId: nextConfig.selectedAgentId,
 				selectedShortcutLabel: nextConfig.selectedShortcutLabel,
+				workspaceBaseDir: nextConfig.workspaceBaseDir,
 				developerModeEnabled: nextConfig.developerModeEnabled,
 				replayCardsEnabled: nextConfig.replayCardsEnabled,
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,

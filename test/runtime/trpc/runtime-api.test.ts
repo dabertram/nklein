@@ -344,6 +344,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 	return {
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		agentAutonomousModeEnabled: true,

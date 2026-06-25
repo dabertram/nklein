@@ -745,6 +745,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				await saveRuntimeConfig(tempProject, {
 					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
+					workspaceBaseDir: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",
@@ -823,6 +824,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				await saveRuntimeConfig(tempProject, {
 					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
+					workspaceBaseDir: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",
@@ -857,6 +859,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				await saveRuntimeConfig(tempProject, {
 					selectedAgentId: "nklein",
 					selectedShortcutLabel: null,
+					workspaceBaseDir: null,
 					agentAutonomousModeEnabled: true,
 					agentTimeoutMode: "normal",
 					agentTimeoutProfile: "local",

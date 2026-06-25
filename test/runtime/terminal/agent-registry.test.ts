@@ -22,6 +22,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		projectConfigPath: "/tmp/project-config.json",
 		selectedAgentId: "claude",
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		agentAutonomousModeEnabled: true,

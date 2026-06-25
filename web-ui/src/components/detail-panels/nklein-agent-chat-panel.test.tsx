@@ -109,6 +109,7 @@ function createRuntimeConfig(agentTimeoutMode: RuntimeConfigResponse["agentTimeo
 	return {
 		selectedAgentId: "nklein",
 		selectedShortcutLabel: null,
+		workspaceBaseDir: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode,
 		agentTimeoutProfile: "local",

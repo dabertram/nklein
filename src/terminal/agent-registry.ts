@@ -129,6 +129,7 @@ export function buildRuntimeConfigResponse(
 	return {
 		selectedAgentId,
 		selectedShortcutLabel: runtimeConfig.selectedShortcutLabel,
+		workspaceBaseDir: runtimeConfig.workspaceBaseDir,
 		cloudProviderSupportEnabled: CLOUD_ENABLED,
 		agentAutonomousModeEnabled: runtimeConfig.agentAutonomousModeEnabled,
 		agentTimeoutMode: runtimeConfig.agentTimeoutMode,
