@@ -44,6 +44,8 @@ export interface ChatSession {
 	role: ChatSessionRole;
 	/** A Codex-style explicit objective kept in focus across turns (todo §5.M); null when unset. */
 	goal: string | null;
+	/** §5.M G3b: the user accepted the risk of this session running UNSAFE commands (general-ack). Default false. */
+	riskAcknowledged: boolean;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -126,6 +128,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				role: normalizeRole(event.session.role),
 				// Back-compat for sessions persisted before `goal` existed.
 				goal: typeof event.session.goal === "string" ? event.session.goal : null,
+				// Back-compat for sessions persisted before `riskAcknowledged` existed (default: not acknowledged).
+				riskAcknowledged: event.session.riskAcknowledged === true,
 			});
 		}
 	}
@@ -141,7 +145,13 @@ export async function getChatSession(id: string, options: ChatSessionStoreOption
 }
 
 export async function createChatSession(
-	input: { title: string; scope?: ChatSessionScope; role?: ChatSessionRole; goal?: string | null },
+	input: {
+		title: string;
+		scope?: ChatSessionScope;
+		role?: ChatSessionRole;
+		goal?: string | null;
+		riskAcknowledged?: boolean;
+	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
 	const now = (options.now ?? Date.now)();
@@ -152,6 +162,7 @@ export async function createChatSession(
 		scope: input.scope ?? DEFAULT_CHAT_SESSION_SCOPE,
 		role: input.role ?? DEFAULT_CHAT_SESSION_ROLE,
 		goal: input.goal?.trim() || null,
+		riskAcknowledged: input.riskAcknowledged ?? false,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -161,7 +172,13 @@ export async function createChatSession(
 
 export async function updateChatSession(
 	id: string,
-	patch: { title?: string; scope?: ChatSessionScope; role?: ChatSessionRole; goal?: string | null },
+	patch: {
+		title?: string;
+		scope?: ChatSessionScope;
+		role?: ChatSessionRole;
+		goal?: string | null;
+		riskAcknowledged?: boolean;
+	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
 	const existing = await getChatSession(id, options);
@@ -176,6 +193,7 @@ export async function updateChatSession(
 		...(patch.role !== undefined ? { role: patch.role } : {}),
 		// `goal: null` clears it; `goal: undefined` (absent) leaves it unchanged.
 		...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
+		...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

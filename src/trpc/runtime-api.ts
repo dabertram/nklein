@@ -446,12 +446,15 @@ function buildChatAgentToolDepsResolver(input: {
 			mode,
 			tools,
 			// §5.M G3b safe/unsafe risk model: run_command is a confirm-gated host_command in can-act modes. A command
-			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one is denied here
-			// until the user acknowledges the risk (the general-ack toggle — a later increment). Other confirm-gated
-			// actions stay denied for now (no web-ui confirm dialog yet).
+			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
+			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —
+			// otherwise it's denied. Other confirm-gated actions stay denied for now (no web-ui confirm dialog yet).
 			confirm: async (call) => {
 				if (call.name === "run_command" && typeof call.arguments.command === "string") {
-					return classifyCommandSafety(call.arguments.command).safety === "safe";
+					if (classifyCommandSafety(call.arguments.command).safety === "safe") {
+						return true;
+					}
+					return session.riskAcknowledged === true;
 				}
 				return false;
 			},

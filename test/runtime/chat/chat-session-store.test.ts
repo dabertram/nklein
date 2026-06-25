@@ -39,6 +39,19 @@ describe("chat-session-store", () => {
 		expect(await getChatSession("missing", { rootDir })).toBeNull();
 	});
 
+	it("defaults riskAcknowledged to false, and update toggles + round-trips it (§5.M G3b)", async () => {
+		const created = await createChatSession({ title: "Risky" }, { rootDir, now });
+		expect(created.riskAcknowledged).toBe(false);
+		clock = 2000;
+		const acked = await updateChatSession(created.id, { riskAcknowledged: true }, { rootDir, now });
+		expect(acked?.riskAcknowledged).toBe(true);
+		// Persisted across a fresh read (replayed from the event log).
+		expect((await getChatSession(created.id, { rootDir }))?.riskAcknowledged).toBe(true);
+		// And can be turned back off.
+		const off = await updateChatSession(created.id, { riskAcknowledged: false }, { rootDir, now });
+		expect(off?.riskAcknowledged).toBe(false);
+	});
+
 	it("honors an explicit scope + role", async () => {
 		const created = await createChatSession(
 			{ title: "Ops", scope: "host_access", role: "system_operator" },

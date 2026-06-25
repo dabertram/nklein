@@ -13,6 +13,7 @@ function session(overrides: Partial<ChatSession> = {}): ChatSession {
 		scope: "project_sandboxed",
 		role: "planner_architect",
 		goal: null,
+		riskAcknowledged: false,
 		createdAt: 0,
 		updatedAt: 0,
 		...overrides,

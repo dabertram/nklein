@@ -860,10 +860,13 @@ deep analysis:
 >         the active workspace + isolated_readonly only) — separate web-ui task. (b) **G3b — safe/unsafe command risk
 >         model. ✅ INCREMENT 1 DONE (2026-06-25):** the web-ui resolver now offers `run_command` to can-act scopes with
 >         a **classifier-gated `confirm`** — a SAFE command (allowlist) auto-approves, an UNSAFE one is denied (contract
->         77/77, oracle intact). **Remaining:** the **general risk-acknowledgement toggle** (a session/global "I accept
->         the risk of unsafe commands" flag, enabled via an extra-confirmation UI, that then lets unsafe commands run —
->         passing responsibility to the user) + surfacing the safe/unsafe verdict in the UI. (The heavier per-command
->         interactive over-stream confirm is deferred in favor of this simpler general-ack the user explicitly allowed.)
+>         77/77, oracle intact). ✅ **INCREMENT 2 backend DONE (2026-06-25):** added a **per-session `riskAcknowledged`**
+>         flag (contract + store + service, back-compat default false, create/update + a round-trip test); the resolver's
+>         `confirm` now lets an UNSAFE command run **only when `riskAcknowledged` is set** (else denied). **Remaining (UI):**
+>         a **toggle** on the chat session (in the header by the scope selector) that flips `riskAcknowledged` behind an
+>         **extra-confirmation dialog** ("this lets the agent run unsafe commands — are you sure?"), + surfacing the
+>         safe/unsafe verdict. (The heavier per-command interactive over-stream confirm is deferred in favor of this
+>         simpler general-ack the user explicitly allowed.)
 >         **⚠️ G3a IMPLEMENTATION CAVEATS (found while scoping 2026-06-25 — handle in the focused build):**
 >         (1) **Don't regress §5.V Suite 5** — its `streamMessage` test asserts MULTIPLE token deltas; if a tool-using
 >         session routes through `runChatAgentTurn` (which is NOT token-streaming), that assertion breaks. So tool-use must

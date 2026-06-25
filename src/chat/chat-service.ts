@@ -67,6 +67,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		scope: session.scope,
 		role: session.role,
 		goal: session.goal,
+		riskAcknowledged: session.riskAcknowledged,
 		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 	};
@@ -128,6 +129,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.scope ? { scope: input.scope } : {}),
 					...(input.role ? { role: input.role } : {}),
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
+					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 				},
 				sessionOptions,
 			);
@@ -141,6 +143,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.scope ? { scope: input.scope } : {}),
 					...(input.role ? { role: input.role } : {}),
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
+					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 				},
 				sessionOptions,
 			);

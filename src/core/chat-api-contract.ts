@@ -34,6 +34,9 @@ export const runtimeChatSessionSchema = z.object({
 	scope: runtimeChatSessionScopeSchema,
 	role: runtimeChatSessionRoleSchema,
 	goal: z.string().nullable(),
+	// §5.M G3b: the user has acknowledged the risk of letting this session run UNSAFE commands (the general-ack;
+	// set via a deliberate extra-confirmation toggle). Default false — unsafe commands are denied until then.
+	riskAcknowledged: z.boolean().default(false),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -54,6 +57,7 @@ export const runtimeChatCreateSessionRequestSchema = z.object({
 	scope: runtimeChatSessionScopeSchema.optional(),
 	role: runtimeChatSessionRoleSchema.optional(),
 	goal: z.string().nullable().optional(),
+	riskAcknowledged: z.boolean().optional(),
 });
 export type RuntimeChatCreateSessionRequest = z.infer<typeof runtimeChatCreateSessionRequestSchema>;
 
@@ -63,6 +67,7 @@ export const runtimeChatUpdateSessionRequestSchema = z.object({
 	scope: runtimeChatSessionScopeSchema.optional(),
 	role: runtimeChatSessionRoleSchema.optional(),
 	goal: z.string().nullable().optional(),
+	riskAcknowledged: z.boolean().optional(),
 });
 export type RuntimeChatUpdateSessionRequest = z.infer<typeof runtimeChatUpdateSessionRequestSchema>;
 
