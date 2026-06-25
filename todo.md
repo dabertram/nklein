@@ -2038,6 +2038,17 @@ deep analysis:
       `agentRulesets`, + refactor `codeEmbedding` into the new shape); Phase 2 = the rest. **Riskiest:** the dialog's
       inherited-vs-overridden state (derive `isOverridden()` rather than parallel booleans), back-compat (old project
       configs have no override fields → no-op), and NOT auto-syncing an override when its global default changes.
+      **DIFF-LEVEL PLAN READY (research agent #2, 2026-06-25)** — 12 ordered steps with exact file:lines, all mirroring the
+      `codeEmbeddingOverride` template: (1) add 4 `<field>Override?` to `RuntimeProjectConfigFileShape` (~L83); (2) add the
+      override + `effective<Field>` fields to `RuntimeConfigState` (~L88); (3) add `applyOverride`/`applyScalarOverride`
+      helpers + 4 `normalize<Field>Override` (each returns null when == default so the file stays clean) (~L560); (4) compute
+      effective = override ?? global in `toRuntimeConfigState` (~L783); (5) register the 4 in `RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS`
+      (~L642 — the completeness-guard test auto-fails until done); (6) thread through `writeRuntimeProjectConfigFile` (~L1222,
+      incl. the empty-file cleanup), `updateRuntimeConfig` (~L1630 `keepNormalizedValue`), `saveRuntimeConfig` (~L1471);
+      (7) contract `runtimeConfigResponse`/`SaveRequest` (~L1870/1921); (8) settings dialog `OverrideToggle` (Inherited /
+      Overridden ×-revert) in the Project section (~L4049) + state/init/change-detection/reset/save-payload; (9) 3 tests
+      (single-field override+reset, all-fields together+reload, old-config back-compat). Backend is the bulk + self-contained
+      (steps 1-7,9) — implement + commit that first, then the UI (step 8). **SOLO** (worktree write-agents unsafe here).
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
