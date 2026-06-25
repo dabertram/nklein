@@ -856,6 +856,17 @@ export function createNKleinProviderService() {
 			return getProviderSettingsSummary();
 		},
 
+		/**
+		 * The base URL the board-independent chat (§5.M, local-only) should use: the selected provider's endpoint when
+		 * a LOCAL provider (LM Studio / Ollama / a localhost custom provider) is selected, else null so the chat falls
+		 * back to its own default local endpoint. (`getSelectedProviderSettings` already returns null for a cloud
+		 * selection — the chat is local-only and fails closed against cloud.) Without this the chat ignored the
+		 * configured endpoint entirely and always hit the hardcoded default port.
+		 */
+		getLocalChatBaseUrl(): string | null {
+			return getSelectedProviderSettings()?.baseUrl?.trim() || null;
+		},
+
 		async getNKleinAccountProfile(): Promise<RuntimeNKleinAccountProfileResponse> {
 			try {
 				const selectedSettings = getSelectedProviderSettings();

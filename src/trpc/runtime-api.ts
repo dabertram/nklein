@@ -380,7 +380,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 	] as const;
 	// Board-independent chat service (todo §5.M); production uses the real runtime home (no rootDir) and resolves a
 	// loaded local model per send (so "no model loaded" surfaces as a clear error at send time, not at startup).
-	const chatService = deps.chatService ?? createChatService({ resolveModelDeps: () => resolveLocalChatModelDeps() });
+	const chatService =
+		deps.chatService ??
+		createChatService({
+			// Use the configured LOCAL provider endpoint (LM Studio / Ollama) when one is selected, so the chat hits the
+			// same model server the user set — not a hardcoded default port. A cloud selection resolves to null and the
+			// chat falls back to its own default local endpoint (the chat is local-only).
+			resolveModelDeps: () =>
+				resolveLocalChatModelDeps({ baseUrl: nkleinProviderService.getLocalChatBaseUrl() ?? undefined }),
+		});
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
 		buildRuntimeConfigResponse(

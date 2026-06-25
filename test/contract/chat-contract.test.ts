@@ -6,21 +6,21 @@
  * `streamMessage` tests require a mock LLM — see the note below about the wiring gap.
  *
  * ──────────────────────────────────────────────────────────────────────────────────────────────
- * MOCK-LLM WIRING — INVESTIGATION FINDING (2026-06-25)
+ * MOCK-LLM WIRING — FINDING (2026-06-25) + the fix
  * ──────────────────────────────────────────────────────────────────────────────────────────────
- * `resolveLocalChatModelDeps()` in `src/chat/local-chat-model.ts` is called with NO options from
- * `runtime-api.ts:383`. It therefore ALWAYS uses `DEFAULT_LOCAL_CHAT_BASE_URL` =
- * `http://127.0.0.1:1234/v1` regardless of any saved provider settings or runtime config. The
- * `saveNKleinProviderSettings` / `saveConfig` HTTP procedures only affect the NKlein agent pipeline
- * (provider-service.ts ↔ sdk-provider-boundary.ts ↔ providers.json) — they do NOT feed into the
- * chat's `LocalLlmClient` construction.
+ * BUG this suite surfaced: `resolveLocalChatModelDeps()` was called with NO options from
+ * `runtime-api.ts`, so the chat ALWAYS used `DEFAULT_LOCAL_CHAT_BASE_URL` = `http://127.0.0.1:1234/v1`
+ * and ignored the configured provider endpoint.
  *
- * Consequence: pointing the spawned server's chat at `mock.baseUrl` requires either:
- *   (a) Passing `options.baseUrl` into `resolveLocalChatModelDeps()` from saved provider settings
- *       (architectural gap: the provider service and the chat model are wired independently), OR
- *   (b) An env-var override (e.g. `KANBAN_LOCAL_CHAT_BASE_URL`) read by `local-chat-model.ts`.
- * Neither exists today. `sendMessage` / `streamMessage` are therefore marked `it.todo` until one of
- * those bridges is wired. The session CRUD suite runs without any LLM and is fully green.
+ * FIXED: runtime-api now threads `nkleinProviderService.getLocalChatBaseUrl()` (the selected LOCAL
+ * provider's saved baseUrl) into `resolveLocalChatModelDeps({ baseUrl })`, so the chat hits the same
+ * local model server the user configured (cloud selections resolve to null → the default local
+ * endpoint, since chat is local-only).
+ *
+ * `sendMessage` / `streamMessage` stay `it.todo` for one remaining TEST-SIDE reason: to point the
+ * spawned server's chat at `mock.baseUrl` the test must SELECT a local provider pointing at the mock
+ * (saving provider settings over HTTP does not also select it), and streaming additionally needs an
+ * SSE/WS subscription client. The session CRUD suite runs with no LLM and is fully green.
  * ──────────────────────────────────────────────────────────────────────────────────────────────
  *
  * Port-resilient: each suite allocates its own free port.
@@ -362,15 +362,17 @@ describe.sequential("Suite 5C — chat.sendMessage (mock-LLM wiring gap, see hea
 		cleanupDir(homeDir);
 	});
 
-	// WIRING GAP: resolveLocalChatModelDeps() hardcodes DEFAULT_LOCAL_CHAT_BASE_URL and does not read
-	// from the saved lmstudio provider settings. Until src/chat/local-chat-model.ts is updated to
-	// read the saved baseUrl from the nklein provider service, sendMessage will fail trying to
-	// connect to http://127.0.0.1:1234/v1 instead of mock.baseUrl.
+	// The endpoint-resolution half of the wiring gap is now FIXED: runtime-api routes the chat's
+	// `resolveLocalChatModelDeps` to the configured LOCAL provider endpoint via
+	// `nkleinProviderService.getLocalChatBaseUrl()` (the selected local provider's saved baseUrl). What remains for
+	// these two to run against the mock is the TEST-SIDE step of *selecting* a local provider that points at
+	// `mock.baseUrl` (saving provider settings via HTTP does not also select it), plus an SSE/WS subscription
+	// client for the streaming case. Until then they stay it.todo (the fix itself is unit-safe + shipped).
 	it.todo(
-		"chat.sendMessage persists user + assistant messages and mock.requests captures the turn [needs wiring fix: resolveLocalChatModelDeps must read saved lmstudio.baseUrl]",
+		"chat.sendMessage routes to the configured endpoint + persists the turn [owes: HTTP path to SELECT a local provider pointing at the mock]",
 	);
 
 	it.todo(
-		"chat.streamMessage streams token deltas to a 'done' event and the transcript is persisted [needs wiring fix: same as sendMessage + SSE subscription client]",
+		"chat.streamMessage streams token deltas to a 'done' event [owes: provider-select + an SSE/WS subscription test client]",
 	);
 });

@@ -1689,15 +1689,14 @@ deep analysis:
 - [~] **Suite 5 — Chat HTTP + streaming** (`test/contract/chat-contract.test.ts`) — **12 CRUD tests DONE 2026-06-25**
       (createSession/listSessions/getSession/getTranscript/updateSession/deleteSession over HTTP, shape-asserted);
       **send/stream = 2 `it.todo`** blocked on the bug below.
-  - [ ] **BUG (real product issue, found via Suite 5) — the in-app chat ignores the configured provider endpoint.**
-        `resolveLocalChatModelDeps()` is called with **no args** at [runtime-api.ts:383](src/trpc/runtime-api.ts#L383),
-        so chat always uses the hardcoded `DEFAULT_LOCAL_CHAT_BASE_URL` (`http://127.0.0.1:1234/v1`) — a user whose LM
-        Studio/Ollama is on a different port/host has the chat silently hit the wrong endpoint. The saved provider
-        `baseUrl` (in `nkleinProviderService`) feeds only the agent pipeline, not the chat. **Fix:** thread the configured
-        **local** endpoint into the chat resolver (`resolveLocalChatModelDeps({ baseUrl })`) — guard local-vs-cloud
-        (chat is local-only; if the selected provider is cloud, still use the configured local endpoint or the default).
-        This also unblocks Suite 5's 2 `it.todo` (then the test points the chat at the mock-LLM via `saveNKleinProvider
-        Settings`). On-mission for the local-LLM north star.
+  - [x] **BUG FIXED (found via Suite 5) — the in-app chat now uses the configured local endpoint.** Was: the chat
+        ignored the configured provider endpoint (always the hardcoded `DEFAULT_LOCAL_CHAT_BASE_URL` :1234). Fix: added
+        `nkleinProviderService.getLocalChatBaseUrl()` (the selected LOCAL provider's saved baseUrl; cloud selections →
+        null, since `getSelectedProviderSettings` already filters to local) and threaded it into
+        `resolveLocalChatModelDeps({ baseUrl })` at the chat-service creation site. Safe (unchanged for users without a
+        selected local provider). On-mission for the local-LLM north star. *(Owed: Suite 5's 2 `it.todo` still need a
+        test-side HTTP path to **select** a local provider pointing at the mock — saving settings doesn't also select —
+        plus an SSE/WS subscription client for streaming.)*
 - [x] **Suite 6 — On-disk format parity (DONE 2026-06-25, 10 tests)** (`test/contract/on-disk-formats.test.ts`) — board.json round-trip + raw-shape pin (6 fixed columns in order + card fields), Python-writer direction (hand-crafted JSON parses), board-crdt.json round-trip + schema-too-new refusal + v0→current migration, plan-artifact tasks.json shape + default-fill + required-field rejection. No server; the cross-language convergence point. *(Surprise: runtime-home `~/.nklein/nklein/workspaces/<id>/board.json` takes read priority over the repo mirror — fixtures must write both.)*
 - [ ] **Suite 7 — Playwright: plan-artifact review panel** (`web-ui/tests/plan-artifact-review.spec.ts`) — `pending-plan-artifacts-panel` + `planning-dag-review-panel` (currently zero coverage; critical for the §5.B pipeline).
 - [ ] **Suite 8 — Playwright: settings + per-project config** (`web-ui/tests/settings.spec.ts`) — guardrails save, provider/MCP dialogs, per-project override.
