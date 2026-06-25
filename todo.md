@@ -2128,6 +2128,26 @@ deep analysis:
             single-responsibility modules under `src/nklein-sdk/decomposition/` behind the existing barrel (pure moves,
             zero behavior change, all 6 importers untouched, all gates green: typecheck + lint + test:fast 1735/1735 +
             contract suite 12/12 + workflow suite 1/1 + web:typecheck). See `src/nklein-sdk/decomposition/`.
+      - [x] **Phase 1 session-service guards (2026-06-26): 3 per-task guard collaborators extracted from
+            `nklein-task-session-service.ts` (3907 → 3449, −458 / −12%).** M1 `DecompositionStallNudger`
+            (decomposition stall/nudge timers, `85ffd63b`), M2 `RepeatedToolCallGuard` (repeated-identical-tool-call +
+            repeated-failure-target, `56e641dc`), M3 `AutonomyBudgetWatchdog` (autonomous turn/wall-time budgets +
+            repeated no-diff checkpoints, `f785d739`). Each = per-task state + decision in its own file, I/O injected via
+            a callbacks interface (`resetTask`/`dispose` lifecycle preserved); behavior-preserving, all gates green
+            (typecheck + biome + test:fast 1736 + the session-service + decomposition unit suites). Directly executes the
+            anti-patterns audit finding #2 remediation ("move guardrails behind focused collaborators with tests"). The
+            remaining ~3449 lines are the interwoven orchestration core (session lifecycle, turn execution, tool dispatch,
+            event adaptation, message/summary recording) — not cleanly-separable guard seams.
+      - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `.plan/docs/anti-patterns.md`** (the
+            §5.U analysis arm — 7 findings + a cross-cutting cleanup order). Next clean Phase-1 targets it hands us:
+            **#6** DRY the duplicated `*_MIN_CONTEXT_WINDOW_TOKENS = 32_000` (3 copies) + `80_000` fallback (4 copies)
+            through the shared contract constant; **#4** replace inline/dynamic `import("…").Type` type annotations that
+            violate the repo's no-inline-imports rule (runtime-api.ts:774/789, runtime-server.ts:904, terminal-state-
+            mirror.ts:4). Bigger items: **#2** settings-dialog (4430), runtime-api (2384), api-contract (2593), App.tsx
+            (1359) extractions; **#5** validated JSON/JSONL persistence; **#3** ratchet the broad biome lint disables;
+            **#7** shared web-ui test harness. **#1 (HIGH, security):** chat "sandboxed" scopes are host fs/shell access
+            with a session-wide `riskAcknowledged` opt-in — partly by-design (§5.M host opt-in) but the naming/approval
+            governance is worth a user decision → surfaced for review.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
