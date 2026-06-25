@@ -775,11 +775,15 @@ deep analysis:
 >   - [x] **G1 — `get_board` board-awareness tool (read-only, 2026-06-25)** — [chat-board-tools.ts](src/chat/chat-board-tools.ts)
 >         (`sandbox_read`, path-free summary, injected loader, 6 unit tests); wired into the CLI agent. The read half of
 >         "use the project/card/task structure".
->   - [ ] **G2 — `run_command` execution tool (the user's #1: "test if things execute at runtime")** — a gated
->         `host_command` tool that runs a shell command in the workspace + returns stdout/stderr/exit. Honors the §5.M
->         invariant (host access is chat-only, never default, typed-confirm + audited; denied outright in
->         `isolated_readonly`). **LIVE-verify** the agent actually runs a command end-to-end (the user explicitly wants
->         runtime execution proven, not just unit-mocked).
+>   - [x] **G2 — `run_command` execution tool (2026-06-25) — the user's #1: "test if things execute at runtime".**
+>         [chat-command-tool.ts](src/chat/chat-command-tool.ts): a `host_command` tool that runs a shell command in the
+>         workspace (shell spawn, wall-clock timeout, output capped so it can't blow context) and returns exit code +
+>         stdout + stderr. Gated by the §5.M invariant — **denied** in the default `isolated_readonly`, **confirm + audit**
+>         in host-capable modes (never silent). Wired into the CLI agent behind **`--allow-commands`** (which elevates to
+>         `sandbox_with_host_escape` and confirm-prompts each run). 7 unit tests (injected runner). **LIVE-VERIFIED**
+>         (`scripts/verify-chat-command-exec.mts`, qwen3-8b): the agent ran `cat MARKER.txt` and its reply echoed the
+>         marker — only possible if the command genuinely executed and its output flowed back. Runtime execution proven,
+>         not just mocked.
 >   - [ ] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent** (`chat-service.sendMessage`/`streamMessage`
 >         currently call the plain `runChatTurn`) — the biggest gap: the agent the user actually means can't call ANY
 >         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode, streaming tool

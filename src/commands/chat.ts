@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
 import { createBoardReadTools } from "../chat/chat-board-tools";
+import { createCommandRunTool } from "../chat/chat-command-tool";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { readChatMemories } from "../chat/chat-memory-store";
@@ -43,6 +44,8 @@ interface ChatSendOptions {
 	workspace?: string;
 	/** With `--workspace`, also offer the mutating `write_file` tool (each write is confirm-gated + audited). */
 	allowWrite?: boolean;
+	/** With `--workspace`, also offer `run_command` (host_command); elevates to sandbox_with_host_escape, each run confirmed + audited. */
+	allowCommands?: boolean;
 	json?: boolean;
 	write?: (text: string) => void;
 }
@@ -115,14 +118,26 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 		const read = createWorkspaceReadTools(workspaceRoot);
 		const boardTools = createBoardReadTools(workspaceRoot);
 		const writeTools = options.allowWrite ? createWorkspaceWriteTools(workspaceRoot) : { tools: [], definitions: [] };
-		const tools = [...read.tools, ...boardTools.tools, ...writeTools.tools];
-		const definitions = [...read.definitions, ...boardTools.definitions, ...writeTools.definitions];
+		// `--allow-commands` offers run_command (a host_command), which the gate denies in isolated_readonly — so it
+		// also elevates the session to the host-capable `sandbox_with_host_escape` mode, where every host action is a
+		// confirmed, audited escape hatch (the §5.M invariant). Reads stay free; the command itself is confirm-prompted.
+		const commandTools = options.allowCommands ? createCommandRunTool(workspaceRoot) : { tools: [], definitions: [] };
+		const mode = options.allowCommands ? "sandbox_with_host_escape" : "isolated_readonly";
+		const tools = [...read.tools, ...boardTools.tools, ...writeTools.tools, ...commandTools.tools];
+		const definitions = [
+			...read.definitions,
+			...boardTools.definitions,
+			...writeTools.definitions,
+			...commandTools.definitions,
+		];
 
 		// A confirm-gated tool needs an interactive prompt; the REPL also needs stdin. Open one reader for both.
-		const reader = options.allowWrite || !message ? createStdinLineReader() : null;
+		const reader = options.allowWrite || options.allowCommands || !message ? createStdinLineReader() : null;
 		const confirm = reader
 			? async (call: { name: string; arguments: Record<string, unknown> }): Promise<boolean> => {
-					const target = typeof call.arguments.path === "string" ? ` (${call.arguments.path})` : "";
+					const command = typeof call.arguments.command === "string" ? call.arguments.command : null;
+					const path = typeof call.arguments.path === "string" ? call.arguments.path : null;
+					const target = command ? ` (${command})` : path ? ` (${path})` : "";
 					write(`Allow ${call.name}${target}? [y/N] `);
 					const answer = await reader.readLine();
 					return answer?.trim().toLowerCase() === "y";
@@ -131,7 +146,7 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
-			mode: "isolated_readonly",
+			mode,
 			tools,
 			...(confirm ? { confirm } : {}),
 			recordAudit: async (record) => {
@@ -249,6 +264,10 @@ export function registerChatCommand(program: Command): void {
 			"Make the chat tool-using: offer read-only workspace tools (read_file/list_dir) rooted at this directory.",
 		)
 		.option("--allow-write", "With --workspace, also offer write_file; each write is confirm-prompted and audited.")
+		.option(
+			"--allow-commands",
+			"With --workspace, also offer run_command; each command is confirm-prompted and audited (host-capable mode).",
+		)
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: ChatSendOptions) => {
 			await runChatSendCommand(options);
