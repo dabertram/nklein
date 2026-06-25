@@ -1991,7 +1991,14 @@ deep analysis:
         is present. No gap. *(Second stale §5.W audit item after swarm stop/resume — the feature-vs-UI audit over-reported.)*
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm
         stop/resume control to the board header (backend already exists).
-  - [ ] **dependency link/unlink dialog** — CLI `task link`/`unlink` exist; add a non-drag "Add dependency" picker.
+  - [~] **dependency link/unlink dialog** — CLI `task link`/`unlink` exist; board creation was **drag-only**. **COMPONENT
+        DONE (solo):** `DependencyPickerDialog` ([dependency-picker-dialog.tsx](web-ui/src/components/dependency-picker-dialog.tsx))
+        — pick a task from a candidate list (self + already-linked filtered out) → `onCreateDependency(card.id, picked.id)`
+        (the pure `addTaskDependency` still validates + orients direction + toasts rejections), plus a "Current links" list
+        (waits on / blocks) with per-link remove → `onDeleteDependency`. Self-contained, 4 unit tests, web tsc + biome green.
+        **STILL TODO:** wire an entry point (an "Add dependency" affordance in the card detail view) — thread the board's
+        card list + the existing `onCreateDependency`/`onDeleteDependency` callbacks down + a live Playwright check; then a
+        CHANGELOG entry once reachable.
   - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (currently JSON-only) + `plan-gap` reporting
         in the pending-artifacts / card menus.
   - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
