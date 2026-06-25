@@ -322,6 +322,26 @@ describe("nklein model registry", () => {
 		});
 	});
 
+	it("re-detects a CHANGED advertised context window instead of masking it with a stale observation", async () => {
+		const registry = new NKleinModelRegistry({ registryPath: await createRegistryPath(), now: () => 5_000 });
+		const key = { providerId: "lmstudio", modelId: "qwen-ctx", endpoint: "http://localhost:1234/v1" };
+
+		// Initial: advertised 8k, then an auto-observed 4k (observed wins the effective).
+		await registry.recordContextWindow({ ...key, advertisedContextWindow: 8_000 });
+		const observed = await registry.recordContextWindow({ ...key, observedContextWindow: 4_000 });
+		expect(observed.contextWindow.effective).toBe(4_000);
+
+		// The model is reloaded with a LARGER window — advertised changes to 16k. The 4k observation was measured
+		// against the OLD window, so it must be discarded; the new size must be detected (not stuck at 4k).
+		const grown = await registry.recordContextWindow({ ...key, advertisedContextWindow: 16_000 });
+		expect(grown.contextWindow).toMatchObject({ advertised: 16_000, observed: null, effective: 16_000 });
+
+		// A user override still wins over a later advertised change (it's intentional, not stale).
+		await registry.recordContextWindow({ ...key, userOverrideContextWindow: 20_000 });
+		const shrunk = await registry.recordContextWindow({ ...key, advertisedContextWindow: 12_000 });
+		expect(shrunk.contextWindow).toMatchObject({ advertised: 12_000, userOverride: 20_000, effective: 20_000 });
+	});
+
 	it("sets and clears user context-window overrides", async () => {
 		const registry = new NKleinModelRegistry({
 			registryPath: await createRegistryPath(),

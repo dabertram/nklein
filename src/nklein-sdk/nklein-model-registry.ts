@@ -572,6 +572,15 @@ export class NKleinModelRegistry {
 		const observedContextWindow = normalizePositiveInteger(observation.observedContextWindow);
 		const userOverrideContextWindow = normalizePositiveInteger(observation.userOverrideContextWindow);
 		if (advertisedContextWindow !== null) {
+			if (entry.contextWindow.advertised !== null && entry.contextWindow.advertised !== advertisedContextWindow) {
+				// The model's advertised context window CHANGED (e.g. the model was reloaded/reconfigured in the
+				// provider — LM Studio etc.). The prior auto-`observed` value was measured against the OLD window, so
+				// in the `userOverride ?? observed ?? advertised` precedence it would mask the new size and the change
+				// would go "undetected". Clear the stale observation so the new advertised size takes effect (a fresh
+				// `observedContextWindow` in this same observation, if any, is re-applied just below). A user override
+				// is intentional and is left untouched.
+				entry.contextWindow.observed = null;
+			}
 			entry.contextWindow.advertised = advertisedContextWindow;
 		}
 		if (observedContextWindow !== null) {

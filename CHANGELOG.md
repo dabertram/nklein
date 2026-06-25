@@ -2,7 +2,7 @@
 
 ## [Upcoming !Klein 0.0.1]
 
-- **Internal: `nklein-decomposition-tool.ts` decomposed into 8 focused modules** (§5.X Phase 1 pilot). The 1440-line monolith is split into `plan-task-schemas`, `plan-task-prompt`, `plan-task-validation`, `plan-task-expansion`, `plan-task-routing`, `plan-task-board-apply`, `plan-artifact-apply`, and `plan-task-input-parse` under `src/nklein-sdk/decomposition/`, with the original file kept as a barrel re-exporting everything. Zero behavior change; all 6 external importers are untouched.
+- **A model's context window is re-detected when it changes** (fix). When a model was reloaded/reconfigured with a different context window (e.g. in LM Studio), !Klein kept showing the old size: the model registry's effective window is `userOverride ?? observed ?? advertised`, and a previously **auto-observed** value (measured against the *old* window) masked the new **advertised** size — so the change went undetected. Now a changed advertised window clears the stale auto-observation (a user override stays, since it's intentional), so the new size takes effect immediately.
 
 - **`modelRoles` can now be overridden per-project** (backend, todo §5.W Phase 1). Projects can set a `modelRolesOverride` in their project config to customize which model handles each role (`worker`, `architect`, `reviewer`, …) without changing the global default. The effective value (`effectiveModelRoles = override ?? global`) is what all routing and role-assignment consumers use — task start, decomposition plan application, acceptance repair escalation, second-opinion review, and dev-test board seeding. Telemetry role-classification stays on the global `modelRoles`. UI controls are a separate follow-up.
 
