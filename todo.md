@@ -1965,9 +1965,10 @@ deep analysis:
         ("Enable card replay", surfaced out of Developer Mode with a destructive note) now in a labelled "Advanced" card.
         All bound to the existing `useRuntimeConfig`/`save()` path (no new persistence). web typecheck + 694 vitest + biome
         green. *(These were scattered/semi-hidden, not truly config-only — net change is proper grouping + discoverability.)*
-  - [~] **workspace base dir as a global setting (user safety directive, 2026-06-25).** The user asked that created
-        workspaces use "a user configured path (global settings)" outside !Klein's parent folder. The safety confinement
-        already exists (`resolveSafeCreatedWorkspaceParentDir`, env + home-default). **DATA LAYER + CONTRACT DONE (solo):**
+  - [x] **workspace base dir as a global setting — DONE end-to-end (user safety directive, 2026-06-25, solo).** The user
+        asked that created workspaces use "a user configured path (global settings)" outside !Klein's parent folder. The
+        safety confinement already existed (`resolveSafeCreatedWorkspaceParentDir`, env + home-default); now the user can
+        configure the base dir from the UI. **DATA LAYER + CONTRACT:**
         a new global `workspaceBaseDir: string | null` threaded through `runtime-config.ts` (file shape / state /
         update-input / normalizer / change-registry / read+write + all merge/snapshot fns — tsc-driven, 0 misses),
         `runtimeConfigResponseSchema` + `runtimeConfigSaveRequestSchema`, and `buildRuntimeConfigResponse`; saveConfig
@@ -1976,9 +1977,12 @@ deep analysis:
         and passed to `scaffoldNKleinDevTestProject` at **all three** creation paths — the tRPC dev-test mutation
         (`projects-api.ts`), the runtime eval (`runtime-api.ts` `runNKleinSmokeEval`), and the CLI (`dev.ts`
         `runDevSmokeEvalCommand`) — via the eval-harness's new `workspaceBaseDir` option. A new scaffold test asserts a
-        configured `workspaceBaseDir` is honored when no explicit `parentDir` is given. **STILL TODO:** (a) the
-        settings-dialog **UI field** (a text/path input mirroring `maxConcurrentTasks`'s state/id/init/change/save/JSX) so
-        the user can edit it; then (b) a CHANGELOG entry once it's user-facing.
+        configured `workspaceBaseDir` is honored when no explicit `parentDir` is given. **UI DONE (solo):** a
+        "Workspace Location" card with a **"Workspace base directory"** text field under Settings → Tasks
+        (`runtime-settings-dialog.tsx`, mirroring `maxConcurrentTasks`'s state/id/init/change-detection/reset/save/JSX),
+        with a component test asserting it renders + saves `workspaceBaseDir`. CHANGELOG entry added. Root+web tsc, fast,
+        web vitest, biome all green. **Complete end-to-end** — the user's "user configured path (global settings)" ask is
+        fully delivered.
   - [ ] **expose per-task NKlein settings missing from the card UI:** `contextScope` (full/smart/minimal/custom) and the
         per-task timeout mode + 5 timeout values (an "Advanced" collapsible on the card's task-agent settings).
   - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm

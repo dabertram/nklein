@@ -774,6 +774,34 @@ describe("RuntimeSettingsDialog", () => {
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});
 
+	it("edits and saves the workspace base directory (§5.W)", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const input = document.getElementById("runtime-settings-workspace-base-dir") as HTMLInputElement;
+		expect(input).not.toBeNull();
+		await act(async () => {
+			setInputValue(input, "/Users/me/.nklein/dev-workspaces");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({ workspaceBaseDir: "/Users/me/.nklein/dev-workspaces" }),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
 	it("resets the local swarm guardrails to defaults (§5.T)", async () => {
 		await act(async () => {
 			root.render(
