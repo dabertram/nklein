@@ -719,6 +719,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					await autoStartDecompositionRootTasks(scope, event);
 					completeDecompositionSourceTask(scope, event);
 				},
+				onCardPromoted: (event) => {
+					// The promotion tool already persisted the Planning→In Progress move; just push the new board
+					// state so the UI reflects the card leaving the refinement lane (todo §5.B).
+					if (event.workspacePath !== scope.workspacePath) {
+						return;
+					}
+					void deps.runtimeStateHub.broadcastRuntimeWorkspaceStateUpdated(scope.workspaceId, scope.workspacePath);
+				},
 				onFocusChainUpdated: async (taskId, chain) => {
 					// Persist the agent's focus chain (todo §5.N) onto its card so the UI renders a live todo list.
 					await mutateWorkspaceState(scope.workspacePath, (state) => ({

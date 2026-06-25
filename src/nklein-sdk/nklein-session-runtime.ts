@@ -45,6 +45,7 @@ import {
 } from "./nklein-mcp-runtime-service";
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
+import { createNKleinPromotionTool, type NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
@@ -548,6 +549,13 @@ export interface StartNKleinSessionRuntimeRequest {
 	toolExecutors?: Partial<ToolExecutors>;
 	extraTools?: AgentTool[];
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
+	/**
+	 * When provided, the `begin_implementation` promotion tool (todo §5.B) is attached so a work card can move
+	 * itself from the Planning/Refinement lane to In Progress after its refinement pass. The service supplies this
+	 * only for work-card starts (not decompose/plan-mode cards, which use `decompose_project`), so its presence is
+	 * the gate for attaching the tool.
+	 */
+	onCardPromoted?: NKleinCardPromotedHandler;
 	/** When provided, this is a second-opinion review turn: the `submit_review` tool is attached and its verdict is reported here. */
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */
@@ -872,6 +880,18 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				sourceTaskId: request.taskId,
 				onApplied: request.onDecompositionApplied,
 			}),
+			// Planning/Refinement → In Progress promotion (todo §5.B). Trusted control-plane board mutation, so it
+			// resolves against the host workspace root like the decomposition tools. Attached only when the service
+			// wires `onCardPromoted` (work-card starts), so decompose/plan-mode and home/chat sessions never see it.
+			...(request.onCardPromoted
+				? [
+						createNKleinPromotionTool({
+							workspacePath: hostWorkspaceRoot,
+							taskId: request.taskId,
+							onPromoted: request.onCardPromoted,
+						}),
+					]
+				: []),
 			...workspaceExtraTools,
 			...createWebResearchTool({
 				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",

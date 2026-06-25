@@ -65,6 +65,7 @@ import {
 } from "./nklein-message-repository";
 import { extractNKleinModelRegistryObservationFromEvent, getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { NKleinPauseController } from "./nklein-pause-controller";
+import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import {
@@ -571,6 +572,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	watcherRegistry?: NKleinWatcherRegistry;
 	pauseController?: NKleinPauseController;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
+	/** Promote a work card from Planning/Refinement to In Progress when it calls `begin_implementation` (todo §5.B). */
+	onCardPromoted?: NKleinCardPromotedHandler;
 	/** Persist an agent's focus chain (todo §5.N) when it calls `update_focus_chain`. */
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
 	/** Operator-configurable autonomous-run guardrail limits; defaults to DEFAULT_RUNTIME_SWARM_GUARDRAILS. */
@@ -783,6 +786,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly agentSandboxManager: AgentSandboxManager | null;
 	private readonly pauseController: NKleinPauseController;
 	private readonly onDecompositionApplied: NKleinDecompositionAppliedHandler | undefined;
+	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -812,6 +816,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.agentSandboxManager = options.agentSandboxManager ?? null;
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.onDecompositionApplied = options.onDecompositionApplied;
+		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 	}
@@ -1045,6 +1050,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				}),
 				toolPolicies: runtimeSetup.toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
+				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
 				onReviewSubmitted: input.onReviewSubmitted,
 				onFocusChainUpdated: (chain) => {
 					const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
@@ -2222,6 +2228,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: undefined,
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
+					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 					onFocusChainUpdated: (chain) => {
 						const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(request.taskId), chain, now());
 						this.focusChainByTaskId.set(request.taskId, timed);

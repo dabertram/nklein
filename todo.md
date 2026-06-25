@@ -456,6 +456,21 @@ deep analysis:
       graph** when the project's direction or merged follow-ups have moved on. The point is to never work an outdated
       plan, so a large replanning is on-purpose when warranted, not avoided.** Build the seam so the agent can choose
       lightweight→XXXL per what the task + current project state need (and skip fast when nothing changed).
+  - [x] **Increment A — the `begin_implementation` promotion tool (2026-06-25)** — new self-gating trusted control-plane
+        tool ([nklein-promotion-tool.ts](src/nklein-sdk/nklein-promotion-tool.ts)) that moves a card Planning→In Progress
+        via `mutateWorkspaceState`. **Self-gates on the card's own `startInPlanMode`**: refuses a planning/decompose card
+        (→ "call decompose_project") so a misbehaving model can't shove a planning card into Implementation, and so the
+        resume path needs no flag threading; idempotent no-op when already In Progress; refuses terminal/missing. Wired
+        through `nklein-session-runtime` (attached only when the service passes `onCardPromoted`, gated to non-home
+        sessions at both start sites) and `runtime-server` (broadcasts the board on promotion). 6 unit tests green; tsc +
+        biome green. **Dormant until Increment B** (routing still sends work cards straight to In Progress, so the tool is
+        present but unused — the agent isn't yet prompted to call it).
+  - [ ] **Increment B — route every started card to Planning first + work-card refinement prompt** — flip
+        `reconcileStartedTaskBoardLane` so a started work card lands in **Planning** (not In Progress); add the work-card
+        **refinement system prompt** (re-validate against current project state, dynamic weight, then call
+        `begin_implementation`); update the lane-reconcile test (work card now → Planning). This is the user-facing flip.
+  - [ ] **Increment C (hardening)** — auto-promote recovery: if a planning-lane work card calls an implementation write
+        tool without first calling `begin_implementation`, treat it as an implicit promotion (parse-and-recover).
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
