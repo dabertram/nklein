@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
 import { createBoardReadTools } from "../chat/chat-board-tools";
 import { createCommandRunTool } from "../chat/chat-command-tool";
+import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { readChatMemories } from "../chat/chat-memory-store";
@@ -117,16 +118,25 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 		const workspaceRoot = resolve(options.workspace);
 		const read = createWorkspaceReadTools(workspaceRoot);
 		const boardTools = createBoardReadTools(workspaceRoot);
+		// Focus chain (§5.M G4): always offered (sandbox_read = always-allowed) so the agent maintains its checklist.
+		const focusTools = createFocusChainTools(session.id);
 		const writeTools = options.allowWrite ? createWorkspaceWriteTools(workspaceRoot) : { tools: [], definitions: [] };
 		// `--allow-commands` offers run_command (a host_command), which the gate denies in isolated_readonly — so it
 		// also elevates the session to the host-capable `sandbox_with_host_escape` mode, where every host action is a
 		// confirmed, audited escape hatch (the §5.M invariant). Reads stay free; the command itself is confirm-prompted.
 		const commandTools = options.allowCommands ? createCommandRunTool(workspaceRoot) : { tools: [], definitions: [] };
 		const mode = options.allowCommands ? "sandbox_with_host_escape" : "isolated_readonly";
-		const tools = [...read.tools, ...boardTools.tools, ...writeTools.tools, ...commandTools.tools];
+		const tools = [
+			...read.tools,
+			...boardTools.tools,
+			...focusTools.tools,
+			...writeTools.tools,
+			...commandTools.tools,
+		];
 		const definitions = [
 			...read.definitions,
 			...boardTools.definitions,
+			...focusTools.definitions,
 			...writeTools.definitions,
 			...commandTools.definitions,
 		];
@@ -162,6 +172,7 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			model: createChatAgentModel(client, definitions),
 			executeTool,
 			appendToolExchange: appendChatToolExchange,
+			readFocusChain: (sessionId) => readChatFocusChain(sessionId),
 		};
 
 		try {
