@@ -52,6 +52,19 @@ describe("chat-session-store", () => {
 		expect(off?.riskAcknowledged).toBe(false);
 	});
 
+	it("defaults browserEnabled to false, and update toggles + round-trips it (§5.M G6)", async () => {
+		const created = await createChatSession({ title: "Browsing" }, { rootDir, now });
+		expect(created.browserEnabled).toBe(false);
+		clock = 2000;
+		const on = await updateChatSession(created.id, { browserEnabled: true }, { rootDir, now });
+		expect(on?.browserEnabled).toBe(true);
+		// Persisted across a fresh read (replayed from the event log).
+		expect((await getChatSession(created.id, { rootDir }))?.browserEnabled).toBe(true);
+		// And can be turned back off.
+		const off = await updateChatSession(created.id, { browserEnabled: false }, { rootDir, now });
+		expect(off?.browserEnabled).toBe(false);
+	});
+
 	it("honors an explicit scope + role", async () => {
 		const created = await createChatSession(
 			{ title: "Ops", scope: "host_access", role: "system_operator" },

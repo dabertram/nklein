@@ -887,14 +887,21 @@ deep analysis:
 >         in `chat-board-tools.ts` + a new `control_plane` action kind (gate: deny in `isolated_readonly`/chat-only, allow
 >         in host-capable modes — board writes are trusted !Klein-owned control-plane, no confirm). 21 board+gate tests.
 >         Ready to wire in Wave 2b. (`start_card` deferred — starting a task is a separate session-start flow.)
->   - [~] **G6 — browser tool. MODULE DONE (2026-06-25, salvaged from the dispatched agent + verified solo).**
->         `src/chat/chat-browser-tool.ts` (`createBrowserTools` → `browse_url`, actionKind `host_command`): a headless
->         **Playwright** browser (`import { chromium } from "playwright"`, added to root deps) that navigates + returns the
->         rendered page's title + text, capped, with an injected `BrowserDeps` so the 13 unit tests run with a fake (no
->         real browser launched). Validates http/https, safe error messages (no host paths). **STILL TODO (wave-2b cont.):**
->         wire `browse_url` into the agent tool sets behind a **browser/internet on/off toggle** (off by default, user-
->         enabled, orthogonal to scope per the permission model) + the §5.L per-role rulesets + a live browse smoke test.
->         (knowledge-fetch can layer on the same toggle later.)
+>   - [x] **G6 — browser tool — WIRED + LIVE-PROVEN (2026-06-25, solo).** `src/chat/chat-browser-tool.ts`
+>         (`createBrowserTools` → `browse_url`, actionKind `host_command`): a headless **Playwright** browser
+>         (`import { chromium } from "playwright"`) that navigates + returns the rendered page's title + text, capped,
+>         injected `BrowserDeps` so the 13 unit tests use a fake. Validates http/https, safe error messages (no host
+>         paths). **Now wired behind a per-session `browserEnabled` toggle** (off by default, orthogonal to scope —
+>         mirrors `riskAcknowledged` end-to-end: contract schema + store back-compat + service + the `buildChatAgentToolDepsResolver`
+>         resolver, which offers `browse_url` only when enabled and approves its host_command confirm via the toggle). It's
+>         a host action, so the mode gate still **denies** it in chat-only and **confirms** it in can-act scopes — the
+>         toggle IS that consent. **CLI parity:** `nklein chat --browser` (elevates to the host-capable mode + confirm-prompts
+>         each navigation). **web-ui:** a 🌐 "Enable browser" toggle next to the ⚠️ unsafe-commands toggle (can-act scopes
+>         only; immediate flip, no extra-confirm dialog since browsing read-only pages is lower-risk) — 5 Playwright tests
+>         (`chat-browser-toggle.spec.ts`). **Live-proven:** `scripts/verify-chat-browse.mts` drives the real CLI agent
+>         (qwen3-8b) at a local page; asserts it USED browse_url AND the page marker flowed back (Chromium genuinely
+>         rendered it). Needs `npx playwright install chromium` once (now installed: headless-shell 1228). (§5.L per-role
+>         rulesets + knowledge-fetch can layer on the same toggle later.)
 >   - [~] **G7 — comprehensive live coverage.** Two capabilities now **live-proven** with their own CLI harnesses (real
 >         qwen3-8b, isolated HOME, asserts the tool was used AND the real side effect persisted): **run_command** executes
 >         a shell command + its output flows back (`scripts/verify-chat-command-exec.mts`, marker echoed) and **create_card**

@@ -46,6 +46,8 @@ export interface ChatSession {
 	goal: string | null;
 	/** §5.M G3b: the user accepted the risk of this session running UNSAFE commands (general-ack). Default false. */
 	riskAcknowledged: boolean;
+	/** §5.M G6: the user enabled the headless-browser/internet tool for this session (orthogonal). Default false. */
+	browserEnabled: boolean;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -130,6 +132,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				goal: typeof event.session.goal === "string" ? event.session.goal : null,
 				// Back-compat for sessions persisted before `riskAcknowledged` existed (default: not acknowledged).
 				riskAcknowledged: event.session.riskAcknowledged === true,
+				// Back-compat for sessions persisted before `browserEnabled` existed (default: disabled).
+				browserEnabled: event.session.browserEnabled === true,
 			});
 		}
 	}
@@ -151,6 +155,7 @@ export async function createChatSession(
 		role?: ChatSessionRole;
 		goal?: string | null;
 		riskAcknowledged?: boolean;
+		browserEnabled?: boolean;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
@@ -163,6 +168,7 @@ export async function createChatSession(
 		role: input.role ?? DEFAULT_CHAT_SESSION_ROLE,
 		goal: input.goal?.trim() || null,
 		riskAcknowledged: input.riskAcknowledged ?? false,
+		browserEnabled: input.browserEnabled ?? false,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -178,6 +184,7 @@ export async function updateChatSession(
 		role?: ChatSessionRole;
 		goal?: string | null;
 		riskAcknowledged?: boolean;
+		browserEnabled?: boolean;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
@@ -194,6 +201,7 @@ export async function updateChatSession(
 		// `goal: null` clears it; `goal: undefined` (absent) leaves it unchanged.
 		...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
 		...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
+		...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

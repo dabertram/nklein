@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import type { ChatAgentModelResponse } from "../chat/chat-agent-loop";
 import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
+import { createBrowserTools } from "../chat/chat-browser-tool";
 import { classifyCommandSafety } from "../chat/chat-command-safety";
 import { createCommandRunTool } from "../chat/chat-command-tool";
 import type { ChatExecutionMode } from "../chat/chat-execution-mode";
@@ -432,13 +433,25 @@ function buildChatAgentToolDepsResolver(input: {
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
 		const commands = canAct ? createCommandRunTool(workspacePath) : { tools: [], definitions: [] };
-		const tools = [...read.tools, ...board.tools, ...focus.tools, ...mutations.tools, ...commands.tools];
+		// §5.M G6: the headless-browser tool is an orthogonal, per-session opt-in (`browserEnabled`). It's a host_command
+		// (reaching the internet is a host action), so the mode gate denies it in chat-only and confirms it in the
+		// host-capable scopes — the toggle is that confirmation (approved in the `confirm` callback below).
+		const browser = session.browserEnabled ? createBrowserTools() : { tools: [], definitions: [] };
+		const tools = [
+			...read.tools,
+			...board.tools,
+			...focus.tools,
+			...mutations.tools,
+			...commands.tools,
+			...browser.tools,
+		];
 		const definitions = [
 			...read.definitions,
 			...board.definitions,
 			...focus.definitions,
 			...mutations.definitions,
 			...commands.definitions,
+			...browser.definitions,
 		];
 
 		const executeTool = createGatedChatToolExecutor({
@@ -455,6 +468,11 @@ function buildChatAgentToolDepsResolver(input: {
 						return true;
 					}
 					return session.riskAcknowledged === true;
+				}
+				// §5.M G6: browsing is gated by the explicit per-session `browserEnabled` toggle — that opt-in IS the
+				// consent for the host_command confirm. (The tool is only present when enabled; this is belt-and-braces.)
+				if (call.name === "browse_url") {
+					return session.browserEnabled === true;
 				}
 				return false;
 			},

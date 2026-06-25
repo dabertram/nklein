@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
 import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
+import { createBrowserTools } from "../chat/chat-browser-tool";
 import { createCommandRunTool } from "../chat/chat-command-tool";
 import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
@@ -47,6 +48,8 @@ interface ChatSendOptions {
 	allowWrite?: boolean;
 	/** With `--workspace`, also offer `run_command` (host_command); elevates to sandbox_with_host_escape, each run confirmed + audited. */
 	allowCommands?: boolean;
+	/** With `--workspace`, also offer `browse_url` (headless browser, a host_command); elevates to a host-capable mode, each navigation confirmed + audited. */
+	browser?: boolean;
 	json?: boolean;
 	write?: (text: string) => void;
 }
@@ -130,7 +133,10 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 		const boardMutationTools = options.allowCommands
 			? createBoardMutationTools(workspaceRoot)
 			: { tools: [], definitions: [] };
-		const mode = options.allowCommands ? "sandbox_with_host_escape" : "isolated_readonly";
+		// `--browser` offers browse_url (a host_command); like --allow-commands it elevates to the host-capable mode so
+		// the gate confirms (rather than denies) it — each navigation is then confirm-prompted + audited (§5.M G6).
+		const browserTools = options.browser ? createBrowserTools() : { tools: [], definitions: [] };
+		const mode = options.allowCommands || options.browser ? "sandbox_with_host_escape" : "isolated_readonly";
 		const tools = [
 			...read.tools,
 			...boardTools.tools,
@@ -138,6 +144,7 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			...boardMutationTools.tools,
 			...writeTools.tools,
 			...commandTools.tools,
+			...browserTools.tools,
 		];
 		const definitions = [
 			...read.definitions,
@@ -146,15 +153,18 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			...boardMutationTools.definitions,
 			...writeTools.definitions,
 			...commandTools.definitions,
+			...browserTools.definitions,
 		];
 
 		// A confirm-gated tool needs an interactive prompt; the REPL also needs stdin. Open one reader for both.
-		const reader = options.allowWrite || options.allowCommands || !message ? createStdinLineReader() : null;
+		const reader =
+			options.allowWrite || options.allowCommands || options.browser || !message ? createStdinLineReader() : null;
 		const confirm = reader
 			? async (call: { name: string; arguments: Record<string, unknown> }): Promise<boolean> => {
 					const command = typeof call.arguments.command === "string" ? call.arguments.command : null;
 					const path = typeof call.arguments.path === "string" ? call.arguments.path : null;
-					const target = command ? ` (${command})` : path ? ` (${path})` : "";
+					const url = typeof call.arguments.url === "string" ? call.arguments.url : null;
+					const target = command ? ` (${command})` : path ? ` (${path})` : url ? ` (${url})` : "";
 					write(`Allow ${call.name}${target}? [y/N] `);
 					const answer = await reader.readLine();
 					return answer?.trim().toLowerCase() === "y";
@@ -285,6 +295,10 @@ export function registerChatCommand(program: Command): void {
 		.option(
 			"--allow-commands",
 			"With --workspace, also offer run_command; each command is confirm-prompted and audited (host-capable mode).",
+		)
+		.option(
+			"--browser",
+			"With --workspace, also offer browse_url (headless browser); each navigation is confirm-prompted and audited.",
 		)
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: ChatSendOptions) => {

@@ -14,6 +14,7 @@ function session(): ChatSession {
 		role: "planner_architect",
 		goal: null,
 		riskAcknowledged: false,
+		browserEnabled: false,
 		createdAt: 0,
 		updatedAt: 0,
 	};

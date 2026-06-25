@@ -170,13 +170,21 @@ function SessionHeader({
 		role?: RuntimeChatSessionRole;
 		scope?: RuntimeChatSessionScope;
 		riskAcknowledged?: boolean;
+		browserEnabled?: boolean;
 	}) => void;
 }): React.ReactElement {
 	const [title, setTitle] = useState(session.title);
 	const [goal, setGoal] = useState(session.goal ?? "");
 	const [riskDialogOpen, setRiskDialogOpen] = useState(false);
 
+	// Both per-session opt-ins only do anything in a can-act scope (host actions are denied in chat-only), so the
+	// toggles are shown together there. Browsing read-only pages is lower-risk than unsafe shell commands, so the
+	// browser toggle flips immediately (no extra-confirmation dialog — unlike the unsafe-commands toggle).
 	const showRiskToggle = CAN_ACT_SCOPES.has(session.scope);
+
+	const handleBrowserToggle = (): void => {
+		onUpdate({ id: session.id, browserEnabled: !session.browserEnabled });
+	};
 
 	const handleRiskToggle = (): void => {
 		if (session.riskAcknowledged) {
@@ -262,7 +270,7 @@ function SessionHeader({
 					/>
 				</div>
 				{showRiskToggle ? (
-					<div className="flex items-center gap-1.5 min-w-0">
+					<div className="flex items-center gap-1.5 flex-wrap min-w-0">
 						<button
 							type="button"
 							role="checkbox"
@@ -278,6 +286,22 @@ function SessionHeader({
 						>
 							<span aria-hidden="true">⚠️</span>
 							<span>{session.riskAcknowledged ? "Unsafe commands allowed" : "Allow unsafe commands"}</span>
+						</button>
+						<button
+							type="button"
+							role="checkbox"
+							aria-checked={session.browserEnabled}
+							data-testid="chat-browser-toggle"
+							onClick={handleBrowserToggle}
+							className={cn(
+								"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer",
+								session.browserEnabled
+									? "border-status-blue text-status-blue bg-surface-2 hover:bg-surface-3"
+									: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+							)}
+						>
+							<span aria-hidden="true">🌐</span>
+							<span>{session.browserEnabled ? "Browser enabled" : "Enable browser"}</span>
 						</button>
 					</div>
 				) : null}
