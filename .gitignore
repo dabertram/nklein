@@ -9,6 +9,10 @@ coverage
 test-results
 playwright-report
 .worktrees
+# Claude Code agent worktrees (.claude/worktrees/<id>/ are full repo checkouts — embedded git
+# repos that must never be committed). Scoped to worktrees so tracked config like
+# .claude/commands/ stays under version control.
+.claude/worktrees/
 .sentry-artifacts
 .env
 .env.*

@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TEMPLATE_NAME = "smoke-ts-cli";
@@ -33,7 +33,14 @@ export type NKleinDevTestProjectPreset =
 
 export interface ScaffoldNKleinDevTestProjectOptions {
 	scenario?: NKleinDevTestProjectScenario;
+	/**
+	 * Requested parent directory for the created workspace. Honored ONLY if it is not at/below !Klein's parent
+	 * folder; an unsafe request is redirected to a safe base (see resolveSafeCreatedWorkspaceParentDir). Omit to use
+	 * the configured/home-default safe base.
+	 */
 	parentDir?: string;
+	/** User-configured safe base dir (global setting) for created workspaces; overridden by a safe `parentDir`. */
+	workspaceBaseDir?: string;
 	templateName?: string;
 	initializeGit?: boolean;
 	now?: () => number;
@@ -45,6 +52,8 @@ export interface ScaffoldedNKleinDevTestProject {
 	scenario: NKleinDevTestProjectScenario;
 	acceptanceCommand: string;
 	gitInitialized: boolean;
+	/** Non-null when an unsafe requested/configured parent dir was redirected to a safe base (reason for logging). */
+	parentDirSafetyRedirect: string | null;
 }
 
 export interface NKleinDevTestProjectMarker {
@@ -336,7 +345,15 @@ export async function scaffoldNKleinDevTestProject(
 	options: ScaffoldNKleinDevTestProjectOptions = {},
 ): Promise<ScaffoldedNKleinDevTestProject> {
 	const scenario = options.scenario ?? DEFAULT_NKLEIN_DEV_TEST_SCENARIO;
-	const parentDir = options.parentDir ?? tmpdir();
+	// SAFETY (isolation invariant): a created workspace must never live at/below !Klein's parent folder, or its
+	// git init/commit pollutes the dev repo + sibling worktrees. Honor a safe requested/configured path, else fall
+	// back to the home-default safe base (and ensure it exists, since it may not on first use).
+	const safeParent = resolveSafeCreatedWorkspaceParentDir({
+		requestedParentDir: options.parentDir ?? null,
+		configuredBaseDir: options.workspaceBaseDir ?? null,
+	});
+	const parentDir = safeParent.parentDir;
+	await mkdir(parentDir, { recursive: true });
 	const now = options.now ?? Date.now;
 	const createdAt = now();
 	const workspacePath = await mkdtemp(join(parentDir, `nklein-${slugify(scenario.id)}-${createdAt}-`));
@@ -382,5 +399,6 @@ export async function scaffoldNKleinDevTestProject(
 		scenario,
 		acceptanceCommand: scenario.acceptanceCommand,
 		gitInitialized: shouldInitializeGit,
+		parentDirSafetyRedirect: safeParent.redirected ? safeParent.reason : null,
 	};
 }

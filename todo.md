@@ -257,6 +257,15 @@ deep analysis:
 > - **§5.P:** **keep deferred** until we reach it (it's the last task; boundary depends on how everything lands).
 
 ### 5.A — Finish strict-isolation reconciliation & live verification
+- [x] **Created-workspace location guard (2026-06-25, user-directed safety fix after a real pollution incident).** A
+      dev-test scaffold (`scaffoldNKleinDevTestProject`) whose `parentDir` resolved inside the repo seeded ~23 fixture
+      commits onto the working branch + flipped `core.bare=true` (broke all work-tree git ops). Fix:
+      [src/config/workspace-location.ts](src/config/workspace-location.ts) `resolveSafeCreatedWorkspaceParentDir` confines
+      created workspaces to a configured path (`NKLEIN_DEV_WORKSPACE_DIR`) or the `~/.nklein/dev-workspaces` home default,
+      **refusing/redirecting anything at/below !Klein's parent folder**; wired into `scaffoldNKleinDevTestProject` (returns
+      `parentDirSafetyRedirect` for logging). 8 unit tests; `vitest.config.ts` now excludes `.claude/**` (agent worktrees).
+      Incident + recovery recipe recorded in AGENTS.md. **Follow-up:** expose the base dir as a first-class **global
+      setting** in the UI (env + option work today; ties into §5.W); apply the same guard to git-clone / other creation sites.
 - [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
       local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
       shell-on-task = `docker exec` into the task's sandbox (no host checkout). Full plan +
