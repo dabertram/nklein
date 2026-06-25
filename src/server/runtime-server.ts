@@ -30,7 +30,12 @@ import {
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
-import { completeTaskAndGetReadyLinkedTaskIds, getTaskColumnId, moveTaskToColumn } from "../core/task-board-mutations";
+import {
+	completeTaskAndGetReadyLinkedTaskIds,
+	getTaskColumnId,
+	moveTaskToColumn,
+	STARTED_CARD_ENTRY_LANE,
+} from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
@@ -320,7 +325,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					);
 					continue;
 				}
-				const targetColumnId = task.startInPlanMode ? "planning" : "in_progress";
+				// Every started card enters the Planning/Refinement lane first (todo §5.B), work or decompose alike.
+				const targetColumnId = STARTED_CARD_ENTRY_LANE;
 				const started = await runtimeApi.startTaskSession(scope, {
 					taskId: task.id,
 					prompt: task.prompt,
@@ -368,7 +374,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		scope: RuntimeTrpcWorkspaceScope,
 		input: { taskId: string; startInPlanMode?: boolean },
 	): Promise<void> => {
-		const targetColumnId = input.startInPlanMode ? "planning" : "in_progress";
+		// Every started card enters the Planning/Refinement lane first (todo §5.B), work or decompose alike.
+		const targetColumnId = STARTED_CARD_ENTRY_LANE;
 		await mutateWorkspaceState(scope.workspacePath, (latestState) => {
 			const movement = moveTaskToColumn(latestState.board, input.taskId, targetColumnId);
 			return {

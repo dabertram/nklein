@@ -108,11 +108,25 @@ describe("reconcileStartedTaskBoardLane", () => {
 		expect(await columnOf("task-1")).toBe("planning");
 	});
 
-	it("moves a running non-plan-mode card from Backlog to In Progress", async () => {
+	it("moves a running work card (non-plan-mode) from Backlog to Planning — every started card refines first (§5.B)", async () => {
 		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "backlog" }) });
 		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
 		expect(changed).toBe(true);
+		expect(await columnOf("task-1")).toBe("planning");
+	});
+
+	it("never pulls a resumed card backward from In Progress to Planning", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "in_progress" }) });
+		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
+		expect(changed).toBe(false);
 		expect(await columnOf("task-1")).toBe("in_progress");
+	});
+
+	it("leaves a work card already refining in Planning untouched (e.g. a decompose child)", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "planning" }) });
+		const changed = await reconcileStartedTaskBoardLane({ workspacePath: repoPath, summary: summary() });
+		expect(changed).toBe(false);
+		expect(await columnOf("task-1")).toBe("planning");
 	});
 
 	it("does NOT move a card while the task is not yet running (queued/starting)", async () => {

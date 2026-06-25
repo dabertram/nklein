@@ -1008,9 +1008,10 @@ describe("createRuntimeApi startTaskSession", () => {
 
 			expect(response.ok).toBe(true);
 			const saved = await loadWorkspaceState(workspacePath);
-			// The card must not sit in backlog while the agent is working it.
+			// The card must not sit in backlog while the agent is working it. Under §5.B every started card enters
+			// the Planning/Refinement lane first (it refines, then calls begin_implementation to advance).
 			expect(saved.board.columns.find((column) => column.id === "backlog")?.cards).toHaveLength(0);
-			expect(saved.board.columns.find((column) => column.id === "in_progress")?.cards).toMatchObject([
+			expect(saved.board.columns.find((column) => column.id === "planning")?.cards).toMatchObject([
 				{ id: "task-1" },
 			]);
 		} finally {

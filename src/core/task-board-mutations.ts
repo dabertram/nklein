@@ -12,6 +12,18 @@ import type {
 import { createUniqueTaskId } from "./task-id";
 import { resolveTaskTitle } from "./task-title";
 
+/**
+ * The lane EVERY started card enters first (todo §5.B — Planning/Refinement). A started card — whether a
+ * decompose/plan card or a work card — routes here so it always gets a refinement pass against the current project
+ * state before any implementation ("never work an out-of-date plan"). From Planning a decompose card calls
+ * `decompose_project`; a work card calls `begin_implementation` (the promotion tool) to advance to In Progress.
+ *
+ * This is the single source of truth for that entry lane: the start-lane reconcile and the runtime's queued-start /
+ * auto-start-linked drains all use it, instead of each re-deriving `startInPlanMode ? "planning" : "in_progress"`
+ * (the old per-site duplication the systems-analysis pass flagged).
+ */
+export const STARTED_CARD_ENTRY_LANE = "planning" as const satisfies RuntimeBoardColumnId;
+
 export interface RuntimeCreateTaskInput {
 	taskId?: string;
 	title?: string;

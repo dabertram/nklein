@@ -705,10 +705,35 @@ function buildNKleinPlanningSystemPrompt(prompt: string, startInPlanMode?: boole
 	].join("\n");
 }
 
-function buildNKleinStartPromptParts(prompt: string, startInPlanMode?: boolean): NKleinStartPromptParts {
+/**
+ * The work-card Planning/Refinement preamble (todo §5.B). A started WORK card (not a decompose/plan card, not a
+ * home/chat session) lands in the Planning lane and runs a refinement pass BEFORE implementing: re-validate the card
+ * against the current project state, pick the depth by what actually changed, then call `begin_implementation` to
+ * advance to In Progress and build it (or `decompose_project` if it must be split). This keeps small models from
+ * working an out-of-date plan; the explicit promotion tool is the robust transition against weak models.
+ */
+function buildNKleinRefinementSystemPrompt(): string {
+	return [
+		"This card is in the Planning / Refinement phase — its card sits in the Planning lane, not yet In Progress.",
+		"Before writing any implementation, do a brief REFINEMENT pass: re-check this card against the CURRENT state of the project (what has been merged or changed since it was planned). Confirm the card's objective and its acceptance check still hold and are not already satisfied.",
+		"Pick the refinement depth by what actually changed: if nothing relevant moved, a quick confirmation is enough; if the direction or merged work shifted, adjust your approach; if the card is badly out of date or too large to do as one card, call `decompose_project` to split it into smaller cards instead of building it.",
+		"When the card is confirmed (or you have updated the plan) and ready to build, call the `begin_implementation` tool — that moves the card from Planning to In Progress. THEN implement it: make the changes the card calls for, run its acceptance check, and finish per the workflow.",
+		"Do not edit implementation files before calling `begin_implementation`; you are still refining until then. Keep the refinement brief — do not dump a long analysis before acting.",
+	].join("\n");
+}
+
+export function buildNKleinStartPromptParts(
+	prompt: string,
+	startInPlanMode?: boolean,
+	isRefinableWorkCard?: boolean,
+): NKleinStartPromptParts {
 	return {
 		userPrompt: prompt,
-		systemPrompt: buildNKleinPlanningSystemPrompt(prompt, startInPlanMode),
+		systemPrompt: startInPlanMode
+			? buildNKleinPlanningSystemPrompt(prompt, startInPlanMode)
+			: isRefinableWorkCard
+				? buildNKleinRefinementSystemPrompt()
+				: null,
 		systemWorkflowCommand: startInPlanMode ? "/kanban-decompose" : null,
 	};
 }
@@ -1984,7 +2009,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			turnTimeoutMs: request.turnTimeoutMs,
 		});
 		const resolvedMode: RuntimeTaskSessionMode = request.startInPlanMode ? "act" : (request.mode ?? "act");
-		const startPromptParts = buildNKleinStartPromptParts(request.prompt, request.startInPlanMode);
+		// A work card (not plan-mode, not a home/chat session) gets the Planning/Refinement preamble + the
+		// begin_implementation promotion tool (todo §5.B); home/chat and decompose/plan cards do not.
+		const isRefinableWorkCard = !request.startInPlanMode && !isHomeAgentSessionId(request.taskId);
+		const startPromptParts = buildNKleinStartPromptParts(
+			request.prompt,
+			request.startInPlanMode,
+			isRefinableWorkCard,
+		);
 		const normalizedPrompt = startPromptParts.userPrompt.trim();
 		const hasRequestImages = Boolean(request.images && request.images.length > 0);
 		const initialState = request.resumeFromTrash

@@ -471,10 +471,17 @@ deep analysis:
         sessions at both start sites) and `runtime-server` (broadcasts the board on promotion). 6 unit tests green; tsc +
         biome green. **Dormant until Increment B** (routing still sends work cards straight to In Progress, so the tool is
         present but unused — the agent isn't yet prompted to call it).
-  - [ ] **Increment B — route every started card to Planning first + work-card refinement prompt** — flip
-        `reconcileStartedTaskBoardLane` so a started work card lands in **Planning** (not In Progress); add the work-card
-        **refinement system prompt** (re-validate against current project state, dynamic weight, then call
-        `begin_implementation`); update the lane-reconcile test (work card now → Planning). This is the user-facing flip.
+  - [x] **Increment B — route every started card to Planning first + work-card refinement prompt (2026-06-25)** —
+        DONE. Added a single `STARTED_CARD_ENTRY_LANE = "planning"` source of truth in
+        [task-board-mutations.ts](src/core/task-board-mutations.ts) and routed **all three** start paths through it
+        (the lane reconcile + `runtime-server` queued-start drain + auto-start-linked drain — the old per-site
+        `startInPlanMode ? planning : in_progress` duplication is gone). The reconcile is now a source→target map:
+        Backlog→Planning (refine first) and Review→In Progress (a resumed recovered review card), leaving Planning/In
+        Progress/terminal untouched (never pull a resumed card backward; decompose children already in Planning stay to
+        refine). Added `buildNKleinRefinementSystemPrompt` + threaded an `isRefinableWorkCard` flag (non-home, non-plan-
+        mode) through `buildNKleinStartPromptParts` so a work card opens with the refinement preamble (re-validate →
+        dynamic depth → `begin_implementation`/`decompose_project`). Updated the lane-reconcile + runtime-api + task-
+        session-service tests + a new prompt-selection suite; full fast suite green (1506).
   - [ ] **Increment C (hardening)** — auto-promote recovery: if a planning-lane work card calls an implementation write
         tool without first calling `begin_implementation`, treat it as an implicit promotion (parse-and-recover).
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,

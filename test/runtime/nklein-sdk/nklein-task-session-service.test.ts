@@ -574,7 +574,13 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		expect(summary.agentId).toBe("nklein");
 		expect(summary.state).toBe("running");
 		expect(summary.workspacePath).toBe("/tmp/worktree");
-		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Investigate startup"]);
+		// A work card now opens with the §5.B Planning/Refinement system-prompt message; the user prompt follows it.
+		expect(
+			service
+				.listMessages("task-1")
+				.filter((message) => message.role !== "system")
+				.map((message) => message.content),
+		).toEqual(["Investigate startup"]);
 	});
 
 	it("stamps the resolved launch role on the session summary (todo §5.G/§5.U)", async () => {
@@ -1727,10 +1733,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		await vi.waitFor(() => {
 			expect(service.getSummary("task-1")?.state).toBe("awaiting_review");
 		});
-		expect(service.listMessages("task-1").map((message) => message.content)).toEqual([
-			"Original prompt",
-			"Original answer",
-		]);
+		expect(
+			service
+				.listMessages("task-1")
+				.filter((message) => message.role !== "system")
+				.map((message) => message.content),
+		).toEqual(["Original prompt", "Original answer"]);
 
 		runtime.readPersistedTaskSessionMock.mockResolvedValue({
 			record: {
@@ -2357,7 +2365,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const nextSummary = await service.sendTaskSessionInput("task-1", "Continue\n");
 
 		expect(nextSummary?.state).toBe("running");
-		expect(service.listMessages("task-1").map((message) => message.content)).toEqual(["Initial prompt", "Continue"]);
+		expect(
+			service
+				.listMessages("task-1")
+				.filter((message) => message.role !== "system")
+				.map((message) => message.content),
+		).toEqual(["Initial prompt", "Continue"]);
 	});
 
 	it("rebinds a persisted session after restart and resumes chat on the next message", async () => {
