@@ -1,6 +1,12 @@
-import type { RuntimeBoardData } from "../core/api-contract";
+import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
+import { addTaskToColumn } from "../core/task-board-mutations";
 import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
-import { loadWorkspaceState } from "../state/workspace-state";
+import {
+	loadWorkspaceState,
+	mutateWorkspaceState,
+	type RuntimeWorkspaceAtomicMutationResponse,
+	type RuntimeWorkspaceAtomicMutationResult,
+} from "../state/workspace-state";
 import type { ChatTool } from "./chat-tool-executor";
 
 /**
@@ -77,6 +83,103 @@ export function createBoardReadTools(projectPath: string, options: { deps?: Boar
 			description:
 				"Show the current project's kanban board — every column and the cards in it (each card's id and title). Use this to see the existing tasks before you discuss, create, or work on cards. Takes no arguments.",
 			parameters: { type: "object", properties: {} },
+		},
+	];
+
+	return { tools, definitions };
+}
+
+/**
+ * Mutation tools (todo §5.M G5) — board write tools for the chat agent.
+ *
+ * These are `control_plane` actions: they touch only the !Klein-owned board via `mutateWorkspaceState`, never the
+ * user's working tree or a shell. Host-isolation invariant: tool results contain only the new card id — never the
+ * project's on-disk path. The board mutator is injected so the tools are unit-testable without real disk.
+ */
+
+type BoardMutatorFn = <T>(
+	projectPath: string,
+	mutate: (state: RuntimeWorkspaceStateResponse) => RuntimeWorkspaceAtomicMutationResult<T>,
+) => Promise<RuntimeWorkspaceAtomicMutationResponse<T>>;
+
+export interface BoardMutationDeps {
+	/** Atomically mutate the board for the given project root. Defaults to the on-disk workspace state. */
+	mutateBoard: BoardMutatorFn;
+}
+
+const DEFAULT_MUTATION_DEPS: BoardMutationDeps = {
+	mutateBoard: mutateWorkspaceState as BoardMutatorFn,
+};
+
+/** Parse and validate the `create_card` tool arguments from the model's raw call. */
+function parseCreateCardArgs(args: Record<string, unknown>): { title: string; prompt: string } | { error: string } {
+	const rawTitle = args.title;
+	const rawPrompt = args.prompt;
+	if (typeof rawTitle !== "string" || !rawTitle.trim()) {
+		return { error: "create_card requires a non-empty `title` string." };
+	}
+	if (typeof rawPrompt !== "string" || !rawPrompt.trim()) {
+		return { error: "create_card requires a non-empty `prompt` string." };
+	}
+	return { title: rawTitle.trim(), prompt: rawPrompt.trim() };
+}
+
+/**
+ * Build the board-mutation tool set for `projectPath`. The returned `tools` plug into
+ * `createGatedChatToolExecutor`; the `definitions` are offered to the model.
+ */
+export function createBoardMutationTools(projectPath: string, options: { deps?: BoardMutationDeps } = {}): ChatToolSet {
+	const deps = options.deps ?? DEFAULT_MUTATION_DEPS;
+
+	const tools: ChatTool[] = [
+		{
+			name: "create_card",
+			actionKind: "control_plane",
+			run: async (args) => {
+				const parsed = parseCreateCardArgs(args);
+				if ("error" in parsed) {
+					return parsed.error;
+				}
+				const { title, prompt } = parsed;
+				try {
+					const result = await deps.mutateBoard<RuntimeBoardCard>(projectPath, (state) => {
+						const baseRef = state.git.currentBranch ?? state.git.defaultBranch ?? "main";
+						const { board, task } = addTaskToColumn(
+							state.board,
+							"backlog",
+							{ title, prompt, startInPlanMode: false, baseRef },
+							crypto.randomUUID.bind(crypto),
+						);
+						return { board, save: true, value: task };
+					});
+					return `Created card [${result.value.id}] "${result.value.title}" in Backlog.`;
+				} catch {
+					return "Could not create the card — the board may be temporarily unavailable.";
+				}
+			},
+		},
+	];
+
+	const definitions: LocalLlmToolDefinition[] = [
+		{
+			name: "create_card",
+			description:
+				"Add a new work card to the project's Backlog column. Use this to capture a new task or feature before discussing it, estimating it, or starting it. The card will sit in Backlog until a user or agent starts it.",
+			parameters: {
+				type: "object",
+				properties: {
+					title: {
+						type: "string",
+						description: "Short title for the card (a few words, the task headline).",
+					},
+					prompt: {
+						type: "string",
+						description:
+							"Full task description — what to do and why. This is what the agent will see when it starts the card.",
+					},
+				},
+				required: ["title", "prompt"],
+			},
 		},
 	];
 
