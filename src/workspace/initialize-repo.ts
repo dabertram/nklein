@@ -7,6 +7,10 @@ interface InitializeRepoResult {
 
 const KANBAN_REPOSITORY_OWNER_CONFIG_KEY = "kanban.repositoryCreatedByKanban";
 const KANBAN_INITIAL_COMMIT_MESSAGE = "Initial commit through !Klein";
+// Historical initial-commit message an older version wrote. It is matched against
+// real git history to migrate repos created before the ownership marker existed, so
+// this value is a fact about past commits — NOT a label. Do not rename it for naming
+// consistency (that would break ownership migration). See the naming note in AGENTS.md.
 const LEGACY_KANBAN_INITIAL_COMMIT_MESSAGE = "Initial commit through NKlein Kanban";
 
 export async function markGitRepositoryCreatedByKanban(projectPath: string): Promise<InitializeRepoResult> {

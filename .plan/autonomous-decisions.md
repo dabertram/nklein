@@ -160,3 +160,19 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   chat send loop to capture per-turn LLM usage, persist a running total on the session, and expose it in the schema.
   That's a separable feature, logged as a follow-up under the chat-polish item. Low rework; not blocking. Verified the
   subagent's web-ui work myself before commit (typecheck + biome + full 694-test web suite all green).
+- **(2026-06-26) Naming cleanup — fork origin + fabricated author corrected; one deferred sub-decision.** User reported
+  agents *repeatedly* surface confabulated attributions ("authored by NKlein Bot Inc.", "Forked from NKlein Kanban") and
+  asked to clean it up: "NKlein Kanban → Cline Kanban" (the real upstream) and "NKlein → !Klein where user-facing,
+  non-code". **Investigated + confirmed the truth:** the repo root commit (`6954ff79`) is **Saoud Rizwan's** `initial
+  commit` → we forked from **Cline**, and **"NKlein Bot Inc." is fabricated**. **Fixed (clear-cut):** fork-origin prose
+  "NKlein Kanban" → "Cline Kanban" in README/CONTRIBUTING/docs/architecture/docs/README/RELEASE_WORKFLOW; fabricated
+  author "NKlein Bot Inc." → "!Klein contributors" in LICENSE + README; added a durable **naming-truth note to AGENTS.md**
+  + a guard comment on the legacy commit-message constant. **Deliberately NOT changed (out of the user's "non-code"
+  scope):** code identifiers (`NKlein SDK`/`NKlein agent`/`NKlein*` types, `@nkleinbot/*`, `nklein-*.ts`, the `nklein`
+  CLI), the `LEGACY_KANBAN_INITIAL_COMMIT_MESSAGE = "…NKlein Kanban"` git-history match string (a fact, not a label), the
+  vendored SDK under `vendor/`, and the `todo.md` work-log. The UI has **no** user-visible "NKlein" product strings
+  (verified). **⚠️ DEFERRED sub-decision (low-bar, easily reworked):** the exact **LICENSE copyright holder** — I defaulted
+  to "!Klein contributors" (non-fabricated, conventional OSS) rather than invent an entity or presume your legal name.
+  You may prefer your own name/org, and/or to **formally credit Cline's upstream copyright** (Apache 2.0 §4(c) asks a
+  derivative to retain the original attribution — a NOTICE file crediting Cline would be the clean way). One-line fix when
+  you decide.

@@ -88,14 +88,14 @@ Look at the existing agent implementations in `src/` for reference. The agent li
 
 ## Philosophy
 
-!Klein is in fork-foundation mode. Favor clear primitives, local-model reliability, and good tooling over early complexity. Upstream NKlein Kanban changes may be checked and integrated when useful, but this fork does not optimize for strict upstream parity.
+!Klein is in fork-foundation mode. Favor clear primitives, local-model reliability, and good tooling over early complexity. Upstream Cline Kanban changes may be checked and integrated when useful, but this fork does not optimize for strict upstream parity.
 
 The main driver is making smaller local LLMs usable on limited hardware. Early fork work addressed practical blockers like the long-turn HTTP body-timeout failure path, then kept going to improve reliability, guardrails, and day-to-day usability for small-model workflows.
 
 ## Community
 
 - Use this repository's issues/discussions for fork-specific work.
-- Upstream NKlein Kanban remains useful context, but !Klein may intentionally diverge.
+- Upstream Cline Kanban remains useful context, but !Klein may intentionally diverge.
 
 ## License
 

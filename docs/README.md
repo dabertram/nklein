@@ -17,6 +17,6 @@ If you are new to the codebase, read these in order:
 
 This `docs/` folder should stand on its own for normal onboarding. Active plans and handoffs may still exist in `.plan/docs`, but a new engineer should not need those to understand the current architecture.
 
-The main product direction here is support for small local LLMs on limited hardware. Upstream NKlein Kanban remains relevant context, but !Klein moves forward based on that local-first constraint rather than strict upstream parity.
+The main product direction here is support for small local LLMs on limited hardware. Upstream Cline Kanban remains relevant context, but !Klein moves forward based on that local-first constraint rather than strict upstream parity.
 
 When adding new engineering docs, prefer putting stable explanations here and linking them from this index.

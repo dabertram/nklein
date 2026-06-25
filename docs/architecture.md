@@ -2,7 +2,7 @@
 
 !Klein is a local Node runtime plus a React app for running many coding-agent tasks in parallel.
 
-This codebase is a fork of NKlein Kanban. The repository name and some internal compatibility names still use `kanban`, but user-facing docs and UI copy should refer to `!Klein`, while command examples should use `nklein`. The main product direction is local-first orchestration for small local LLMs on limited hardware, with upstream NKlein Kanban changes considered opportunistically rather than as a strict parity target.
+This codebase is a fork of Cline Kanban. The repository name and some internal compatibility names still use `kanban`, but user-facing docs and UI copy should refer to `!Klein`, while command examples should use `nklein`. The main product direction is local-first orchestration for small local LLMs on limited hardware, with upstream Cline Kanban changes considered opportunistically rather than as a strict parity target.
 
 There are three big ideas to hold in your head:
 
