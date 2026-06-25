@@ -1333,8 +1333,10 @@ deep analysis:
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
 > `task-board-mutations`, `task-board-lane-reconcile`, `runtime-server`, `runtime-state-hub`, `nklein-task-session-service`,
 > `nklein-decomposition-tool`, `runtime-api`. Promoted as landable items (safe-now first; each a green commit):
-- [ ] **(S1, safe) Dedupe `isReviewableNKleinSummary`** — byte-identical at `runtime-server.ts` + `runtime-state-hub.ts`;
-      extract to one shared guard module so the review-gate can't diverge. Pure rename, no behavior change.
+- [x] **(S1, DONE 2026-06-25) Dedupe `isReviewableNKleinSummary`** — extracted the byte-identical copy from
+      `runtime-server.ts` + `runtime-state-hub.ts` into one exported `isReviewableNKleinSummary` in
+      [src/core/task-session-guards.ts](src/core/task-session-guards.ts); both import it now. The review-gate reason set
+      can no longer diverge. Pure refactor, tsc + biome + fast suite green.
 - [ ] **(S2, safe) Dedupe `isWorkspaceStateLockError` + lift `retryWorkspaceStateLock`** — the lock-error check is
       redefined in `runtime-server.ts` (already in `workspace-state.ts`); make both importable so lock-retry policy has one home.
 - [x] **(S3, safe — DONE 2026-06-25) Export one `findBoardCardWithColumn` from `task-board-mutations.ts`** — added the

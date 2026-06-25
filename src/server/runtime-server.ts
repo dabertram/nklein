@@ -37,6 +37,7 @@ import {
 	STARTED_CARD_ENTRY_LANE,
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
+import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
 	AgentSandboxManager,
@@ -414,12 +415,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			});
 		}, 250);
 	};
-	const isReviewableNKleinSummary = (summary: RuntimeTaskSessionSummary): boolean =>
-		summary.state === "awaiting_review" &&
-		(summary.reviewReason === "hook" ||
-			summary.reviewReason === "exit" ||
-			summary.reviewReason === "attention" ||
-			summary.reviewReason === "error");
 	const recordNKleinModelPerformance = (
 		scope: RuntimeTrpcWorkspaceScope,
 		summary: RuntimeTaskSessionSummary,

@@ -22,6 +22,7 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
+import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { runNKleinAcceptanceAutoRepair } from "../nklein-sdk/nklein-acceptance-auto-repair";
 import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -412,13 +413,6 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				broadcastTaskReadyForReview(workspaceId, summary.taskId);
 			});
 	};
-
-	const isReviewableNKleinSummary = (summary: RuntimeTaskSessionSummary): boolean =>
-		summary.state === "awaiting_review" &&
-		(summary.reviewReason === "hook" ||
-			summary.reviewReason === "exit" ||
-			summary.reviewReason === "attention" ||
-			summary.reviewReason === "error");
 
 	runtimeStateWebSocketServer.on("connection", async (client: WebSocket, context: unknown) => {
 		client.on("close", () => {
