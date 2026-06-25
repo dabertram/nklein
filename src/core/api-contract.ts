@@ -2039,6 +2039,54 @@ export const runtimeRecordNKleinPlanGapResponseSchema = z.object({
 });
 export type RuntimeRecordNKleinPlanGapResponse = z.infer<typeof runtimeRecordNKleinPlanGapResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// expand-plan-task — split one plan task into replacement tasks (web-ui path 2b:
+// user-authored replacements; agent-discovery can layer on later once the model
+// writes proposed replacements as a discoverable artifact type).
+// ---------------------------------------------------------------------------
+
+export const runtimeExpandNKleinPlanTaskItemSchema = z.object({
+	id: z.string().min(1),
+	title: z.string().min(1),
+	prompt: z.string().min(1),
+	dependsOn: z.array(z.string()).default([]),
+	complexity: z.number().min(0).max(100).default(50),
+	/** Shell command used to verify the task is done (required by the plan validator). */
+	acceptanceCommand: z.string().min(1),
+});
+export type RuntimeExpandNKleinPlanTaskItem = z.infer<typeof runtimeExpandNKleinPlanTaskItemSchema>;
+
+export const runtimeExpandNKleinPlanTaskRequestSchema = z.object({
+	/** The board task ID whose plan task to replace. */
+	taskId: z.string().min(1),
+	/**
+	 * The plan slug that contains the task. When omitted the server infers it
+	 * from the taskId using the same heuristic as recordNKleinPlanGap.
+	 */
+	planSlug: z.string().optional(),
+	/** The plan-task ID inside the task graph to replace (defaults to inferred from taskId). */
+	planTaskId: z.string().optional(),
+	/** The replacement tasks that will replace the target plan task. At least one required. */
+	replacements: z.array(runtimeExpandNKleinPlanTaskItemSchema).min(1),
+	/** Optional human-readable rationale written to the plan revisions log. */
+	description: z.string().optional(),
+});
+export type RuntimeExpandNKleinPlanTaskRequest = z.infer<typeof runtimeExpandNKleinPlanTaskRequestSchema>;
+
+export const runtimeExpandNKleinPlanTaskResponseSchema = z.object({
+	ok: z.boolean(),
+	taskId: z.string(),
+	planSlug: z.string(),
+	planTaskId: z.string(),
+	replacementTaskIds: z.array(z.string()),
+	entryTaskIds: z.array(z.string()),
+	terminalTaskIds: z.array(z.string()),
+	taskGraphPath: z.string(),
+	revisionsPath: z.string(),
+	message: z.string(),
+});
+export type RuntimeExpandNKleinPlanTaskResponse = z.infer<typeof runtimeExpandNKleinPlanTaskResponseSchema>;
+
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
 	ensureWorktree: z.boolean().optional(),

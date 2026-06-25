@@ -7,6 +7,7 @@ import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-pa
 import { AgentWatchPanel } from "@/components/detail-panels/agent-watch-panel";
 import { ColumnContextPanel } from "@/components/detail-panels/column-context-panel";
 import { type DiffLineComment, DiffViewerPanel } from "@/components/detail-panels/diff-viewer-panel";
+import { ExpandPlanTaskPanel } from "@/components/detail-panels/expand-plan-task-panel";
 import { FileTreePanel } from "@/components/detail-panels/file-tree-panel";
 import { FocusChainPanel } from "@/components/detail-panels/focus-chain-panel";
 import {
@@ -839,6 +840,9 @@ export function CardDetailView({
 									onWorkspaceStateApplied={onWorkspaceStateApplied}
 								/>
 							) : null}
+							{selection.column.id === "planning" ? (
+								<ExpandPlanTaskPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+							) : null}
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -1009,6 +1013,9 @@ export function CardDetailView({
 										taskId={selection.card.id}
 										onWorkspaceStateApplied={onWorkspaceStateApplied}
 									/>
+								) : null}
+								{selection.column.id === "planning" ? (
+									<ExpandPlanTaskPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								) : null}
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">

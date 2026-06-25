@@ -9,6 +9,8 @@ import type {
 	RuntimeDevTestCleanupResponse,
 	RuntimeDevTestProjectPreset,
 	RuntimeDevTestProjectResponse,
+	RuntimeExpandNKleinPlanTaskRequest,
+	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
@@ -491,6 +493,14 @@ export async function recordNKleinPlanGap(
 ): Promise<RuntimeRecordNKleinPlanGapResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.recordNKleinPlanGap.mutate(input);
+}
+
+export async function expandNKleinPlanTask(
+	workspaceId: string | null,
+	input: RuntimeExpandNKleinPlanTaskRequest,
+): Promise<RuntimeExpandNKleinPlanTaskResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.expandNKleinPlanTask.mutate(input);
 }
 
 export async function verifyTaskAcceptance(

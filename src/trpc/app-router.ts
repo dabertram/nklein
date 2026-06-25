@@ -16,6 +16,8 @@ import type {
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListRequest,
 	RuntimeDirectoryListResponse,
+	RuntimeExpandNKleinPlanTaskRequest,
+	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeGitCheckoutRequest,
 	RuntimeGitCheckoutResponse,
@@ -154,6 +156,8 @@ import {
 	runtimeDevTestProjectResponseSchema,
 	runtimeDirectoryListRequestSchema,
 	runtimeDirectoryListResponseSchema,
+	runtimeExpandNKleinPlanTaskRequestSchema,
+	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
 	runtimeGitCheckoutRequestSchema,
 	runtimeGitCheckoutResponseSchema,
@@ -378,6 +382,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeRecordNKleinPlanGapRequest,
 		) => Promise<RuntimeRecordNKleinPlanGapResponse>;
+		expandNKleinPlanTask: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeExpandNKleinPlanTaskRequest,
+		) => Promise<RuntimeExpandNKleinPlanTaskResponse>;
 		verifyTaskAcceptance: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskAcceptanceVerifyRequest,
@@ -766,6 +774,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeRecordNKleinPlanGapResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.recordNKleinPlanGap(ctx.workspaceScope, input);
+			}),
+		expandNKleinPlanTask: workspaceProcedure
+			.input(runtimeExpandNKleinPlanTaskRequestSchema)
+			.output(runtimeExpandNKleinPlanTaskResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.expandNKleinPlanTask(ctx.workspaceScope, input);
 			}),
 		verifyTaskAcceptance: workspaceProcedure
 			.input(runtimeTaskAcceptanceVerifyRequestSchema)

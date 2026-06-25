@@ -2014,14 +2014,19 @@ deep analysis:
         (mirrors `onMoveToTrash`). board-card test extended. web tsc + **web vitest 701** + biome green. CHANGELOG entry added.
         *(Built by a worktree subagent; its worktree hit the dev-test `core.bare` pollution again, but the web-ui edits were
         clean + untracked-by-the-fixture, so I recovered the repo and salvaged the 7 files cleanly — see incident note below.)*
-  - [~] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
+  - [x] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
         card detail panels. **plan-gap DONE (2026-06-25):** `recordNKleinPlanGap` tRPC mutation added to `runtime-api.ts`
         (calls `recordPlanGap` + `inferNKleinPlanSlugForTask` + `appendNKleinPlanRevision` + card-creating helpers for
         integration/decision/scope kinds), schema in `api-contract.ts`, proc wired in `app-router.ts`, client helper in
         `runtime-config-query.ts`, `PlanGapActionsPanel` detail panel rendered in `card-detail-view.tsx` after
-        `PendingPlanArtifactsPanel` (planning + review lanes only), 6-test contract suite. **Still open:** `expand-plan-task`
-        — `expandNKleinPlanTask` mutation + companion panel (`task expand-plan-task` ~2053–2087 →
-        `expandSavedPlanTaskCommand` ~625 → `applyNKleinPlanTaskReplacementArtifacts`).
+        `PendingPlanArtifactsPanel` (planning + review lanes only), 6-test contract suite.
+        **expand-plan-task DONE (2026-06-25, path 2b):** `expandNKleinPlanTask` tRPC mutation added to `runtime-api.ts`
+        (infers planSlug + planTaskId from board taskId or accepts them explicitly, maps to
+        `applyNKleinPlanTaskReplacementArtifacts`), schema in `api-contract.ts`, proc wired in `app-router.ts`, client
+        helper in `runtime-config-query.ts`, `ExpandPlanTaskPanel` detail panel (collapsible, repeatable replacement
+        editor with title/prompt/acceptanceCommand fields) rendered in `card-detail-view.tsx` after `PlanGapActionsPanel`
+        (planning lane only), 5-test contract suite + component test. Path 2a (agent-proposed discovery) deferred to a
+        later layer once the model writes proposed replacements as a dedicated artifact type.
   - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
         de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
 - [~] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
