@@ -491,6 +491,14 @@ deep analysis:
         session-service tests + a new prompt-selection suite; full fast suite green (1506).
   - [ ] **Increment C (hardening)** — auto-promote recovery: if a planning-lane work card calls an implementation write
         tool without first calling `begin_implementation`, treat it as an implicit promotion (parse-and-recover).
+        **Designed seam (2026-06-25):** hook the `requestToolApproval` wrapper in [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts)
+        (it already special-cases `REPO_MAP_INVALIDATING_TOOL_NAMES` = write_file/write_files/edit_file/apply_patch/bash/…).
+        When such a mutating tool is **approved** in a session that has `request.onCardPromoted` wired (i.e. a work card)
+        AND the card is still in Planning, call an exported `autoPromoteCardToImplementation(workspacePath, taskId,
+        onPromoted)` helper (factor it out of `nklein-promotion-tool.ts`, sharing the same mutator/`onPromoted` broadcast
+        as `begin_implementation`) to move the card to In Progress before the write runs. Idempotent (no-op once in
+        progress), self-gates on `startInPlanMode` exactly like the explicit tool. Add a unit test (mutating tool in
+        Planning → promotes; non-mutating read tool → no promote; already in_progress → no-op).
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
@@ -588,6 +596,16 @@ deep analysis:
 > TS-native agent core (`src/agent-core/`). Shipped: §6.10. Engineering reality (2026-06-22): both "default-now"
 > decisions are prerequisites, not flag-flips — native-core isn't imported by any runtime/session code yet, and
 > python-core default-on is worse than opt-in until the sidecar is bundled + auto-started.
+>
+> **DEFAULTS PREREQS — resolved + scope-flagged (2026-06-25).** User: "build the prereqs now, then flip." Investigation
+> (recorded in [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md)) found the two halves are very different:
+> - **core-py default-on = tractable + port-aligned** (bundle the existing Python sidecar + auto-start on launch; core-py
+>   is already Python so it survives a §5.X port). **→ do this prereq now, then flip core-py-on.**
+> - **native-core default = a FULL native agent runtime build**, not a small integration: `src/agent-core/` is a 285-line
+>   skeleton (`runAgentLoop`/`DecideAction` types) with **zero runtime imports**; making it the default means replacing
+>   the whole `@nkleinbot` SDK host (tool dispatch, streaming, hooks, context compaction, session persistence). That is
+>   huge AND likely throwaway right before a possible Python backend port. **→ HOLD the native-core-default flip pending
+>   the §5.X port-direction decision (batched into the next clarification round); native-core-default NOT started.**
 - [x] **Embedding story decided + shipped** — `local_gguf` (nomic-embed-text-v1.5) in-process via the Python core,
       default in `runtimeCodeEmbeddingProviderSchema`, degrading to `local_lexical` when the core is off. (→ §5.I #1)
 - [ ] **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22)*:
@@ -1319,9 +1337,12 @@ deep analysis:
       extract to one shared guard module so the review-gate can't diverge. Pure rename, no behavior change.
 - [ ] **(S2, safe) Dedupe `isWorkspaceStateLockError` + lift `retryWorkspaceStateLock`** — the lock-error check is
       redefined in `runtime-server.ts` (already in `workspace-state.ts`); make both importable so lock-retry policy has one home.
-- [ ] **(S3, safe) Export one `findBoardCardWithColumn` from `task-board-mutations.ts`** — there are now **4** private
-      card-lookup copies (`runtime-api.ts`, `task-board-lane-reconcile.ts`, `runtime-server` inline, **+ the new
-      `nklein-promotion-tool.ts` `findCard`**). Consolidate to a single exported helper; remove the copies.
+- [x] **(S3, safe — DONE 2026-06-25) Export one `findBoardCardWithColumn` from `task-board-mutations.ts`** — added the
+      single board-wide card+column lookup (wraps the internal `findTaskLocation`) and replaced 3 private copies: the
+      start-lane reconcile's `findBoardCardById`, the §5.B promotion tool's `findCard` (the wart §5.B just added), and
+      runtime-api's `findBoardCardRecordById`. tsc + 94 affected tests green. *(Remaining: `task-record-format.ts` uses a
+      `{task, columnId}` shape with a different field name — left as-is, lower value; runtime-api's column-scoped
+      `findBoardCardById(cards, id)` is a different helper, kept.)*
 - [ ] **(S4, safe-ish) Remove the 3 no-op `reconcileRunningTaskBoardLane` calls** in `runtime-api.ts` (start/send/input
       paths) — they fire while the task is still `queued`, so the reconcile is always a no-op there; the real move fires on
       the hub's `running` transition. Removing them makes lane-reconcile ownership unambiguous (the hub owns it). Verify the

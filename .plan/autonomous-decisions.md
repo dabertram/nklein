@@ -93,8 +93,21 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   now, then flip.* So this becomes an **active high-priority workstream** (no longer deferred): (1) wire `src/agent-core/`
   into the runtime/session execution path so a task can actually run on the native core; (2) bundle core-py + auto-start
   it on runtime launch; (3) THEN hard-flip both defaults (no silent fallback; clear error if genuinely unavailable). Note
-  the coupling with §5.X: the user also chose "plan the Python port now, build after §5.V" — so the native-core (TS) work
-  proceeds now, and whether it is later superseded by the port is a §5.X-time question, not a reason to delay the flip now.
+  the coupling with §5.X: the user also chose "plan the Python port now, build after §5.V".
+  - **⚠️ SCOPE FLAG (2026-06-25, investigated — needs a quick user yes/no) — the two prereqs are VERY different sizes,
+    and one couples hard with the port.** Verified: `src/agent-core/` is **2 files / 285 lines** (a `runAgentLoop` +
+    `DecideAction` skeleton with clean types) and is **genuinely unintegrated** — *nothing* in the runtime/session code
+    imports it (the only "agent-core" hits in src are comments). So **"native core = default runtime" is not a small
+    integration — it means building a FULL native agent runtime** on that skeleton to replace the `@nkleinbot` SDK host
+    (tool dispatch, streaming, hooks, context compaction, session persistence — all of `sdk-runtime-boundary` +
+    `nklein-task-session-service`). One of the largest builds in the project. **AND building a full *TS* native runtime
+    now, right before a possible *Python* backend port (§5.X), is likely throwaway** (re-done in Python). **The core-py
+    half is the opposite: tractable + port-aligned** (bundle the existing Python sidecar + auto-start it — core-py is
+    already Python, so not wasted by the port). **Prepared recommendation (low-effort to finalize):** split the flip —
+    (i) do the **core-py** prereq now + flip core-py-on; (ii) **hold the native-core-default flip** until the §5.X port
+    direction is settled (build the native runtime in whichever language wins, likely Python). I did NOT start the full
+    TS native-runtime build (that would be running blindly into a huge, possibly-throwaway effort). **→ batched into the
+    next clarification round; until then I proceed on core-py + everything else and leave native-core-default unstarted.**
 - **(2026-06-25) Orchestration of the first parallel batch:** chat-polish (web-ui) delegated to a worktree subagent;
   feature/UI exposure audit delegated to a read-only Explore subagent; the risky **defaults hard-flip** kept by me
   (needs runtime verify). Disjoint file sets, so no collisions.
