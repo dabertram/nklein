@@ -1705,10 +1705,18 @@ deep analysis:
         ignored the configured provider endpoint (always the hardcoded `DEFAULT_LOCAL_CHAT_BASE_URL` :1234). Fix: added
         `nkleinProviderService.getLocalChatBaseUrl()` (the selected LOCAL provider's saved baseUrl; cloud selections →
         null, since `getSelectedProviderSettings` already filters to local) and threaded it into
-        `resolveLocalChatModelDeps({ baseUrl })` at the chat-service creation site. Safe (unchanged for users without a
-        selected local provider). On-mission for the local-LLM north star. *(Owed: Suite 5's 2 `it.todo` still need a
-        test-side HTTP path to **select** a local provider pointing at the mock — saving settings doesn't also select —
-        plus an SSE/WS subscription client for streaming.)*
+        `resolveLocalChatModelDeps({ baseUrl })` at the chat-service creation site. Safe (unchanged — falls back to the
+        default endpoint — when no selected-local baseUrl is available). On-mission for the local-LLM north star.
+  - [ ] **FOLLOW-UP (2026-06-25, from a Suite 5 send-test experiment) — verify/complete the lmstudio baseUrl flow.**
+        Re-ran the send test against the mock: `saveNKleinProviderSettings({providerId:"lmstudio", baseUrl:mock/v1})`
+        **does** select lmstudio (`writeKanbanSelectedProviderId`, provider-service.ts:1602), yet the chat still did NOT
+        hit the mock (`mock.requests` empty; the turn went to the env's real LM Studio on :1234). So `getLocalChatBaseUrl`
+        returned null/non-mock even with lmstudio selected → **a saved `baseUrl` for the live-only `lmstudio` provider
+        likely isn't persisted/returned by `getSdkProviderSettings` the way a custom provider's is.** The fix is *safe*
+        (no regression) but its effectiveness for lmstudio-on-a-custom-port is unverified. Next: trace
+        `saveProviderSettings`→`getSdkProviderSettings` baseUrl handling for live-only providers (or have Suite 5's send
+        test register a **custom local provider** via `addCustomProvider` pointing at the mock instead of lmstudio).
+        That unblocks Suite 5 send/stream + the Suite 4 agent pipeline (same select-a-local-endpoint-for-tests need).
 - [x] **Suite 6 — On-disk format parity (DONE 2026-06-25, 10 tests)** (`test/contract/on-disk-formats.test.ts`) — board.json round-trip + raw-shape pin (6 fixed columns in order + card fields), Python-writer direction (hand-crafted JSON parses), board-crdt.json round-trip + schema-too-new refusal + v0→current migration, plan-artifact tasks.json shape + default-fill + required-field rejection. No server; the cross-language convergence point. *(Surprise: runtime-home `~/.nklein/nklein/workspaces/<id>/board.json` takes read priority over the repo mirror — fixtures must write both.)*
 - [ ] **Suite 7 — Playwright: plan-artifact review panel** (`web-ui/tests/plan-artifact-review.spec.ts`) — `pending-plan-artifacts-panel` + `planning-dag-review-panel` (currently zero coverage; critical for the §5.B pipeline).
 - [ ] **Suite 8 — Playwright: settings + per-project config** (`web-ui/tests/settings.spec.ts`) — guardrails save, provider/MCP dialogs, per-project override.
