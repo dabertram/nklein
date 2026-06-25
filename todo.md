@@ -786,20 +786,29 @@ deep analysis:
 >         not just mocked.
 >   - [ ] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent** (`chat-service.sendMessage`/`streamMessage`
 >         currently call the plain `runChatTurn`) — the biggest gap: the agent the user actually means can't call ANY
->         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode, streaming tool
->         activity to the UI. **DESIGN (assessed 2026-06-25; two real forks — sensible defaults prepared, log on build):**
->         (1) **Workspace resolution** — `chat-service` has no project root; `runtime-api` has `workspaceScope.workspacePath`
->         per request. *Default:* thread the **current/active workspace** path into `sendMessage`/`streamMessage` and root
->         the tools there (the session `scope` — project_sandboxed/all_projects/host_access — later refines this; map
->         project_sandboxed→`isolated_readonly`, host_access→`host`). (2) **Streaming vs tools** — `runChatAgentTurn` is
->         **not token-streaming** (model sig is `(messages, allowTools) → full response`), so a tool-using turn can't emit
->         token deltas like the plain path. *Default:* a tool-using turn streams **tool-activity events + the final reply**
->         (not per-token); keep plain `runChatTurn` for sessions with no workspace so simple chats still token-stream.
->         (3) **Confirm UI** — the web-ui has no confirm prompt yet, so the first slice offers only **read-only** tools
->         (`read_file`/`list_dir`/`get_board`, all `sandbox_read` = always-allowed); `write_file`/`run_command` wait on a
->         UI confirm dialog (a later slice). **First slice = read-only tools through the agent loop, rooted at the active
->         workspace, mode isolated_readonly — makes the right-sidebar agent able to read the project + see the board.**
->         Architecture-heavy + wants Playwright UI verification → build with a fresh, focused pass.
+>         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode. **DIRECTION
+>         (2026-06-25, user answers — DECISIONS):**
+>         - **Scope-DRIVEN, not a new default — the selector already exists.** The chat session `scope` is the control:
+>           **current project** / **all loaded projects** / **host** (host only if the user enabled it in settings). G3
+>           maps that existing scope → which workspace root(s) the tools see + the execution mode (current→active
+>           workspace + sandbox-ish; all→every loaded project; host→host mode). Don't invent a new default; honor the
+>           session scope.
+>         - **Host / unsafe commands = a RISK-ACKNOWLEDGEMENT model, not a hard limit (user: "we don't limit the user
+>           strictly, but we definitely inform about risk and pass responsibility to the user").** Two requirements:
+>           (1) **differentiate SAFE vs POTENTIALLY-UNSAFE commands** (classify `run_command` invocations — e.g. read-only/
+>           build/test vs `rm`/`curl`/`sudo`/network/install/destructive); (2) the confirmation **informs the risk and
+>           passes responsibility** to the user via EITHER **per-unsafe-command acknowledgement** OR a **general "I accept
+>           the risk" acknowledgement that itself requires an extra-extra confirmation to enable**. Safe commands flow with
+>           the normal confirm; unsafe ones get the explicit risk callout + dedicated ack. (This is a distinct sub-feature
+>           → see **G3b** below; security-sensitive, build carefully.)
+>         - **Streaming = HYBRID (user pick).** Workspace-less/simple chats keep **token-by-token** streaming via plain
+>           `runChatTurn`; tool-using turns go through the agent loop and stream **tool-activity events + the final reply**
+>           (the loop isn't token-streaming, so emit per-tool-call/result events then the reply).
+>         **Build order:** (a) **G3a — read-only slice** (route scope-resolved sessions through the agent loop with
+>         `read_file`/`list_dir`/`get_board`, all `sandbox_read` = always-allowed, hybrid streaming) — the foundation, no
+>         confirm UI needed, makes the right-sidebar agent able to read the project + see the board. (b) **G3b — the
+>         safe/unsafe command risk model + confirm UI** (write_file/run_command in the web-ui, classification + the
+>         risk-ack flow above) — security-sensitive, dedicated focused pass + Playwright verification.
 >   - [ ] **G4 — focus chain (§5.N) in the chat agent** — persist + surface a self-directed checklist per chat session
 >         (the task agents already have `update_focus_chain`; fold the same tool + persistence into the chat loop).
 >   - [ ] **G5 — board mutations** — `create_card` / `start_card` tools (trusted control-plane board writes, gated) so
