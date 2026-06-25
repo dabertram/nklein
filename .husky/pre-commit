@@ -1,6 +1,39 @@
 #!/bin/sh
 
+# Run from the repo top level so the checks (tsc, tests) always run against the right tree, never a subdir.
+TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$TOPLEVEL" ]; then
+	cd "$TOPLEVEL" || exit 1
+fi
+
+# Self-heal a spuriously-bare repo. The !Klein repo is a work tree, but a stray `git init` / dev-test git op
+# (see the incident note in AGENTS.md) can flip core.bare=true on the shared config — which then breaks EVERY
+# work-tree git op with the cryptic "fatal: this operation must be run in a work tree" (while `git tag`/`log`
+# still work). If we ever observe that here, undo it before continuing so commits never get wedged by it.
+if [ "$(git rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+	echo "⚠️  pre-commit: repo was unexpectedly bare (core.bare=true) — restoring core.bare=false."
+	git config core.bare false
+fi
+
+# Sentinel: only run the heavy checks in the actual !Klein repo. If this hook ever fires in a different repo
+# (e.g. a created/dev-test temp repo that somehow inherited this hooks path), skip gracefully instead of failing
+# on a missing/foreign package.json — a created or temp repo must never be blocked (or polluted) by !Klein's checks.
+if [ ! -f package.json ] || ! grep -q '"name": "nklein"' package.json 2>/dev/null; then
+	echo "pre-commit: not the !Klein repo here; skipping !Klein checks."
+	exit 0
+fi
+
 STAGED_FILES=$(git diff --cached --name-only)
+
+# Never commit an embedded git repo. Agent worktrees live at .claude/worktrees/<id>/ (full repo checkouts); if one
+# is ever staged it lands as a gitlink that pollutes the repo and breaks clones (a real incident). .gitignore
+# already excludes them, so this is a belt-and-suspenders guard against an accidental `git add` of one.
+EMBEDDED=$(printf '%s\n' "$STAGED_FILES" | grep '\.claude/worktrees/' || true)
+if [ -n "$EMBEDDED" ]; then
+	echo "Refusing to commit paths under .claude/worktrees/ (agent worktrees are not part of this repo):"
+	echo "$EMBEDDED"
+	exit 1
+fi
 
 echo "Running biome check on staged files..."
 npx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true

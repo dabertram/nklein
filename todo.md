@@ -264,8 +264,13 @@ deep analysis:
       created workspaces to a configured path (`NKLEIN_DEV_WORKSPACE_DIR`) or the `~/.nklein/dev-workspaces` home default,
       **refusing/redirecting anything at/below !Klein's parent folder**; wired into `scaffoldNKleinDevTestProject` (returns
       `parentDirSafetyRedirect` for logging). 8 unit tests; `vitest.config.ts` now excludes `.claude/**` (agent worktrees).
-      Incident + recovery recipe recorded in AGENTS.md. **Follow-up:** expose the base dir as a first-class **global
-      setting** in the UI (env + option work today; ties into §5.W); apply the same guard to git-clone / other creation sites.
+      Incident + recovery recipe recorded in AGENTS.md. **Also hardened the pre-commit hook (`.husky/pre-commit`, user-
+      directed "make sure these issues don't happen again"):** it `cd`s to the git toplevel, **auto-heals a stray
+      `core.bare=true`** (the flip that wedged all git ops), **skips gracefully in a non-!Klein repo** (sentinel on the
+      `package.json` name — a temp/dev-test repo can't be blocked), and **refuses to commit `.claude/worktrees/` gitlinks**.
+      Verified: syntax, sentinel match, and the bare→heal→false transition. **Follow-up:** expose the workspace base dir
+      as a first-class **global setting** in the UI (env + option work today; ties into §5.W); apply the same
+      `resolveSafeCreatedWorkspaceParentDir` guard to git-clone / other creation sites.
 - [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
       local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
       shell-on-task = `docker exec` into the task's sandbox (no host checkout). Full plan +
