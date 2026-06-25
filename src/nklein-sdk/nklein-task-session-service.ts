@@ -34,6 +34,8 @@ import {
 	type TaskResultBranch,
 } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
+import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
+import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
 import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
 import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
@@ -159,11 +161,6 @@ interface NKleinTaskFailureBackoffState {
 	fingerprint: string;
 	count: number;
 	parked: boolean;
-}
-
-interface NKleinTaskNoDiffState {
-	commit: string;
-	count: number;
 }
 
 const NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
@@ -510,19 +507,6 @@ function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
 	);
 }
 
-function formatWallTimeDuration(durationMs: number): string {
-	const totalMinutes = Math.max(1, Math.round(durationMs / 60_000));
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = totalMinutes % 60;
-	if (hours === 0) {
-		return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"}`;
-	}
-	if (minutes === 0) {
-		return `${hours} hour${hours === 1 ? "" : "s"}`;
-	}
-	return `${hours} hour${hours === 1 ? "" : "s"} ${minutes} minute${minutes === 1 ? "" : "s"}`;
-}
-
 function formatStartWarnings(warnings: readonly string[] | undefined): string | null {
 	if (!warnings) {
 		return null;
@@ -676,7 +660,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
 	private readonly pendingTimeoutReasonByTaskId = new Map<string, string>();
 	private readonly pendingTimeoutSourceByTaskId = new Map<string, TaskRunTimeoutSource>();
-	private readonly noDiffCheckpointByTaskId = new Map<string, NKleinTaskNoDiffState>();
+	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<NKleinTaskTimeoutKind, NodeJS.Timeout>>();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
@@ -728,12 +712,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
+		this.autonomyBudgetWatchdog = new AutonomyBudgetWatchdog(this.buildWatchdogCallbacks());
 	}
 
 	private buildGuardCallbacks(): RepeatedToolCallGuardCallbacks {
 		return {
 			getMaxRepeatedToolCallsPerTask: () => this.swarmGuardrails.maxRepeatedToolCallsPerTask,
 			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
+			parkTaskForAutonomyBudget: (input) => this.parkTaskForAutonomyBudget(input),
+		};
+	}
+
+	private buildWatchdogCallbacks(): AutonomyBudgetWatchdogCallbacks {
+		return {
+			getSwarmGuardrails: () => this.swarmGuardrails,
+			isTaskPaused: (taskId) => this.pauseController.isPaused(taskId),
+			parkTaskForPause: (input) => this.parkTaskForPause(input),
 			parkTaskForAutonomyBudget: (input) => this.parkTaskForAutonomyBudget(input),
 		};
 	}
@@ -1753,7 +1747,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
 		this.providerIdByTaskId.set(request.taskId, providerId);
-		this.noDiffCheckpointByTaskId.delete(request.taskId);
+		this.autonomyBudgetWatchdog.resetTask(request.taskId);
 		this.repeatedToolCallGuard.resetTask(request.taskId);
 		this.decompositionStallNudger.resetTask(request.taskId);
 		if (request.startInPlanMode && isExplicitDecompositionPrompt(request.prompt)) {
@@ -2100,7 +2094,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
-		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
@@ -2144,7 +2138,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
-		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
@@ -2190,7 +2184,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.endpointByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
-		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
 		this.pauseController.clearTaskParked(taskId);
@@ -2492,7 +2486,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
-		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
 		this.timeoutSettingsByTaskId.delete(taskId);
@@ -2841,87 +2835,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskId: string,
 		checkpoint: RuntimeTaskTurnCheckpoint,
 	): RuntimeTaskSessionSummary | null {
-		if (isHomeAgentSessionId(taskId)) {
-			return null;
-		}
 		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!entry || entry.summary.reviewReason === "attention") {
+		if (!entry) {
 			return null;
 		}
-		if (this.pauseController.isPaused(taskId)) {
-			return this.parkTaskForPause({
-				taskId,
-				entry,
-				message: "Paused — will resume when the board/card is resumed.",
-				metadata: {
-					guardrail: "operator_pause",
-					turn: checkpoint.turn,
-					checkpointRef: checkpoint.ref,
-					checkpointCommit: checkpoint.commit,
-				},
-			});
-		}
-		if (checkpoint.turn >= this.swarmGuardrails.maxAutonomousTurnsPerTask) {
-			return this.parkTaskForAutonomyBudget({
-				taskId,
-				entry,
-				message: `!Klein paused this task after ${checkpoint.turn} autonomous turns so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
-				metadata: {
-					guardrail: "max_autonomous_turns",
-					turn: checkpoint.turn,
-					limit: this.swarmGuardrails.maxAutonomousTurnsPerTask,
-					checkpointRef: checkpoint.ref,
-					checkpointCommit: checkpoint.commit,
-				},
-			});
-		}
-		const noDiffState = this.recordNoDiffCheckpoint(taskId, checkpoint);
-		if (noDiffState.count >= this.swarmGuardrails.maxRepeatedNoDiffCheckpoints) {
-			return this.parkTaskForAutonomyBudget({
-				taskId,
-				entry,
-				message: `!Klein paused this task after ${noDiffState.count} consecutive checkpoints produced no new diff commit. Review progress, then send a new instruction to continue.`,
-				metadata: {
-					guardrail: "repeated_no_diff_checkpoints",
-					count: noDiffState.count,
-					limit: this.swarmGuardrails.maxRepeatedNoDiffCheckpoints,
-					turn: checkpoint.turn,
-					checkpointRef: checkpoint.ref,
-					checkpointCommit: checkpoint.commit,
-				},
-			});
-		}
-		const startedAt = entry.summary.startedAt;
-		const elapsedMs =
-			typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0 ? now() - startedAt : null;
-		if (elapsedMs === null || elapsedMs < this.swarmGuardrails.maxAutonomousWallTimeMs) {
-			return null;
-		}
-		return this.parkTaskForAutonomyBudget({
-			taskId,
-			entry,
-			message: `!Klein paused this task after ${formatWallTimeDuration(elapsedMs)} of autonomous wall time so the swarm cannot run indefinitely. Review progress, then send a new instruction to continue.`,
-			metadata: {
-				guardrail: "max_autonomous_wall_time",
-				elapsedMs,
-				limitMs: this.swarmGuardrails.maxAutonomousWallTimeMs,
-				turn: checkpoint.turn,
-				checkpointRef: checkpoint.ref,
-				checkpointCommit: checkpoint.commit,
-			},
-		});
-	}
-
-	private recordNoDiffCheckpoint(taskId: string, checkpoint: RuntimeTaskTurnCheckpoint): NKleinTaskNoDiffState {
-		const commit = checkpoint.commit.trim();
-		if (!commit) {
-			this.noDiffCheckpointByTaskId.delete(taskId);
-			return { commit: "", count: 0 };
-		}
-		const previous = this.noDiffCheckpointByTaskId.get(taskId);
-		const nextState = previous?.commit === commit ? { commit, count: previous.count + 1 } : { commit, count: 1 };
-		this.noDiffCheckpointByTaskId.set(taskId, nextState);
-		return nextState;
+		return this.autonomyBudgetWatchdog.check(taskId, checkpoint, entry);
 	}
 
 	private parkTaskForPause(input: {
@@ -2931,7 +2849,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
-		this.noDiffCheckpointByTaskId.delete(input.taskId);
+		this.autonomyBudgetWatchdog.resetTask(input.taskId);
 		this.repeatedToolCallGuard.resetTask(input.taskId);
 		this.pauseController.markTaskParked(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
@@ -2973,7 +2891,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary {
 		this.clearTaskTimeouts(input.taskId);
-		this.noDiffCheckpointByTaskId.delete(input.taskId);
+		this.autonomyBudgetWatchdog.resetTask(input.taskId);
 		this.repeatedToolCallGuard.resetTask(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
@@ -3013,6 +2931,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.decompositionStallNudger.dispose();
 		this.repeatedToolCallGuard.dispose();
+		this.autonomyBudgetWatchdog.dispose();
 		this.timeoutSettingsByTaskId.clear();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
@@ -3021,7 +2940,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelIdByTaskId.clear();
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
-		this.noDiffCheckpointByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxRepoPathByTaskId.clear();
 		this.sandboxBaseRefByTaskId.clear();
