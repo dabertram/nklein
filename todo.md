@@ -902,12 +902,15 @@ deep analysis:
 >         (qwen3-8b) at a local page; asserts it USED browse_url AND the page marker flowed back (Chromium genuinely
 >         rendered it). Needs `npx playwright install chromium` once (now installed: headless-shell 1228). (§5.L per-role
 >         rulesets + knowledge-fetch can layer on the same toggle later.)
->   - [~] **G7 — comprehensive live coverage.** Two capabilities now **live-proven** with their own CLI harnesses (real
->         qwen3-8b, isolated HOME, asserts the tool was used AND the real side effect persisted): **run_command** executes
->         a shell command + its output flows back (`scripts/verify-chat-command-exec.mts`, marker echoed) and **create_card**
->         does autonomous board work (`scripts/verify-chat-create-card.mts` — card read back via `loadWorkspaceState`).
->         **STILL TODO:** one comprehensive dev-test that drives the FULL tool-using chat agent in a single flow (read → run
->         a command → see output → edit → create a card → focus chain) against a live local model, asserting each executes.
+>   - [x] **G7 — comprehensive live coverage — DONE (2026-06-25, solo).** Each capability is live-proven with its own
+>         CLI harness (real qwen3-8b, isolated HOME, asserts the tool was used AND the real side effect persisted):
+>         **run_command** runs a shell command + its output flows back (`scripts/verify-chat-command-exec.mts`),
+>         **create_card** does autonomous board work (`scripts/verify-chat-create-card.mts`, card read back via
+>         `loadWorkspaceState`), **browse_url** browses a real page (`scripts/verify-chat-browse.mts`, Chromium rendered).
+>         **The capstone** (`scripts/verify-chat-agent-e2e.mts`) drives the FULL tool-using agent through ONE multi-step
+>         session — read a file → run a command + see output → create a card → maintain a focus chain — and asserts the
+>         agent used all four tools AND both durable side effects held (the file marker flowed back into the reply + the
+>         card persisted on the board). PASSES reliably on qwen3-8b (an 8B model composes all four in one turn).
 
 - [x] **Chat session model & store** — board-independent sessions, persisted transcripts, stable ids, multiple
       concurrent; separate from board/task state (not kanban cards). **(store + transcript + tRPC surface + UI all
