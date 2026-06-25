@@ -141,6 +141,8 @@ export function buildRuntimeConfigResponse(
 		conversationTimeoutMs: runtimeConfig.conversationTimeoutMs,
 		maxAgentWritableFileLines: runtimeConfig.maxAgentWritableFileLines,
 		maxConcurrentTasks: runtimeConfig.maxConcurrentTasks,
+		maxConcurrentTasksOverride: runtimeConfig.maxConcurrentTasksOverride,
+		effectiveMaxConcurrentTasks: runtimeConfig.effectiveMaxConcurrentTasks,
 		sandboxMaxContainers: runtimeConfig.sandboxMaxContainers,
 		sandboxAgentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,

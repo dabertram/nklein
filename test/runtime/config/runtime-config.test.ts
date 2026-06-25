@@ -1079,6 +1079,38 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists project maxConcurrentTasksOverride and derives effectiveMaxConcurrentTasks (§5.W)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir(
+			"kanban-home-runtime-config-max-concurrent-override-",
+		);
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-max-concurrent-override-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				await updateRuntimeConfig(tempProject, { maxConcurrentTasks: 5 });
+
+				const overridden = await updateRuntimeConfig(tempProject, {
+					maxConcurrentTasksOverride: 2,
+				});
+
+				expect(overridden.maxConcurrentTasks).toBe(5);
+				expect(overridden.maxConcurrentTasksOverride).toBe(2);
+				expect(overridden.effectiveMaxConcurrentTasks).toBe(2);
+
+				const reset = await updateRuntimeConfig(tempProject, {
+					maxConcurrentTasksOverride: null,
+				});
+				expect(reset.maxConcurrentTasksOverride).toBeNull();
+				expect(reset.effectiveMaxConcurrentTasks).toBe(reset.maxConcurrentTasks);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists non-default lost heartbeat policy", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-heartbeat-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-heartbeat-");

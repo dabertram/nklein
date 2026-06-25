@@ -35,6 +35,8 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		maxConcurrentTasksOverride: null,
+		effectiveMaxConcurrentTasks: 3,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 2048,

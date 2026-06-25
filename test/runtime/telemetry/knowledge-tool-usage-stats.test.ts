@@ -35,6 +35,8 @@ function createRuntimeConfig(): RuntimeConfigState {
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 400,
 		maxConcurrentTasks: 2,
+		maxConcurrentTasksOverride: null,
+		effectiveMaxConcurrentTasks: 2,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 2048,

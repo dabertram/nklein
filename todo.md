@@ -2026,7 +2026,7 @@ deep analysis:
         applicable; (c) render them in `card-detail-view.tsx` after the existing plan panels, lane-gated (planning/review).
   - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
         de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
-- [ ] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
+- [~] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
       for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
       the override model + storage; wire it through. **PLAN (research agent 2026-06-25):** the override mechanism already
       exists for exactly one field — `codeEmbeddingOverride` in `RuntimeProjectConfigFileShape` (`runtime-config.ts` ~L83),
@@ -2049,6 +2049,10 @@ deep analysis:
       Overridden ×-revert) in the Project section (~L4049) + state/init/change-detection/reset/save-payload; (9) 3 tests
       (single-field override+reset, all-fields together+reload, old-config back-compat). Backend is the bulk + self-contained
       (steps 1-7,9) — implement + commit that first, then the UI (step 8). **SOLO** (worktree write-agents unsafe here).
+      **PHASE 1 FIRST FIELD DONE (2026-06-25):** `maxConcurrentTasksOverride` wired end-to-end — project config storage,
+      `RuntimeConfigState.maxConcurrentTasksOverride`/`effectiveMaxConcurrentTasks`, API contract, consumer switched to
+      `effectiveMaxConcurrentTasks`, drift-guard + new override test. Remaining Phase 1 fields: `selectedAgentId`, `modelRoles`,
+      `agentRulesets`; then UI `OverrideToggle`.
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.

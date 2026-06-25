@@ -83,6 +83,7 @@ interface RuntimeGlobalConfigFileShape {
 interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+	maxConcurrentTasksOverride?: number | null;
 }
 
 export interface RuntimeConfigState {
@@ -102,6 +103,8 @@ export interface RuntimeConfigState {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	maxConcurrentTasksOverride: number | null;
+	effectiveMaxConcurrentTasks: number;
 	sandboxMaxContainers: number;
 	sandboxAgentsPerContainer: number;
 	sandboxMemoryPerContainerMb: number;
@@ -154,6 +157,7 @@ export interface RuntimeConfigUpdateInput {
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+	maxConcurrentTasksOverride?: number | null;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
 	swarmGuardrails?: RuntimeSwarmGuardrails;
@@ -513,6 +517,17 @@ function normalizeMaxConcurrentTasks(value: unknown): number {
 	return normalized > 0 ? normalized : DEFAULT_MAX_CONCURRENT_TASKS;
 }
 
+function normalizeMaxConcurrentTasksOverride(value: unknown): number | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return null;
+	}
+	const normalized = Math.trunc(value);
+	return normalized > 0 ? normalized : null;
+}
+
 function normalizePositiveInteger(value: unknown, fallback: number): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return fallback;
@@ -584,6 +599,7 @@ type RuntimeConfigChangeComparable = Omit<
 	| "globalConfigPath"
 	| "projectConfigPath"
 	| "effectiveCodeEmbeddingSettings"
+	| "effectiveMaxConcurrentTasks"
 	| "commitPromptTemplateDefault"
 	| "openPrPromptTemplateDefault"
 >;
@@ -642,6 +658,7 @@ const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] =
 const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
 	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
+	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("shortcuts", areRuntimeProjectShortcutsEqual),
 ];
 
@@ -650,6 +667,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"globalConfigPath",
 	"projectConfigPath",
 	"effectiveCodeEmbeddingSettings",
+	"effectiveMaxConcurrentTasks",
 	"commitPromptTemplateDefault",
 	"openPrPromptTemplateDefault",
 ] as const satisfies readonly (keyof RuntimeConfigState)[];
@@ -796,6 +814,8 @@ function toRuntimeConfigState({
 		DEFAULT_CODE_EMBEDDING_SETTINGS,
 	);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(projectConfig?.codeEmbeddingOverride);
+	const maxConcurrentTasks = normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks);
+	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(projectConfig?.maxConcurrentTasksOverride);
 	return {
 		globalConfigPath,
 		projectConfigPath,
@@ -815,7 +835,9 @@ function toRuntimeConfigState({
 		agentTimeoutMs: normalizeTimeoutMsValue(globalConfig?.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
-		maxConcurrentTasks: normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks),
+		maxConcurrentTasks,
+		maxConcurrentTasksOverride,
+		effectiveMaxConcurrentTasks: maxConcurrentTasksOverride ?? maxConcurrentTasks,
 		sandboxMaxContainers: normalizePositiveInteger(
 			globalConfig?.sandboxMaxContainers,
 			DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
@@ -1221,10 +1243,15 @@ async function writeRuntimeGlobalConfigFile(
 
 async function writeRuntimeProjectConfigFile(
 	configPath: string | null,
-	config: { shortcuts: RuntimeProjectShortcut[]; codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null },
+	config: {
+		shortcuts: RuntimeProjectShortcut[];
+		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+		maxConcurrentTasksOverride?: number | null;
+	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(config.codeEmbeddingOverride);
+	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	if (!configPath) {
 		if (normalizedShortcuts.length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
@@ -1232,9 +1259,12 @@ async function writeRuntimeProjectConfigFile(
 		if (codeEmbeddingOverride) {
 			throw new Error("Cannot save project embedding overrides without a selected project.");
 		}
+		if (maxConcurrentTasksOverride !== null) {
+			throw new Error("Cannot save project concurrent task override without a selected project.");
+		}
 		return;
 	}
-	if (normalizedShortcuts.length === 0 && codeEmbeddingOverride === null) {
+	if (normalizedShortcuts.length === 0 && codeEmbeddingOverride === null && maxConcurrentTasksOverride === null) {
 		await rm(configPath, { force: true });
 		try {
 			await rm(dirname(configPath));
@@ -1248,6 +1278,7 @@ async function writeRuntimeProjectConfigFile(
 		{
 			shortcuts: normalizedShortcuts,
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
+			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 		} satisfies RuntimeProjectConfigFileShape,
 		{
 			lock: null,
@@ -1307,6 +1338,7 @@ function createRuntimeConfigStateFromValues(input: {
 	conversationTimeoutMs: number | null;
 	maxAgentWritableFileLines: number;
 	maxConcurrentTasks: number;
+	maxConcurrentTasksOverride: number | null;
 	sandboxMaxContainers: number;
 	sandboxAgentsPerContainer: number;
 	sandboxMemoryPerContainerMb: number;
@@ -1347,6 +1379,10 @@ function createRuntimeConfigStateFromValues(input: {
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
 		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
+		maxConcurrentTasksOverride: normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride),
+		effectiveMaxConcurrentTasks:
+			normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride) ??
+			normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
 		sandboxMaxContainers: normalizePositiveInteger(input.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
 		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
 			input.sandboxAgentsPerContainer,
@@ -1425,6 +1461,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		conversationTimeoutMs: current.conversationTimeoutMs,
 		maxAgentWritableFileLines: current.maxAgentWritableFileLines,
 		maxConcurrentTasks: current.maxConcurrentTasks,
+		maxConcurrentTasksOverride: null,
 		sandboxMaxContainers: current.sandboxMaxContainers,
 		sandboxAgentsPerContainer: current.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: current.sandboxMemoryPerContainerMb,
@@ -1498,6 +1535,7 @@ export async function saveRuntimeConfig(
 		readyForReviewNotificationsEnabled: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+		maxConcurrentTasksOverride?: number | null;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
 		swarmGuardrails?: RuntimeSwarmGuardrails;
@@ -1565,6 +1603,7 @@ export async function saveRuntimeConfig(
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: config.shortcuts,
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
+			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -1584,6 +1623,7 @@ export async function saveRuntimeConfig(
 			conversationTimeoutMs: config.conversationTimeoutMs,
 			maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines),
 			maxConcurrentTasks: normalizeMaxConcurrentTasks(config.maxConcurrentTasks),
+			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride ?? null,
 			sandboxMaxContainers: normalizePositiveInteger(
 				config.sandboxMaxContainers,
 				DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
@@ -1724,6 +1764,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.codeEmbeddingOverride,
 				normalizeCodeEmbeddingOverride,
 			),
+			maxConcurrentTasksOverride: keepNormalizedValue(
+				updates.maxConcurrentTasksOverride,
+				current.maxConcurrentTasksOverride,
+				normalizeMaxConcurrentTasksOverride,
+			),
 			modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
 			agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
 			swarmGuardrails: keepNormalizedValue(
@@ -1778,6 +1823,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: nextConfig.shortcuts,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
+			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -1797,6 +1843,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 			maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 			maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 			sandboxMaxContainers: nextConfig.sandboxMaxContainers,
 			sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
 			sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,
@@ -1918,6 +1965,7 @@ export async function updateGlobalRuntimeConfig(
 					(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
 				),
 				codeEmbeddingOverride: null,
+				maxConcurrentTasksOverride: null,
 				modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
 				agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
 				swarmGuardrails: keepNormalizedValue(
@@ -1988,6 +2036,7 @@ export async function updateGlobalRuntimeConfig(
 				conversationTimeoutMs: nextConfig.conversationTimeoutMs,
 				maxAgentWritableFileLines: nextConfig.maxAgentWritableFileLines,
 				maxConcurrentTasks: nextConfig.maxConcurrentTasks,
+				maxConcurrentTasksOverride: null,
 				sandboxMaxContainers: nextConfig.sandboxMaxContainers,
 				sandboxAgentsPerContainer: nextConfig.sandboxAgentsPerContainer,
 				sandboxMemoryPerContainerMb: nextConfig.sandboxMemoryPerContainerMb,

@@ -157,6 +157,8 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		conversationTimeoutMs: 7_200_000,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks,
+		maxConcurrentTasksOverride: null,
+		effectiveMaxConcurrentTasks: maxConcurrentTasks,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,

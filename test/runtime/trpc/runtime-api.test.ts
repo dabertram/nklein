@@ -357,6 +357,8 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		conversationTimeoutMs: null,
 		maxAgentWritableFileLines: 1000,
 		maxConcurrentTasks: 3,
+		maxConcurrentTasksOverride: null,
+		effectiveMaxConcurrentTasks: 3,
 		sandboxMaxContainers: 1,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,
@@ -1133,6 +1135,7 @@ describe("createRuntimeApi startTaskSession", () => {
 				const runtimeConfigState = createRuntimeConfigState();
 				runtimeConfigState.selectedAgentId = "nklein";
 				runtimeConfigState.maxConcurrentTasks = 1;
+				runtimeConfigState.effectiveMaxConcurrentTasks = 1;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),

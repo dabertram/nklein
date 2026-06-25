@@ -836,11 +836,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						loadedNKleinTaskSessionService?.listSummaries() ?? [],
 						body.taskId,
 					);
-					if (activeProjectTaskCount >= scopedRuntimeConfig.maxConcurrentTasks) {
+					if (activeProjectTaskCount >= scopedRuntimeConfig.effectiveMaxConcurrentTasks) {
 						return {
 							ok: false,
 							summary: null,
-							error: createConcurrencyLimitStartError(scopedRuntimeConfig.maxConcurrentTasks),
+							error: createConcurrencyLimitStartError(scopedRuntimeConfig.effectiveMaxConcurrentTasks),
 						};
 					}
 				}
