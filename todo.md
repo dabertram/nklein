@@ -190,10 +190,18 @@ deep analysis:
 >   projects covering all use cases + all chat functions + deep UI/UX path coverage). No CI infra yet → run the full
 >   suite incl. slow e2e periodically and keep green. (New §5.V below.)
 > - **§5.J look & feel:** I mock up 2–3 restyle directions as screenshots; the user picks.
-- [ ] **Chat sidebar polish (2026-06-25, user)** — (a) the right chat sidebar's **inner elements must resize properly**
-      when the sidebar width is dragged (currently they don't reflow). (b) **Session list relabel:** every session shows
-      "New chat" — instead show a **started timestamp + message count + token count + last-message timestamp** (later: a
-      generated title via embedding/LLM). Single source of truth for the label.
+- [x] **Chat sidebar polish (2026-06-25, user)** — (a) **DONE** — the right chat sidebar's inner elements now reflow on
+      width drag: session-list `aside` is proportional + bounded (`w-[38%] min-w-[160px] max-w-[220px]`), and a full
+      `min-w-0`/`overflow-hidden` chain through ChatPanel → body → transcript → composer → MessageBubble lets flex
+      children shrink below content size. (b) **DONE** — session list relabel: `buildSessionMeta` (single source of
+      truth) renders "Started Jun 25 14:32 · 4 msgs · Last Jun 25 15:01" (message count only for the loaded/selected
+      session; "last activity" only when >30 s after creation). All in [chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx).
+  - [ ] **Token count in the session label (follow-up)** — omitted for now: the §5.M chat schemas
+        ([chat-api-contract.ts](src/core/chat-api-contract.ts) `runtimeChatSession`/`runtimeChatMessage`) carry **no
+        usage/token field**, so it's a real backend feature, not a UI add. Needs: capture per-turn usage from the LLM
+        in the chat send loop → persist a running token total on the session record (or per message) → expose in the
+        schema/broadcast → render where the `buildSessionMeta` comment marks the spot. Cheap once usage is tracked.
+  - [ ] **Later:** generated session title via embedding/LLM (replaces the literal "New chat").
 - [ ] **Autonomous chat agent (follow-up, later)** *(2026-06-25, user)* — the right-sidebar chat agent should do **real
       autonomous work**: focus chain, memory, tools, knowledge fetching, browser, etc. — like Cline but stronger, and
       able to use the project/card/task structure in the background (work an existing project or create a new one). Big

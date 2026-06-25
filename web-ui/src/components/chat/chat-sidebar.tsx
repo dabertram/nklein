@@ -31,6 +31,54 @@ const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: stri
 	{ value: "host_access", label: "Host access" },
 ];
 
+// ─── Session metadata helpers ──────────────────────────────────────────────────
+
+/**
+ * Metadata derived from a chat session (and optionally from its loaded transcript) for display in
+ * the session list. Token count is not available in the contract and is omitted rather than
+ * estimated — it will be added once the backend exposes per-session usage totals.
+ */
+interface SessionMeta {
+	/** ISO-ish short timestamp of when the session was created, e.g. "Jun 25 14:32". */
+	startedLabel: string;
+	/**
+	 * ISO-ish short timestamp of the last activity (last message or session update), e.g. "Jun 25
+	 * 15:01". Null when `updatedAt === createdAt` (no messages yet, nothing to differentiate).
+	 */
+	lastActivityLabel: string | null;
+	/** Number of user+assistant messages in the transcript, or null when not yet loaded. */
+	messageCount: number | null;
+}
+
+const DATE_FORMAT: Intl.DateTimeFormatOptions = {
+	month: "short",
+	day: "numeric",
+	hour: "2-digit",
+	minute: "2-digit",
+	hour12: false,
+};
+
+function formatTimestamp(epochMs: number): string {
+	return new Intl.DateTimeFormat(undefined, DATE_FORMAT).format(new Date(epochMs));
+}
+
+/**
+ * Build display metadata for one session. Pass the loaded transcript messages for the selected
+ * session; pass `null` for all others (we don't pre-load every session's transcript).
+ */
+function buildSessionMeta(session: RuntimeChatSession, messages: RuntimeChatMessage[] | null): SessionMeta {
+	const startedLabel = formatTimestamp(session.createdAt);
+
+	// Only show lastActivity when it's meaningfully different from createdAt (> 30 s apart).
+	const lastActivityLabel = session.updatedAt - session.createdAt > 30_000 ? formatTimestamp(session.updatedAt) : null;
+
+	const messageCount = messages !== null ? messages.filter((m) => m.role !== "system").length : null;
+
+	return { startedLabel, lastActivityLabel, messageCount };
+}
+
+// ─── SessionHeader ─────────────────────────────────────────────────────────────
+
 /**
  * Editable header for the selected session: title + goal (commit on blur/Enter) and role + scope selects, all
  * wired to `updateSession`. Keyed by session id by the caller so its local draft state resets on session switch.
@@ -52,10 +100,10 @@ function SessionHeader({
 	const [goal, setGoal] = useState(session.goal ?? "");
 
 	return (
-		<div className="border-b border-border px-4 py-2 bg-surface-1 flex flex-col gap-2">
+		<div className="border-b border-border px-4 py-2 bg-surface-1 flex flex-col gap-2 min-w-0">
 			<input
 				data-testid="chat-session-title"
-				className="bg-transparent text-[14px] font-semibold text-text-primary focus:outline-none border-b border-transparent focus:border-border-focus"
+				className="bg-transparent text-[14px] font-semibold text-text-primary focus:outline-none border-b border-transparent focus:border-border-focus w-full min-w-0"
 				value={title}
 				onChange={(event) => setTitle(event.target.value)}
 				onBlur={() => title.trim() && title !== session.title && onUpdate({ id: session.id, title: title.trim() })}
@@ -65,7 +113,7 @@ function SessionHeader({
 					}
 				}}
 			/>
-			<div className="flex items-center gap-2 flex-wrap">
+			<div className="flex items-center gap-2 flex-wrap min-w-0">
 				<NativeSelect
 					size="sm"
 					aria-label="Role"
@@ -94,8 +142,8 @@ function SessionHeader({
 				</NativeSelect>
 				<input
 					data-testid="chat-session-goal"
-					className="flex-1 min-w-40 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
-					placeholder="Session goal (kept in focus across turns)…"
+					className="flex-1 min-w-0 h-7 rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus"
+					placeholder="Session goal…"
 					value={goal}
 					onChange={(event) => setGoal(event.target.value)}
 					onBlur={() => goal !== (session.goal ?? "") && onUpdate({ id: session.id, goal: goal.trim() || null })}
@@ -110,21 +158,17 @@ function SessionHeader({
 	);
 }
 
-/**
- * Board-independent chat surface (todo §5.M) — a dialog over the `chat` tRPC sub-router: a session list on the
- * left (create / select / delete), the selected session's transcript on the right, and a composer that sends a
- * turn to the local model. The reply streams in token-by-token over the SSE subscription (an optimistic user
- * bubble + a growing assistant bubble), then the persisted transcript replaces the placeholders. Styling follows
- * the design system (Tailwind tokens + UI primitives).
- */
+// ─── SessionRow ────────────────────────────────────────────────────────────────
 
 function SessionRow({
 	session,
+	meta,
 	selected,
 	onSelect,
 	onDelete,
 }: {
 	session: RuntimeChatSession;
+	meta: SessionMeta;
 	selected: boolean;
 	onSelect: () => void;
 	onDelete: () => void;
@@ -133,20 +177,39 @@ function SessionRow({
 		<div
 			data-testid="chat-session-item"
 			className={cn(
-				"group flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer text-[13px]",
+				"group flex items-start gap-2 px-2 py-2 rounded-md cursor-pointer text-[13px]",
 				selected ? "bg-surface-3 text-text-primary" : "text-text-secondary hover:bg-surface-2",
 			)}
 			onClick={onSelect}
 		>
-			<div className="flex-1 min-w-0">
-				<div className="truncate">{session.title}</div>
+			<div className="flex-1 min-w-0 flex flex-col gap-0.5">
+				{/* Title + role */}
+				<div className="truncate font-medium leading-tight">{session.title}</div>
 				<div className="text-[11px] text-text-tertiary truncate">{session.role.replace(/_/g, " ")}</div>
+				{/* Metadata line: started timestamp + optional message count */}
+				<div className="text-[10px] text-text-tertiary flex items-center gap-1.5 flex-wrap mt-0.5 leading-tight">
+					<span className="truncate">Started {meta.startedLabel}</span>
+					{meta.messageCount !== null && meta.messageCount > 0 ? (
+						<>
+							<span className="text-text-tertiary opacity-40">·</span>
+							<span className="shrink-0">
+								{meta.messageCount} msg{meta.messageCount !== 1 ? "s" : ""}
+							</span>
+						</>
+					) : null}
+					{meta.lastActivityLabel !== null ? (
+						<>
+							<span className="text-text-tertiary opacity-40">·</span>
+							<span className="shrink-0 truncate">Last {meta.lastActivityLabel}</span>
+						</>
+					) : null}
+				</div>
 			</div>
 			<ElementTooltip id="chat.delete-session" side="left">
 				<button
 					type="button"
 					aria-label="Delete session"
-					className="opacity-0 group-hover:opacity-100 p-1 rounded text-text-tertiary hover:text-status-red hover:bg-surface-3"
+					className="opacity-0 group-hover:opacity-100 p-1 rounded text-text-tertiary hover:text-status-red hover:bg-surface-3 shrink-0 mt-0.5"
 					onClick={(event) => {
 						event.stopPropagation();
 						onDelete();
@@ -158,6 +221,8 @@ function SessionRow({
 		</div>
 	);
 }
+
+// ─── MessageBubble ─────────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: RuntimeChatMessage }): React.ReactElement {
 	if (message.role === "system") {
@@ -172,11 +237,11 @@ function MessageBubble({ message }: { message: RuntimeChatMessage }): React.Reac
 		<div
 			data-testid="chat-message"
 			data-role={message.role}
-			className={cn("flex", isUser ? "justify-end" : "justify-start")}
+			className={cn("flex min-w-0", isUser ? "justify-end" : "justify-start")}
 		>
 			<div
 				className={cn(
-					"max-w-[80%] rounded-lg px-3 py-2 text-[13px] whitespace-pre-wrap break-words",
+					"max-w-[80%] min-w-0 rounded-lg px-3 py-2 text-[13px] whitespace-pre-wrap break-words",
 					isUser ? "bg-accent text-white" : "bg-surface-2 text-text-primary border border-border",
 				)}
 			>
@@ -186,7 +251,15 @@ function MessageBubble({ message }: { message: RuntimeChatMessage }): React.Reac
 	);
 }
 
-/** The chat content (session list + transcript + composer) — rendered inside the right sidebar (todo §5.M). */
+// ─── ChatPanel ─────────────────────────────────────────────────────────────────
+
+/**
+ * Board-independent chat surface (todo §5.M) — a dialog over the `chat` tRPC sub-router: a session list on the
+ * left (create / select / delete), the selected session's transcript on the right, and a composer that sends a
+ * turn to the local model. The reply streams in token-by-token over the SSE subscription (an optimistic user
+ * bubble + a growing assistant bubble), then the persisted transcript replaces the placeholders. Styling follows
+ * the design system (Tailwind tokens + UI primitives).
+ */
 function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () => void }): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
@@ -216,10 +289,12 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-surface-1">
-			<div className="flex items-center justify-between px-3 py-2 bg-surface-2 border-b border-border shrink-0">
-				<div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-					<MessageSquare size={16} className="text-text-secondary" /> Chat
+		<div className="flex h-full min-h-0 min-w-0 flex-col bg-surface-1 overflow-hidden">
+			{/* Top bar */}
+			<div className="flex items-center justify-between px-3 py-2 bg-surface-2 border-b border-border shrink-0 min-w-0">
+				<div className="flex items-center gap-2 text-sm font-semibold text-text-primary min-w-0">
+					<MessageSquare size={16} className="text-text-secondary shrink-0" />
+					<span className="truncate">Chat</span>
 				</div>
 				<button
 					type="button"
@@ -227,15 +302,17 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 					title="Collapse chat"
 					data-testid="chat-collapse-button"
 					onClick={onCollapse}
-					className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3"
+					className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3 shrink-0"
 				>
 					<PanelRightClose size={16} />
 				</button>
 			</div>
-			<div className="flex flex-1 min-h-0">
-				{/* Session list */}
-				<aside className="w-60 shrink-0 border-r border-border flex flex-col bg-surface-1">
-					<div className="p-2 border-b border-border">
+
+			{/* Body: session list + transcript */}
+			<div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+				{/* Session list — responsive width: proportional to sidebar, bounded [160, 220] px */}
+				<aside className="w-[38%] min-w-[160px] max-w-[220px] shrink-0 border-r border-border flex flex-col bg-surface-1 overflow-hidden">
+					<div className="p-2 border-b border-border shrink-0">
 						<Button
 							size="sm"
 							variant="default"
@@ -247,7 +324,7 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 							New chat
 						</Button>
 					</div>
-					<div className="flex-1 min-h-0 overflow-y-auto p-1">
+					<div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-1">
 						{chat.sessionsLoading && chat.sessions.length === 0 ? (
 							<div className="flex justify-center p-4">
 								<Spinner size={16} />
@@ -255,23 +332,28 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 						) : chat.sessions.length === 0 ? (
 							<div className="text-[12px] text-text-tertiary text-center p-4">No chats yet.</div>
 						) : (
-							chat.sessions.map((session) => (
-								<SessionRow
-									key={session.id}
-									session={session}
-									selected={session.id === chat.selectedSessionId}
-									onSelect={() => chat.selectSession(session.id)}
-									onDelete={() => void chat.deleteSession(session.id)}
-								/>
-							))
+							chat.sessions.map((session) => {
+								const isSelected = session.id === chat.selectedSessionId;
+								const meta = buildSessionMeta(session, isSelected ? chat.transcript : null);
+								return (
+									<SessionRow
+										key={session.id}
+										session={session}
+										meta={meta}
+										selected={isSelected}
+										onSelect={() => chat.selectSession(session.id)}
+										onDelete={() => void chat.deleteSession(session.id)}
+									/>
+								);
+							})
 						)}
 					</div>
 				</aside>
 
 				{/* Transcript + composer */}
-				<section className="flex-1 min-w-0 flex flex-col bg-surface-0">
+				<section className="flex-1 min-w-0 flex flex-col bg-surface-0 overflow-hidden">
 					{chat.selectedSessionId === null ? (
-						<div className="flex-1 flex items-center justify-center text-[13px] text-text-tertiary">
+						<div className="flex-1 flex items-center justify-center text-[13px] text-text-tertiary p-4 text-center">
 							Select a chat or start a new one.
 						</div>
 					) : (
@@ -284,7 +366,7 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 								/>
 							) : null}
 							<div
-								className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3"
+								className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 flex flex-col gap-3"
 								data-testid="chat-transcript"
 							>
 								{chat.transcript.map((message) => (
@@ -325,11 +407,11 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 							</div>
 							<form
 								onSubmit={handleSubmit}
-								className="border-t border-border p-3 flex items-end gap-2 bg-surface-1"
+								className="border-t border-border p-3 flex items-end gap-2 bg-surface-1 shrink-0 min-w-0"
 							>
 								<textarea
 									data-testid="chat-composer-input"
-									className="flex-1 resize-none rounded-md border border-border bg-surface-2 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus min-h-[40px] max-h-32"
+									className="flex-1 min-w-0 resize-none rounded-md border border-border bg-surface-2 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus min-h-[40px] max-h-32"
 									rows={1}
 									placeholder="Message the local model…"
 									value={draft}
@@ -351,9 +433,10 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 					)}
 				</section>
 			</div>
+
 			{chat.error ? (
 				<div
-					className="px-3 py-2 text-[12px] text-status-red border-t border-border bg-surface-1"
+					className="px-3 py-2 text-[12px] text-status-red border-t border-border bg-surface-1 shrink-0"
 					data-testid="chat-error"
 				>
 					{chat.error}
@@ -362,6 +445,8 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 		</div>
 	);
 }
+
+// ─── ChatSidebar ───────────────────────────────────────────────────────────────
 
 /**
  * The board-independent chat as a **resizeable right sidebar** (todo §5.M) — a VS-Code-coding-agent-style rail.
@@ -390,7 +475,7 @@ export function ChatSidebar(): React.ReactElement {
 	}
 
 	return (
-		<aside className="flex h-full min-h-0 shrink-0" style={{ width }} data-testid="chat-sidebar">
+		<aside className="flex h-full min-h-0 shrink-0 overflow-hidden" style={{ width }} data-testid="chat-sidebar">
 			<ResizeHandle
 				orientation="vertical"
 				ariaLabel="Resize chat sidebar"
@@ -409,7 +494,7 @@ export function ChatSidebar(): React.ReactElement {
 					})
 				}
 			/>
-			<div className="flex flex-1 min-w-0 min-h-0">
+			<div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
 				<ChatPanel enabled onCollapse={() => setCollapsed(true)} />
 			</div>
 		</aside>

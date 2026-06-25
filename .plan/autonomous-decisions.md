@@ -72,3 +72,9 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
 - **(2026-06-25) Orchestration of the first parallel batch:** chat-polish (web-ui) delegated to a worktree subagent;
   feature/UI exposure audit delegated to a read-only Explore subagent; the risky **defaults hard-flip** kept by me
   (needs runtime verify). Disjoint file sets, so no collisions.
+- **(2026-06-25) Chat session label — token count deferred (real backend dependency, not a cheap UI add).** The user
+  asked the session label to show "messages + tokens + last-message timestamp." Delivered started-timestamp + message
+  count + last-activity; **omitted tokens** because the §5.M chat schemas carry no usage field — surfacing it needs the
+  chat send loop to capture per-turn LLM usage, persist a running total on the session, and expose it in the schema.
+  That's a separable feature, logged as a follow-up under the chat-polish item. Low rework; not blocking. Verified the
+  subagent's web-ui work myself before commit (typecheck + biome + full 694-test web suite all green).
