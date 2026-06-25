@@ -1,8 +1,14 @@
+import type { SerializeAddon as SerializeAddonType } from "@xterm/addon-serialize";
 import serializeAddonModule from "@xterm/addon-serialize";
+import type { Terminal as TerminalType } from "@xterm/headless";
 import headlessTerminalModule from "@xterm/headless";
 
-const { SerializeAddon } = serializeAddonModule as typeof import("@xterm/addon-serialize");
-const { Terminal } = headlessTerminalModule as typeof import("@xterm/headless");
+const { SerializeAddon } = serializeAddonModule as {
+	SerializeAddon: typeof SerializeAddonType;
+};
+const { Terminal } = headlessTerminalModule as {
+	Terminal: typeof TerminalType;
+};
 
 const TERMINAL_SCROLLBACK = 10_000;
 

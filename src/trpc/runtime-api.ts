@@ -771,7 +771,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				taskId: input.taskId,
 			});
 
-			let workspaceState: import("../core/api-contract.js").RuntimeWorkspaceStateResponse | undefined;
+			let workspaceState: RuntimeWorkspaceStateResponse | undefined;
 
 			if (
 				input.kind === "integration_needed" ||
@@ -786,7 +786,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
 						let adapted: {
 							board: typeof latestState.board;
-							task: import("../core/api-contract.js").RuntimeBoardCard;
+							task: RuntimeBoardCard;
 							created: boolean;
 						};
 						if (input.kind === "integration_needed") {
