@@ -170,6 +170,8 @@ export function buildRuntimeConfigResponse(
 		shortcuts: runtimeConfig.shortcuts,
 		nkleinProviderSettings,
 		modelRoles: runtimeConfig.modelRoles,
+		modelRolesOverride: runtimeConfig.modelRolesOverride,
+		effectiveModelRoles: runtimeConfig.effectiveModelRoles,
 		agentRulesets: runtimeConfig.agentRulesets,
 		agentRulesetsOverride: runtimeConfig.agentRulesetsOverride,
 		effectiveAgentRulesets: runtimeConfig.effectiveAgentRulesets,

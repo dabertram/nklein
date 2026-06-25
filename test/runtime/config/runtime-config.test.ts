@@ -1189,6 +1189,56 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("persists project modelRolesOverride and derives effectiveModelRoles (§5.W Phase 1)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir(
+			"kanban-home-runtime-config-model-roles-override-",
+		);
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-model-roles-override-",
+		);
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				// Set a non-default global modelRoles so we can distinguish override from global.
+				await updateRuntimeConfig(tempProject, {
+					modelRoles: {
+						worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
+						reviewer: { providerId: "lmstudio", modelId: "deepseek-coder" },
+					},
+				});
+
+				const overridden = await updateRuntimeConfig(tempProject, {
+					modelRolesOverride: {
+						worker: { providerId: "anthropic", modelId: "claude-sonnet" },
+					},
+				});
+
+				expect(overridden.modelRoles.worker?.providerId).toBe("ollama");
+				expect(overridden.modelRolesOverride?.worker?.providerId).toBe("anthropic");
+				expect(overridden.effectiveModelRoles.worker?.providerId).toBe("anthropic");
+				// Global reviewer is not present in the override.
+				expect(overridden.effectiveModelRoles.reviewer).toBeUndefined();
+
+				// The override is persisted to the project config file.
+				const reloaded = await loadRuntimeConfig(tempProject);
+				expect(reloaded.modelRolesOverride?.worker?.providerId).toBe("anthropic");
+				expect(reloaded.effectiveModelRoles.worker?.providerId).toBe("anthropic");
+				expect(reloaded.modelRoles.worker?.providerId).toBe("ollama");
+
+				// Resetting to null falls back to the global value.
+				const reset = await updateRuntimeConfig(tempProject, {
+					modelRolesOverride: null,
+				});
+				expect(reset.modelRolesOverride).toBeNull();
+				expect(reset.effectiveModelRoles.worker?.providerId).toBe(reset.modelRoles.worker?.providerId);
+				expect(reset.effectiveModelRoles.reviewer?.providerId).toBe("lmstudio");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("persists non-default lost heartbeat policy", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-heartbeat-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-heartbeat-");

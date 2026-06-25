@@ -39,6 +39,7 @@ function makeDeps(overrides: { enabled?: boolean; submission?: ReviewSubmissionI
 		secondOpinionReviewEnabled: overrides.enabled ?? true,
 		reviewMaxRounds: 20,
 		modelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
+		effectiveModelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
 	})) as unknown as never;
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
 	const mutateWorkspaceState = vi.fn(async (_cwd: string, mutate: (state: { board: RuntimeBoardData }) => unknown) => {

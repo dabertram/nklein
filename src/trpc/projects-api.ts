@@ -458,7 +458,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					title: scenario.title,
 					prompt: scenario.prompt,
 					acceptanceCommand: scenario.acceptanceCommand,
-					modelRoles: runtimeConfig.modelRoles,
+					modelRoles: runtimeConfig.effectiveModelRoles,
 					now,
 				});
 				const state = await saveWorkspaceState(context.repoPath, {

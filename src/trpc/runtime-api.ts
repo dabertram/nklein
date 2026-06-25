@@ -360,7 +360,7 @@ function addConfiguredLocalModelRegistryEntries(input: {
 			endpoint: input.providerSettings.baseUrl ?? null,
 		});
 	}
-	for (const settings of Object.values(input.runtimeConfig?.modelRoles ?? {})) {
+	for (const settings of Object.values(input.runtimeConfig?.effectiveModelRoles ?? {})) {
 		const providerId = settings.providerId?.trim();
 		const modelId = settings.modelId?.trim();
 		if (!providerId || !modelId) {
@@ -693,7 +693,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					baseRef,
 					randomUuid: randomUUID,
 					sourceTaskId: artifacts.metadata.sourceTaskId,
-					modelRoleSettings: runtimeConfig?.modelRoles,
+					modelRoleSettings: runtimeConfig?.effectiveModelRoles,
 					sharedContext: {
 						spec: artifacts.spec,
 						decisionsMarkdown: artifacts.decisionsMarkdown,
@@ -1038,7 +1038,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				});
 				nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
 				guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
-				for (const [role, settings] of Object.entries(scopedRuntimeConfig.modelRoles)) {
+				for (const [role, settings] of Object.entries(scopedRuntimeConfig.effectiveModelRoles)) {
 					// #4 model pools: a role contributes its primary model plus every member of its additionalModels
 					// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.
 					const roleModels = [

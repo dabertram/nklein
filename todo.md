@@ -2065,7 +2065,18 @@ deep analysis:
       `runtimeConfigSaveRequestSchema`) + `buildRuntimeConfigResponse`. `runtime-server.ts` delivery-tier + sandbox-network
       consumers switched to `effectiveAgentRulesets`. `effectiveAgentRulesets` in `RUNTIME_CONFIG_DERIVED_FIELD_KEYS`;
       `agentRulesetsOverride` in `RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS`. New override test + all fixtures patched.
-      Remaining Phase 1: `modelRoles` override; then full UI `OverrideToggle` for the nested fields.
+      **PHASE 1 FOURTH FIELD DONE (2026-06-25):** `modelRolesOverride` wired end-to-end (backend only, UI is separate follow-up).
+      `normalizeModelRolesOverride` (null when absent/empty), threaded through `RuntimeProjectConfigFileShape`,
+      `RuntimeConfigState` (+ `effectiveModelRoles`), `RuntimeConfigUpdateInput`, `createRuntimeConfigStateFromValues`,
+      `toRuntimeConfigState`, `toGlobalRuntimeConfigState`, `saveRuntimeConfig`, `updateRuntimeConfig`,
+      `updateGlobalRuntimeConfig`, `writeRuntimeProjectConfigFile`. API contract (`runtimeConfigResponseSchema` +
+      `runtimeConfigSaveRequestSchema`) + `buildRuntimeConfigResponse`. All routing/role-assignment consumers
+      (`runtime-api.ts` ×3, `task.ts` ×3, `projects-api.ts`, `second-opinion-review-runner.ts`,
+      `nklein-acceptance-repair.ts`, `nklein-decomposition-tool.ts`) switched to `effectiveModelRoles`. Telemetry
+      stays on `modelRoles` (retrospective classification — project overrides irrelevant). `effectiveModelRoles`
+      in `RUNTIME_CONFIG_DERIVED_FIELD_KEYS` + `Omit<RuntimeConfigState,...>`; `modelRolesOverride` in
+      `RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS`. New override test + all fixtures patched. **Phase 1 backend COMPLETE.**
+      Remaining: UI `OverrideToggle` for nested fields (`modelRoles`, `agentRulesets`, `codeEmbedding`).
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.

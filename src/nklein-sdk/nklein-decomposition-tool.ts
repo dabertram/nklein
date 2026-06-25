@@ -1159,7 +1159,7 @@ async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				baseRef,
 				randomUuid: randomUUID,
 				sourceTaskId: input.sourceTaskId,
-				modelRoleSettings: runtimeConfig?.modelRoles,
+				modelRoleSettings: runtimeConfig?.effectiveModelRoles,
 				sharedContext: input.sharedContext,
 			});
 			return {

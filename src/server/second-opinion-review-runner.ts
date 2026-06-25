@@ -137,7 +137,7 @@ export async function runSecondOpinionReviewForTask(
 		return { type: "skipped", reason: "card_not_found" };
 	}
 	const { card, columnId } = located;
-	const reviewerRole = config.modelRoles?.reviewer ?? null;
+	const reviewerRole = config.effectiveModelRoles?.reviewer ?? null;
 	const reviewer =
 		reviewerRole?.providerId && reviewerRole.modelId
 			? { providerId: reviewerRole.providerId, modelId: reviewerRole.modelId }

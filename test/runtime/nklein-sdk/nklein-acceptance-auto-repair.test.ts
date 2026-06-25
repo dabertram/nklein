@@ -125,6 +125,14 @@ function createRuntimeConfigState(): RuntimeConfigState {
 				reasoningEffort: "high",
 			},
 		},
+		modelRolesOverride: null,
+		effectiveModelRoles: {
+			reviewer: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet",
+				reasoningEffort: "high",
+			},
+		},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],

@@ -55,6 +55,10 @@ function createRuntimeConfig(): RuntimeConfigState {
 		modelRoles: {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
 		},
+		modelRolesOverride: null,
+		effectiveModelRoles: {
+			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
+		},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],

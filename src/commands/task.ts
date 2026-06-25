@@ -182,7 +182,7 @@ async function buildDecompositionRoutingCandidates(
 		// A workspace without a runnable default NKlein provider can still decompose from explicit role models.
 	}
 
-	for (const [role, settings] of Object.entries(runtimeConfig.modelRoles)) {
+	for (const [role, settings] of Object.entries(runtimeConfig.effectiveModelRoles)) {
 		if (!settings.providerId && !settings.modelId) {
 			continue;
 		}
@@ -549,7 +549,7 @@ async function decomposeTaskGraph(input: {
 				taskGraph: artifacts.taskGraph,
 				baseRef: resolvedBaseRef,
 				randomUuid: () => globalThis.crypto.randomUUID(),
-				modelRoleSettings: runtimeConfig.modelRoles,
+				modelRoleSettings: runtimeConfig.effectiveModelRoles,
 				routingCandidates,
 				sharedContext: {
 					spec: artifacts.spec,
@@ -709,7 +709,7 @@ export async function runVerifyTaskAcceptanceCommand(
 				acceptance: result,
 				attempt: input.repairAttempt ?? 1,
 				maxAttempts: input.maxRepairAttempts,
-				modelRoles: (await (deps.loadRuntimeConfig ?? loadRuntimeConfig)(workspaceRepoPath)).modelRoles,
+				modelRoles: (await (deps.loadRuntimeConfig ?? loadRuntimeConfig)(workspaceRepoPath)).effectiveModelRoles,
 			});
 	const acceptancePlanGap = !ok
 		? classifyAcceptanceFailurePlanGap({

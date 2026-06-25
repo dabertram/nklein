@@ -1915,6 +1915,8 @@ export const runtimeConfigResponseSchema = z.object({
 	shortcuts: z.array(runtimeProjectShortcutSchema),
 	nkleinProviderSettings: runtimeNKleinProviderSettingsSchema,
 	modelRoles: runtimeModelRolesSchema,
+	modelRolesOverride: runtimeModelRolesSchema.nullable().optional(),
+	effectiveModelRoles: runtimeModelRolesSchema.optional(),
 	// Optional during rollout: the runtime omits it until the config loader populates it (consumers default to
 	// DEFAULT_AGENT_RULESETS_CONFIG). See src/core/agent-rulesets.ts.
 	agentRulesets: agentRulesetsConfigSchema.optional(),
@@ -1959,6 +1961,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
+	modelRolesOverride: runtimeModelRolesSchema.nullable().optional(),
 	agentRulesets: agentRulesetsConfigSchema.optional(),
 	agentRulesetsOverride: agentRulesetsConfigSchema.nullable().optional(),
 	swarmGuardrails: runtimeSwarmGuardrailsSchema.optional(),

@@ -383,6 +383,8 @@ function createRuntimeConfigState(): RuntimeConfigState {
 			baseUrl: null,
 		},
 		modelRoles: {},
+		modelRolesOverride: null,
+		effectiveModelRoles: {},
 		agentRulesetsOverride: null,
 		swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 		shortcuts: [],
@@ -1375,6 +1377,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						reasoningEffort: "high",
 					},
 				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
@@ -1453,6 +1456,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						reasoningEffort: "high",
 					},
 				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
@@ -1529,6 +1533,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						reasoningEffort: "high",
 					},
 				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
@@ -1606,6 +1611,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						modelId: "small-model",
 					},
 				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
@@ -3513,6 +3519,7 @@ describe("createRuntimeApi startTaskSession", () => {
 						modelId: "remote-role",
 					},
 				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
 				return runtimeConfigState;
 			}),
 			setActiveRuntimeConfig: vi.fn(),
