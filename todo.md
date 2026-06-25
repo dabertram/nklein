@@ -190,8 +190,14 @@ deep analysis:
 >   the linchpin precondition, not just "more coverage."
 > - **§5.B:** Planning→In-Progress promotion = an **explicit tool the agent calls** when the plan still holds (else it
 >   replans/decomposes). **Always refine, no skip-guard.** Every started card routes through Planning/Refinement first.
-> - **Defaults:** **hard-flip both now** — native NKlein agent core = default runtime (SDK host = fallback path only),
->   core-py = on by default. No silent fallback; clear error if genuinely unavailable.
+> - **Defaults (RESOLVED 2026-06-25 clarification pass): "build the prereqs now, then flip".** Hard-flipping today would
+>   break the runtime (native-core `src/agent-core/` isn't wired into task execution; core-py isn't bundled/auto-started),
+>   so this is an **active workstream → §5.H**: (1) integrate `src/agent-core/` into the runtime/session execution path;
+>   (2) bundle core-py + auto-start it on launch; (3) THEN hard-flip both (native core = default runtime, core-py = on),
+>   no silent fallback, clear error if unavailable. NOT a flag-flip — build first.
+> - **More clarification-pass answers (2026-06-25):** **§5.X port = plan now, build after §5.V** (§5.V is the gating
+>   precondition); **autonomous chat agent (§5.M) = promote to ACTIVE now**; **§5.J look & feel = defer indefinitely**
+>   (no mockups now).
 > - **Testing:** two layers — fast deterministic gate + real live-model/Docker punch-through e2e (new dev-test
 >   projects covering all use cases + all chat functions + deep UI/UX path coverage). No CI infra yet → run the full
 >   suite incl. slow e2e periodically and keep green. (New §5.V below.)
@@ -208,10 +214,11 @@ deep analysis:
         in the chat send loop → persist a running token total on the session record (or per message) → expose in the
         schema/broadcast → render where the `buildSessionMeta` comment marks the spot. Cheap once usage is tracked.
   - [ ] **Later:** generated session title via embedding/LLM (replaces the literal "New chat").
-- [ ] **Autonomous chat agent (follow-up, later)** *(2026-06-25, user)* — the right-sidebar chat agent should do **real
-      autonomous work**: focus chain, memory, tools, knowledge fetching, browser, etc. — like Cline but stronger, and
-      able to use the project/card/task structure in the background (work an existing project or create a new one). Big
-      follow-up; not now.
+- [ ] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the
+      right-sidebar chat agent should do **real autonomous work**: focus chain, memory, tools, knowledge fetching,
+      browser, etc. — like Cline but stronger, and able to use the project/card/task structure in the background (work an
+      existing project or create a new one). Build it soon, in parallel with the test/refactor work (was "later"; the
+      user promoted it). Likely builds on the existing §5.M chat agent loop + the §5.N focus chain + the tool suite.
 - [ ] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
       [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
 
@@ -1627,6 +1634,33 @@ deep analysis:
       isolation status/pool UI, project-settings menu. Pair with §5.W.
 - [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
 
+> **Test-oracle design (2026-06-25, read-only design pass) — the concrete, parallelizable build plan.** Maps the
+> port-resilient seams (tRPC/HTTP contract = ~88 procedures in [app-router.ts](src/trpc/app-router.ts); CLI; on-disk
+> formats `board.json`/`board-crdt.json`/`task-graph.json`/sessions; Docker boundary; web-ui). **Current state:** of ~176
+> backend test files only ~10–15 are seam-level (port-resilient); ~160 are TS-internal (would need rewriting for a Python
+> backend) — keep them as fast TS regression guards but they do NOT count toward the port oracle. All 85 web-ui tests +
+> the `verify-*.mts` live harnesses are port-resilient. **The biggest single unblock:** extract `startKanbanServer` +
+> `requestJson` + `connectRuntimeStream` from [runtime-state-stream.integration.test.ts](test/integration/runtime-state-stream.integration.test.ts)
+> into `test/contract/helpers/` — it's the template every new contract suite copies. **Backend-under-test abstraction:** a
+> `BackendFactory` (`startTsBackend` now / `startPythonBackend` later) selected by env var, so the SAME suite validates
+> either backend; contract tests import NOTHING from `src/` (drive HTTP/WS/CLI/on-disk only; validate against JSON-Schema
+> fixtures, not imported Zod). **13 landable suites (each a disjoint file → a separate authoring agent):**
+- [ ] **§5.V infra: extract `test/contract/helpers/`** (server spawn + HTTP + WS clients + `test/contract/fixtures/` board/plan-graph + `workspace-seeder`). Unblocks all suites below. **DO THIS FIRST.**
+- [ ] **Suite 1 — HTTP contract: tRPC core CRUD + state stream** (`test/contract/trpc-core-contract.test.ts`) — projects/workspace/config/swarm/plan-artifact procedures over raw HTTP; assert status + Zod-shape + on-disk. Fast-gate.
+- [ ] **Suite 2 — HTTP contract: plan-artifact pipeline** (`test/contract/plan-artifact-pipeline-contract.test.ts`) — list→apply→reject over HTTP + on-disk plan format.
+- [ ] **Suite 3 — CLI + WS task lifecycle** (`test/contract/task-lifecycle-contract.test.ts`) — `nklein task` create/list/update/done/trash/delete subprocess + WS board events.
+- [ ] **Suite 4 — Planning lane + promotion + review pipeline** (`test/contract/planning-review-pipeline-contract.test.ts`) — backlog→planning reconcile (WS) → `begin_implementation` → in_progress → verify/merge → completed. **Covers the §5.B lane just built.**
+- [ ] **Suite 5 — Chat HTTP + streaming** (`test/contract/chat-contract.test.ts`) — chat CRUD + `streamMessage` WS token/done, stub LLM.
+- [ ] **Suite 6 — On-disk format parity** (`test/contract/on-disk-formats.test.ts`) — hand-crafted JSON fixtures parse via `loadWorkspaceState`/`readNKleinPlanArtifacts`; round-trip; CRDT migration. **No server needed; the cross-language convergence point — do early.**
+- [ ] **Suite 7 — Playwright: plan-artifact review panel** (`web-ui/tests/plan-artifact-review.spec.ts`) — `pending-plan-artifacts-panel` + `planning-dag-review-panel` (currently zero coverage; critical for the §5.B pipeline).
+- [ ] **Suite 8 — Playwright: settings + per-project config** (`web-ui/tests/settings.spec.ts`) — guardrails save, provider/MCP dialogs, per-project override.
+- [ ] **Suite 9 — Playwright: second-opinion review + recovery actions** (`web-ui/tests/review-recovery.spec.ts`).
+- [ ] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`) — LM Studio + Docker; asserts each phase via HTTP/WS, no host-path leaks. After suites 1–4 green.
+- [ ] **Suite 11 — Core-py contract parity** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X.
+- [ ] **Suite 12 — CLI task subcommands** (`test/contract/cli-task-subcommands.test.ts`) — start/plan-gap/decompose/verify/swarm-stop/resume.
+- [ ] **Suite 13 — Smoothness/perf** (`test/contract/server-responsiveness.test.ts`) — startup time, `loadState`/`list` P99 latency bounds, WS snapshot latency.
+- [ ] **Build order:** helpers + Suite 6 → Suites 1 & 5 & 11 (parallel) → Suites 2/3/4/12 (parallel) → Suites 7/8/9/13 (parallel) → Suite 10. **The refactor (§5.X Phase 1) may start once Suites 1+5+6 (+11) are green** (a baseline contract oracle); each later suite gates the workflow it covers. **Standing rule: every new feature gets BOTH a TS-internal unit test AND an HTTP-level contract test** — the contract test is the one that survives the port.
+
 ### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
 - [x] **Feature-vs-UI audit (2026-06-25, subagent)** — cataloged all 29 runtime-config fields (26 exposed / 3 config-only),
       CLI commands, agent/plan actions, and global-vs-project scoping. Concrete gaps to close below.
@@ -1668,7 +1702,13 @@ deep analysis:
 > Docker boundaries — see §5.V). Do **not** start the structural refactor or any port before that net is real and green.
 > The whole arc is behavior-preserving: externally-observable behavior stays identical; only the internal structure
 > (and possibly the implementation language of the backend) changes.
-- [ ] **Phase 0 — land §5.V** (the port-resilient test oracle). Blocks everything below.
+>
+> **RESOLVED (2026-06-25 clarification pass): "plan now, build after §5.V".** Design the port (strangler-fig behind the
+> §5.V contract oracle; web-ui stays TS; shared schemas generated from one source; agent-runtime port is the long pole,
+> staged last or bridged) AND do the Phase 1 TS-internal refactor **now**; do **not** start the actual Python port until
+> the §5.V net is green. So Phase 2 is no longer "decision required" on *whether* to plan — it's planned; the remaining
+> user decision is the final port scope/shape once §5.V is green (options staged below).
+- [ ] **Phase 0 — land §5.V** (the port-resilient test oracle). Blocks everything below. **← the gating linchpin.**
 - [ ] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
       monoliths (`nklein-task-session-service` ~3800, `runtime-server`, `nklein-decomposition-tool`, `workspace-state`,
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
@@ -1693,11 +1733,12 @@ deep analysis:
       by shrinking the `@nkleinbot/*` coupling first).
 
 ### 5.J — LATER (deferred by decision)
-- LATER follow-up: **Distinct look & feel from the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual
-  identity a bit different from the fork's inherited look. **Nothing fancy** — the current look is great; the user just
-  wants it to read as at least slightly its own (not a re-skin project). **Details TBD with the user** (palette accents?
-  density? typography? iconography? empty-states?) — clarify scope before touching the design tokens
-  (`globals.css @theme`) / component styling. Keep the dark-theme + Tailwind-token system.
+- **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
+  the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual identity a bit different from the fork's
+  inherited look. The current look is great; revisit the distinct-identity restyle much later. **Do NOT produce restyle
+  mockups now.** (When revisited: refined/modern/professional dark, Linear/Raycast restraint; I mock 2-3 directions, user
+  picks; keep the dark-theme + Tailwind-token system; clarify palette/density/typography scope before touching
+  `globals.css @theme`.)
 - LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
   + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
 - LATER: **Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify

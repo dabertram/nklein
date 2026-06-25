@@ -74,17 +74,27 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   port the agent-runtime last or keep it as a bridged service. **Nothing starts until §5.V is real + green.** Low-effort
   for the user to finalize: pick the Phase-2 scope/shape from the staged options (or say "Phase 1 only for now").
 
+## Clarification pass (2026-06-25, user answers — these are DECISIONS, not autonomous)
+- **§5.X deep refactor / Python port = "plan now, build after §5.V".** Design the port (strangler-fig behind the
+  contract oracle, web-ui stays TS, shared schemas) AND do the TS-internal deep refactor (Phase 1) now; do not START the
+  actual Python port until the §5.V port-resilient test net is green. → §5.V is the gating linchpin.
+- **Defaults = "build the prereqs now, then flip"** (see the resolved contradiction above). Active workstream.
+- **Autonomous chat agent (§5.M) = "promote to active now".** Build the real autonomous chat agent (focus chain, memory,
+  tools, knowledge fetch, browser) soon, in parallel with the test/refactor work — no longer a "later" follow-up.
+- **Look & feel (§5.J) = "defer indefinitely".** Current look is fine; do NOT produce restyle mockups now. §5.J parked.
+
 ## Autonomous decisions (below the escalation bar)
 - **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
   explicit > inferring from turn-end, robust against weak local models (parse-and-recover principle). Low rework.
-- **(2026-06-25) ⚠️ CONTRADICTION — defaults "hard flip both now" NOT done; deferred.** The user decided to hard-flip
-  native-agent-core=default + core-py=on now (no fallback). But these are **not flag-flips**: per §5.H's own engineering
-  note + the unchecked prereqs, (a) the native core `src/agent-core/` is **not imported by any runtime/session code yet**
-  (the native-core→task-execution integration is unbuilt) — flipping the default points the runtime at nothing; (b)
-  core-py default-on needs the sidecar **bundled + auto-started** first, and "default-on, no fallback" before that would
-  hard-fail every task. Hard-flipping now would BREAK the runtime — counter to "never run blindly into the dark." So:
-  sensible default = **do NOT flip**; these become the §5.H prerequisite workstream. **Needs the user** to decide:
-  build the (large) prereqs now, or keep both opt-in until then. Flagged to the user in-session; revisit at the end-review.
+- **(2026-06-25) ✅ RESOLVED — defaults contradiction → "build the prereqs now, then flip".** I flagged that hard-flipping
+  native-agent-core=default + core-py=on **now** would BREAK the runtime: (a) the native core `src/agent-core/` is not
+  imported by any runtime/session code yet (the native-core→task-execution integration is unbuilt); (b) core-py
+  default-on needs the sidecar bundled + auto-started first. **Clarification-pass answer (user):** *build the prereqs
+  now, then flip.* So this becomes an **active high-priority workstream** (no longer deferred): (1) wire `src/agent-core/`
+  into the runtime/session execution path so a task can actually run on the native core; (2) bundle core-py + auto-start
+  it on runtime launch; (3) THEN hard-flip both defaults (no silent fallback; clear error if genuinely unavailable). Note
+  the coupling with §5.X: the user also chose "plan the Python port now, build after §5.V" — so the native-core (TS) work
+  proceeds now, and whether it is later superseded by the port is a §5.X-time question, not a reason to delay the flip now.
 - **(2026-06-25) Orchestration of the first parallel batch:** chat-polish (web-ui) delegated to a worktree subagent;
   feature/UI exposure audit delegated to a read-only Explore subagent; the risky **defaults hard-flip** kept by me
   (needs runtime verify). Disjoint file sets, so no collisions.
