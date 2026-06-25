@@ -793,8 +793,15 @@ deep analysis:
 >         (`scripts/verify-chat-command-exec.mts`, qwen3-8b): the agent ran `cat MARKER.txt` and its reply echoed the
 >         marker — only possible if the command genuinely executed and its output flowed back. Runtime execution proven,
 >         not just mocked.
->   - [ ] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent** (`chat-service.sendMessage`/`streamMessage`
->         currently call the plain `runChatTurn`) — the biggest gap: the agent the user actually means can't call ANY
+>   - [~] **G3 — wire the TOOL-USING loop into the web-ui right-sidebar agent.** ✅ **G3a backend (merged)** + ✅ **Wave-2b
+>         scope-driven resolver (2026-06-25, solo):** `buildChatAgentToolDepsResolver` (runtime-api) now maps the session
+>         **scope → execution mode + tool set** — chat_only→`isolated_readonly` (read-only floor), current/all→
+>         `sandbox_with_host_escape`, host→`host`; every session gets read tools + `get_board` + **`update_focus_chain`**
+>         (G4, always), and **can-act scopes also get `create_card`** (G5, gated `control_plane`); `readFocusChain` threads
+>         into the turn. Contract 77/77 (Suite 5 unaffected — its sessions have no active workspace → plain path). **STILL
+>         TODO (wave-2b cont.):** the `chat-only·current·all·host` **scope selector UI** + the **G3b risk-ack confirm UI**
+>         (to safely offer `run_command` in the web-ui — held until the confirm dialog exists). Original gap context:
+>         (`chat-service.sendMessage`/`streamMessage` once called the plain `runChatTurn`) — the biggest gap: the agent the user actually means couldn't call ANY
 >         tool today. Route it through `runChatAgentTurn` + the gated executor + the session's scope/mode. **DIRECTION
 >         (2026-06-25, user answers — DECISIONS):**
 >         - **Scope-DRIVEN, not a new default — the selector already exists.** The chat session `scope` is the control:

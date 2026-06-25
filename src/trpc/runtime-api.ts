@@ -11,7 +11,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import type { ChatAgentModelResponse } from "../chat/chat-agent-loop";
-import { createBoardReadTools } from "../chat/chat-board-tools";
+import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
+import type { ChatExecutionMode } from "../chat/chat-execution-mode";
+import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
 import { type ChatAgentToolDeps, type ChatService, createChatService } from "../chat/chat-service";
@@ -410,16 +412,29 @@ function buildChatAgentToolDepsResolver(input: {
 		}
 		// LocalLlmClient fails closed against cloud (invariant #1) in its constructor.
 		const client = new LocalLlmClient({ providerId: DEFAULT_LOCAL_CHAT_PROVIDER_ID, modelId, baseUrl });
+		// Scope-driven capability (§5.M permission model). The session scope is the control: "chat only" is the
+		// read-only floor; current/all-projects/host can act. Map scope → the execution mode the gate enforces.
+		// read_file/list_dir/get_board/update_focus_chain are always offered (sandbox_read = always allowed);
+		// create_card (control_plane) is offered only to can-act scopes (the gate denies it in isolated_readonly anyway).
+		// run_command stays OUT of the web-ui agent until an interactive confirm UI exists (host_command needs a
+		// per-action confirmation the web-ui doesn't yet provide, so it would always be denied here).
+		const mode: ChatExecutionMode =
+			session.scope === "chat_only"
+				? "isolated_readonly"
+				: session.scope === "host_access"
+					? "host"
+					: "sandbox_with_host_escape";
+		const canAct = session.scope !== "chat_only";
 		const read = createWorkspaceReadTools(workspacePath);
 		const board = createBoardReadTools(workspacePath);
-		const tools = [...read.tools, ...board.tools];
-		const definitions = [...read.definitions, ...board.definitions];
+		const focus = createFocusChainTools(session.id);
+		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
+		const tools = [...read.tools, ...board.tools, ...focus.tools, ...mutations.tools];
+		const definitions = [...read.definitions, ...board.definitions, ...focus.definitions, ...mutations.definitions];
 
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
-			// "chat only" read-only floor: isolated_readonly gates every read as always-allowed and would deny any
-			// host/mutating tool (none are offered here). Audited like the CLI.
-			mode: "isolated_readonly",
+			mode,
 			tools,
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
@@ -442,7 +457,12 @@ function buildChatAgentToolDepsResolver(input: {
 			return toolModel(messages, allowTools);
 		};
 
-		return { model, executeTool, appendToolExchange: appendChatToolExchange };
+		return {
+			model,
+			executeTool,
+			appendToolExchange: appendChatToolExchange,
+			readFocusChain: (sessionId: string) => readChatFocusChain(sessionId),
+		};
 	};
 }
 

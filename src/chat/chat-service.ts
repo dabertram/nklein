@@ -34,7 +34,10 @@ import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
  * from the concrete tool infrastructure — it only consumes this injected shape (the live wiring in `runtime-api`
  * builds the read-only tools + gated executor + agent model and supplies them).
  */
-export type ChatAgentToolDeps = Pick<ChatAgentTurnDeps, "model" | "executeTool" | "appendToolExchange">;
+export type ChatAgentToolDeps = Pick<
+	ChatAgentTurnDeps,
+	"model" | "executeTool" | "appendToolExchange" | "readFocusChain"
+>;
 
 export interface ChatServiceOptions {
 	/** Base directory for all chat stores; each store lives in its own subdir. Omit for the real runtime home. */
