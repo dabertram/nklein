@@ -1452,6 +1452,333 @@ function OverrideRow({
 	);
 }
 
+interface ModelRolesEditorProps {
+	value: RuntimeModelRoles;
+	onChange: React.Dispatch<React.SetStateAction<RuntimeModelRoles>>;
+	disabled: boolean;
+	nkleinProviderId: string;
+	providerCatalog: RuntimeNKleinProviderCatalogItem[];
+	providerModels: RuntimeNKleinProviderModel[];
+	isLoadingProviderModels: boolean;
+	modelRoleModelsByProviderId: Record<string, RuntimeNKleinProviderModel[]>;
+	loadingModelRoleProviderIds: Record<string, boolean>;
+	cloudProviderSupportEnabled: boolean;
+}
+
+function ModelRolesEditor({
+	value,
+	onChange,
+	disabled,
+	nkleinProviderId,
+	providerCatalog,
+	providerModels,
+	isLoadingProviderModels,
+	modelRoleModelsByProviderId,
+	loadingModelRoleProviderIds,
+	cloudProviderSupportEnabled,
+}: ModelRolesEditorProps): React.ReactElement {
+	const getProviderModels = (providerId: string): RuntimeNKleinProviderModel[] => {
+		const normalizedProviderId = normalizeProviderId(providerId || nkleinProviderId);
+		if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
+			return providerModels;
+		}
+		return modelRoleModelsByProviderId[normalizedProviderId] ?? [];
+	};
+
+	const isProviderLoading = (providerId: string): boolean => {
+		const normalizedProviderId = normalizeProviderId(providerId || nkleinProviderId);
+		if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
+			return isLoadingProviderModels;
+		}
+		return loadingModelRoleProviderIds[normalizedProviderId] === true;
+	};
+
+	const getContextWarning = (roleId: ModelRoleId): string | null => {
+		const roleSettings = value[roleId] ?? {};
+		const roleProviderId = roleSettings.providerId ?? "";
+		const effectiveProviderId = roleProviderId || nkleinProviderId;
+		const providerDefaultModelId = roleProviderId
+			? (findProviderCatalogItem(providerCatalog, roleProviderId)?.defaultModelId?.trim() ?? "")
+			: "";
+		const effectiveModelId = roleSettings.modelId?.trim() || providerDefaultModelId;
+		if (!effectiveModelId) {
+			return null;
+		}
+		const roleModels = getProviderModels(effectiveProviderId);
+		return getNKleinModelContextWindowWarning({
+			model: findNKleinProviderModel(roleModels, effectiveModelId),
+			modelId: effectiveModelId,
+			label: `${MODEL_ROLE_LABELS[roleId]} model`,
+		});
+	};
+
+	const getAvailabilityWarning = (roleId: ModelRoleId): string | null => {
+		const roleSettings = value[roleId] ?? {};
+		const roleProviderId = roleSettings.providerId ?? "";
+		const effectiveProviderId = roleProviderId || nkleinProviderId;
+		if (!isLmStudioProviderId(effectiveProviderId)) {
+			return null;
+		}
+		const roleModelId = roleSettings.modelId?.trim() ?? "";
+		if (roleProviderId && !roleModelId) {
+			return `${MODEL_ROLE_LABELS[roleId]} role uses LM Studio. Choose a loaded LM Studio model before saving.`;
+		}
+		if (!roleModelId) {
+			return null;
+		}
+		const roleModels = getProviderModels(effectiveProviderId);
+		if (findNKleinProviderModel(roleModels, roleModelId)) {
+			return null;
+		}
+		return `${MODEL_ROLE_LABELS[roleId]} model "${roleModelId}" is not loaded in LM Studio. Load it, refresh models, then choose it before saving.`;
+	};
+
+	const handleProviderChange = (roleId: ModelRoleId, providerValue: string) => {
+		const trimmedProviderId = providerValue.trim();
+		const defaultModelId = trimmedProviderId
+			? findProviderCatalogItem(providerCatalog, trimmedProviderId)?.defaultModelId?.trim()
+			: undefined;
+		onChange((prev) => {
+			const next = { ...prev };
+			const currentReasoningEffort = prev[roleId]?.reasoningEffort;
+			if (!trimmedProviderId) {
+				if (currentReasoningEffort) {
+					next[roleId] = { reasoningEffort: currentReasoningEffort };
+				} else {
+					delete next[roleId];
+				}
+				return next;
+			}
+			next[roleId] = {
+				...prev[roleId],
+				providerId: trimmedProviderId,
+				...(!isLmStudioProviderId(trimmedProviderId) && defaultModelId ? { modelId: defaultModelId } : {}),
+			};
+			if (!defaultModelId || isLmStudioProviderId(trimmedProviderId)) {
+				delete next[roleId].modelId;
+			}
+			return next;
+		});
+	};
+
+	const handleModelChange = (roleId: ModelRoleId, modelValue: string) => {
+		const trimmedModelId = modelValue.trim();
+		onChange((prev) => {
+			const nextRole = { ...prev[roleId] };
+			if (trimmedModelId) {
+				nextRole.modelId = trimmedModelId;
+			} else {
+				delete nextRole.modelId;
+			}
+			return { ...prev, [roleId]: nextRole };
+		});
+	};
+
+	const handlePoolToggle = (roleId: ModelRoleId, providerId: string, modelId: string) => {
+		onChange((prev) => {
+			const nextRole = { ...prev[roleId] };
+			const existing = nextRole.additionalModels ?? [];
+			const isInPool = existing.some((entry) => entry.modelId === modelId);
+			const additionalModels = isInPool
+				? existing.filter((entry) => entry.modelId !== modelId)
+				: [...existing, { ...(providerId ? { providerId } : {}), modelId }];
+			if (additionalModels.length > 0) {
+				nextRole.additionalModels = additionalModels;
+			} else {
+				delete nextRole.additionalModels;
+			}
+			return { ...prev, [roleId]: nextRole };
+		});
+	};
+
+	const handleReasoningChange = (roleId: ModelRoleId, reasoningValue: RuntimeNKleinReasoningEffort | "inherit") => {
+		onChange((prev) => {
+			const nextRole = { ...prev[roleId] };
+			if (reasoningValue === "inherit") {
+				delete nextRole.reasoningEffort;
+			} else {
+				nextRole.reasoningEffort = reasoningValue;
+			}
+			return { ...prev, [roleId]: nextRole };
+		});
+	};
+
+	const handleResetRole = (roleId: ModelRoleId) => {
+		onChange((prev) => {
+			const next = { ...prev };
+			delete next[roleId];
+			return next;
+		});
+	};
+
+	const visibleProviderCatalog = filterVisibleNKleinProviderCatalog(providerCatalog, cloudProviderSupportEnabled);
+
+	return (
+		<div className="grid gap-3">
+			{MODEL_ROLE_IDS.map((roleId) => {
+				const roleSettings = value[roleId] ?? {};
+				const roleProviderId = roleSettings.providerId ?? "";
+				const effectiveProviderId = roleProviderId || nkleinProviderId;
+				const roleProvider = roleProviderId ? findProviderCatalogItem(providerCatalog, roleProviderId) : null;
+				const roleProviderIsVisibleLocal = roleProvider !== null && isVisibleLocalNKleinProvider(roleProvider);
+				const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
+				const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
+				const roleModels = getProviderModels(effectiveProviderId);
+				const selectedRoleModelId = roleSettings.modelId ?? "";
+				const selectedRoleModel = roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
+				const selectedRoleModelLabel = selectedRoleModel
+					? formatModelOptionLabel(selectedRoleModel)
+					: selectedRoleModelId || undefined;
+				const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
+				const hasSelectedRoleModel =
+					selectedRoleModelId.length > 0 &&
+					!isLmStudioRoleProvider &&
+					!roleModels.some((model) => model.id === selectedRoleModelId);
+				const isRoleProviderLoading = isProviderLoading(effectiveProviderId);
+				const hasRoleOverride = Object.keys(roleSettings).length > 0;
+				const shouldHideLegacyCloudRoleProvider =
+					!cloudProviderSupportEnabled && (!roleProviderIsVisibleLocal || isKnownCloudProviderId(roleProviderId));
+				const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider ? "" : roleProviderId;
+				const roleAvailabilityWarning = getAvailabilityWarning(roleId);
+				const roleContextWarning = getContextWarning(roleId);
+				return (
+					<div key={roleId} className="grid gap-1">
+						<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
+							<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
+								{MODEL_ROLE_LABELS[roleId]}
+							</div>
+							<label className="min-w-0" htmlFor={providerSelectId}>
+								<span className="mb-1 block text-[12px] text-text-secondary">Provider</span>
+								<NativeSelect
+									id={providerSelectId}
+									fill
+									value={displayedRoleProviderId}
+									onChange={(event) => handleProviderChange(roleId, event.target.value)}
+									disabled={disabled}
+								>
+									<option value="">Default</option>
+									{roleProvider &&
+									roleProviderIsVisibleLocal &&
+									!shouldHideLegacyCloudRoleProvider &&
+									!visibleProviderCatalog.some((provider) => provider.id === roleProviderId) ? (
+										<option value={roleProviderId}>{roleProviderId}</option>
+									) : null}
+									{visibleProviderCatalog.map((provider) => (
+										<option key={provider.id} value={provider.id}>
+											{formatProviderOptionLabel(provider)}
+										</option>
+									))}
+									{roleProviderId &&
+									!shouldHideLegacyCloudRoleProvider &&
+									!roleProvider &&
+									!visibleProviderCatalog.some((provider) => provider.id === roleProviderId) ? (
+										<option value={roleProviderId}>{roleProviderId}</option>
+									) : null}
+								</NativeSelect>
+							</label>
+							<label className="min-w-0" htmlFor={modelSelectId}>
+								<span className="mb-1 block text-[12px] text-text-secondary">Model</span>
+								<NativeSelect
+									id={modelSelectId}
+									fill
+									value={selectedRoleModelId}
+									title={selectedRoleModelLabel}
+									onChange={(event) => handleModelChange(roleId, event.target.value)}
+									disabled={disabled || isRoleProviderLoading}
+								>
+									<option value="">
+										{isRoleProviderLoading
+											? "Loading models..."
+											: isLmStudioRoleProvider && roleModels.length === 0
+												? "No loaded LM Studio models"
+												: "Default"}
+									</option>
+									{hasSelectedRoleModel ? (
+										<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
+									) : null}
+									{roleModels.map((model) => (
+										<option key={model.id} value={model.id}>
+											{formatModelOptionLabel(model)}
+										</option>
+									))}
+								</NativeSelect>
+							</label>
+							<div className="min-w-0">
+								<span className="mb-1 block text-[12px] text-text-secondary">Reasoning</span>
+								<NativeSelect
+									fill
+									value={roleSettings.reasoningEffort ?? "inherit"}
+									onChange={(event) =>
+										handleReasoningChange(
+											roleId,
+											event.target.value as RuntimeNKleinReasoningEffort | "inherit",
+										)
+									}
+									disabled={disabled}
+								>
+									{REASONING_EFFORT_OPTIONS.map((option) => (
+										<option key={option} value={option}>
+											{option === "inherit" ? "Default" : option}
+										</option>
+									))}
+								</NativeSelect>
+							</div>
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={<X size={14} />}
+								aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
+								disabled={disabled || !hasRoleOverride}
+								onClick={() => {
+									handleResetRole(roleId);
+								}}
+							/>
+						</div>
+						{roleModels.length > 1 ? (
+							<div className="lg:ml-[118px]">
+								<span className="mb-1 block text-[11px] text-text-tertiary">
+									Additional models — pool; tasks fan out across the free ones
+								</span>
+								<div className="flex flex-wrap gap-1">
+									{roleModels
+										.filter((model) => model.id !== selectedRoleModelId)
+										.map((model) => {
+											const inPool = (roleSettings.additionalModels ?? []).some(
+												(entry) => entry.modelId === model.id,
+											);
+											return (
+												<button
+													type="button"
+													key={model.id}
+													disabled={disabled}
+													onClick={() => handlePoolToggle(roleId, roleProviderId, model.id)}
+													className={cn(
+														"rounded border px-1.5 py-0.5 text-[11px] transition-colors disabled:opacity-50",
+														inPool
+															? "border-accent bg-accent/15 text-text-primary"
+															: "border-border bg-surface-2 text-text-secondary hover:bg-surface-3",
+													)}
+												>
+													{formatModelOptionLabel(model)}
+												</button>
+											);
+										})}
+								</div>
+							</div>
+						) : null}
+						{roleAvailabilityWarning ? (
+							<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">{roleAvailabilityWarning}</p>
+						) : null}
+						{!roleAvailabilityWarning && roleContextWarning ? (
+							<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">{roleContextWarning}</p>
+						) : null}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
 export function RuntimeSettingsDialog({
 	open,
 	workspaceId,
@@ -1526,6 +1853,8 @@ export function RuntimeSettingsDialog({
 	const [selectedAgentIdOverride, setSelectedAgentIdOverride] = useState<RuntimeAgentId | null>(null);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
+	const [modelRolesOverride, setModelRolesOverride] = useState<RuntimeModelRoles | null>(null);
+	const [agentRulesetsOverride, setAgentRulesetsOverride] = useState<AgentRulesetsConfigPayload | null>(null);
 	const [modelPerformanceStatsOpen, setModelPerformanceStatsOpen] = useState(false);
 	const [modelRoleModelsByProviderId, setModelRoleModelsByProviderId] = useState<
 		Record<string, RuntimeNKleinProviderModel[]>
@@ -1675,6 +2004,14 @@ export function RuntimeSettingsDialog({
 		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
 		[config?.agentRulesets],
 	);
+	const initialModelRolesOverride = useMemo(
+		() => (config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null),
+		[config?.modelRolesOverride],
+	);
+	const initialAgentRulesetsOverride = useMemo(
+		() => config?.agentRulesetsOverride ?? null,
+		[config?.agentRulesetsOverride],
+	);
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
 	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
 	const nkleinSettings = useRuntimeSettingsNKleinController({
@@ -1689,10 +2026,6 @@ export function RuntimeSettingsDialog({
 		selectedAgentId,
 		liveAuthStatuses: liveMcpAuthStatuses,
 	});
-	const visibleNKleinProviderCatalog = useMemo(
-		() => filterVisibleNKleinProviderCatalog(nkleinSettings.providerCatalog, cloudProviderSupportEnabled),
-		[nkleinSettings.providerCatalog, cloudProviderSupportEnabled],
-	);
 	const suggestedCodeEmbeddingBaseUrl = useMemo(
 		() =>
 			buildSuggestedCodeEmbeddingBaseUrl({
@@ -1917,6 +2250,16 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (
+			(modelRolesOverride === null) !== (initialModelRolesOverride === null) ||
+			(modelRolesOverride !== null &&
+				serializeModelRoles(modelRolesOverride) !== serializeModelRoles(initialModelRolesOverride ?? {}))
+		) {
+			return true;
+		}
+		if (JSON.stringify(agentRulesetsOverride) !== JSON.stringify(initialAgentRulesetsOverride)) {
+			return true;
+		}
+		if (
 			normalizeTemplateForComparison(commitPromptTemplate) !==
 			normalizeTemplateForComparison(initialCommitPromptTemplate)
 		) {
@@ -1973,6 +2316,10 @@ export function RuntimeSettingsDialog({
 		initialSelectedAgentIdOverride,
 		maxConcurrentTasksOverride,
 		selectedAgentIdOverride,
+		modelRolesOverride,
+		agentRulesetsOverride,
+		initialModelRolesOverride,
+		initialAgentRulesetsOverride,
 		initialTaskDefaultAutoReviewEnabled,
 		initialTaskDefaultAutoReviewMode,
 		initialTaskDefaultStartInPlanMode,
@@ -2053,6 +2400,10 @@ export function RuntimeSettingsDialog({
 		setSelectedAgentIdOverride(config?.selectedAgentIdOverride ?? null);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
 		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
+		setModelRolesOverride(
+			config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null,
+		);
+		setAgentRulesetsOverride(config?.agentRulesetsOverride ?? null);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
 		setOpenPrPromptTemplate(config?.openPrPromptTemplate ?? "");
 		setSaveError(null);
@@ -2088,6 +2439,8 @@ export function RuntimeSettingsDialog({
 		config?.maxConcurrentTasksOverride,
 		config?.selectedAgentIdOverride,
 		config?.modelRoles,
+		config?.modelRolesOverride,
+		config?.agentRulesetsOverride,
 		config?.streamTimeoutMs,
 		config?.toolTimeoutMs,
 		fallbackAgentId,
@@ -2300,17 +2653,6 @@ export function RuntimeSettingsDialog({
 		[nkleinProviderId, nkleinSettings.providerModels, modelRoleModelsByProviderId],
 	);
 
-	const isModelRoleProviderLoading = useCallback(
-		(providerId: string): boolean => {
-			const normalizedProviderId = normalizeProviderId(providerId || nkleinProviderId);
-			if (!normalizedProviderId || normalizedProviderId === normalizeProviderId(nkleinProviderId)) {
-				return nkleinSettings.isLoadingProviderModels;
-			}
-			return loadingModelRoleProviderIds[normalizedProviderId] === true;
-		},
-		[nkleinProviderId, nkleinSettings.isLoadingProviderModels, loadingModelRoleProviderIds],
-	);
-
 	const getModelRoleContextWarning = useCallback(
 		(roleId: ModelRoleId): string | null => {
 			const roleSettings = modelRoles[roleId] ?? {};
@@ -2366,91 +2708,6 @@ export function RuntimeSettingsDialog({
 		}
 		setSaveError(null);
 	}, [nkleinSettings.modelId, nkleinSettings.providerModels, saveError]);
-
-	const handleModelRoleProviderChange = (roleId: ModelRoleId, value: string) => {
-		setModelRoles((current) => {
-			const next = { ...current };
-			const trimmedProviderId = value.trim();
-			const currentReasoningEffort = current[roleId]?.reasoningEffort;
-			if (!trimmedProviderId) {
-				if (currentReasoningEffort) {
-					next[roleId] = { reasoningEffort: currentReasoningEffort };
-				} else {
-					delete next[roleId];
-				}
-				return next;
-			}
-			const defaultModelId = findProviderCatalogItem(
-				nkleinSettings.providerCatalog,
-				trimmedProviderId,
-			)?.defaultModelId?.trim();
-			next[roleId] = {
-				...current[roleId],
-				providerId: trimmedProviderId,
-				...(!isLmStudioProviderId(trimmedProviderId) && defaultModelId ? { modelId: defaultModelId } : {}),
-			};
-			if (!defaultModelId || isLmStudioProviderId(trimmedProviderId)) {
-				delete next[roleId].modelId;
-			}
-			return next;
-		});
-	};
-
-	const handleModelRoleModelChange = (roleId: ModelRoleId, value: string) => {
-		setModelRoles((current) => {
-			const nextRole = { ...current[roleId] };
-			const trimmedModelId = value.trim();
-			if (trimmedModelId) {
-				nextRole.modelId = trimmedModelId;
-			} else {
-				delete nextRole.modelId;
-			}
-			return {
-				...current,
-				[roleId]: nextRole,
-			};
-		});
-	};
-
-	const handleModelRolePoolToggle = (roleId: ModelRoleId, providerId: string, modelId: string) => {
-		setModelRoles((current) => {
-			const nextRole = { ...current[roleId] };
-			const existing = nextRole.additionalModels ?? [];
-			const isInPool = existing.some((entry) => entry.modelId === modelId);
-			const additionalModels = isInPool
-				? existing.filter((entry) => entry.modelId !== modelId)
-				: [...existing, { ...(providerId ? { providerId } : {}), modelId }];
-			if (additionalModels.length > 0) {
-				nextRole.additionalModels = additionalModels;
-			} else {
-				delete nextRole.additionalModels;
-			}
-			return { ...current, [roleId]: nextRole };
-		});
-	};
-
-	const handleModelRoleReasoningChange = (roleId: ModelRoleId, value: RuntimeNKleinReasoningEffort | "inherit") => {
-		setModelRoles((current) => {
-			const nextRole = { ...current[roleId] };
-			if (value === "inherit") {
-				delete nextRole.reasoningEffort;
-			} else {
-				nextRole.reasoningEffort = value;
-			}
-			return {
-				...current,
-				[roleId]: nextRole,
-			};
-		});
-	};
-
-	const handleResetModelRole = (roleId: ModelRoleId) => {
-		setModelRoles((current) => {
-			const next = { ...current };
-			delete next[roleId];
-			return next;
-		});
-	};
 
 	const handleSave = async () => {
 		setSaveError(null);
@@ -2591,6 +2848,8 @@ export function RuntimeSettingsDialog({
 			selectedAgentId,
 			selectedAgentIdOverride,
 			maxConcurrentTasksOverride,
+			modelRolesOverride: modelRolesOverride !== null ? normalizeModelRolesForSettings(modelRolesOverride) : null,
+			agentRulesetsOverride,
 			agentAutonomousModeEnabled,
 			agentTimeoutMode,
 			agentTimeoutProfile,
@@ -3613,199 +3872,18 @@ export function RuntimeSettingsDialog({
 												Model Performance
 											</Button>
 										</div>
-										<div className="grid gap-3">
-											{MODEL_ROLE_IDS.map((roleId) => {
-												const roleSettings = modelRoles[roleId] ?? {};
-												const roleProviderId = roleSettings.providerId ?? "";
-												const effectiveProviderId = roleProviderId || nkleinProviderId;
-												const roleProvider = roleProviderId
-													? findProviderCatalogItem(nkleinSettings.providerCatalog, roleProviderId)
-													: null;
-												const roleProviderIsVisibleLocal =
-													roleProvider !== null && isVisibleLocalNKleinProvider(roleProvider);
-												const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
-												const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
-												const roleModels = getModelRoleProviderModels(effectiveProviderId);
-												const selectedRoleModelId = roleSettings.modelId ?? "";
-												const selectedRoleModel =
-													roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
-												const selectedRoleModelLabel = selectedRoleModel
-													? formatModelOptionLabel(selectedRoleModel)
-													: selectedRoleModelId || undefined;
-												const isLmStudioRoleProvider = isLmStudioProviderId(effectiveProviderId);
-												const hasSelectedRoleModel =
-													selectedRoleModelId.length > 0 &&
-													!isLmStudioRoleProvider &&
-													!roleModels.some((model) => model.id === selectedRoleModelId);
-												const isRoleProviderLoading = isModelRoleProviderLoading(effectiveProviderId);
-												const hasRoleOverride = Object.keys(roleSettings).length > 0;
-												const shouldHideLegacyCloudRoleProvider =
-													!cloudProviderSupportEnabled &&
-													(!roleProviderIsVisibleLocal || isKnownCloudProviderId(roleProviderId));
-												const displayedRoleProviderId = shouldHideLegacyCloudRoleProvider
-													? ""
-													: roleProviderId;
-												const roleAvailabilityWarning = getModelRoleAvailabilityWarning(roleId);
-												const roleContextWarning = getModelRoleContextWarning(roleId);
-												return (
-													<div key={roleId} className="grid gap-1">
-														<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
-															<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
-																{MODEL_ROLE_LABELS[roleId]}
-															</div>
-															<label className="min-w-0" htmlFor={providerSelectId}>
-																<span className="mb-1 block text-[12px] text-text-secondary">
-																	Provider
-																</span>
-																<NativeSelect
-																	id={providerSelectId}
-																	fill
-																	value={displayedRoleProviderId}
-																	onChange={(event) =>
-																		handleModelRoleProviderChange(roleId, event.target.value)
-																	}
-																	disabled={controlsDisabled}
-																>
-																	<option value="">Default</option>
-																	{roleProvider &&
-																	roleProviderIsVisibleLocal &&
-																	!shouldHideLegacyCloudRoleProvider &&
-																	!visibleNKleinProviderCatalog.some(
-																		(provider) => provider.id === roleProviderId,
-																	) ? (
-																		<option value={roleProviderId}>{roleProviderId}</option>
-																	) : null}
-																	{visibleNKleinProviderCatalog.map((provider) => (
-																		<option key={provider.id} value={provider.id}>
-																			{formatProviderOptionLabel(provider)}
-																		</option>
-																	))}
-																	{roleProviderId &&
-																	!shouldHideLegacyCloudRoleProvider &&
-																	!roleProvider &&
-																	!visibleNKleinProviderCatalog.some(
-																		(provider) => provider.id === roleProviderId,
-																	) ? (
-																		<option value={roleProviderId}>{roleProviderId}</option>
-																	) : null}
-																</NativeSelect>
-															</label>
-															<label className="min-w-0" htmlFor={modelSelectId}>
-																<span className="mb-1 block text-[12px] text-text-secondary">
-																	Model
-																</span>
-																<NativeSelect
-																	id={modelSelectId}
-																	fill
-																	value={selectedRoleModelId}
-																	title={selectedRoleModelLabel}
-																	onChange={(event) =>
-																		handleModelRoleModelChange(roleId, event.target.value)
-																	}
-																	disabled={controlsDisabled || isRoleProviderLoading}
-																>
-																	<option value="">
-																		{isRoleProviderLoading
-																			? "Loading models..."
-																			: isLmStudioRoleProvider && roleModels.length === 0
-																				? "No loaded LM Studio models"
-																				: "Default"}
-																	</option>
-																	{hasSelectedRoleModel ? (
-																		<option value={selectedRoleModelId}>{selectedRoleModelId}</option>
-																	) : null}
-																	{roleModels.map((model) => (
-																		<option key={model.id} value={model.id}>
-																			{formatModelOptionLabel(model)}
-																		</option>
-																	))}
-																</NativeSelect>
-															</label>
-															<div className="min-w-0">
-																<span className="mb-1 block text-[12px] text-text-secondary">
-																	Reasoning
-																</span>
-																<NativeSelect
-																	fill
-																	value={roleSettings.reasoningEffort ?? "inherit"}
-																	onChange={(event) =>
-																		handleModelRoleReasoningChange(
-																			roleId,
-																			event.target.value as RuntimeNKleinReasoningEffort | "inherit",
-																		)
-																	}
-																	disabled={controlsDisabled}
-																>
-																	{REASONING_EFFORT_OPTIONS.map((option) => (
-																		<option key={option} value={option}>
-																			{option === "inherit" ? "Default" : option}
-																		</option>
-																	))}
-																</NativeSelect>
-															</div>
-															<Button
-																variant="ghost"
-																size="sm"
-																icon={<X size={14} />}
-																aria-label={`Reset ${MODEL_ROLE_LABELS[roleId]} role`}
-																disabled={controlsDisabled || !hasRoleOverride}
-																onClick={() => {
-																	handleResetModelRole(roleId);
-																}}
-															/>
-														</div>
-														{roleModels.length > 1 ? (
-															<div className="lg:ml-[118px]">
-																<span className="mb-1 block text-[11px] text-text-tertiary">
-																	Additional models — pool; tasks fan out across the free ones
-																</span>
-																<div className="flex flex-wrap gap-1">
-																	{roleModels
-																		.filter((model) => model.id !== selectedRoleModelId)
-																		.map((model) => {
-																			const inPool = (roleSettings.additionalModels ?? []).some(
-																				(entry) => entry.modelId === model.id,
-																			);
-																			return (
-																				<button
-																					type="button"
-																					key={model.id}
-																					disabled={controlsDisabled}
-																					onClick={() =>
-																						handleModelRolePoolToggle(
-																							roleId,
-																							roleProviderId,
-																							model.id,
-																						)
-																					}
-																					className={cn(
-																						"rounded border px-1.5 py-0.5 text-[11px] transition-colors disabled:opacity-50",
-																						inPool
-																							? "border-accent bg-accent/15 text-text-primary"
-																							: "border-border bg-surface-2 text-text-secondary hover:bg-surface-3",
-																					)}
-																				>
-																					{formatModelOptionLabel(model)}
-																				</button>
-																			);
-																		})}
-																</div>
-															</div>
-														) : null}
-														{roleAvailabilityWarning ? (
-															<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
-																{roleAvailabilityWarning}
-															</p>
-														) : null}
-														{!roleAvailabilityWarning && roleContextWarning ? (
-															<p className="m-0 text-[12px] text-status-orange lg:ml-[118px]">
-																{roleContextWarning}
-															</p>
-														) : null}
-													</div>
-												);
-											})}
-										</div>
+										<ModelRolesEditor
+											value={modelRoles}
+											onChange={setModelRoles}
+											disabled={controlsDisabled}
+											nkleinProviderId={nkleinProviderId}
+											providerCatalog={nkleinSettings.providerCatalog}
+											providerModels={nkleinSettings.providerModels}
+											isLoadingProviderModels={nkleinSettings.isLoadingProviderModels}
+											modelRoleModelsByProviderId={modelRoleModelsByProviderId}
+											loadingModelRoleProviderIds={loadingModelRoleProviderIds}
+											cloudProviderSupportEnabled={cloudProviderSupportEnabled}
+										/>
 									</div>
 									{cloudProviderSupportEnabled ? (
 										<NKleinAdvisorActions
@@ -4157,6 +4235,59 @@ export function RuntimeSettingsDialog({
 												</option>
 											))}
 										</NativeSelect>
+									</OverrideRow>
+									<OverrideRow
+										label="Model roles"
+										inheritLabel={
+											Object.keys(config.effectiveModelRoles ?? config.modelRoles ?? {}).length > 0
+												? `${Object.keys(config.effectiveModelRoles ?? config.modelRoles ?? {}).length} role(s) customised`
+												: "defaults"
+										}
+										isOverridden={modelRolesOverride !== null}
+										onOverride={() =>
+											setModelRolesOverride(
+												normalizeModelRolesForSettings(config.effectiveModelRoles ?? config.modelRoles),
+											)
+										}
+										onRevert={() => setModelRolesOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<ModelRolesEditor
+											value={modelRolesOverride ?? {}}
+											onChange={(action) =>
+												setModelRolesOverride((prev) =>
+													typeof action === "function" ? action(prev ?? {}) : action,
+												)
+											}
+											disabled={controlsDisabled}
+											nkleinProviderId={nkleinProviderId}
+											providerCatalog={nkleinSettings.providerCatalog}
+											providerModels={nkleinSettings.providerModels}
+											isLoadingProviderModels={nkleinSettings.isLoadingProviderModels}
+											modelRoleModelsByProviderId={modelRoleModelsByProviderId}
+											loadingModelRoleProviderIds={loadingModelRoleProviderIds}
+											cloudProviderSupportEnabled={cloudProviderSupportEnabled}
+										/>
+									</OverrideRow>
+									<OverrideRow
+										label="Agent rulesets"
+										inheritLabel={`capability: ${(config.effectiveAgentRulesets ?? config.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG).capability.globalPreset}, delivery: ${(config.effectiveAgentRulesets ?? config.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG).delivery.globalPreset}`}
+										isOverridden={agentRulesetsOverride !== null}
+										onOverride={() =>
+											setAgentRulesetsOverride(
+												config.effectiveAgentRulesets ??
+													config.agentRulesets ??
+													DEFAULT_AGENT_RULESETS_CONFIG,
+											)
+										}
+										onRevert={() => setAgentRulesetsOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<AgentRulesetsSettingsPanel
+											value={agentRulesetsOverride ?? DEFAULT_AGENT_RULESETS_CONFIG}
+											disabled={controlsDisabled}
+											onChange={setAgentRulesetsOverride}
+										/>
 									</OverrideRow>
 								</div>
 							) : (

@@ -365,7 +365,14 @@ const savedNKleinOauthConfig = {
 	detectedCommands: [],
 	shortcuts: [],
 	modelRoles: {},
+	agentRulesets: { capability: { globalPreset: "strict" }, delivery: { globalPreset: "strict" } },
+	modelRolesOverride: null,
+	effectiveModelRoles: {},
 	agentRulesetsOverride: null,
+	effectiveAgentRulesets: {
+		capability: { globalPreset: "strict" },
+		delivery: { globalPreset: "strict" },
+	},
 	swarmGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	commitPromptTemplate: "",
 	openPrPromptTemplate: "",
@@ -2056,6 +2063,67 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
 			expect.objectContaining({ selectedAgentIdOverride: "claude" }),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("saves modelRolesOverride and agentRulesetsOverride when nested overrides are enabled (§5.W Phase 1b UI)", async () => {
+		const handleOpenChange = vi.fn();
+		const projectConfig = {
+			...savedNKleinOauthConfig,
+			projectConfigPath: "/repo/.nklein/nklein/config.json",
+		} as RuntimeConfigResponse;
+
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={projectConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		// Initially all nested override rows show "inherit" state.
+		expect(document.body.textContent).toContain("Model roles");
+		expect(document.body.textContent).toContain("Agent rulesets");
+
+		// All "Override for this project" buttons (4 total: maxConcurrentTasks, agent, modelRoles, agentRulesets).
+		const overrideButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
+			(b) => b.textContent?.trim() === "Override for this project",
+		);
+		expect(overrideButtons.length).toBeGreaterThanOrEqual(4);
+
+		// Click "Override for this project" for the modelRoles row (3rd override button, index 2).
+		await act(async () => {
+			overrideButtons[2]?.click();
+		});
+
+		// The row switches to override mode — a "Revert to global" button should appear.
+		const revertButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
+			(b) => b.textContent?.trim() === "Revert to global",
+		);
+		expect(revertButtons.length).toBeGreaterThanOrEqual(1);
+
+		// Click "Override for this project" for the agentRulesets row (now at index 3 since modelRoles is already active).
+		const overrideButtonsAfter = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
+			(b) => b.textContent?.trim() === "Override for this project",
+		);
+		await act(async () => {
+			overrideButtonsAfter[overrideButtonsAfter.length - 1]?.click();
+		});
+
+		// Save — both overrides should be included in the payload (non-null).
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelRolesOverride: expect.anything(),
+				agentRulesetsOverride: expect.anything(),
+			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 	});

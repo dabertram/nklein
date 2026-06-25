@@ -2076,7 +2076,11 @@ deep analysis:
       stays on `modelRoles` (retrospective classification — project overrides irrelevant). `effectiveModelRoles`
       in `RUNTIME_CONFIG_DERIVED_FIELD_KEYS` + `Omit<RuntimeConfigState,...>`; `modelRolesOverride` in
       `RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS`. New override test + all fixtures patched. **Phase 1 backend COMPLETE.**
-      Remaining: UI `OverrideToggle` for nested fields (`modelRoles`, `agentRulesets`, `codeEmbedding`).
+      **PHASE 1b UI DONE (2026-06-25):** `modelRolesOverride` + `agentRulesetsOverride` controls added to Settings → Project
+      "Per-project overrides" card — same `OverrideRow` pattern; `ModelRolesEditor` extracted as reusable component
+      (replaces inline model-role JSX in the global NKlein section + the new override row); handlers updated to functional
+      updates to avoid stale-closure batching. Saved to `modelRolesOverride`/`agentRulesetsOverride` in the payload.
+      Remaining: UI for `codeEmbedding` override.
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
