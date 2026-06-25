@@ -100,6 +100,13 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   project/card creation + work) — NOT an incremental foundation. **But sequenced AFTER §5.V** (see next).
 - **Sequencing = FINISH §5.V FIRST.** Complete the remaining test suites (the port-resilient oracle) before starting
   the chat agent or the §5.X refactor. The safety net is the linchpin. (Supersedes "interleave".)
+  - **✅ MILESTONE (2026-06-25): §5.V is COMPLETE.** All suites green: Suite 1 (HTTP tRPC CRUD, 16), 2 (plan-artifact
+    pipeline, 12), 3 (CLI→WS board events, 2), 4 (rescoped — covered by lane/promotion units + live Suite 10), 5 (chat
+    HTTP + streaming incl. the SSE `streamMessage` subscription, 14), 6 (on-disk format parity, 10), 7/8/9 (Playwright:
+    plan-review / settings / review+recovery, 5+6+11), 10 (LIVE: decompose isolation + the Increment-C auto-promote
+    sweep across qwen3-8b/phi/deepseek), 11 (core-py contract parity, 25), 12 (CLI task subcommands, 14), 13 (smoothness/
+    perf, 4). The full TS contract suite runs 77/77 together; the fast gate is 1516 green. **This unblocks §5.M (chat
+    agent) and §5.X Phase 1 (TS-internal refactor) — both can now start, with the regression oracle as the safety net.**
 
 ## Autonomous decisions (below the escalation bar)
 - **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
