@@ -1,0 +1,129 @@
+import type { z } from "zod";
+import type { NKleinPlanQuestion, NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
+import { expandDecomposeProjectTasks } from "./plan-task-expansion";
+import { decomposeProjectToolInputSchema } from "./plan-task-schemas";
+import { deriveOpenQuestionDefaults, validatePlanQuestions } from "./plan-task-validation";
+
+export type DecomposeProjectToolInput = {
+	slug: string;
+	spec: string;
+	plan: string;
+	summary: string | null;
+	questions: NKleinPlanQuestion[];
+	title: string;
+	tasks: NKleinPlanTask[];
+	taskGraph: NKleinPlanTaskGraph;
+	defaultAcceptanceCommand?: string | null;
+	minimumTaskCount: number | null;
+	expansions: Record<string, NKleinPlanTask[]>;
+};
+
+export function slugifyTaskId(input: string): string {
+	const slug = input
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return slug || "task";
+}
+
+const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "title", "spec", "plan", "tasks"] as const;
+
+const DECOMPOSE_PROJECT_RECOVERY_HINT =
+	"Call decompose_project once with: slug (short string), title (string), spec (brief markdown), " +
+	"plan (brief markdown), and tasks (a JSON array of objects, each with id, title, prompt). Start small — " +
+	"3 to 6 top-level tasks is fine and you can expand later; keep spec and plan to a few sentences (longer " +
+	"text is truncated). Do not resend an empty or partial call.";
+
+export function decomposeProjectFieldIsUsable(value: unknown): boolean {
+	if (typeof value === "string") {
+		return value.trim().length > 0;
+	}
+	return value !== undefined && value !== null;
+}
+
+/**
+ * Small local models routinely emit a malformed decompose_project call — typo'd or extra keys, or
+ * (after one failure) an empty `{}` — and then spiral. The SDK validates the tool's inputSchema
+ * BEFORE execute() runs and answers a violation with a multi-KB raw Zod dump that such models cannot
+ * recover from and that burns the context budget. The boundary schema is therefore permissive (see
+ * createDecomposeProjectTool) and this is where validation actually happens: throw a SHORT, directive
+ * message naming the missing fields so the model has a tractable path back.
+ */
+export function assertUsableDecomposeProjectInput(input: unknown): void {
+	const record = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+	const missing = DECOMPOSE_PROJECT_REQUIRED_FIELDS.filter((field) => {
+		if (field === "tasks") {
+			return !(Array.isArray(record.tasks) || typeof record.tasks === "string");
+		}
+		return !decomposeProjectFieldIsUsable(record[field]);
+	});
+	if (missing.length === 0) {
+		return;
+	}
+	const lead =
+		Object.keys(record).length === 0
+			? "decompose_project was called with no arguments."
+			: `decompose_project is missing required fields: ${missing.join(", ")}.`;
+	throw new Error(`${lead} ${DECOMPOSE_PROJECT_RECOVERY_HINT}`);
+}
+
+export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string {
+	const issues = error.issues
+		.slice(0, limit)
+		.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+		.join("; ");
+	const remaining = error.issues.length - limit;
+	return remaining > 0 ? `${issues} (+${remaining} more)` : issues;
+}
+
+export function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
+	assertUsableDecomposeProjectInput(input);
+	const result = decomposeProjectToolInputSchema.safeParse(input);
+	if (!result.success) {
+		throw new Error(
+			`decompose_project input failed validation — ${formatCompactSchemaIssues(result.error)}. ` +
+				"Each task needs id, title, and prompt (strings); remove any other keys. Fix these and resubmit the whole call.",
+		);
+	}
+	const parsed = result.data;
+	const defaultAcceptanceCommand = parsed.defaultAcceptanceCommand?.trim() || null;
+	if (parsed.tasks.length === 0) {
+		throw new Error(
+			"decompose_project requires at least one task. Add 3 to 6 task objects (id, title, prompt) to tasks and resubmit.",
+		);
+	}
+	const questions = deriveOpenQuestionDefaults(parsed.questions ?? []);
+	validatePlanQuestions(questions);
+	const expansions = parsed.expansions ?? {};
+	const tasks = expandDecomposeProjectTasks({
+		tasks: parsed.tasks,
+		expansions,
+		defaultAcceptanceCommand,
+	});
+	const minimumTaskCount = parsed.minimumTaskCount ?? null;
+	if (minimumTaskCount !== null && tasks.length < minimumTaskCount) {
+		throw new Error(
+			`decompose_project requires at least ${minimumTaskCount} task leaves; received ${tasks.length}. Split the plan into more independently reviewable tasks.`,
+		);
+	}
+	const taskGraph = {
+		schemaVersion: 1 as const,
+		slug: parsed.slug,
+		title: parsed.title.trim() || parsed.slug,
+		tasks,
+	};
+	return {
+		slug: parsed.slug,
+		spec: parsed.spec,
+		plan: parsed.plan,
+		summary: parsed.summary?.trim() || null,
+		questions,
+		title: parsed.title,
+		tasks,
+		taskGraph,
+		defaultAcceptanceCommand,
+		minimumTaskCount,
+		expansions,
+	};
+}

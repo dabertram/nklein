@@ -2122,8 +2122,12 @@ deep analysis:
 > the §5.V net is green. So Phase 2 is no longer "decision required" on *whether* to plan — it's planned; the remaining
 > user decision is the final port scope/shape once §5.V is green (options staged below).
 - [ ] **Phase 0 — land §5.V** (the port-resilient test oracle). Blocks everything below. **← the gating linchpin.**
-- [ ] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
+- [~] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
       monoliths (`nklein-task-session-service` ~3800, `runtime-server`, `nklein-decomposition-tool`, `workspace-state`,
+      - [x] **Phase 1 PILOT (2026-06-26): `nklein-decomposition-tool.ts` (~1440 → 391 lines)** decomposed into 8
+            single-responsibility modules under `src/nklein-sdk/decomposition/` behind the existing barrel (pure moves,
+            zero behavior change, all 6 importers untouched, all gates green: typecheck + lint + test:fast 1735/1735 +
+            contract suite 12/12 + workflow suite 1/1 + web:typecheck). See `src/nklein-sdk/decomposition/`.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
