@@ -599,8 +599,15 @@ deep analysis:
 >
 > **DEFAULTS PREREQS — resolved + scope-flagged (2026-06-25).** User: "build the prereqs now, then flip." Investigation
 > (recorded in [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md)) found the two halves are very different:
-> - **core-py default-on = tractable + port-aligned** (bundle the existing Python sidecar + auto-start on launch; core-py
->   is already Python so it survives a §5.X port). **→ do this prereq now, then flip core-py-on.**
+> - **core-py default-on = DONE 2026-06-25.** `resolveKleinCorePyConfig` already defaults **ON** (opt-out via
+>   `NKLEIN_CORE_PY=0`; the old "opt-in/default-OFF" doc comment was stale — fixed). The missing half was **auto-start**:
+>   the runtime now launches the sidecar on boot via the new [klein-core-sidecar.ts](src/server/klein-core-sidecar.ts)
+>   (`startKleinCorePySidecar`, wired in `cli.ts` fire-and-forget + stopped in `close`), so the default actually delivers.
+>   **Non-fatal** (missing `uv`/core-py / unhealthy → null → in-process fallback; never blocks boot). Verified: 6 unit
+>   tests + live boot (sidecar came up on :3585, runtime un-blocked) + the integration test still green & hermetic
+>   (`NKLEIN_CORE_PY=0` set in the test backend spawner). *(Still owed — the "bundle" half: ship a Python env so it
+>   auto-starts in a packaged install, not just dev where `<repo>/core-py` + `uv` exist. Today it no-ops gracefully when
+>   core-py isn't on disk.)*
 > - **native-core default = a FULL native agent runtime build**, not a small integration: `src/agent-core/` is a 285-line
 >   skeleton (`runAgentLoop`/`DecideAction` types) with **zero runtime imports**; making it the default means replacing
 >   the whole `@nkleinbot` SDK host (tool dispatch, streaming, hooks, context compaction, session persistence). That is

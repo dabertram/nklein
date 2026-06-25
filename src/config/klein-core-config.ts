@@ -1,9 +1,11 @@
 /**
  * Feature flag + endpoint for the !Klein Python core sidecar (`core-py`).
  *
- * Phase 0/1 of the polyglot migration: the Python core is opt-in via `NKLEIN_CORE_PY` and defaults OFF, so the
- * TS runtime behaves exactly as today until a deployment enables it. When enabled, structured-generation
- * callers route through `KleinCoreClient` (with the existing `LocalLlmClient` as fallback).
+ * The Python core defaults **ON (opt-out via `NKLEIN_CORE_PY=0`)**: when reachable, structured-generation /
+ * embedding callers route through `KleinCoreClient`, and every caller falls back instantly to the in-process
+ * `LocalLlmClient` path on any error (an absent localhost sidecar is an immediate ECONNREFUSED). The runtime
+ * **auto-starts** the sidecar on boot (see `src/server/klein-core-sidecar.ts`, todo §5.H), so the default actually
+ * delivers without the user launching it by hand.
  */
 
 export interface KleinCorePyConfig {

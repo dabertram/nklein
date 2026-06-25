@@ -175,6 +175,11 @@ export const startTsBackend: BackendFactory = async (options: BackendStartOption
 				// server's cwd is a temp project dir, not the repo root. Pin the
 				// tsconfig so @nklein/* path aliases resolve correctly at runtime.
 				TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json"),
+				// Keep the contract/integration tests hermetic: don't auto-start the real core-py Python sidecar
+				// (todo §5.H) — these tests exercise the TS backend's HTTP behavior; the sidecar + its auto-start are
+				// covered separately (Suite 11 + klein-core-sidecar.test.ts). Avoids a uv/Python dependency + a stray
+				// process per spawned server.
+				NKLEIN_CORE_PY: "0",
 			},
 			stdio: ["ignore", "pipe", "pipe", "ipc"],
 		},

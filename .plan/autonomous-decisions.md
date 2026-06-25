@@ -108,6 +108,10 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
     direction is settled (build the native runtime in whichever language wins, likely Python). I did NOT start the full
     TS native-runtime build (that would be running blindly into a huge, possibly-throwaway effort). **→ batched into the
     next clarification round; until then I proceed on core-py + everything else and leave native-core-default unstarted.**
+    - **UPDATE (2026-06-25): core-py half DONE.** core-py was already default-ON (stale doc fixed); built the missing
+      **auto-start** (`src/server/klein-core-sidecar.ts`, wired in `cli.ts`), verified unit + live + integration. The
+      "bundle a Python env for packaged installs" sub-task remains (dev works; packaged no-ops gracefully).
+      **native-core-default still HELD pending the §5.X port decision** — unchanged.
 - **(2026-06-25) Orchestration of the first parallel batch:** chat-polish (web-ui) delegated to a worktree subagent;
   feature/UI exposure audit delegated to a read-only Explore subagent; the risky **defaults hard-flip** kept by me
   (needs runtime verify). Disjoint file sets, so no collisions.

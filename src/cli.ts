@@ -434,6 +434,7 @@ async function startServer(): Promise<{
 		{ shutdownRuntimeServer },
 		{ collectProjectWorktreeTaskIdsForRemoval, createWorkspaceRegistry },
 		{ clearPendingUpdateNotification, getPendingUpdateNotification },
+		{ startKleinCorePySidecar },
 	] = await Promise.all([
 		import("./projects/project-path.js"),
 		import("./server/directory-picker.js"),
@@ -443,6 +444,7 @@ async function startServer(): Promise<{
 		import("./server/shutdown-coordinator.js"),
 		import("./server/workspace-registry.js"),
 		import("./update/update.js"),
+		import("./server/klein-core-sidecar.js"),
 	]);
 	let runtimeStateHub: RuntimeStateHub | undefined;
 	const workspaceRegistry = await createWorkspaceRegistry({
@@ -533,8 +535,21 @@ async function startServer(): Promise<{
 		},
 	});
 
+	// Auto-start the local-only core-py sidecar (todo §5.H) in the background — never block boot on its health-wait;
+	// structured-generation / embedding callers fall back in-process until it is healthy. Non-fatal: a missing core-py
+	// / `uv` resolves to null and the runtime behaves exactly as before.
+	const kleinCorePySidecarPromise = startKleinCorePySidecar({
+		warn: (message) => {
+			console.warn(`[nklein] ${message}`);
+		},
+	}).catch((error: unknown) => {
+		console.warn(`[nklein] core-py sidecar auto-start failed: ${error instanceof Error ? error.message : error}`);
+		return null;
+	});
+
 	const close = async () => {
 		await runtimeServer.close();
+		await (await kleinCorePySidecarPromise)?.stop();
 	};
 
 	const shutdown = async (options?: { skipSessionCleanup?: boolean }) => {
