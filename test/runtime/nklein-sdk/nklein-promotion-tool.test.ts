@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
-import { createNKleinPromotionTool, type NKleinCardPromotedEvent } from "../../../src/nklein-sdk/nklein-promotion-tool";
+import {
+	createNKleinPromotionTool,
+	type NKleinCardPromotedEvent,
+	promoteCardToImplementation,
+} from "../../../src/nklein-sdk/nklein-promotion-tool";
 import { loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 import { createGitTestEnv } from "../../utilities/git-env";
 
@@ -162,6 +166,53 @@ describe("createNKleinPromotionTool (begin_implementation)", () => {
 		const result = (await tool.execute({}, undefined as never)) as PromotionResult;
 		expect(result.ok).toBe(false);
 		expect(result.promoted).toBe(false);
+		expect(await columnOf("task-1")).toBe("backlog");
+	});
+});
+
+// The §5.B Increment C auto-promote recovery calls promoteCardToImplementation DIRECTLY (not via the tool) when a
+// work card starts mutating the repo without first calling begin_implementation, and branches on the returned
+// PromotionOutcome.state. These lock that contract independently of the tool's instruction strings.
+describe("promoteCardToImplementation (Increment C recovery core)", () => {
+	it("promotes a work card from Planning, returns a promoted outcome, and fires onPromoted once", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "planning" }) });
+		const events: NKleinCardPromotedEvent[] = [];
+		const outcome = await promoteCardToImplementation({
+			workspacePath: repoPath,
+			taskId: "task-1",
+			onPromoted: (e) => void events.push(e),
+			refinementNotes: "started editing files",
+		});
+		expect(outcome).toMatchObject({ moved: true, fromColumnId: "planning", state: "promoted" });
+		expect(await columnOf("task-1")).toBe("in_progress");
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ fromColumnId: "planning", refinementNotes: "started editing files" });
+	});
+
+	it("is a no-op once the card is already In Progress (already-implementing, no onPromoted)", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "in_progress" }) });
+		const events: NKleinCardPromotedEvent[] = [];
+		const outcome = await promoteCardToImplementation({
+			workspacePath: repoPath,
+			taskId: "task-1",
+			onPromoted: (e) => void events.push(e),
+		});
+		expect(outcome).toMatchObject({ moved: false, state: "already-implementing" });
+		expect(events).toHaveLength(0);
+		expect(await columnOf("task-1")).toBe("in_progress");
+	});
+
+	it("refuses a planning card (startInPlanMode true) so a mutating tool cannot force-implement a decompose card", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: true, columnId: "planning" }) });
+		const outcome = await promoteCardToImplementation({ workspacePath: repoPath, taskId: "task-1" });
+		expect(outcome).toMatchObject({ moved: false, state: "planning-card" });
+		expect(await columnOf("task-1")).toBe("planning");
+	});
+
+	it("returns a missing outcome without throwing when the task is not on the board", async () => {
+		await saveWorkspaceState(repoPath, { board: board({ startInPlanMode: false, columnId: "backlog" }) });
+		const outcome = await promoteCardToImplementation({ workspacePath: repoPath, taskId: "ghost" });
+		expect(outcome).toEqual({ moved: false, fromColumnId: null, state: "missing" });
 		expect(await columnOf("task-1")).toBe("backlog");
 	});
 });

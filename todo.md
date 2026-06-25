@@ -489,25 +489,27 @@ deep analysis:
         mode) through `buildNKleinStartPromptParts` so a work card opens with the refinement preamble (re-validate →
         dynamic depth → `begin_implementation`/`decompose_project`). Updated the lane-reconcile + runtime-api + task-
         session-service tests + a new prompt-selection suite; full fast suite green (1506).
-  - [ ] **Increment C (hardening)** — auto-promote recovery: if a planning-lane work card calls an implementation write
-        tool without first calling `begin_implementation`, treat it as an implicit promotion (parse-and-recover).
-        **Designed seam (2026-06-25):** hook the `requestToolApproval` wrapper in [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts)
-        (it already special-cases `REPO_MAP_INVALIDATING_TOOL_NAMES` = write_file/write_files/edit_file/apply_patch/bash/…).
-        When such a mutating tool is **approved** in a session that has `request.onCardPromoted` wired (i.e. a work card)
-        AND the card is still in Planning, call an exported `autoPromoteCardToImplementation(workspacePath, taskId,
-        onPromoted)` helper (factor it out of `nklein-promotion-tool.ts`, sharing the same mutator/`onPromoted` broadcast
-        as `begin_implementation`) to move the card to In Progress before the write runs. Idempotent (no-op once in
-        progress), self-gates on `startInPlanMode` exactly like the explicit tool. Add a unit test (mutating tool in
-        Planning → promotes; non-mutating read tool → no promote; already in_progress → no-op).
-        **CAVEATS confirmed 2026-06-25 (why it's focused work, not a quick change):** the exact insertion point is the
-        **catch-all** `const approval = await baseRequestToolApproval(approvalRequest); if (approval.approved &&
-        REPO_MAP_INVALIDATING_TOOL_NAMES.has(...)) { … }` block (where repo-map caches are already invalidated for
-        mutating tools). BUT the whole `requestToolApproval` wrapper only exists when `request.requestToolApproval` is
-        provided — **verify it's actually wired for Docker-sandboxed work-card tasks** (if sandbox tool execution
-        bypasses it, hook the sandbox tool-executor or the `afterModel` seam instead). And it needs **LIVE verification**
-        (a real sandboxed work card that writes files without calling begin_implementation → assert its card auto-moves
-        Planning→In Progress) — so do it with a clean machine + a dev-test, not rushed. Also makes the live Suite 10
-        reliable (the lane always advances even if a small model skips the explicit tool).
+  - [x] **Increment C (hardening) — auto-promote recovery: CODE DONE (2026-06-25), live-verify pending (folded into the
+        Suite 10 sweep below).** Extracted `promoteCardToImplementation({workspacePath, taskId, onPromoted, refinementNotes})
+        → PromotionOutcome` from [nklein-promotion-tool.ts](src/nklein-sdk/nklein-promotion-tool.ts) (the shared mutator +
+        `onPromoted` broadcast; `begin_implementation`'s `execute` now just delegates + maps the outcome to its instruction
+        string). Hooked it into the `requestToolApproval` wrapper's **catch-all** `if (approval.approved &&
+        REPO_MAP_INVALIDATING_TOOL_NAMES.has(...))` block in [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts):
+        when a work-card session (one with `request.onCardPromoted` wired) gets its **first** approved repo-mutating tool
+        (write_file/write_files/edit_file/apply_patch/bash/…), it auto-promotes Planning→In Progress before the write runs.
+        Best-effort + one-shot (`autoPromoteSettled` guard so we mutate the board at most once/session; a board-lock hiccup
+        is swallowed so it never blocks the legitimate write), and idempotent (already-in-progress is a no-op, self-gates on
+        `startInPlanMode` exactly like the explicit tool). **Seam wiring confirmed:** `requestToolApproval` IS provided for
+        Docker-sandboxed work cards (passed at both `nklein-task-session-service` start sites via
+        `runtimeSetup.createToolApproval(...)`), so the hook fires for real sandboxed tasks. Unit-tested:
+        `promoteCardToImplementation` directly (promoted/already-implementing/planning-card/missing outcomes + `onPromoted`
+        fires only on a move) **and** the tool still passes its 6 existing cases — `nklein-promotion-tool.test.ts` 10/10;
+        full nklein-sdk runtime + lane-reconcile 722 green; root tsc + biome green.
+    - [ ] **LIVE-verify (in the Suite 10 model sweep)** — a real sandboxed work card that writes files WITHOUT calling
+          `begin_implementation` must auto-move Planning→In Progress. Run across the loaded LM Studio models
+          (qwen3-8b, **microsoft/phi-4-mini-reasoning**, **deepseek-r1-0528-qwen3-8b-mlx** — newly loaded 2026-06-25; if
+          deepseek unloads/crashes, note it + leave it out, revisit crash-resilience later) so the lane reliably advances
+          even when a small model skips the explicit tool. This is what makes the live Suite 10 promote-half deterministic.
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
@@ -1752,7 +1754,19 @@ deep analysis:
       TaskRecoveryActionsPanel fires `collectTaskEvidence` / `mergeTaskWorktrees` / `verifyTaskAcceptance` on the
       respective buttons, all disable while in-flight. Route-mocked. *(Evidence needs `grantPermissions(["clipboard-*"])`;
       Verify needs an "Acceptance check:" line in the prompt; assertions use `.first()` to dodge sonner-toast duplicates.)*
-- [ ] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`) — LM Studio + Docker; asserts each phase via HTTP/WS, no host-path leaks. After suites 1–4 green.
+- [~] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`).
+  - [x] **DECOMPOSE half LIVE-VERIFIED 2026-06-25** — ran `scripts/verify-decompose-isolation.mts` with **qwen3-8b**
+        (the north-star small model) + Docker: sandbox container observed, `decompose_project` called, **no host worktree,
+        no host-path leaks, clean teardown — PASS**. Confirms the live env + the §5.B planning-lane entry (decompose →
+        cards land in planning) work with the canonical small model.
+  - [ ] **PROMOTE half** — extend into `verify-decompose-promote-review.mts`: after decompose, start a generated card →
+        observe it refine + reach In Progress (via `begin_implementation` OR the Increment C auto-promote when the model
+        skips it) → review. **Increment C code is now DONE** (auto-promote recovery, see §5.B above), so the lane advances
+        even when a small model never calls the explicit tool — this live check is the deterministic confirmation.
+        **MODEL SWEEP (2026-06-25, user):** run across every loaded LM Studio model — **qwen3-8b** (north-star small),
+        **microsoft/phi-4-mini-reasoning**, **deepseek-r1-0528-qwen3-8b-mlx** (+ the heavier qwen2.5-coder-14b / qwen3.6-27b
+        when time permits). **deepseek may crash/unload mid-sweep** — if it disappears from `/v1/models`, record that it was
+        dropped (we *want* it; crash-resilience is a later task) and continue the sweep with the rest, don't block.
 - [ ] **Suite 11 — Core-py contract parity** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X.
 - [x] **Suite 12 — CLI task subcommands (DONE 2026-06-25, 14 tests)** (`test/contract/cli-task-subcommands.test.ts`) —
       create/list/list --column/done/trash/delete (--task-id + --column) over the spawned CLI, swarm-stop/resume (pure

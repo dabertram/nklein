@@ -24,6 +24,12 @@ user is next available (don't block).
 - **§5.J look & feel:** refined, modern, professional **dark** (Linear/Raycast-grade restraint), distinct from
   Cline-Kanban, not flashy. I mock up directions; user picks. (No hard "freeze restyling" guardrail given — but I'll
   still get a pick before landing a full restyle.)
+- **Live model sweeps (2026-06-25, user):** the live verification harnesses (decompose / promote / Suite 10) should
+  **sweep across all loaded LM Studio models**, now including **`microsoft/phi-4-mini-reasoning`** and
+  **`deepseek-r1-0528-qwen3-8b-mlx`** (newly loaded) alongside the north-star **qwen3-8b**. **deepseek may crash/unload
+  mid-sweep** — if it vanishes from `/v1/models`, take a note that it was dropped (we *want* it covered) and continue with
+  the rest; do **not** block the sweep on it. Crash-resilience for the local provider is a deferred follow-up, not part of
+  the current sweep work.
 
 
 Standing directive (2026-06-25): during the long autonomous run, **work every todo.md item**; escalate to the user

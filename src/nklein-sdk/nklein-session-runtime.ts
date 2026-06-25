@@ -45,7 +45,11 @@ import {
 } from "./nklein-mcp-runtime-service";
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
-import { createNKleinPromotionTool, type NKleinCardPromotedHandler } from "./nklein-promotion-tool";
+import {
+	createNKleinPromotionTool,
+	type NKleinCardPromotedHandler,
+	promoteCardToImplementation,
+} from "./nklein-promotion-tool";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
@@ -735,6 +739,8 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		const approvedReadFilesRequestFingerprints = new Set<string>();
 		const successfulReadFilesTargetKeys = new Set<string>();
 		const successfulFullReadFilesPaths = new Set<string>();
+		// §5.B Increment C — one-shot guard so the auto-promote recovery mutates the board at most once per session.
+		let autoPromoteSettled = false;
 		const approvalTurnKey = (approvalRequest: NKleinSdkToolApprovalRequest): string =>
 			[
 				approvalRequest.sessionId,
@@ -831,6 +837,27 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						approvedReadFilesRequestFingerprints.clear();
 						successfulReadFilesTargetKeys.clear();
 						successfulFullReadFilesPaths.clear();
+						// §5.B Increment C — auto-promote recovery. A work card starts in Planning/Refinement and is
+						// meant to call begin_implementation before it edits. A weak local model may skip that and just
+						// start writing files / running build commands. `onCardPromoted` is wired only for work-card
+						// starts, so when such a card gets its FIRST approved repo-mutating tool, treat that as the start
+						// of implementation and move it Planning → In Progress so the lane reflects reality (the same
+						// parse-and-recover principle as narrated tool calls — don't rely on the weak model calling the
+						// explicit tool). Best-effort + one-shot: a board-lock hiccup must never block the legitimate
+						// write, and `promoteCardToImplementation` is idempotent (already-implementing is a no-op).
+						if (request.onCardPromoted && !autoPromoteSettled) {
+							autoPromoteSettled = true;
+							try {
+								await promoteCardToImplementation({
+									workspacePath: hostWorkspaceRoot,
+									taskId: request.taskId,
+									onPromoted: request.onCardPromoted,
+								});
+							} catch {
+								// Non-fatal: the explicit begin_implementation tool and the runtime lane reconcile remain
+								// as fallbacks if this best-effort board mutation fails.
+							}
+						}
 					}
 					return approval;
 				}

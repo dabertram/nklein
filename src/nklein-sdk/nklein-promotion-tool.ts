@@ -41,9 +41,9 @@ const PRE_IMPLEMENTATION_COLUMNS: ReadonlySet<RuntimeBoardColumnId> = new Set<Ru
 	"planning",
 ]);
 
-type PromotionState = "promoted" | "already-implementing" | "planning-card" | "terminal" | "missing";
+export type PromotionState = "promoted" | "already-implementing" | "planning-card" | "terminal" | "missing";
 
-interface PromotionOutcome {
+export interface PromotionOutcome {
 	moved: boolean;
 	fromColumnId: RuntimeBoardColumnId | null;
 	state: PromotionState;
@@ -53,6 +53,62 @@ function readRefinementNotes(input: unknown): string | null {
 	const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 	const notes = record.refinementNotes ?? record.notes ?? record.summary;
 	return typeof notes === "string" && notes.trim() ? notes.trim() : null;
+}
+
+/**
+ * Move a WORK card from Planning/Refinement to In Progress — the shared core of the explicit `begin_implementation`
+ * tool AND the §5.B Increment C auto-promote recovery (when a work card starts editing files without first calling
+ * the tool). Self-gates on the card's own `startInPlanMode` (a planning/decompose card is refused), is idempotent
+ * once in progress, and a no-op for terminal/missing cards. Fires `onPromoted` only on an actual move so the runtime
+ * broadcasts the board.
+ */
+export async function promoteCardToImplementation(input: {
+	workspacePath: string;
+	taskId: string;
+	onPromoted?: NKleinCardPromotedHandler;
+	refinementNotes?: string | null;
+}): Promise<PromotionOutcome> {
+	const outcome = await mutateWorkspaceState<PromotionOutcome>(input.workspacePath, (state) => {
+		const located = findBoardCardWithColumn(state.board, input.taskId);
+		if (located === null) {
+			return { board: state.board, save: false, value: { moved: false, fromColumnId: null, state: "missing" } };
+		}
+		const { card, columnId } = located;
+		if (columnId === "completed" || columnId === "trash") {
+			return { board: state.board, save: false, value: { moved: false, fromColumnId: columnId, state: "terminal" } };
+		}
+		// Only WORK cards (startInPlanMode === false) promote; a planning/decompose card splits itself instead.
+		if (card.startInPlanMode) {
+			return {
+				board: state.board,
+				save: false,
+				value: { moved: false, fromColumnId: columnId, state: "planning-card" },
+			};
+		}
+		if (!PRE_IMPLEMENTATION_COLUMNS.has(columnId)) {
+			return {
+				board: state.board,
+				save: false,
+				value: { moved: false, fromColumnId: columnId, state: "already-implementing" },
+			};
+		}
+		const movement = moveTaskToColumn(state.board, input.taskId, "in_progress");
+		return {
+			board: movement.board,
+			save: movement.moved,
+			value: { moved: movement.moved, fromColumnId: columnId, state: "promoted" },
+		};
+	});
+	const result = outcome.value;
+	if (result.moved && result.fromColumnId) {
+		await input.onPromoted?.({
+			workspacePath: input.workspacePath,
+			taskId: input.taskId,
+			fromColumnId: result.fromColumnId,
+			refinementNotes: input.refinementNotes ?? null,
+		});
+	}
+	return result;
 }
 
 export function createNKleinPromotionTool(options: {
@@ -81,60 +137,13 @@ export function createNKleinPromotionTool(options: {
 			additionalProperties: true,
 		},
 		async execute(input) {
-			const refinementNotes = readRefinementNotes(input);
-
-			const outcome = await mutateWorkspaceState<PromotionOutcome>(options.workspacePath, (state) => {
-				const located = findBoardCardWithColumn(state.board, options.taskId);
-				if (located === null) {
-					return {
-						board: state.board,
-						save: false,
-						value: { moved: false, fromColumnId: null, state: "missing" },
-					};
-				}
-				const { card, columnId } = located;
-				if (columnId === "completed" || columnId === "trash") {
-					return {
-						board: state.board,
-						save: false,
-						value: { moved: false, fromColumnId: columnId, state: "terminal" },
-					};
-				}
-				// Self-gate: only WORK cards (startInPlanMode === false) promote via this tool. A planning/decompose
-				// card splits itself with `decompose_project` instead — refuse here so a misbehaving model cannot push
-				// a planning card straight into Implementation (defends the resume path too, with no flag threading).
-				if (card.startInPlanMode) {
-					return {
-						board: state.board,
-						save: false,
-						value: { moved: false, fromColumnId: columnId, state: "planning-card" },
-					};
-				}
-				if (!PRE_IMPLEMENTATION_COLUMNS.has(columnId)) {
-					// Already in_progress / review — the agent is past refinement; idempotent no-op.
-					return {
-						board: state.board,
-						save: false,
-						value: { moved: false, fromColumnId: columnId, state: "already-implementing" },
-					};
-				}
-				const movement = moveTaskToColumn(state.board, options.taskId, "in_progress");
-				return {
-					board: movement.board,
-					save: movement.moved,
-					value: { moved: movement.moved, fromColumnId: columnId, state: "promoted" },
-				};
+			// Shared mutate + onPromoted with the §5.B Increment C auto-promote recovery (see promoteCardToImplementation).
+			const result = await promoteCardToImplementation({
+				workspacePath: options.workspacePath,
+				taskId: options.taskId,
+				onPromoted: options.onPromoted,
+				refinementNotes: readRefinementNotes(input),
 			});
-
-			const result = outcome.value;
-			if (result.moved && result.fromColumnId) {
-				await options.onPromoted?.({
-					workspacePath: options.workspacePath,
-					taskId: options.taskId,
-					fromColumnId: result.fromColumnId,
-					refinementNotes,
-				});
-			}
 
 			switch (result.state) {
 				case "promoted":
