@@ -808,8 +808,10 @@ deep analysis:
 >              default; a chat-only session can still have browser ON or OFF.
 >         - **Host / unsafe commands = a RISK-ACKNOWLEDGEMENT model, not a hard limit (user: "we don't limit the user
 >           strictly, but we definitely inform about risk and pass responsibility to the user").** Two requirements:
->           (1) **differentiate SAFE vs POTENTIALLY-UNSAFE commands** (classify `run_command` invocations — e.g. read-only/
->           build/test vs `rm`/`curl`/`sudo`/network/install/destructive); (2) the confirmation **informs the risk and
+>           (1) **differentiate SAFE vs POTENTIALLY-UNSAFE commands — DECIDED 2026-06-25 = ALLOWLIST** (most conservative):
+>           only a curated known-safe set (ls/cat/pwd/build/test/`git status`/typecheck/lint/…) is "safe"; **everything
+>           else is potentially-unsafe** → the risk callout + dedicated ack. (Accept the friction for safety; user is
+>           informed + owns the risk.); (2) the confirmation **informs the risk and
 >           passes responsibility** to the user via EITHER **per-unsafe-command acknowledgement** OR a **general "I accept
 >           the risk" acknowledgement that itself requires an extra-extra confirmation to enable**. Safe commands flow with
 >           the normal confirm; unsafe ones get the explicit risk callout + dedicated ack. (This is a distinct sub-feature
@@ -822,11 +824,24 @@ deep analysis:
 >         confirm UI needed, makes the right-sidebar agent able to read the project + see the board. (b) **G3b — the
 >         safe/unsafe command risk model + confirm UI** (write_file/run_command in the web-ui, classification + the
 >         risk-ack flow above) — security-sensitive, dedicated focused pass + Playwright verification.
+>         **⚠️ G3a IMPLEMENTATION CAVEATS (found while scoping 2026-06-25 — handle in the focused build):**
+>         (1) **Don't regress §5.V Suite 5** — its `streamMessage` test asserts MULTIPLE token deltas; if a tool-using
+>         session routes through `runChatAgentTurn` (which is NOT token-streaming), that assertion breaks. So tool-use must
+>         be **opt-in / scope-gated**, and the Suite-5 send/stream sessions must stay on the **plain** `runChatTurn` path
+>         (they have no workspace-agent scope) — verify the full contract suite stays green. (2) **Contract enum** — adding
+>         `chat_only` to `runtimeChatSessionScope` ripples to the zod schema + store + UI selector + existing scope tests;
+>         do it as its own clean step. (3) **Workspace threading** — `chat-service` has no project root; inject a
+>         `resolveAgentToolDeps(session) → {model, executeTool, appendToolExchange} | null` (mirrors the existing
+>         `resolveModelDeps` seam) that `runtime-api` fills from the active workspace, returning null for non-agent
+>         sessions so they stay plain. Keep `chat-service` decoupled from the tool infrastructure.
 >   - [ ] **G4 — focus chain (§5.N) in the chat agent** — persist + surface a self-directed checklist per chat session
 >         (the task agents already have `update_focus_chain`; fold the same tool + persistence into the chat loop).
 >   - [ ] **G5 — board mutations** — `create_card` / `start_card` tools (trusted control-plane board writes, gated) so
 >         the agent can "create a new project or work an existing one" autonomously, not just read it.
->   - [ ] **G6 — browser (§5.L) + knowledge-fetch (§5.B) tools** in the chat loop (per-role capability rulesets).
+>   - [ ] **G6 — browser + knowledge-fetch tools** in the chat loop. **DECIDED 2026-06-25 = HEADLESS BROWSER (Playwright)**
+>         — the agent drives a real browser (navigate/read rendered pages/click), not just text fetch; reuse the repo's
+>         existing Playwright. Toggleable capability (off by default, user enables; orthogonal to scope per the permission
+>         model). Ties into §5.L per-role rulesets.
 >   - [ ] **G7 — comprehensive live coverage** — a dev-test that drives the FULL tool-using chat agent (read → run a
 >         command → see output → edit → create a card → focus chain) against a live local model, asserting each executes.
 

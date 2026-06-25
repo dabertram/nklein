@@ -108,6 +108,20 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
     perf, 4). The full TS contract suite runs 77/77 together; the fast gate is 1516 green. **This unblocks §5.M (chat
     agent) and §5.X Phase 1 (TS-internal refactor) — both can now start, with the regression oracle as the safety net.**
 
+## Clarification pass 3 (2026-06-25, "any open questions?" — DECISIONS)
+- **Next priority = FINISH §5.M chat agent first** (G3a→G3b→G4→G5→G6) before the §5.X refactor/port. The right-sidebar
+  agent becomes fully "Cline but stronger" before other big work.
+- **G3b unsafe-command classification = ALLOWLIST safe commands** (most conservative). Only a known-safe set
+  (ls/cat/build/test/git status/…) flows as "safe"; **everything else is treated as potentially-unsafe** → the explicit
+  risk callout + dedicated acknowledgement (per-command, or the general "I accept the risk" ack that needs extra-extra
+  confirmation). Accept the friction for safety; the user is informed + owns the risk.
+- **G6 browser/internet = HEADLESS BROWSER (Playwright).** The agent drives a real browser (navigate, read rendered
+  pages, click) — not just text fetch. It's the toggleable capability (off by default, user enables). Reuse the
+  repo's existing Playwright (the working env already drives it).
+- **§5.X Python port = STRANGLER-FIG (the prepared recommendation).** Incrementally move backend layers to Python
+  (FastAPI/Pydantic) behind the §5.V contract oracle; **web-ui stays TS**; shared contract from one source; the
+  `@nkleinbot` agent SDK is **bridged/ported last**. Sequenced AFTER §5.M (per the priority above).
+
 ## Autonomous decisions (below the escalation bar)
 - **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
   explicit > inferring from turn-end, robust against weak local models (parse-and-recover principle). Low rework.
