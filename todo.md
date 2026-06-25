@@ -1726,11 +1726,15 @@ deep analysis:
       begin_implementation, both green) or have to stand up Docker+model. So: **the §5.B pipeline is covered by those
       units (DONE) + the LIVE Suite 10** (real LM Studio + Docker decompose→promote→review→merge), not a separate
       fast-gate. A thin HTTP slice that IS deterministic (apply plan artifact → cards in planning) is already **Suite 2**.
-- [~] **Suite 5 — Chat HTTP + streaming** (`test/contract/chat-contract.test.ts`) — **13 tests DONE 2026-06-25**: the 12
+- [x] **Suite 5 — Chat HTTP + streaming (DONE 2026-06-25, 14 tests)** (`test/contract/chat-contract.test.ts`) — the 12
       CRUD (createSession/listSessions/getSession/getTranscript/updateSession/deleteSession) **+ `sendMessage`** against
       the mock-LLM (it registers a CUSTOM local provider pointing at the mock via `addNKleinProvider`, proving the
-      chat-endpoint fix end-to-end — the chat hits the configured endpoint). **Only `streamMessage` remains `it.todo`**
-      (it needs an SSE/WS subscription test client). The chat-endpoint fix is verified by this e2e (see below).
+      chat-endpoint fix end-to-end — the chat hits the configured endpoint) **+ `streamMessage`** (the tRPC SSE
+      subscription, driven by the REAL tRPC client — `createChatSubscriptionClient` mirrors the web-ui's `splitLink`
+      with `httpSubscriptionLink` + the `eventsource` ponyfill since Node has no global `EventSource`). The streaming
+      test asserts multiple incremental token deltas (the mock streams ~4 chunks), that their concatenation reconstructs
+      the reply, and that the terminal `done` carries + persists both messages. The chat-endpoint fix is verified by this
+      e2e (see below).
   - [x] **BUG FIXED (found via Suite 5) — the in-app chat now uses the configured local endpoint.** Was: the chat
         ignored the configured provider endpoint (always the hardcoded `DEFAULT_LOCAL_CHAT_BASE_URL` :1234). Fix: added
         `nkleinProviderService.getLocalChatBaseUrl()` (the selected LOCAL provider's saved baseUrl; cloud selections →
@@ -1781,7 +1785,7 @@ deep analysis:
         **microsoft/phi-4-mini-reasoning**, **deepseek-r1-0528-qwen3-8b-mlx** (+ the heavier qwen2.5-coder-14b / qwen3.6-27b
         when time permits). **deepseek may crash/unload mid-sweep** — if it disappears from `/v1/models`, record that it was
         dropped (we *want* it; crash-resilience is a later task) and continue the sweep with the rest, don't block.
-- [ ] **Suite 11 — Core-py contract parity** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X.
+- [x] **Suite 11 — Core-py contract parity (DONE 2026-06-25, 25 tests)** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X. *(Runs via `uv run pytest core-py/tests/test_contract_parity.py` — 25 passed; not in the JS fast-gate, run with the core-py suite.)*
 - [x] **Suite 12 — CLI task subcommands (DONE 2026-06-25, 14 tests)** (`test/contract/cli-task-subcommands.test.ts`) —
       create/list/list --column/done/trash/delete (--task-id + --column) over the spawned CLI, swarm-stop/resume (pure
       disk), + 4 error-handling cases. *(Findings: mutating commands need a running server — `ensureRuntimeWorkspace` →

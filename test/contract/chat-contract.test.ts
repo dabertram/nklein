@@ -21,12 +21,32 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { createTRPCProxyClient, httpBatchLink, httpSubscriptionLink, splitLink } from "@trpc/client";
+import { EventSource } from "eventsource";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { RuntimeAppRouter } from "../../src/trpc/app-router";
 import type { BackendUnderTest } from "./helpers";
 import { initGitRepository, requestJson, startTsBackend } from "./helpers";
 import type { MockLlmServer } from "./helpers/mock-llm";
 import { startMockLlm } from "./helpers/mock-llm";
+
+/**
+ * A minimal tRPC client mirroring the web-ui's (web-ui/src/runtime/trpc-client.ts): subscriptions over SSE, everything
+ * else batched HTTP. Node has no global `EventSource`, so we hand httpSubscriptionLink the `eventsource` ponyfill — this
+ * exercises the exact subscription wire the browser uses, against the spawned server.
+ */
+function createChatSubscriptionClient(baseUrl: string) {
+	return createTRPCProxyClient<RuntimeAppRouter>({
+		links: [
+			splitLink({
+				condition: (op) => op.type === "subscription",
+				true: httpSubscriptionLink({ url: `${baseUrl}/api/trpc`, EventSource }),
+				false: httpBatchLink({ url: `${baseUrl}/api/trpc` }),
+			}),
+		],
+	});
+}
 
 // ---------------------------------------------------------------------------
 // Local helpers
@@ -303,18 +323,14 @@ describe.sequential("Suite 5B — chat.updateSession / deleteSession", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Suite C — chat.sendMessage + transcript persistence (mock-LLM)
+// Suite C — chat.sendMessage + chat.streamMessage + transcript persistence (mock-LLM)
 // ---------------------------------------------------------------------------
 //
-// WIRING STATUS: the mock LLM server is started and `runtime.saveNKleinProviderSettings` is called
-// with `{ providerId: "lmstudio", baseUrl: mock.baseUrl + "/v1", modelId: "mock-model" }` to document
-// the intended wiring path. However, `resolveLocalChatModelDeps()` (runtime-api.ts:383) currently
-// uses a hardcoded `DEFAULT_LOCAL_CHAT_BASE_URL` and does NOT read from the saved provider settings.
-// Until that bridge is wired (the chat model resolver should read from `getSdkProviderSettings("lmstudio")`),
-// sendMessage / streamMessage will attempt to hit `http://127.0.0.1:1234` and fail.
-//
-// These tests are marked it.todo. When the wiring is added to `src/chat/local-chat-model.ts`, remove
-// the it.todo wrappers and they should pass against the mock.
+// WIRING (the chat-endpoint fix is DONE): the chat resolves its endpoint from the SELECTED local provider via
+// runtime-api's `nkleinProviderService.getLocalChatBaseUrl()`. These tests register a CUSTOM local provider pointing
+// at the mock (`runtime.addNKleinProvider`, which also selects it) — a custom provider has no live-only "model must be
+// loaded" validation, so the spawned server's chat deterministically hits the mock with no real LM Studio. sendMessage
+// goes over batched HTTP; streamMessage is a tRPC SSE subscription driven by the real client (createChatSubscriptionClient).
 // ---------------------------------------------------------------------------
 
 describe.sequential("Suite 5C — chat.sendMessage against the mock-LLM (custom local provider)", () => {
@@ -386,6 +402,72 @@ describe.sequential("Suite 5C — chat.sendMessage against the mock-LLM (custom 
 		expect(contents).toContain("mocked assistant reply");
 	}, 25_000);
 
-	// streamMessage is a tRPC subscription (token deltas → done); driving it needs an SSE/WS subscription client.
-	it.todo("chat.streamMessage streams token deltas to a 'done' event [owes: an SSE/WS subscription test client]");
+	it("chat.streamMessage streams token deltas then a terminal 'done' carrying the persisted messages", async () => {
+		const created = await requestJson<{ session: { id: string } }>({
+			baseUrl: server.baseUrl,
+			procedure: "chat.createSession",
+			type: "mutation",
+			payload: { title: "Stream test" },
+		});
+		const sessionId = created.payload.session.id;
+		expect(sessionId).toBeTruthy();
+
+		const reply = "streamed assistant reply over several chunks";
+		mock.enqueue({ content: reply });
+
+		const client = createChatSubscriptionClient(server.baseUrl);
+		const tokens: string[] = [];
+		let done: { userMessage: { content: string } | null; assistantMessage: { content: string } | null } | null = null;
+
+		await new Promise<void>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				subscription.unsubscribe();
+				reject(new Error("streamMessage did not complete within 15s"));
+			}, 15_000);
+			const subscription = client.chat.streamMessage.subscribe(
+				{ sessionId, message: "hello stream" },
+				{
+					onData: (event) => {
+						if (event.type === "token") {
+							tokens.push(event.delta);
+						} else if (event.type === "done") {
+							done = { userMessage: event.userMessage, assistantMessage: event.assistantMessage };
+						}
+					},
+					onError: (error) => {
+						clearTimeout(timeout);
+						reject(error instanceof Error ? error : new Error(String(error)));
+					},
+					onComplete: () => {
+						clearTimeout(timeout);
+						resolve();
+					},
+				},
+			);
+		});
+
+		// The mock streams the reply in several SSE chunks, so the client must see multiple incremental token deltas…
+		expect(tokens.length).toBeGreaterThanOrEqual(2);
+		// …and their concatenation must reconstruct the full reply.
+		expect(tokens.join("")).toBe(reply);
+		// The terminal `done` carries both persisted messages.
+		expect(done).not.toBeNull();
+		const settled = done as unknown as {
+			userMessage: { content: string } | null;
+			assistantMessage: { content: string } | null;
+		};
+		expect(settled.userMessage?.content).toBe("hello stream");
+		expect(settled.assistantMessage?.content).toBe(reply);
+
+		// And the transcript persisted both (same as the non-streaming path).
+		const transcript = await requestJson<{ messages: Array<{ role: string; content: string }> }>({
+			baseUrl: server.baseUrl,
+			procedure: "chat.getTranscript",
+			type: "query",
+			payload: { sessionId },
+		});
+		const contents = transcript.payload.messages.map((message) => message.content);
+		expect(contents).toContain("hello stream");
+		expect(contents).toContain(reply);
+	}, 25_000);
 });
