@@ -30,6 +30,16 @@ import {
 	discoverLoadedModelId,
 	resolveLocalChatModelDeps,
 } from "../chat/local-chat-model";
+import {
+	buildPlanGapAdaptationRevision,
+	buildPlanGapIntegrationRevision,
+} from "../commands/task/task-plan-gap-prompts.js";
+import {
+	addPlanGapDecisionCardToBoard,
+	addPlanGapIntegrationCardToBoard,
+	addPlanGapScopeCardToBoard,
+	inferNKleinPlanSlugForTask,
+} from "../commands/task.js";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
@@ -81,6 +91,7 @@ import {
 } from "../core/api-validation";
 import { readPausedTasks, setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { recordPlanGap } from "../core/plan-gap.js";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { selectRoleModel } from "../core/role-model-selection";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
@@ -121,6 +132,7 @@ import {
 } from "../nklein-sdk/nklein-model-registry";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
 import {
+	appendNKleinPlanRevision,
 	listNKleinPlanArtifactsForSourceTask,
 	type NKleinPlanArtifactSummary,
 	readNKleinPlanArtifactsByArtifactId,
@@ -737,6 +749,146 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				ok: true,
 				artifact: summarizeNKleinPlanArtifacts(updatedArtifacts),
 				message: `Rejected ${artifacts.taskGraph.title}.`,
+			};
+		},
+		recordNKleinPlanGap: async (workspaceScope, input) => {
+			// Record telemetry observation (fire-and-forget, non-throwing).
+			recordPlanGap({
+				workspacePath: workspaceScope.workspacePath,
+				taskId: input.taskId,
+				kind: input.kind,
+				description: input.description,
+				evidence: input.evidence,
+			});
+
+			// Append a plan revision if this task belongs to a known plan.
+			const planSlug = await inferNKleinPlanSlugForTask({
+				workspacePath: workspaceScope.workspacePath,
+				taskId: input.taskId,
+			});
+
+			let workspaceState: import("../core/api-contract.js").RuntimeWorkspaceStateResponse | undefined;
+
+			if (
+				input.kind === "integration_needed" ||
+				input.kind === "missing_decision" ||
+				input.kind === "contradictory_requirement" ||
+				input.kind === "scope_too_large"
+			) {
+				// These kinds create a companion Planning card.
+				const mutation = await mutateWorkspaceState<{ adaptationTaskId: string | null; created: boolean }>(
+					workspaceScope.workspacePath,
+					(latestState) => {
+						const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
+						let adapted: {
+							board: typeof latestState.board;
+							task: import("../core/api-contract.js").RuntimeBoardCard;
+							created: boolean;
+						};
+						if (input.kind === "integration_needed") {
+							adapted = addPlanGapIntegrationCardToBoard({
+								state: latestState,
+								taskId: input.taskId,
+								description: input.description,
+								evidence: input.evidence,
+								baseRef,
+							});
+						} else if (input.kind === "scope_too_large") {
+							adapted = addPlanGapScopeCardToBoard({
+								state: latestState,
+								taskId: input.taskId,
+								description: input.description,
+								evidence: input.evidence,
+								baseRef,
+							});
+						} else {
+							// TypeScript can't infer that only missing_decision/contradictory_requirement
+							// reach here; the outer if already excludes integration_needed and scope_too_large.
+							const decisionKind = input.kind as Extract<
+								typeof input.kind,
+								"missing_decision" | "contradictory_requirement"
+							>;
+							adapted = addPlanGapDecisionCardToBoard({
+								state: latestState,
+								taskId: input.taskId,
+								kind: decisionKind,
+								description: input.description,
+								evidence: input.evidence,
+								baseRef,
+							});
+						}
+						return {
+							board: adapted.board,
+							value: {
+								adaptationTaskId: typeof adapted.task.id === "string" ? adapted.task.id : null,
+								created: adapted.created,
+							},
+						};
+					},
+				);
+				workspaceState = mutation.state;
+
+				// Append a plan revision cross-linking the new card.
+				if (planSlug && mutation.value.adaptationTaskId && mutation.value.created) {
+					if (input.kind === "integration_needed") {
+						const revision = buildPlanGapIntegrationRevision({
+							taskId: input.taskId,
+							integrationTaskId: mutation.value.adaptationTaskId,
+							description: input.description,
+							evidence: input.evidence,
+						});
+						await appendNKleinPlanRevision({
+							workspacePath: workspaceScope.workspacePath,
+							slug: planSlug,
+							taskId: input.taskId,
+							kind: revision.kind,
+							description: revision.description,
+							evidence: revision.evidence ?? undefined,
+						});
+					} else {
+						const revision = buildPlanGapAdaptationRevision({
+							taskId: input.taskId,
+							adaptationTaskId: mutation.value.adaptationTaskId,
+							kind: input.kind,
+							description: input.description,
+							evidence: input.evidence,
+						});
+						await appendNKleinPlanRevision({
+							workspacePath: workspaceScope.workspacePath,
+							slug: planSlug,
+							taskId: input.taskId,
+							kind: revision.kind,
+							description: revision.description,
+							evidence: revision.evidence ?? undefined,
+						});
+					}
+				}
+			} else if (planSlug) {
+				// For observation-only kinds (missing_dependency, other): just append the revision.
+				await appendNKleinPlanRevision({
+					workspacePath: workspaceScope.workspacePath,
+					slug: planSlug,
+					taskId: input.taskId,
+					kind: input.kind,
+					description: input.description,
+					evidence: input.evidence,
+				});
+			}
+
+			const kindLabel: Record<string, string> = {
+				missing_decision: "missing decision",
+				contradictory_requirement: "contradictory requirement",
+				missing_dependency: "missing dependency",
+				scope_too_large: "scope too large",
+				integration_needed: "integration needed",
+				other: "other",
+			};
+			return {
+				ok: true,
+				taskId: input.taskId,
+				kind: input.kind,
+				message: `Recorded plan gap (${kindLabel[input.kind] ?? input.kind}) for task "${input.taskId}".`,
+				workspaceState,
 			};
 		},
 		verifyTaskAcceptance: async (workspaceScope, input) => {

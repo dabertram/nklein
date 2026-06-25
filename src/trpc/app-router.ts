@@ -93,6 +93,8 @@ import type {
 	RuntimeProjectsResponse,
 	RuntimeProtectedTestApprovalGrantRequest,
 	RuntimeProtectedTestApprovalGrantResponse,
+	RuntimeRecordNKleinPlanGapRequest,
+	RuntimeRecordNKleinPlanGapResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
@@ -229,6 +231,8 @@ import {
 	runtimeProjectsResponseSchema,
 	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeProtectedTestApprovalGrantResponseSchema,
+	runtimeRecordNKleinPlanGapRequestSchema,
+	runtimeRecordNKleinPlanGapResponseSchema,
 	runtimeRunUpdateResponseSchema,
 	runtimeSelfImprovementProjectRequestSchema,
 	runtimeSelfImprovementProjectResponseSchema,
@@ -370,6 +374,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactActionRequest,
 		) => Promise<RuntimeNKleinPlanArtifactRejectResponse>;
+		recordNKleinPlanGap: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: RuntimeRecordNKleinPlanGapRequest,
+		) => Promise<RuntimeRecordNKleinPlanGapResponse>;
 		verifyTaskAcceptance: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskAcceptanceVerifyRequest,
@@ -752,6 +760,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeNKleinPlanArtifactRejectResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.rejectNKleinPlanArtifact(ctx.workspaceScope, input);
+			}),
+		recordNKleinPlanGap: workspaceProcedure
+			.input(runtimeRecordNKleinPlanGapRequestSchema)
+			.output(runtimeRecordNKleinPlanGapResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.recordNKleinPlanGap(ctx.workspaceScope, input);
 			}),
 		verifyTaskAcceptance: workspaceProcedure
 			.input(runtimeTaskAcceptanceVerifyRequestSchema)

@@ -14,6 +14,7 @@ import {
 	type NKleinAgentChatPanelHandle,
 } from "@/components/detail-panels/nklein-agent-chat-panel";
 import { PendingPlanArtifactsPanel } from "@/components/detail-panels/pending-plan-artifacts-panel";
+import { PlanGapActionsPanel } from "@/components/detail-panels/plan-gap-actions-panel";
 import { PlanningDagReviewPanel } from "@/components/detail-panels/planning-dag-review-panel";
 import { SecondOpinionReviewPanel } from "@/components/detail-panels/second-opinion-review-panel";
 import { buildTaskActivitySteps, getActivityToneClassName } from "@/components/detail-panels/task-activity-model";
@@ -831,6 +832,13 @@ export function CardDetailView({
 								taskId={selection.card.id}
 								onWorkspaceStateApplied={onWorkspaceStateApplied}
 							/>
+							{selection.column.id === "planning" || selection.column.id === "review" ? (
+								<PlanGapActionsPanel
+									workspaceId={currentProjectId}
+									taskId={selection.card.id}
+									onWorkspaceStateApplied={onWorkspaceStateApplied}
+								/>
+							) : null}
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
@@ -995,6 +1003,13 @@ export function CardDetailView({
 									taskId={selection.card.id}
 									onWorkspaceStateApplied={onWorkspaceStateApplied}
 								/>
+								{selection.column.id === "planning" || selection.column.id === "review" ? (
+									<PlanGapActionsPanel
+										workspaceId={currentProjectId}
+										taskId={selection.card.id}
+										onWorkspaceStateApplied={onWorkspaceStateApplied}
+									/>
+								) : null}
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (

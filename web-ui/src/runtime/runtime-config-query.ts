@@ -51,6 +51,8 @@ import type {
 	RuntimeNKleinSmokeEvalResponse,
 	RuntimeNKleinUpdateProviderResponse,
 	RuntimeProjectArtifactMigrationResponse,
+	RuntimeRecordNKleinPlanGapRequest,
+	RuntimeRecordNKleinPlanGapResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeSelfImprovementProjectResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
@@ -481,6 +483,14 @@ export async function rejectNKleinPlanArtifact(
 ): Promise<RuntimeNKleinPlanArtifactRejectResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.rejectNKleinPlanArtifact.mutate({ artifactId });
+}
+
+export async function recordNKleinPlanGap(
+	workspaceId: string | null,
+	input: RuntimeRecordNKleinPlanGapRequest,
+): Promise<RuntimeRecordNKleinPlanGapResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.recordNKleinPlanGap.mutate(input);
 }
 
 export async function verifyTaskAcceptance(

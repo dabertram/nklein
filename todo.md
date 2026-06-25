@@ -2014,16 +2014,14 @@ deep analysis:
         (mirrors `onMoveToTrash`). board-card test extended. web tsc + **web vitest 701** + biome green. CHANGELOG entry added.
         *(Built by a worktree subagent; its worktree hit the dev-test `core.bare` pollution again, but the web-ui edits were
         clean + untracked-by-the-fixture, so I recovered the repo and salvaged the 7 files cleanly — see incident note below.)*
-  - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
-        card detail panels. **PLAN (research agent 2026-06-25):** both are **CLI-only today** — `task plan-gap`
-        (`src/commands/task.ts` ~2014–2051 → `recordTaskPlanGapCommand` ~1517 → `recordPlanGap` + `appendNKleinPlanRevision`,
-        creates integration/adaptation board cards for some gap kinds) and `task expand-plan-task` (~2053–2087 →
-        `expandSavedPlanTaskCommand` ~625 → `applyNKleinPlanTaskReplacementArtifacts`). No tRPC procs exist. **Approach:**
-        (a) add two runtime-api mutations (`recordNKleinPlanGap`, `expandNKleinPlanTask`) wrapping the command logic
-        (mirror the existing `applyNKleinPlanArtifact`/`rejectNKleinPlanArtifact` procs ~644–738); (b) two new detail panels
-        under `web-ui/src/components/detail-panels/` mirroring **`PendingPlanArtifactsPanel`** (apply/reject + busy/toast/
-        result-line) and **`TaskRecoveryActionsPanel`** (button-row + modal + per-action busy) — render `null` when not
-        applicable; (c) render them in `card-detail-view.tsx` after the existing plan panels, lane-gated (planning/review).
+  - [~] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
+        card detail panels. **plan-gap DONE (2026-06-25):** `recordNKleinPlanGap` tRPC mutation added to `runtime-api.ts`
+        (calls `recordPlanGap` + `inferNKleinPlanSlugForTask` + `appendNKleinPlanRevision` + card-creating helpers for
+        integration/decision/scope kinds), schema in `api-contract.ts`, proc wired in `app-router.ts`, client helper in
+        `runtime-config-query.ts`, `PlanGapActionsPanel` detail panel rendered in `card-detail-view.tsx` after
+        `PendingPlanArtifactsPanel` (planning + review lanes only), 6-test contract suite. **Still open:** `expand-plan-task`
+        — `expandNKleinPlanTask` mutation + companion panel (`task expand-plan-task` ~2053–2087 →
+        `expandSavedPlanTaskCommand` ~625 → `applyNKleinPlanTaskReplacementArtifacts`).
   - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
         de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
 - [~] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**

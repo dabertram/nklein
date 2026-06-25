@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { ACCEPTANCE_FAILURE_CATEGORIES } from "./acceptance-failure-taxonomy.js";
 import { AGENT_CAPABILITY_TIERS, AGENT_DELIVERY_TIERS, AGENT_RULESET_ROLES } from "./agent-rulesets.js";
+import { planGapKindSchema } from "./plan-gap.js";
+
+export type { PlanGapKind } from "./plan-gap.js";
+
 import { resolveTaskTitle } from "./task-title.js";
 
 // Board-independent unified chat (todo §5.M) lives in its own contract module; re-exported here so the single
@@ -2011,6 +2015,23 @@ export const runtimeNKleinPlanArtifactRejectResponseSchema = z.object({
 	message: z.string(),
 });
 export type RuntimeNKleinPlanArtifactRejectResponse = z.infer<typeof runtimeNKleinPlanArtifactRejectResponseSchema>;
+
+export const runtimeRecordNKleinPlanGapRequestSchema = z.object({
+	taskId: z.string().min(1),
+	kind: planGapKindSchema,
+	description: z.string().min(1),
+	evidence: z.string().optional(),
+});
+export type RuntimeRecordNKleinPlanGapRequest = z.infer<typeof runtimeRecordNKleinPlanGapRequestSchema>;
+
+export const runtimeRecordNKleinPlanGapResponseSchema = z.object({
+	ok: z.boolean(),
+	taskId: z.string(),
+	kind: planGapKindSchema,
+	message: z.string(),
+	workspaceState: runtimeWorkspaceStateResponseSchema.optional(),
+});
+export type RuntimeRecordNKleinPlanGapResponse = z.infer<typeof runtimeRecordNKleinPlanGapResponseSchema>;
 
 export const runtimeTaskAcceptanceVerifyRequestSchema = z.object({
 	taskId: z.string().min(1),
