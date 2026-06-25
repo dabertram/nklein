@@ -1989,8 +1989,9 @@ deep analysis:
         ~L1235–1262), wired to `persistNKleinModelSettings` → `onTaskNKleinSettingsChanged` → `applyTaskDetailNKleinSettingsChange`.
         The "5 explicit timeout values" are a **global** concept (Settings → Tasks); per-task uses the mode selector, which
         is present. No gap. *(Second stale §5.W audit item after swarm stop/resume — the feature-vs-UI audit over-reported.)*
-  - [ ] **swarm stop/resume in the UI** — `task swarm-stop`/`swarm-resume` are CLI-only; add an emergency swarm
-        stop/resume control to the board header (backend already exists).
+  - [x] **swarm stop/resume in the UI — ALREADY DONE (stale duplicate, verified 2026-06-25).** The board header already
+        has the Pause/Resume control (`kanban-board.tsx`, `board.swarm-pause`, driven by `swarmStopSignal`). Duplicate of
+        the resolved item lower in this section; the audit listed it twice.
   - [~] **dependency link/unlink dialog** — CLI `task link`/`unlink` exist; board creation was **drag-only**. **COMPONENT
         DONE (solo):** `DependencyPickerDialog` ([dependency-picker-dialog.tsx](web-ui/src/components/dependency-picker-dialog.tsx))
         — pick a task from a candidate list (self + already-linked filtered out) → `onCreateDependency(card.id, picked.id)`
@@ -1999,20 +2000,45 @@ deep analysis:
         **STILL TODO:** wire an entry point (an "Add dependency" affordance in the card detail view) — thread the board's
         card list + the existing `onCreateDependency`/`onDeleteDependency` callbacks down + a live Playwright check; then a
         CHANGELOG entry once reachable.
-  - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (currently JSON-only) + `plan-gap` reporting
-        in the pending-artifacts / card menus.
+  - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
+        card detail panels. **PLAN (research agent 2026-06-25):** both are **CLI-only today** — `task plan-gap`
+        (`src/commands/task.ts` ~2014–2051 → `recordTaskPlanGapCommand` ~1517 → `recordPlanGap` + `appendNKleinPlanRevision`,
+        creates integration/adaptation board cards for some gap kinds) and `task expand-plan-task` (~2053–2087 →
+        `expandSavedPlanTaskCommand` ~625 → `applyNKleinPlanTaskReplacementArtifacts`). No tRPC procs exist. **Approach:**
+        (a) add two runtime-api mutations (`recordNKleinPlanGap`, `expandNKleinPlanTask`) wrapping the command logic
+        (mirror the existing `applyNKleinPlanArtifact`/`rejectNKleinPlanArtifact` procs ~644–738); (b) two new detail panels
+        under `web-ui/src/components/detail-panels/` mirroring **`PendingPlanArtifactsPanel`** (apply/reject + busy/toast/
+        result-line) and **`TaskRecoveryActionsPanel`** (button-row + modal + per-action busy) — render `null` when not
+        applicable; (c) render them in `card-detail-view.tsx` after the existing plan panels, lane-gated (planning/review).
   - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
         de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
 - [ ] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
       for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
-      the override model + storage; wire it through.
+      the override model + storage; wire it through. **PLAN (research agent 2026-06-25):** the override mechanism already
+      exists for exactly one field — `codeEmbeddingOverride` in `RuntimeProjectConfigFileShape` (`runtime-config.ts` ~L83),
+      merged in `toRuntimeConfigState` as `effectiveCodeEmbeddingSettings = override ?? defaults` (~L855). **Extend that
+      template:** add `<field>Override?: T | null` project-config fields + an `applyOverride(globalValue, projectOverride,
+      normalize)` helper used per-field in `toRuntimeConfigState`, and expose per-field "Inherited / Overridden (× revert)"
+      state to the UI (store the project overrides on `RuntimeConfigState` so the dialog can badge each control). **Do it
+      in phases** — Phase 1 = the ~5 highest-value overrides (`selectedAgentId`, `maxConcurrentTasks`, `modelRoles`,
+      `agentRulesets`, + refactor `codeEmbedding` into the new shape); Phase 2 = the rest. **Riskiest:** the dialog's
+      inherited-vs-overridden state (derive `isOverridden()` rather than parallel booleans), back-compat (old project
+      configs have no override fields → no-op), and NOT auto-syncing an override when its global default changes.
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
       ([project-row.tsx](web-ui/src/components/project-nav/project-row.tsx)) *(A board-header entry point is still optional.)*
 - [ ] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
       Intelligence, Advanced, …) so nothing is scattered; consistent layout. Pair with the §5.U `runtime-settings-dialog`
-      decomposition when that runs.
+      decomposition when that runs. **PLAN (research agent 2026-06-25):** today 7 flat `SettingsNavId` sections
+      (`runtime-settings-dialog.tsx` ~L342–357) with mixed concerns — "General" is a dumping ground (dev mode + Docker +
+      agent select + timeouts + code intel), "Tasks" conflates task defaults + parallelism + rulesets. Proposed ~9 sections:
+      Workspace Essentials · Sandbox & Isolation · Agents & Roles · !Klein Provider & Models · Guardrails & Limits ·
+      Automation & Templates · Notifications · Appearance · Project. **Mostly JSX moves (~500–800 lines, low logic risk).**
+      **Riskiest:** the **code-embedding** block (derived `effectiveCodeEmbeddingSettings` + global-default-vs-project-override
+      entanglement) — keep it reachable for non-!Klein users (don't bury it in the !Klein section). Do it as **low-risk
+      pure-move increments first**; pairs with the §5.U dialog decomposition. *(Lower priority: cosmetic + touches the file I
+      just edited for workspaceBaseDir — sequence after the higher-value feature gaps.)*
 - [x] **swarm stop/resume in the UI — ALREADY DONE** *(audit 2026-06-25)* — the board header already exposes it:
       [kanban-board.tsx](web-ui/src/components/kanban-board.tsx) has the `board.swarm-pause` control (Pause/Resume button +
       a "Paused" status driven by `swarmStopSignal`/`RuntimeSwarmStopSignal`). The §5.W "CLI-only" note was stale.
