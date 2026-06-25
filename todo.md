@@ -1983,6 +1983,16 @@ deep analysis:
         with a component test asserting it renders + saves `workspaceBaseDir`. CHANGELOG entry added. Root+web tsc, fast,
         web vitest, biome all green. **Complete end-to-end** — the user's "user configured path (global settings)" ask is
         fully delivered.
+  - [x] **ROOT-CAUSE FIX: created workspaces can't spawn inside any git repo (2026-06-25, after a pollution RECURRENCE).**
+        A worktree subagent's dev-test scaffold flipped the shared `core.bare` again. Cause: the safety guard's "forbidden"
+        zone was `dirname(import.meta.url → installRoot)`, which is **fragile from inside a worktree** (computes just
+        `.claude/worktrees`, not the whole repo). **Fix:** `resolveSafeCreatedWorkspaceParentDir` is now **git-aware** — a
+        new exported `isPathInsideGitWorkTree(path)` walks up for a `.git`, and any candidate inside a git work tree is
+        rejected/redirected (location-independent: catches the !Klein repo + every `.claude/worktrees/*` no matter where the
+        code runs). Plus a **hard backstop** in `initializeGitRepository` (`nklein-dev-test-project.ts`): it throws rather
+        than `git init` inside an existing work tree. +2 tests (a git repo OUTSIDE the install parent is now caught).
+        Root+web tsc, fast **1731**, biome green. AGENTS.md incident note + CHANGELOG updated. *(Confirms again: worktree
+        write-subagents are risky here — but the env is now hardened so even a stray scaffold can't pollute the repo.)*
   - [x] **per-task NKlein settings — ALREADY EXPOSED (audit was stale, verified 2026-06-25).** `contextScope`
         (Full/Smart/Minimal/Custom) and the per-task `timeoutMode` (Normal/Long/Extended/Unlimited) are already rendered as
         `NativeSelect` controls in the card's NKlein agent chat panel ([nklein-agent-chat-panel.tsx](web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx)

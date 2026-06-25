@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
+import { isPathInsideGitWorkTree, resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TEMPLATE_NAME = "smoke-ts-cli";
@@ -326,6 +326,15 @@ export function resolveNKleinDevTestTemplatePath(templateName = DEFAULT_TEMPLATE
 }
 
 async function initializeGitRepository(workspacePath: string): Promise<void> {
+	// HARD BACKSTOP against the dev-test pollution incident: never `git init`/commit inside an existing git work tree
+	// (the !Klein repo or one of its `.claude/worktrees/*` checkouts). The resolver should already keep us out, but a
+	// `git init` here would otherwise seed fixture commits + flip `core.bare` on the shared repo. Fail loudly instead.
+	if (isPathInsideGitWorkTree(workspacePath)) {
+		throw new Error(
+			`Refusing to initialize a git repo at "${workspacePath}": it is inside an existing git work tree. ` +
+				"Created workspaces must live outside any repo (see resolveSafeCreatedWorkspaceParentDir).",
+		);
+	}
 	await execFileAsync("git", ["init"], { cwd: workspacePath });
 	await execFileAsync("git", ["config", "kanban.repositoryCreatedByKanban", "true"], { cwd: workspacePath });
 	await execFileAsync("git", ["add", "."], { cwd: workspacePath });
