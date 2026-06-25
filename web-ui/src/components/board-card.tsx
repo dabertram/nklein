@@ -2,7 +2,18 @@ import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry, usesLegacyHostTaskWorkspace } from "@runtime-agent-catalog";
 import { formatNKleinToolCallLabel } from "@runtime-nklein-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
-import { AlertCircle, AlertTriangle, Bot, Clipboard, GitBranch, Pause, Pencil, Play, RotateCcw } from "lucide-react";
+import {
+	AlertCircle,
+	AlertTriangle,
+	Bot,
+	Clipboard,
+	GitBranch,
+	Link2,
+	Pause,
+	Pencil,
+	Play,
+	RotateCcw,
+} from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -433,6 +444,7 @@ export function BoardCard({
 	isDependencySource = false,
 	isDependencyTarget = false,
 	isDependencyLinking = false,
+	onManageDependencies,
 	workspacePath,
 	defaultNKleinModelId = null,
 }: {
@@ -465,6 +477,8 @@ export function BoardCard({
 	isDependencySource?: boolean;
 	isDependencyTarget?: boolean;
 	isDependencyLinking?: boolean;
+	/** Opens the DependencyPickerDialog for this card. Shown on hover for all non-trash cards. */
+	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
 	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
@@ -854,6 +868,22 @@ export function BoardCard({
 										>
 											Evidence
 										</Button>
+									</Tooltip>
+								) : null}
+								{!isTrashCard && onManageDependencies ? (
+									<Tooltip content="Manage dependencies">
+										<Button
+											icon={<Link2 size={13} />}
+											variant="ghost"
+											size="sm"
+											aria-label="Manage dependencies"
+											onMouseDown={stopEvent}
+											onClick={(event) => {
+												stopEvent(event);
+												onManageDependencies(card.id);
+											}}
+											className={cn(isHovered ? "opacity-100" : "opacity-0")}
+										/>
 									</Tooltip>
 								) : null}
 								{isPausedSession ? (

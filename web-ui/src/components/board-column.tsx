@@ -45,6 +45,7 @@ export function BoardColumn({
 	dependencySourceTaskId,
 	dependencyTargetTaskId,
 	isDependencyLinking,
+	onManageDependencies,
 	workspacePath,
 	replayCardsEnabled = false,
 	defaultNKleinModelId,
@@ -83,6 +84,7 @@ export function BoardColumn({
 	dependencySourceTaskId?: string | null;
 	dependencyTargetTaskId?: string | null;
 	isDependencyLinking?: boolean;
+	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
 	replayCardsEnabled?: boolean;
 	defaultNKleinModelId?: string | null;
@@ -213,6 +215,7 @@ export function BoardColumn({
 											isDependencySource={dependencySourceTaskId === card.id}
 											isDependencyTarget={dependencyTargetTaskId === card.id}
 											isDependencyLinking={isDependencyLinking}
+											onManageDependencies={onManageDependencies}
 											workspacePath={workspacePath}
 											defaultNKleinModelId={defaultNKleinModelId}
 											onSaveTitle={onSaveTitle}

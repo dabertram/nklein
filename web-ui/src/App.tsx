@@ -12,6 +12,7 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
+import { type DependencyPickerCard, DependencyPickerDialog } from "@/components/dependency-picker-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
@@ -100,6 +101,7 @@ export default function App(): ReactElement {
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
 	const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+	const [manageDependenciesCardId, setManageDependenciesCardId] = useState<string | null>(null);
 	const [pendingTaskStartAfterEditId, setPendingTaskStartAfterEditId] = useState<string | null>(null);
 	const taskEditorResetRef = useRef<() => void>(() => {});
 	const lastStreamErrorRef = useRef<string | null>(null);
@@ -868,6 +870,15 @@ export default function App(): ReactElement {
 		return <KanbanAccessBlockedFallback />;
 	}
 
+	const manageDependenciesCard = manageDependenciesCardId
+		? (board.columns.flatMap((col) => col.cards).find((c) => c.id === manageDependenciesCardId) ?? null)
+		: null;
+	const manageDependenciesAllCards: DependencyPickerCard[] = manageDependenciesCardId
+		? board.columns
+				.filter((col) => col.id !== "trash")
+				.flatMap((col) => col.cards.map((c) => ({ id: c.id, title: c.title, columnTitle: col.title })))
+		: [];
+
 	return (
 		<LayoutCustomizationsProvider onResetBottomTerminalLayoutCustomizations={resetBottomTerminalLayoutCustomizations}>
 			<div className="flex h-[100svh] min-w-0 overflow-hidden">
@@ -1058,6 +1069,7 @@ export default function App(): ReactElement {
 												dependencies={board.dependencies}
 												onCreateDependency={handleCreateDependency}
 												onDeleteDependency={handleDeleteDependency}
+												onManageDependencies={setManageDependenciesCardId}
 												onRequestProgrammaticCardMoveReady={
 													selectedCard ? undefined : handleProgrammaticCardMoveReady
 												}
@@ -1186,6 +1198,7 @@ export default function App(): ReactElement {
 									onTaskNKleinSettingsChanged={handleNKleinTaskSettingsChangedForTask}
 									onApprovePlanningCard={handleApprovePlanningCard}
 									onWorkspaceStateApplied={handleWorkspaceStateApplied}
+									onManageDependencies={setManageDependenciesCardId}
 								/>
 							</div>
 						) : null}
@@ -1275,6 +1288,21 @@ export default function App(): ReactElement {
 					onCancel={() => setIsClearTrashDialogOpen(false)}
 					onConfirm={handleConfirmClearTrash}
 				/>
+				{manageDependenciesCard ? (
+					<DependencyPickerDialog
+						open
+						onOpenChange={(open) => {
+							if (!open) {
+								setManageDependenciesCardId(null);
+							}
+						}}
+						card={{ id: manageDependenciesCard.id, title: manageDependenciesCard.title }}
+						allCards={manageDependenciesAllCards}
+						dependencies={board.dependencies}
+						onCreateDependency={handleCreateDependency}
+						onDeleteDependency={handleDeleteDependency}
+					/>
+				) : null}
 				<StartupOnboardingDialog
 					open={isStartupOnboardingDialogOpen}
 					onClose={handleCloseStartupOnboardingDialog}

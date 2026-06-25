@@ -144,6 +144,7 @@ export function KanbanBoard({
 	dependencies,
 	onCreateDependency,
 	onDeleteDependency,
+	onManageDependencies,
 	onDragEnd,
 	onRequestProgrammaticCardMoveReady,
 	workspacePath,
@@ -179,6 +180,7 @@ export function KanbanBoard({
 	dependencies: BoardDependency[];
 	onCreateDependency?: (fromTaskId: string, toTaskId: string) => void;
 	onDeleteDependency?: (dependencyId: string) => void;
+	onManageDependencies?: (taskId: string) => void;
 	onDragEnd: (result: DropResult) => void;
 	onRequestProgrammaticCardMoveReady?: (requestMove: RequestProgrammaticCardMove | null) => void;
 	workspacePath?: string | null;
@@ -804,6 +806,7 @@ export function KanbanBoard({
 			dependencySourceTaskId={dependencyLinking.draft?.sourceTaskId ?? null}
 			dependencyTargetTaskId={dependencyLinking.draft?.targetTaskId ?? null}
 			isDependencyLinking={dependencyLinking.draft !== null}
+			onManageDependencies={onManageDependencies}
 			workspacePath={workspacePath}
 			replayCardsEnabled={replayCardsEnabled}
 			defaultNKleinModelId={defaultNKleinModelId}

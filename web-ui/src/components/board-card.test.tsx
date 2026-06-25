@@ -1045,4 +1045,39 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("checking the next file");
 		expect(container.textContent).not.toContain("Agent:");
 	});
+
+	it("renders a manage-dependencies button when onManageDependencies is provided and calls it with the card id", async () => {
+		const onManageDependencies = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<TooltipProvider>
+					<BoardCard
+						card={createCard()}
+						index={0}
+						columnId="backlog"
+						onManageDependencies={onManageDependencies}
+					/>
+				</TooltipProvider>,
+			);
+		});
+
+		const button = container.querySelector<HTMLButtonElement>('button[aria-label="Manage dependencies"]');
+		expect(button).toBeInstanceOf(HTMLButtonElement);
+
+		await act(async () => {
+			button?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+			button?.click();
+		});
+
+		expect(onManageDependencies).toHaveBeenCalledWith("task-1");
+	});
+
+	it("does not render the manage-dependencies button when onManageDependencies is not provided", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="backlog" />);
+		});
+
+		expect(container.querySelector('button[aria-label="Manage dependencies"]')).toBeNull();
+	});
 });

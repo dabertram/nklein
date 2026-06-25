@@ -1997,9 +1997,13 @@ deep analysis:
         — pick a task from a candidate list (self + already-linked filtered out) → `onCreateDependency(card.id, picked.id)`
         (the pure `addTaskDependency` still validates + orients direction + toasts rejections), plus a "Current links" list
         (waits on / blocks) with per-link remove → `onDeleteDependency`. Self-contained, 4 unit tests, web tsc + biome green.
-        **STILL TODO:** wire an entry point (an "Add dependency" affordance in the card detail view) — thread the board's
-        card list + the existing `onCreateDependency`/`onDeleteDependency` callbacks down + a live Playwright check; then a
-        CHANGELOG entry once reachable.
+        **WIRED — DONE (2026-06-25).** A hover **"Manage dependencies"** ghost button (Link2 icon, non-trash cards only)
+        on every board card AND the detail-panel card list opens the dialog; `App.tsx` holds the `manageDependenciesCardId`
+        state + renders `DependencyPickerDialog` with the trash-filtered card list + `board.dependencies` +
+        `handleCreateDependency`/`handleDeleteDependency`. Threaded App → `kanban-board` + `column-context-panel` → `board-card`
+        (mirrors `onMoveToTrash`). board-card test extended. web tsc + **web vitest 701** + biome green. CHANGELOG entry added.
+        *(Built by a worktree subagent; its worktree hit the dev-test `core.bare` pollution again, but the web-ui edits were
+        clean + untracked-by-the-fixture, so I recovered the repo and salvaged the 7 files cleanly — see incident note below.)*
   - [ ] **guided expand-plan-task + plan-gap** — surface `expand-plan-task` (JSON-only) + `plan-gap` reporting in the
         card detail panels. **PLAN (research agent 2026-06-25):** both are **CLI-only today** — `task plan-gap`
         (`src/commands/task.ts` ~2014–2051 → `recordTaskPlanGapCommand` ~1517 → `recordPlanGap` + `appendNKleinPlanRevision`,

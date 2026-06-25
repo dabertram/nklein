@@ -406,6 +406,7 @@ export function CardDetailView({
 	onTaskNKleinSettingsChanged,
 	onApprovePlanningCard,
 	onWorkspaceStateApplied,
+	onManageDependencies,
 }: {
 	selection: CardSelection;
 	dependencies?: BoardDependency[];
@@ -484,6 +485,7 @@ export function CardDetailView({
 	}) => void;
 	onApprovePlanningCard?: (taskId: string) => void;
 	onWorkspaceStateApplied?: (state: RuntimeWorkspaceStateResponse) => void;
+	onManageDependencies?: (taskId: string) => void;
 }): React.ReactElement {
 	const isMobile = useIsMobile();
 	const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
@@ -922,6 +924,7 @@ export function CardDetailView({
 							commitTaskLoadingById={commitTaskLoadingById}
 							openPrTaskLoadingById={openPrTaskLoadingById}
 							moveToTrashLoadingById={moveToTrashLoadingById}
+							onManageDependencies={onManageDependencies}
 							panelWidth="100%"
 							defaultNKleinModelId={runtimeConfig?.nkleinProviderSettings?.modelId ?? null}
 						/>

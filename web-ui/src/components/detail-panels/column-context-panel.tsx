@@ -32,6 +32,7 @@ function ColumnSection({
 	openPrTaskLoadingById,
 	moveToTrashLoadingById,
 	activeDragSourceColumnId,
+	onManageDependencies,
 	workspacePath,
 	defaultNKleinModelId,
 }: {
@@ -56,6 +57,7 @@ function ColumnSection({
 	openPrTaskLoadingById?: Record<string, boolean>;
 	moveToTrashLoadingById?: Record<string, boolean>;
 	activeDragSourceColumnId?: BoardColumnId | null;
+	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
 	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
@@ -198,6 +200,7 @@ function ColumnSection({
 												isCommitLoading={commitTaskLoadingById?.[card.id] ?? false}
 												isOpenPrLoading={openPrTaskLoadingById?.[card.id] ?? false}
 												isMoveToTrashLoading={moveToTrashLoadingById?.[card.id] ?? false}
+												onManageDependencies={onManageDependencies}
 												workspacePath={workspacePath}
 												defaultNKleinModelId={defaultNKleinModelId}
 												onSaveTitle={onSaveTitle}
@@ -249,6 +252,7 @@ export function ColumnContextPanel({
 	commitTaskLoadingById,
 	openPrTaskLoadingById,
 	moveToTrashLoadingById,
+	onManageDependencies,
 	panelWidth,
 }: {
 	selection: CardSelection;
@@ -271,6 +275,7 @@ export function ColumnContextPanel({
 	commitTaskLoadingById?: Record<string, boolean>;
 	openPrTaskLoadingById?: Record<string, boolean>;
 	moveToTrashLoadingById?: Record<string, boolean>;
+	onManageDependencies?: (taskId: string) => void;
 	panelWidth?: string;
 	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
@@ -361,6 +366,7 @@ export function ColumnContextPanel({
 							openPrTaskLoadingById={column.id === "review" ? openPrTaskLoadingById : undefined}
 							moveToTrashLoadingById={column.id === "review" ? moveToTrashLoadingById : undefined}
 							activeDragSourceColumnId={activeDragSourceColumnId}
+							onManageDependencies={onManageDependencies}
 							workspacePath={workspacePath}
 							defaultNKleinModelId={defaultNKleinModelId}
 						/>
