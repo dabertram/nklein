@@ -1726,7 +1726,13 @@ deep analysis:
         Studio is actually running** (covered by the live Suite 10, not unit). **→ Suite 5 send/stream + Suite 4 will
         register a custom local provider pointing at the mock** (the agreed deterministic-mock approach).
 - [x] **Suite 6 — On-disk format parity (DONE 2026-06-25, 10 tests)** (`test/contract/on-disk-formats.test.ts`) — board.json round-trip + raw-shape pin (6 fixed columns in order + card fields), Python-writer direction (hand-crafted JSON parses), board-crdt.json round-trip + schema-too-new refusal + v0→current migration, plan-artifact tasks.json shape + default-fill + required-field rejection. No server; the cross-language convergence point. *(Surprise: runtime-home `~/.nklein/nklein/workspaces/<id>/board.json` takes read priority over the repo mirror — fixtures must write both.)*
-- [ ] **Suite 7 — Playwright: plan-artifact review panel** (`web-ui/tests/plan-artifact-review.spec.ts`) — `pending-plan-artifacts-panel` + `planning-dag-review-panel` (currently zero coverage; critical for the §5.B pipeline).
+- [x] **Suite 7 — Playwright: plan-artifact review panel (DONE 2026-06-25, 5 tests)** (`web-ui/tests/plan-artifact-review.spec.ts`)
+      — renders a pending artifact, Apply fires `applyNKleinPlanArtifact` + the panel clears, Reject fires
+      `rejectNKleinPlanArtifact`, the Apply button disables while in-flight. **Backend = route-mocked tRPC** (vite dev
+      server + `page.route('**/api/trpc/**')`), deterministic, no real runtime/model. Verified myself: 5 passed, no
+      flakes; web typecheck + biome clean. *(Establishes the Playwright+route-mock pattern for Suites 8/9. Findings:
+      mock must handle BATCHED tRPC paths via `pathname.includes(proc)` + substitute real `workspace.getState`; tRPC
+      mutation body without a transformer is `{ "0": { field } }`.)*
 - [ ] **Suite 8 — Playwright: settings + per-project config** (`web-ui/tests/settings.spec.ts`) — guardrails save, provider/MCP dialogs, per-project override.
 - [ ] **Suite 9 — Playwright: second-opinion review + recovery actions** (`web-ui/tests/review-recovery.spec.ts`).
 - [ ] **Suite 10 — Live e2e: decompose→planning→begin_implementation→review** (`scripts/verify-decompose-promote-review.mts`) — LM Studio + Docker; asserts each phase via HTTP/WS, no host-path leaks. After suites 1–4 green.
