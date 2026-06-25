@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Command } from "commander";
 import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } from "../chat/chat-agent-turn";
-import { createBoardReadTools } from "../chat/chat-board-tools";
+import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
 import { createCommandRunTool } from "../chat/chat-command-tool";
 import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
@@ -125,11 +125,17 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 		// also elevates the session to the host-capable `sandbox_with_host_escape` mode, where every host action is a
 		// confirmed, audited escape hatch (the §5.M invariant). Reads stay free; the command itself is confirm-prompted.
 		const commandTools = options.allowCommands ? createCommandRunTool(workspaceRoot) : { tools: [], definitions: [] };
+		// `--allow-commands` is the CLI's "can act" flag → the host-capable mode where the `control_plane` board write
+		// `create_card` is allowed (it's denied in the default isolated_readonly / read-only mode).
+		const boardMutationTools = options.allowCommands
+			? createBoardMutationTools(workspaceRoot)
+			: { tools: [], definitions: [] };
 		const mode = options.allowCommands ? "sandbox_with_host_escape" : "isolated_readonly";
 		const tools = [
 			...read.tools,
 			...boardTools.tools,
 			...focusTools.tools,
+			...boardMutationTools.tools,
 			...writeTools.tools,
 			...commandTools.tools,
 		];
@@ -137,6 +143,7 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			...read.definitions,
 			...boardTools.definitions,
 			...focusTools.definitions,
+			...boardMutationTools.definitions,
 			...writeTools.definitions,
 			...commandTools.definitions,
 		];
