@@ -1291,6 +1291,36 @@ deep analysis:
       still owed.)*
 - [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
 
+> **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
+> mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
+> `task-board-mutations`, `task-board-lane-reconcile`, `runtime-server`, `runtime-state-hub`, `nklein-task-session-service`,
+> `nklein-decomposition-tool`, `runtime-api`. Promoted as landable items (safe-now first; each a green commit):
+- [ ] **(S1, safe) Dedupe `isReviewableNKleinSummary`** — byte-identical at `runtime-server.ts` + `runtime-state-hub.ts`;
+      extract to one shared guard module so the review-gate can't diverge. Pure rename, no behavior change.
+- [ ] **(S2, safe) Dedupe `isWorkspaceStateLockError` + lift `retryWorkspaceStateLock`** — the lock-error check is
+      redefined in `runtime-server.ts` (already in `workspace-state.ts`); make both importable so lock-retry policy has one home.
+- [ ] **(S3, safe) Export one `findBoardCardWithColumn` from `task-board-mutations.ts`** — there are now **4** private
+      card-lookup copies (`runtime-api.ts`, `task-board-lane-reconcile.ts`, `runtime-server` inline, **+ the new
+      `nklein-promotion-tool.ts` `findCard`**). Consolidate to a single exported helper; remove the copies.
+- [ ] **(S4, safe-ish) Remove the 3 no-op `reconcileRunningTaskBoardLane` calls** in `runtime-api.ts` (start/send/input
+      paths) — they fire while the task is still `queued`, so the reconcile is always a no-op there; the real move fires on
+      the hub's `running` transition. Removing them makes lane-reconcile ownership unambiguous (the hub owns it). Verify the
+      architect/plan-mode path still reconciles via the hub. *(Note: §5.B Increment B rewrites this reconcile — fold S4 in then.)*
+- [ ] **(S5, low-risk) Replace the 250 ms `setTimeout` in `completeDecompositionSourceTask`** (`runtime-server.ts`) with a
+      causal `await` after `autoStartDecompositionRootTasks` (already awaited) — kills timing-dependent control flow; verify
+      completion order in one dev-test.
+- [ ] **(M1, moderate) Extract decomposition stall/nudge state** (the ~12 per-task Maps + `maybeContinueStalledDecomposition`)
+      out of `InMemoryNKleinTaskSessionService` into a focused collaborator (inject `sendTaskSessionInput`/`cancelTaskTurn`).
+- [ ] **(M2, moderate) Unify the session-merge** so `buildWorkspaceStateSnapshot` is the one canonical live+persisted merge
+      (today `loadState` layers live NKlein summaries on top separately — effective state depends on which fn the caller used).
+- [ ] **(M3, low-med) Guard the UI `saveState` write path** — `saveWorkspaceState` accepts a full board replacement bypassing
+      domain guards (only `expectedRevision` OCC protects it); run `normalizeRuntimeBoardData` + `updateTaskDependencies` on
+      the incoming board so a stale UI can't write illegal card positions/deps.
+- [ ] **(R1, risky — live verify) Extract `finalizeHeadlessAutoReviewTask`** (review→merge→complete→auto-start delivery gate)
+      out of the `runtime-server` closure into a `TaskDeliveryOrchestrator`; verify against the full delivery-gate matrix.
+- [ ] **(R2, risky — live verify) Collapse the dual `onSummary` subscriptions** (hub + server) into one ordered event bus so
+      the implicit "hub lane-reconcile before server finalize" ordering becomes structural, not accidental.
+
 > **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
 > per the §5.U convention rather than lost. The full deliberate pass (above) is still owed.
 - [~] **Establish + enforce a sandbox-cwd vs host-path naming convention in the agent runtime.** This session fixed a
