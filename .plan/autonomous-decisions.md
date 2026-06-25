@@ -83,6 +83,18 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   tools, knowledge fetch, browser) soon, in parallel with the test/refactor work — no longer a "later" follow-up.
 - **Look & feel (§5.J) = "defer indefinitely".** Current look is fine; do NOT produce restyle mockups now. §5.J parked.
 
+## Clarification pass 2 (2026-06-25, "clarify all the constraints" — DECISIONS)
+- **Model-dependent §5.V suites (Suite 4 pipeline, Suite 5 chat send/stream) = deterministic MOCK-LLM fast-gate** (wired
+  via a **custom local provider** pointing at the mock, sidestepping the lmstudio live-only quirk). Live Suite 10 stays
+  real LM Studio.
+- **Honor a configured LM Studio endpoint = YES, complete the fix.** A `baseUrl` set for the built-in `lmstudio`
+  provider must flow to the chat (and the agent), so running LM Studio on a non-default port works. lmstudio is
+  `isLiveOnlyProviderId`, so its saved baseUrl isn't returned like a custom provider's — that gap is the work to close.
+- **Autonomous chat agent (§5.M) = FULL Cline-style from the first build** (browser, knowledge fetch, autonomous
+  project/card creation + work) — NOT an incremental foundation. **But sequenced AFTER §5.V** (see next).
+- **Sequencing = FINISH §5.V FIRST.** Complete the remaining test suites (the port-resilient oracle) before starting
+  the chat agent or the §5.X refactor. The safety net is the linchpin. (Supersedes "interleave".)
+
 ## Autonomous decisions (below the escalation bar)
 - **(2026-06-25) §5.B promotion mechanism = explicit agent tool** (user said "choose the robust one"). Rationale:
   explicit > inferring from turn-end, robust against weak local models (parse-and-recover principle). Low rework.

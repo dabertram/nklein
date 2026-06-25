@@ -1,27 +1,17 @@
 /**
  * Suite 5 — chat HTTP + streaming contract (todo §5.V)
  *
- * Drives the board-independent chat (`chat.*` tRPC sub-router) over REAL HTTP against a spawned server
- * and asserts contract shape + persistence. Session CRUD is fully covered. The `sendMessage` /
- * `streamMessage` tests require a mock LLM — see the note below about the wiring gap.
+ * Drives the board-independent chat (`chat.*` tRPC sub-router) over REAL HTTP against a spawned server and asserts
+ * contract shape + persistence. Covers session CRUD + `sendMessage` against a deterministic mock-LLM; `streamMessage`
+ * is the one `it.todo` (it needs an SSE/WS subscription test client).
  *
- * ──────────────────────────────────────────────────────────────────────────────────────────────
- * MOCK-LLM WIRING — FINDING (2026-06-25) + the fix
- * ──────────────────────────────────────────────────────────────────────────────────────────────
- * BUG this suite surfaced: `resolveLocalChatModelDeps()` was called with NO options from
- * `runtime-api.ts`, so the chat ALWAYS used `DEFAULT_LOCAL_CHAT_BASE_URL` = `http://127.0.0.1:1234/v1`
- * and ignored the configured provider endpoint.
- *
- * FIXED: runtime-api now threads `nkleinProviderService.getLocalChatBaseUrl()` (the selected LOCAL
- * provider's saved baseUrl) into `resolveLocalChatModelDeps({ baseUrl })`, so the chat hits the same
- * local model server the user configured (cloud selections resolve to null → the default local
- * endpoint, since chat is local-only).
- *
- * `sendMessage` / `streamMessage` stay `it.todo` for one remaining TEST-SIDE reason: to point the
- * spawned server's chat at `mock.baseUrl` the test must SELECT a local provider pointing at the mock
- * (saving provider settings over HTTP does not also select it), and streaming additionally needs an
- * SSE/WS subscription client. The session CRUD suite runs with no LLM and is fully green.
- * ──────────────────────────────────────────────────────────────────────────────────────────────
+ * MOCK-LLM WIRING: the chat resolves its endpoint from the SELECTED local provider via runtime-api's
+ * `nkleinProviderService.getLocalChatBaseUrl()` (the chat-endpoint fix — previously it hardcoded
+ * `DEFAULT_LOCAL_CHAT_BASE_URL`, ignoring the configured endpoint). The send test registers a CUSTOM local provider
+ * pointing at the mock (`runtime.addNKleinProvider`, which also selects it). A custom provider carries an explicit
+ * baseUrl + models with NO live-only "model must be loaded" validation, so the spawned server's chat deterministically
+ * hits the mock with no real LM Studio. (The built-in live-only `lmstudio` provider is honored the same way when LM
+ * Studio is actually running — that path is live Suite 10 territory.)
  *
  * Port-resilient: each suite allocates its own free port.
  * Language-agnostic: assertions target raw JSON, not TypeScript types.
@@ -327,7 +317,7 @@ describe.sequential("Suite 5B — chat.updateSession / deleteSession", () => {
 // the it.todo wrappers and they should pass against the mock.
 // ---------------------------------------------------------------------------
 
-describe.sequential("Suite 5C — chat.sendMessage (mock-LLM wiring gap, see header)", () => {
+describe.sequential("Suite 5C — chat.sendMessage against the mock-LLM (custom local provider)", () => {
 	let server: BackendUnderTest;
 	let mock: MockLlmServer;
 	let cwd: string;
@@ -341,16 +331,19 @@ describe.sequential("Suite 5C — chat.sendMessage (mock-LLM wiring gap, see hea
 		initGitRepository(cwd);
 		server = await startTsBackend({ cwd, homeDir });
 
-		// Attempt to wire the mock: save lmstudio provider settings so the server knows the mock URL.
-		// NOTE: resolveLocalChatModelDeps() does NOT read from these saved settings (see suite header).
+		// Register a CUSTOM LOCAL provider pointing at the mock and select it (addNKleinProvider selects). A custom
+		// provider carries an explicit baseUrl + models with no live-only "model must be loaded" validation, so the
+		// chat resolves its endpoint (via getLocalChatBaseUrl) to the mock — deterministic, no real LM Studio.
 		await requestJson({
 			baseUrl: server.baseUrl,
-			procedure: "runtime.saveNKleinProviderSettings",
+			procedure: "runtime.addNKleinProvider",
 			type: "mutation",
 			payload: {
-				providerId: "lmstudio",
+				providerId: "mock-local",
+				name: "Mock Local",
 				baseUrl: `${mock.baseUrl}/v1`,
-				modelId: mock.modelId,
+				models: [mock.modelId],
+				defaultModelId: mock.modelId,
 			},
 		});
 	}, 30_000);
@@ -362,17 +355,37 @@ describe.sequential("Suite 5C — chat.sendMessage (mock-LLM wiring gap, see hea
 		cleanupDir(homeDir);
 	});
 
-	// The endpoint-resolution half of the wiring gap is now FIXED: runtime-api routes the chat's
-	// `resolveLocalChatModelDeps` to the configured LOCAL provider endpoint via
-	// `nkleinProviderService.getLocalChatBaseUrl()` (the selected local provider's saved baseUrl). What remains for
-	// these two to run against the mock is the TEST-SIDE step of *selecting* a local provider that points at
-	// `mock.baseUrl` (saving provider settings via HTTP does not also select it), plus an SSE/WS subscription
-	// client for the streaming case. Until then they stay it.todo (the fix itself is unit-safe + shipped).
-	it.todo(
-		"chat.sendMessage routes to the configured endpoint + persists the turn [owes: HTTP path to SELECT a local provider pointing at the mock]",
-	);
+	it("chat.sendMessage routes the turn to the configured (mock) endpoint and persists user + assistant messages", async () => {
+		const created = await requestJson<{ session: { id: string } }>({
+			baseUrl: server.baseUrl,
+			procedure: "chat.createSession",
+			type: "mutation",
+			payload: { title: "Send test" },
+		});
+		const sessionId = created.payload.session.id;
+		expect(sessionId).toBeTruthy();
 
-	it.todo(
-		"chat.streamMessage streams token deltas to a 'done' event [owes: provider-select + an SSE/WS subscription test client]",
-	);
+		mock.enqueue({ content: "mocked assistant reply" });
+		const sent = await requestJson({
+			baseUrl: server.baseUrl,
+			procedure: "chat.sendMessage",
+			type: "mutation",
+			payload: { sessionId, message: "hello chat" },
+		});
+		expect(sent.status).toBe(200);
+		expect(mock.requests.length).toBeGreaterThanOrEqual(1);
+
+		const transcript = await requestJson<{ messages: Array<{ role: string; content: string }> }>({
+			baseUrl: server.baseUrl,
+			procedure: "chat.getTranscript",
+			type: "query",
+			payload: { sessionId },
+		});
+		const contents = transcript.payload.messages.map((message) => message.content);
+		expect(contents).toContain("hello chat");
+		expect(contents).toContain("mocked assistant reply");
+	}, 25_000);
+
+	// streamMessage is a tRPC subscription (token deltas → done); driving it needs an SSE/WS subscription client.
+	it.todo("chat.streamMessage streams token deltas to a 'done' event [owes: an SSE/WS subscription test client]");
 });
