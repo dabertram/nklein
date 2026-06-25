@@ -12,6 +12,8 @@ import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import type { ChatAgentModelResponse } from "../chat/chat-agent-loop";
 import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
+import { classifyCommandSafety } from "../chat/chat-command-safety";
+import { createCommandRunTool } from "../chat/chat-command-tool";
 import type { ChatExecutionMode } from "../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
@@ -415,9 +417,9 @@ function buildChatAgentToolDepsResolver(input: {
 		// Scope-driven capability (§5.M permission model). The session scope is the control: "chat only" is the
 		// read-only floor; current/all-projects/host can act. Map scope → the execution mode the gate enforces.
 		// read_file/list_dir/get_board/update_focus_chain are always offered (sandbox_read = always allowed);
-		// create_card (control_plane) is offered only to can-act scopes (the gate denies it in isolated_readonly anyway).
-		// run_command stays OUT of the web-ui agent until an interactive confirm UI exists (host_command needs a
-		// per-action confirmation the web-ui doesn't yet provide, so it would always be denied here).
+		// create_card (control_plane) + run_command (host_command) are offered only to can-act scopes. run_command is
+		// confirm-gated: the `confirm` callback below auto-approves commands the allowlist classifier deems SAFE and
+		// denies UNSAFE ones (until the general risk-acknowledgement toggle lands — todo §5.M G3b).
 		const mode: ChatExecutionMode =
 			session.scope === "chat_only"
 				? "isolated_readonly"
@@ -429,13 +431,30 @@ function buildChatAgentToolDepsResolver(input: {
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
-		const tools = [...read.tools, ...board.tools, ...focus.tools, ...mutations.tools];
-		const definitions = [...read.definitions, ...board.definitions, ...focus.definitions, ...mutations.definitions];
+		const commands = canAct ? createCommandRunTool(workspacePath) : { tools: [], definitions: [] };
+		const tools = [...read.tools, ...board.tools, ...focus.tools, ...mutations.tools, ...commands.tools];
+		const definitions = [
+			...read.definitions,
+			...board.definitions,
+			...focus.definitions,
+			...mutations.definitions,
+			...commands.definitions,
+		];
 
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
 			mode,
 			tools,
+			// §5.M G3b safe/unsafe risk model: run_command is a confirm-gated host_command in can-act modes. A command
+			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one is denied here
+			// until the user acknowledges the risk (the general-ack toggle — a later increment). Other confirm-gated
+			// actions stay denied for now (no web-ui confirm dialog yet).
+			confirm: async (call) => {
+				if (call.name === "run_command" && typeof call.arguments.command === "string") {
+					return classifyCommandSafety(call.arguments.command).safety === "safe";
+				}
+				return false;
+			},
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
 			},
