@@ -876,10 +876,14 @@ deep analysis:
 >         in `chat-board-tools.ts` + a new `control_plane` action kind (gate: deny in `isolated_readonly`/chat-only, allow
 >         in host-capable modes — board writes are trusted !Klein-owned control-plane, no confirm). 21 board+gate tests.
 >         Ready to wire in Wave 2b. (`start_card` deferred — starting a task is a separate session-start flow.)
->   - [ ] **G6 — browser + knowledge-fetch tools** in the chat loop. **DECIDED 2026-06-25 = HEADLESS BROWSER (Playwright)**
->         — the agent drives a real browser (navigate/read rendered pages/click), not just text fetch; reuse the repo's
->         existing Playwright. Toggleable capability (off by default, user enables; orthogonal to scope per the permission
->         model). Ties into §5.L per-role rulesets.
+>   - [~] **G6 — browser tool. MODULE DONE (2026-06-25, salvaged from the dispatched agent + verified solo).**
+>         `src/chat/chat-browser-tool.ts` (`createBrowserTools` → `browse_url`, actionKind `host_command`): a headless
+>         **Playwright** browser (`import { chromium } from "playwright"`, added to root deps) that navigates + returns the
+>         rendered page's title + text, capped, with an injected `BrowserDeps` so the 13 unit tests run with a fake (no
+>         real browser launched). Validates http/https, safe error messages (no host paths). **STILL TODO (wave-2b cont.):**
+>         wire `browse_url` into the agent tool sets behind a **browser/internet on/off toggle** (off by default, user-
+>         enabled, orthogonal to scope per the permission model) + the §5.L per-role rulesets + a live browse smoke test.
+>         (knowledge-fetch can layer on the same toggle later.)
 >   - [ ] **G7 — comprehensive live coverage** — a dev-test that drives the FULL tool-using chat agent (read → run a
 >         command → see output → edit → create a card → focus chain) against a live local model, asserting each executes.
 
