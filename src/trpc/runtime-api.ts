@@ -429,6 +429,8 @@ function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKle
 function buildChatAgentToolDepsResolver(input: {
 	getActiveWorkspacePath: () => string | null;
 	getLocalChatBaseUrl: () => string | null;
+	/** Forwarded to `createBrowserTools` for §5.Y #5 SSRF protection. */
+	isRemoteMode: boolean;
 }): (session: ChatSession) => Promise<ChatAgentToolDeps | null> {
 	return async (session) => {
 		const workspacePath = input.getActiveWorkspacePath();
@@ -464,7 +466,10 @@ function buildChatAgentToolDepsResolver(input: {
 		// §5.M G6: the headless-browser tool is an orthogonal, per-session opt-in (`browserEnabled`). It's a host_command
 		// (reaching the internet is a host action), so the mode gate denies it in chat-only and confirms it in the
 		// host-capable scopes — the toggle is that confirmation (approved in the `confirm` callback below).
-		const browser = session.browserEnabled ? createBrowserTools() : { tools: [], definitions: [] };
+		// §5.Y #5: pass isRemoteMode so the tool blocks SSRF-risk internal addresses in remote (--host) mode.
+		const browser = session.browserEnabled
+			? createBrowserTools({ isRemoteMode: input.isRemoteMode })
+			: { tools: [], definitions: [] };
 		const tools = [
 			...read.tools,
 			...board.tools,
@@ -562,6 +567,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			resolveAgentToolDeps: buildChatAgentToolDepsResolver({
 				getActiveWorkspacePath: deps.getActiveWorkspacePath,
 				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
+				isRemoteMode: deps.isRemoteMode ?? false,
 			}),
 		});
 

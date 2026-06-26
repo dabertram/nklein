@@ -2277,9 +2277,17 @@ deep analysis:
       `read_large_file` accept absolute paths; protection is only the Docker proxy when present (home sessions are
       host-cwd). Enforce workspace containment inside each tool + the approval policy; reject host-absolute/`..`/symlink
       paths unless an explicit audited host session. (Ties to the "agents never see host" invariant.)
-- [ ] **MED #5 — chat `browse_url` SSRF.** Only checks http/https → can fetch `127.0.0.1`/RFC1918/link-local/cloud-
+- [x] **MED #5 — chat `browse_url` SSRF.** Only checks http/https → can fetch `127.0.0.1`/RFC1918/link-local/cloud-
       metadata. Block private/loopback/link-local/metadata ranges; re-check after redirects; disable in remote mode w/o
-      opt-in.
+      opt-in. **DONE (2026-06-26):** mode-based default — in remote (`--host`) mode the tool resolves the hostname via
+      DNS before navigating, checks the IP against blocked ranges (loopback, RFC1918, link-local/169.254, CGNAT, IPv6
+      loopback/unique-local/link-local), and re-checks the final URL after redirects. Literal IP addresses are
+      checked directly without DNS. Local mode leaves internal addresses allowed (the "agent verifies its own dev
+      server" use case). Uses `ipaddr.js` (already in node_modules) for range checks. Threaded `isRemoteMode` through
+      `buildChatAgentToolDepsResolver` → `createBrowserTools`. Unit-tested: `isPrivateOrReservedIp` pure helper (all
+      ranges, edge octets, public=false); remote mode refuses literal loopback/metadata/RFC1918/IPv6; allows public
+      IPs; redirect-to-internal caught; local mode allows everything. A per-session override toggle is a possible
+      follow-up.
 - [~] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
       sandbox, user commands inherit `NKLEIN_INTERNAL_AUTH_TOKEN`). Scrub it from spawned terminals/sidecars/sandbox/user
       commands; pass only to the specific trusted subprocesses that need runtime-API access. **PARTIAL (2026-06-26):**

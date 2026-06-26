@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { type BrowserDeps, type BrowserFetchResult, createBrowserTools } from "../../../src/chat/chat-browser-tool";
+import {
+	type BrowserDeps,
+	type BrowserFetchResult,
+	createBrowserTools,
+	isPrivateOrReservedIp,
+} from "../../../src/chat/chat-browser-tool";
 
 /** Create a fake `BrowserDeps` that resolves to a fixed result. */
 function fakeBrowser(result: BrowserFetchResult): BrowserDeps {
@@ -7,14 +12,83 @@ function fakeBrowser(result: BrowserFetchResult): BrowserDeps {
 }
 
 /** Extract the `browse_url` tool from the set. */
-function getBrowseTool(browser: BrowserDeps, maxChars?: number) {
-	const { tools } = createBrowserTools({ browser, ...(maxChars !== undefined ? { maxChars } : {}) });
+function getBrowseTool(browser: BrowserDeps, maxChars?: number, isRemoteMode?: boolean) {
+	const { tools } = createBrowserTools({
+		browser,
+		...(maxChars !== undefined ? { maxChars } : {}),
+		...(isRemoteMode !== undefined ? { isRemoteMode } : {}),
+	});
 	const found = tools.find((candidate) => candidate.name === "browse_url");
 	if (!found) {
 		throw new Error("browse_url tool missing");
 	}
 	return found;
 }
+
+describe("isPrivateOrReservedIp", () => {
+	it("returns true for loopback addresses (127.x.x.x)", () => {
+		expect(isPrivateOrReservedIp("127.0.0.1")).toBe(true);
+		expect(isPrivateOrReservedIp("127.255.255.255")).toBe(true);
+	});
+
+	it("returns true for RFC1918 private ranges", () => {
+		expect(isPrivateOrReservedIp("10.0.0.0")).toBe(true);
+		expect(isPrivateOrReservedIp("10.1.2.3")).toBe(true);
+		expect(isPrivateOrReservedIp("10.255.255.255")).toBe(true);
+		expect(isPrivateOrReservedIp("172.16.0.1")).toBe(true);
+		expect(isPrivateOrReservedIp("172.31.255.255")).toBe(true);
+		expect(isPrivateOrReservedIp("192.168.0.1")).toBe(true);
+		expect(isPrivateOrReservedIp("192.168.100.200")).toBe(true);
+	});
+
+	it("returns true for link-local (169.254/16), including cloud metadata endpoint", () => {
+		expect(isPrivateOrReservedIp("169.254.0.1")).toBe(true);
+		expect(isPrivateOrReservedIp("169.254.169.254")).toBe(true);
+		expect(isPrivateOrReservedIp("169.254.255.255")).toBe(true);
+	});
+
+	it("returns true for CGNAT (100.64/10)", () => {
+		expect(isPrivateOrReservedIp("100.64.0.1")).toBe(true);
+		expect(isPrivateOrReservedIp("100.127.255.255")).toBe(true);
+	});
+
+	it("returns true for IPv6 loopback (::1)", () => {
+		expect(isPrivateOrReservedIp("::1")).toBe(true);
+	});
+
+	it("returns true for unique-local IPv6 (fc00::/7)", () => {
+		expect(isPrivateOrReservedIp("fc00::1")).toBe(true);
+		expect(isPrivateOrReservedIp("fd12:3456:789a::1")).toBe(true);
+	});
+
+	it("returns true for link-local IPv6 (fe80::/10)", () => {
+		expect(isPrivateOrReservedIp("fe80::1")).toBe(true);
+	});
+
+	it("returns false for public IPv4 addresses", () => {
+		expect(isPrivateOrReservedIp("8.8.8.8")).toBe(false);
+		expect(isPrivateOrReservedIp("1.1.1.1")).toBe(false);
+		expect(isPrivateOrReservedIp("93.184.216.34")).toBe(false);
+	});
+
+	it("returns false for addresses just outside the private ranges (edge octets)", () => {
+		// 172.15.x is NOT in 172.16/12
+		expect(isPrivateOrReservedIp("172.15.255.255")).toBe(false);
+		// 172.32.x is NOT in 172.16/12
+		expect(isPrivateOrReservedIp("172.32.0.0")).toBe(false);
+	});
+
+	it("returns false for valid public IPv6", () => {
+		// 2606:4700::1 is Cloudflare's public range — ipaddr range() = "unicast" = not blocked.
+		expect(isPrivateOrReservedIp("2606:4700::1")).toBe(false);
+		expect(isPrivateOrReservedIp("2a00:1450::1")).toBe(false); // Google public IPv6
+	});
+
+	it("returns false for non-IP strings (not a valid IP)", () => {
+		expect(isPrivateOrReservedIp("not-an-ip")).toBe(false);
+		expect(isPrivateOrReservedIp("example.com")).toBe(false);
+	});
+});
 
 describe("createBrowserTools — browse_url", () => {
 	it("is a host_command action (gated by the execution-mode policy)", () => {
@@ -119,5 +193,95 @@ describe("createBrowserTools — browse_url", () => {
 		expect(json).not.toContain("secret.internal");
 		expect(definitions[0]?.name).toBe("browse_url");
 		expect(typeof definitions[0]?.description).toBe("string");
+	});
+
+	// ─── §5.Y #5 SSRF protection — remote mode ───────────────────────────────────────────────────────
+
+	describe("remote mode — SSRF protection", () => {
+		it("refuses a literal loopback IP URL without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://127.0.0.1/", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://127.0.0.1/" });
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("refuses a literal cloud-metadata IP URL (169.254.169.254) without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://169.254.169.254/latest/meta-data/", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({
+				url: "http://169.254.169.254/latest/meta-data/",
+			});
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("refuses a literal RFC1918 IP URL without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://192.168.1.1/", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://192.168.1.1/" });
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("refuses a literal 10.x private IP URL without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://10.0.0.1/admin", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://10.0.0.1/admin" });
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("refuses a literal 172.16-31.x private IP URL without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://172.16.0.1/", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://172.16.0.1/" });
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("refuses a literal IPv6 loopback URL without calling fetchPage", async () => {
+			const browser = fakeBrowser({ url: "http://[::1]/", title: "", text: "" });
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://[::1]/" });
+			expect(out).toContain("not allowed in remote mode");
+			expect(browser.fetchPage).not.toHaveBeenCalled();
+		});
+
+		it("allows a public hostname in remote mode (fetch proceeds normally)", async () => {
+			// Uses a hostname that resolves to a real public IP — mock the browser so no real navigation happens.
+			// We test with example.com which always resolves to a public IP.
+			const browser = fakeBrowser({ url: "https://example.com", title: "Example", text: "content" });
+			// We can't easily mock DNS in a unit test, but we CAN verify that a literal public IP is allowed.
+			// 93.184.216.34 is example.com's real IP — public, not private.
+			const out = await getBrowseTool(browser, undefined, true).run({ url: "http://93.184.216.34/" });
+			// Should NOT contain the refusal message.
+			expect(out).not.toContain("not allowed in remote mode");
+			expect(browser.fetchPage).toHaveBeenCalledWith("http://93.184.216.34/");
+		});
+
+		it("re-checks final URL after redirect — catches redirect-to-internal in remote mode", async () => {
+			// Simulates a redirect: initial URL is public-ish (literal public IP), but fetchPage returns
+			// a final URL that redirected to an internal host.
+			const redirectBrowser: BrowserDeps = {
+				fetchPage: vi.fn(async () => ({
+					url: "http://169.254.169.254/latest/meta-data/",
+					title: "Metadata",
+					text: "ami-id: ami-12345",
+				})),
+			};
+			// Use a literal public IP so the pre-navigation check passes, but the redirect lands on the metadata endpoint.
+			const out = await getBrowseTool(redirectBrowser, undefined, true).run({ url: "http://93.184.216.34/" });
+			expect(out).toContain("not allowed in remote mode");
+		});
+
+		it("allows private IPs in local mode (isRemoteMode=false)", async () => {
+			const browser = fakeBrowser({ url: "http://127.0.0.1:3000/", title: "Dev", text: "welcome" });
+			const out = await getBrowseTool(browser, undefined, false).run({ url: "http://127.0.0.1:3000/" });
+			expect(out).not.toContain("not allowed in remote mode");
+			expect(out).toContain("Title: Dev");
+			expect(browser.fetchPage).toHaveBeenCalledWith("http://127.0.0.1:3000/");
+		});
+
+		it("allows private IPs when isRemoteMode is omitted (defaults to local mode)", async () => {
+			const browser = fakeBrowser({ url: "http://192.168.1.1/", title: "Router", text: "admin panel" });
+			const out = await getBrowseTool(browser).run({ url: "http://192.168.1.1/" });
+			expect(out).not.toContain("not allowed in remote mode");
+			expect(browser.fetchPage).toHaveBeenCalledWith("http://192.168.1.1/");
+		});
 	});
 });
