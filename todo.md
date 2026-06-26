@@ -3502,6 +3502,36 @@ deep analysis:
       are configurable, §5.T — the rail uses a long-wall-time profile; small models on the m5max are slow but capable).
       **Multiple projects in parallel** where endpoint capacity allows (§6.5 per-endpoint serialization + §5.W
       per-provider/per-model concurrency gate it safely).
+  - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
+        parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
+        one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
+        `/api/runtime/ws` activity stream, starts each sandboxed seed, renders a **watchable live task-flow view** (per
+        project: cards · seed state · running/review counts · last tool · msg count), runs to terminal/deadline with
+        **generous timeouts**, then writes a per-project **evidence report** (delivered/non-terminal/failed · decompose? ·
+        tool tally · narration/repeat anomalies) and **restores the model + concurrency + removes the throwaway projects**.
+        Run: `tsx scripts/dev-test-rail.mts --projects mid_task,complex_dag --model qwen/qwen3-8b-m5max`. **Proven live
+        (2026-06-27):** 2 projects started + both fired `decompose_project` concurrently. This is the operator-runnable
+        instance; the **always-on / idle-aware / restart-survivable + auto-into-todos** version above (on the §5.AF
+        durable scheduler) is still owed.
+  - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): the web-ui goes SLUGGISH / near-unresponsive with
+        ≥2 agent sessions running in parallel.** Likely cause: the runtime broadcasts every agent `task_chat_message` over
+        the WS state stream (the rail captured ~500–640 frames/project in ~90 s), and the web-ui re-renders on that
+        firehose; with multiple running sessions it compounds. Fix: throttle/batch/coalesce the WS-driven state updates in
+        the web-ui render path (e.g. debounce to one update per animation frame) and/or virtualize the per-card activity
+        list, so N parallel sessions don't degrade responsiveness. **This directly gates parallel-dev-test feasibility.**
+        Ties §5.U (perf) · §5.AG (cockpit) · §6.8.
+  - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
+        work.** Two gates: **(a) LM Studio defaults to SERIAL request handling** — even when !Klein sends concurrent
+        requests, the GPU processes them one at a time unless the user raises LM Studio's server concurrency; !Klein can't
+        force the GPU to parallelize. **(b) !Klein's per-model `maxConcurrentRequests` defaults to 1** (`getMaxConcurrentRequests`
+        → 1 in [nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)), so the endpoint scheduler
+        serializes session *starts* until it's raised. Actionable: (i) **detect + surface LM Studio's concurrent-request
+        setting** and advise raising it for parallel work (with a clear "your endpoint is serial → parallelism is capped"
+        signal in the UI); (ii) make the §5.T/§5.W per-model/per-provider concurrency **discoverable + sensibly defaulted**
+        for a single-user local box; (iii) **confirm !Klein genuinely overlaps the in-session request streams** — the
+        scheduler allows N concurrent *sessions*, but verify the per-request model calls actually hit the endpoint
+        concurrently rather than the agent loops effectively taking turns. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware
+        scheduling).
   - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
         registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
   - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
