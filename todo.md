@@ -8,10 +8,16 @@
 > get everything it needs from this file. So: the rules of engagement, what already exists, what's left,
 > and why the project is shaped the way it is all live here.
 >
-> **Status legend:** `[x]` shipped & verified · `[~]` partial / shipped-but-degraded · `[ ]` open ·
-> `LATER:` deferred by decision · `BLOCKED:` needs the user (env is **not** a blocker — the working session has
-> Docker + the `nklein/agent-sandbox` image, a live LM Studio with loaded models, and a Playwright browser, so
-> Docker/browser/live-model verification is actionable here, not blocked).
+> **Status legend:** `[x]` done (shipped & verified) · `[~]` in progress / partial / shipped-but-degraded ·
+> `[ ]` open & **ready** (an actionable leaf you can start now — the count of these ≈ ready work left) ·
+> `[?]` blocked on the **user** (needs a decision / spec / answer only they can give) ·
+> `[>]` blocked on **another task** (waits on a named prerequisite's outcome — note it inline, e.g. "(needs §5.H)") ·
+> `[-]` deferred / superseded (intentionally not now; kept for traceability) ·
+> umbrella/grouping rows that only collect children are plain **bold rows without a checkbox** so they don't inflate the count.
+> Greps: ready = `grep -c '^\s*- \[ \]'` · waiting-on-user = `grep -c '^\s*- \[?\]'` · task-blocked = `grep -c '^\s*- \[>\]'`.
+> (The old informal prose prefixes `LATER:`/`BLOCKED:` are now formalized into the `[-]`/`[?]` markers above; env is
+> **not** a blocker — the working session has Docker + the `nklein/agent-sandbox` image, a live LM Studio with loaded
+> models, and a Playwright browser, so Docker/browser/live-model verification is actionable here, not blocked.)
 >
 > **Last reconciled:** 2026-06-22 (against `main..HEAD`, the codebase, and the predecessor planning chain —
 > including a line-by-line re-verification pass over all 10 source docs: follow-up-1/2/3 are 100% shipped,
@@ -208,19 +214,25 @@ deep analysis:
       children shrink below content size. (b) **DONE** — session list relabel: `buildSessionMeta` (single source of
       truth) renders "Started Jun 25 14:32 · 4 msgs · Last Jun 25 15:01" (message count only for the loaded/selected
       session; "last activity" only when >30 s after creation). All in [chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx).
-  - [ ] **Token count in the session label (follow-up)** — omitted for now: the §5.M chat schemas
+  - **Token count in the session label (follow-up)** *(grouping — the 4 buried sub-steps below are the counted commits)*
+        — omitted for now: the §5.M chat schemas
         ([chat-api-contract.ts](src/core/chat-api-contract.ts) `runtimeChatSession`/`runtimeChatMessage`) carry **no
-        usage/token field**, so it's a real backend feature, not a UI add. Needs: capture per-turn usage from the LLM
-        in the chat send loop → persist a running token total on the session record (or per message) → expose in the
-        schema/broadcast → render where the `buildSessionMeta` comment marks the spot. Cheap once usage is tracked.
-  - [ ] **Later:** generated session title via embedding/LLM (replaces the literal "New chat").
+        usage/token field**, so it's a real backend feature, not a UI add. Cheap once usage is tracked. Sub-steps
+        (buried in the original prose):
+    - [ ] capture per-turn usage from the LLM in the chat send loop
+    - [ ] persist a running token total on the session record (or per message)
+    - [ ] expose it in the schema/broadcast
+    - [ ] render it where the `buildSessionMeta` comment marks the spot
+  - [-] **Later:** generated session title via embedding/LLM (replaces the literal "New chat"). *(deferred: nicety,
+        prefixed "Later" by decision.)*
 - [ ] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the
       right-sidebar chat agent should do **real autonomous work**: focus chain, memory, tools, knowledge fetching,
       browser, etc. — like Cline but stronger, and able to use the project/card/task structure in the background (work an
       existing project or create a new one). Build it soon, in parallel with the test/refactor work (was "later"; the
       user promoted it). Likely builds on the existing §5.M chat agent loop + the §5.N focus chain + the tool suite.
-- [ ] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
+- [?] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
       [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
+      *(blocked on the user: a joint review only they can do.)*
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
@@ -325,8 +337,9 @@ deep analysis:
           is an unused component using the contract type — left alone.)*
     - [x] **C8 — follow-up orphan cleanup** — deleted `session-state-machine.ts` + `output-utils.ts`, orphaned by
           the agent-launcher removal (zero references). `src/terminal/` now = live shell + config surface (8 files).
-    - [ ] **C8b — schema/catalog/predicate shrink (DEFERRED — coupled to plan.md §2.B)** *(investigated 2026-06-23:
-          NOT safe-to-do yet)*. `usesLegacyHostTaskWorkspace(agentId)` returns true for any non-nklein id and still
+    - [>] **C8b — schema/catalog/predicate shrink (DEFERRED — coupled to plan.md §2.B)** *(investigated 2026-06-23:
+          NOT safe-to-do yet; blocked on plan.md §2.B — the host-worktree module deletion + re-homing migrated-board
+          cleanup off the agent-id boundary)*. `usesLegacyHostTaskWorkspace(agentId)` returns true for any non-nklein id and still
           **drives legacy host-worktree cleanup on shutdown** for migrated pre-§5.A boards (`shutdown-coordinator.ts`,
           via the kept `task-worktree` cleanup surface) — it is a **live back-compat boundary, not dead code**.
           Shrinking `runtimeAgentIdSchema`/`RUNTIME_AGENT_CATALOG` to nklein-only is a broad contract + web-ui +
@@ -347,12 +360,12 @@ deep analysis:
   - [x] **✅ MILESTONE (2026-06-23):** no live nklein flow creates or reads a host worktree — every path runs off the
         `nklein/tasks/<task>` result branch / Docker sandbox; only legacy on-disk *cleanup* survives (for users
         upgrading from worktree builds).
-  - [ ] **HARDEN — agents must never see host paths** *(raised 2026-06-23; from a real decompose evidence bundle)*.
-        A dev-test **decompose** run leaked the host workspace path to the agent: its first reasoning + `read_files`
-        input used `/private/var/folders/.../T/nklein-…/specification.md` (the host mount), not the sandbox path.
-        Root: the agent's cwd/working-directory context is the host path, and surfaces (the `read_files` block error,
-        evidence `summary.md`/`config-snapshot.json`) echo it. (`read_large_file`'s own result already returns the
-        relative path.) Per the new AGENTS.md "agents must never see host details" rule:
+  - **HARDEN — agents must never see host paths** *(raised 2026-06-23; from a real decompose evidence bundle; umbrella —
+        the granular work is the children below)*. A dev-test **decompose** run leaked the host workspace path to the
+        agent: its first reasoning + `read_files` input used `/private/var/folders/.../T/nklein-…/specification.md` (the
+        host mount), not the sandbox path. Root: the agent's cwd/working-directory context is the host path, and surfaces
+        (the `read_files` block error, evidence `summary.md`/`config-snapshot.json`) echo it. (`read_large_file`'s own
+        result already returns the relative path.) Per the new AGENTS.md "agents must never see host details" rule:
     - [x] **agent cwd → sandbox path (DONE 2026-06-24).** `nklein-session-runtime` now hands the agent-core
           `config.cwd = buildAgentSandboxWorkdir(taskId)` (`/workspaces/<taskId>`) for sandboxed task sessions
           (home/chat sessions keep the host cwd) — so the "working directory" the model is told is the sandbox path,
@@ -391,7 +404,8 @@ deep analysis:
           formal `nklein dev test-project` decompose can fold into the broader Playwright/dev-test pass, but the
           isolation mechanism is now proven on the shared code path.
     - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
-    - [ ] only exception: user intentionally opted out of Docker isolation (future full-privileged host-agent mode).
+    - *(scope note, not a work item)* only exception: user intentionally opted out of Docker isolation (future
+        full-privileged host-agent mode).
 - [x] **Repo-map orientation restored under isolation (DONE 2026-06-24)** *(found while fixing the system-prompt leak;
       functionality regression, NOT a leak)*. The context-focus extension built the repo map + git-changes from
       `request.cwd`, which under isolation is the **sandbox** path `/workspaces/<taskId>` — nonexistent on the host — so
@@ -468,9 +482,11 @@ deep analysis:
       fingerprint `decompose_project` failures by the tool, so 4 consecutive graph-validation failures **park** the task
       (`awaiting_review`, guardrail `repeated_decomposition_failures`) with a message pointing at the proposed graph +
       validation errors. Regression-tested (varied-input failures still park).
-- [ ] **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix)* —
-      the user's workflow idea: **all** started cards should pass through **Planning** first (rename the lane in spirit
-      to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the agent **re-validates the
+- **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix; umbrella
+      — Increments A/B/C below are all done, so the count tracks them not this label; OWNER: confirm this whole feature
+      can flip to `[x]`)* — the user's workflow idea: **all** started cards should pass through **Planning** first
+      (rename the lane in spirit to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the
+      agent **re-validates the
       card against the latest overall project state** before doing the work — a planning card spawns/updates child
       cards as today; a *work* card gets a quick refinement pass ("do the original idea + acceptance still hold given
       everything merged since?") and only then transitions itself to In Progress. **Goal: never work an out-of-date
@@ -549,8 +565,8 @@ deep analysis:
       flags whether retrieval/code-index/architecture tools ran *before* a decomposition (anchored on
       `decomposition_applied`), rolled up per scope × role × model + surfaced in the "Decomposition Knowledge" stats
       section. Unit + read-path tested.
-- [ ] **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped;
-      this is the *scoring*):
+- **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped; this is the
+      *scoring*; umbrella — the 4 scoring axes below are the counted work):
   - [ ] DSP correctness + measured phase alignment
   - [ ] groove invariants + effect-guardrail sweeps
   - [ ] full UI control coverage
@@ -592,9 +608,10 @@ deep analysis:
 - [ ] **Verify the reconcile UX** — cross-machine fetch-and-continue end-to-end (Playwright).
 
 ### 5.G — Backlog (promote into a worked item when picked up)
-- [ ] **Plug-and-play, batteries-included Docker delivery** — ship a self-contained image + a provided
+- **Plug-and-play, batteries-included Docker delivery** — ship a self-contained image + a provided
       `docker-compose.yml`: copy compose → `docker compose up` → working !Klein, bundling runtime + built web-ui +
-      Python core + ALL internal models (offline for everything !Klein-internal):
+      Python core + ALL internal models (offline for everything !Klein-internal). Umbrella — the counted deliverables are
+      the children below (incl. the acceptance check):
   - [ ] bake in all internal models — code-embedding GGUF (~84MB nomic-embed Q4_K_M), the ONNX/LLMLingua
         compression scorer, any Python-core helper model (no first-run downloads for !Klein's own models)
   - [ ] agent-work LLM stays user-provided + EXTERNAL (via `host.docker.internal`) — no bundled engine, no baked
@@ -651,13 +668,18 @@ deep analysis:
 >   the §5.X port-direction decision (batched into the next clarification round); native-core-default NOT started.**
 - [x] **Embedding story decided + shipped** — `local_gguf` (nomic-embed-text-v1.5) in-process via the Python core,
       default in `runtimeCodeEmbeddingProviderSchema`, degrading to `local_lexical` when the core is off. (→ §5.I #1)
-- [ ] **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22)*:
-  - [ ] build the native-core → task-execution integration (sandboxed tools, session lifecycle) — the missing prereq
-  - [ ] switch default selection; keep the SDK reachable on failure
-  - [ ] assert strict isolation still holds for native-core data-plane tools (thorough tests + clean fallback)
-- [ ] **Python core default-ON + Settings health** *(decided 2026-06-22)*:
+- **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22; umbrella —
+      the children are the counted work, and all three are currently HELD per the §5.H callout: "HOLD the native-core-
+      default flip pending the §5.X port-direction decision … NOT started". OWNER: §5.X Phase 2 is now DROPPED (no Python
+      port) — confirm whether that releases this hold so the children flip back to `[ ]`)*:
+  - [>] build the native-core → task-execution integration (sandboxed tools, session lifecycle) — the missing prereq *(gated on the §5.X port-direction decision — see the §5.H callout)*
+  - [>] switch default selection; keep the SDK reachable on failure *(gated on the §5.X port-direction decision)*
+  - [>] assert strict isolation still holds for native-core data-plane tools (thorough tests + clean fallback) *(gated on the §5.X port-direction decision)*
+- **Python core default-ON + Settings health** *(decided 2026-06-22; umbrella — the counted work is the children. NOTE
+      for OWNER: the §5.H callout says core-py default-on + auto-start are DONE 2026-06-25, which contradicts the open
+      "auto-start on launch" child below — only the "bundle" half is genuinely still owed; reconcile)*:
   - [ ] bundle/package the `core-py` sidecar so auto-start is reliable
-  - [ ] auto-start on launch; keep auto-fallback when unreachable
+  - [ ] auto-start on launch; keep auto-fallback when unreachable *(NOTE: the §5.H callout reports this DONE 2026-06-25 — likely stale-open; owner to confirm/flip)*
   - [x] **Settings health line (2026-06-24)** — `KleinCorePyHealthLine` under the !Klein model panel: enabled state,
         a live `GET /health` probe (running / not-reachable), the endpoint, and a hint to set `NKLEIN_CORE_PY=1` when
         disabled. (Shipped earlier this session; CHANGELOG'd.)
@@ -695,10 +717,10 @@ deep analysis:
       merge); shared embedding form extracted; override removed from the global dialog (global = defaults only).
       ([web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx),
       [web-ui/src/components/code-embedding-fields.tsx](web-ui/src/components/code-embedding-fields.tsx))
-- [ ] **#4 — Multiple models per role + per-task best-fit selection** *(deep design; not a quick win)*. Today each
-      role binds one model. *Decided 2026-06-22:* estimate task difficulty → match to MCSR capability/speed,
-      capability-weighted (most-capable free model that fits the ≥32k budget; speed tiebreaker; easy cards take the
-      fast/small model); user can pin/prefer/weight per role.
+- **#4 — Multiple models per role + per-task best-fit selection** *(deep design; not a quick win; umbrella — the 5
+      sub-deliverables below are the counted work)*. Today each role binds one model. *Decided 2026-06-22:* estimate task
+      difficulty → match to MCSR capability/speed, capability-weighted (most-capable free model that fits the ≥32k
+      budget; speed tiebreaker; easy cards take the fast/small model); user can pin/prefer/weight per role.
   - [ ] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history)
   - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
   - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
@@ -1076,11 +1098,12 @@ deep analysis:
           persisted transcript replaces on `done`. Unit-tested (async-queue; the subscription yields token events then
           a terminal `done`) and **live-verified** end-to-end via [scripts/verify-chat-ui.mts](scripts/verify-chat-ui.mts)
           (the reply renders through the SSE path). Root (1476) + web (705) green.
-  - LATER: the **Signal bridge** — **deferred by the user (2026-06-24): "defer signal credential based testing, we'll
+  - [-] **LATER: the Signal bridge** — **deferred by the user (2026-06-24): "defer signal credential based testing, we'll
         do later."** It needs a live Signal account/linking + credentials to integrate & test against, so it's not
-        actionable autonomously right now. When resumed, the open spec question is the transport approach (e.g.
-        `signal-cli` linked-device vs. a bridge service) — that choice shapes the bridge abstraction, so we build it
-        together with the credentials rather than scaffolding speculatively now.
+        actionable autonomously right now (also surfaces as the `[?]` "Private messenger bridge" item in §5.M). When
+        resumed, the open spec question is the transport approach (e.g. `signal-cli` linked-device vs. a bridge service)
+        — that choice shapes the bridge abstraction, so we build it together with the credentials rather than scaffolding
+        speculatively now.
 - [~] **Multimodal I/O, capability-gated** — image (and audio/PDF) in/out driven off model capabilities
       (MCSR/provider metadata); degrade to text; expose modalities in UI + over the bridge.
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
@@ -1095,8 +1118,10 @@ deep analysis:
         `sandbox_with_host_escape` (sandbox free, **every** host action confirmed), (c) `host` (host reads free, host
         **mutations still confirmed**). Conservative by construction — a host write/command is *never* silently
         allowed in any mode (exhaustive matrix test asserts this). The runtime enforces + audit-logs the decision.
-  - [ ] still owed (runtime enforcement, per mode): (a) read-only sandbox + opt-in user-mounted write paths;
-        (b) the double-confirmed per-action host escape hatch UI + execution; (c) the typed host-mode phrase + audit log.
+  - **still owed — runtime enforcement, per mode** *(3 buried deliverables — counted as the children)*:
+    - [ ] (a) read-only sandbox + opt-in user-mounted write paths
+    - [ ] (b) the double-confirmed per-action host escape hatch UI + execution
+    - [ ] (c) the typed host-mode phrase + audit log
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
   - [x] **short-term lean window (2026-06-24)** — [src/chat/chat-context-window.ts](src/chat/chat-context-window.ts):
         `splitChatContextWindow` (pure, token-estimator-injected) splits a transcript into the most-recent messages
@@ -1115,16 +1140,22 @@ deep analysis:
         genuinely new ones, dropping any that near-duplicate an already-accessible memory or an earlier candidate in
         the batch (embedding cosine when available, else lexical). Pure + unit-tested (existing-dup + within-batch-dup +
         empty drop; embedding-based dedup). Still owed: wire the real embedder + extractor model + persist on session end.
-  - [ ] the ≥32k-floor budget integration + opt-in access-all-loaded-projects scope.
-- [ ] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
+  - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
+  - [ ] opt-in access-all-loaded-projects memory scope
+- [?] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
+      *(blocked on the user: deferred by the user 2026-06-24 ("defer signal credential based testing, we'll do later")
+      — needs a live Signal account/credentials + the transport-approach decision; see the LATER Signal-bridge note in
+      the chat-runtime block above. Not actionable autonomously.)*
 - [~] **Chat UI (web-ui, separate surface)** — session list, transcript, streaming, execution-mode selector,
       memory-scope toggles, Signal pairing/status; tooltips per §5.I #5.
   - [x] **core dialog (2026-06-24)** — navbar Chat button → [chat-dialog.tsx](web-ui/src/components/chat/chat-dialog.tsx):
         session list (create/select/delete), editable session header (title/role/scope/goal), transcript with
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
-  - [ ] still owed: an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today),
-        **memory-scope toggles**, and **Signal pairing/status** (with the bridge, LATER).
+  - **still owed** *(3 distinct UI pieces — counted as the children)*:
+    - [ ] an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today)
+    - [ ] **memory-scope toggles**
+    - [>] **Signal pairing/status** *(blocked: ships with the Signal bridge, which is `[?]`/LATER — see "Private messenger bridge")*
   - [x] **Chat → resizeable RIGHT sidebar; modal + Chat button dropped (2026-06-24)** — the §5.M chat is now a
         persistent right sidebar ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx), renamed from
         chat-dialog): `ChatSidebar` (collapsed-by-default thin rail with an expand button) + `ChatPanel` (the chat
@@ -1303,10 +1334,10 @@ deep analysis:
         on mid_task + complex_dag, but **non-terminal in the 6–7 min window** — qwen3-8b is reasoning-heavy + slow
         (hundreds of reasoning deltas, 2–8 tool calls), **not stuck**. Characterization (Finding 7), governed by the
         wall-time guardrail; out of the parse-recover lane. gemma-e2b/e4b finish the same presets in ~3 min clean.
-  - [ ] **OUT OF SCOPE until release-able maturity (see the section callout):** the size × family × **weight-quant ×
+  - [-] **OUT OF SCOPE until release-able maturity (see the section callout)** *(deferred by decision — explicitly NOT
+        started now; reconsidered only after the user calls a version release-able)*: the size × family × **weight-quant ×
         K/V-quant × context** matrix, any **performance/efficiency** comparison, and large-model efficiency tuning.
-        HARD, resource-heavy, premature — explicitly NOT started now; reconsidered only after the user calls a version
-        release-able.
+        HARD, resource-heavy, premature.
 - [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
   - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
         ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
@@ -1402,12 +1433,14 @@ deep analysis:
 > the npm dev build only. **Priority: after §5.A, before §5.H/§5.M/§5.O.** **Decided:** Layer 1 (our readable TS
 > boundary) — fully inline; Layer 2 (vendored minified `@nklein/*` runtime) — keep working as an internal
 > dependency, do NOT de-package the minified bundles now (deferred to §5.P).
-- [ ] **Inventory + inline the layer-1 boundary** — catalog `src/nklein-sdk/`'s re-exports of `@nklein/*`, inline the
+- [-] **Inventory + inline the layer-1 boundary** *(deferred by decision — §5.0.1 (2026-06-25, FINAL): "§5.R
+      SDK-boundary inlining stay deferred")* — catalog `src/nklein-sdk/`'s re-exports of `@nklein/*`, inline the
       pass-through shims (`sdk-runtime-boundary.ts`, `sdk-provider-boundary.ts`) into callers, reframe the `NKlein*`
       services/tools/event-adapter/session-runtime as plain runtime code (keep an `agent-runtime/` area), drop the
       `check:nklein-boundary` discipline. No behavior change; tests green.
-- [ ] **Reframe the docs/mental model** — AGENTS.md + comments: no "SDK boundary / plug-in / reusable core" framing;
-      it's the internal agent runtime. Don't churn substantive code beyond removing the separation.
+- [-] **Reframe the docs/mental model** *(deferred by decision — §5.0.1; pairs with the item above)* — AGENTS.md +
+      comments: no "SDK boundary / plug-in / reusable core" framing; it's the internal agent runtime. Don't churn
+      substantive code beyond removing the separation.
 
 ### 5.S — User-questions: auto-clarify loop + first-class UI *(raised 2026-06-23; LOWEST priority — after all other planned tasks, before §5.P)*
 > **Goal:** clarifying user questions are first-class. Agents already raise them; they were force-answered + never
@@ -1434,9 +1467,13 @@ deep analysis:
         reviewer opines and it continues while progressing), persists via `applyAutoClarifyDecision`, and has a hard
         iteration bound so it always terminates. The architect `propose` / reviewer `review` / `similarity` are
         injected (`AutoClarifyTurnDeps`) — fully unit-tested (3 cases: confident-answer, stall→assumption, hard-limit).
-  - [ ] still owed (needs live model + flow plumbing): connect `propose` to the architect turn + `review` to the
-        §5.K reviewer model + `similarity` to the embedder; invoke after `decompose_project` applies; persist onto the
-        plan `questions.md`/card; settings (global + per-project) for auto-vs-manual + the hard limit.
+  - **still owed — live model + flow plumbing** *(6 buried deliverables — counted as the children)*:
+    - [ ] connect `propose` to the architect turn
+    - [ ] connect `review` to the §5.K reviewer model *(§5.K is complete, so the gate is met)*
+    - [ ] connect `similarity` to the embedder
+    - [ ] invoke after `decompose_project` applies
+    - [ ] persist onto the plan `questions.md` / card
+    - [ ] settings (global + per-project) for auto-vs-manual + the hard limit
 - [ ] **Manual-mode UI** — board-header badge + per-card indicators → clarifying dialog (≥4 options + free-text,
       multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
 
@@ -1542,7 +1579,9 @@ deep analysis:
       landable decomposition items (task.ts, runtime-api.ts, provider-service, card-detail-view, project-nav-panel, +
       a lower-priority list). The full whole-codebase pass — data-flow, hot-paths, extension points, dead code — is
       still owed.)*
-- [ ] **Then work through them** by the normal §2 loop / §5.0 priority, smallest-safe-step first, each a green commit.
+- *(process note, not a discrete work item)* **Then work through them** by the normal §2 loop / §5.0 priority,
+      smallest-safe-step first, each a green commit. *(The actual schedulable work is the individual promoted findings —
+      S/M/R items above + the per-file decomposition slices below — each counted on its own.)*
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
@@ -1570,8 +1609,9 @@ deep analysis:
 - [ ] **(S5, low-risk) Replace the 250 ms `setTimeout` in `completeDecompositionSourceTask`** (`runtime-server.ts`) with a
       causal `await` after `autoStartDecompositionRootTasks` (already awaited) — kills timing-dependent control flow; verify
       completion order in one dev-test.
-- [ ] **(M1, moderate) Extract decomposition stall/nudge state** (the ~12 per-task Maps + `maybeContinueStalledDecomposition`)
+- [-] **(M1, moderate) Extract decomposition stall/nudge state** (the ~12 per-task Maps + `maybeContinueStalledDecomposition`)
       out of `InMemoryNKleinTaskSessionService` into a focused collaborator (inject `sendTaskSessionInput`/`cancelTaskTurn`).
+      *(done — superseded by §5.X Phase 1 "M1 `DecompositionStallNudger`" (`85ffd63b`), which extracted exactly this.)*
 - [ ] **(M2, moderate) Unify the session-merge** so `buildWorkspaceStateSnapshot` is the one canonical live+persisted merge
       (today `loadState` layers live NKlein summaries on top separately — effective state depends on which fn the caller used).
 - [ ] **(M3, low-med) Guard the UI `saveState` write path** — `saveWorkspaceState` accepts a full board replacement bypassing
@@ -1744,11 +1784,13 @@ deep analysis:
       made explicit (`Dispatch`/`SetStateAction`/`ReactElement` imports). **dialog 4086 → 3709 (−377).** Verified:
       web:typecheck + 36-test oracle + web:build. Next clean pure-helper groups: command-display + timeout-profile helpers;
       next sections: sandbox-pool fields, timeouts.
-- [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
-      large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
-      (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
-      decomposition item — extract cohesive sub-modules, no behavior change, locked by the existing suites:
-  - [ ] **`src/commands/task.ts` (~2870 → 2751)** — the `nklein task` CLI conflates many concerns: acceptance-failure +
+- **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
+      large monolith files"; umbrella — each file below is its own counted, landable decomposition item)*. A line-count
+      sweep surfaced the oversized files beyond the two already tracked above (`nklein-task-session-service.ts` ~3850,
+      `runtime-settings-dialog.tsx` ~4095). Each below is its own landable decomposition item — extract cohesive
+      sub-modules, no behavior change, locked by the existing suites:
+  - **`src/commands/task.ts` (~2870 → 2751)** *(umbrella — slices below are the counted work; 5 done, the remaining
+        slice is the open child)* — the `nklein task` CLI conflates many concerns: acceptance-failure +
         plan-gap classification/evidence, decomposition routing + rejection recording, NKlein-settings build/format
         helpers, task-command target/workspace resolution, the tRPC client factory, and ~a dozen subcommand
         registrations. Split into `commands/task/` (e.g. `task-acceptance-plan-gap.ts`, `task-nklein-settings.ts`,
@@ -1772,8 +1814,10 @@ deep analysis:
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
-  - [ ] **`src/trpc/runtime-api.ts` (~2449 → 2314)** — `createRuntimeApi` is one giant object literal of every method
-        (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
+  - **`src/trpc/runtime-api.ts` (~2449 → 2314)** *(umbrella — slices below are the counted work; the remaining slice is
+        the open child. NB §5.X Phase 1 has since driven this file far lower (2410 → 1353); reconcile this item's
+        progress against the §5.X slices 1–8 if revisiting)* — `createRuntimeApi` is one giant object literal of every
+        method (config, providers, MCP, tasks, chat, debug, update, …). Group methods into focused factory modules
         (`runtime-api/config.ts`, `/tasks.ts`, `/providers.ts`, `/chat.ts` — the chat seam is already a clean
         `chat-service`) composed into the returned object; mirrors the `CreateRuntimeApiDependencies` seam.
         - [x] **slice 1 (2026-06-24):** extracted the pure effective-task-timeout resolution (profile defaults + mode scale +
@@ -1794,7 +1838,8 @@ deep analysis:
         - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat) — the bigger,
               harder refactor (methods close over `createRuntimeApi`'s deps; deserves fresh context). Small leftover
               module-level helpers worth a later pass: the board-card lookups + git-commit resolution.
-  - [ ] **`src/nklein-sdk/nklein-provider-service.ts` (~1989 → 1744)** — provider selection + OAuth (nklein/oca/codex) +
+  - **`src/nklein-sdk/nklein-provider-service.ts` (~1989 → 1744)** *(umbrella — slices below are the counted work; the
+        remaining slice is the open child)* — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
         - [x] **slice 1 (2026-06-24):** extracted the pure discovered-model parsing/normalization (LM Studio `/api/v0|v1`
               + generic OpenAI-style payloads → `RuntimeNKleinProviderModel[]`, context-window normalization, dedupe,
@@ -1807,9 +1852,10 @@ deep analysis:
               low navigability gain, so likely leave in place), the model-list *fetchers* (LiteLLM/LM Studio/generic endpoint
               discovery — I/O + const/schema deps, ~340 lines, a cohesive next module but deserves fresh context), the MCP
               settings, and the launch-config resolution.
-  - [ ] **`web-ui/src/components/card-detail-view.tsx` (~2384 → 2330)** — already composes `detail-panels/*`, but still holds
-        many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract the
-        skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.
+  - **`web-ui/src/components/card-detail-view.tsx` (~2384 → 2330)** *(umbrella — slices below are the counted work; 10
+        slices done (−55%), the remaining lower-priority slice is the open child)* — already composes `detail-panels/*`,
+        but still holds many local skeleton/loading/empty/section components + resize + keyboard orchestration. Extract
+        the skeleton/loading/empty panels + the bottom-terminal/workspace-changes sections into `detail-panels/`.
         - [x] **slice 1 (2026-06-24):** extracted the workspace-changes loading + empty presentational panels (and their
               private skeleton primitives) into `detail-panels/workspace-changes-skeleton.tsx`. Pure prop-driven, no
               behavior change; verified `web typecheck` + `web vitest` (690) green. card-detail-view 2384→2330.
@@ -1852,8 +1898,9 @@ deep analysis:
         - [ ] still TODO (lower priority): lift the resize/keyboard orchestration (`useResizeHandler` + the hotkey/escape
               effects) into a `use-card-detail-keyboard`/layout hook; the remaining file is mostly the `CardDetailView`
               composition root + the small DiffToolbar/MobileDetailTabBar/BottomTerminalSection/TaskActivitySurface helpers.
-  - [ ] **`web-ui/src/components/project-navigation-panel.tsx` (~1346 → 1276)** — the Projects sidebar. Split the project
-        list, the dev-scenario/self-improvement block, and the per-project actions menu.
+  - **`web-ui/src/components/project-navigation-panel.tsx` (~1346 → 1276)** *(umbrella — slices below are the counted
+        work; 5 slices done (−47%), the remaining lower-priority slice is the open child)* — the Projects sidebar. Split
+        the project list, the dev-scenario/self-improvement block, and the per-project actions menu.
         - [x] **slice 1 (2026-06-24):** extracted the keyboard-shortcuts cheatsheet (ShortcutHint + ShortcutsCard + the
               essential/more shortcut tables + platform modifier glyphs) into `project-nav/shortcuts-card.tsx`. web typecheck +
               vitest (690) green. project-navigation-panel 1346→1276.
@@ -1874,8 +1921,9 @@ deep analysis:
               project-CRUD / dev-test orchestration (createDevTestProject/cleanup/migrate/self-improvement) could move into a
               `use-project-nav-actions` hook, leaving the component as mostly layout.
   - [ ] *(also large, lower priority): `web-ui/src/App.tsx` (~1350, composition root — extract more orchestration into
-        hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), `nklein-decomposition-tool.ts` (~1440),
-        `nklein-session-runtime.ts` (~1421), `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.
+        hooks), `board-card.tsx` (~1198), `use-board-interactions.ts` (~1142), ~~`nklein-decomposition-tool.ts` (~1440)~~
+        (DONE — decomposed to 391 lines by §5.X Phase 1 PILOT), `nklein-session-runtime.ts` (~1421),
+        `state/workspace-state.ts` (~1124).* Assess during the full §5.U pass.
 - [x] **Persist the resolved launch role on the session summary** *(DONE 2026-06-24)* — added an optional `role`
       (`RuntimeModelPerformanceRole`) to `runtimeTaskSessionSummarySchema`, stamped at task start (the `entry.summary`
       chokepoint, persisting through `updateSummary`'s spread) via a shared `resolveNKleinTaskRole(taskId,
@@ -2061,7 +2109,8 @@ deep analysis:
       (5 tests) drives the REAL `LocalLlmClient` (`complete`/`completeStream`/`completeWithTools`) + `discoverLoadedModelId`
       against it → all pass, proving the wire format matches exactly. Unblocks Suites 4 + 5. *(Originally designed below;
       built ahead of schedule while a server-spawning suite ran, since it's a disjoint helper file.)*
-  - [ ] *(original design notes)* New `test/contract/helpers/mock-llm.ts`:
+  - [-] *(original design notes — superseded: BUILT, see "§5.V mock-LLM harness (DONE + self-verified 2026-06-25)" above;
+        kept for the design rationale)* New `test/contract/helpers/mock-llm.ts`:
       a tiny `node:http` OpenAI-compatible server: `GET /models` (so `discoverLoadedModelId` in
       [local-chat-model.ts](src/chat/local-chat-model.ts) finds a "loaded" model) + `POST /chat/completions`
       (non-streaming AND SSE streaming — match `LocalLlmClient` in
@@ -2161,7 +2210,7 @@ deep analysis:
       `runtime.getKnowledgeToolUsageStats` (generatedAt/observations/aggregates/decompositionKnowledgeSignals/decompositionKnowledgeAggregates; all empty on fresh);
       `runtime.getNKleinSlashCommands` (commands array; each entry has name string; accessible without workspace scope).
       **Gap-analysis summary (as of this run):** ~88 procedures in app-router.ts across 4 namespaces. Contract-seam covered: all 15 workspace.* minus deleteWorktree/getChanges/runGitSyncAction/checkoutGitBranch/discardGitChanges (5 destructive/live-only); all 7 projects.* minus createSelfImprovementProject/cleanupDevTestProjects/migrateAccidentalProjectArtifacts/pickDirectory (4 dev/destructive); all 8 chat.* minus streamMessage (SSE, Suite 5); and now ~27 runtime.* (getConfig, saveConfig, getNKleinMcpSettings, saveNKleinMcpSettings, saveNKleinModelContextWindowOverride, saveNKleinModelMaxConcurrentRequests, addNKleinProvider, requestSwarmStop, getSwarmStop, clearSwarmStop, listNKleinPlanArtifacts, applyNKleinPlanArtifact, rejectNKleinPlanArtifact, expandNKleinPlanTask, recordNKleinPlanGap + 12 from Suite 19). **Remaining deterministic-uncovered:** buildNKleinModelFreshnessAdvisor/buildNKleinAdvisor (build prompt, no model call — borderline), writeNKleinDogfoodBacklog (needs dogfood path). **Live-only (deferred to e2e):** all task-session lifecycle (start/stop/pause/resume/sendInput/chatMessages/chatSend/abort/cancel/reload/grantApproval/importContext/verifyAcceptance/mergeWorktrees); NKlein cloud auth (accountProfile/balance/orgs/kanbanAccess/featurebaseToken/deviceAuth/oauthLogin/switchAccount); live provider (saveProviderSettings/providerModels/endpointDiscovery/addProvider); MCP OAuth; shell session; runCommand; runUpdateNow; resetAllState; runNKleinSmokeEval; collectTaskEvidence; sendNKleinAdvisor; openFile; updateNKleinProvider. **264 tests green, 17 test files, git is-bare=false, no stray procs.**
-- [ ] **Build order:** helpers + Suite 6 → Suites 1 & 5 & 11 (parallel) → Suites 2/3/4/12 (parallel) → Suites 7/8/9/13 (parallel) → Suite 10. **The refactor (§5.X Phase 1) may start once Suites 1+5+6 (+11) are green** (a baseline contract oracle); each later suite gates the workflow it covers. **Standing rule: every new feature gets BOTH a TS-internal unit test AND an HTTP-level contract test** — the contract test is the one that survives the port.
+- *(sequencing/process note, not a discrete work item — the suites it orders are the counted items above)* **Build order:** helpers + Suite 6 → Suites 1 & 5 & 11 (parallel) → Suites 2/3/4/12 (parallel) → Suites 7/8/9/13 (parallel) → Suite 10. **The refactor (§5.X Phase 1) may start once Suites 1+5+6 (+11) are green** (a baseline contract oracle); each later suite gates the workflow it covers. **Standing rule: every new feature gets BOTH a TS-internal unit test AND an HTTP-level contract test** — the contract test is the one that survives the port.
 
 ### 5.W — Expose every feature + setting in the UI; global-vs-project config; regroup *(2026-06-25, user)*
 - [x] **Feature-vs-UI audit (2026-06-25, subagent)** — cataloged all 29 runtime-config fields (26 exposed / 3 config-only),
@@ -2233,8 +2282,11 @@ deep analysis:
         editor with title/prompt/acceptanceCommand fields) rendered in `card-detail-view.tsx` after `PlanGapActionsPanel`
         (planning lane only), 5-test contract suite + component test. Path 2a (agent-proposed discovery) deferred to a
         later layer once the model writes proposed replacements as a dedicated artifact type.
-  - [ ] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
+  - [-] **settings regrouping (from the audit):** move swarm guardrails under a clearer "Autonomous run limits" home,
         de-confuse the code-embedding default-vs-override split, and give model-roles/agent-rulesets a dedicated sub-panel.
+        *(dup of the fuller "Regroup the settings menus" item below — those 3 points are all covered by its ~9-section
+        plan: Guardrails & Limits = guardrails home; the code-embedding "Riskiest" note = de-confuse the split; Agents &
+        Roles section = model-roles/rulesets sub-panel. Tracked there.)*
 - [~] **Global vs project config + per-project overrides** — most settings global (one place); a per-project **override**
       for *almost every* global setting (global default + project override layer; clear inherits/overridden state). Define
       the override model + storage; wire it through. **PLAN (research agent 2026-06-25):** the override mechanism already
@@ -2327,7 +2379,8 @@ deep analysis:
 > staged last or bridged) AND do the Phase 1 TS-internal refactor **now**; do **not** start the actual Python port until
 > the §5.V net is green. So Phase 2 is no longer "decision required" on *whether* to plan — it's planned; the remaining
 > user decision is the final port scope/shape once §5.V is green (options staged below).
-- [ ] **Phase 0 — land §5.V** (the port-resilient test oracle). Blocks everything below. **← the gating linchpin.**
+- **Phase 0 — land §5.V** *(gating pointer, not separate work — the actual items are tracked in §5.V; this Phase 0
+      blocks §5.X Phases 1–2 below)* — the port-resilient test oracle. **← the gating linchpin.**
 - [~] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
       monoliths (`nklein-task-session-service` ~3800, `runtime-server`, `nklein-decomposition-tool`, `workspace-state`,
       - [x] **Phase 1 PILOT (2026-06-26): `nklein-decomposition-tool.ts` (~1440 → 391 lines)** decomposed into 8
@@ -2489,9 +2542,9 @@ deep analysis:
       only once value delivery is proven. *Recommendation to prepare: strangler-fig behind the §5.V contract oracle,
       web-ui stays TS, contract schemas generated from one source; the agent-runtime port is the long pole and may be
       staged last or kept as a bridged service.*
-- [ ] **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition oracle), §5.H (native-core /
-      core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side cleanup that also de-risks a port
-      by shrinking the `@nkleinbot/*` coupling first).
+- *(cross-link note, not a work item)* **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition
+      oracle), §5.H (native-core / core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side
+      cleanup that also de-risks a port by shrinking the `@nkleinbot/*` coupling first).
 - [ ] **Target-structure roadmap (2026-06-26): `.plan/docs/architecture-and-structure-suggestions.md`** — the *target
       shape* for this refactor (complements the anti-pattern audit's code-level findings). 13 recommendations: (1)
       formalize the monorepo (npm workspaces; `apps/{web,desktop}` + `packages/{contracts,runtime,runtime-core,nklein-
@@ -2672,23 +2725,28 @@ deep analysis:
 > handshake). **Remaining:** NONE — the §5.Y security backlog is COMPLETE (12/12). Each fix got a regression test.
 
 ### 5.J — LATER (deferred by decision)
-- **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
+> Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
+- [-] **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
   the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual identity a bit different from the fork's
   inherited look. The current look is great; revisit the distinct-identity restyle much later. **Do NOT produce restyle
   mockups now.** (When revisited: refined/modern/professional dark, Linear/Raycast restraint; I mock 2-3 directions, user
   picks; keep the dark-theme + Tailwind-token system; clarify palette/density/typography scope before touching
   `globals.css @theme`.)
-- LATER: **In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
+- [-] **LATER: In-sandbox command operator** — a small in-image command runner with structured stdout/stderr/exit/error
   + typed next-step guidance + clearer UI status than the generic SDK `bash` bridge.
-- LATER: **Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify
+- [-] **LATER: Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify
   per-OS Docker availability, sandbox build/run, endpoint discovery, browser/runtime launch, path/PTY/Git/mount
   semantics, file-picker fallback. Must not weaken strict isolation. (A dev-only `start.bat` exists.)
-- PARKED (cloud-dependent; re-enable when cloud is revisited or a strong local model is proven): `nklein-advisor.ts`,
+- [-] **PARKED** (cloud-dependent; re-enable when cloud is revisited or a strong local model is proven): `nklein-advisor.ts`,
   `nklein-model-research.ts`, `nklein-team-delegation.ts`/`-team-progress.ts`, `nklein-web-research-tool.ts` (also
   incompatible with `--network none`). They compile as parked helpers + render no local-only UI.
   (`nklein-trusted-auto-merge.ts` self-merge is NOT parked — allowed + configurable; §5.L.)
 
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
+> **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
+> all-TS.** This section is kept for history (the original rationale + open questions below mirror §5.X Phase 2's
+> now-moot list). No work items here.
+>
 > **Goal (tentative):** port the backend to Python so practically no TS remains (web-ui stays TS; some
 > boundaries/SDKs may be cheaper to keep — not locked to "zero TS"). **The very last task** — don't start until
 > nearly everything else is done; expect a lot of clarifying questions first. Rationale: a battle-proven, well-tested
@@ -2779,7 +2837,8 @@ deep analysis:
 - [x] *(2026-06-21)* **OpenHands-style "watch the agent's hands"** per-card **Watch** tab: live
       state/model/elapsed/current-tool, an accumulated activity timeline, the files it is changing this run, and
       a jump to its terminal.
-- [ ] **Open:** browser-only live verification of the cockpit + isolation status/pool UI — see §5.A.
+- *(cross-link, not a separate item — tracked in §5.A)* **Open:** browser-only live verification of the cockpit +
+      isolation status/pool UI — see §5.A (the Playwright UI pass + the "pool-control inspection" still-owed items).
 
 ### 6.9 Strict Docker agent isolation
 - [x] Pinned `nklein/agent-sandbox` image, in-container tool-runner (`/opt/nklein/tool-runner.cjs`),
