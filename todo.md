@@ -177,6 +177,16 @@ deep analysis:
 > glance** — a multi-commit effort becomes a tree of `[x]`/`[~]`/`[ ]` sub-items, NOT prose under one checkbox. As
 > work lands, **flip the nested boxes** (and tag each with its short commit hash) rather than appending DONE-notes;
 > the verbose per-commit detail belongs in CHANGELOG `## [Upcoming]` + git, not here. §5.A is the worked example.
+>
+> **Cross-model verification convention (2026-06-26, user — standing, do NOT re-litigate): every task that involves
+> real LLM interactivity must be verified on EVERY loaded local model, not just the one it was first proven on.** This
+> is a **retro-verification** obligation for already-`[x]` done tasks (the user asked to run these "at the next best
+> opportunity") AND part of the **done-bar** for open LLM-interactive tasks. The model roster, the deepseek
+> crash-resilience caveat (a model that vanishes mid-run is recorded DROPPED and the sweep continues with the rest),
+> the methodology, and the enumerated per-flow sweep checkboxes all live in **[§5.Z](#5z)** — the single source of
+> truth. Rather than editing every task line, a task's single-model live proof (e.g. "verified on qwen3-8b") keeps its
+> text and its cross-model obligation is tracked as a §5.Z checkbox + a row in
+> [cross-model-verification.md](cross-model-verification.md).
 
 ### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
 > The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
@@ -2857,6 +2867,61 @@ deep analysis:
 > confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
 > guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth), ✅ #10 (nonce
 > handshake). **Remaining:** NONE — the §5.Y security backlog is COMPLETE (12/12). Each fix got a regression test.
+
+### 5.Z — Cross-model verification: every LLM-interactive flow on every loaded model *(2026-06-26, user)*
+> **Standing requirement (do NOT re-litigate):** every task involving *real LLM interactivity* — the agent driving a
+> live local model through a tool loop / decompose / chat / autonomous run / review — must be **verified across ALL
+> loaded local models**, not just the north-star model it was first proven on. This is a **retro-verification**
+> obligation for `[x]` done tasks (user, 2026-06-26: *"do run those verifications for the already marked as done tasks
+> at the next best opportunity"*) AND part of the **done-bar** for open LLM-interactive tasks. Cross-linked from the §5
+> cross-model convention note above. **Interpretation taken (recorded so it can be corrected):** the requirement is
+> applied as this one standing section + the matrix, NOT by editing every individual task line — each task keeps its
+> single-model proof text and inherits the all-models obligation here.
+>
+> **Loaded roster (live `lms ps` / `/v1/models`, 2026-06-26 — 9 chat/reasoning models + 1 embedder):**
+> 1. `qwen/qwen3-8b` (north-star small) · 2. `qwen/qwen2.5-coder-14b` · 3. `qwen3.5-9b-mlx` · 4. `google/gemma-4-e2b`
+> (2B) · 5. `google/gemma-4-e4b` · 6. `microsoft/phi-4-mini-reasoning` (3.8B reasoning) · 7. `microsoft/phi-4-reasoning-plus`
+> · 8. `nvidia/nemotron-3-nano-4b` · 9. `deepseek-r1-0528-qwen3-8b-mlx` (⚠️ crash-prone). Embedder (for embedding /
+> code-intel flows): `text-embedding-nomic-embed-text-v1.5@q8_0` (currently the only one loaded).
+>
+> **Crash-resilience caveat (user, settled):** **deepseek** has been seen **crashing/unloading** mid-run. If a model
+> disappears from `/v1/models` during a sweep, **record it DROPPED and continue with the remaining models** — never
+> block the sweep on one model. (We *want* deepseek covered; its crash-resilience is a separate task.)
+>
+> **Methodology:** reuse the existing `scripts/verify-*.mts` / `scripts/sweep-capture.mts` harnesses, pinning each
+> model (most take a `--model` / model env, or the swarm reads it from the pinned provider settings). For each flow:
+> iterate the roster → pin → run → record per model in the matrix [cross-model-verification.md](cross-model-verification.md):
+> **✅ PASS · ❌ FAIL → harden** (a malformed-output / parse gap is a !Klein hardening task per the §5.O parse-and-recover
+> principle, NOT just a model failing) **· ⚠️ CANT** (the model genuinely isn't capable enough — a recorded capability-floor
+> data point, not a bug) **· 💥 DROPPED** (crashed mid-run) — then restore the user's selected model. **Priority:** fast
+> high-value flows first (decompose, single-card, chat tools); the long multi-card pipeline is sampled, not full-swept.
+- [ ] **Sweep driver + results matrix** — a `scripts/verify-all-models.mts` (or thin per-harness wrapper) that iterates
+      the roster, pins each model via provider settings, runs a named harness, applies the deepseek-drop caveat, and
+      appends a per-model PASS/FAIL/CANT/DROPPED row to `cross-model-verification.md`. (Or run harnesses manually
+      per-model and record by hand — the matrix is the deliverable either way.)
+- [ ] **Decompose & planning** (`verify-decompose-isolation.mts`) — proven: qwen3-8b. Remaining 8 models.
+- [ ] **Single-card implementation → awaiting_review + result branch** (`verify-task-completion.mts`) — proven:
+      qwen3-8b. Remaining 8.
+- [~] **Planning→In-Progress promotion / auto-promote recovery** (`verify-autopromote-recovery.mts`) — proven: qwen3-8b
+      (recovery path), deepseek (explicit path), phi-4-mini (no-write capability floor / CANT). Remaining 6:
+      qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, gemma-4-e4b, phi-4-reasoning-plus, nemotron-3-nano.
+- [ ] **Strict Docker isolation on a real task** (`verify-strict-isolation.mts`) + **restart/resume isolation**
+      (`verify-restart-resume-isolation.mts`) — proven: qwen3-8b. Remaining 8.
+- [ ] **Chat agent tool loop** (the `verify-chat-*` family: `run_command` exec, `create_card`, `browse_url`, the
+      `verify-chat-agent-e2e` capstone, read/write workspace tools, send, runtime) — proven: qwen3-8b
+      (command/create/browse/e2e/runtime) + qwen2.5-coder-14b (tools/write/send). Sweep each across the full roster.
+- [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
+- [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
+      models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
+- [~] **Small-model output robustness** (`sweep-capture.mts`) — proven clean: gemma-4-e2b (mid+complex), gemma-4-e4b
+      (complex), qwen3-8b (mid+complex, slow/non-terminal in window). Remaining: qwen2.5-coder-14b, qwen3.5-9b,
+      phi-4-mini, phi-4-reasoning-plus, nemotron, deepseek + the unfinished presets. (Folds into §5.O — that section IS
+      the output-robustness sweep; §5.Z just tracks its all-models coverage.)
+- [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
+      `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
+> **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
+> (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
+> their live-verify step, that step means **all loaded models**, recorded in the matrix — not a single-model proof.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.

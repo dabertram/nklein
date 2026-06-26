@@ -1,0 +1,52 @@
+# Cross-model verification matrix
+
+> Every LLM-interactive !Klein flow, verified across **all loaded local models** (the [§5.Z](todo.md) requirement).
+> Rows = flows (each backed by a `scripts/verify-*.mts` / `sweep-capture.mts` harness); columns = the loaded roster.
+> Cells: `✅` PASS · `❌` FAIL → harden · `⚠️` CANT (capability floor) · `💥` DROPPED (crashed mid-run) · `·` not yet run.
+>
+> **Crash caveat:** `deepseek` may vanish mid-run — record `💥` and move on, never block the sweep.
+> **Restore:** every run restores the user's selected model afterward.
+> **FAIL vs CANT:** a malformed-output / parse gap is `❌` (a !Klein hardening task, §5.O parse-and-recover); a model
+> that simply isn't capable enough is `⚠️` (a recorded capability-floor data point, not a bug).
+
+## Roster (2026-06-26)
+
+| # | model | size | notes |
+|---|---|---|---|
+| 1 | `qwen/qwen3-8b` | 4.62 GB | north-star small |
+| 2 | `qwen/qwen2.5-coder-14b` | 8.33 GB | coder |
+| 3 | `qwen3.5-9b-mlx` | 5.98 GB | |
+| 4 | `google/gemma-4-e2b` | 4.37 GB | 2B |
+| 5 | `google/gemma-4-e4b` | 6.86 GB | |
+| 6 | `microsoft/phi-4-mini-reasoning` | 2.18 GB | reasoning, 3.8B |
+| 7 | `microsoft/phi-4-reasoning-plus` | 8.26 GB | reasoning |
+| 8 | `nvidia/nemotron-3-nano-4b` | 2.84 GB | |
+| 9 | `deepseek-r1-0528-qwen3-8b-mlx` | 8.71 GB | ⚠️ crash-prone |
+| E | `text-embedding-nomic-embed-text-v1.5@q8_0` | 146 MB | embedder |
+
+## Matrix
+
+| flow / harness | qwen3-8b | coder-14b | qwen3.5-9b | gemma-e2b | gemma-e4b | phi4-mini | phi4-plus | nemotron | deepseek |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| decompose · `verify-decompose-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| single-card · `verify-task-completion` | ✅ | · | · | · | · | · | · | · | · |
+| auto-promote · `verify-autopromote-recovery` | ✅ | · | · | · | · | ⚠️ | · | · | ✅ |
+| strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| chat run_command · `verify-chat-command-exec` | ✅ | · | · | · | · | · | · | · | · |
+| chat create_card · `verify-chat-create-card` | ✅ | · | · | · | · | · | · | · | · |
+| chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
+| chat e2e capstone · `verify-chat-agent-e2e` | ✅ | · | · | · | · | · | · | · | · |
+| chat read tools · `verify-chat-agent-tools` | · | ✅ | · | · | · | · | · | · | · |
+| chat write tool · `verify-chat-agent-write` | · | ✅ | · | · | · | · | · | · | · |
+| chat send · `verify-chat-send` | · | ✅ | · | · | · | · | · | · | · |
+| chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
+| autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
+| multi-card pipeline · `verify-multi-card-pipeline` | ✅ | · | · | · | · | · | · | · | · |
+| output robustness · `sweep-capture` | ✅ | · | · | ✅ | ✅ | · | · | · | · |
+
+## Run log
+
+> Newest first. Each entry: date · flow · model · result · note.
+
+- _(2026-06-26)_ matrix scaffolded from prior single-model proofs; cross-model sweep starting per §5.Z.
