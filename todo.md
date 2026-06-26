@@ -1887,8 +1887,10 @@ deep analysis:
         slug (`recoverMissingDecomposeProjectTitle` in `plan-task-input-parse.ts`; title dropped from the required-field
         assertion) — parse-and-recover, not re-prompt (AGENTS.md), matching the existing slug-as-title-fallback the task
         graph already used + the boundary schema's stated intent ("an omitted `title`"). Unit + tool-level regression tests
-        added; 75 decomposition tests green. **Still owed (the broader §5.V proof):** a full-runtime decompose-completion
-        e2e that asserts a valid persisted task graph end-to-end (this fix removes the specific blocker that path hit).
+        added; 75 decomposition tests green. **Proven live (2026-06-26):** re-ran the harness post-fix — qwen3-8b now
+        COMPLETES `decompose_project` (habit-tracker-core, 3 tasks: repo_map → read_files → **`Completed decompose_project`**,
+        no missing-title failure). A small local model grinds a project to a valid task graph. **Still owed (broader §5.V):**
+        a full-runtime decompose→deliver e2e that asserts the persisted task graph + the downstream run/review/merge.
       - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
         `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
         `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
