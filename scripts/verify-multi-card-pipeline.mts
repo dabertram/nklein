@@ -90,7 +90,18 @@ async function main(): Promise<void> {
 		});
 		log(`Server: ${server.baseUrl}  model: ${MODEL_ID}@${PROVIDER_ID}  preset: ${PRESET}  timeout: ${TIMEOUT_MS}ms`);
 
-		// 1) Configure the agent globally so the cascade's auto-started cards resolve the live model.
+		// 1a) Configure + SELECT the local provider globally (the onboarding step). The cascade's auto-started
+		// cards carry no per-card providerId, so they resolve getSelectedProviderSettings() — which is empty
+		// until this is set (the root cause of the earlier "No native !Klein provider is configured" failure).
+		const provRes = await requestJson<{ ok?: boolean; error?: string }>({
+			baseUrl: server.baseUrl,
+			procedure: "runtime.saveNKleinProviderSettings",
+			type: "mutation",
+			payload: { providerId: PROVIDER_ID, modelId: MODEL_ID, baseUrl: "http://127.0.0.1:1234/v1" },
+		});
+		log(`saveNKleinProviderSettings(${PROVIDER_ID}): HTTP ${provRes.status} ok=${provRes.payload.ok ?? "?"}`);
+
+		// 1b) Configure the model roles so each role resolves the live model.
 		const roleSettings = { providerId: PROVIDER_ID, modelId: MODEL_ID };
 		const cfgRes = await requestJson({
 			baseUrl: server.baseUrl,

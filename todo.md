@@ -1930,7 +1930,7 @@ deep analysis:
         config flow — `saveNKleinProviderSettings` (lmstudio enabled + baseUrl `:1234/v1` + selected `qwen/qwen3-8b-m5max`) +
         `runtime.saveConfig({modelRoles})` via `buildFirstRunLocalModelRoles`, seeded into the temp HOME's config.json before
         `startTsBackend` (or via the APIs after start). That config replication + the long cascade run is the bulk of the work.
-      - ✅ **MULTI-CARD: ORCHESTRATION CORRECT — root-caused to a HARNESS config gap, not a product bug (2026-06-26).**
+      - ✅ **MULTI-CARD PIPELINE WORKS — root-caused + FIXED + confirmed live (2026-06-26).**
         `scripts/verify-multi-card-pipeline.mts` drives the REAL `cli.ts` server end to end (`startTsBackend` gained additive
         `extraEnv` + `onLog` hooks; existing tests unaffected). HTTP chain: `runtime.saveConfig({modelRoles})` →
         `projects.createDevTestProject({preset:mid_task})` → `runtime.startTaskSession` (must pass the UI's fields — `agentId`
@@ -1942,10 +1942,15 @@ deep analysis:
         which the harness never set (it set `modelRoles` but not the provider). The SEED worked only because I passed its
         explicit `providerId`. **So the decompose→cascade→auto-start ORCHESTRATION is CORRECT — this is a HARNESS gap, not a
         product bug** (the product configures the provider in onboarding via `saveNKleinProviderSettings`). It was NOT a
-        refinement stall — the generated cards never reach a session at all (0 WS task sessions for them, ever). **FIX:**
-        configure the global provider in the harness (replicate the onboarding `saveNKleinProviderSettings` for lmstudio),
-        then re-run to confirm the generated cards run to delivery. Diagnosed via the new `onLog` server-log capture +
-        the WS `task_sessions_updated` activity stream. Valid `preset`s: `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation`.
+        refinement stall — the generated cards never reach a session at all (0 WS task sessions for them, ever). **✅ FIX
+        CONFIRMED LIVE:** added `runtime.saveNKleinProviderSettings({providerId:lmstudio, modelId, baseUrl})` to the harness
+        (the onboarding step). Re-run trace (qwen3-8b): decompose → 5 cards → the cascade auto-starts a generated card →
+        it goes **`planning` → `in_progress`** (the `begin_implementation` promotion fires) → **real implementation work**:
+        `read_files → update_focus_chain → edit_file → write_files → run_commands`. **So the WHOLE north-star path runs end
+        to end with a small model: decompose → cascade → refine → begin_implementation → implement.** The only limit is
+        TIME — cards serialize 1-at-a-time on the single-request LM Studio endpoint (`queueOnEndpointBusy`), so all 5 → review
+        takes ~25 min (a background run). Diagnosed via the new `onLog` server-log + WS `task_sessions_updated` capture.
+        Valid `preset`s: `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation`.
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
         installed in cli.ts's **serve branch only** (short-lived CLI commands keep Node's fail-fast default; tests don't
