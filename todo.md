@@ -1922,6 +1922,14 @@ deep analysis:
         stream + `runtime.getTaskDiagnostics`. **This is a long (~20–30 min) live run + a real harness → a focused arc,
         best on a fresh context** (the agent-capability pieces it integrates — decompose + single-card completion + delivery
         — are already PROVEN above). Then fold all `verify-*.mts` harnesses into a documented §5.V e2e runner.
+        **APIs confirmed (2026-06-26):** `startTsBackend` (test/contract/helpers/backend.ts) spawns the REAL `src/cli.ts`
+        server → full orchestration incl. the cascade; create the project via `projects.createDevTestProject({registryId})`
+        (projects-api.ts:490, seeds the decompose card `startInPlanMode`); start the seed card via `runtime.startTaskSession`
+        (app-router:715, input `RuntimeTaskSessionStartRequest`). **The crux/obstacle:** the auto-started CASCADE cards read
+        the agent CONFIG (not per-call params like the in-memory harness used), so the harness must replicate the onboarding
+        config flow — `saveNKleinProviderSettings` (lmstudio enabled + baseUrl `:1234/v1` + selected `qwen/qwen3-8b-m5max`) +
+        `runtime.saveConfig({modelRoles})` via `buildFirstRunLocalModelRoles`, seeded into the temp HOME's config.json before
+        `startTsBackend` (or via the APIs after start). That config replication + the long cascade run is the bulk of the work.
       - ✅ **Robustness — ADDRESSED (2026-06-26).** The 360s decompose run crashed with an uncaught
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
