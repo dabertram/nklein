@@ -2374,12 +2374,19 @@ deep analysis:
             catalog / models / endpoint-discovery / model-registry / code-intel — imports code-embedding +
             reasoning-effort from (2)). Modules (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
-            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next**: the
-            NKlein account/provider/model-registry cluster (the big middle ~L409+), plan-artifacts, acceptance,
-            task-lifecycle, diagnostics, chat-messages, terminal, git-history. The shared task-scope
-            (`runtimeTaskWorkspaceInfoRequestSchema`) is now in (8), so git-history + terminal-ws can import it from
-            there; state-stream still needs the chat-message schema (`runtimeTaskChatMessageSchema`, a forward-ref at
-            ~L1340) extracted first.
+            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
+            **MILESTONE (2026-06-26): the monolith is HALVED — all 9 major cohesive domains extracted + holistically
+            verified (contract suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (the
+            ~1310-line long tail — smaller, more-interconnected endpoint contracts; fiddlier, best done deliberately):**
+            the provider mutations (add/update-provider, oauth/device-auth, provider-settings-save, ~L342–453) belong
+            **appended to module (9)** (they already use its provider-settings/oauth schemas → intra-module, no new
+            import); the **MCP** block (~L454–505) + the **state-stream** messages both need
+            `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel ~L83, with team-progress) extracted into a
+            small shared module first, and state-stream also needs `runtimeTaskChatMessageSchema` (a forward-ref) out
+            first. Cleaner remaining leaves: core-py-health / merge-history / advisor / dogfood / smoke-eval /
+            task-evidence (~L218–340), command-run, context-import, open-file, debug/status, agent-def/sandbox, config,
+            plan-artifacts/gap/expand, acceptance, worktree-merge, task-lifecycle (start/stop/pause/swarm-stop),
+            diagnostics, session-input, terminal, git-history (imports task-scope from (8)).
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
