@@ -3562,6 +3562,59 @@ deep analysis:
       §5.T (configurable generous guardrail timeouts) · §5.W + §6.5 (concurrency + endpoint scheduling) · §6.11
       (`collect evidence` infra this builds on).
 
+### 5.AJ — Product UX overhaul: the two-layer interface + a first-class Mission *(2026-06-27, user — PARKED INPUT for the later UI overhaul; NOT active. Details integrated inline.)*
+> **The user provided a UI/UX audit and asked to capture the convincing parts as INPUT for a later overhaul — NOT as
+> active tasks** (everything here is `[-]`, so it doesn't inflate the ready count; promote when the overhaul starts).
+> **My take (verified against the code):** the audit is strong + accurate — !Klein has the hard power surfaces (board,
+> chat sidebar, card detail, watch panel, diff/files, focus chain, second-opinion review, merge history, planning DAG,
+> sandbox/queue status) but exposes them as **machinery** ("configure tasks/models/refs/agents/logs/panels") instead of
+> the product promise: **"drop a huge goal → I plan it, split it, run agents, verify, review, merge, show you the movie,
+> and hand you a delivery report."** Nothing below is rejected outright; my adaptations + cautions are noted inline.
+- [-] **Two-layer interface (the core fix).** A SIMPLE layer + a POWER layer via progressive disclosure. **Simple:** one
+      obvious goal intake — empty board reads "What do you want !Klein to build?", primary action **Plan and run**,
+      secondary **Plan only**, with files / issue-import / branch-ref / model / delivery-mode tucked under **Advanced**. A
+      novice should NOT need to understand cards, refs, agents, models, review lanes, focus chains, or Docker. **Power:**
+      everything deep stays, behind inspector tabs / a command palette / advanced sections / a "Raw" logs toggle;
+      settings, dev-test, and model telemetry hidden unless needed. *(My caution: progressive **disclosure**, not removal
+      — the user base is power-leaning; keep the board visible as the swarm map, just put the simple intake above it.)*
+- [-] **First-class MISSION abstraction (above cards) — the audit's "missing big idea".** A Mission = the user's big
+      idea; cards are the implementation details generated underneath it. **!Klein ALREADY has the substrate** (a
+      decompose seed → a DAG of generated cards via `generatedFromPlan`), so *formalize that decompose-root + its DAG as
+      a first-class Mission* the UI tracks: goal · plan graph · active agents · blockers · produced artifacts · final
+      delivery report. Gives novices ONE thing to understand while power users still drill into every card / model /
+      tool-call / diff / review. *(My adaptation: do NOT add a parallel data model — promote the existing decompose-root
+      card + its DAG into the Mission view; the data is already there.)*
+- [-] **Narrated agent-story timeline (the "movie") as the DEFAULT card/mission detail.** Replace the equal-weight
+      specialist-panel debug dashboard ([card-detail-view.tsx](web-ui/src/components/card-detail-view.tsx)) *default* with
+      a clean narrated timeline — e.g. "Architect read the repo + drafted a 7-card plan → Worker 2 edited tempo-map.ts →
+      tests failed: 3 timing edge cases → Worker fixed them → Reviewer requested one change → Worker patched → Reviewer
+      approved → Merged." Compose the EXISTING pieces — AgentWatchPanel (§6.8), focus chain (§5.N), activity surface, diff
+      viewer, second-opinion review (§5.K), merge history (§5.G) — into ONE story view; raw details one click away. This
+      is the "impressive to watch" win.
+- [-] **Delivery report at goal/mission completion.** Package the result like a senior engineer's handoff: what was
+      built · files changed · tests/checks run · screenshots/demo evidence when relevant · reviewer verdict · known
+      limitations · suggested next improvements; action buttons **Open result · Run app · Continue · Create follow-up
+      cards**. Today the board shows work HAPPENED; it should also package the OUTPUT. Ties §5.L (delivery) + §5.AG.
+- [-] **Specific UI reframes (machinery → mission language).** "New task" → **"New goal" / "What should !Klein build?"**;
+      "Start in plan mode" → **removed from normal UI** (planning is already the default — §5.B routes every started card
+      through Planning/Refinement); "Worktree base ref" → **"Start from branch/ref" under Advanced**; model picker →
+      **Advanced**, default **"Auto-select best local model"** (ties §5.AB); concurrency cap → **"Parallel agents"**, not
+      front-and-center; dev-test project card → **Developer-mode only** (ties §5.W left-sidebar mode-gating).
+- [-] **One unified goal-intake — kill the "two brains".** The audit's sharpest structural point: the "crazy idea" entry
+      is split between the board create-task dialog ([task-create-dialog.tsx](web-ui/src/components/task-create-dialog.tsx))
+      and the chat autonomous-run bar ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx)) — two ways to start
+      a mission, so the product "feels like it has two brains." Converge on ONE goal intake (the simple-layer "What should
+      !Klein build?") that drives BOTH decompose-to-board AND the §5.0.1 autonomous driver underneath.
+- [-] **Recommended layout.** Left: projects only + subtle project health. Center-top: a big **goal/mission bar +
+      current mission status** (replacing the telemetry-reading board header, [kanban-board.tsx](web-ui/src/components/kanban-board.tsx)).
+      Center: the board as the **swarm map**. Right: the §5.M sidebar becomes **mission control** (chat + watch stream),
+      not just chat. Detail drawer tabs: **Summary · Watch · Output · Plan · Diff · Logs**. Settings / dev / test /
+      model-internals: advanced/hidden.
+- *(cross-links)* §5.J (the visual restyle — same future overhaul, deferred) · §5.M (chat sidebar → mission control) ·
+      §5.0.1 (the autonomous goal driver → the simple intake) · §5.AG (operator-UX surfaces) · §6.8 (cockpit) · §5.K
+      (review) · §5.N (focus chain) · §5.B (planning-as-default) · §5.AB (auto model selection) · §5.L (delivery report) ·
+      §5.W (settings + dev-mode gating). **When the overhaul starts, promote these `[-]` items to active `[ ]` work.**
+
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
 - [-] **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
