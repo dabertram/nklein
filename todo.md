@@ -1609,6 +1609,12 @@ deep analysis:
       wiring. Extract focused modules (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs, prompt-assembly) behind
       the existing service. Overlaps §5.A "Isolation polish" (extract sandbox-lifecycle/pause) — do together. Pure
       refactor, no behavior change; lock with the existing suite. (Respects invariants; navigability win per §5.U.)
+  - [x] **guardrail-watchdog family extracted under §5.X Phase 1 (2026-06-26):** the named "swarm guardrail watchdogs"
+        target is now three focused collaborators — M1 `DecompositionStallNudger` (`85ffd63b`), M2 `RepeatedToolCallGuard`
+        + repeated-failure-target (`56e641dc`), M3 `AutonomyBudgetWatchdog` (turn/wall-time/no-diff budgets, `f785d739`);
+        each owns its per-task state + decision with I/O injected via callbacks, all behavior-preserving + gates green.
+        **session-service 3907 → 3449 (−458).** Remaining named targets: sandbox-lifecycle, timeout-scheduler,
+        prompt-assembly, message-repository (the interwoven orchestration core — no longer cleanly-separable guard seams).
   - [x] **first slice (2026-06-24):** extracted the 4 self-contained pure prompt parsers + `WORD_NUMBER_BY_TEXT` into
         [nklein-task-prompt-parsing.ts](src/nklein-sdk/nklein-task-prompt-parsing.ts) (`parseRequestedMinimumTaskCount`,
         `parseAcceptanceCommand`, `isDecompositionPlanningPrompt`, `isExplicitDecompositionPrompt`) + a dedicated test.
@@ -2149,6 +2155,12 @@ deep analysis:
             **#7** shared web-ui test harness. **#1 (HIGH, security):** chat "sandboxed" scopes are host fs/shell access
             with a session-wide `riskAcknowledged` opt-in — partly by-design (§5.M host opt-in) but the naming/approval
             governance is worth a user decision → surfaced for review.
+      - **Reconciled progress (2026-06-26):** beyond #6/#4 above — **anti-patterns #5** first slice DONE (config
+            corrupt-vs-missing: a parse failure now diagnoses + preserves a `.corrupt-*.bak` instead of silently
+            resetting, `958b91d2`, +CHANGELOG + tests); **architecture #3** (tRPC router composition) first slice DONE
+            (update-status + runtime-stats procedures extracted to `src/trpc/runtime-api/update-status.ts`, `178963d4`,
+            contract suite green); **architecture #13** CI boundary-drift fixed (`fe4e0343`). Still open: #5 broader (the
+            other JSONL stores), #2 the big extractions, anti-patterns #3 lint ratchet, #7 shared test harness.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
@@ -2211,10 +2223,13 @@ deep analysis:
       (a constrained client-built command). Fix: replace with typed intents (`openWorkspace({targetId})`) built from an
       allowlist server-side; lock the raw endpoint behind a dev-only/local-only guard. (Posture: confirm the editor-open
       UX still works.)
-- [ ] **HIGH #3 — chat workspace file tools escape via symlinks.** `resolveWithinWorkspace` is lexical-only, then reads/
-      lists/writes follow symlinks → a `repo/link -> ~/.ssh` lets `read_file`/`list_dir` escape even in read-only scopes.
-      Posture-neutral fix: `realpath` both root + target before every op, reject symlink components. **← clearest first
-      hardening (no UX/posture tradeoff).**
+- [x] **HIGH #3 — chat workspace file tools escape via symlinks** — DONE (`84a4f97c`). `resolveWithinWorkspace` was
+      lexical-only and reads/lists/writes followed symlinks → a `repo/link -> ~/.ssh` escaped even in read-only scopes.
+      Fixed by layering `assertRealPathWithinWorkspace` (realpaths both root + target before every read/list/write;
+      writes walk up to the nearest existing ancestor so new-file creation still works; errors stay workspace-relative,
+      no host-path leak; the CLI `--allow-write` path shares the resolver so it's covered too). **Verified:** tsc + biome +
+      16 new symlink-escape regression tests (file/dir/deep-nested escapes rejected for read/list/write; within-workspace
+      symlinks still work) + full fast gate green.
 - [ ] **HIGH #4 — NKlein file tools rely on caller sandboxing, don't enforce containment.** `write_file`/`edit_file`/
       `read_large_file` accept absolute paths; protection is only the Docker proxy when present (home sessions are
       host-cwd). Enforce workspace containment inside each tool + the approval policy; reject host-absolute/`..`/symlink
@@ -2245,8 +2260,12 @@ deep analysis:
       disable in remote/headless unless allowed.
 - [ ] **MED #10 — desktop shell trusts a spoofable `<title>!Klein</title>` health check** to attach its preload bridge.
       Use an authenticated/nonce health check; don't expose the bridge to an unproven runtime.
-- [ ] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** (schema wants a real
-      summary). Record redacted command/URL/path/cwd + safety class + confirmation source.
+- [x] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** — DONE (`33827d15`). The
+      gated executor recorded `detail: tool.name` for every call. Fixed by a new pure `buildAuditDetail` module
+      (`src/chat/chat-audit-detail.ts`): `run_command` → the command (+ cwd), `browse_url` → the URL, file tools → the
+      workspace-relative path, fallback → tool name. **Redaction:** 4 layers (named secret flags `--token=…`, HTTP auth
+      headers, known-secret env assignments, bare high-entropy tokens) + host-absolute paths suppressed; detail capped at
+      512 chars. **Verified:** tsc + biome + 36 unit tests + 5 executor integration assertions + full fast gate green.
 - [~] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
       WS, plus `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`; test the
       headers. (`dangerouslySetInnerHTML` is currently only Prism output, which escaped raw `<` in testing — defense in
