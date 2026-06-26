@@ -18,6 +18,8 @@ export interface BackendStartOptions {
 	homeDir: string;
 	port?: number;
 	extraArgs?: string[];
+	/** Extra env vars merged into the spawned server's environment (e.g. NODE_ENV=development for dev-only procedures). */
+	extraEnv?: Record<string, string>;
 }
 
 export type BackendFactory = (options: BackendStartOptions) => Promise<BackendUnderTest>;
@@ -180,6 +182,7 @@ export const startTsBackend: BackendFactory = async (options: BackendStartOption
 				// covered separately (Suite 11 + klein-core-sidecar.test.ts). Avoids a uv/Python dependency + a stray
 				// process per spawned server.
 				NKLEIN_CORE_PY: "0",
+				...(options.extraEnv ?? {}),
 			},
 			stdio: ["ignore", "pipe", "pipe", "ipc"],
 		},

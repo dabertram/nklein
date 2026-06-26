@@ -1930,7 +1930,15 @@ deep analysis:
         config flow — `saveNKleinProviderSettings` (lmstudio enabled + baseUrl `:1234/v1` + selected `qwen/qwen3-8b-m5max`) +
         `runtime.saveConfig({modelRoles})` via `buildFirstRunLocalModelRoles`, seeded into the temp HOME's config.json before
         `startTsBackend` (or via the APIs after start). That config replication + the long cascade run is the bulk of the work.
-      - ✅ **Robustness — ADDRESSED (2026-06-26).** The 360s decompose run crashed with an uncaught
+      - 🔨 **PARTIAL BUILD (2026-06-26):** `scripts/verify-multi-card-pipeline.mts` created + `startTsBackend` gained an
+        additive `extraEnv` option (so the harness can pass `NODE_ENV=development`, which `createDevTestProject` requires).
+        **Empirically verified the setup chain over real HTTP:** server boots → `runtime.saveConfig({modelRoles})` HTTP 200
+        → `projects.createDevTestProject({preset})` ✓ (valid presets are `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation`,
+        NOT registry ids) → `runtime.startTaskSession(seed)` HTTP 200. **NEXT INTEGRATION ISSUE (the find):** calling
+        `startTaskSession` on the seed card does NOT move/run it — it stays in `backlog`, no decompose. So the real start
+        path is a BOARD move into a start lane that the runtime's drain (`moveStartedQueuedTask`/`autoStartTaskIds`) picks
+        up, NOT the bare tRPC call — map how the UI/board triggers a card start (likely `workspace.saveState` moving the card
+        to `in_progress`, then the runtime reconciles + runs). Then the decompose→cascade observation + the long run remain.
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
         installed in cli.ts's **serve branch only** (short-lived CLI commands keep Node's fail-fast default; tests don't
