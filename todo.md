@@ -245,6 +245,15 @@ deep analysis:
         `readPlanProgress` + the clock are injected → **7 unit tests** (each stop reason + streak-reset), tsc + biome green.
         Live wiring (`runTurn` ← `runChatAgentLoop` with goal+plan+tools, `readPlanProgress` ← focus-chain summary) is the
         next subtask.
+    - [x] **control tools + turn interpreter (DONE 2026-06-26)** — `src/chat/chat-autonomous-control-tools.ts`: the two
+          flow-signal tools the driver gives the agent — `request_user_input` (pause+ask) and `declare_goal_complete`
+          (end the run) — both pure signals on the always-allowed `sandbox_read` kind, capturing into a per-turn
+          `signals` object; plus `interpretAutonomousTurnOutcome(loopResult, signals, controlToolNames)` mapping a
+          finished `runChatAgentLoop` turn → the driver's outcome (question→needs_user, completion→goal_complete, else
+          progressed; "tool progress" counts only non-control steps so a spin/ask still trips the stall guard). 7 unit
+          tests, tsc+biome green. **Still owed for runnable live wiring:** assemble `runTurn` = build the goal+plan
+          system prompt → merge control tools with the gated work tools → run `runChatAgentLoop` → `interpretAutonomousTurnOutcome`;
+          and `readPlanProgress` = `summarizeFocusChain` over the persisted chain.
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
