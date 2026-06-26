@@ -2247,10 +2247,15 @@ deep analysis:
       Use an authenticated/nonce health check; don't expose the bridge to an unproven runtime.
 - [ ] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** (schema wants a real
       summary). Record redacted command/URL/path/cwd + safety class + confirmation source.
-- [ ] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
+- [~] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
       WS, plus `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`; test the
       headers. (`dangerouslySetInnerHTML` is currently only Prism output, which escaped raw `<` in testing — defense in
-      depth, not an active XSS.)
+      depth, not an active XSS.) **PARTIAL (2026-06-26):** added the three standard-safe headers — `X-Content-Type-Options:
+      nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` — to the asset response in `runtime-server.ts`
+      (gate-verified: tsc + 1799 fast tests). **Remaining:** the **CSP** (delicate — must allow the bundled FE + the local
+      API/WS without breaking the app; needs careful tuning + a live-load verify) and `Permissions-Policy`, plus a
+      header-presence assertion in the §5.V `server-responsiveness` contract suite (deferred to avoid the web-ui-dist test
+      fixture here).
 > **Suggested order (audit's + North-Star lens):** clear-cut hardening first (#3 symlink, #4 containment, #6 token
 > scrub, #1 clear-cut part, #5 SSRF, #11 audit detail, #12 CSP) → then the ⚠️ posture calls with the user (#1 npm-run,
 > #2 runtime.runCommand, #7/#8 remote-mode). Each fix gets a regression test (the audit specifies them).

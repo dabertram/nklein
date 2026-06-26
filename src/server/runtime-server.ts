@@ -1029,6 +1029,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			res.writeHead(200, {
 				"Content-Type": asset.contentType,
 				"Cache-Control": "no-store",
+				// Defense-in-depth hardening headers for the served app (§5.Y #12); a tuned CSP is the delicate follow-up.
+				"X-Content-Type-Options": "nosniff",
+				"Referrer-Policy": "no-referrer",
+				"X-Frame-Options": "DENY",
 			});
 			res.end(asset.content);
 		} catch {
