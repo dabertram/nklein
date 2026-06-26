@@ -1027,6 +1027,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				res.end(oauthCallbackResponse.body);
 				return;
 			}
+			// ── Desktop nonce handshake (§5.Y #10) ───────────────────────────────
+			// Expose the nonce only when the runtime was spawned by the desktop
+			// shell (env var set). Readable only by someone who already knows the
+			// URL; never logged or written to disk by this handler.
+			if (pathname === "/api/desktop-health" && req.method === "GET") {
+				const nonce = process.env.NKLEIN_DESKTOP_NONCE?.trim() || null;
+				if (!nonce) {
+					res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+					res.end('{"error":"Not found"}');
+					return;
+				}
+				res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+				res.end(JSON.stringify({ nonce }));
+				return;
+			}
+			// ── End desktop nonce handshake ────────────────────────────────────
 			if (pathname.startsWith("/api/trpc")) {
 				await trpcHttpHandler(req, res);
 				return;

@@ -49,6 +49,12 @@ export interface RuntimeChildManagerOptions {
 	 * Node process, so generous headroom matters for multi-agent workloads.
 	 */
 	maxOldSpaceMb?: number;
+	/**
+	 * Additional environment variables injected into the child process on
+	 * top of `buildFilteredEnv()`. Used by the desktop to pass the nonce
+	 * (NKLEIN_DESKTOP_NONCE) for the §5.Y #10 handshake.
+	 */
+	extraEnv?: NodeJS.ProcessEnv;
 	spawnFn?: typeof spawn;
 }
 
@@ -147,6 +153,7 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 		pollIntervalMs: number;
 		startupTimeoutMs: number;
 		maxOldSpaceMb: number;
+		extraEnv: NodeJS.ProcessEnv;
 		spawnFn: typeof spawn;
 	};
 
@@ -163,6 +170,7 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 			pollIntervalMs: options.pollIntervalMs ?? 200,
 			startupTimeoutMs: options.startupTimeoutMs ?? 30_000,
 			maxOldSpaceMb: options.maxOldSpaceMb ?? DEFAULT_MAX_OLD_SPACE_MB,
+			extraEnv: options.extraEnv ?? {},
 			spawnFn: options.spawnFn ?? spawn,
 		};
 	}
@@ -214,6 +222,9 @@ export class RuntimeChildManager extends EventEmitter<RuntimeChildManagerEvents>
 
 		const env = buildFilteredEnv();
 		env.KANBAN_DESKTOP = "1";
+		// Merge any extra env vars (e.g. NKLEIN_DESKTOP_NONCE for the §5.Y
+		// #10 nonce handshake) on top of the base environment.
+		Object.assign(env, this.opts.extraEnv);
 		// Merge our V8 heap limit with any existing NODE_OPTIONS from parent.
 		// Strip both hyphen and underscore variants to avoid duplicates.
 		const existingNodeOptions = env.NODE_OPTIONS?.trim() || "";

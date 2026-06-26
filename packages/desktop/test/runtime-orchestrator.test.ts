@@ -28,22 +28,74 @@ vi.mock("../src/runtime-child.js", () => ({
 	RuntimeChildManager: FakeChildManager,
 }));
 
-// Healthy mock-runtime response. RuntimeOrchestrator.checkHealth now reads
-// the response body and requires a recognized app title from web-ui/index.html,
-// so a bare `okResponse()` would fail the title grep even though it would pass
-// the legacy `res.ok` check.
-// Mirrored from the real index.html so attach-mode tests still resolve as
-// healthy.
+const { RuntimeOrchestrator } = await import("../src/runtime-orchestrator.js");
+const { DESKTOP_HEALTH_PATH } = await import("../src/runtime-trust.js");
+
+// ---------------------------------------------------------------------------
+// Fetch-mock helpers (§5.Y #10 nonce-aware)
+//
+// The orchestrator now calls two endpoints on health checks:
+//   GET /            — title liveness (old path, `checkHealth`)
+//   GET /api/desktop-health — nonce echo (new trust gate, `fetchDesktopNonce`)
+//
+// Tests use `makeNonceFetch(holder)` which reads the nonce from a holder
+// object. The holder is populated with the orchestrator after creation, so
+// the lazy read sees the nonce the orchestrator set during spawn.
+//
+// Tests that test failure/attach modes (unhealthy, no title, etc.) build their
+// own raw `fetchImpl` as before — `okResponse()` still serves the title.
+// ---------------------------------------------------------------------------
+
+/**
+ * Holder that is populated after the orchestrator is created, so the
+ * lazy fetch closure can read the active nonce at call time.
+ */
+interface OrchestratorHolder {
+	orchestrator: InstanceType<typeof RuntimeOrchestrator> | null;
+	/** When true the root `/` probe is healthy; when false it rejects. */
+	healthy: boolean;
+}
+
+/**
+ * Build a URL-aware fetch implementation that lazily reads the active nonce
+ * from the holder. Healthy title response for `/`, nonce echo for
+ * DESKTOP_HEALTH_PATH. The holder's `healthy` flag controls whether the
+ * root probe succeeds (matches the test's `healthy = true/false` pattern).
+ */
+function makeNonceFetch(holder: OrchestratorHolder): typeof fetch {
+	return vi.fn(async (url: string | URL) => {
+		const urlStr = typeof url === "string" ? url : url.toString();
+		if (urlStr.includes(DESKTOP_HEALTH_PATH)) {
+			const nonce = holder.orchestrator?.getActiveNonce() ?? null;
+			if (!nonce) {
+				return { ok: false } as Response;
+			}
+			return {
+				ok: true,
+				json: async () => ({ nonce }),
+			} as unknown as Response;
+		}
+		// Root liveness probe
+		if (!holder.healthy) throw new Error("ECONNREFUSED");
+		return {
+			ok: true,
+			text: async () => `<title>!Klein</title>`,
+		} as unknown as Response;
+	}) as unknown as typeof fetch;
+}
+
+/**
+ * A simple healthy title-only response — used for attach-mode tests where
+ * the orchestrator is in dev mode (isPackaged=false) and a pre-existing
+ * runtime is trusted by title alone. Also used as the raw fetch response
+ * for tests that only exercise `checkHealth()` directly.
+ */
 function okResponse(): Response {
 	return {
 		ok: true,
 		text: async () => `<title>!Klein</title>`,
 	} as unknown as Response;
 }
-
-
-
-const { RuntimeOrchestrator } = await import("../src/runtime-orchestrator.js");
 
 describe("RuntimeOrchestrator attached-runtime crash detection", () => {
 	beforeEach(() => {

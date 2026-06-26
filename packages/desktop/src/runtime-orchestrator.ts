@@ -3,7 +3,13 @@ import { existsSync } from "node:fs";
 import { powerSaveBlocker } from "electron";
 
 import { RuntimeChildManager } from "./runtime-child.js";
-
+import {
+	DESKTOP_HEALTH_PATH,
+	DESKTOP_NONCE_ENV,
+	type DesktopHealthResponse,
+	generateDesktopNonce,
+	resolveDesktopTrust,
+} from "./runtime-trust.js";
 
 interface RuntimeOrchestratorOptions {
 
@@ -11,6 +17,13 @@ interface RuntimeOrchestratorOptions {
 	port: number;
 	healthTimeoutMs: number;
 	resolveCliShimPath: () => string;
+	/**
+	 * Whether this is a packaged (production) build. Controls the trust policy
+	 * for pre-existing runtimes: packaged builds refuse to attach without a
+	 * verified nonce; dev builds allow title-based liveness with a warning.
+	 * Defaults to false (dev/test).
+	 */
+	isPackaged?: boolean;
 	fetchImpl?: typeof fetch;
 	attachedProbeIntervalMs?: number;
 	attachedProbeFailureThreshold?: number;
@@ -31,13 +44,13 @@ const DEFAULT_CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 const POWER_SAVE_BLOCKER_INACTIVE = -1;
 
 /**
- * Health probe requires a known app title in the response body so the
- * desktop shell does not attach to an unrelated local service that
- * happens to be listening on the runtime port (which would expose the
- * `window.desktop` IPC bridge to that service's origin).
+ * Title strings checked as a *liveness hint* when the orchestrator falls
+ * back to title-based health (pre-existing runtime in dev builds only).
+ * These are NOT sufficient to authorise bridge attachment — nonce
+ * verification (§5.Y #10) is the actual trust gate.
  *
  * Accept the legacy Kanban title for one release so an older already-
- * running runtime still counts as healthy during the rename transition.
+ * running runtime still counts as "live" during the rename transition.
  */
 export const RUNTIME_HEALTH_TITLES = ["<title>!Klein</title>", "<title>Kanban</title>"] as const;
 
@@ -86,6 +99,11 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 	// flag is the equivalent for the outer promises.
 	private terminated = false;
 
+	// Nonce we passed to the most-recently-spawned child runtime. Cleared
+	// when we enter attached mode (pre-existing runtime). The nonce is the
+	// authoritative trust gate for bridge attachment (§5.Y #10).
+	private activeNonce: string | null = null;
+
 	constructor(private readonly opts: RuntimeOrchestratorOptions) {
 		super();
 	}
@@ -98,10 +116,25 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		return this.ownsChild;
 	}
 
+	/**
+	 * The nonce that was passed to the most-recently-spawned child runtime,
+	 * or null if we are in attached mode (no owned child). Exposed for
+	 * testing the §5.Y #10 handshake without process-level spawn.
+	 */
+	getActiveNonce(): string | null {
+		return this.activeNonce;
+	}
+
 	defaultOrigin(): string {
 		return `http://${this.opts.host}:${this.opts.port}`;
 	}
 
+	/**
+	 * Title-based liveness probe — checks that `/` returns a recognised app
+	 * title. Used as a supplementary liveness hint (attached probe, recovery
+	 * probe) and as the dev-mode fallback for pre-existing runtimes.
+	 * NOT sufficient to authorise bridge attachment on its own (§5.Y #10).
+	 */
 	async checkHealth(origin: string): Promise<boolean> {
 		const fetchFn = this.opts.fetchImpl ?? globalThis.fetch;
 		const controller = new AbortController();
@@ -114,7 +147,7 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 				signal: controller.signal,
 			});
 			if (!res.ok) return false;
-			// See `RUNTIME_HEALTH_TITLES` for why a body match is required.
+			// See `RUNTIME_HEALTH_TITLES` for the body-match rationale.
 			const body = await res.text();
 			return RUNTIME_HEALTH_TITLES.some((title) => body.includes(title));
 		} catch {
@@ -122,6 +155,105 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 			return false;
 		} finally {
 			clearTimeout(timer);
+		}
+	}
+
+	/**
+	 * Fetch the nonce from the runtime's dedicated health endpoint.
+	 * Returns null if the endpoint is absent (runtime predates §5.Y #10)
+	 * or if the request fails for any reason.
+	 */
+	private async fetchDesktopNonce(origin: string): Promise<DesktopHealthResponse | null> {
+		const fetchFn = this.opts.fetchImpl ?? globalThis.fetch;
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), this.opts.healthTimeoutMs);
+		try {
+			const res = await fetchFn(`${origin}${DESKTOP_HEALTH_PATH}`, {
+				signal: controller.signal,
+			});
+			if (!res.ok) return null;
+			const json: unknown = await res.json();
+			if (
+				json !== null &&
+				typeof json === "object" &&
+				"nonce" in json &&
+				typeof (json as Record<string, unknown>).nonce === "string"
+			) {
+				return { nonce: (json as Record<string, unknown>).nonce as string };
+			}
+			return null;
+		} catch {
+			return null;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	/**
+	 * Determine whether the runtime at `origin` is trusted enough to attach
+	 * the preload bridge.
+	 *
+	 * For owned (spawned) runtimes (activeNonce !== null): only the nonce
+	 * endpoint matters. Title liveness is not checked — the nonce is the
+	 * authoritative gate, and calling checkHealth would produce false negatives
+	 * for dev stubs that don't serve real HTML.
+	 *
+	 * For pre-existing runtimes (activeNonce === null): title liveness is
+	 * checked first (cheap liveness gate); if it passes, the nonce endpoint is
+	 * then checked (sequential — avoids two concurrent in-flight fetches on
+	 * the same connection/stub which would break test stubs that only queue
+	 * one pending resolver at a time). The nonce will be absent for pre-existing
+	 * runtimes, so the result falls through to the dev-mode leniency path.
+	 *
+	 * Throws if untrusted so the caller surfaces a visible failure.
+	 */
+	private async verifyRuntimeTrust(origin: string): Promise<void> {
+		const isOwned = this.activeNonce !== null;
+		let titleLiveness = false;
+		let nonceResponse: DesktopHealthResponse | null = null;
+
+		if (isOwned) {
+			// Owned path: nonce only. Title is irrelevant for owned processes.
+			nonceResponse = await this.fetchDesktopNonce(origin);
+		} else if (this.opts.isPackaged ?? false) {
+			// Packaged + pre-existing: check both title (liveness) and nonce
+			// (the nonce will be absent, so the hard-refuse will fire).
+			titleLiveness = await this.checkHealth(origin);
+			if (!this.terminated) {
+				nonceResponse = await this.fetchDesktopNonce(origin);
+			}
+		} else {
+			// Dev + pre-existing: title liveness only. In dev mode a pre-existing
+			// runtime is trusted by title alone (§5.Y #10 dev leniency). The
+			// nonce endpoint will be absent since we didn't spawn this runtime,
+			// so fetching it adds a round-trip that always returns null — skip it.
+			titleLiveness = await this.checkHealth(origin);
+		}
+
+		const trust = resolveDesktopTrust({
+			expectedNonce: this.activeNonce,
+			nonceResponse,
+			titleLiveness,
+			isPackaged: this.opts.isPackaged ?? false,
+		});
+		if (!trust.trusted) {
+			throw new Error(`[desktop] Runtime at ${origin} not trusted: ${trust.reason}`);
+		}
+		// Warn in dev mode for any unverified attach.
+		if (!(this.opts.isPackaged ?? false) && nonceResponse === null) {
+			if (isOwned) {
+				console.warn(
+					`[desktop] WARNING: spawned runtime at ${origin} did not respond on ` +
+					"/api/desktop-health — nonce verification skipped (dev mode). " +
+					"In packaged builds this would refuse to attach.",
+				);
+			} else {
+				console.warn(
+					`[desktop] WARNING: attaching to pre-existing runtime at ${origin} ` +
+					"without nonce verification (dev mode). " +
+					"In packaged builds this would be refused.",
+				);
+			}
 		}
 	}
 
@@ -134,19 +266,41 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		}
 		this.connectPromise = (async () => {
 			const origin = this.defaultOrigin();
-			const healthy = await this.checkHealth(origin);
+			// Pre-existing runtime path: no activeNonce yet (we haven't spawned
+			// anything). verifyRuntimeTrust performs title liveness + nonce check
+			// and throws if the result is untrusted. On throw we fall through to
+			// startOwnRuntime (spawning our own runtime with a nonce).
+			let preExistingHealthy = false;
+			try {
+				// Clear nonce so resolveDesktopTrust knows this is a pre-existing attach.
+				this.activeNonce = null;
+				await this.verifyRuntimeTrust(origin);
+				preExistingHealthy = true;
+			} catch (trustErr) {
+				// Not healthy OR not trusted. In packaged mode the trust failure
+				// is a hard error for an existing runtime, but we still fall
+				// through to spawn our own — the spawned child will be verified
+				// with a nonce. Log only if it was a trust rejection (not just
+				// "nothing there"), so we don't spam the log on cold start.
+				const msg = trustErr instanceof Error ? trustErr.message : String(trustErr);
+				if (!msg.includes("not trusted")) {
+					// Ordinary "nothing there" failure — silent fall-through.
+				} else {
+					console.warn(msg);
+				}
+			}
 			// Re-check after the await: a `dispose()` / `shutdown()` may have
 			// fired during the in-flight health probe. Without this guard
 			// the IIFE would keep going and `setUrl(origin, false)` on a
 			// torn-down orchestrator (or call `startOwnRuntime` and spawn
 			// an orphan child after teardown).
 			if (this.terminated) return;
-			if (healthy) {
+			if (preExistingHealthy) {
 				console.log(`[desktop] Found existing runtime at ${origin}`);
 				this.setUrl(origin, /* owns */ false);
 				return;
 			}
-			console.log("[desktop] No runtime found — starting child process.");
+			console.log("[desktop] No trusted runtime found — starting child process.");
 			await this.startOwnRuntime();
 		})().finally(() => {
 			this.connectPromise = null;
@@ -305,7 +459,13 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		// `RuntimeChildManager` and spawn an orphan child process.
 		if (this.terminated) return;
 		if (!this.manager) {
-			this.manager = this.createManager();
+			// Generate a fresh nonce for this spawn. The manager's extraEnv
+			// carries it to the child process via NKLEIN_DESKTOP_NONCE, and
+			// we verify the runtime echoes it on /api/desktop-health before
+			// exposing the bridge (§5.Y #10).
+			const nonce = generateDesktopNonce();
+			this.activeNonce = nonce;
+			this.manager = this.createManager(nonce);
 		}
 		try {
 			const url = await this.manager.start({
@@ -344,6 +504,12 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 				return;
 			}
 
+			// Verify the spawned runtime echoes our nonce before attaching.
+			// This is the §5.Y #10 trust gate for owned children.
+			await this.verifyRuntimeTrust(url);
+
+			if (this.terminated) return;
+
 			this.setUrl(url, /* owns */ true);
 		} catch (err) {
 			// On spawn failure, drop the rejected manager so the next
@@ -356,6 +522,7 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 				this.manager.removeAllListeners("error");
 				this.manager = null;
 			}
+			this.activeNonce = null;
 			// Suppress on terminated — caller (drain inside shutdown/dispose)
 			// already moved past the point where it cares about the spawn
 			// failure, and re-throwing would surface as an unhandled
@@ -392,10 +559,13 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 		return resolved;
 	}
 
-	private createManager(): RuntimeChildManager {
+	private createManager(nonce: string): RuntimeChildManager {
 		const manager = new RuntimeChildManager({
 			cliPath: this.getValidatedShimPath(),
 			shutdownTimeoutMs: DEFAULT_CHILD_SHUTDOWN_TIMEOUT_MS,
+			// Pass the nonce to the spawned runtime so it can echo it on
+			// /api/desktop-health (§5.Y #10).
+			extraEnv: { [DESKTOP_NONCE_ENV]: nonce },
 		});
 
 
@@ -573,10 +743,27 @@ export class RuntimeOrchestrator extends EventEmitter<RuntimeOrchestratorEventMa
 			}
 			this.recoveryProbeInFlight = true;
 			try {
+				// Title liveness check first: cheap and avoids spinning
+				// verifyRuntimeTrust on every poll interval.
 				const healthy = await this.checkHealth(origin);
 				if (gen !== this.recoveryProbeGen) return;
 				if (this.url !== null) return;
 				if (!healthy) return;
+				// Runtime is live; now verify trust before attaching.
+				// Clear activeNonce: we no longer own this runtime (our
+				// previous child crashed), so resolveDesktopTrust will treat
+				// it as a pre-existing attach. verifyRuntimeTrust throws if
+				// trust is refused (packaged build with no nonce).
+				this.activeNonce = null;
+				try {
+					await this.verifyRuntimeTrust(origin);
+				} catch (trustErr) {
+					const msg = trustErr instanceof Error ? trustErr.message : String(trustErr);
+					console.warn(`[desktop] Recovery probe: ${msg} — skipping re-attach.`);
+					return;
+				}
+				if (gen !== this.recoveryProbeGen) return;
+				if (this.url !== null) return;
 				console.log(
 					`[desktop] Recovery probe found runtime at ${origin} — auto-attaching.`,
 				);

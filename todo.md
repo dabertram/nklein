@@ -2342,8 +2342,15 @@ deep analysis:
       (2026-06-26, §5.Y #2+#9 together):** refused in remote mode (same guard as #2 above). *Deferred richer follow-up:*
       replace with typed intents for known artifacts (data dir, evidence bundle, plan artifact) validated against a known
       root; validate every target in local mode too.
-- [ ] **MED #10 — desktop shell trusts a spoofable `<title>!Klein</title>` health check** to attach its preload bridge.
-      Use an authenticated/nonce health check; don't expose the bridge to an unproven runtime.
+- [x] **MED #10 — desktop shell trusts a spoofable `<title>!Klein</title>` health check** to attach its preload bridge.
+      **DONE (2026-06-26).** Replaced title-only trust with a nonce-authenticated handshake (§5.Y #10): the desktop generates
+      a 32-byte cryptographic nonce when spawning its own runtime, passes it via `NKLEIN_DESKTOP_NONCE` env var, and verifies
+      the echo on `GET /api/desktop-health` before attaching the preload bridge. Pure `resolveDesktopTrust` helper in
+      `packages/desktop/src/runtime-trust.ts`. Packaged builds refuse pre-existing and nonce-failing runtimes; dev builds
+      allow title-liveness fallback with a warning. `getActiveNonce()` accessor for test introspection. Runtime server echoes
+      nonce on the new endpoint only when the env var is set (never logged). 19 new nonce-handshake tests in
+      `packages/desktop/test/runtime-trust.test.ts`; all 263 desktop tests pass (1 pre-existing env failure excluded).
+      tsc + biome + 1922 root fast tests green.
 - [x] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** — DONE (`33827d15`). The
       gated executor recorded `detail: tool.name` for every call. Fixed by a new pure `buildAuditDetail` module
       (`src/chat/chat-audit-detail.ts`): `run_command` → the command (+ cwd), `browse_url` → the URL, file tools → the
@@ -2363,9 +2370,8 @@ deep analysis:
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
 > HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains), ✅ #8 (folder-picker / addProject
 > confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
-> guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth). **Remaining
-> remote-mode priority:** #10 (desktop spoofable-title health check), then the remaining hardening (#6 terminals, #12
-> CSP). Each fix gets a regression test.
+> guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth), ✅ #10 (nonce
+> handshake). **Remaining:** #6 (terminals hardening), #12 (CSP). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

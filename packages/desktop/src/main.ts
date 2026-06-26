@@ -46,6 +46,7 @@ const orchestrator = new RuntimeOrchestrator({
 	port: DEFAULT_PORT,
 	healthTimeoutMs: HEALTH_TIMEOUT_MS,
 	resolveCliShimPath,
+	isPackaged: app.isPackaged,
 });
 
 const windowFactory = new WindowFactory({
