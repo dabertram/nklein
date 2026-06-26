@@ -3,8 +3,6 @@ import { z } from "zod";
 export type { PlanGapKind } from "./plan-gap-kind.js";
 
 import { runtimeTaskWorkspaceInfoRequestSchema } from "./projects-api-contract.js";
-// The MCP settings/auth block below references the MCP server auth-status (re-exported above via `export *`).
-import { runtimeNKleinMcpServerAuthStatusSchema } from "./stream-events-api-contract.js";
 import { runtimeTaskSessionSummarySchema } from "./task-session-api-contract.js";
 
 // Board contract domain (task images, generated-from-plan, card review, focus chains, cards/columns/deps/data) (§5.X #2).
@@ -16,6 +14,8 @@ export * from "./chat-api-contract.js";
 export * from "./config-api-contract.js";
 // Git sync contract domain (repo info, fetch/pull/push sync, checkout, discard) (§5.X #2).
 export * from "./git-sync-api-contract.js";
+// NKlein MCP contract domain (server config, settings response/save, auth-status, oauth) (§5.X #2).
+export * from "./nklein-mcp-api-contract.js";
 // NKlein misc-ops domain (core-py health, merge history, advisor, dogfood, smoke-eval, task-evidence) (§5.X #2).
 export * from "./nklein-ops-api-contract.js";
 // NKlein account/provider/model-registry domain (oauth/provider-settings/account/catalog/models/registry/code-intel) (§5.X #2).
@@ -64,63 +64,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-const runtimeNKleinMcpServerBaseSchema = z.object({
-	name: z.string(),
-	disabled: z.boolean(),
-});
-
-export const runtimeNKleinMcpServerSchema = z.discriminatedUnion("type", [
-	runtimeNKleinMcpServerBaseSchema.extend({
-		type: z.literal("stdio"),
-		command: z.string(),
-		args: z.array(z.string()).optional(),
-		cwd: z.string().optional(),
-		env: z.record(z.string(), z.string()).optional(),
-	}),
-	runtimeNKleinMcpServerBaseSchema.extend({
-		type: z.literal("sse"),
-		url: z.string().url(),
-		headers: z.record(z.string(), z.string()).optional(),
-	}),
-	runtimeNKleinMcpServerBaseSchema.extend({
-		type: z.literal("streamableHttp"),
-		url: z.string().url(),
-		headers: z.record(z.string(), z.string()).optional(),
-	}),
-]);
-export type RuntimeNKleinMcpServer = z.infer<typeof runtimeNKleinMcpServerSchema>;
-
-export const runtimeNKleinMcpSettingsResponseSchema = z.object({
-	path: z.string(),
-	servers: z.array(runtimeNKleinMcpServerSchema),
-});
-export type RuntimeNKleinMcpSettingsResponse = z.infer<typeof runtimeNKleinMcpSettingsResponseSchema>;
-
-export const runtimeNKleinMcpSettingsSaveRequestSchema = z.object({
-	servers: z.array(runtimeNKleinMcpServerSchema),
-});
-export type RuntimeNKleinMcpSettingsSaveRequest = z.infer<typeof runtimeNKleinMcpSettingsSaveRequestSchema>;
-
-export const runtimeNKleinMcpSettingsSaveResponseSchema = runtimeNKleinMcpSettingsResponseSchema;
-export type RuntimeNKleinMcpSettingsSaveResponse = z.infer<typeof runtimeNKleinMcpSettingsSaveResponseSchema>;
-
-export const runtimeNKleinMcpAuthStatusResponseSchema = z.object({
-	statuses: z.array(runtimeNKleinMcpServerAuthStatusSchema),
-});
-export type RuntimeNKleinMcpAuthStatusResponse = z.infer<typeof runtimeNKleinMcpAuthStatusResponseSchema>;
-
-export const runtimeNKleinMcpOAuthRequestSchema = z.object({
-	serverName: z.string(),
-});
-export type RuntimeNKleinMcpOAuthRequest = z.infer<typeof runtimeNKleinMcpOAuthRequestSchema>;
-
-export const runtimeNKleinMcpOAuthResponseSchema = z.object({
-	serverName: z.string(),
-	authorized: z.literal(true),
-	message: z.string(),
-});
-export type RuntimeNKleinMcpOAuthResponse = z.infer<typeof runtimeNKleinMcpOAuthResponseSchema>;
 
 export const runtimeCommandRunRequestSchema = z.object({
 	command: z.string(),

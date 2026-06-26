@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (16 domains, barrel 2614 → ~350, -86%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (17 domains, barrel 2614 → ~290, -89%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2386,8 +2386,9 @@ deep analysis:
             task-session; the barrel keeps a local import of `runtimeTaskChatMessageSchema` for the state-stream
             `z.lazy`); (16) `stream-events-api-contract.ts` (mcp-auth-status + team-progress event + all WS
             state-stream messages + the union — imports chat-message (15) + workspace-projects + task-session; the
-            barrel keeps a local import of `runtimeNKleinMcpServerAuthStatusSchema` for the MCP block). Modules
-            (2)/(3)/(5)/(7)/(8)/(9)/(15)/(16) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
+            barrel keeps a local import of `runtimeNKleinMcpServerAuthStatusSchema` for the MCP block); (17)
+            `nklein-mcp-api-contract.ts` (MCP server config + settings response/save + auth-status + oauth — imports
+            mcp-auth-status from (16)). Modules (2)/(3)/(5)/(7)/(8)/(9)/(15)/(16) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
             **MILESTONE (2026-06-26): 14 domains extracted, barrel 2614 → ~600 (-77%), holistically verified (contract
