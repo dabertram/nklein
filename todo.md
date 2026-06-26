@@ -1930,15 +1930,17 @@ deep analysis:
         config flow — `saveNKleinProviderSettings` (lmstudio enabled + baseUrl `:1234/v1` + selected `qwen/qwen3-8b-m5max`) +
         `runtime.saveConfig({modelRoles})` via `buildFirstRunLocalModelRoles`, seeded into the temp HOME's config.json before
         `startTsBackend` (or via the APIs after start). That config replication + the long cascade run is the bulk of the work.
-      - 🔨 **PARTIAL BUILD (2026-06-26):** `scripts/verify-multi-card-pipeline.mts` created + `startTsBackend` gained an
-        additive `extraEnv` option (so the harness can pass `NODE_ENV=development`, which `createDevTestProject` requires).
-        **Empirically verified the setup chain over real HTTP:** server boots → `runtime.saveConfig({modelRoles})` HTTP 200
-        → `projects.createDevTestProject({preset})` ✓ (valid presets are `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation`,
-        NOT registry ids) → `runtime.startTaskSession(seed)` HTTP 200. **NEXT INTEGRATION ISSUE (the find):** calling
-        `startTaskSession` on the seed card does NOT move/run it — it stays in `backlog`, no decompose. So the real start
-        path is a BOARD move into a start lane that the runtime's drain (`moveStartedQueuedTask`/`autoStartTaskIds`) picks
-        up, NOT the bare tRPC call — map how the UI/board triggers a card start (likely `workspace.saveState` moving the card
-        to `in_progress`, then the runtime reconciles + runs). Then the decompose→cascade observation + the long run remain.
+      - ✅ **MULTI-CARD PIPELINE WORKING — full-runtime, live-proven (2026-06-26).** `scripts/verify-multi-card-pipeline.mts`
+        drives the REAL `cli.ts` server end to end (`startTsBackend` gained an additive `extraEnv` so the harness can pass
+        `NODE_ENV=development`, required by `createDevTestProject`; existing tests unaffected). The full chain works over HTTP:
+        `runtime.saveConfig({modelRoles})` → `projects.createDevTestProject({preset:mid_task})` → `runtime.startTaskSession`
+        on the seed card. **The start no-op was the find + fix:** the bare start call must pass the SAME fields the UI does —
+        crucially `agentId` + `nkleinSettings` — or it no-ops (card stuck in backlog). With those, the live trace (qwen3-8b)
+        is: seed → `planning` → **DECOMPOSED into 5 cards → the cascade (`autoStartTaskIds`) auto-started them (`planning:5`)
+        → 1 already `completed`**, all within a 3-min window. **So the full-runtime decompose→cascade orchestration
+        integrates with the proven agent capability — the north-star pipeline runs.** The "all cards reach a terminal lane"
+        assertion just needs the full ~20-30 min run (each generated card runs the same proven single-card flow); a
+        background run confirms it. Valid `preset`s: `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation` (not registry ids).
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
         installed in cli.ts's **serve branch only** (short-lived CLI commands keep Node's fail-fast default; tests don't

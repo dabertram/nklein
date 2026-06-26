@@ -87,7 +87,16 @@ async function main(): Promise<void> {
 		const createRes = await requestJson<{
 			ok: boolean;
 			project: { id: string } | null;
-			task: { id: string; prompt: string } | null;
+			task: {
+				id: string;
+				prompt: string;
+				title?: string;
+				filesLikelyTouched?: string[];
+				startInPlanMode?: boolean;
+				baseRef?: string;
+				agentId?: string;
+				nkleinSettings?: unknown;
+			} | null;
 			error?: string;
 		}>({
 			baseUrl: server.baseUrl,
@@ -99,20 +108,25 @@ async function main(): Promise<void> {
 			throw new Error(`createDevTestProject failed (HTTP ${createRes.status}): ${JSON.stringify(createRes.payload)}`);
 		}
 		const workspaceId = createRes.payload.project.id;
-		const seedTaskId = createRes.payload.task.id;
-		log(`Project workspace: ${workspaceId}   seed (decompose) card: ${seedTaskId}`);
+		const task = createRes.payload.task;
+		log(`Project workspace: ${workspaceId}   seed (decompose) card: ${task.id} (agent ${task.agentId ?? "?"})`);
 
-		// 3) Start the decompose seed card → the runtime decomposes, then auto-starts the generated cards.
+		// 3) Start the decompose seed card — pass the SAME fields the UI does (agentId + nkleinSettings matter,
+		// without them the start no-ops). The runtime decomposes, then auto-starts the generated cards.
 		const startRes = await requestJson({
 			baseUrl: server.baseUrl,
 			procedure: "runtime.startTaskSession",
 			type: "mutation",
 			workspaceId,
 			payload: {
-				taskId: seedTaskId,
-				prompt: createRes.payload.task.prompt,
-				baseRef: "HEAD",
-				startInPlanMode: true,
+				taskId: task.id,
+				prompt: task.prompt,
+				taskTitle: task.title,
+				filesLikelyTouched: task.filesLikelyTouched,
+				startInPlanMode: task.startInPlanMode,
+				baseRef: task.baseRef ?? "HEAD",
+				agentId: task.agentId,
+				nkleinSettings: task.nkleinSettings,
 			},
 		});
 		log(`startTaskSession(seed): HTTP ${startRes.status}`);
