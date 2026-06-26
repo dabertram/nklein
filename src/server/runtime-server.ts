@@ -840,6 +840,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		runUpdateNow: deps.runUpdateNow,
 		getAgentSandboxStatus: () => agentSandboxStatus,
 		refreshAgentSandboxStatus,
+		isRemoteMode,
 	});
 
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {

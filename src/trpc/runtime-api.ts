@@ -228,6 +228,14 @@ export interface CreateRuntimeApiDependencies {
 	refreshAgentSandboxStatus?: () => Promise<RuntimeAgentSandboxStatus>;
 	/** Board-independent chat service (todo §5.M); defaults to the real runtime home. Injected in tests. */
 	chatService?: ChatService;
+	/**
+	 * True when the runtime is bound to a non-loopback host (remote/`--host` mode).
+	 * Both `runCommand` and `openFile` refuse in remote mode because they execute
+	 * host-local actions that only make sense on the server host, not on a remote
+	 * browser client's machine. Defaults to `false` (local mode) when omitted so
+	 * test helpers that do not set it continue to work.
+	 */
+	isRemoteMode?: boolean;
 }
 
 function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: string): RuntimeBoardCard | null {
@@ -2330,6 +2338,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}
 		},
 		runCommand: async (workspaceScope, input) => {
+			if (deps.isRemoteMode) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "Host-local action unavailable in remote mode — runs on the server host, not your machine.",
+				});
+			}
 			try {
 				const body = parseCommandRunRequest(input);
 				return await deps.runCommand(body.command, workspaceScope.workspacePath);
@@ -2354,6 +2368,12 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			};
 		},
 		openFile: async (input) => {
+			if (deps.isRemoteMode) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "Host-local action unavailable in remote mode — runs on the server host, not your machine.",
+				});
+			}
 			const filePath = input.filePath.trim();
 			if (!filePath) {
 				throw new TRPCError({

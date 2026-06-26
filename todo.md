@@ -2256,11 +2256,16 @@ deep analysis:
       build|check>` deliberately stay safe (the owner's G3b build/test intent — already scoped to those args). +12
       regression tests (the audit's false-safe payloads now assert unsafe). Verified: 163 chat-command-safety tests green
       + biome. (The broader raw-shell `runtime.runCommand` endpoint is the separate #2.)
-- [ ] **HIGH #2 ⚠️ — `runtime.runCommand` is raw browser→host shell.** The endpoint accepts any command string and
+- [x] **HIGH #2 ⚠️ — `runtime.runCommand` is raw browser→host shell.** The endpoint accepts any command string and
       spawns it with `shell:true` + `env:process.env` (`cli.ts`); the only real UI use is "open workspace in editor"
-      (a constrained client-built command). Fix: replace with typed intents (`openWorkspace({targetId})`) built from an
-      allowlist server-side; lock the raw endpoint behind a dev-only/local-only guard. (Posture: confirm the editor-open
-      UX still works.)
+      (a constrained client-built command). **Done (2026-06-26, §5.Y #2+#9 together):** both `runCommand` and `openFile`
+      now immediately refuse with a clear FORBIDDEN tRPC error ("Host-local action unavailable in remote mode — runs on
+      the server host, not your machine") when `deps.isRemoteMode` is true. Local mode is fully unchanged. `isRemoteMode`
+      is an optional bool on `CreateRuntimeApiDependencies` (defaults false → tests unchanged); `runtime-server.ts`
+      threads the already-computed `isRemoteMode = isKanbanRemoteHost()` into `createRuntimeApi`. 7 new tests cover both
+      modes for both endpoints. Gate: tsc 0 · biome clean · 1866 fast tests · web:typecheck 0. *Deferred richer
+      follow-up:* replace with typed intents (`openWorkspace({targetId})`) + allowlist server-side for a defense-in-depth
+      hardening of local mode too.
 - [x] **HIGH #3 — chat workspace file tools escape via symlinks** — DONE (`84a4f97c`). `resolveWithinWorkspace` was
       lexical-only and reads/lists/writes followed symlinks → a `repo/link -> ~/.ssh` escaped even in read-only scopes.
       Fixed by layering `assertRealPathWithinWorkspace` (realpaths both root + target before every read/list/write;
@@ -2308,9 +2313,10 @@ deep analysis:
       `runtime-server.ts` computes roots once at startup from `loadGlobalRuntimeConfig().workspaceBaseDir`. Tests: 10 new
       cases in `projects-api.test.ts` covering the pure helpers + API confinement in both modes. Gate: tsc 0 · biome clean ·
       1860 fast tests green. CHANGELOG `## [Upcoming]` entry added.
-- [ ] **MED #9 — `runtime.openFile` opens arbitrary host paths/URLs** via the `open` package, no validation. Replace
-      with typed intents for known artifacts (data dir, evidence bundle, plan artifact) validated against a known root;
-      disable in remote/headless unless allowed.
+- [x] **MED #9 — `runtime.openFile` opens arbitrary host paths/URLs** via the `open` package, no validation. **Done
+      (2026-06-26, §5.Y #2+#9 together):** refused in remote mode (same guard as #2 above). *Deferred richer follow-up:*
+      replace with typed intents for known artifacts (data dir, evidence bundle, plan artifact) validated against a known
+      root; validate every target in local mode too.
 - [ ] **MED #10 — desktop shell trusts a spoofable `<title>!Klein</title>` health check** to attach its preload bridge.
       Use an authenticated/nonce health check; don't expose the bridge to an unproven runtime.
 - [x] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** — DONE (`33827d15`). The
@@ -2330,11 +2336,9 @@ deep analysis:
       fixture here).
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
-> HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains). **The owner confirmed they DO use
-> remote/`--host` mode → the remote-mode items are HIGH priority, not deferred posture calls: ✅ #7 (HTTPS-by-default +
-> passcode + Secure cookies), #8 (folder-picker / addProject confinement in remote mode), #9 (`runtime.openFile` typed
-> intents), #10 (desktop spoofable-title health check), and #2 (`runtime.runCommand` raw browser→host shell → typed
-> intents).** Next §5.Y order: **#2 → #8 → #9 → #10**, then the remaining hardening (#4 containment, #5 SSRF, #6
+> HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains), ✅ #8 (folder-picker / addProject
+> confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode). **Remaining remote-mode
+> priority:** #10 (desktop spoofable-title health check), then the remaining hardening (#4 containment, #5 SSRF, #6
 > terminals, #12 CSP). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)

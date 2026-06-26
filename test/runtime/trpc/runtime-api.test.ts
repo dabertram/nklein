@@ -5010,3 +5010,164 @@ describe("createRuntimeApi update handlers", () => {
 		expect(runUpdateNow).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("createRuntimeApi host-local action guards (§5.Y #2 + #9)", () => {
+	const workspaceScope = { workspaceId: "workspace-1", workspacePath: "/tmp/repo" };
+
+	beforeEach(() => {
+		browserMocks.openInBrowser.mockReset();
+	});
+
+	function makeBaseApiDeps(overrides: Partial<CreateRuntimeApiDependencies> = {}) {
+		return {
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => createNKleinTaskSessionServiceMock() as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(async () => ({
+				exitCode: 0,
+				stdout: "ok",
+				stderr: "",
+				combinedOutput: "ok",
+				durationMs: 1,
+			})),
+			...overrides,
+		};
+	}
+
+	it("runCommand executes in local mode (isRemoteMode omitted)", async () => {
+		const runCommandDep = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "hello",
+			stderr: "",
+			combinedOutput: "hello",
+			durationMs: 5,
+		}));
+		const api = createTestRuntimeApi(makeBaseApiDeps({ runCommand: runCommandDep }));
+
+		const result = await api.runCommand(workspaceScope, { command: "echo hello" });
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toBe("hello");
+		expect(runCommandDep).toHaveBeenCalledWith("echo hello", "/tmp/repo");
+	});
+
+	it("runCommand executes in local mode (isRemoteMode: false)", async () => {
+		const runCommandDep = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "hello",
+			stderr: "",
+			combinedOutput: "hello",
+			durationMs: 5,
+		}));
+		const api = createRuntimeApi({
+			...makeBaseApiDeps({ runCommand: runCommandDep }),
+			getActiveWorkspacePath: () => null,
+			getUpdateStatus: vi.fn(() => ({
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				updateAvailable: false,
+				updateTiming: null,
+				installCommand: null,
+			})),
+			runUpdateNow: vi.fn(async () => ({
+				status: "unsupported_installation" as const,
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				message: "N/A",
+			})),
+			isRemoteMode: false,
+		});
+
+		const result = await api.runCommand(workspaceScope, { command: "echo hello" });
+		expect(result.exitCode).toBe(0);
+		expect(runCommandDep).toHaveBeenCalledOnce();
+	});
+
+	it("runCommand refuses in remote mode (isRemoteMode: true)", async () => {
+		const runCommandDep = vi.fn();
+		const api = createRuntimeApi({
+			...makeBaseApiDeps({ runCommand: runCommandDep }),
+			getActiveWorkspacePath: () => null,
+			getUpdateStatus: vi.fn(() => ({
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				updateAvailable: false,
+				updateTiming: null,
+				installCommand: null,
+			})),
+			runUpdateNow: vi.fn(async () => ({
+				status: "unsupported_installation" as const,
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				message: "N/A",
+			})),
+			isRemoteMode: true,
+		});
+
+		await expect(api.runCommand(workspaceScope, { command: "echo hello" })).rejects.toThrow(
+			"Host-local action unavailable in remote mode",
+		);
+		expect(runCommandDep).not.toHaveBeenCalled();
+	});
+
+	it("openFile executes in local mode (isRemoteMode omitted)", async () => {
+		const api = createTestRuntimeApi(makeBaseApiDeps());
+
+		const result = await api.openFile({ filePath: "/tmp/some-file.txt" });
+		expect(result.ok).toBe(true);
+		expect(browserMocks.openInBrowser).toHaveBeenCalledWith("/tmp/some-file.txt");
+	});
+
+	it("openFile executes in local mode (isRemoteMode: false)", async () => {
+		const api = createRuntimeApi({
+			...makeBaseApiDeps(),
+			getActiveWorkspacePath: () => null,
+			getUpdateStatus: vi.fn(() => ({
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				updateAvailable: false,
+				updateTiming: null,
+				installCommand: null,
+			})),
+			runUpdateNow: vi.fn(async () => ({
+				status: "unsupported_installation" as const,
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				message: "N/A",
+			})),
+			isRemoteMode: false,
+		});
+
+		const result = await api.openFile({ filePath: "/tmp/some-file.txt" });
+		expect(result.ok).toBe(true);
+		expect(browserMocks.openInBrowser).toHaveBeenCalledWith("/tmp/some-file.txt");
+	});
+
+	it("openFile refuses in remote mode (isRemoteMode: true)", async () => {
+		const api = createRuntimeApi({
+			...makeBaseApiDeps(),
+			getActiveWorkspacePath: () => null,
+			getUpdateStatus: vi.fn(() => ({
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				updateAvailable: false,
+				updateTiming: null,
+				installCommand: null,
+			})),
+			runUpdateNow: vi.fn(async () => ({
+				status: "unsupported_installation" as const,
+				currentVersion: "0.1.0",
+				latestVersion: null,
+				message: "N/A",
+			})),
+			isRemoteMode: true,
+		});
+
+		await expect(api.openFile({ filePath: "/tmp/some-file.txt" })).rejects.toThrow(
+			"Host-local action unavailable in remote mode",
+		);
+		expect(browserMocks.openInBrowser).not.toHaveBeenCalled();
+	});
+});
