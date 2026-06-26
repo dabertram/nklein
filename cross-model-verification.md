@@ -32,7 +32,7 @@
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | decompose · `verify-decompose-isolation` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | single-card · `verify-task-completion` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| auto-promote · `verify-autopromote-recovery` | ✅ | · | · | · | · | ⚠️ | · | · | ✅ |
+| auto-promote · `verify-autopromote-recovery` | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ❌ | ❌ | ✅ | ◑ |
@@ -132,3 +132,15 @@
 - ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 6s · PASS ✓ the chat agent created a real board card at runtime.
 - ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 20s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ gemma-4-e4b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ deepseek-r1-0528-qwen3-8b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ phi-4-reasoning-plus-m5max=❌
+
+### 2026-06-26 20:14:26 · verify-autopromote-recovery
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 16s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 17s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 6s · PASS ✓ the lane advanced to In Progress (via begin_implementation; recovery seam wired + idempotent).
+- ✅ **PASS** · `google/gemma-4-e4b-m5max` · 8s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 12s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `deepseek-r1-0528-qwen3-8b-mlx-m5max` · 19s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 304s · INCOMPLETE — see above.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 11s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `microsoft/phi-4-reasoning-plus-m5max` · 190s · PASS ✓ the lane advanced to In Progress (via begin_implementation; recovery seam wired + idempotent).
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ gemma-4-e4b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ deepseek-r1-0528-qwen3-8b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ phi-4-reasoning-plus-m5max=✅

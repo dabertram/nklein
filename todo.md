@@ -2911,9 +2911,14 @@ deep analysis:
       correctly (activities #2-6) then **looped re-emitting its "Done!" final message and never reached a terminal state
       even at 540s**, so the result branch was never captured (correct work stuck in the sandbox). Tools were recognized
       (NOT a parse gap); the wall-time/no-diff guardrail parks it in a real run, just slowly → hardening candidate below.
-- [~] **Planning→In-Progress promotion / auto-promote recovery** (`verify-autopromote-recovery.mts`) — proven: qwen3-8b
-      (recovery path), deepseek (explicit path), phi-4-mini (no-write capability floor / CANT). Remaining 6:
-      qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, gemma-4-e4b, phi-4-reasoning-plus, nemotron-3-nano.
+- [x] **Planning→In-Progress promotion / auto-promote recovery (`verify-autopromote-recovery.mts`) — 8/9 advance
+      (2026-06-26).** ✅ qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b/e4b, phi-4-reasoning-plus (190s, via
+      begin_implementation), nemotron, deepseek (19s, no crash) — the card reaches In Progress via the recovery path or
+      begin_implementation. ⚠️ phi-4-mini timed out at 304s (stuck refining in Planning, never wrote/promoted — a
+      capability/speed floor for the 3.8B reasoning model; it passed single-card in 10s, so the §5.B refinement-lane
+      preamble is the harder ask). **KEY ASYMMETRY:** phi-4-reasoning-plus PASSES here (the SWARM path, which has the
+      narrated recovery) yet FAILED both chat tools (the CHAT path, which lacks it) — near-conclusive evidence for the
+      chat-path narrated-recovery fix below.
 - [ ] **Strict Docker isolation on a real task** (`verify-strict-isolation.mts`) + **restart/resume isolation**
       (`verify-restart-resume-isolation.mts`) — proven: qwen3-8b. Remaining 8.
 - [~] **Chat agent tool loop (`verify-chat-*` family) — sweeping per-capability (2026-06-26).** The **deterministic
