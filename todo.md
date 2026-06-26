@@ -2353,7 +2353,8 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (17 domains, barrel 2614 → ~290, -89%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **✅ SPLIT ESSENTIALLY COMPLETE — 19 domains, barrel
+            2614 → 138 (-95%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2388,14 +2389,20 @@ deep analysis:
             state-stream messages + the union — imports chat-message (15) + workspace-projects + task-session; the
             barrel keeps a local import of `runtimeNKleinMcpServerAuthStatusSchema` for the MCP block); (17)
             `nklein-mcp-api-contract.ts` (MCP server config + settings response/save + auth-status + oauth — imports
-            mcp-auth-status from (16)). Modules (2)/(3)/(5)/(7)/(8)/(9)/(15)/(16) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
+            mcp-auth-status from (16)); (18) `terminal-api-contract.ts` (shell-session start + the terminal WS
+            client/server message protocol — imports task-session-summary); (19) `git-history-api-contract.ts`
+            (commit/ref shapes, git-log, commit-diff file/req/res, refs response — imports task-scope from (8)).
+            Modules (2)/(3)/(5)/(7)/(8)/(9)/(15)/(16) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
-            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
-            **MILESTONE (2026-06-26): 14 domains extracted, barrel 2614 → ~600 (-77%), holistically verified (contract
-            suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (~600 lines):** the **MCP**
-            Remaining barrel (~350 lines): the **MCP** block (server/settings/auth/oauth — imports mcp-auth-status
-            from (16)) + slash-commands + small leaves (command-run, context-import, open-file, debug/status/run-update,
-            terminal/shell, git-history [imports task-scope from (8)]). All independent now — no more cross-prereqs.
+            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **sed-cut
+            gotcha: use the grep'd start line, don't assume — a git-history cut started 2 lines early and orphaned a
+            schema tail; root/web `tsc` caught it pre-commit, fixed by hand.**
+            **✅ MILESTONE (2026-06-26): the api-contract.ts split is ESSENTIALLY COMPLETE — 19 domains extracted,
+            barrel 2614 → 138 (-95%), holistically verified (contract suite 272/272 + web:build ✓ + root/web tsc + biome
+            each step).** The barrel is now a clean re-export barrel + ~70 lines of small misc runtime endpoints
+            (slash-commands, command-run, context-import, open-file, debug/status/run-update) that don't each warrant a
+            module — left inline by design. The 524-export monolith is now 19 cohesive domain modules behind the barrel;
+            all importers are unchanged (the `@runtime-contract` alias surface is identical).
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
