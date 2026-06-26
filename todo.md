@@ -2349,10 +2349,13 @@ deep analysis:
             DONE (2026-06-26): `collectTaskEvidence` (~108 lines) → `src/trpc/runtime-api/task-evidence.ts`** with its 2
             co-moved local helpers (`findTaskCard` + `resolveGitCommit`, each handler-only) and a
             `{ getScopedNKleinTaskSessionService, loadScopedRuntimeConfig, getEvidenceBundleRoot }` deps slice; clean
-            first try (~14 imports pre-scoped). **runtime-api.ts 2410 → 2005 this turn (−405 over 4 slices); test 87/87.**
-            **Remaining high-value targets: the bigger stateful handlers** (`startTaskSession` ~280, `sendTaskChatMessage`
-            ~115, `recordNKleinPlanGap` ~140, `expandNKleinPlanTask` ~80) — each its own deps slice + the runtime-api
-            test as oracle; `startTaskSession` is the largest + most interwoven (most closure deps). **architecture #13** CI
+            first try (~14 imports pre-scoped). **slice 5 DONE (2026-06-26): `expandNKleinPlanTask` (~81 lines) →
+            `src/trpc/runtime-api/expand-plan-task.ts`** — the cleanest yet: NO deps slice (a pure
+            `(workspaceScope, input)` fn over module-level plan helpers); clean first try. **runtime-api.ts 2410 → 1924
+            this turn (−486 over 5 slices, now below 2000); test 87/87 each.** **Remaining high-value targets**
+            (`startTaskSession` ~280, `sendTaskChatMessage` ~115, `recordNKleinPlanGap` ~140) — each its own deps slice +
+            the runtime-api test as oracle; `startTaskSession` is the largest + most interwoven (most closure deps), best
+            saved for last / a fresh focused pass. **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
