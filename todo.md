@@ -1910,8 +1910,18 @@ deep analysis:
         branch in the repo, not just the sandbox). (Bug found + fixed while building the harness: it first checked for a
         `"review"`/`"completed"` state that doesn't exist — the session's done-state is **`awaiting_review`**; the harness
         now checks the right name + carries an `unhandledRejection` guard so a stray `session_stop` can't crash it.)
-        **Still owed:** the MERGE/apply step (trusted runtime applying the result branch into the user's working tree) +
-        a multi-card parallel decomposed run; then fold these harnesses into the §5.V e2e set.
+        **Still owed → MULTI-CARD PIPELINE E2E (build plan, mapped 2026-06-26).** The remaining north-star proof is one
+        FULL-RUNTIME run (not the stripped in-memory harness) where the runtime's own orchestration cascades the generated
+        cards. Concrete recipe: (1) `startTsBackend({cwd, homeDir})` (contract helper) for the real server; (2) configure
+        the NKlein agent for the live model via `runtime.saveConfig` (modelRoles → lmstudio / `qwen/qwen3-8b-m5max` /
+        baseUrl `http://127.0.0.1:1234/v1`); (3) create a small registered dev-test project (`projects.add` with
+        `registryId`, → `loadDevTestProjectScenario` in `projects-api.ts:508`); (4) start its seed/decompose card; (5)
+        OBSERVE the cascade — `autoStartTaskIds` + `moveStartedQueuedTask` (`runtime-server.ts` ~306/382/609) auto-start
+        ready cards as the decompose lands `rootTaskIds`/`readyTaskIds`; (6) assert every generated card reaches
+        `awaiting_review` with a result branch, then the MERGE/apply applies them into the working tree. Watch via the WS
+        stream + `runtime.getTaskDiagnostics`. **This is a long (~20–30 min) live run + a real harness → a focused arc,
+        best on a fresh context** (the agent-capability pieces it integrates — decompose + single-card completion + delivery
+        — are already PROVEN above). Then fold all `verify-*.mts` harnesses into a documented §5.V e2e runner.
       - ✅ **Robustness — ADDRESSED (2026-06-26).** The 360s decompose run crashed with an uncaught
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
