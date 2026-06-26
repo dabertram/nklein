@@ -2359,13 +2359,16 @@ deep analysis:
             with a `{ getScopedNKleinTaskSessionService, nkleinProviderService, broadcastTaskChatCleared? }` deps slice
             (the trivial local `reconcileRunningTaskBoardLane` adapter inlined to its `reconcileStartedTaskBoardLane`
             core call rather than co-moved, since it's shared by 3 handlers). **runtime-api.ts 2410 → 1665 this turn
-            (−745, −31%, over 7 slices; 12 helper modules); test 87/87 each.** **Only remaining big target:
-            `startTaskSession` (~283 lines, factory L741) — the session-start orchestrator, the largest + most
-            interwoven. Pre-scoped deps slice (~9): `{ taskStartQueue, refreshAgentSandboxStatus, getAgentSandboxStatus,
-            loadScopedRuntimeConfig, getScopedNKleinTaskSessionService, getLoadedScopedNKleinTaskSessionService,
-            broadcastTaskChatCleared, … }` + the factory-local `nkleinProviderService`. Highest-risk extraction (9-method
-            slice + 283 lines) — do as its OWN focused pass with the runtime-api test (87/87) as the oracle; don't rush
-            it at the tail of a long session. **architecture #13** CI
+            (−745, −31%, over 7 slices; 12 helper modules); test 87/87 each.** **slice 8 DONE (2026-06-26):
+            `startTaskSession` (~283 lines, the session-start orchestrator — the biggest + most interwoven) →
+            `src/trpc/runtime-api/start-task-session.ts`**, with the co-moved `applyCandidateEffectiveContextWindow`
+            helper and a deps slice typed as `Pick<CreateRuntimeApiDependencies, …> & { nkleinProviderService }` (reusing
+            the factory's exact dep types via a type-only import — circular is fine, erased at runtime). tsc caught one
+            wrong import source (CreateRuntimeApiDependencies is in runtime-api.ts not app-router; 4 implicit-any errors
+            cascaded from it) — fixed. **✅ ALL big runtime-api handlers now extracted: runtime-api.ts 2410 → 1353 this
+            turn (−1057, −44%, over 8 slices; 13 handler/helper modules in `src/trpc/runtime-api/`); test 87/87 each.**
+            What's left in `runtime-api.ts` is the factory wiring + many small/thin handlers (not worth extracting).
+            **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
