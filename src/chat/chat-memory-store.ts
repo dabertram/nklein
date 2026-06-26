@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 
 /**
  * Long-term chat memory store + recall (todo §5.M). Persisted memories are "woken up" — semantically recalled
@@ -28,6 +30,16 @@ export interface ChatMemory {
 	embedding: number[] | null;
 	createdAt: number;
 }
+
+export const chatMemorySchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	sessionId: z.string(),
+	shared: z.boolean(),
+	text: z.string(),
+	embedding: z.array(z.number()).nullable(),
+	createdAt: z.number(),
+}) satisfies z.ZodType<ChatMemory>;
 
 export interface ChatMemoryStoreOptions {
 	rootDir?: string;
@@ -66,19 +78,7 @@ export async function readChatMemories(options: ChatMemoryStoreOptions = {}): Pr
 	} catch {
 		return [];
 	}
-	const memories: ChatMemory[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			memories.push(JSON.parse(trimmed) as ChatMemory);
-		} catch {
-			// Skip a malformed line rather than failing the whole read.
-		}
-	}
-	return memories;
+	return parseValidatedJsonl(raw, chatMemorySchema, "chat-memory-store");
 }
 
 /** Memories a session may recall: its own + any shared. */

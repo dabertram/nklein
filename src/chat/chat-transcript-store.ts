@@ -2,7 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 
 /**
  * Per-session chat transcript store (todo §5.M). The durable message log for a chat session
@@ -20,6 +22,14 @@ export interface ChatMessage {
 	content: string;
 	createdAt: number;
 }
+
+export const chatMessageSchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	role: z.enum(["user", "assistant", "system"]),
+	content: z.string(),
+	createdAt: z.number(),
+}) satisfies z.ZodType<ChatMessage>;
 
 export interface ChatTranscriptStoreOptions {
 	rootDir?: string;
@@ -67,21 +77,7 @@ export async function readChatTranscript(
 	} catch {
 		return [];
 	}
-	const messages: ChatMessage[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			const parsed = JSON.parse(trimmed) as ChatMessage;
-			if (parsed.role === "user" || parsed.role === "assistant" || parsed.role === "system") {
-				messages.push(parsed);
-			}
-		} catch {
-			// Skip a malformed line rather than failing the whole read.
-		}
-	}
+	const messages = parseValidatedJsonl(raw, chatMessageSchema, "chat-transcript-store");
 	if (typeof options.limit === "number" && options.limit >= 0 && messages.length > options.limit) {
 		return messages.slice(messages.length - options.limit);
 	}

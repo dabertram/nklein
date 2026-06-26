@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 
 /**
  * Board-independent chat session store (todo §5.M — the unified agentic chat). Chat sessions are NOT kanban
@@ -64,6 +66,29 @@ interface ChatSessionDeleteEvent {
 }
 type ChatSessionEvent = ChatSessionUpsertEvent | ChatSessionDeleteEvent;
 
+// Schema for a persisted session — uses .optional() / .nullable() on back-compat fields so old records
+// written before those fields existed are still accepted (replayChatSessions normalises them to defaults).
+const chatSessionPersistedSchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	title: z.string(),
+	scope: z.enum(["project_sandboxed", "all_projects", "host_access", "chat_only"]),
+	role: z.enum(["planner_architect", "reviewer", "debugger", "researcher", "system_operator"]),
+	goal: z.string().nullable().optional(),
+	riskAcknowledged: z.boolean().optional(),
+	browserEnabled: z.boolean().optional(),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+
+// The schema is intentionally looser than ChatSessionEvent: back-compat fields (goal, riskAcknowledged,
+// browserEnabled) are optional so old records written before they existed still parse. replayChatSessions
+// normalises all absent fields to their defaults, so the cast below is always safe.
+const chatSessionEventSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("upsert"), at: z.number(), session: chatSessionPersistedSchema }),
+	z.object({ type: z.literal("delete"), at: z.number(), id: z.string() }),
+]);
+
 export interface ChatSessionStoreOptions {
 	rootDir?: string;
 	now?: () => number;
@@ -93,22 +118,8 @@ async function readChatSessionEvents(rootDir?: string): Promise<ChatSessionEvent
 	} catch {
 		return [];
 	}
-	const events: ChatSessionEvent[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			const parsed = JSON.parse(trimmed) as ChatSessionEvent;
-			if (parsed.type === "upsert" || parsed.type === "delete") {
-				events.push(parsed);
-			}
-		} catch {
-			// Skip a malformed line rather than failing the whole read.
-		}
-	}
-	return events;
+	// Cast is safe: replayChatSessions coerces all optional back-compat fields to their defaults.
+	return parseValidatedJsonl(raw, chatSessionEventSchema, "chat-session-store") as ChatSessionEvent[];
 }
 
 async function appendChatSessionEvent(event: ChatSessionEvent, rootDir?: string): Promise<void> {

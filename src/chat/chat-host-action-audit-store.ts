@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 import type { ChatActionDecision, ChatActionKind, ChatExecutionMode } from "./chat-execution-mode";
 
 /**
@@ -27,6 +29,19 @@ export interface ChatHostActionAuditEntry {
 	detail: string | null;
 	recordedAt: number;
 }
+
+export const chatHostActionAuditEntrySchema = z.object({
+	schemaVersion: z.literal(1),
+	id: z.string(),
+	sessionId: z.string(),
+	mode: z.enum(["isolated_readonly", "sandbox_with_host_escape", "host"]),
+	action: z.enum(["sandbox_read", "sandbox_write", "control_plane", "host_read", "host_write", "host_command"]),
+	decision: z.enum(["allow", "confirm", "deny"]),
+	confirmed: z.boolean(),
+	executed: z.boolean(),
+	detail: z.string().nullable(),
+	recordedAt: z.number(),
+}) satisfies z.ZodType<ChatHostActionAuditEntry>;
 
 export interface ChatHostActionAuditStoreOptions {
 	rootDir?: string;
@@ -86,22 +101,8 @@ export async function readChatHostActionAudit(
 	} catch {
 		return [];
 	}
-	const entries: ChatHostActionAuditEntry[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			const parsed = JSON.parse(trimmed) as ChatHostActionAuditEntry;
-			if (options.sessionId && parsed.sessionId !== options.sessionId) {
-				continue;
-			}
-			entries.push(parsed);
-		} catch {
-			// Skip a malformed line rather than failing the whole read.
-		}
-	}
+	const all = parseValidatedJsonl(raw, chatHostActionAuditEntrySchema, "chat-host-action-audit-store");
+	const entries = options.sessionId ? all.filter((e) => e.sessionId === options.sessionId) : all;
 	entries.sort((left, right) => right.recordedAt - left.recordedAt);
 	return typeof options.limit === "number" ? entries.slice(0, Math.max(0, options.limit)) : entries;
 }

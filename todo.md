@@ -2164,10 +2164,15 @@ deep analysis:
             governance is worth a user decision → surfaced for review.
       - **Reconciled progress (2026-06-26):** beyond #6/#4 above — **anti-patterns #5** first slice DONE (config
             corrupt-vs-missing: a parse failure now diagnoses + preserves a `.corrupt-*.bak` instead of silently
-            resetting, `958b91d2`, +CHANGELOG + tests); **architecture #3** (tRPC router composition) first slice DONE
-            (update-status + runtime-stats procedures extracted to `src/trpc/runtime-api/update-status.ts`, `178963d4`,
-            contract suite green); **architecture #13** CI boundary-drift fixed (`fe4e0343`). Still open: #5 broader (the
-            other JSONL stores), #2 the big extractions, anti-patterns #3 lint ratchet, #7 shared test harness.
+            resetting, `958b91d2`, +CHANGELOG + tests); **anti-patterns #5 second slice DONE** (validated JSONL
+            persistence boundaries — shared `src/state/jsonl-store.ts` helper + zod schemas; all 6 stores repointed:
+            `chat-memory-store`, `chat-host-action-audit-store`, `chat-transcript-store`, `chat-session-store`,
+            `merge-history-store`, `task-run-summary-store`; schema-invalid records now skip+log instead of silently
+            trusted; 7 new tests; 1806 tests green; committed TODO_COMMIT_HASH); **architecture #3** (tRPC router
+            composition) first slice DONE (update-status + runtime-stats procedures extracted to
+            `src/trpc/runtime-api/update-status.ts`, `178963d4`, contract suite green); **architecture #13** CI
+            boundary-drift fixed (`fe4e0343`). Still open: #2 the big extractions, anti-patterns #3 lint ratchet,
+            #7 shared test harness.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.

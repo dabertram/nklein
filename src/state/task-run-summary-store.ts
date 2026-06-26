@@ -2,9 +2,12 @@ import { createHash } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { RuntimeModelPerformanceRole } from "../core/api-contract";
+import { runtimeModelPerformanceRoleSchema } from "../core/api-contract";
 import type { FocusChainSummary } from "../core/focus-chain";
+import { parseValidatedJsonl } from "./jsonl-store";
 
 /**
  * Durable terminal task-run summaries (follow-up-6 §3.6, §4.2).
@@ -21,6 +24,41 @@ export type TaskRunTerminalState = "awaiting_review" | "failed" | "interrupted";
 
 /** Where the bounded turn/stream/tool timeout that ended a run came from. */
 export type TaskRunTimeoutSource = "global_config" | "role_override" | "autonomous_default" | null;
+
+const focusChainSummarySchema = z.object({
+	total: z.number(),
+	done: z.number(),
+	inProgress: z.number(),
+	pending: z.number(),
+	skipped: z.number(),
+	complete: z.boolean(),
+}) satisfies z.ZodType<FocusChainSummary>;
+
+export const taskRunSummaryRecordSchema = z.object({
+	schemaVersion: z.literal(1),
+	taskId: z.string(),
+	workspacePath: z.string().nullable(),
+	state: z.enum(["awaiting_review", "failed", "interrupted"]),
+	reviewReason: z.string().nullable(),
+	providerId: z.string().nullable(),
+	modelId: z.string().nullable(),
+	endpoint: z.string().nullable(),
+	lastActivity: z.string().nullable(),
+	warningMessage: z.string().nullable(),
+	exitCode: z.number().nullable(),
+	startedAt: z.number().nullable(),
+	endedAt: z.number(),
+	promptTokens: z.number().nullable(),
+	completionTokens: z.number().nullable(),
+	totalTokens: z.number().nullable(),
+	timeoutReason: z.string().nullable(),
+	timeoutSource: z.enum(["global_config", "role_override", "autonomous_default"]).nullable(),
+	// Optional: absent on pre-§5.C records.
+	role: runtimeModelPerformanceRoleSchema.optional(),
+	scenario: z.string().nullable().optional(),
+	focusChain: focusChainSummarySchema.nullable().optional(),
+	patchCaptureStatus: z.string().nullable(),
+}) satisfies z.ZodType<TaskRunSummaryRecord>;
 
 export interface TaskRunSummaryRecord {
 	schemaVersion: 1;
@@ -171,22 +209,8 @@ export async function readTaskRunSummaries(options: ReadTaskRunSummariesOptions)
 	} catch {
 		return [];
 	}
-	const records: TaskRunSummaryRecord[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			const parsed = JSON.parse(trimmed) as TaskRunSummaryRecord;
-			if (options.taskId && parsed.taskId !== options.taskId) {
-				continue;
-			}
-			records.push(parsed);
-		} catch {
-			// Skip malformed lines rather than failing the whole read.
-		}
-	}
+	const all = parseValidatedJsonl(raw, taskRunSummaryRecordSchema, "task-run-summary-store");
+	const records = options.taskId ? all.filter((r) => r.taskId === options.taskId) : all;
 	records.sort((a, b) => b.endedAt - a.endedAt);
 	return typeof options.limit === "number" ? records.slice(0, Math.max(0, options.limit)) : records;
 }

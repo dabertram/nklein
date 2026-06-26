@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type { TaskWorktreeAutoMergeResult } from "../workspace/task-worktree-auto-merge";
+import { parseValidatedJsonl } from "./jsonl-store";
 
 /**
  * Durable board-level merge-status history (todo §5.G). Each dependency-ordered auto-merge of a reviewed task's
@@ -26,6 +28,18 @@ export interface MergeHistoryRecord {
 	/** Human-readable blocked/conflict reason when the pass did not fully succeed; null on clean success. */
 	reason: string | null;
 }
+
+export const mergeHistoryRecordSchema = z.object({
+	schemaVersion: z.literal(1),
+	recordedAt: z.number(),
+	workspacePath: z.string().nullable(),
+	taskId: z.string(),
+	ok: z.boolean(),
+	mergedTaskIds: z.array(z.string()),
+	skippedTaskIds: z.array(z.string()),
+	conflictedPaths: z.array(z.string()),
+	reason: z.string().nullable(),
+}) satisfies z.ZodType<MergeHistoryRecord>;
 
 const DEFAULT_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "merge-history");
 
@@ -92,18 +106,7 @@ export async function readMergeHistory(options: ReadMergeHistoryOptions): Promis
 	} catch {
 		return [];
 	}
-	const records: MergeHistoryRecord[] = [];
-	for (const line of raw.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		try {
-			records.push(JSON.parse(trimmed) as MergeHistoryRecord);
-		} catch {
-			// Skip malformed lines rather than failing the whole read.
-		}
-	}
+	const records = parseValidatedJsonl(raw, mergeHistoryRecordSchema, "merge-history-store");
 	records.sort((left, right) => right.recordedAt - left.recordedAt);
 	return typeof options.limit === "number" ? records.slice(0, Math.max(0, options.limit)) : records;
 }
