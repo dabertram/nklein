@@ -404,7 +404,10 @@ describe("RuntimeChildManager", () => {
 
 			const spawnCall = (spawnSpy as ReturnType<typeof vi.fn>).mock.calls[0];
 			const options = spawnCall[2] as { env: NodeJS.ProcessEnv };
-			expect(options.env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+			// Env policy forwards ALL parent vars (see runtime-child-env.test.ts — the packaged CLI
+			// needs ELECTRON_RUN_AS_NODE to run the Electron binary as node). So assert the PATH
+			// enrichment here, not the absence of a forwarded var — the old absence-assertion depended
+			// on the ambient environment and flaked by test-execution order.
 			expect(options.env.PATH).toBeDefined();
 		});
 	});
