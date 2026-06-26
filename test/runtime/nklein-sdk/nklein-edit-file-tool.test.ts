@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -66,5 +66,64 @@ describe("edit_file tool", () => {
 		await expect(
 			tool.execute({ path: "missing.ts", edits: [{ search: "x", replace: "y" }] }, undefined as never),
 		).rejects.toThrow(/could not be read/);
+	});
+});
+
+describe("edit_file workspace containment (§5.Y #4)", () => {
+	let workspacePath: string;
+	let outside: string;
+
+	beforeEach(async () => {
+		workspacePath = await mkdtemp(join(tmpdir(), "nklein-edit-contain-"));
+		outside = await mkdtemp(join(tmpdir(), "nklein-edit-outside-"));
+	});
+
+	afterEach(async () => {
+		await rm(workspacePath, { force: true, recursive: true });
+		await rm(outside, { force: true, recursive: true });
+	});
+
+	it("rejects editing a host-absolute path outside the workspace root without touching it", async () => {
+		await writeFile(join(outside, "secret.ts"), "const secret = 1;\n", "utf8");
+		const tool = createEditFileTool({ workspacePath });
+		await expect(
+			tool.execute(
+				{ path: join(outside, "secret.ts"), edits: [{ search: "const secret = 1;", replace: "pwned" }] },
+				undefined as never,
+			),
+		).rejects.toThrow(/escapes the workspace|outside the workspace/);
+		// Unchanged.
+		expect(await readFile(join(outside, "secret.ts"), "utf8")).toBe("const secret = 1;\n");
+	});
+
+	it("rejects a `..` traversal escape", async () => {
+		const tool = createEditFileTool({ workspacePath });
+		await expect(
+			tool.execute({ path: "../../../../etc/hosts", edits: [{ search: "x", replace: "y" }] }, undefined as never),
+		).rejects.toThrow(/escapes the workspace|outside the workspace/);
+	});
+
+	it("rejects a symlinked-parent escape (real path lands outside) without editing the real target", async () => {
+		await writeFile(join(outside, "secret.ts"), "const secret = 1;\n", "utf8");
+		await symlink(outside, join(workspacePath, "evil-link"));
+		const tool = createEditFileTool({ workspacePath });
+		await expect(
+			tool.execute(
+				{ path: "evil-link/secret.ts", edits: [{ search: "const secret = 1;", replace: "pwned" }] },
+				undefined as never,
+			),
+		).rejects.toThrow(/escapes the workspace|outside the workspace/);
+		expect(await readFile(join(outside, "secret.ts"), "utf8")).toBe("const secret = 1;\n");
+	});
+
+	it("allows a host-absolute path within the workspace root (host/home session)", async () => {
+		await writeFile(join(workspacePath, "math.ts"), "return a + b;\n", "utf8");
+		const tool = createEditFileTool({ workspacePath });
+		const result = (await tool.execute(
+			{ path: join(workspacePath, "math.ts"), edits: [{ search: "return a + b;", replace: "return a - b;" }] },
+			undefined as never,
+		)) as { changed: boolean };
+		expect(result.changed).toBe(true);
+		expect(await readFile(join(workspacePath, "math.ts"), "utf8")).toContain("a - b");
 	});
 });

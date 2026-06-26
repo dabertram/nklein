@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type {
 	AgentAfterModelContext,
 	AgentBeforeModelContext,
@@ -12,6 +12,7 @@ import type {
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
+import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 
 const STITCH_CONTEXT_LINES = 20;
 const READ_LARGE_FILE_TOOL_NAME = "read_large_file";
@@ -478,7 +479,19 @@ export class NKleinLargeFileWorkflow {
 			throw new Error("read_large_file requires a non-empty path.");
 		}
 		this.recordContextWindow(contextWindow);
-		const absolutePath = isAbsolute(path) ? path : resolve(this.workspacePath, path);
+		const contained = confineToolPath(this.workspacePath, path);
+		if (!contained.ok) {
+			throw new Error(`Blocked read_large_file: ${contained.message}`);
+		}
+		const real = await assertRealToolPathWithinRoot(
+			contained.matchedRoot,
+			contained.absolutePath,
+			contained.relativePath,
+		);
+		if (!real.ok) {
+			throw new Error(`Blocked read_large_file: ${real.message}`);
+		}
+		const absolutePath = contained.absolutePath;
 		const content = await readFile(absolutePath, "utf8");
 		const lines = content.split("\n");
 		const sizeBytes = Buffer.byteLength(content, "utf8");

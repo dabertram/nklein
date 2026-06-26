@@ -9,12 +9,15 @@ import {
 	formatProtectedTestBlockReason,
 	normalizeMaxAgentWritableFileLines,
 } from "../core/agent-write-guard";
+import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { buildAgentSandboxWorkdir } from "./nklein-agent-sandbox";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./nklein-decomposition-workflow";
 import { parseEditFileRequest } from "./nklein-edit-file-tool";
 import { NKLEIN_GUIDANCE_SKILL_DEFAULTS } from "./nklein-guidance-skills";
 import { isLargeFileForWorkflow, parseReadFileRequests } from "./nklein-large-file-workflow";
+import { confineToolPath } from "./nklein-tool-path-containment";
 import { parseWriteFilesRequests } from "./nklein-write-files-tool";
 import {
 	createNKleinSdkUserInstructionService,
@@ -230,6 +233,57 @@ function extractScopedWriteTargetPaths(request: NKleinSdkToolApprovalRequest): s
 	}
 	const rawPath = (request.input as Record<string, unknown>).path;
 	return typeof rawPath === "string" && rawPath.trim() ? [rawPath] : [];
+}
+
+/**
+ * Every path-bearing field the tool would read or write, for the workspace-containment gate (§5.Y #4). Covers the
+ * read tools too (not just the scoped-write tools): a `read_files` / `read_large_file` with a host-absolute path
+ * outside the workspace, or a `..` escape, must be rejected by the approval layer as defense-in-depth even though
+ * the in-tool containment is the primary boundary.
+ */
+function extractToolPathTargets(request: NKleinSdkToolApprovalRequest): string[] {
+	if (request.toolName === "read_files") {
+		return parseReadFileRequests(request.input).map((readRequest) => readRequest.path);
+	}
+	if (request.toolName === "read_large_file") {
+		if (!request.input || typeof request.input !== "object") {
+			return [];
+		}
+		const rawPath = (request.input as Record<string, unknown>).path;
+		return typeof rawPath === "string" && rawPath.trim() ? [rawPath] : [];
+	}
+	return extractScopedWriteTargetPaths(request);
+}
+
+/**
+ * Defense-in-depth workspace containment at the approval layer (§5.Y #4). The approval policy is constructed with
+ * the HOST workspace root, but a Docker-isolated task's agent uses container paths (`/workspaces/<taskId>/...`).
+ * So we allow the sandbox container workdir as an additional root for a non-home task, plus host-absolute paths
+ * within the host root and workspace-relative paths; genuine escapes (host-absolute outside the root, `..`
+ * traversal) are denied with a non-leaky, workspace-relative reason. This mirrors the in-tool check so a path that
+ * reaches the tools is confined regardless of whether the sandbox proxy is present.
+ */
+function approveToolPathContainment(
+	workspacePath: string,
+	request: NKleinSdkToolApprovalRequest,
+	options: KanbanToolApprovalOptions,
+): NKleinSdkToolApprovalResult | null {
+	const targetPaths = extractToolPathTargets(request);
+	if (targetPaths.length === 0) {
+		return null;
+	}
+	const taskId = options.taskId?.trim();
+	const sandboxWorkdir = taskId && !isHomeAgentSessionId(taskId) ? buildAgentSandboxWorkdir(taskId) : null;
+	for (const targetPath of targetPaths) {
+		const contained = confineToolPath(workspacePath, targetPath, { sandboxWorkdir });
+		if (!contained.ok) {
+			return {
+				approved: false,
+				reason: `Blocked ${request.toolName}: ${contained.message} Operate only on files within this card's workspace.`,
+			};
+		}
+	}
+	return null;
 }
 
 function approveScopedWriteTargets(
@@ -586,6 +640,10 @@ export function createKanbanToolApprovalPolicy(
 				...options,
 				protectedTestApprovals: options.protectedTestApprovals ?? protectedTestApprovalStore,
 			};
+			const containmentDenial = approveToolPathContainment(workspacePath, request, approvalOptions);
+			if (containmentDenial) {
+				return containmentDenial;
+			}
 			const scopedWriteApproval = approveScopedWriteTargets(workspacePath, request, approvalOptions);
 			if (scopedWriteApproval) {
 				return scopedWriteApproval;

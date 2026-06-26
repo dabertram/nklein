@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
 import type { AgentTool } from "@nklein/shared";
 import {
 	countTextLines,
@@ -11,6 +10,7 @@ import {
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
+import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 
 /**
  * `edit_file` — a token-efficient, lenient search/replace edit tool for small/quantized local models.
@@ -82,10 +82,6 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 	return { path, edits: edits as SearchReplaceBlock[] };
 }
 
-function resolveWritablePath(workspacePath: string, rawPath: string): string {
-	return isAbsolute(rawPath) ? rawPath : resolve(workspacePath, rawPath);
-}
-
 export function createEditFileTool(options: { workspacePath: string; maxFileLines?: number | null }): AgentTool {
 	const maxFileLines = normalizeMaxAgentWritableFileLines(options.maxFileLines);
 	return {
@@ -130,7 +126,19 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 					}),
 				);
 			}
-			const absolutePath = resolveWritablePath(options.workspacePath, request.path);
+			const contained = confineToolPath(options.workspacePath, request.path);
+			if (!contained.ok) {
+				throw new Error(`Blocked edit_file: ${contained.message}`);
+			}
+			const real = await assertRealToolPathWithinRoot(
+				contained.matchedRoot,
+				contained.absolutePath,
+				contained.relativePath,
+			);
+			if (!real.ok) {
+				throw new Error(`Blocked edit_file: ${real.message}`);
+			}
+			const absolutePath = contained.absolutePath;
 			let original: string;
 			try {
 				original = await readFile(absolutePath, "utf8");

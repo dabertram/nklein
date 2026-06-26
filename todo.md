@@ -2273,10 +2273,27 @@ deep analysis:
       no host-path leak; the CLI `--allow-write` path shares the resolver so it's covered too). **Verified:** tsc + biome +
       16 new symlink-escape regression tests (file/dir/deep-nested escapes rejected for read/list/write; within-workspace
       symlinks still work) + full fast gate green.
-- [ ] **HIGH #4 — NKlein file tools rely on caller sandboxing, don't enforce containment.** `write_file`/`edit_file`/
+- [x] **HIGH #4 — NKlein file tools rely on caller sandboxing, don't enforce containment.** `write_file`/`edit_file`/
       `read_large_file` accept absolute paths; protection is only the Docker proxy when present (home sessions are
       host-cwd). Enforce workspace containment inside each tool + the approval policy; reject host-absolute/`..`/symlink
-      paths unless an explicit audited host session. (Ties to the "agents never see host" invariant.)
+      paths unless an explicit audited host session. (Ties to the "agents never see host" invariant.) **DONE
+      (2026-06-26):** added a single shared helper `src/nklein-sdk/nklein-tool-path-containment.ts` —
+      `confineToolPath(workspaceRoot, rawPath, {sandboxWorkdir?})` (load-bearing synchronous lexical confinement: a
+      target is allowed iff it resolves within the root; absolute-within-root + workspace-relative allowed, host-
+      absolute-outside + `..` rejected with a non-leaky message) plus `assertRealToolPathWithinRoot` (realpath/symlink-
+      escape check, nearest-existing-ancestor for not-yet-created writes, mirrors `chat-workspace-tools`). The single
+      root each tool/approval already had IS the correct legitimate root: in-container task tool root = the in-container
+      `/workspaces/<taskId>` (so container paths stay allowed — the sandbox dir IS the root); home/chat host-cwd session
+      root = the host project cwd (host-absolute within it stays allowed); the approval policy is host-rooted but gets
+      `sandboxWorkdir = buildAgentSandboxWorkdir(taskId)` (skipped for home sessions) so a non-home task's container
+      paths stay allowed. Wired into `nklein-write-files-tool` (write_file/write_files), `nklein-edit-file-tool`,
+      `nklein-large-file-workflow` (read_large_file `readNext`), and the approval policy
+      (`nklein-runtime-setup.ts` `approveToolPathContainment` as the first gate, covering read_files/read_large_file too).
+      Docker proxy untouched (proxy `execute` forwards into the container where the real tool runs with root
+      `/workspaces/<taskId>`; the in-tool check runs container-side). No CHANGELOG (internal defense-in-depth, not a
+      containment bug reachable on `main` — the sandbox proxy was the live boundary). Tests: unit tests for the shared
+      helper + tool-level + approval-level coverage (host-absolute-outside / `..` / symlink → rejected; container path /
+      workspace-relative / home-session-host-path-within-root → allowed). Full `test:fast` green (1922).
 - [x] **MED #5 — chat `browse_url` SSRF.** Only checks http/https → can fetch `127.0.0.1`/RFC1918/link-local/cloud-
       metadata. Block private/loopback/link-local/metadata ranges; re-check after redirects; disable in remote mode w/o
       opt-in. **DONE (2026-06-26):** mode-based default — in remote (`--host`) mode the tool resolves the hostname via
@@ -2345,9 +2362,10 @@ deep analysis:
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
 > HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains), ✅ #8 (folder-picker / addProject
-> confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode). **Remaining remote-mode
-> priority:** #10 (desktop spoofable-title health check), then the remaining hardening (#4 containment, #5 SSRF, #6
-> terminals, #12 CSP). Each fix gets a regression test.
+> confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
+> guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth). **Remaining
+> remote-mode priority:** #10 (desktop spoofable-title health check), then the remaining hardening (#6 terminals, #12
+> CSP). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

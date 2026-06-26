@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -397,5 +397,75 @@ describe("NKleinLargeFileWorkflow", () => {
 		const second = await workflow.readNext("large.txt", 16_000, "");
 		expect(second.phase).toBe("reading");
 		expect(second.startLine).toBe((first.endLine as number) + 1);
+	});
+});
+
+describe("read_large_file workspace containment (§5.Y #4)", () => {
+	const tempDirs: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(tempDirs.map(async (path) => rm(path, { recursive: true, force: true })));
+		tempDirs.length = 0;
+	});
+
+	function newWorkflow(workspacePath: string): NKleinLargeFileWorkflow {
+		return new NKleinLargeFileWorkflow("session-containment", workspacePath, join(workspacePath, ".runtime"));
+	}
+
+	it("rejects reading a host-absolute path outside the workspace root", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		const outside = await mkdtemp(join(tmpdir(), "kanban-large-outside-"));
+		tempDirs.push(workspacePath, outside);
+		const secretPath = join(outside, "secret.txt");
+		await writeFile(secretPath, createLargeContent(4_000), "utf8");
+		const workflow = newWorkflow(workspacePath);
+
+		await expect(workflow.readNext(secretPath, 16_000, "start")).rejects.toThrow(
+			/escapes the workspace|outside the workspace/,
+		);
+	});
+
+	it("rejects a `..` traversal escape", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const workflow = newWorkflow(workspacePath);
+
+		await expect(workflow.readNext("../../../../etc/hosts", 16_000, "start")).rejects.toThrow(
+			/escapes the workspace|outside the workspace/,
+		);
+	});
+
+	it("rejects a symlinked-parent escape (real path lands outside)", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		const outside = await mkdtemp(join(tmpdir(), "kanban-large-symlink-outside-"));
+		tempDirs.push(workspacePath, outside);
+		await writeFile(join(outside, "secret.txt"), createLargeContent(4_000), "utf8");
+		await symlink(outside, join(workspacePath, "evil-link"));
+		const workflow = newWorkflow(workspacePath);
+
+		await expect(workflow.readNext("evil-link/secret.txt", 16_000, "start")).rejects.toThrow(
+			/escapes the workspace|outside the workspace/,
+		);
+	});
+
+	it("allows reading a host-absolute path within the workspace root (host/home session)", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await writeFile(join(workspacePath, "large.txt"), createLargeContent(4_000), "utf8");
+		const workflow = newWorkflow(workspacePath);
+
+		const result = await workflow.readNext(join(workspacePath, "large.txt"), 16_000, "start");
+		expect(result.phase).toBe("reading");
+		expect(result.startLine).toBe(1);
+	});
+
+	it("allows a normal workspace-relative read", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		await writeFile(join(workspacePath, "large.txt"), createLargeContent(4_000), "utf8");
+		const workflow = newWorkflow(workspacePath);
+
+		const result = await workflow.readNext("large.txt", 16_000, "start");
+		expect(result.phase).toBe("reading");
 	});
 });
