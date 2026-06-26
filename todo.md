@@ -293,9 +293,15 @@ deep analysis:
           enables once a goal is typed, **zero console/page errors**. Reusable smoke at
           [scripts/verify-chat-autonomous-ui.mts](scripts/verify-chat-autonomous-ui.mts); screenshot confirmed the bar sits
           cleanly above the composer.
-    - [ ] **live-model run** — the final end-to-end verification: a real small-model autonomous run (LM Studio loaded),
-          started from the sidebar, watching the focus chain + tool work + the stop reason land. Needs a loaded local
-          model — a focused pass (the whole stack above is unit-tested + render-verified, so this confirms the live loop).
+    - [x] **live-model run — VERIFIED end-to-end (2026-06-26)** — booted `dev:full` against a live LM Studio (qwen3-8b
+          loaded), started a real autonomous run from the sidebar, and the loop drove the model to a clean stop:
+          **"✓ Goal complete · 1 turn · 1/1 steps"** — the agent planned via `update_focus_chain`, fired
+          `declare_goal_complete`, the driver completed, the focus-chain progress read 1/1, and the turn persisted to the
+          transcript (screenshot-confirmed). Reusable smoke at
+          [scripts/verify-chat-autonomous-live.mts](scripts/verify-chat-autonomous-live.mts). **So the §5.0.1 core — drive
+          a goal → plan → tools → completion — is now proven at EVERY layer (unit + integration + tRPC + render + live
+          model).** *(The broader §5.0.1 subtasks below — background board/card orchestration, the 2 owed memory items,
+          deeper pause/resume — are enhancements on this working core.)*
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
