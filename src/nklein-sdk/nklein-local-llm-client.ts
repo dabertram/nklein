@@ -1,4 +1,5 @@
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
+import { parseNarratedToolCalls } from "./nklein-narrated-tool-call";
 
 /**
  * !Klein-owned direct client for local OpenAI-compatible model servers (LM Studio / Ollama / llama.cpp).
@@ -360,19 +361,33 @@ export class LocalLlmClient {
 				choices?: Array<{
 					message?: {
 						content?: string;
+						reasoning_content?: string;
 						tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
 					};
 					finish_reason?: string | null;
 				}>;
 			};
 			const choice = json.choices?.[0];
-			const toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
+			let toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
 				.map((call, index) => ({
 					id: call.id ?? `call_${index}`,
 					name: call.function?.name ?? "",
 					arguments: parseToolCallArguments(call.function?.arguments),
 				}))
 				.filter((call) => call.name.length > 0);
+			// §5.Z: the chat path has no `afterModel` hook, so recover a NARRATED tool call here. When tools were offered
+			// but the model returned NO structured tool_call, a weak/quantized model may have printed the call as text in
+			// its content OR its reasoning channel (Hermes/Qwen/Llama/Mistral/DeepSeek/Phi-`[TOOL_REQUEST]`/… formats) —
+			// reasoning models (phi-4-reasoning, deepseek-r1) put it in `reasoning_content`. Mirror the swarm path's
+			// recoverNarratedToolCalls so those models drive chat tools too (todo §5.O: recover, don't re-prompt the model).
+			if (toolCalls.length === 0 && tools.length > 0) {
+				const narratable = `${choice?.message?.content ?? ""}\n${choice?.message?.reasoning_content ?? ""}`;
+				toolCalls = parseNarratedToolCalls(narratable).map((call, index) => ({
+					id: `narrated_${index}`,
+					name: call.toolName,
+					arguments: parseToolCallArguments(call.input),
+				}));
+			}
 			return {
 				content: choice?.message?.content ?? "",
 				toolCalls,

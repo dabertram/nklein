@@ -2957,18 +2957,18 @@ deep analysis:
       parking) a session when the agent emits N consecutive identical no-tool final messages — the work is done, stop
       waiting. Output-robustness, ties §5.O parse-and-recover. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
       NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
-- [ ] **Wire narrated-tool-call recovery into the CHAT agent path (from the run_command sweep, 2026-06-26)** — the
-      web-ui/CLI chat agent (`completeWithTools` in [nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)
-      ~L324) parses ONLY LM Studio's native `tool_calls` and **explicitly defers** `recoverNarratedToolCalls` to the
-      swarm/NKlein agent path — so a model that **narrates** its tool call as text in the chat surface (instead of a
-      structured call) is never recovered and the chat agent silently doesn't act. The swarm path already has this (the
-      `afterModel` hook). Mirror it in the chat loop's model adapter (recover narrated calls from `choice.message.content`
-      when `tool_calls` is empty) so weak/quantized models "just work" in chat too — the §5.O parse-and-recover principle
-      on the chat surface. **Confirm the trigger before building:** instrument the chat path to log raw `content` for
-      phi-4-mini / phi-4-reasoning-plus (the SAME 2 models fail BOTH run_command AND create_card while the other 7
-      succeed — a clean, well-isolated signal) and verify they narrate a recoverable call (vs just reasoning without
-      acting). Also extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
-      (gemma-e2b leaked exactly that into its final reply). High value: would lift chat tool-use across small models.
+- [x] **Chat-path narrated-tool-call recovery — DONE (2026-06-26)** — `completeWithTools`
+      ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
+      `tool_calls`; it now also runs `parseNarratedToolCalls` over the model's `content` **and** `reasoning_content`
+      when tools were offered but no structured call came back — mirroring the swarm path's `afterModel` recovery so a
+      model that narrates its call as text in the chat surface still gets dispatched. Added the **Microsoft Phi
+      `[TOOL_REQUEST]{…}[END_TOOL_REQUEST]`** format to `parseNarratedToolCalls` (shared with the swarm path) + 3 unit
+      tests. **BUT the live phi diagnostic (calling `completeWithTools` against phi-4-mini directly) showed this does NOT
+      by itself fix phi:** with a SIMPLE 1-tool prompt phi emits a clean STRUCTURED `tool_call` (LM Studio normalizes it),
+      so phi CAN call tools — it fails the 6-tool `create_card`/`run_command` harness because of **task COMPLEXITY** (too
+      many tools + the full agent-loop prompt), not narration. That insight launches the new **[§5.AA](#5aa)** adaptive
+      model-robustness arc. Still owed there: extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
+      (gemma-e2b leaked exactly that into its final reply).
 >
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach

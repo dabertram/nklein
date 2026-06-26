@@ -16,7 +16,8 @@
  * Covers the tool-call text formats of the major local-model families (todo §5.O): Hermes/Qwen `<tool_call>`,
  * the pipe-delimited `<|tool_call|>`/`<function_call>`, Llama 3.1 `<|python_tag|>`, Mistral/Mixtral
  * `[TOOL_CALLS][…]` (a JSON array), the OpenAI-shaped nested `function:{name,arguments}` object, the
- * Functionary `<function=NAME>{…}</function>` named-tag form, and the **DeepSeek-V3/R1** native format
+ * Functionary `<function=NAME>{…}</function>` named-tag form, the **Microsoft Phi** `[TOOL_REQUEST]{…}[END_TOOL_REQUEST]`
+ * form, and the **DeepSeek-V3/R1** native format
  * (special-token `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>`, with the
  * name *outside* the JSON).
  *
@@ -43,13 +44,13 @@ export interface NarratedToolCall {
  * out the first balanced value, ignoring any trailing `</tool_call>`. The `<function=NAME>…</function>` family
  * (name in the tag) is handled separately by {@link NAMED_FUNCTION_TAG}.
  */
-const TOOL_CALL_OPENER = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\[TOOL_CALLS\]/gi;
+const TOOL_CALL_OPENER = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\[TOOL_CALLS\]|\[TOOL_REQUEST\]/gi;
 
 /**
  * Quick pre-check: does the text contain ANY recognized tool-call marker? Keeps the common no-marker path cheap.
  * `tool[_▁]call` matches both the underscore form (`tool_call`) and DeepSeek's `▁`-delimited `tool▁call(s)`.
  */
-const TOOL_CALL_MARKER = /tool[_▁]call|function_call|python_tag|\[TOOL_CALLS\]|<function\s*=/i;
+const TOOL_CALL_MARKER = /tool[_▁]call|function_call|python_tag|\[TOOL_CALLS\]|\[TOOL_REQUEST\]|<function\s*=/i;
 
 /** Functionary / some Llama fine-tunes: `<function=NAME>{json args}</function>` — the name lives in the tag. */
 const NAMED_FUNCTION_TAG = /<function\s*=\s*([A-Za-z0-9_.-]+)\s*>([\s\S]*?)<\/function\s*>/gi;

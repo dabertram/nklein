@@ -209,4 +209,118 @@ describe("LocalLlmClient.completeWithTools", () => {
 		expect(body.tools).toBeUndefined();
 		expect(result).toMatchObject({ content: "hi", toolCalls: [] });
 	});
+
+	it("recovers a NARRATED tool call from content when the model emits no structured tool_call (§5.Z chat-path parity)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content:
+										'Sure, I will do that.\n<tool_call>\n{"name": "create_card", "arguments": {"title": "X"}}\n</tool_call>',
+									tool_calls: [],
+								},
+								finish_reason: "stop",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "phi",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "make a card" }] }, [
+			{ name: "create_card", description: "Create a card", parameters: { type: "object" } },
+		]);
+		// The model narrated the call as text instead of a structured tool_call — recovered so the chat loop dispatches it.
+		expect(result.toolCalls).toEqual([{ id: "narrated_0", name: "create_card", arguments: { title: "X" } }]);
+	});
+
+	it("recovers a Phi `[TOOL_REQUEST]` call narrated in reasoning_content (§5.Z reasoning channel + Phi format)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: "",
+									// phi-4 reasoning models put narration in `reasoning_content`, using the Microsoft `[TOOL_REQUEST]` form.
+									reasoning_content:
+										'I should call the tool.\n[TOOL_REQUEST]{"name": "create_card", "arguments": {"title": "DIAG"}}[END_TOOL_REQUEST]',
+									tool_calls: [],
+								},
+								finish_reason: "stop",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "microsoft/phi-4-mini-reasoning",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "make a card" }] }, [
+			{ name: "create_card", description: "Create a card", parameters: { type: "object" } },
+		]);
+		expect(result.toolCalls).toEqual([{ id: "narrated_0", name: "create_card", arguments: { title: "DIAG" } }]);
+	});
+
+	it("does NOT recover narrated text when a structured call exists, or when no tools are offered", async () => {
+		const narrated = '<tool_call>{"name": "create_card", "arguments": {}}</tool_call>';
+		// (a) a structured tool_call is already present → the narrated content is ignored.
+		const structured = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: narrated,
+									tool_calls: [{ id: "c1", function: { name: "read_file", arguments: "{}" } }],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const clientA = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "m",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: structured as unknown as typeof fetch,
+		});
+		const resA = await clientA.completeWithTools({ messages: [{ role: "user", content: "x" }] }, [
+			{ name: "read_file", description: "", parameters: { type: "object" } },
+		]);
+		expect(resA.toolCalls).toEqual([{ id: "c1", name: "read_file", arguments: {} }]);
+
+		// (b) no tools were offered → a narrated call in a plain chat reply stays text (no recovery).
+		const noTools = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ choices: [{ message: { content: narrated, tool_calls: [] }, finish_reason: "stop" }] }),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const clientB = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "m",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: noTools as unknown as typeof fetch,
+		});
+		const resB = await clientB.completeWithTools({ messages: [{ role: "user", content: "x" }] }, []);
+		expect(resB.toolCalls).toEqual([]);
+	});
 });
