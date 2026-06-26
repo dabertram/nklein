@@ -2353,12 +2353,17 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done:** `workspace-files-api-contract.ts` (8 schemas —
-            file status/change, working-copy/last-turn changes req+res, fuzzy file search; a true leaf, nothing else in
-            the barrel referenced it). **Picking the next leaf:** verify no outbound refs to *other* contract schemas
-            first — e.g. the git-history block at EOF is NOT yet a leaf (it refs `runtimeTaskWorkspaceInfoRequestSchema`),
-            so a base-primitives/enums module (`runtimeAgentIdSchema`/`runtimeBoardColumnIdSchema`/the NKlein settings +
-            guardrail enums at L84–264) is the natural next extraction since many domains depend on it.
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (2 domains, barrel 2614 → ~2370):**
+            (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
+            req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
+            `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
+            reasoning/context-window/timeout/embedding settings, swarm guardrails, model-roles, agent rulesets). The
+            config module is referenced widely downstream, so the barrel re-exports it AND keeps a local `import {…}` of
+            the 15 symbols its remaining schemas still use (tsc-enumerated — that's the reliable way to find the local
+            re-import set after any extraction). **Next leaves** (verify outbound refs first): extracting
+            `runtimeTaskWorkspaceInfoRequestSchema` (the shared task-scope) unblocks the git-history + terminal-ws tail
+            domains (both ref it); then the board-card / review / focus-chain cluster; the stats responses (model-perf,
+            knowledge-tool usage) look like clean tail leaves.
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
