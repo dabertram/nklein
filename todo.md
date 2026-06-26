@@ -2346,6 +2346,19 @@ deep analysis:
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
+      - **#2 `api-contract.ts` split — STARTED (2026-06-26); method settled, don't re-derive.** The 2614-line contract
+            monolith (269 const + 255 type exports) is being decomposed into sibling `*-api-contract.ts` domain modules
+            behind the existing `src/core/api-contract.ts` barrel — the SAME pattern as the already-split
+            `chat-api-contract.ts` (re-exported at the top of the barrel) and roadmap rec #2. **Method:** foundational /
+            **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
+            from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
+            re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done:** `workspace-files-api-contract.ts` (8 schemas —
+            file status/change, working-copy/last-turn changes req+res, fuzzy file search; a true leaf, nothing else in
+            the barrel referenced it). **Picking the next leaf:** verify no outbound refs to *other* contract schemas
+            first — e.g. the git-history block at EOF is NOT yet a leaf (it refs `runtimeTaskWorkspaceInfoRequestSchema`),
+            so a base-primitives/enums module (`runtimeAgentIdSchema`/`runtimeBoardColumnIdSchema`/the NKlein settings +
+            guardrail enums at L84–264) is the natural next extraction since many domains depend on it.
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before

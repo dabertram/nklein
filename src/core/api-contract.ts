@@ -10,64 +10,8 @@ import { resolveTaskTitle } from "./task-title.js";
 // Board-independent unified chat (todo §5.M) lives in its own contract module; re-exported here so the single
 // `@runtime-contract` alias (and `@/runtime/types` in the web-ui) surfaces the chat wire types too.
 export * from "./chat-api-contract.js";
-
-export const runtimeWorkspaceFileStatusSchema = z.enum([
-	"modified",
-	"added",
-	"deleted",
-	"renamed",
-	"copied",
-	"untracked",
-	"unknown",
-]);
-export type RuntimeWorkspaceFileStatus = z.infer<typeof runtimeWorkspaceFileStatusSchema>;
-
-export const runtimeWorkspaceFileChangeSchema = z.object({
-	path: z.string(),
-	previousPath: z.string().optional(),
-	status: runtimeWorkspaceFileStatusSchema,
-	additions: z.number(),
-	deletions: z.number(),
-	oldText: z.string().nullable(),
-	newText: z.string().nullable(),
-});
-export type RuntimeWorkspaceFileChange = z.infer<typeof runtimeWorkspaceFileChangeSchema>;
-
-export const runtimeWorkspaceChangesRequestSchema = z.object({
-	taskId: z.string(),
-	baseRef: z.string(),
-	mode: z.enum(["working_copy", "last_turn"]).optional(),
-});
-export type RuntimeWorkspaceChangesRequest = z.infer<typeof runtimeWorkspaceChangesRequestSchema>;
-
-export const runtimeWorkspaceChangesModeSchema = z.enum(["working_copy", "last_turn"]);
-export type RuntimeWorkspaceChangesMode = z.infer<typeof runtimeWorkspaceChangesModeSchema>;
-
-export const runtimeWorkspaceChangesResponseSchema = z.object({
-	repoRoot: z.string(),
-	generatedAt: z.number(),
-	files: z.array(runtimeWorkspaceFileChangeSchema),
-});
-export type RuntimeWorkspaceChangesResponse = z.infer<typeof runtimeWorkspaceChangesResponseSchema>;
-
-export const runtimeWorkspaceFileSearchRequestSchema = z.object({
-	query: z.string(),
-	limit: z.number().int().positive().optional(),
-});
-export type RuntimeWorkspaceFileSearchRequest = z.infer<typeof runtimeWorkspaceFileSearchRequestSchema>;
-
-export const runtimeWorkspaceFileSearchMatchSchema = z.object({
-	path: z.string(),
-	name: z.string(),
-	changed: z.boolean(),
-});
-export type RuntimeWorkspaceFileSearchMatch = z.infer<typeof runtimeWorkspaceFileSearchMatchSchema>;
-
-export const runtimeWorkspaceFileSearchResponseSchema = z.object({
-	query: z.string(),
-	files: z.array(runtimeWorkspaceFileSearchMatchSchema),
-});
-export type RuntimeWorkspaceFileSearchResponse = z.infer<typeof runtimeWorkspaceFileSearchResponseSchema>;
+// Workspace file-operation contracts (status / change / changes / fuzzy search) live in their own module (§5.X #2).
+export * from "./workspace-files-api-contract.js";
 
 export const runtimeSlashCommandSchema = z.object({
 	name: z.string(),
