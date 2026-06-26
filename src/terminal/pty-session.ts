@@ -5,6 +5,7 @@ import {
 	resolveWindowsComSpec,
 	shouldUseWindowsCmdLaunch,
 } from "../core/windows-cmd-launch";
+import { stripInternalAuthTokenFromEnv } from "../security/passcode-manager";
 
 export interface PtyExitEvent {
 	exitCode: number;
@@ -93,7 +94,16 @@ export class PtySession {
 		const ptyOptions: pty.IPtyForkOptions = {
 			name: terminalName,
 			cwd,
-			env,
+			// Scrub the internal CLI auth token (§5.Y #6): a terminal is a user-facing
+			// shell — in remote mode possibly a remote user's — so it must never inherit
+			// the trusted bearer token that authenticates runtime-API callers (it could
+			// be read with `echo $NKLEIN_INTERNAL_AUTH_TOKEN` and replayed to impersonate
+			// a trusted caller). `env ?? process.env` also covers the no-override case,
+			// where node-pty would otherwise inherit process.env (and its token) directly.
+			// The agent tool path is containerized (not a PTY), and the runtime spawns
+			// trusted `nklein task`/hooks WITHOUT this scrub, so they still inherit the
+			// token. No-op in local mode, where no internal token is generated.
+			env: stripInternalAuthTokenFromEnv(env ?? process.env),
 			cols,
 			rows,
 			encoding: null,

@@ -2305,18 +2305,24 @@ deep analysis:
       ranges, edge octets, public=false); remote mode refuses literal loopback/metadata/RFC1918/IPv6; allows public
       IPs; redirect-to-internal caught; local mode allows everything. A per-session override toggle is a possible
       follow-up.
-- [~] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
+- [x] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
       sandbox, user commands inherit `NKLEIN_INTERNAL_AUTH_TOKEN`). Scrub it from spawned terminals/sidecars/sandbox/user
       commands; pass only to the specific trusted subprocesses that need runtime-API access. **PARTIAL (2026-06-26):**
       added the reusable `stripInternalAuthTokenFromEnv` helper (`src/security/passcode-manager.ts`) and applied it to the
       **chat `run_command` spawn** (highest-value, model-driven RCE surface — pairs with CRITICAL #1; unit + real-spawn
       tests) AND the **core-py sidecar spawn** (a passive ML service that never calls the runtime API). **The Docker agent
       sandbox is already safe** — verified the sandbox code does not forward host env into the container (Docker doesn't
-      auto-inherit it), so the token never enters the agent container. **Only remaining: terminal sessions** — genuinely
-      delicate: a user may run `nklein task` (which needs the token in remote mode) in a terminal, and a *remote*-user web
-      terminal getting the host's internal token is the real escalation concern → resolve the `nklein task` auth path +
-      the local-vs-remote-user distinction before scrubbing. Legit consumers that MUST keep the token: the CLI
-      runtime-API callers (`task-runtime-workspace`/`dev`/`cli`/`runtime-endpoint` via `getRuntimeFetch`).
+      auto-inherit it), so the token never enters the agent container. **DONE (2026-06-26) — terminals scrubbed** at the
+      single `PtySession.spawn` choke point (`src/terminal/pty-session.ts`): `env: stripInternalAuthTokenFromEnv(env ??
+      process.env)` (the `?? process.env` also covers the no-override case, where node-pty would otherwise inherit
+      process.env + its token). **The feared delicacy dissolved on inspection:** (1) the token is generated *only* in
+      remote mode (when the passcode is active) → the scrub is a **no-op in local mode**, so local `nklein task` (loopback,
+      no-auth) is unaffected; (2) in remote mode a (possibly *remote*) user terminal must **not** hold the trusted bypass
+      token — that IS the escalation concern, so scrubbing is the correct posture, not a regression; (3) the agent tool
+      path is **containerized (not a PTY)**, and the runtime spawns the trusted runtime-API CLIs (`nklein task`/hooks)
+      directly **without** this scrub, so they still inherit the token. Legit token-keepers stay intact (the CLI
+      runtime-API callers via `getRuntimeFetch`). 2 regression tests (override + no-override cases) in `pty-session.test.ts`;
+      tsc + biome + 44 terminal tests green. **This completes §5.Y (12/12).**
 - [x] **MED #7 ⚠️ — remote mode could run plaintext HTTP + `--no-passcode`** — DONE (owner confirmed they use remote
       mode → high priority). A non-loopback (`--host`) bind now **refuses to start over plain HTTP** unless TLS is
       configured (`--cert`/`--key`), with a clear remediation error; the explicit opt-out `--insecure-remote-http`
@@ -2382,12 +2388,13 @@ deep analysis:
       deliberate git-history-matched back-compat string per AGENTS.md). **Remaining content follow-up:** !Klein needs its
       own self-hosted onboarding media (then no CSP change — `'self'` covers it).
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
-> ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
+> ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar + terminals — internal token scrubbed at
+> the `PtySession.spawn` choke point), ✅ #7 (remote
 > HTTPS-by-default + `--no-passcode` gating + HSTS), ✅ #12 (headers + CSP + Sentry-DSN env-gate + Cline onboarding-media
 > removal, live-verified with the CSP header ACTIVE), ✅ #8 (folder-picker / addProject
 > confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
 > guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth), ✅ #10 (nonce
-> handshake). **Remaining:** #6 (terminals hardening). Each fix gets a regression test.
+> handshake). **Remaining:** NONE — the §5.Y security backlog is COMPLETE (12/12). Each fix got a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

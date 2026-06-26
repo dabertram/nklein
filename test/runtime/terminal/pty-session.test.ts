@@ -321,4 +321,48 @@ describe("PtySession", () => {
 
 		expect(() => session.write("hello")).toThrow("permission denied");
 	});
+
+	it("scrubs the internal CLI auth token from the terminal env (§5.Y #6)", () => {
+		setPlatform("darwin");
+		const ptyProcess = createMockPtyProcess();
+		ptyMocks.spawn.mockReturnValue(ptyProcess);
+
+		PtySession.spawn({
+			binary: "bash",
+			args: [],
+			cwd: "/tmp",
+			env: {
+				NKLEIN_INTERNAL_AUTH_TOKEN: "trusted-secret",
+				KANBAN_INTERNAL_AUTH_TOKEN: "legacy-secret",
+				PATH: "/usr/bin",
+				HOME: "/home/user",
+			},
+			cols: 120,
+			rows: 40,
+		});
+
+		const ptyOptions = ptyMocks.spawn.mock.calls[0]?.[2] as { env: NodeJS.ProcessEnv };
+		expect(ptyOptions.env.NKLEIN_INTERNAL_AUTH_TOKEN).toBeUndefined();
+		expect(ptyOptions.env.KANBAN_INTERNAL_AUTH_TOKEN).toBeUndefined();
+		// Non-secret vars are preserved so the shell still works.
+		expect(ptyOptions.env.PATH).toBe("/usr/bin");
+		expect(ptyOptions.env.HOME).toBe("/home/user");
+	});
+
+	it("scrubs the internal token even when no env override is provided", () => {
+		setPlatform("darwin");
+		process.env.NKLEIN_INTERNAL_AUTH_TOKEN = "trusted-secret";
+		const ptyProcess = createMockPtyProcess();
+		ptyMocks.spawn.mockReturnValue(ptyProcess);
+
+		try {
+			PtySession.spawn({ binary: "bash", args: [], cwd: "/tmp", cols: 120, rows: 40 });
+			const ptyOptions = ptyMocks.spawn.mock.calls[0]?.[2] as { env: NodeJS.ProcessEnv };
+			expect(ptyOptions.env.NKLEIN_INTERNAL_AUTH_TOKEN).toBeUndefined();
+			// process.env's other vars still flow through (the shell needs them).
+			expect(ptyOptions.env.PATH).toBeDefined();
+		} finally {
+			delete process.env.NKLEIN_INTERNAL_AUTH_TOKEN;
+		}
+	});
 });
