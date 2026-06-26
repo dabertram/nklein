@@ -1605,10 +1605,16 @@ deep analysis:
       runtime-api's `findBoardCardRecordById`. tsc + 94 affected tests green. *(Remaining: `task-record-format.ts` uses a
       `{task, columnId}` shape with a different field name — left as-is, lower value; runtime-api's column-scoped
       `findBoardCardById(cards, id)` is a different helper, kept.)*
-- [ ] **(S4, safe-ish) Remove the 3 no-op `reconcileRunningTaskBoardLane` calls** in `runtime-api.ts` (start/send/input
-      paths) — they fire while the task is still `queued`, so the reconcile is always a no-op there; the real move fires on
-      the hub's `running` transition. Removing them makes lane-reconcile ownership unambiguous (the hub owns it). Verify the
-      architect/plan-mode path still reconciles via the hub. *(Note: §5.B Increment B rewrites this reconcile — fold S4 in then.)*
+- [-] **(S4) Won't remove the synchronous `reconcileRunningTaskBoardLane` calls** — *investigated + reverted 2026-06-26:
+      the "always a no-op" premise is **wrong**.* `reconcileStartedTaskBoardLane` is gated on `summary.state === "running"`,
+      so it IS a no-op for a *freshly-started* card (queued/starting when `start()` returns — the hub handles that on the
+      queued→running transition, `runtime-state-hub.ts:605`). BUT for **resume/already-running** summaries it does real work
+      **synchronously in the request** so the API response/persisted board is immediately consistent: a started card whose
+      summary is already running, and a **review→in_progress** card resumed via `sendTaskSessionInput`. Two `runtime-api`
+      tests assert exactly this ("moves a started backlog card out of backlog…", "moves a recovered review task back to in
+      progress after nklein input resumes it") and the hub only covers the async path — so the synchronous calls are
+      **complementary, not redundant**. A "proper" version (move all reconcile to the hub, make the API response
+      eventually-consistent, rewrite those 2 tests) is a behavior change for ~zero value. Leave as-is.
 - [x] **(S5, low-risk) Replaced the 250 ms `setTimeout` in `completeDecompositionSourceTask`** (`runtime-server.ts`) with a
       causal `await` (2026-06-26). The sole caller (`onDecompositionApplied`) already awaits `autoStartDecompositionRootTasks`
       before it, so the source-task completion now runs deterministically after the root starts — no arbitrary settle delay.
