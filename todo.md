@@ -1715,6 +1715,13 @@ deep analysis:
       editor, the model-roles block, the sandbox-pool fields, the timeouts) into focused `*-settings-panel.tsx`
       components that own their inputs and expose `value`/`onChange`, shrinking the dialog to composition. web-ui-only
       navigability win; lock with the existing dialog suite.
+      **STARTED (2026-06-26): first slice — the MCP-suggestion parsing group** (`parseMcpSuggestionText` + its internal
+      `asRecord`/`stringField`/`parseAddableMcpServer` helpers + the `ParsedMcpSuggestion` type) extracted to
+      `web-ui/src/components/runtime-settings-mcp-parsing.ts` (pure, self-contained, no React/state) + a focused 7-case
+      unit test it never had. **Pattern (lowest-risk first):** pull the dialog's many **pure helper groups** (model-role
+      normalize/serialize, swarm-guardrail input conversion, provider/command-display helpers, …) into focused modules
+      before the stateful section/hook extractions — each is a behavior-preserving move verified by the existing 36-test
+      `runtime-settings-dialog.test.tsx` (the oracle) + `web:typecheck` + `web:build`. Verified green. 4430 → ~4360.
 - [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
