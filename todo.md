@@ -2952,6 +2952,10 @@ deep analysis:
       the output-robustness sweep; §5.Z just tracks its all-models coverage.)
 - [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
       `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
+- [~] **Temporal-awareness lighthouse (§5.AC)** (`verify-temporal-awareness-live.mts`) — a real chat turn with the host
+      clock injected; asserts the model grounds in the injected "now" (places a current-year past month in the past, which
+      its ~2024 training prior would call the future). **3/9 PASS: gemma-4-e2b (2B), qwen3-8b, phi-4-mini-reasoning** (full
+      capability range). Remaining 6 are expected to pass (the date is in the prompt); sweep when convenient.
 > **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
 - [ ] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
       finishes the work (write+read) then **loops re-emitting an identical no-tool "Done!" final message** is not
@@ -3182,9 +3186,15 @@ deep analysis:
       gained an injected `now` clock and prepends the block as the FIRST system note (before goal/summary/memory), threaded
       through `runChatTurn` + `runChatAgentTurn` (each via an injectable `deps.now`, default `new Date()`), so the chat +
       autonomous-chat loops re-anchor it **every turn**. Unit-tested (block-leads + back-compat) + the existing chat-runtime
-      / session-service / chat-agent-turn suites stay green. **Still owed:** a board-agent **mid-session re-anchor** (the
-      system prompt is static per session; a `beforeModel` hook like the §5.N focus-chain re-anchor would refresh "now" on
-      a multi-day run — chat already re-anchors per turn, so this is a board-only long-run nicety).
+      / session-service / chat-agent-turn suites stay green. **LIVE-PROVEN cross-model (2026-06-26,
+      [scripts/verify-temporal-awareness-live.mts](scripts/verify-temporal-awareness-live.mts)):** a real chat turn with the
+      host clock injected asks a model whether a current-year past month is past or future — the grounded answer needs the
+      injected "now", and a model on its ~2024 training prior would call it "the future". **3/3 across the capability range
+      PASS** (gemma-4-e2b 2B / qwen3-8b / phi-4-mini-reasoning), each replying e.g. *"The current year is 2026, and March
+      1st, 2026, is in the past relative to today's date of June 26th, 2026"* — the training prior is overridden. **Still
+      owed:** a board-agent **mid-session re-anchor** (the system prompt is static per session; a `beforeModel` hook like
+      the §5.N focus-chain re-anchor would refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a
+      board-only long-run nicety).
 - [ ] **Freshness-judgment helper.** Given retrieved info carrying a date/version, compare to the real now → a verdict
       (current / possibly-stale / search-newer) + a rail telling the agent to prefer the newest + search further when the
       found info predates a likely-newer release. Pure + tested; feeds the retrieval loop.
