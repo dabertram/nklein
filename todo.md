@@ -1626,6 +1626,14 @@ deep analysis:
       *(done — superseded by §5.X Phase 1 "M1 `DecompositionStallNudger`" (`85ffd63b`), which extracted exactly this.)*
 - [ ] **(M2, moderate) Unify the session-merge** so `buildWorkspaceStateSnapshot` is the one canonical live+persisted merge
       (today `loadState` layers live NKlein summaries on top separately — effective state depends on which fn the caller used).
+      *(Scoped 2026-06-26: the asymmetry is structural, not a quick move. `loadWorkspaceState` (`state/workspace-state.ts`)
+      is the LOW-LEVEL persisted read — board + persisted sessions off disk, NO live layer. `buildWorkspaceStateSnapshot`
+      is a closure in `server/workspace-registry.ts:334` that layers the LIVE `NKleinTaskSessionService` summaries on top —
+      it lives there because the lower `workspace-state` layer can't depend on the live agent service (dependency
+      direction). Unifying means either injecting a "live summaries provider" into the low layer (inversion) or routing
+      every persisted-read caller through the registry merge — a real design change across workspace-state / registry /
+      hub / runtime-server / workspace-api, with merge-semantics + dependency-cycle risk. Deserves a focused design pass +
+      its own characterization tests; do NOT fold into a tail-of-session batch.)*
 - [x] **(M3, low-med) Guarded the UI `saveState` write path** (2026-06-26) — `saveWorkspaceState` now runs
       `updateTaskDependencies(normalizeRuntimeBoardData(board))` on the incoming board (the same normalization every load
       path applies) before persisting, so a stale/buggy/hostile UI can't write illegal state (cards in unknown columns,
@@ -1798,8 +1806,14 @@ deep analysis:
       `normalizeModelRolesForSettings`/`serializeModelRoles`; the two inner normalizers stay module-private) moved to the
       shared module; `REASONING_EFFORT_OPTIONS` (editor-only) moved into the editor; the editor's `React.X` type refs were
       made explicit (`Dispatch`/`SetStateAction`/`ReactElement` imports). **dialog 4086 → 3709 (−377).** Verified:
-      web:typecheck + 36-test oracle + web:build. Next clean pure-helper groups: command-display + timeout-profile helpers;
-      next sections: sandbox-pool fields, timeouts.
+      web:typecheck + 36-test oracle + web:build.
+      **(6) command-display helpers → `runtime-settings-command-display.ts`** (`quoteCommandPartForDisplay` +
+      `buildDisplayedAgentCommand`, pure, shell-quotes the per-agent launch command shown in Settings). Verified:
+      web:typecheck + 36-test oracle + web:build. Next clean pure-helper group: timeout-profile (`normalizeAgentTimeoutProfile`).
+      **Note on the remaining "sections" (timeouts / sandbox-pool):** extracting them as controlled panels would be a
+      **thin 16-prop pass-through** (8 timeout `useState`s woven through init/dirty/save) — the AGENTS.md "avoid thin shell
+      wrappers" rule says don't; the clean version first consolidates the 8 vars into one state object (a bigger refactor).
+      Deferred to a focused state-consolidation pass, not a quick slice.
 - **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files"; umbrella — each file below is its own counted, landable decomposition item)*. A line-count
       sweep surfaced the oversized files beyond the two already tracked above (`nklein-task-session-service.ts` ~3850,

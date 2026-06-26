@@ -55,6 +55,7 @@ import {
 import { KleinCorePyHealthLine } from "@/components/klein-core-py-health-line";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { ModelRolesEditor } from "@/components/model-roles-editor";
+import { buildDisplayedAgentCommand } from "@/components/runtime-settings-command-display";
 import { type ParsedMcpSuggestion, parseMcpSuggestionText } from "@/components/runtime-settings-mcp-parsing";
 import {
 	MODEL_ROLE_IDS,
@@ -148,21 +149,6 @@ interface RuntimeSettingsAgentRowModel {
 	binary: string;
 	command: string;
 	installed: boolean | null;
-}
-
-function quoteCommandPartForDisplay(part: string): string {
-	if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(part)) {
-		return part;
-	}
-	return JSON.stringify(part);
-}
-
-function buildDisplayedAgentCommand(agentId: RuntimeAgentId, binary: string, autonomousModeEnabled: boolean): string {
-	if (agentId === "nklein") {
-		return "";
-	}
-	const args = autonomousModeEnabled ? (getRuntimeAgentCatalogEntry(agentId)?.autonomousArgs ?? []) : [];
-	return [binary, ...args.map(quoteCommandPartForDisplay)].join(" ");
 }
 
 function normalizeTemplateForComparison(value: string): string {
