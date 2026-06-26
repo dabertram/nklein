@@ -26,6 +26,7 @@ import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
+import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import {
 	recordTaskRunSummary,
 	type TaskRunTerminalState,
@@ -65,6 +66,7 @@ import {
 } from "./nklein-context-overflow-compaction";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
+import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import {
 	createInMemoryNKleinMessageRepository,
@@ -3036,6 +3038,29 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				: null,
 			patchCaptureStatus: null,
 		});
+		// §5.AF: also record this terminal run as ONE attempt event in the Agent Attempt Ledger (best-effort; the
+		// ledger is observational control-plane and must never break the session loop). This is the first live WRITER
+		// of the ledger, making the §5.Z matrix + §5.AA model-behaviour profile real projections of one evidence stream.
+		try {
+			void appendAgentLedgerEvent(
+				buildTerminalAttemptEvent({
+					taskId,
+					workspacePath: summary.workspacePath ?? null,
+					state,
+					role,
+					providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
+					modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
+					endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+					startedAt: summary.startedAt ?? null,
+					endedAt: summary.updatedAt,
+					promptTokens,
+					completionTokens,
+					timeoutReason,
+				}),
+			);
+		} catch {
+			// Best-effort; never break the session loop on a ledger write.
+		}
 	}
 
 	private forgetSandboxTask(taskId: string): void {

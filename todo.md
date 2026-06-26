@@ -3381,11 +3381,20 @@ deep analysis:
       [src/state/agent-attempt-ledger-store.ts](src/state/agent-attempt-ledger-store.ts): a thin append-only per-workspace
       JSONL wrapper (keyed by `workspacePathHash`, never the path — #2; best-effort; validated via `parseValidatedJsonl`
       so a schema-invalid line is skipped+diagnosed, never trusted). Host-side control-plane, append-only, local-only.
-      14 unit tests; tsc+biome green. **Still owed (the rest of this item):** the remaining workflow fields the durable
-      scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom + merge/review-join events — add
-      as the scheduler lands), and **re-home the attempt-grain bits** currently scattered in `task-run-summary-store` /
-      model-registry observations / knowledge-tool telemetry so they become projections/thin-writers over this ONE
-      stream — do NOT duplicate (the next §5.AF item).
+      14 unit tests; tsc+biome green. **FIRST LIVE WRITER wired (2026-06-27):** the terminal-run chokepoint
+      (`captureTerminalRunSummary` in [nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts),
+      where `recordTaskRunSummary` fires) now ALSO appends one `attempt` event per terminal task run, via the pure mapper
+      [nklein-ledger-attempt.ts](src/nklein-agent/nklein-ledger-attempt.ts) (`buildTerminalAttemptEvent` — terminal state →
+      §5.AA outcome [awaiting_review=success · timed-out=timeout · else other_failure], canonical
+      `provider:model:endpoint` id, computed tok/s, host-path-free workspace hash) + the best-effort
+      `appendAgentLedgerEvent` (try/catch — the ledger is observational + must never break the session loop). 8 mapper
+      tests; session-service suite (110) still green. **So the ledger is now LIVE** — `summarizeModelOutcomes` over it is
+      a real per-model success-rate/outcome projection (the §5.Z matrix seed). **Still owed (the rest of this item):** a
+      richer per-tool-call writer (the terminal seam is coarse — model + outcome + timing, no per-call detail yet); the
+      remaining workflow fields the durable scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom
+      + merge/review-join events — add as the scheduler lands); and fully **re-home the attempt-grain bits** scattered in
+      `task-run-summary-store` / model-registry observations / knowledge-tool telemetry so they become projections/thin-
+      writers over this ONE stream (the terminal writer now runs ALONGSIDE the run-summary store; convergence is next).
 - [ ] **Make `ModelBehaviorProfile`/MCSR/§5.Z/`ModelFitness` projections over the ledger.** Wire the §5.AA online update
       (`recordModelBehaviorOutcome`, core DONE) + the §5.AB fitness records + the §5.Z matrix to READ/WRITE the ledger
       stream — one evidence source, no parallel persistence. Unblocks M2.
