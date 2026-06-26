@@ -27,6 +27,7 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { PrismHtml } from "@/components/shared/prism-html";
 import { cn } from "@/components/ui/cn";
 
 const PRISM_LANGUAGE_ALIASES: Record<string, string> = {
@@ -133,7 +134,7 @@ const markdownComponents: Components = {
 		if (highlighted) {
 			return (
 				<pre className="my-0.5 overflow-x-auto rounded-md border border-border bg-surface-1 px-2 py-1.5 text-xs leading-5 text-text-primary">
-					<code className={`language-${prismLanguage}`} dangerouslySetInnerHTML={{ __html: highlighted }} />
+					<PrismHtml as="code" className={`language-${prismLanguage}`} html={highlighted} />
 				</pre>
 			);
 		}

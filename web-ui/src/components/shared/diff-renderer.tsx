@@ -27,6 +27,7 @@ import "prismjs/components/prism-yaml";
 import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PrismHtml } from "./prism-html";
 
 export const CONTEXT_RADIUS = 3;
 export const MIN_COLLAPSE_LINES = 8;
@@ -511,7 +512,7 @@ export function DiffRowText({
 }): React.ReactElement {
 	if (!row.segments) {
 		if (highlightedLineHtml) {
-			return <span className="font-mono kb-diff-text" dangerouslySetInnerHTML={{ __html: highlightedLineHtml }} />;
+			return <PrismHtml className="font-mono kb-diff-text" html={highlightedLineHtml} />;
 		}
 		return <span className="font-mono kb-diff-text">{row.text || " "}</span>;
 	}
@@ -527,13 +528,7 @@ export function DiffRowText({
 							: undefined;
 				const highlightedSegmentHtml = getHighlightedLineHtml(segment.text, grammar, language);
 				if (highlightedSegmentHtml) {
-					return (
-						<span
-							key={segment.key}
-							className={className}
-							dangerouslySetInnerHTML={{ __html: highlightedSegmentHtml }}
-						/>
-					);
+					return <PrismHtml key={segment.key} className={className} html={highlightedSegmentHtml} />;
 				}
 				return (
 					<span key={segment.key} className={className}>

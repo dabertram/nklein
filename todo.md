@@ -2334,12 +2334,15 @@ deep analysis:
             trusted; 7 new tests; 1806 tests green; `82e1c25f`); **architecture #3** (tRPC router
             composition) first slice DONE (update-status + runtime-stats procedures extracted to
             `src/trpc/runtime-api/update-status.ts`, `178963d4`, contract suite green); **architecture #13** CI
-            boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) first slice DONE** — re-enabled
+            boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — two slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
-            as a hard `error` gate; the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
-            consolidated behind one rationale'd `biome-ignore`. Still open: #2 the big extractions, anti-patterns #3
-            remaining lint rules (a11y / `useExhaustiveDependencies` / `noDangerouslySetInnerHtml` — bigger, incremental
-            per the audit's own guidance), #7 shared test harness.
+            as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
+            consolidated behind one rationale'd `biome-ignore`; (b) re-enabled `noDangerouslySetInnerHtml` for web-ui —
+            consolidated the 3 safe Prism-highlight sinks (markdown + diff renderers) behind a single `PrismHtml`
+            component (`web-ui/src/components/shared/prism-html.tsx`, the one sanctioned exception + a render test), so
+            new unsanitized HTML injection is now caught. Still open: #2 the big extractions, anti-patterns #3 remaining
+            lint rules (a11y + `useExhaustiveDependencies` — the big incremental ones the audit says to do *around* the
+            monolith extractions), #7 shared test harness.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.

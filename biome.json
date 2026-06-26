@@ -92,9 +92,6 @@
 					"correctness": {
 						"useExhaustiveDependencies": "off"
 					},
-					"security": {
-						"noDangerouslySetInnerHtml": "off"
-					},
 					"style": {
 						"noNonNullAssertion": "off"
 					},
