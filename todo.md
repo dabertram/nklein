@@ -1930,22 +1930,22 @@ deep analysis:
         config flow — `saveNKleinProviderSettings` (lmstudio enabled + baseUrl `:1234/v1` + selected `qwen/qwen3-8b-m5max`) +
         `runtime.saveConfig({modelRoles})` via `buildFirstRunLocalModelRoles`, seeded into the temp HOME's config.json before
         `startTsBackend` (or via the APIs after start). That config replication + the long cascade run is the bulk of the work.
-      - 🟡 **MULTI-CARD: ORCHESTRATION proven, but GENERATED CARDS STALL in refinement (2026-06-26).**
-        `scripts/verify-multi-card-pipeline.mts` drives the REAL `cli.ts` server end to end (`startTsBackend` gained an
-        additive `extraEnv` so the harness can pass `NODE_ENV=development`, required by `createDevTestProject`; existing
-        tests unaffected). HTTP chain: `runtime.saveConfig({modelRoles})` → `projects.createDevTestProject({preset:mid_task})`
-        → `runtime.startTaskSession`. **Start no-op fix:** the start call must pass the SAME fields the UI does — crucially
-        `agentId` + `nkleinSettings` — or it no-ops (card stuck in backlog). **✅ Proven:** seed card → `planning` →
-        **DECOMPOSED into 5–7 cards → the cascade (`autoStartTaskIds`) auto-started them → the seed `completed`.** So the
-        full-runtime decompose→cascade ORCHESTRATION works. **⚠️ NOT proven (the real find, from a full 30-min run):** the
-        generated cards then **STALL in the planning/refinement lane** — 7 cards, none reached in_progress/review in 10 min;
-        the agent session disposed with the board frozen at `planning:7`. So qwen3-8b doesn't carry the GENERATED
-        implementation cards through refine → `begin_implementation` → review at scale (the single-card harness that proved
-        completion used a trivial card started DIRECTLY, not a generated card via the refinement lane — that's the gap).
-        **NORTH-STAR FOLLOW-UP:** root-cause the refinement-lane stall (is `begin_implementation` never firing? a §5.B
-        refinement loop? concurrency/queue? a model-size vs flow issue?) — re-run with per-card `getTaskDiagnostics`/activity
-        capture. The harness + the orchestration are ready; the small-model per-card refinement reliability is the open work.
-        Valid `preset`s: `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation` (not registry ids).
+      - ✅ **MULTI-CARD: ORCHESTRATION CORRECT — root-caused to a HARNESS config gap, not a product bug (2026-06-26).**
+        `scripts/verify-multi-card-pipeline.mts` drives the REAL `cli.ts` server end to end (`startTsBackend` gained additive
+        `extraEnv` + `onLog` hooks; existing tests unaffected). HTTP chain: `runtime.saveConfig({modelRoles})` →
+        `projects.createDevTestProject({preset:mid_task})` → `runtime.startTaskSession` (must pass the UI's fields — `agentId`
+        + `nkleinSettings` — or it no-ops). **✅ Proven:** seed → `planning` → **DECOMPOSED into 5–7 cards → the cascade
+        (`autoStartTaskIds`) tried to start each → seed `completed`.** **THE FIND (why the cards never ran):** the cascade's
+        auto-start of each generated card FAILS — server warns `Could not auto-start linked task <id>: No native !Klein
+        provider is configured` (`nklein-provider-service.ts:1167`, in `resolveLaunchConfig`). The generated cards'
+        `nkleinSettings` carry no `providerId`, so they fall back to `getSelectedProviderSettings()` (the GLOBAL provider) —
+        which the harness never set (it set `modelRoles` but not the provider). The SEED worked only because I passed its
+        explicit `providerId`. **So the decompose→cascade→auto-start ORCHESTRATION is CORRECT — this is a HARNESS gap, not a
+        product bug** (the product configures the provider in onboarding via `saveNKleinProviderSettings`). It was NOT a
+        refinement stall — the generated cards never reach a session at all (0 WS task sessions for them, ever). **FIX:**
+        configure the global provider in the harness (replicate the onboarding `saveNKleinProviderSettings` for lmstudio),
+        then re-run to confirm the generated cards run to delivery. Diagnosed via the new `onLog` server-log capture +
+        the WS `task_sessions_updated` activity stream. Valid `preset`s: `mid_task`/`complex_dag`/`audio_vst`/`daw_foundation`.
         `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
         `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
         installed in cli.ts's **serve branch only** (short-lived CLI commands keep Node's fail-fast default; tests don't

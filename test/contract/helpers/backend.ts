@@ -20,6 +20,8 @@ export interface BackendStartOptions {
 	extraArgs?: string[];
 	/** Extra env vars merged into the spawned server's environment (e.g. NODE_ENV=development for dev-only procedures). */
 	extraEnv?: Record<string, string>;
+	/** Receive the spawned server's stdout/stderr AFTER startup (e.g. to surface runtime warnings in e2e harnesses). */
+	onLog?: (chunk: string, source: "stdout" | "stderr") => void;
 }
 
 export type BackendFactory = (options: BackendStartOptions) => Promise<BackendUnderTest>;
@@ -188,6 +190,11 @@ export const startTsBackend: BackendFactory = async (options: BackendStartOption
 		},
 	);
 	const { runtimeUrl } = await waitForProcessStart(child);
+	if (options.onLog) {
+		const { onLog } = options;
+		child.stdout?.on("data", (chunk: Buffer) => onLog(chunk.toString(), "stdout"));
+		child.stderr?.on("data", (chunk: Buffer) => onLog(chunk.toString(), "stderr"));
+	}
 	return {
 		baseUrl: runtimeUrl,
 		stop: async () => {

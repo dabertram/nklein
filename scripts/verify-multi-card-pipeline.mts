@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
-import { initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
+import { connectRuntimeStream, initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
 
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "qwen/qwen3-8b-m5max";
 const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
@@ -69,8 +69,25 @@ async function main(): Promise<void> {
 	initGitRepository(cwd);
 
 	let server: BackendUnderTest | null = null;
+	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
+	const latestActivityByTask = new Map<string, { state: string; activity: string }>();
+	let latestTaskSessionsRaw = "";
 	try {
-		server = await startTsBackend({ cwd, homeDir, extraEnv: { NODE_ENV: "development" } });
+		server = await startTsBackend({
+			cwd,
+			homeDir,
+			extraEnv: { NODE_ENV: "development" },
+			onLog: (chunk, source) => {
+				// Surface the runtime's auto-start / decomposition warnings — the authoritative root-cause signal.
+				if (/auto-start|could not|skipped|rootTask|queued|decompos|begin_implementation/i.test(chunk)) {
+					for (const line of chunk.split("\n")) {
+						if (line.trim()) {
+							log(`   [server:${source}] ${line.trim().slice(0, 240)}`);
+						}
+					}
+				}
+			},
+		});
 		log(`Server: ${server.baseUrl}  model: ${MODEL_ID}@${PROVIDER_ID}  preset: ${PRESET}  timeout: ${TIMEOUT_MS}ms`);
 
 		// 1) Configure the agent globally so the cascade's auto-started cards resolve the live model.
@@ -131,6 +148,47 @@ async function main(): Promise<void> {
 		});
 		log(`startTaskSession(seed): HTTP ${startRes.status}`);
 
+		// Capture live agent activity per card over the WS (latestHookActivity) — getTaskDiagnostics does
+		// NOT include the agent's tool-call activity, so this is how we see WHY a card is stuck.
+		stream = await connectRuntimeStream(
+			`ws://${new URL(server.baseUrl).host}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`,
+		);
+		stream.socket.on("message", (raw: unknown) => {
+			try {
+				const text = String(raw);
+				const msg = JSON.parse(text) as {
+					type?: string;
+					summaries?: Array<{
+						taskId?: string;
+						id?: string;
+						state?: string;
+						latestHookActivity?: { toolName?: string; activityText?: string } | null;
+					}>;
+				};
+				if (msg.type !== "task_sessions_updated") {
+					return;
+				}
+				latestTaskSessionsRaw = text;
+				for (const session of msg.summaries ?? []) {
+					const id = session.taskId ?? session.id;
+					if (!id) {
+						continue;
+					}
+					const act = session.latestHookActivity;
+					const newActivity = act?.toolName ?? act?.activityText ?? "—";
+					const newState = session.state ?? "?";
+					const prev = latestActivityByTask.get(id);
+					latestActivityByTask.set(id, { state: newState, activity: newActivity });
+					// Trace generated-card activity transitions live (skip the seed decompose card).
+					if (id !== task.id && (!prev || prev.activity !== newActivity || prev.state !== newState)) {
+						log(`   [WS ${new Date().toISOString().slice(11, 19)}] ${id} state=${newState} act="${newActivity}"`);
+					}
+				}
+			} catch {
+				/* ignore malformed */
+			}
+		});
+
 		// 4) Observe the board: wait until the deck has decomposed (>1 card) AND no card is still active.
 		const deadline = Date.now() + TIMEOUT_MS;
 		let lastSummary = "";
@@ -159,6 +217,17 @@ async function main(): Promise<void> {
 			await new Promise((resolve) => setTimeout(resolve, 5000));
 		}
 
+		// Root-cause: dump the live agent activity per card (from the WS taskSessions stream) — shows
+		// whether the refining generated cards are calling begin_implementation, looping, or just slow.
+		log("");
+		log(`=== Live agent activity per card (WS, ${latestActivityByTask.size} task sessions) ===`);
+		for (const [id, info] of latestActivityByTask) {
+			log(`   ${id}  state=${info.state}  activity="${info.activity}"`);
+		}
+		if (latestActivityByTask.size === 0 && latestTaskSessionsRaw) {
+			log(`   (no parsed activity; raw taskSessions head: ${latestTaskSessionsRaw.slice(0, 400)})`);
+		}
+
 		log("");
 		log("=== Multi-card pipeline result ===");
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
@@ -170,6 +239,7 @@ async function main(): Promise<void> {
 		);
 		process.exitCode = allTerminal ? 0 : 1;
 	} finally {
+		await stream?.close().catch(() => null);
 		await server?.stop().catch(() => null);
 		rmSync(cwd, { recursive: true, force: true });
 		rmSync(homeDir, { recursive: true, force: true });
