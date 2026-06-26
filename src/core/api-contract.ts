@@ -22,13 +22,9 @@ import {
 	runtimeTimeoutMsSchema,
 } from "./runtime-config-api-contract.js";
 import {
-	runtimeContextBudgetBreakdownSchema,
 	runtimeModelPerformanceRoleSchema,
 	runtimeTaskSessionModeSchema,
-	runtimeTaskSessionReviewReasonSchema,
-	runtimeTaskSessionStateSchema,
 	runtimeTaskSessionSummarySchema,
-	runtimeTaskSessionUsageSchema,
 } from "./task-session-api-contract.js";
 
 // Board contract domain (task images, generated-from-plan, card review, focus chains, cards/columns/deps/data) (§5.X #2).
@@ -42,6 +38,8 @@ export * from "./git-sync-api-contract.js";
 export * from "./runtime-config-api-contract.js";
 // Task-session contract domain (state/mode/usage/context-budget/model-perf-role/summary, hook activity) (§5.X #2).
 export * from "./task-session-api-contract.js";
+// Telemetry stats contract domain (model-performance + knowledge-tool-usage stats) (§5.X #2).
+export * from "./telemetry-stats-api-contract.js";
 // Workspace file-operation contracts (status / change / changes / fuzzy search) live in their own module (§5.X #2).
 export * from "./workspace-files-api-contract.js";
 
@@ -66,198 +64,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-export const runtimeModelPerformanceOutcomeSchema = z.enum([
-	"completed",
-	"awaiting_review",
-	"failed",
-	"interrupted",
-	"queued",
-	"running",
-	"idle",
-	"unknown",
-]);
-export type RuntimeModelPerformanceOutcome = z.infer<typeof runtimeModelPerformanceOutcomeSchema>;
-
-export const runtimeModelPerformanceObservationSchema = z.object({
-	schemaVersion: z.literal(1),
-	id: z.string(),
-	recordedAt: z.number().int().nonnegative(),
-	appVersion: z.string(),
-	workspaceId: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	workspacePath: z.string().nullable(),
-	projectName: z.string().nullable(),
-	taskId: z.string(),
-	taskTitle: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	roleSource: z.enum(["card", "model_roles", "default", "unknown"]),
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	endpoint: z.string().nullable(),
-	sharedEndpointId: z.string().nullable(),
-	outcome: runtimeModelPerformanceOutcomeSchema,
-	sessionState: runtimeTaskSessionStateSchema,
-	reviewReason: runtimeTaskSessionReviewReasonSchema,
-	exitCode: z.number().nullable(),
-	warningMessage: z.string().nullable(),
-	startedAt: z.number().nullable(),
-	updatedAt: z.number().int().nonnegative(),
-	lastOutputAt: z.number().nullable(),
-	lastTokenAt: z.number().nullable(),
-	lastHeartbeatAt: z.number().nullable(),
-	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable(),
-	wallTimeMs: z.number().int().nonnegative().nullable(),
-	timeToFirstTokenMs: z.number().int().nonnegative().nullable(),
-	timeToLastOutputMs: z.number().int().nonnegative().nullable(),
-	usage: runtimeTaskSessionUsageSchema.nullable(),
-	contextBudgetBreakdown: runtimeContextBudgetBreakdownSchema.nullable(),
-	contextPressure: z.number().nonnegative().nullable(),
-	latestHookEvent: z.string().nullable(),
-	latestHookToolName: z.string().nullable(),
-});
-export type RuntimeModelPerformanceObservation = z.infer<typeof runtimeModelPerformanceObservationSchema>;
-
-export const runtimeModelPerformanceAggregateSchema = z.object({
-	key: z.string(),
-	scope: z.enum(["overall", "project", "version", "model"]),
-	appVersion: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	projectName: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	// Canonical endpoint for the `model` scope (provider + normalized model + canonical endpoint identity,
-	// todo §5.Q); null for the role/project/version scopes which collapse across endpoints.
-	endpoint: z.string().nullable(),
-	runs: z.number().int().nonnegative(),
-	completedRuns: z.number().int().nonnegative(),
-	failedRuns: z.number().int().nonnegative(),
-	interruptedRuns: z.number().int().nonnegative(),
-	awaitingReviewRuns: z.number().int().nonnegative(),
-	successRate: z.number().nonnegative(),
-	averageWallTimeMs: z.number().nonnegative().nullable(),
-	averageTimeToFirstTokenMs: z.number().nonnegative().nullable(),
-	averageInputTokens: z.number().nonnegative().nullable(),
-	averageOutputTokens: z.number().nonnegative().nullable(),
-	averageContextPressure: z.number().nonnegative().nullable(),
-	lastObservedAt: z.number().int().nonnegative(),
-});
-export type RuntimeModelPerformanceAggregate = z.infer<typeof runtimeModelPerformanceAggregateSchema>;
-
-export const runtimeModelPerformanceStatsResponseSchema = z.object({
-	generatedAt: z.number().int().nonnegative(),
-	observations: z.array(runtimeModelPerformanceObservationSchema),
-	aggregates: z.array(runtimeModelPerformanceAggregateSchema),
-});
-export type RuntimeModelPerformanceStatsResponse = z.infer<typeof runtimeModelPerformanceStatsResponseSchema>;
-
-export const runtimeKnowledgeToolCategorySchema = z.enum([
-	"architecture_knowledge",
-	"external_fetch",
-	"code_index",
-	"codebase_retrieval",
-	"file_discovery",
-	"file_read",
-	"planning_control",
-	"other",
-]);
-export type RuntimeKnowledgeToolCategory = z.infer<typeof runtimeKnowledgeToolCategorySchema>;
-
-export const runtimeKnowledgeToolOutcomeSchema = z.enum(["started", "succeeded", "failed"]);
-export type RuntimeKnowledgeToolOutcome = z.infer<typeof runtimeKnowledgeToolOutcomeSchema>;
-
-export const runtimeKnowledgeToolUsageObservationSchema = z.object({
-	schemaVersion: z.literal(1),
-	id: z.string(),
-	recordedAt: z.number().int().nonnegative(),
-	appVersion: z.string(),
-	workspaceId: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	workspacePath: z.string().nullable(),
-	projectName: z.string().nullable(),
-	taskId: z.string(),
-	taskTitle: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	roleSource: z.enum(["card", "model_roles", "default", "unknown"]),
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	toolName: z.string(),
-	toolCategory: runtimeKnowledgeToolCategorySchema,
-	outcome: runtimeKnowledgeToolOutcomeSchema,
-	hookEventName: z.string(),
-	toolInputSummary: z.string().nullable(),
-	activityText: z.string().nullable(),
-	lastHookAt: z.number().int().nonnegative().nullable(),
-});
-export type RuntimeKnowledgeToolUsageObservation = z.infer<typeof runtimeKnowledgeToolUsageObservationSchema>;
-
-export const runtimeKnowledgeToolUsageAggregateSchema = z.object({
-	key: z.string(),
-	scope: z.enum(["overall", "project", "version"]),
-	appVersion: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	projectName: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	toolName: z.string(),
-	toolCategory: runtimeKnowledgeToolCategorySchema,
-	calls: z.number().int().nonnegative(),
-	startedCalls: z.number().int().nonnegative(),
-	succeededCalls: z.number().int().nonnegative(),
-	failedCalls: z.number().int().nonnegative(),
-	successRate: z.number().nonnegative(),
-	lastObservedAt: z.number().int().nonnegative(),
-});
-export type RuntimeKnowledgeToolUsageAggregate = z.infer<typeof runtimeKnowledgeToolUsageAggregateSchema>;
-
-/**
- * §5.B decomposition-quality signal: per planning session, whether the architect consulted knowledge tools
- * (codebase retrieval / code index / architecture knowledge) *before* the decomposition landed — not just a
- * raw usage count.
- */
-export const runtimeDecompositionKnowledgeSignalSchema = z.object({
-	taskId: z.string(),
-	appVersion: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	projectName: z.string().nullable(),
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	decomposedAt: z.number().int().nonnegative(),
-	applied: z.boolean(),
-	usedKnowledgeTools: z.boolean(),
-	knowledgeCategoriesBefore: z.array(runtimeKnowledgeToolCategorySchema),
-});
-export type RuntimeDecompositionKnowledgeSignal = z.infer<typeof runtimeDecompositionKnowledgeSignalSchema>;
-
-export const runtimeDecompositionKnowledgeAggregateSchema = z.object({
-	key: z.string(),
-	scope: z.enum(["overall", "project", "version"]),
-	appVersion: z.string().nullable(),
-	workspacePathHash: z.string().nullable(),
-	projectName: z.string().nullable(),
-	role: runtimeModelPerformanceRoleSchema,
-	providerId: z.string().nullable(),
-	modelId: z.string().nullable(),
-	decompositions: z.number().int().nonnegative(),
-	withKnowledgeTools: z.number().int().nonnegative(),
-	withoutKnowledgeTools: z.number().int().nonnegative(),
-	knowledgeUsageRate: z.number().nonnegative(),
-	lastDecomposedAt: z.number().int().nonnegative(),
-});
-export type RuntimeDecompositionKnowledgeUsageAggregate = z.infer<typeof runtimeDecompositionKnowledgeAggregateSchema>;
-
-export const runtimeKnowledgeToolUsageStatsResponseSchema = z.object({
-	generatedAt: z.number().int().nonnegative(),
-	observations: z.array(runtimeKnowledgeToolUsageObservationSchema),
-	aggregates: z.array(runtimeKnowledgeToolUsageAggregateSchema),
-	// §5.B; defaulted so older persisted/partial responses parse cleanly.
-	decompositionKnowledgeSignals: z.array(runtimeDecompositionKnowledgeSignalSchema).default([]),
-	decompositionKnowledgeAggregates: z.array(runtimeDecompositionKnowledgeAggregateSchema).default([]),
-});
-export type RuntimeKnowledgeToolUsageStatsResponse = z.infer<typeof runtimeKnowledgeToolUsageStatsResponseSchema>;
 
 export const runtimeWorkspaceStateResponseSchema = z.object({
 	repoPath: z.string(),
