@@ -1609,9 +1609,12 @@ deep analysis:
       paths) — they fire while the task is still `queued`, so the reconcile is always a no-op there; the real move fires on
       the hub's `running` transition. Removing them makes lane-reconcile ownership unambiguous (the hub owns it). Verify the
       architect/plan-mode path still reconciles via the hub. *(Note: §5.B Increment B rewrites this reconcile — fold S4 in then.)*
-- [ ] **(S5, low-risk) Replace the 250 ms `setTimeout` in `completeDecompositionSourceTask`** (`runtime-server.ts`) with a
-      causal `await` after `autoStartDecompositionRootTasks` (already awaited) — kills timing-dependent control flow; verify
-      completion order in one dev-test.
+- [x] **(S5, low-risk) Replaced the 250 ms `setTimeout` in `completeDecompositionSourceTask`** (`runtime-server.ts`) with a
+      causal `await` (2026-06-26). The sole caller (`onDecompositionApplied`) already awaits `autoStartDecompositionRootTasks`
+      before it, so the source-task completion now runs deterministically after the root starts — no arbitrary settle delay.
+      Errors stay non-fatal (warn). Behavior-preserving (the ordering root-starts → source-complete → drain is unchanged;
+      `mutateWorkspaceState` is locked, so the delay was never needed for re-entrancy). Verified: tsc + biome + the
+      session-service suite (112) green.
 - [-] **(M1, moderate) Extract decomposition stall/nudge state** (the ~12 per-task Maps + `maybeContinueStalledDecomposition`)
       out of `InMemoryNKleinTaskSessionService` into a focused collaborator (inject `sendTaskSessionInput`/`cancelTaskTurn`).
       *(done — superseded by §5.X Phase 1 "M1 `DecompositionStallNudger`" (`85ffd63b`), which extracted exactly this.)*

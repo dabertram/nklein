@@ -394,34 +394,35 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			};
 		});
 	};
-	const completeDecompositionSourceTask = (
+	const completeDecompositionSourceTask = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		event: NKleinDecompositionAppliedEvent,
-	): void => {
+	): Promise<void> => {
 		const sourceTaskId = event.sourceTaskId?.trim();
 		if (!sourceTaskId) {
 			return;
 		}
-		setTimeout(() => {
-			void (async () => {
-				const service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
-				await service?.completeTaskSessionAfterDecomposition(sourceTaskId);
-				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-					const movement = moveTaskToColumn(latestState.board, sourceTaskId, "completed");
-					return {
-						board: movement.board,
-						save: movement.moved,
-						value: null,
-					};
-				});
-				drainQueuedTaskStarts(scope, { force: true });
-			})().catch((error) => {
-				const message = error instanceof Error ? error.message : String(error);
-				deps.warn(
-					`Could not complete decomposition source task ${sourceTaskId} for ${scope.workspacePath}: ${message}`,
-				);
+		// Causal ordering (todo §5.U S5): the caller already awaits autoStartDecompositionRootTasks before this, so the
+		// source-task completion runs after the root starts deterministically — no arbitrary settle delay needed. Errors
+		// stay non-fatal (warn) so a failed completion can't break the decomposition-applied handler.
+		try {
+			const service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+			await service?.completeTaskSessionAfterDecomposition(sourceTaskId);
+			await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+				const movement = moveTaskToColumn(latestState.board, sourceTaskId, "completed");
+				return {
+					board: movement.board,
+					save: movement.moved,
+					value: null,
+				};
 			});
-		}, 250);
+			drainQueuedTaskStarts(scope, { force: true });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			deps.warn(
+				`Could not complete decomposition source task ${sourceTaskId} for ${scope.workspacePath}: ${message}`,
+			);
+		}
 	};
 	const recordNKleinModelPerformance = (
 		scope: RuntimeTrpcWorkspaceScope,
@@ -727,7 +728,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 					await autoStartDecompositionRootTasks(scope, event);
-					completeDecompositionSourceTask(scope, event);
+					await completeDecompositionSourceTask(scope, event);
 				},
 				onCardPromoted: (event) => {
 					// The promotion tool already persisted the Planning→In Progress move; just push the new board
