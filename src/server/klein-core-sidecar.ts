@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type KleinCorePyConfig, probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
+import { stripInternalAuthTokenFromEnv } from "../security/passcode-manager";
 
 /**
  * Auto-start for the local-only `core-py` sidecar (todo §5.H). The Python core defaults ON (with instant in-process
@@ -105,7 +106,9 @@ export async function startKleinCorePySidecar(
 	const child = spawnImpl("uv", ["run", "python", "-m", "klein_core", "--port", port], {
 		cwd: corePyDir,
 		stdio: "ignore",
-		env: { ...process.env },
+		// The ML sidecar never calls the runtime API, so it has no need for the internal auth
+		// token — scrub it so the token isn't propagated into a process that doesn't require it.
+		env: stripInternalAuthTokenFromEnv(),
 	});
 
 	// A holder object (not a bare `let`) so the async error from the spawn callback is observed in the loop —

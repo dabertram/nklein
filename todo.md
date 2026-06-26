@@ -2226,11 +2226,14 @@ deep analysis:
       sandbox, user commands inherit `NKLEIN_INTERNAL_AUTH_TOKEN`). Scrub it from spawned terminals/sidecars/sandbox/user
       commands; pass only to the specific trusted subprocesses that need runtime-API access. **PARTIAL (2026-06-26):**
       added the reusable `stripInternalAuthTokenFromEnv` helper (`src/security/passcode-manager.ts`) and applied it to the
-      **chat `run_command` spawn** (highest-value, model-driven RCE surface — pairs with CRITICAL #1), with unit +
-      real-spawn regression tests. **Remaining:** terminal sessions (careful — a user may run `nklein task`, which needs
-      the token, in a terminal → confirm the auth path first), the Docker sandbox env, and the core-py sidecar. Legit
-      consumers that MUST keep the token: the CLI runtime-API callers (`task-runtime-workspace`/`dev`/`cli`/
-      `runtime-endpoint` via `getRuntimeFetch`).
+      **chat `run_command` spawn** (highest-value, model-driven RCE surface — pairs with CRITICAL #1; unit + real-spawn
+      tests) AND the **core-py sidecar spawn** (a passive ML service that never calls the runtime API). **The Docker agent
+      sandbox is already safe** — verified the sandbox code does not forward host env into the container (Docker doesn't
+      auto-inherit it), so the token never enters the agent container. **Only remaining: terminal sessions** — genuinely
+      delicate: a user may run `nklein task` (which needs the token in remote mode) in a terminal, and a *remote*-user web
+      terminal getting the host's internal token is the real escalation concern → resolve the `nklein task` auth path +
+      the local-vs-remote-user distinction before scrubbing. Legit consumers that MUST keep the token: the CLI
+      runtime-API callers (`task-runtime-workspace`/`dev`/`cli`/`runtime-endpoint` via `getRuntimeFetch`).
 - [ ] **MED #7 ⚠️ — remote mode can run plaintext HTTP + `--no-passcode`.** Require HTTPS for non-loopback binds by
       default; gate insecure HTTP behind an explicit `--insecure-remote-http`; rename `--no-passcode` for remote to
       something like `--dangerously-disable-remote-auth`. (Posture: do you use remote mode? sets priority for #7–#9.)
