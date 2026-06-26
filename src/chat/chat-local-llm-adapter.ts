@@ -6,6 +6,7 @@ import type {
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
 } from "../nklein-sdk/nklein-local-llm-client";
+import { detectResponseLoop } from "../nklein-sdk/nklein-response-loop-detection";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
@@ -42,6 +43,15 @@ function stripReasoning(content: string): string {
 	return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
 
+/**
+ * Clean a raw model reply: strip inline reasoning, then collapse any runaway repeated-tail loop to its useful prefix
+ * (§5.AA salvage — grounded in the §5.Z sweep where a model looped an identical final sentence). `detectResponseLoop`
+ * returns the text unchanged when there's no loop, so this is always safe to apply.
+ */
+function cleanModelReply(content: string): string {
+	return detectResponseLoop(stripReasoning(content)).salvagedText;
+}
+
 const DEFAULT_SAMPLING: LocalLlmSamplingOptions = { temperature: 0.3, maxTokens: 1024 };
 
 export function createChatModelDeps(
@@ -53,12 +63,12 @@ export function createChatModelDeps(
 		complete: async (prompt, onToken) => {
 			const messages = prompt.map((message) => ({ role: message.role, content: message.content }));
 			if (onToken && client.completeStream) {
-				// Stream raw deltas to the caller (live view); persist the reasoning-stripped reply.
+				// Stream raw deltas to the caller (live view); persist the cleaned (reasoning-stripped + loop-salvaged) reply.
 				const { content } = await client.completeStream({ messages, sampling }, onToken);
-				return stripReasoning(content);
+				return cleanModelReply(content);
 			}
 			const { content } = await client.complete({ messages, sampling });
-			return stripReasoning(content);
+			return cleanModelReply(content);
 		},
 		summarize: async (overflow) => {
 			const transcript = overflow.map((message) => `${message.role}: ${message.content}`).join("\n");
@@ -73,7 +83,7 @@ export function createChatModelDeps(
 				],
 				sampling,
 			});
-			return stripReasoning(content);
+			return cleanModelReply(content);
 		},
 	};
 }
@@ -118,7 +128,7 @@ export function createChatAgentModel(
 			}
 		}
 		return {
-			text: stripReasoning(response.content),
+			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
 		};
 	};

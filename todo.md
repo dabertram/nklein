@@ -3025,10 +3025,16 @@ deep analysis:
       `detectResponseLoop` ([nklein-response-loop-detection.ts](src/nklein-sdk/nklein-response-loop-detection.ts)) finds
       the smallest unit repeated `≥minRepeats` times at the tail of a model's output and returns the salvageable prefix
       (loop collapsed to one occurrence) — pure + deterministic so it guards BOTH the chat stream and the swarm session
-      from one seam; 7 unit tests. **Still owed (wiring):** call it in the chat streaming accumulator (cut the stream +
-      keep the salvage when a delta window loops) and in the swarm session runtime / `AutonomyBudgetWatchdog` (when a
-      finished session loops its final message → finalize/salvage instead of waiting out the wall-time guard). Extends
-      the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
+      from one seam; 7 unit tests. **CHAT-PATH SALVAGE WIRED (2026-06-26):** `createChatModelDeps` + `createChatAgentModel`
+      ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now finalize every reply through `cleanModelReply`
+      = `detectResponseLoop(stripReasoning(content)).salvagedText`, so a looped chat/agent/summary reply is collapsed to its
+      useful prefix before it's returned/persisted (covers streaming + non-streaming + the agent-loop text + summaries;
+      no-op when there's no loop). +1 adapter test. **Still owed (wiring):** (a) cut the chat STREAM early mid-loop (needs
+      stream-abort plumbing through `completeStream` — salvage-after is done, early-abort saves the wall-time); (b) the
+      **swarm session runtime / `AutonomyBudgetWatchdog`** repeated-final-message finalization (when a finished session
+      loops its final message → finalize/salvage instead of waiting out the wall-time guard — the exact §5.Z qwen3.5-9b
+      repro; needs the session-runtime turn seam + a live re-verify). Extends the repeated-tool-call guard to
+      repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
 - [x] **Task-complexity ladder — tool-set reduction on retry — WIRED + LIVE-PROVEN (2026-06-26).** `selectToolsForAttempt`
       ([nklein-attempt-simplification.ts](src/nklein-sdk/nklein-attempt-simplification.ts)) narrows the offered tool set
       for attempt `level` (level 1 = only the tools the instruction references — name / spaced / distinctive last word, so

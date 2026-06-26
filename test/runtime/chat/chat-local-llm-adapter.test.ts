@@ -64,6 +64,19 @@ describe("createChatModelDeps", () => {
 		expect(calls).toHaveLength(1);
 	});
 
+	it("salvages a runaway repeated-tail loop in the reply (§5.AA)", async () => {
+		// A model that finished but looped its closing line — collapse the loop to its useful prefix.
+		const sentence = "Done! The file config.json has been created.";
+		const looped = Array(6).fill(sentence).join(" ");
+		const { client } = fakeClient(looped);
+		const deps = createChatModelDeps(client);
+		const reply = await deps.complete([{ role: "user", content: "make the file" }]);
+		const occurrences = reply.split(sentence).length - 1;
+		expect(occurrences).toBeGreaterThanOrEqual(1);
+		expect(occurrences).toBeLessThanOrEqual(2);
+		expect(reply.length).toBeLessThan(looped.length);
+	});
+
 	it("summarizes the overflow via a system+user prompt", async () => {
 		const { client, calls } = fakeClient("Summary: discussed the merge.");
 		const deps = createChatModelDeps(client);
