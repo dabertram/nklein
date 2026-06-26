@@ -2988,6 +2988,9 @@ deep analysis:
 > limitations; (6) **persisted global learning** of what worked well / less well → reduce failures + retries, learn
 > reasonable retry rates. **Invariants unchanged:** LOCAL ONLY (every endpoint local, §1.1), ≥32k floor (§1.3), strict
 > Docker isolation (§1.2). This EXTENDS the MCSR (§6.4) from capability/speed into a full behavioural profile.
+> **Context is part of that profile too → see [§5.AD](#5ad)** (smart-zone arrangement, learned quality-effective
+> budget, enforced reasoning loops) — the `ModelBehaviorProfile` here also records each model's quality-effective
+> context budget + whether/which enforced reasoning helps.
 >
 > **Empirical grounding (the §5.Z cross-model sweep IS the evidence base + the regression oracle):**
 > - **Task complexity is the dominant lever (phi).** Live diag: phi-4-mini given a SIMPLE 1-tool prompt emits a clean
@@ -3192,6 +3195,82 @@ deep analysis:
 - *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
+
+### 5.AD — Context as a capability lever: "smart-zone" arrangement, learned quality-effective budget, enforced reasoning loops *(2026-06-26, user — ACTIVE)*
+> **Vision (user, 2026-06-26):** **context SIZE is part of a model's capability + reasoning quality, in BOTH
+> directions** — too small a budget hurts hard, but **over-filling a large window also degrades output**. Not all
+> positions in the context are used equally (the **"smart zone"** idea), and even the *earliest* tokens aren't the
+> smartest because the model hasn't read the background yet — some models compensate by reasoning. So !Klein should
+> **arrange context content as well as possible** for where each model actually attends, **learn each model's
+> quality-effective budget by trying + observing**, and — for models that can't reason well alone — **ENFORCE reasoning
+> loops** (bounce a model against itself with varied system prompts, OR bounce reasoning between *different* models with
+> varied prompts). All of this feeds the **"!Klein learns to use each model to its best"** crown (§5.AA `ModelBehaviorProfile`
+> + §5.AB fitness). **Invariants:** LOCAL ONLY (#1), **≥32k FLOOR is a minimum-capability GATE, never a fill target** (#3),
+> strict Docker isolation (#2).
+>
+> **Grounded in research (full notes + citations: [.plan/docs/context-smart-zone-and-reasoning-research.md](.plan/docs/context-smart-zone-and-reasoning-research.md)):**
+> - **"Lost in the middle" → a U-shaped attention curve** (Liu et al. 2023): models use the **start + end** of context
+>   best, the **middle worst**, partly **architectural** (present at init in causal decoders — "Lost in the Middle at
+>   Birth" 2026). The user's "early ≠ smartest" point is the *causal* complement: early tokens can't attend to
+>   later-arriving background, so the model only has the full picture **near the end** → reasoning (tokens appended at
+>   the strong end-zone) is how a model "brings background forward."
+> - **Over-filling hurts even below the limit** ("context rot", Chroma 2025, 18 frontier models; "Context Length Alone
+>   Hurts" EMNLP-2025): attention dilution + distractor interference degrade output as input grows.
+> - **Effective ≪ advertised** (RULER, NoLiMa): effective length is routinely **½–¼ of advertised**; many 32K models
+>   are really good to ~4–16K. ⇒ target a **learned quality-effective budget**, not the max; NIAH over-states it.
+> - **Arrangement that helps** (Anthropic context-engineering): **long background FIRST, the task/instruction LAST**
+>   (after the background, in the strong end-zone), delimit with tags, keep it "informative yet tight," prune distractors.
+> - **Enforced reasoning:** multi-agent **debate / cross-model bounce** robustly lifts weak models (a stronger agent can
+>   carry a weaker one in ~1 round), but **intrinsic self-correction often does NOT help and can hurt** (Huang et al.
+>   2023) → prefer **external** signal (a different model / persona / a test result), gate on difficulty, bound the
+>   rounds (reuse §5.K round-limit + stall/identical-loop detection; §5.S no-progress detector).
+- [x] **Research + durable notes (DONE 2026-06-26)** — web-researched lost-in-the-middle / U-shape / context-rot /
+      RULER+NoLiMa effective-context / Anthropic arrangement / debate-vs-self-correction; synthesized into
+      [.plan/docs/context-smart-zone-and-reasoning-research.md](.plan/docs/context-smart-zone-and-reasoning-research.md)
+      with a placement policy + a per-model-learnable field list + citations. (This section is its actionable backlog.)
+- [ ] **Smart-zone context-arrangement policy (pure core).** A pure `arrangeContextForSmartZone(parts, modelProfile?)`
+      that orders the assembled context per the U-shape + causal findings: durable framing (role/invariants/tool
+      contract) FRONT; bulk/weak reference (repo map, long files, older history) MIDDLE; the **concrete task /
+      acceptance / current step LAST** (strong end-zone, after background); tag-delimited sections; aggressive
+      distractor pruning. Injected per-model knobs (budget, end-anchor on/off, compaction aggressiveness) default to the
+      research baseline when no profile exists. Pure + unit-tested. Wire into the board-agent prompt assembly
+      (`buildNKleinStartPromptParts` / the §6.3 budget breakdown) and `renderChatTurnPrompt` (§5.M) — **end-anchor the
+      task** (today only the new user message is last; extend to the board card's task/acceptance block). Behavior-gated
+      so it never violates the never-overflow guard (§6.2) — it *reorders + trims*, it doesn't add.
+- [ ] **End-of-context task re-anchor on long runs.** Generalize the §5.N focus-chain / §5.AC date re-anchor: after big
+      tool outputs, restate the goal + current step near the tail (the strong zone) so a small model doesn't lose the
+      task to mid-context dilution. Reuse the `beforeModel` re-anchor seam.
+- [ ] **Learned per-model "quality-effective" context budget (extends §6.4 MCSR + §5.AA `ModelBehaviorProfile`).** Track
+      the budget past which *output quality* (not just overflow) degrades for each model — learned from real task
+      outcomes (success/bounce vs. used-token-count) + optional eval-sweep probes (§5.AB harness, RULER/NoLiMa-style, NOT
+      NIAH-only). Distinct from the advertised/observed/override window (§6.3) and the overflow/compaction threshold:
+      it's the *quality knee*. The runtime targets THIS budget (compact/summarize down to it) instead of filling the
+      window. Surface in the model-telemetry panel. **Respects #3:** the ≥32k floor is the minimum a model may be used
+      at; the learned budget is an operating target *at or below* the effective window, never below the floor.
+- [ ] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
+      results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
+      hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band.
+- [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first).** A bounded reason→critique→revise loop for
+      models that reason poorly alone: (a) **cross-model bounce** — a stronger loaded model critiques/repairs a weaker
+      model's draft (the robust technique — one round can carry the weak model); (b) **self-bounce with VARIED system
+      prompts/personas** (varied prompt = real diversity, not "are you sure?" — the latter is the failure mode Huang
+      2023 warns about); (c) **self-consistency** — sample N paths, majority-vote (cheap, ties the §5.AB reliability
+      metric). Gate on difficulty + observed failure ("debate only when necessary"), bound rounds + detect stalls/loops
+      (reuse §5.K reviewer round-limit + identical-loop detection; §5.S no-progress detector; the §5.AA loop-detector
+      core). Compose the existing seams (§5.K reviewer, §5.S auto-clarify ping-pong, §5.AA prompt-variation, §5.AB
+      multi-model scheduler) into one explicit, difficulty-gated, cross-model loop — don't build a parallel mechanism.
+- [ ] **Learn "needs enforced reasoning?" + which kind (per model).** Record in the `ModelBehaviorProfile` (§5.AA):
+      native-reasoning quality, whether enforced reasoning pays off for this model, which kind wins (self-consistency vs.
+      cross-model debate vs. stronger-model carry), and a learned rounds budget — so §5.AB applies it only where it
+      helps (a robust model on an easy card skips it; a weak reasoner on a hard card gets a cross-model carry).
+- [ ] **Re-verify across the §5.Z roster + matrix.** After each increment, sweep all loaded models: arrangement +
+      learned budget + enforced reasoning should LIFT the weak/small models (esp. phi-4-mini/-plus on the harder flows)
+      with NO regression for the models that already pass — the §5.Z matrix is the oracle.
+- *(cross-links)* §6.3 (context-budget breakdown — where arrangement plugs in) · §6.4 MCSR (effective-window tracking —
+      extended with the quality knee) · §6.2 (never-overflow guard — arrangement reorders/trims, never adds) · §5.AA
+      (`ModelBehaviorProfile` learning + loop-detector) · §5.AB (fitness/selection consumes the learned budget +
+      reasoning-need) · §5.K (reviewer loop infra) · §5.S (no-progress detector) · §5.B/§5.AC (retrieval feeds the
+      arrangement bands).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
