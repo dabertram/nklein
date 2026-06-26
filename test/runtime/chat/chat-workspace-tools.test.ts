@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	createWorkspaceReadTools,
 	createWorkspaceWriteTools,
@@ -28,6 +31,8 @@ function fakeFs(
 			return entries;
 		},
 		stat: async (path) => ({ size: (files[path] ?? "").length }),
+		// No symlinks in fake fs — realpath is identity.
+		realpath: async (path) => path,
 	};
 }
 
@@ -117,6 +122,8 @@ describe("createWorkspaceWriteTools", () => {
 				mkdir: async (dir) => {
 					dirs.push(dir);
 				},
+				// No symlinks in fake fs — realpath is identity.
+				realpath: async (path) => path,
 			},
 		};
 	}
@@ -150,5 +157,164 @@ describe("createWorkspaceWriteTools", () => {
 		expect(out).toContain("escapes the workspace");
 		expect(out).not.toContain(ROOT);
 		expect(Object.keys(written)).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Symlink-escape regression tests (real disk, real fs.realpath)
+// These tests exercise the realpath-based confinement added to close the
+// symlink-escape hole: a workspace symlink whose real path lands outside
+// the workspace must be rejected by read_file, list_dir, and write_file,
+// even though it passes the lexical path check.
+// ---------------------------------------------------------------------------
+
+describe("symlink-escape confinement (real fs)", () => {
+	let tmpDir: string;
+	let workspace: string;
+	let outsideDir: string;
+	let outsideFile: string;
+
+	beforeAll(() => {
+		// Create a temp root entirely outside the repo.
+		tmpDir = mkdtempSync(join(tmpdir(), "kbn-ws-tools-test-"));
+		workspace = join(tmpDir, "workspace");
+		outsideDir = join(tmpDir, "outside");
+		outsideFile = join(outsideDir, "secret.txt");
+
+		mkdirSync(workspace, { recursive: true });
+		mkdirSync(outsideDir, { recursive: true });
+
+		// A real file inside the workspace.
+		writeFileSync(join(workspace, "real.txt"), "hello from workspace");
+
+		// A real subdirectory inside the workspace.
+		mkdirSync(join(workspace, "subdir"), { recursive: true });
+		writeFileSync(join(workspace, "subdir", "nested.txt"), "nested file");
+
+		// The "secret" target outside the workspace.
+		writeFileSync(outsideFile, "sensitive data");
+
+		// Symlink: workspace/link-to-file -> ../outside/secret.txt  (escapes)
+		symlinkSync(outsideFile, join(workspace, "link-to-file"));
+
+		// Symlink: workspace/link-to-dir -> ../outside/  (escapes, directory)
+		symlinkSync(outsideDir, join(workspace, "link-to-dir"));
+
+		// Deep symlink: workspace/subdir/deep-link -> ../../outside/secret.txt  (escapes via deep path)
+		symlinkSync(outsideFile, join(workspace, "subdir", "deep-link"));
+
+		// Within-workspace symlink: workspace/intra-link -> ./real.txt  (safe, must still work)
+		symlinkSync(join(workspace, "real.txt"), join(workspace, "intra-link"));
+
+		// Within-workspace dir symlink: workspace/intra-dir -> ./subdir  (safe, must still work for list_dir)
+		symlinkSync(join(workspace, "subdir"), join(workspace, "intra-dir"));
+	});
+
+	afterAll(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	// --- read_file ---
+
+	it("read_file: rejects a file symlink that escapes the workspace", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "read_file").run({ path: "link-to-file" });
+		expect(out).toContain("escapes the workspace");
+		expect(out).not.toContain(outsideFile);
+		expect(out).not.toContain(outsideDir);
+		expect(out).not.toContain(tmpDir);
+		// Must not have returned the secret content.
+		expect(out).not.toContain("sensitive data");
+	});
+
+	it("read_file: rejects a directory symlink that escapes the workspace", async () => {
+		// Reading a directory-symlink as a file will normally fail, but the confinement check
+		// must fire before the read attempt so the reason is "escapes" not a generic read error.
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "read_file").run({ path: "link-to-dir" });
+		expect(out).toContain("escapes the workspace");
+	});
+
+	it("read_file: rejects a deep/nested symlink that escapes the workspace", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "read_file").run({ path: "subdir/deep-link" });
+		expect(out).toContain("escapes the workspace");
+		expect(out).not.toContain("sensitive data");
+	});
+
+	it("read_file: allows a real file inside the workspace", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "read_file").run({ path: "real.txt" });
+		expect(out).toBe("hello from workspace");
+	});
+
+	it("read_file: allows a within-workspace symlink (intra-link -> real.txt)", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "read_file").run({ path: "intra-link" });
+		expect(out).toBe("hello from workspace");
+	});
+
+	// --- list_dir ---
+
+	it("list_dir: rejects a directory symlink that escapes the workspace", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "list_dir").run({ path: "link-to-dir" });
+		expect(out).toContain("escapes the workspace");
+		expect(out).not.toContain("sensitive data");
+	});
+
+	it("list_dir: rejects a file symlink that escapes the workspace (treated as dir target)", async () => {
+		// link-to-file points to a file outside; listing it as a dir will fail, but confinement fires first.
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "list_dir").run({ path: "link-to-file" });
+		expect(out).toContain("escapes the workspace");
+	});
+
+	it("list_dir: allows a real directory inside the workspace", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "list_dir").run({ path: "subdir" });
+		expect(out).toContain("subdir/nested.txt");
+	});
+
+	it("list_dir: allows a within-workspace dir symlink (intra-dir -> subdir)", async () => {
+		const { tools } = createWorkspaceReadTools(workspace);
+		const out = await tool(tools, "list_dir").run({ path: "intra-dir" });
+		expect(out).toContain("nested.txt");
+	});
+
+	// --- write_file ---
+
+	it("write_file: rejects writing through a file symlink that escapes the workspace", async () => {
+		const { tools } = createWorkspaceWriteTools(workspace);
+		const out = await tool(tools, "write_file").run({ path: "link-to-file", content: "pwned" });
+		expect(out).toContain("escapes the workspace");
+		expect(out).not.toContain(outsideFile);
+		expect(out).not.toContain(tmpDir);
+		// The outside file must be untouched.
+		const { readFileSync } = await import("node:fs");
+		expect(readFileSync(outsideFile, "utf8")).toBe("sensitive data");
+	});
+
+	it("write_file: rejects writing a new file inside an escaping dir symlink", async () => {
+		// link-to-dir/new.txt would land outside the workspace.
+		const { tools } = createWorkspaceWriteTools(workspace);
+		const out = await tool(tools, "write_file").run({ path: "link-to-dir/new.txt", content: "pwned" });
+		expect(out).toContain("escapes the workspace");
+	});
+
+	it("write_file: allows writing a new file in a real workspace directory", async () => {
+		const { tools } = createWorkspaceWriteTools(workspace);
+		const out = await tool(tools, "write_file").run({ path: "new-file.txt", content: "safe write" });
+		expect(out).toContain("Wrote");
+		expect(out).toContain("new-file.txt");
+		const { readFileSync } = await import("node:fs");
+		expect(readFileSync(join(workspace, "new-file.txt"), "utf8")).toBe("safe write");
+	});
+
+	it("write_file: allows writing through a within-workspace symlink", async () => {
+		// intra-link points to real.txt which is inside the workspace — overwrite should be allowed.
+		const { tools } = createWorkspaceWriteTools(workspace);
+		const out = await tool(tools, "write_file").run({ path: "intra-link", content: "updated" });
+		expect(out).toContain("Wrote");
 	});
 });

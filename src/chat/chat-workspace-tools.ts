@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
 import type { ChatTool } from "./chat-tool-executor";
@@ -18,6 +18,8 @@ export interface WorkspaceToolFsDeps {
 	readFile: (path: string) => Promise<string>;
 	readdir: (path: string) => Promise<Array<{ name: string; isDirectory: boolean }>>;
 	stat: (path: string) => Promise<{ size: number }>;
+	/** Resolve the real, symlink-free absolute path. Used for symlink-escape confinement. */
+	realpath: (path: string) => Promise<string>;
 }
 
 const DEFAULT_FS: WorkspaceToolFsDeps = {
@@ -30,6 +32,7 @@ const DEFAULT_FS: WorkspaceToolFsDeps = {
 		const info = await stat(path);
 		return { size: info.size };
 	},
+	realpath,
 };
 
 /** Default cap so a single read can't blow the agent's context with a huge file. */
@@ -57,6 +60,69 @@ function resolveWithinWorkspace(
 		return { ok: false, message: `Path escapes the workspace: ${requested}` };
 	}
 	return { ok: true, absolute, relativePath: rel === "" ? "." : rel };
+}
+
+/**
+ * After the lexical check, confirm the REAL on-disk path (symlinks resolved) stays inside the workspace root.
+ * This closes the symlink-escape hole: a workspace symlink pointing outside the root passes the lexical check
+ * but its real path lands outside, and this function catches that.
+ *
+ * For reads and lists: pass the already-resolved `absolute` path. If the path does not exist (dangling symlink or
+ * missing file) the caller's own try/catch will surface a friendly error — we return `ok: false` with
+ * `notFound: true` so the caller can delegate to its normal not-found handling.
+ *
+ * For writes: the target file may not exist yet, so pass the `absolute` path and set `allowNotFound: true`. We
+ * walk up to the nearest existing ancestor (typically the parent dir after `mkdir` has been called, but we check
+ * before the write) and confine that. A symlinked parent that escapes the workspace is rejected; a new file in a
+ * real workspace directory is allowed.
+ *
+ * Returns `{ ok: true }` when the real path is safely inside, `{ ok: false, notFound: true }` when the path
+ * does not exist and `allowNotFound` is set, or `{ ok: false, message: string }` on confinement failure.
+ */
+async function assertRealPathWithinWorkspace(
+	rootDir: string,
+	absolute: string,
+	fsRealpath: (path: string) => Promise<string>,
+	options: { allowNotFound?: boolean; relativePath: string } = { relativePath: absolute },
+): Promise<{ ok: true } | { ok: false; notFound: true } | { ok: false; message: string }> {
+	const realRoot = await fsRealpath(rootDir);
+	const rootPrefix = realRoot.endsWith(sep) ? realRoot : `${realRoot}${sep}`;
+
+	// Helper: is a real path inside (or equal to) the real root?
+	const isUnderRoot = (p: string) => p === realRoot || p.startsWith(rootPrefix);
+
+	if (options.allowNotFound) {
+		// For writes: find the nearest existing ancestor and confine it.
+		let candidate = absolute;
+		for (;;) {
+			try {
+				const real = await fsRealpath(candidate);
+				if (!isUnderRoot(real)) {
+					return { ok: false, message: `Path escapes the workspace: ${options.relativePath}` };
+				}
+				return { ok: true };
+			} catch {
+				const parent = dirname(candidate);
+				if (parent === candidate) {
+					// Reached filesystem root with nothing existing — shouldn't normally happen.
+					return { ok: false, message: `Path escapes the workspace: ${options.relativePath}` };
+				}
+				candidate = parent;
+			}
+		}
+	}
+
+	// For reads and lists: the path must exist and resolve within the root.
+	try {
+		const real = await fsRealpath(absolute);
+		if (!isUnderRoot(real)) {
+			return { ok: false, message: `Path escapes the workspace: ${options.relativePath}` };
+		}
+		return { ok: true };
+	} catch {
+		// Path does not exist (or dangling symlink) — let the caller's normal error handling take over.
+		return { ok: false, notFound: true };
+	}
 }
 
 export interface WorkspaceReadTools {
@@ -87,6 +153,15 @@ export function createWorkspaceReadTools(
 				if (!resolved.ok) {
 					return resolved.message;
 				}
+				const real = await assertRealPathWithinWorkspace(rootDir, resolved.absolute, fs.realpath, {
+					relativePath: resolved.relativePath,
+				});
+				if (!real.ok) {
+					if ("notFound" in real) {
+						return `Could not read ${resolved.relativePath} (no such file or not readable).`;
+					}
+					return real.message;
+				}
 				try {
 					const content = await fs.readFile(resolved.absolute);
 					if (content.length > maxBytes) {
@@ -105,6 +180,15 @@ export function createWorkspaceReadTools(
 				const resolved = resolveWithinWorkspace(rootDir, args.path ?? ".");
 				if (!resolved.ok) {
 					return resolved.message;
+				}
+				const real = await assertRealPathWithinWorkspace(rootDir, resolved.absolute, fs.realpath, {
+					relativePath: resolved.relativePath,
+				});
+				if (!real.ok) {
+					if ("notFound" in real) {
+						return `Could not list ${resolved.relativePath} (no such directory or not readable).`;
+					}
+					return real.message;
 				}
 				try {
 					const entries = await fs.readdir(resolved.absolute);
@@ -164,6 +248,8 @@ export function createWorkspaceReadTools(
 export interface WorkspaceWriteToolFsDeps {
 	writeFile: (path: string, content: string) => Promise<void>;
 	mkdir: (dir: string) => Promise<void>;
+	/** Resolve the real, symlink-free absolute path. Used for symlink-escape confinement. */
+	realpath: (path: string) => Promise<string>;
 }
 
 const DEFAULT_WRITE_FS: WorkspaceWriteToolFsDeps = {
@@ -171,6 +257,7 @@ const DEFAULT_WRITE_FS: WorkspaceWriteToolFsDeps = {
 	mkdir: async (dir) => {
 		await mkdir(dir, { recursive: true });
 	},
+	realpath,
 };
 
 /**
@@ -196,6 +283,18 @@ export function createWorkspaceWriteTools(
 				}
 				if (typeof args.content !== "string") {
 					return "Provide `content` (the text to write) as a string.";
+				}
+				// Realpath-confine before writing: the target may not exist yet, so we check the nearest
+				// existing ancestor (allowNotFound). This blocks a symlinked parent that escapes the workspace
+				// while still allowing new files to be created inside a real workspace directory.
+				const real = await assertRealPathWithinWorkspace(rootDir, resolved.absolute, fs.realpath, {
+					allowNotFound: true,
+					relativePath: resolved.relativePath,
+				});
+				if (!real.ok) {
+					return "message" in real
+						? real.message
+						: `Could not write ${resolved.relativePath} (path not writable).`;
 				}
 				try {
 					await fs.mkdir(dirname(resolved.absolute));
