@@ -2929,7 +2929,11 @@ deep analysis:
         deepseek — `run_command` ran, but the model's reply didn't echo the output: weak synthesis, not a !Klein bug);
         ❌ never emitted a tool call (phi-4-mini, phi-4-reasoning-plus). The user's "things execute at runtime" works
         broadly; the 2 non-callers feed the chat-path narrated-recovery candidate below.
-  - [ ] `create_card` (`verify-chat-create-card`) across the roster — board control-plane mutation.
+  - [x] `create_card` (`verify-chat-create-card`) ACROSS ROSTER (2026-06-26) — **7/9 ✅** (clean durable gate: the card
+        must persist on the board). The 4 run_command-◑ models (gemma-e2b/e4b, qwen3.5-9b, deepseek) **ALL ✅** here →
+        confirming their run_command issue was reply-synthesis, NOT tool-calling. ❌ only phi-4-mini + phi-4-reasoning-plus
+        — the SAME 2 models that failed run_command → they don't emit chat tool calls at all (strong evidence for the
+        narrated-recovery candidate below; the other 7 models call chat tools fine).
   - [ ] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
 - [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
@@ -2956,8 +2960,9 @@ deep analysis:
       `afterModel` hook). Mirror it in the chat loop's model adapter (recover narrated calls from `choice.message.content`
       when `tool_calls` is empty) so weak/quantized models "just work" in chat too — the §5.O parse-and-recover principle
       on the chat surface. **Confirm the trigger before building:** instrument the chat path to log raw `content` for
-      phi-4-mini / phi-4-reasoning-plus (the 2 run_command non-callers) and verify they narrate a recoverable call (vs
-      just reasoning without acting). Also extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
+      phi-4-mini / phi-4-reasoning-plus (the SAME 2 models fail BOTH run_command AND create_card while the other 7
+      succeed — a clean, well-isolated signal) and verify they narrate a recoverable call (vs just reasoning without
+      acting). Also extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
       (gemma-e2b leaked exactly that into its final reply). High value: would lift chat tool-use across small models.
 >
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S

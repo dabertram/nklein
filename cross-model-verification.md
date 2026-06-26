@@ -36,7 +36,7 @@
 | strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ❌ | ❌ | ✅ | ◑ |
-| chat create_card · `verify-chat-create-card` | ✅ | · | · | · | · | · | · | · | · |
+| chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | · | ✅ | · | · | · | · | · | · | · |
@@ -120,3 +120,15 @@
 - ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 5s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
 - ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 20s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ gemma-4-e4b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ deepseek-r1-0528-qwen3-8b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ phi-4-reasoning-plus-m5max=❌
+
+### 2026-06-26 20:02:26 · verify-chat-create-card
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 11s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 5s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 7s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `google/gemma-4-e4b-m5max` · 7s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 8s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `deepseek-r1-0528-qwen3-8b-mlx-m5max` · 16s · PASS ✓ the chat agent created a real board card at runtime.
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 8s · INCOMPLETE — see above.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 6s · PASS ✓ the chat agent created a real board card at runtime.
+- ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 20s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ gemma-4-e4b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ deepseek-r1-0528-qwen3-8b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ phi-4-reasoning-plus-m5max=❌
