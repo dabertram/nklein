@@ -1877,8 +1877,19 @@ deep analysis:
       memory, the (later) autonomous-work mode.
 - [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
       trash, drag rules — Playwright, deep.
-- [ ] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
+- [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
       isolation status/pool UI, project-settings menu. Pair with §5.W.
+      **Contract-seam coverage DONE (2026-06-26, 44 tests, Suite 16 — `test/contract/settings-config-contract.test.ts`).**
+      Procedures covered via HTTP + on-disk file assertions:
+        `runtime.getConfig` (shape: all required fields, swarmGuardrails, modelRoles, nkleinProviderSettings, globalConfigPath);
+        `runtime.saveConfig` global round-trip (booleans, numbers, enums, nested modelRoles/swarmGuardrails) + on-disk `$HOME/.nklein/nklein/config.json` asserted;
+        `runtime.saveConfig` per-project override (workspaceId scope): `maxConcurrentTasksOverride` and `modelRolesOverride` — override wins for that project, does NOT leak to a second project, project-override fields written to `$CWD/.nklein/nklein/config.json` not the global config;
+        `runtime.saveConfig` invalid-field rejection (bad enums, non-positive ints) returns 400;
+        `runtime.getNKleinMcpSettings` / `runtime.saveNKleinMcpSettings` round-trip (stdio + streamableHttp servers, empty-list clear, invalid type 400) + on-disk `nklein_mcp_settings.json` `mcpServers` block asserted;
+        `runtime.saveNKleinModelContextWindowOverride` (set → `contextWindow.userOverride`, null → clears, non-local 400) + model-registry.json on-disk;
+        `runtime.saveNKleinModelMaxConcurrentRequests` (set → `constraints.maxConcurrentRequests`, null → clears, non-local 400).
+      Deferred (live UI/agent required): `runtime.saveNKleinProviderSettings` (OAuth/API-key, no observable config without live provider);
+        isolation status/pool UI; project-settings menu wire-up.
 - [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
 
 > **Test-oracle design (2026-06-25, read-only design pass) — the concrete, parallelizable build plan.** Maps the
