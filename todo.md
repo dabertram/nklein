@@ -2903,8 +2903,14 @@ deep analysis:
       whole roster, **zero host-path leaks on every model** incl. deepseek (243s, did NOT crash this run) and both phi
       reasoning models. Fast: gemma-e2b 18s / nemotron 24s / qwen3-8b 24s; slow reasoning: deepseek + phi-4-mini ~243s,
       phi-4-reasoning-plus 167s. !Klein decompose+isolation is robust regardless of model.
-- [ ] **Single-card implementation → awaiting_review + result branch** (`verify-task-completion.mts`) — proven:
-      qwen3-8b. Remaining 8.
+- [x] **Single-card implementation → awaiting_review + result branch (`verify-task-completion.mts`) — 8/9 deliver
+      (2026-06-26).** ✅ qwen3-8b 18s · coder-14b 26s · gemma-e2b 12s · gemma-e4b 10s · phi-4-mini 10s · deepseek 82s
+      (no crash) · phi-4-reasoning-plus 226s — each wrote `hello.txt`, captured a result branch, reached awaiting_review.
+      **nemotron-3-nano: ✅ but SLOW** — INCOMPLETE at the 300s cap, delivered cleanly at 540s (work done early, then a
+      long token-by-token final message pushed termination past 5 min). **qwen3.5-9b: ⚠️ CANT** — wrote + read the file
+      correctly (activities #2-6) then **looped re-emitting its "Done!" final message and never reached a terminal state
+      even at 540s**, so the result branch was never captured (correct work stuck in the sandbox). Tools were recognized
+      (NOT a parse gap); the wall-time/no-diff guardrail parks it in a real run, just slowly → hardening candidate below.
 - [~] **Planning→In-Progress promotion / auto-promote recovery** (`verify-autopromote-recovery.mts`) — proven: qwen3-8b
       (recovery path), deepseek (explicit path), phi-4-mini (no-write capability floor / CANT). Remaining 6:
       qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, gemma-4-e4b, phi-4-reasoning-plus, nemotron-3-nano.
@@ -2922,6 +2928,15 @@ deep analysis:
       the output-robustness sweep; §5.Z just tracks its all-models coverage.)
 - [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
       `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
+> **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
+- [ ] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
+      finishes the work (write+read) then **loops re-emitting an identical no-tool "Done!" final message** is not
+      finalized promptly: the session stays `running` until the slow wall-time/no-diff guardrail eventually parks it, so
+      the already-done work is never captured to a result branch (it sits stuck in the sandbox). Consider finalizing (or
+      parking) a session when the agent emits N consecutive identical no-tool final messages — the work is done, stop
+      waiting. Output-robustness, ties §5.O parse-and-recover. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
+      NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
+>
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
 > their live-verify step, that step means **all loaded models**, recorded in the matrix — not a single-model proof.
