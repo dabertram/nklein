@@ -822,9 +822,12 @@ deep analysis:
       ([web-ui/src/components/project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx),
       [web-ui/src/components/code-embedding-fields.tsx](web-ui/src/components/code-embedding-fields.tsx))
 - **#4 — Multiple models per role + per-task best-fit selection** *(deep design; not a quick win; umbrella — the 5
-      sub-deliverables below are the counted work)*. Today each role binds one model. *Decided 2026-06-22:* estimate task
-      difficulty → match to MCSR capability/speed, capability-weighted (most-capable free model that fits the ≥32k
-      budget; speed tiebreaker; easy cards take the fast/small model); user can pin/prefer/weight per role.
+      sub-deliverables below are the counted work)*. **→ EXPANDED into [§5.AB](#5ab) (2026-06-26, user)** — the richer
+      model-evaluation + automatic role→model assignment + parallel-balancing + retry-against-all-models crown; the 5
+      sub-deliverables here (difficulty estimate, MCSR metrics, one-to-many config, user override, inspectable reasoning)
+      are its inputs. Today each role binds one model. *Decided 2026-06-22:* estimate task difficulty → match to MCSR
+      capability/speed, capability-weighted (most-capable free model that fits the ≥32k budget; speed tiebreaker; easy
+      cards take the fast/small model); user can pin/prefer/weight per role.
   - [ ] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history)
   - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
   - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
@@ -3035,10 +3038,19 @@ deep analysis:
       tests + 2 adapter retry tests. **Still owed (next rungs, for phi-4-reasoning-plus which over-reasons even with 1
       tool):** single-step prompt + stripped-preamble rung; learn each model's complexity ceiling into the profile so a
       known-weak model starts simplified on attempt 0.
-- [ ] **Endpoint-iteration adapter — native `/api/v1/chat` fallback.** A `LocalModelEndpointStrategy`: try OpenAI-compat
-      first; on a no-call/malformed outcome, retry via the **native `/api/v1/chat`** (parse its structured `tool_call.*`
-      + `reasoning.*` events — catches calls the OpenAI path misses for phi/deepseek). Record the winning endpoint per
-      model in the profile. (Also consider the constrained-decoding tool-call forcing below.)
+- [ ] **Endpoint-iteration adapter — native `/api/v1/chat` + Anthropic `/v1/messages` fallback.** A
+      `LocalModelEndpointStrategy`: try OpenAI-compat `/v1/chat/completions` first; on a no-call/malformed outcome, retry
+      via the **native `/api/v1/chat`** (parse its structured `tool_call.*` + separate `reasoning.*` SSE events — catches
+      calls the OpenAI path misses for phi/deepseek) and/or the **Anthropic-compat `/v1/messages`** (which accepts
+      **`tool_choice:{type:"any"}` to FORCE a tool call** — a strong rung when a model won't call on its own). Record the
+      winning endpoint per model in the profile. **LM Studio docs findings (2026-06-26, checked thoroughly):** (a) for
+      "default-support" models LM Studio injects a system prompt + parses a **`[TOOL_REQUEST]…[END_TOOL_REQUEST]`** default
+      format — this is exactly phi's format, confirming our recovery addition; the docs warn small models "may output
+      improperly formatted tool calls LM Studio cannot parse → no `tool_calls`", which IS the narrated-recovery /
+      endpoint-iteration case. (b) **Stateful chat** (`/api/v1/chat` `previous_response_id` + `store`) avoids resending
+      history → an efficiency + long-context lever (and conversation branching). (c) Structured output is grammar-based
+      (GGUF→llama.cpp grammar sampling, MLX→Outlines) and **guarantees** schema-valid JSON, but the docs caution "not all
+      models below 7B are capable of structured output" — so the constrained-decoding rung helps mid/large models most.
 - [ ] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
       prompts" — user.)
@@ -3059,6 +3071,67 @@ deep analysis:
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.
+
+### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
+> **Vision (user, 2026-06-26):** !Klein should AUTOMATICALLY pick the best model per **role** and per **task** by
+> EVALUATING each connected model against a prepared set of role-specific prompts spanning complexity / difficulty /
+> size, learning a **quality × speed** fitness, then assigning each task to the best *available* model — **balancing
+> parallel execution** (the hardest tasks may WAIT for a better model; easier ones can be attempted by lesser models),
+> and on stubborn failure escalating through the **§5.AA ladder against potentially ALL connected models**, bounded by a
+> **learned per-model retry budget** (enough retries to ride out stochastic issues) — escalating to the **user only when
+> everything is exhausted**. This is the crown that unifies the MCSR (§6.4), §5.I#4 (multi-model-per-role, folded in
+> here), §5.AA (the adaptive retry ladder + `ModelBehaviorProfile`), and the parallel swarm executor (§6.5). **Default
+> mode = automatic best-fit**, with user pin/prefer/weight overrides. **Invariants:** LOCAL ONLY (#1 — cloud strictly
+> out of scope; idea-only rung below), ≥32k floor (#3), strict Docker isolation (#2).
+>
+> **The fitness metric (a deliberately rich composite — "sufficient quality at the best speed"):** primary = **quality**
+> (does the output clear the role/difficulty bar — a valid + coherent decompose graph / correct passing code / a review
+> that catches a planted defect) **graded, not just pass/fail**; secondary = **speed** (tok/s, TTFT, wall-time); plus
+> **reliability** (variance across repeats — stochastic stability) and **retry-count-needed** (from §5.AA). Policy: among
+> models that CLEAR the quality bar for a task's difficulty, prefer the fastest (Pareto / weighted); reserve the
+> most-capable models for the hardest tasks; let easy tasks take the fast/small model. Weights are user-tunable (a
+> speed-vs-quality dial, §5.I#4).
+- [ ] **Eval-prompt corpus (per role × difficulty × size).** A curated, versioned set of evaluation prompts for each
+      role (architect/decompose, worker/implement, reviewer) at graded difficulty tiers (trivial → simple → moderate →
+      hard → very-hard) and size/context footprints, **each with a deterministic-ish scorer** (valid structured tool
+      call / valid decompose DAG that passes graph-quality / code that passes a known check / a review that catches a
+      planted defect). Local, no network. The corpus is the measuring stick — invest in it; version it so re-evals compare.
+- [ ] **Evaluation harness (run a model through the matrix → fitness).** For each connected model, run the corpus
+      (repeated N× per cell for stochastic stability), score quality + measure speed + count retries-needed, and emit a
+      per-(model, role, difficulty) **fitness record**. Reuse the §5.Z `scripts/verify-all-models.mts` sweep machinery +
+      the `sweep-capture` harness; persist into the `ModelBehaviorProfile`/MCSR. Runnable on demand (Settings: "Evaluate
+      connected models") and incrementally refreshed from REAL task outcomes (online learning — every real run is also a
+      data point).
+- [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`).** Global, per-model × per-role ×
+      per-difficulty fitness + the learned **retry budget** + observed failure modes. The single source the scheduler reads.
+- [ ] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
+      context footprint, acceptance shape, bounce history) → the key into the fitness table.
+- [ ] **Automatic role→model assignment (DEFAULT mode) + parallel balancing (ties §6.5).** The swarm scheduler assigns
+      each ready task to the best *available* model by fitness × difficulty, keeping all loaded models busy in parallel;
+      a hard task may **wait** for a better (busy) model, or be **attempted by a lesser** one — a per-task / per-project
+      **policy dial** ("wait-for-best" vs "attempt-with-available"). Replaces the current one-model-per-role binding
+      (which becomes a manual override / pin).
+- [ ] **Stubborn-failure escalation (drives the §5.AA ladder × all models).** On repeated failure, escalate through the
+      §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding force, loop
+      detect+salvage) AND across models (best → next-best → … → all), each attempt informed by the profile so known-bad
+      approaches/models are SKIPPED (no circles). Bounded by the learned per-model retry budgets. *(Be creative — add
+      approaches beyond the ones listed as sweeps surface new failure modes.)*
+- [ ] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
+      failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
+      models does the task become a genuine failure.
+- [ ] **User escalation (LAST resort).** Only when ALL models × ALL approaches × learned retries are exhausted, surface
+      to the user a clear "no connected model could complete this task" report with what was tried (models, approaches,
+      scores) — actionable, not a silent dead end.
+- [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
+      weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
+      action. (Builds on the MCSR telemetry panel §6.4.)
+- [-] **LATER / OUT OF SCOPE — cloud fallback rung (idea-collection only, per the user).** When !Klein has matured to
+      where the real limitation is genuinely model quality, AND the user has connected cloud models AND explicitly opted
+      in to escalate to them, the FINAL rung (after all local models × approaches fail) could try a connected cloud model.
+      **Strictly out of scope now** (invariant #1 LOCAL ONLY — cloud cannot render/select/run today); collected here so
+      the escalation design already has the seam. Gated behind an explicit per-escalation user allow **and** the
+      deliberate cloud-lockdown lift (a reviewed code change, never a feature toggle). Related idea to collect: a
+      per-task "max local spend/time before offering cloud escalation" budget the user sets.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
