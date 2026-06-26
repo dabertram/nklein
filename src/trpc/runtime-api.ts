@@ -47,7 +47,6 @@ import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeBoardCard,
 	RuntimeCommandRunResponse,
-	RuntimeNKleinProviderSettings,
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeTaskContextImportResponse,
@@ -67,9 +66,6 @@ import {
 	parseNKleinEndpointModelDiscoveryRequest,
 	parseNKleinMcpOAuthRequest,
 	parseNKleinMcpSettingsSaveRequest,
-	parseNKleinModelContextWindowOverrideRequest,
-	parseNKleinModelMaxConcurrentRequestsRequest,
-	parseNKleinModelRegistryRemoveRequest,
 	parseNKleinOauthLoginRequest,
 	parseNKleinProviderModelsRequest,
 	parseNKleinProviderSettingsSaveRequest,
@@ -101,10 +97,7 @@ import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../nklein-sdk/nklein-code-embeddings";
-import {
-	assertNKleinContextWindowPolicy,
-	isNKleinContextWindowPolicyError,
-} from "../nklein-sdk/nklein-context-window-policy";
+import { isNKleinContextWindowPolicyError } from "../nklein-sdk/nklein-context-window-policy";
 import {
 	applyNKleinPlanTaskGraphToBoard,
 	applyNKleinPlanTaskReplacementArtifacts,
@@ -113,20 +106,10 @@ import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
 import { scheduleNKleinEndpointStart } from "../nklein-sdk/nklein-endpoint-scheduler";
 import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
-import {
-	assertLocalProviderAllowed,
-	isCloudProviderDisabledError,
-	isLocalProvider,
-} from "../nklein-sdk/nklein-local-only-policy";
+import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../nklein-sdk/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-sdk/nklein-mcp-runtime-service";
 import { createNKleinMcpSettingsService } from "../nklein-sdk/nklein-mcp-settings-service";
-import {
-	buildNKleinModelRegistryKey,
-	createNKleinModelRegistryEntry,
-	getDefaultNKleinModelRegistry,
-	type NKleinModelRegistryEntry,
-	type NKleinModelRegistryKeyInput,
-} from "../nklein-sdk/nklein-model-registry";
+import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-sdk/nklein-model-registry";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
 import {
 	appendNKleinPlanRevision,
@@ -170,6 +153,13 @@ import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
+import {
+	handleGetNKleinModelRegistry,
+	handlePruneNKleinModelRegistry,
+	handleRemoveNKleinModelRegistryEntry,
+	handleSaveNKleinModelContextWindowOverride,
+	handleSaveNKleinModelMaxConcurrentRequests,
+} from "./runtime-api/model-registry.js";
 import {
 	countActiveProjectTaskSessions,
 	createConcurrencyLimitStartError,
@@ -345,50 +335,6 @@ function formatMergeMessage(input: {
 		return `Merge blocked: ${input.blocked.reason}`;
 	}
 	return `Merged ${input.mergedTaskIds.length} task results; skipped ${input.skippedTaskIds.length}.`;
-}
-
-function addConfiguredLocalModelRegistryEntries(input: {
-	models: Record<string, NKleinModelRegistryEntry>;
-	runtimeConfig: RuntimeConfigState | null;
-	launchConfig: ResolvedNKleinLaunchConfig | null;
-	providerSettings: RuntimeNKleinProviderSettings | null;
-	now: number;
-}): Record<string, NKleinModelRegistryEntry> {
-	const nextModels = { ...input.models };
-	const candidates: NKleinModelRegistryKeyInput[] = [];
-	if (input.launchConfig?.providerId && input.launchConfig.modelId) {
-		candidates.push({
-			providerId: input.launchConfig.providerId,
-			modelId: input.launchConfig.modelId,
-			endpoint: input.launchConfig.baseUrl ?? null,
-		});
-	}
-	if (input.providerSettings?.providerId && input.providerSettings.modelId) {
-		candidates.push({
-			providerId: input.providerSettings.providerId,
-			modelId: input.providerSettings.modelId,
-			endpoint: input.providerSettings.baseUrl ?? null,
-		});
-	}
-	for (const settings of Object.values(input.runtimeConfig?.effectiveModelRoles ?? {})) {
-		const providerId = settings.providerId?.trim();
-		const modelId = settings.modelId?.trim();
-		if (!providerId || !modelId) {
-			continue;
-		}
-		candidates.push({ providerId, modelId, endpoint: null });
-	}
-	for (const candidate of candidates) {
-		if (!isLocalProvider(candidate.providerId, candidate.endpoint)) {
-			continue;
-		}
-		const key = buildNKleinModelRegistryKey(candidate);
-		if (nextModels[key]) {
-			continue;
-		}
-		nextModels[key] = createNKleinModelRegistryEntry(candidate, input.now);
-	}
-	return nextModels;
 }
 
 function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKleinLaunchConfig>(
@@ -1621,132 +1567,25 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return await nkleinProviderService.discoverEndpointModels(body);
 		},
 		getNKleinModelRegistry: async (workspaceScope) => {
-			const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
-			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
-			const launchConfig =
-				runtimeConfig?.effectiveSelectedAgentId === "nklein"
-					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
-					: null;
-			const providerSettings =
-				runtimeConfig?.effectiveSelectedAgentId === "nklein"
-					? nkleinProviderService.getProviderSettingsSummary()
-					: null;
-			const models = addConfiguredLocalModelRegistryEntries({
-				models: snapshot.models,
-				runtimeConfig,
-				launchConfig,
-				providerSettings,
-				now: Date.now(),
+			return await handleGetNKleinModelRegistry(workspaceScope, {
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+				nkleinProviderService,
 			});
-			return {
-				schemaVersion: snapshot.schemaVersion,
-				updatedAt: snapshot.updatedAt,
-				models: Object.values(models)
-					.filter((entry) => isLocalProvider(entry.providerId, entry.endpoint))
-					.sort((left, right) => {
-						const updatedDelta = right.updatedAt - left.updatedAt;
-						return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
-					}),
-			};
 		},
 		removeNKleinModelRegistryEntry: async (_workspaceScope, input) => {
-			const body = parseNKleinModelRegistryRemoveRequest(input);
-			const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
-			const entry = snapshot.models[body.key] ?? null;
-			if (entry && !isLocalProvider(entry.providerId, entry.endpoint)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Only local !Klein model telemetry can be removed.",
-				});
-			}
-			const removed = await getDefaultNKleinModelRegistry().removeEntry(body.key);
-			return { removed };
+			return await handleRemoveNKleinModelRegistryEntry(input);
 		},
 		pruneNKleinModelRegistry: async (workspaceScope) => {
-			const registry = getDefaultNKleinModelRegistry();
-			const snapshot = await registry.getSnapshot();
-			const runtimeConfig = workspaceScope ? await deps.loadScopedRuntimeConfig(workspaceScope) : null;
-			const launchConfig =
-				runtimeConfig?.effectiveSelectedAgentId === "nklein"
-					? await nkleinProviderService.resolveLaunchConfig().catch(() => null)
-					: null;
-			const providerSettings =
-				runtimeConfig?.effectiveSelectedAgentId === "nklein"
-					? nkleinProviderService.getProviderSettingsSummary()
-					: null;
-			const configuredModels = addConfiguredLocalModelRegistryEntries({
-				models: {},
-				runtimeConfig,
-				launchConfig,
-				providerSettings,
-				now: Date.now(),
+			return await handlePruneNKleinModelRegistry(workspaceScope, {
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+				nkleinProviderService,
 			});
-			const keepKeys = new Set(Object.keys(configuredModels));
-			const providerId = providerSettings?.providerId?.trim();
-			const providerBaseUrl = providerSettings?.baseUrl ?? null;
-			if (providerId && isLocalProvider(providerId, providerBaseUrl)) {
-				const loadedModelsResponse = await nkleinProviderService.getProviderModels(providerId).catch(() => null);
-				for (const model of loadedModelsResponse?.models ?? []) {
-					keepKeys.add(
-						buildNKleinModelRegistryKey({
-							providerId,
-							modelId: model.id,
-							endpoint: providerBaseUrl,
-						}),
-					);
-					for (const entry of Object.values(snapshot.models)) {
-						if (entry.providerId === providerId && entry.modelId === model.id) {
-							keepKeys.add(entry.key);
-						}
-					}
-				}
-			}
-			const removeKeys = Object.values(snapshot.models)
-				.filter((entry) => isLocalProvider(entry.providerId, entry.endpoint))
-				.filter((entry) => !keepKeys.has(entry.key))
-				.map((entry) => entry.key);
-			const removed = await registry.removeEntries(removeKeys);
-			return { removed };
 		},
 		saveNKleinModelContextWindowOverride: async (_workspaceScope, input) => {
-			const body = parseNKleinModelContextWindowOverrideRequest(input);
-			if (!isLocalProvider(body.providerId, body.endpoint)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Context window overrides are only available for local !Klein models.",
-				});
-			}
-			if (body.contextWindow !== null) {
-				assertNKleinContextWindowPolicy({
-					providerId: body.providerId,
-					modelId: body.modelId,
-					contextWindow: body.contextWindow,
-					label: "Context window override for",
-				});
-			}
-			const model = await getDefaultNKleinModelRegistry().setContextWindowOverride({
-				providerId: body.providerId,
-				modelId: body.modelId,
-				endpoint: body.endpoint,
-				contextWindow: body.contextWindow,
-			});
-			return { model };
+			return await handleSaveNKleinModelContextWindowOverride(input);
 		},
 		saveNKleinModelMaxConcurrentRequests: async (_workspaceScope, input) => {
-			const body = parseNKleinModelMaxConcurrentRequestsRequest(input);
-			if (!isLocalProvider(body.providerId, body.endpoint)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Per-model concurrency limits are only available for local !Klein models.",
-				});
-			}
-			const model = await getDefaultNKleinModelRegistry().setMaxConcurrentRequests({
-				providerId: body.providerId,
-				modelId: body.modelId,
-				endpoint: body.endpoint,
-				maxConcurrentRequests: body.maxConcurrentRequests,
-			});
-			return { model };
+			return await handleSaveNKleinModelMaxConcurrentRequests(input);
 		},
 		getNKleinCodeIntelligenceStatus: async (workspaceScope) => {
 			return await handleGetNKleinCodeIntelligenceStatus(workspaceScope, {

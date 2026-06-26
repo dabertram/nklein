@@ -2339,13 +2339,16 @@ deep analysis:
             `runtime-api.ts` 2410 → 2296; runtime-api test 87/87 green. **Pattern for the runtime-api factory split
             (don't re-derive):** the bulk is the BIG stateful handlers (startTaskSession ~280, sendTaskChatMessage ~115,
             recordNKleinPlanGap ~140) which need a per-handler deps slice + the runtime-api test as the oracle; the thin
-            1-line provider/account delegations are NOT worth extracting (thin-shell anti-pattern). **Next clean
-            cohesive target = the model-registry group (5 handlers `getNKleinModelRegistry` / `remove…` / `prune…` /
-            `saveNKleinModelContextWindowOverride` / `saveNKleinModelMaxConcurrentRequests`, ~127 lines).** NB it must
-            co-move the *local* helper `addConfiguredLocalModelRegistryEntries` (factory `function` ~L350, ~70 lines,
-            used only by 2 of those handlers) and take a `{ loadScopedRuntimeConfig, nkleinProviderService }` deps slice
-            (service type = `ReturnType<typeof createNKleinProviderService>`) — a ~200-line two-non-contiguous-range
-            move, best done carefully in a fresh pass (the runtime-api test is the oracle). **architecture #13** CI
+            1-line provider/account delegations are NOT worth extracting (thin-shell anti-pattern). **slice 3 DONE
+            (2026-06-26): the model-registry group** (5 handlers `getNKleinModelRegistry` / `remove…` / `prune…` /
+            `saveNKleinModelContextWindowOverride` / `saveNKleinModelMaxConcurrentRequests`) + the co-moved local
+            `addConfiguredLocalModelRegistryEntries` helper → `src/trpc/runtime-api/model-registry.ts`, taking a
+            `{ loadScopedRuntimeConfig, nkleinProviderService }` deps slice (service type =
+            `ReturnType<typeof createNKleinProviderService>`); `runtime-api.ts` 2296 → 2135; test 87/87. (tsc caught a
+            wrong parse-fns import source — they live in `core/api-validation`, not `api-contract` — fixed.) **Remaining
+            high-value targets: the big stateful handlers** (`startTaskSession` ~280, `sendTaskChatMessage` ~115,
+            `recordNKleinPlanGap` ~140, `expandNKleinPlanTask` ~80, `collectTaskEvidence` ~108) — each its own deps
+            slice + the runtime-api test as oracle. **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
