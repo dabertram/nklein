@@ -1726,9 +1726,18 @@ deep analysis:
       (`normalizeProviderId` / `findProviderCatalogItem` / `formatProviderOptionLabel`) →
       `runtime-settings-provider-helpers.ts`; (3) swarm-guardrail form conversion (`WALL_TIME_BOUNDS_HOURS`,
       `SwarmGuardrailInputs`, `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails`/`isGuardrailInputOutOfRange`) →
-      `runtime-settings-swarm-guardrails.ts`. dialog 4430 → 4304.** Next clean pure-helper groups: model-role
-      normalize/serialize (needs `MODEL_ROLE_IDS` — heavily shared, 7 refs — so co-move the const + `ModelRoleId` type),
-      command-display + timeout-profile helpers; then the stateful section/hook work.
+      `runtime-settings-swarm-guardrails.ts`. dialog 4430 → 4304.**
+      **STATEFUL SECTION extractions now started (the user-chosen "settings-dialog sections" focus): (4) the swarm-guardrails
+      editor card → `swarm-guardrails-settings-panel.tsx` (233 lines).** It's a controlled `SwarmGuardrailsSettingsPanel`
+      that OWNS the real behavior (the 4 editable autonomous-run limits + per-field out-of-range flagging + reset-to-defaults)
+      and takes `value`/`onChange` for the guardrail inputs plus the read-only context tiles (concurrent-cards / sandbox-pool /
+      heartbeat / plan-artifacts) as plain props, so it never re-reads sibling state. The parent keeps the guardrail input
+      `useState` (the unified dirty/save path needs it). The 4 field-id consts + `LOCAL_SWARM_GUARDRAIL_ROWS` moved into the
+      panel; the dialog's now-unused imports were biome-pruned. **dialog 4304 → 4086 (−218).** Verified: web:typecheck +
+      36-test dialog oracle (its "surfaces local swarm guardrail limits" case renders the panel through the dialog and
+      asserts the input ids + seeded values) + web:build. Next clean pure-helper groups: model-role normalize/serialize
+      (needs `MODEL_ROLE_IDS` — heavily shared, 7 refs — so co-move the const + `ModelRoleId` type), command-display +
+      timeout-profile helpers; next sections: model-roles block, sandbox-pool fields, timeouts.
 - [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
