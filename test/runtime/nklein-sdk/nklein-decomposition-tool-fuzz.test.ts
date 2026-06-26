@@ -217,17 +217,22 @@ describe("decompose_project malformed-call recovery", () => {
  * every depth — top-level, task items, and questions — while preserving the expansions map's value schema.
  */
 describe("decompose_project SDK boundary schema is permissive at every depth", () => {
-	function getInputSchema(): Record<string, any> {
+	// A generated JSON Schema tree is heterogeneous and deeply navigated below (`.properties.tasks.anyOf[0].items`,
+	// …), so `any` is the pragmatic boundary type — the audit's sanctioned narrow exception for schema-probe tests.
+	// biome-ignore lint/suspicious/noExplicitAny: walking an untyped, deeply-nested JSON Schema tree in a boundary probe.
+	type JsonSchemaNode = Record<string, any>;
+
+	function getInputSchema(): JsonSchemaNode {
 		const tool = createNKleinDecompositionTools({ workspacePath: "/tmp/nklein-schema-probe" }).find(
 			(candidate) => candidate.name === "decompose_project",
 		);
 		if (!tool) {
 			throw new Error("Missing decompose_project tool");
 		}
-		return tool.inputSchema as Record<string, any>;
+		return tool.inputSchema as JsonSchemaNode;
 	}
 
-	function expectOpenObject(node: Record<string, any> | undefined): void {
+	function expectOpenObject(node: JsonSchemaNode | undefined): void {
 		expect(node).toBeDefined();
 		expect(node?.type).toBe("object");
 		expect(node?.required).toBeUndefined();

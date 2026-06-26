@@ -2302,13 +2302,12 @@ deep analysis:
             event adaptation, message/summary recording) — not cleanly-separable guard seams.
       - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `.plan/docs/anti-patterns.md`** (the
             §5.U analysis arm — 7 findings + a cross-cutting cleanup order). **✅ DONE: #6 (constants DRY'd, `dbedf448`)
-            + #4 (inline type imports removed, `9492905b`).** Remaining clean Phase-1 targets it hands us:
-            **#6** DRY the duplicated `*_MIN_CONTEXT_WINDOW_TOKENS = 32_000` (3 copies) + `80_000` fallback (4 copies)
-            through the shared contract constant; **#4** replace inline/dynamic `import("…").Type` type annotations that
-            violate the repo's no-inline-imports rule (runtime-api.ts:774/789, runtime-server.ts:904, terminal-state-
-            mirror.ts:4). Bigger items: **#2** settings-dialog (4430), runtime-api (2384), api-contract (2593), App.tsx
-            (1359) extractions; **#5** validated JSON/JSONL persistence; **#3** ratchet the broad biome lint disables;
-            **#7** shared web-ui test harness. **#1 (HIGH, security):** chat "sandboxed" scopes are host fs/shell access
+            + #4 (inline type imports removed, `9492905b`).** (Verified 2026-06-26: both are genuinely complete —
+            `RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS`/`80_000` are single-sourced in api-contract and there are zero
+            inline `import().Type` annotations left in `src/`; the earlier "remaining #6/#4" re-listing here was stale.)
+            Remaining bigger items it hands us: **#2** settings-dialog (4430), runtime-api (2410), api-contract
+            (2614), App.tsx (1359) extractions; **#5** validated JSON/JSONL persistence; **#3** ratchet the broad biome lint
+            disables; **#7** shared web-ui test harness. **#1 (HIGH, security):** chat "sandboxed" scopes are host fs/shell access
             with a session-wide `riskAcknowledged` opt-in — partly by-design (§5.M host opt-in) but the naming/approval
             governance is worth a user decision → surfaced for review.
       - **Reconciled progress (2026-06-26):** beyond #6/#4 above — **anti-patterns #5** first slice DONE (config
@@ -2320,8 +2319,12 @@ deep analysis:
             trusted; 7 new tests; 1806 tests green; `82e1c25f`); **architecture #3** (tRPC router
             composition) first slice DONE (update-status + runtime-stats procedures extracted to
             `src/trpc/runtime-api/update-status.ts`, `178963d4`, contract suite green); **architecture #13** CI
-            boundary-drift fixed (`fe4e0343`). Still open: #2 the big extractions, anti-patterns #3 lint ratchet,
-            #7 shared test harness.
+            boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) first slice DONE** — re-enabled
+            `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
+            as a hard `error` gate; the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
+            consolidated behind one rationale'd `biome-ignore`. Still open: #2 the big extractions, anti-patterns #3
+            remaining lint rules (a11y / `useExhaustiveDependencies` / `noDangerouslySetInnerHtml` — bigger, incremental
+            per the audit's own guidance), #7 shared test harness.
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
