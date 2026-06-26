@@ -66,7 +66,6 @@ import {
 	parseTaskChatCancelRequest,
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
-	parseTaskChatSendRequest,
 	parseTaskContextImportRequest,
 	parseTaskPauseRequest,
 	parseTaskSessionInputRequest,
@@ -104,7 +103,6 @@ import {
 } from "../nklein-sdk/nklein-plan-artifacts";
 import { createNKleinProviderService, type ResolvedNKleinLaunchConfig } from "../nklein-sdk/nklein-provider-service";
 import { setNKleinLostHeartbeatPolicy } from "../nklein-sdk/nklein-session-state";
-import { isNKleinClearSlashCommand } from "../nklein-sdk/nklein-slash-commands";
 import { routeNKleinTask } from "../nklein-sdk/nklein-task-router";
 import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
 import {
@@ -141,6 +139,7 @@ import {
 	handleSaveNKleinModelMaxConcurrentRequests,
 } from "./runtime-api/model-registry.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
+import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
 import {
 	countActiveProjectTaskSessions,
 	createConcurrencyLimitStartError,
@@ -1508,120 +1507,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return response;
 		},
 		sendTaskChatMessage: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskChatSendRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const providerIdOverride = body.providerId?.trim() || undefined;
-				const modelIdOverride = body.modelId?.trim() || undefined;
-				const hasReasoningEffortOverride = Object.hasOwn(body, "reasoningEffort");
-				const launchConfigOverrides =
-					providerIdOverride || modelIdOverride || hasReasoningEffortOverride
-						? await nkleinProviderService.resolveLaunchConfig({
-								providerIdOverride,
-								modelIdOverride,
-								...(hasReasoningEffortOverride
-									? { reasoningEffortOverride: body.reasoningEffort ?? null }
-									: {}),
-							})
-						: null;
-				const sessionLaunchConfigOverrides = launchConfigOverrides?.modelId
-					? {
-							providerId: launchConfigOverrides.providerId,
-							modelId: launchConfigOverrides.modelId,
-							apiKey: launchConfigOverrides.apiKey,
-							baseUrl: launchConfigOverrides.baseUrl,
-							reasoningEffort: launchConfigOverrides.reasoningEffort,
-							contextWindow: launchConfigOverrides.contextWindow,
-						}
-					: undefined;
-				if (isNKleinClearSlashCommand(body.text)) {
-					const summary = await nkleinTaskSessionService.clearTaskSession(body.taskId);
-					deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
-					return {
-						ok: true,
-						summary,
-						message: null,
-					};
-				}
-				const requestedMode = body.mode;
-				let summary = sessionLaunchConfigOverrides
-					? await nkleinTaskSessionService.sendTaskSessionInput(
-							body.taskId,
-							body.text,
-							requestedMode,
-							body.images,
-							sessionLaunchConfigOverrides,
-						)
-					: await nkleinTaskSessionService.sendTaskSessionInput(
-							body.taskId,
-							body.text,
-							requestedMode,
-							body.images,
-						);
-				if (!summary) {
-					if (!isHomeAgentSessionId(body.taskId)) {
-						const reboundSummary = await nkleinTaskSessionService.rebindPersistedTaskSession(body.taskId);
-						if (reboundSummary) {
-							const nkleinLaunchConfig =
-								launchConfigOverrides ?? (await nkleinProviderService.resolveLaunchConfig());
-							summary = await nkleinTaskSessionService.startTaskSession({
-								taskId: body.taskId,
-								cwd: reboundSummary.workspacePath ?? workspaceScope.workspacePath,
-								workspaceRoot: workspaceScope.workspacePath,
-								prompt: body.text,
-								images: body.images,
-								resumeFromPersistence: true,
-								providerId: nkleinLaunchConfig.providerId,
-								modelId: nkleinLaunchConfig.modelId,
-								mode: requestedMode,
-								apiKey: nkleinLaunchConfig.apiKey,
-								baseUrl: nkleinLaunchConfig.baseUrl,
-								reasoningEffort: nkleinLaunchConfig.reasoningEffort,
-								contextWindow: nkleinLaunchConfig.contextWindow ?? null,
-							});
-						}
-						if (!summary) {
-							return {
-								ok: false,
-								summary: null,
-								error: "Task chat session is not running.",
-							};
-						}
-					} else {
-						const nkleinLaunchConfig =
-							launchConfigOverrides ?? (await nkleinProviderService.resolveLaunchConfig());
-						summary = await nkleinTaskSessionService.startTaskSession({
-							taskId: body.taskId,
-							cwd: workspaceScope.workspacePath,
-							workspaceRoot: workspaceScope.workspacePath,
-							prompt: body.text,
-							images: body.images,
-							resumeFromPersistence: true,
-							providerId: nkleinLaunchConfig.providerId,
-							modelId: nkleinLaunchConfig.modelId,
-							mode: requestedMode,
-							apiKey: nkleinLaunchConfig.apiKey,
-							baseUrl: nkleinLaunchConfig.baseUrl,
-							reasoningEffort: nkleinLaunchConfig.reasoningEffort,
-							contextWindow: nkleinLaunchConfig.contextWindow ?? null,
-						});
-					}
-				}
-				const latestMessage = nkleinTaskSessionService.listMessages(body.taskId).at(-1) ?? null;
-				await reconcileRunningTaskBoardLane(workspaceScope, summary);
-				return {
-					ok: true,
-					summary,
-					message: latestMessage,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
+			return await handleSendTaskChatMessage(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				nkleinProviderService,
+				broadcastTaskChatCleared: deps.broadcastTaskChatCleared,
+			});
 		},
 		grantProtectedTestApproval: async (workspaceScope, input): Promise<RuntimeProtectedTestApprovalGrantResponse> => {
 			try {

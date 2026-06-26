@@ -2355,9 +2355,13 @@ deep analysis:
             `recordNKleinPlanGap` (~149 lines) → `src/trpc/runtime-api/record-plan-gap.ts`** — also NO deps slice (pure
             `(workspaceScope, input)` over plan-gap helpers + `mutateWorkspaceState`); clean first try. **runtime-api.ts
             2410 → 1775 this turn (−635 over 6 slices; 11 helper modules in `src/trpc/runtime-api/`); test 87/87 each.**
-            **Remaining high-value targets** (`startTaskSession` ~280, `sendTaskChatMessage` ~115) — these DO have deps
-            slices/services + are the most interwoven (esp. `startTaskSession`, the session-start orchestrator), best
-            done as a fresh focused pass with the runtime-api test as oracle. **architecture #13** CI
+            **slice 7 DONE (2026-06-26): `sendTaskChatMessage` (~116 lines) → `src/trpc/runtime-api/task-chat-send.ts`**
+            with a `{ getScopedNKleinTaskSessionService, nkleinProviderService, broadcastTaskChatCleared? }` deps slice
+            (the trivial local `reconcileRunningTaskBoardLane` adapter inlined to its `reconcileStartedTaskBoardLane`
+            core call rather than co-moved, since it's shared by 3 handlers). **runtime-api.ts 2410 → 1665 this turn
+            (−745, −31%, over 7 slices; 12 helper modules); test 87/87 each.** **Only remaining big target:
+            `startTaskSession` (~280) — the session-start orchestrator, the largest + most interwoven (biggest deps
+            slice + services), best done as its own focused pass with the runtime-api test as oracle.** **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
