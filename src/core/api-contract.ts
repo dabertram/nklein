@@ -3,14 +3,9 @@ import { z } from "zod";
 export type { PlanGapKind } from "./plan-gap-kind.js";
 
 import { runtimeTaskWorkspaceInfoRequestSchema } from "./projects-api-contract.js";
-// The state-stream task-chat message lazily references the chat-message schema (re-exported above via `export *`).
-import { runtimeTaskChatMessageSchema } from "./task-chat-api-contract.js";
+// The MCP settings/auth block below references the MCP server auth-status (re-exported above via `export *`).
+import { runtimeNKleinMcpServerAuthStatusSchema } from "./stream-events-api-contract.js";
 import { runtimeTaskSessionSummarySchema } from "./task-session-api-contract.js";
-import {
-	runtimeProjectSummarySchema,
-	runtimeWorkspaceMetadataSchema,
-	runtimeWorkspaceStateResponseSchema,
-} from "./workspace-projects-api-contract.js";
 
 // Board contract domain (task images, generated-from-plan, card review, focus chains, cards/columns/deps/data) (§5.X #2).
 export * from "./board-api-contract.js";
@@ -33,6 +28,8 @@ export * from "./plan-artifacts-api-contract.js";
 export * from "./projects-api-contract.js";
 // Runtime/agent configuration primitives (core enums, NKlein/swarm settings, model-roles, agent rulesets) (§5.X #2).
 export * from "./runtime-config-api-contract.js";
+// Runtime state-stream domain (mcp-auth-status + team-progress event + all WS state-stream messages + union) (§5.X #2).
+export * from "./stream-events-api-contract.js";
 // Task-chat contract domain (chat message/list/send/reload/abort/cancel + protected-test approval) (§5.X #2).
 export * from "./task-chat-api-contract.js";
 // Task lifecycle + control domain (acceptance, worktree-merge, start/stop/pause/swarm-stop, diagnostics, input) (§5.X #2).
@@ -67,139 +64,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-export const runtimeNKleinMcpServerAuthStatusSchema = z.object({
-	serverName: z.string(),
-	oauthSupported: z.boolean(),
-	oauthConfigured: z.boolean(),
-	lastError: z.string().nullable(),
-	lastAuthenticatedAt: z.number().nullable(),
-});
-export type RuntimeNKleinMcpServerAuthStatus = z.infer<typeof runtimeNKleinMcpServerAuthStatusSchema>;
-
-export const runtimeNKleinTeamProgressEventSchema = z.object({
-	taskId: z.string(),
-	teamName: z.string().nullable(),
-	eventType: z.string(),
-	agentId: z.string().nullable(),
-	role: z.string().nullable(),
-	runId: z.string().nullable(),
-	status: z.string().nullable(),
-	message: z.string(),
-	createdAt: z.number(),
-});
-export type RuntimeNKleinTeamProgressEvent = z.infer<typeof runtimeNKleinTeamProgressEventSchema>;
-
-export const runtimeStateStreamSnapshotMessageSchema = z.object({
-	type: z.literal("snapshot"),
-	currentProjectId: z.string().nullable(),
-	projects: z.array(runtimeProjectSummarySchema),
-	workspaceState: runtimeWorkspaceStateResponseSchema.nullable(),
-	workspaceMetadata: runtimeWorkspaceMetadataSchema.nullable(),
-	nkleinSessionContextVersion: z.number().int().nonnegative(),
-});
-export type RuntimeStateStreamSnapshotMessage = z.infer<typeof runtimeStateStreamSnapshotMessageSchema>;
-
-export const runtimeStateStreamWorkspaceStateMessageSchema = z.object({
-	type: z.literal("workspace_state_updated"),
-	workspaceId: z.string(),
-	workspaceState: runtimeWorkspaceStateResponseSchema,
-});
-export type RuntimeStateStreamWorkspaceStateMessage = z.infer<typeof runtimeStateStreamWorkspaceStateMessageSchema>;
-
-export const runtimeStateStreamTaskSessionsMessageSchema = z.object({
-	type: z.literal("task_sessions_updated"),
-	workspaceId: z.string(),
-	summaries: z.array(runtimeTaskSessionSummarySchema),
-});
-export type RuntimeStateStreamTaskSessionsMessage = z.infer<typeof runtimeStateStreamTaskSessionsMessageSchema>;
-
-export const runtimeStateStreamProjectsMessageSchema = z.object({
-	type: z.literal("projects_updated"),
-	currentProjectId: z.string().nullable(),
-	projects: z.array(runtimeProjectSummarySchema),
-});
-export type RuntimeStateStreamProjectsMessage = z.infer<typeof runtimeStateStreamProjectsMessageSchema>;
-
-export const runtimeStateStreamWorkspaceMetadataMessageSchema = z.object({
-	type: z.literal("workspace_metadata_updated"),
-	workspaceId: z.string(),
-	workspaceMetadata: runtimeWorkspaceMetadataSchema,
-});
-export type RuntimeStateStreamWorkspaceMetadataMessage = z.infer<
-	typeof runtimeStateStreamWorkspaceMetadataMessageSchema
->;
-
-export const runtimeStateStreamTaskReadyForReviewMessageSchema = z.object({
-	type: z.literal("task_ready_for_review"),
-	workspaceId: z.string(),
-	taskId: z.string(),
-	triggeredAt: z.number(),
-});
-export type RuntimeStateStreamTaskReadyForReviewMessage = z.infer<
-	typeof runtimeStateStreamTaskReadyForReviewMessageSchema
->;
-
-export const runtimeStateStreamTaskChatMessageSchema = z.object({
-	type: z.literal("task_chat_message"),
-	workspaceId: z.string(),
-	taskId: z.string(),
-	message: z.lazy(() => runtimeTaskChatMessageSchema),
-});
-export type RuntimeStateStreamTaskChatMessage = z.infer<typeof runtimeStateStreamTaskChatMessageSchema>;
-
-export const runtimeStateStreamTaskChatClearedMessageSchema = z.object({
-	type: z.literal("task_chat_cleared"),
-	workspaceId: z.string(),
-	taskId: z.string(),
-});
-export type RuntimeStateStreamTaskChatClearedMessage = z.infer<typeof runtimeStateStreamTaskChatClearedMessageSchema>;
-
-export const runtimeStateStreamNKleinTeamProgressMessageSchema = z.object({
-	type: z.literal("nklein_team_progress"),
-	workspaceId: z.string(),
-	taskId: z.string(),
-	event: runtimeNKleinTeamProgressEventSchema,
-});
-export type RuntimeStateStreamNKleinTeamProgressMessage = z.infer<
-	typeof runtimeStateStreamNKleinTeamProgressMessageSchema
->;
-
-export const runtimeStateStreamMcpAuthUpdatedMessageSchema = z.object({
-	type: z.literal("mcp_auth_updated"),
-	statuses: z.array(runtimeNKleinMcpServerAuthStatusSchema),
-});
-export type RuntimeStateStreamMcpAuthUpdatedMessage = z.infer<typeof runtimeStateStreamMcpAuthUpdatedMessageSchema>;
-
-export const runtimeStateStreamNKleinSessionContextUpdatedMessageSchema = z.object({
-	type: z.literal("nklein_session_context_updated"),
-	version: z.number().int().nonnegative(),
-});
-export type RuntimeStateStreamNKleinSessionContextUpdatedMessage = z.infer<
-	typeof runtimeStateStreamNKleinSessionContextUpdatedMessageSchema
->;
-
-export const runtimeStateStreamErrorMessageSchema = z.object({
-	type: z.literal("error"),
-	message: z.string(),
-});
-export type RuntimeStateStreamErrorMessage = z.infer<typeof runtimeStateStreamErrorMessageSchema>;
-
-export const runtimeStateStreamMessageSchema = z.discriminatedUnion("type", [
-	runtimeStateStreamSnapshotMessageSchema,
-	runtimeStateStreamWorkspaceStateMessageSchema,
-	runtimeStateStreamTaskSessionsMessageSchema,
-	runtimeStateStreamProjectsMessageSchema,
-	runtimeStateStreamWorkspaceMetadataMessageSchema,
-	runtimeStateStreamTaskReadyForReviewMessageSchema,
-	runtimeStateStreamTaskChatMessageSchema,
-	runtimeStateStreamTaskChatClearedMessageSchema,
-	runtimeStateStreamNKleinTeamProgressMessageSchema,
-	runtimeStateStreamMcpAuthUpdatedMessageSchema,
-	runtimeStateStreamNKleinSessionContextUpdatedMessageSchema,
-	runtimeStateStreamErrorMessageSchema,
-]);
-export type RuntimeStateStreamMessage = z.infer<typeof runtimeStateStreamMessageSchema>;
 
 const runtimeNKleinMcpServerBaseSchema = z.object({
 	name: z.string(),

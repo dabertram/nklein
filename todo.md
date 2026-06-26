@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (15 domains, barrel 2614 → ~490, -81%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (16 domains, barrel 2614 → ~350, -86%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2384,15 +2384,17 @@ deep analysis:
             imports acceptance-categories + config + task-session + board); (15) `task-chat-api-contract.ts` (chat
             message/list/send/reload/abort/cancel + protected-test approval — imports reasoning-effort + task-image +
             task-session; the barrel keeps a local import of `runtimeTaskChatMessageSchema` for the state-stream
-            `z.lazy`). Modules (2)/(3)/(5)/(7)/(8)/(9)/(15) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
+            `z.lazy`); (16) `stream-events-api-contract.ts` (mcp-auth-status + team-progress event + all WS
+            state-stream messages + the union — imports chat-message (15) + workspace-projects + task-session; the
+            barrel keeps a local import of `runtimeNKleinMcpServerAuthStatusSchema` for the MCP block). Modules
+            (2)/(3)/(5)/(7)/(8)/(9)/(15)/(16) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
             **MILESTONE (2026-06-26): 14 domains extracted, barrel 2614 → ~600 (-77%), holistically verified (contract
             suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (~600 lines):** the **MCP**
-            messages can now extract (chat-message is in (15)); state-stream + the small **MCP** block both still want
-            `runtimeNKleinMcpServerAuthStatusSchema` + team-progress (at the barrel top ~L71/L80) co-extracted with them.
-            Cleaner remaining leaves: command-run, context-import, open-file, debug/status/run-update, terminal,
-            git-history (imports task-scope from (8)).
+            Remaining barrel (~350 lines): the **MCP** block (server/settings/auth/oauth — imports mcp-auth-status
+            from (16)) + slash-commands + small leaves (command-run, context-import, open-file, debug/status/run-update,
+            terminal/shell, git-history [imports task-scope from (8)]). All independent now — no more cross-prereqs.
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
