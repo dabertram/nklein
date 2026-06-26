@@ -3228,15 +3228,19 @@ deep analysis:
       RULER+NoLiMa effective-context / Anthropic arrangement / debate-vs-self-correction; synthesized into
       [.plan/docs/context-smart-zone-and-reasoning-research.md](.plan/docs/context-smart-zone-and-reasoning-research.md)
       with a placement policy + a per-model-learnable field list + citations. (This section is its actionable backlog.)
-- [ ] **Smart-zone context-arrangement policy (pure core).** A pure `arrangeContextForSmartZone(parts, modelProfile?)`
-      that orders the assembled context per the U-shape + causal findings: durable framing (role/invariants/tool
-      contract) FRONT; bulk/weak reference (repo map, long files, older history) MIDDLE; the **concrete task /
-      acceptance / current step LAST** (strong end-zone, after background); tag-delimited sections; aggressive
-      distractor pruning. Injected per-model knobs (budget, end-anchor on/off, compaction aggressiveness) default to the
-      research baseline when no profile exists. Pure + unit-tested. Wire into the board-agent prompt assembly
-      (`buildNKleinStartPromptParts` / the §6.3 budget breakdown) and `renderChatTurnPrompt` (§5.M) — **end-anchor the
-      task** (today only the new user message is last; extend to the board card's task/acceptance block). Behavior-gated
-      so it never violates the never-overflow guard (§6.2) — it *reorders + trims*, it doesn't add.
+- [~] **Smart-zone context-arrangement policy.** **PURE CORE DONE (2026-06-26):**
+      [src/core/context-smart-zone.ts](src/core/context-smart-zone.ts) — `arrangeContextForSmartZone(parts, options?)`
+      orders parts per the U-shape + causal findings: durable framing (role/invariants/tool contract) **FRONT** (highest
+      priority nearest the very front); bulk/weak reference (repo map, long files, older history) **MIDDLE**, **edge-loaded**
+      so the most-relevant items sit at the band edges and the lowest-priority/distractor material lands in the dead center
+      (the genuinely-critical fact never gets buried mid-context); the **concrete task / acceptance / current step LAST**
+      (strong end-zone, highest-priority task content at the very end). `renderSmartZoneContext` joins + optionally
+      tag-delimits sections (Anthropic guidance). Pure (never mutates input, drops blanks) — it only **reorders + tags**,
+      never adds, so it can't violate the never-overflow guard (§6.2). 9 unit tests; tsc + biome green. **Still owed
+      (wiring):** thread per-model knobs from the §5.AA `ModelBehaviorProfile` (budget / end-anchor / edge-load defaults),
+      and wire into the board-agent prompt assembly (`buildNKleinStartPromptParts` / §6.3 budget breakdown) +
+      `renderChatTurnPrompt` (§5.M) to **end-anchor the task** (today only the new user message is last; extend to the
+      board card's task/acceptance block) + aggressive distractor pruning — each behind a live §5.Z re-verify (no regression).
 - [ ] **End-of-context task re-anchor on long runs.** Generalize the §5.N focus-chain / §5.AC date re-anchor: after big
       tool outputs, restate the goal + current step near the tail (the strong zone) so a small model doesn't lose the
       task to mid-context dilution. Reuse the `beforeModel` re-anchor seam.
