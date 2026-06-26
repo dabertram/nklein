@@ -55,14 +55,16 @@ describe("runChatTurn", () => {
 				},
 				summarize: async () => "summary",
 				estimateTokens: (text) => text.length,
+				now: () => new Date("2026-06-26T12:00:00Z"),
 			},
 		);
 
 		expect(result.userMessage.content).toBe("what next?");
 		expect(result.assistantMessage.content).toBe("do step two");
 		expect(appended.map((m) => m.role)).toEqual(["user", "assistant"]);
-		// The goal leads the prompt and the new message is last.
-		expect(receivedPrompt[0]?.content).toContain("Ship the feature");
+		// The temporal-awareness block leads (§5.AC), the goal follows, and the new message is last.
+		expect(receivedPrompt[0]?.content).toContain("<current_datetime>");
+		expect(receivedPrompt[1]?.content).toContain("Ship the feature");
 		expect(receivedPrompt.at(-1)).toEqual({ role: "user", content: "what next?" });
 	});
 

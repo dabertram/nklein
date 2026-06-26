@@ -3155,15 +3155,23 @@ deep analysis:
 > — the SDK `<env>` block carries only "Working Directory"; every `new Date()` is a log/artifact timestamp. So a local
 > model reasons from its (past) training-cutoff prior with no authoritative "now" — exactly the user's failure mode. The
 > temporal-awareness core is genuinely missing; build it first.
-- [~] **Temporal-awareness context core (the lighthouse) — pure, DO FIRST.** `resolveTemporalAwareness(now)` +
+- [x] **Temporal-awareness context core (the lighthouse) — DONE.** `resolveTemporalAwareness(now)` +
       `buildTemporalAwarenessPrompt(now)` ([temporal-awareness.ts](src/core/temporal-awareness.ts)): an authoritative
       block — ISO + human date/time + weekday + relative anchors (today / tomorrow / yesterday / this year) + an explicit
       rail: "this is the authoritative current date/time; your training data has a cutoff in the PAST; do NOT assume
       events dated on/before this are still in the future or haven't happened; judge online info's freshness against this
-      now." Pure + clock-injected → unit-tested. **(core landed this turn; WIRING is the next item.)**
-- [ ] **Inject the temporal block into EVERY agent + chat turn.** Wire it into the board-agent system prompt
-      (`buildNKleinStartPromptParts` / the SDK `<env>` seam), the chat agent turn (`composeChatTurnContext`), decompose,
-      and review — so every model on every surface knows the real now. Re-anchor on long runs (like the §5.N focus chain).
+      now." Pure + clock-injected → unit-tested.
+- [~] **Inject the temporal block into EVERY agent + chat turn — WIRED across all four surfaces (2026-06-26).** The
+      `<current_datetime>` block now leads every model context: (1) **board/swarm + decompose + review agents** — appended
+      to the SDK system prompt at BOTH `InMemoryNKleinTaskSessionService` start sites (main start + restart-rebuild), right
+      after the `<env>` seam, so every sandboxed task / planning-decompose / `::review` session gets the real now (the
+      trusted host clock — the sandbox never provides "now", per invariant #2); (2) **chat agent turn** — `renderChatTurnPrompt`
+      gained an injected `now` clock and prepends the block as the FIRST system note (before goal/summary/memory), threaded
+      through `runChatTurn` + `runChatAgentTurn` (each via an injectable `deps.now`, default `new Date()`), so the chat +
+      autonomous-chat loops re-anchor it **every turn**. Unit-tested (block-leads + back-compat) + the existing chat-runtime
+      / session-service / chat-agent-turn suites stay green. **Still owed:** a board-agent **mid-session re-anchor** (the
+      system prompt is static per session; a `beforeModel` hook like the §5.N focus-chain re-anchor would refresh "now" on
+      a multi-day run — chat already re-anchors per turn, so this is a board-only long-run nicety).
 - [ ] **Freshness-judgment helper.** Given retrieved info carrying a date/version, compare to the real now → a verdict
       (current / possibly-stale / search-newer) + a rail telling the agent to prefer the newest + search further when the
       found info predates a likely-newer release. Pure + tested; feeds the retrieval loop.

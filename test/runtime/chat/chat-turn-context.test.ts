@@ -118,4 +118,26 @@ describe("composeChatTurnContext", () => {
 		);
 		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
 	});
+
+	it("leads with the temporal-awareness block when a clock is injected (§5.AC lighthouse)", () => {
+		const prompt = renderChatTurnPrompt(
+			{ goal: "Ship it", summary: null, recalledMemories: [], recentMessages: [] },
+			"hi",
+			{ now: new Date("2026-06-26T21:05:00Z") },
+		);
+		// The temporal block is the FIRST system note — before even the goal — so every model knows the real now.
+		expect(prompt[0]?.role).toBe("system");
+		expect(prompt[0]?.content).toContain("<current_datetime>");
+		expect(prompt[0]?.content).toContain("2026-06-26");
+		expect(prompt[1]?.content).toContain("Ship it");
+		expect(prompt.at(-1)).toEqual({ role: "user", content: "hi" });
+	});
+
+	it("leaves the prompt unchanged when no clock is injected (back-compat)", () => {
+		const prompt = renderChatTurnPrompt(
+			{ goal: null, summary: null, recalledMemories: [], recentMessages: [] },
+			"hi",
+		);
+		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
+	});
 });

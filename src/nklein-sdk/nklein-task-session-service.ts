@@ -24,6 +24,7 @@ import {
 } from "../core/api-contract";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { buildTemporalAwarenessPrompt } from "../core/temporal-awareness";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import {
 	recordTaskRunSummary,
@@ -931,6 +932,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (appendedSystemPrompt) {
 			systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 		}
+		// The "knows today" lighthouse (§5.AC): inject the authoritative current date/time (the trusted host clock —
+		// the sandbox never provides "now") so the model never reasons from its stale training-cutoff date prior.
+		systemPrompt = `${systemPrompt}\n\n${buildTemporalAwarenessPrompt(new Date())}`;
 		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 			contextScope: input.contextScope ?? "smart",
 			contextWindow: requestContextWindow,
@@ -1957,6 +1961,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 				}
 				systemPrompt = appendSystemPrompt(systemPrompt, planningSystemPrompt);
+				// The "knows today" lighthouse (§5.AC): inject the authoritative current date/time (the trusted host
+				// clock — the sandbox never provides "now") so the model never reasons from its stale training-cutoff
+				// date prior, and can judge the freshness of anything it recalls or retrieves.
+				systemPrompt = `${systemPrompt}\n\n${buildTemporalAwarenessPrompt(new Date())}`;
 				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 					contextScope: request.contextScope ?? "smart",
 					contextWindow: requestContextWindow,

@@ -48,6 +48,8 @@ export interface ChatAgentTurnDeps {
 		response: ChatAgentModelResponse,
 		results: readonly ChatToolResult[],
 	) => ChatPromptMessage[];
+	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
+	now?: () => Date;
 }
 
 export interface ChatAgentTurnResult {
@@ -86,7 +88,7 @@ export async function runChatAgentTurn(
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
-	const prompt = renderChatTurnPrompt(context, input.userMessage);
+	const prompt = renderChatTurnPrompt(context, input.userMessage, { now: (deps.now ?? (() => new Date()))() });
 	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
 	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;

@@ -30,6 +30,8 @@ export interface ChatRuntimeDeps {
 	estimateTokens: (text: string) => number;
 	/** The in-process embedder for long-term recall; omit to use lexical recall. */
 	embed?: (text: string) => Promise<number[] | null>;
+	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
+	now?: () => Date;
 }
 
 export interface ChatTurnResult {
@@ -66,7 +68,7 @@ export async function runChatTurn(
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
-	const prompt = renderChatTurnPrompt(context, input.userMessage);
+	const prompt = renderChatTurnPrompt(context, input.userMessage, { now: (deps.now ?? (() => new Date()))() });
 	const reply = await deps.complete(prompt, input.onToken);
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: reply });
