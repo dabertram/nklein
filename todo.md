@@ -2895,11 +2895,14 @@ deep analysis:
 > principle, NOT just a model failing) **· ⚠️ CANT** (the model genuinely isn't capable enough — a recorded capability-floor
 > data point, not a bug) **· 💥 DROPPED** (crashed mid-run) — then restore the user's selected model. **Priority:** fast
 > high-value flows first (decompose, single-card, chat tools); the long multi-card pipeline is sampled, not full-swept.
-- [ ] **Sweep driver + results matrix** — a `scripts/verify-all-models.mts` (or thin per-harness wrapper) that iterates
-      the roster, pins each model via provider settings, runs a named harness, applies the deepseek-drop caveat, and
-      appends a per-model PASS/FAIL/CANT/DROPPED row to `cross-model-verification.md`. (Or run harnesses manually
-      per-model and record by hand — the matrix is the deliverable either way.)
-- [ ] **Decompose & planning** (`verify-decompose-isolation.mts`) — proven: qwen3-8b. Remaining 8 models.
+- [x] **Sweep driver + results matrix (DONE 2026-06-26)** — `scripts/verify-all-models.mts` iterates the loaded roster,
+      pins each model via `NKLEIN_VERIFY_MODEL` (per run a fresh isolated HOME; user settings untouched), runs a named
+      harness, applies the deepseek-drop caveat (gone from `/v1/models` → DROPPED + continue), and appends a per-model
+      result block + matrix row to `cross-model-verification.md`. Validated end-to-end on the decompose sweep.
+- [x] **Decompose & planning (`verify-decompose-isolation.mts`) — ✅ ALL 9 PASS (2026-06-26).** Clean sweep across the
+      whole roster, **zero host-path leaks on every model** incl. deepseek (243s, did NOT crash this run) and both phi
+      reasoning models. Fast: gemma-e2b 18s / nemotron 24s / qwen3-8b 24s; slow reasoning: deepseek + phi-4-mini ~243s,
+      phi-4-reasoning-plus 167s. !Klein decompose+isolation is robust regardless of model.
 - [ ] **Single-card implementation → awaiting_review + result branch** (`verify-task-completion.mts`) — proven:
       qwen3-8b. Remaining 8.
 - [~] **Planning→In-Progress promotion / auto-promote recovery** (`verify-autopromote-recovery.mts`) — proven: qwen3-8b

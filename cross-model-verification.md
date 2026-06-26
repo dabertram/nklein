@@ -28,7 +28,7 @@
 
 | flow / harness | qwen3-8b | coder-14b | qwen3.5-9b | gemma-e2b | gemma-e4b | phi4-mini | phi4-plus | nemotron | deepseek |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| decompose · `verify-decompose-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| decompose · `verify-decompose-isolation` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | single-card · `verify-task-completion` | ✅ | · | · | · | · | · | · | · | · |
 | auto-promote · `verify-autopromote-recovery` | ✅ | · | · | · | · | ⚠️ | · | · | ✅ |
 | strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
@@ -50,3 +50,19 @@
 > Newest first. Each entry: date · flow · model · result · note.
 
 - _(2026-06-26)_ matrix scaffolded from prior single-model proofs; cross-model sweep starting per §5.Z.
+
+### 2026-06-26 18:54:12 · verify-decompose-isolation
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 25s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+  - matrix row: qwen3-8b-m5max=✅
+
+### 2026-06-26 19:08:55 · verify-decompose-isolation
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 24s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 47s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 18s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `google/gemma-4-e4b-m5max` · 43s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 27s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `deepseek-r1-0528-qwen3-8b-mlx-m5max` · 243s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 242s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 24s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `microsoft/phi-4-reasoning-plus-m5max` · 167s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ gemma-4-e4b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ deepseek-r1-0528-qwen3-8b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ phi-4-reasoning-plus-m5max=✅
