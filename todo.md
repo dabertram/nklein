@@ -225,11 +225,38 @@ deep analysis:
     - [ ] render it where the `buildSessionMeta` comment marks the spot
   - [-] **Later:** generated session title via embedding/LLM (replaces the literal "New chat"). *(deferred: nicety,
         prefixed "Later" by decision.)*
-- [ ] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the
+- [~] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the
       right-sidebar chat agent should do **real autonomous work**: focus chain, memory, tools, knowledge fetching,
       browser, etc. — like Cline but stronger, and able to use the project/card/task structure in the background (work an
       existing project or create a new one). Build it soon, in parallel with the test/refactor work (was "later"; the
-      user promoted it). Likely builds on the existing §5.M chat agent loop + the §5.N focus chain + the tool suite.
+      user promoted it).
+      **EXPANDED 2026-06-26 (grounded in the §5.M code — building blocks all exist):** `runChatAgentLoop`
+      ([chat-agent-loop.ts](src/chat/chat-agent-loop.ts)) is a **per-message** tool loop (model→tools→repeat *until it
+      answers the user*, bounded by `maxIterations`), the gated tool suite (board/browser/command/workspace/focus-chain),
+      the focus chain ([chat-focus-chain.ts](src/chat/chat-focus-chain.ts)), and memory (short/long/consolidation) are
+      built. What's missing is the **autonomous *driver* on top** — a goal-driven loop that self-paces across many turns
+      without per-message input. Subtasks:
+  - [ ] **Driver loop `runAutonomousChatAgent`** (new `src/chat/chat-autonomous-loop.ts`) — pure, injected orchestration
+        (mirror `runChatAgentLoop`/the §5.B guardrail collaborators): given a **goal**, loop {read/refine focus chain →
+        run an agent turn toward the next pending step → update step status → check goal-done / budget / needs-user} until
+        done or paused. Bounded by a turn + wall-time budget (reuse `RUNTIME_SWARM_GUARDRAIL_BOUNDS`). Unit-tested with
+        fakes (completes-all-steps, budget-exhausts→pause, needs-user→pause, no-progress guard).
+  - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
+        goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
+  - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
+        start autonomous mode (vs. interactive), with the focus-chain progress + a Stop/Pause control (mirror the board
+        swarm-pause UX).
+  - [ ] **Background project/card work** — let the driver operate the board via the existing `chat-board-tools`: pick up
+        an existing project's cards or create a project + seed cards, then start/monitor them (bridge to the swarm). Decide
+        the boundary: the chat agent *orchestrates* board cards vs. *does* the work itself.
+  - [ ] **Knowledge fetching wired into the driver** — ensure the loop proactively reaches for retrieval / code-index /
+        `browse_url` when it lacks context (tools exist; thread them into the driver's tool set + system prompt).
+  - [ ] **Memory wiring (the 2 §5.M owed items)** — `≥32k-floor budget integration` + `access-all-loaded-projects scope`
+        so the driver has durable working memory across a long run.
+  - [ ] **Pause/resume + genuine-question handling** — the driver pauses for a real clarifying question (reuse §5.S
+        auto-clarify) and resumes on the user's answer; never silently blocks.
+  - [ ] **Live-verify end-to-end** — drive a real autonomous run on a dev-test project with a small local model
+        (Playwright + the loop): goal → focus chain → tool work → durable side effects, within budget.
 - [?] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
       [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
       *(blocked on the user: a joint review only they can do.)*
