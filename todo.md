@@ -2974,6 +2974,81 @@ deep analysis:
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
 > their live-verify step, that step means **all loaded models**, recorded in the matrix — not a single-model proof.
 
+### 5.AA — Maximal model robustness: adaptive, self-learning, "try everything" *(2026-06-26, user — ACTIVE)*
+> **Vision (user, 2026-06-26):** !Klein must extract the most from **any** connected model by trying *everything
+> possible* to get it to deliver, then **learning per-model what works and persisting it globally** so it adapts and
+> never runs in circles — even for stochastic issues. Concretely the user asked for: (1) **use LM Studio's full API
+> potential** — there are multiple endpoints; iterate through them when a model fails an earlier attempt; (2) a **retry
+> mechanism** that, whenever possible, **reduces the complexity / difficulty / size of the task** sent to the model;
+> (3) **try different prompts** to get a model to work; (4) **detect response looping and react** (cut off + salvage
+> what we got / retry / be creative); (5) **dynamic adaptation** to each model's behaviour, skills, capabilities,
+> limitations; (6) **persisted global learning** of what worked well / less well → reduce failures + retries, learn
+> reasonable retry rates. **Invariants unchanged:** LOCAL ONLY (every endpoint local, §1.1), ≥32k floor (§1.3), strict
+> Docker isolation (§1.2). This EXTENDS the MCSR (§6.4) from capability/speed into a full behavioural profile.
+>
+> **Empirical grounding (the §5.Z cross-model sweep IS the evidence base + the regression oracle):**
+> - **Task complexity is the dominant lever (phi).** Live diag: phi-4-mini given a SIMPLE 1-tool prompt emits a clean
+>   STRUCTURED `tool_call`; given the 6-tool agent-loop harness it fails. So the fix is *reduce the ask* (fewer tools,
+>   simpler prompt, single step), not "teach the model." (run_command/create_card ❌ for both phi models; auto-promote ✅
+>   for phi-plus on the swarm path.)
+> - **Response loops happen (qwen3.5-9b).** It finished the work then looped re-emitting an identical "Done!" final
+>   message, never terminating → must detect + salvage/park.
+> - **Tool-call formats vary** (Phi `[TOOL_REQUEST]`, DeepSeek special tokens, Hermes/Qwen `<tool_call>`, narration) and
+>   **reasoning models hide the call in `reasoning_content`** → parse-and-recover across channels + endpoint iteration.
+> - **The swarm path (with afterModel recovery) is more robust than the chat path was** → recovery + the levers below
+>   must live at a shared seam both paths use.
+>
+> **LM Studio API surface to exploit (checked the dev docs):** OpenAI-compat `/v1/chat/completions` (what we use today;
+> relies on the model emitting OpenAI `tool_calls`, conflates reasoning into `content`/`reasoning_content`); the
+> **native `/api/v1/chat`** (stateful; emits STRUCTURED `tool_call.start/arguments/success/failure` + SEPARATE
+> `reasoning.*` SSE events; MCP integrations; images) — **strictly more structured for tool-calling + reasoning models,
+> so a strong fallback when the OpenAI path misses a call**; `/v1/completions` (legacy), Anthropic-compat `/v1/messages`,
+> and **constrained decoding** (`response_format: json_schema` / grammar — we already use it in `generateStructured`;
+> can *force* a valid tool-call shape). Plus model lifecycle (load/unload) + idle-TTL we can manage.
+>
+> **Architecture (the seam): a `ModelBehaviorProfile` registry (global, persisted, MCSR-adjacent) + an adaptive
+> attempt loop.** Per model the profile records what worked/failed — preferred endpoint, tool-call format, **complexity
+> ceiling** (how many tools / how complex a prompt it reliably handles), prompt-template family, observed failure modes
+> (no-call / narrated / loop / timeout / malformed), success RATE per task-shape, and a learned **retry budget +
+> backoff**. The runtime READS it to pick the best initial approach (skipping known-failing ones → no circles) and
+> UPDATES it after every outcome (online learning). The attempt loop: try → on failure classify → pick the next
+> strategy from a ladder informed by the profile → bounded by the learned budget → always terminate with the best
+> partial result. **Build grounded-first; each increment re-verified by the §5.Z sweep across all 9 models.**
+- [x] **Chat-path narrated recovery (content + `reasoning_content`, +Phi `[TOOL_REQUEST]`) — DONE (2026-06-26, §5.Z).**
+- [ ] **Loop detection + salvage/park (grounded: qwen3.5-9b).** Detect a model that loops re-emitting an identical
+      no-tool final message (and, for streaming, a repeating delta window) → **cut off and salvage** the already-done
+      work (capture the result branch / return the partial reply) or park, instead of waiting out the wall-time guard.
+      Extends the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
+- [ ] **Task-complexity ladder — tool-set reduction on retry (grounded: phi, highest-value next).** When a model
+      returns no tool call with N tools offered, retry with a MINIMISED tool set (only the tools the task needs, e.g.
+      6→1), then a single-step prompt, then a stripped system preamble. A pure `simplifyAttempt(level, request)` ladder
+      (full → reduced-tools → single-step → minimal) + retry wiring. Learn each model's complexity ceiling into the
+      profile so the *first* attempt for a known-weak model already starts simplified.
+- [ ] **Endpoint-iteration adapter — native `/api/v1/chat` fallback.** A `LocalModelEndpointStrategy`: try OpenAI-compat
+      first; on a no-call/malformed outcome, retry via the **native `/api/v1/chat`** (parse its structured `tool_call.*`
+      + `reasoning.*` events — catches calls the OpenAI path misses for phi/deepseek). Record the winning endpoint per
+      model in the profile. (Also consider the constrained-decoding tool-call forcing below.)
+- [ ] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
+      explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
+      prompts" — user.)
+- [ ] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
+      `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
+      to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder.
+- [ ] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** The learning core: per-model profile in
+      the runtime home (like MCSR), updated online from every attempt outcome; the attempt loop reads it to choose the
+      best first approach + retry budget and to STOP retrying approaches known to fail for that model (no circles).
+      Track success RATE for stochastic issues + adapt the retry count to it. Surfaced in the Settings model-telemetry.
+- [ ] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
+      (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
+      simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
+      terminating with the best partial result. Wire into BOTH the chat path and the swarm session runtime at the
+      shared model-call seam.
+- [ ] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`** (gemma-e2b leaked exactly that
+      into its final reply — carried over from §5.Z).
+- [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
+      phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
+      NO regression for the 7 models that already pass.
+
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
 - [-] **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
