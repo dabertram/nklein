@@ -3305,6 +3305,73 @@ deep analysis:
       reasoning-need) · §5.K (reviewer loop infra) · §5.S (no-progress detector) · §5.B/§5.AC (retrieval feeds the
       arrangement bands).
 
+### 5.AE — Dynamic prompts: composable skill sets, JIT context, role-mode "dynamics levels" *(2026-06-26, user — ACTIVE)*
+> **Vision (user, 2026-06-26, reacting to the §5.AC date being injected into EVERY prompt — token waste where it doesn't
+> help):** !Klein's prompts must be **highly DYNAMIC**, adapting to the **task, context, agent role, and history** — only
+> include what helps *this* agent on *this* turn. The date is irrelevant to a coding task but crucial to a **retriever**
+> role (which we lack → **extend the role catalog**). Go further: **decompose roles into SKILL SETS**, and **dynamically
+> assign an agent the skills + information it needs to excel**, varying by many factors — even **message-to-message** for
+> the same agent. Varying the skill set is also a lever to **push through stubbornly failing tasks** (ties §5.AA/§5.AB).
+> Expose **role-mode "dynamics levels"** so the user chooses how dynamic vs. strict the assignment is. Keep the control
+> surface **BASIC for now**, grow later. **Invariants:** LOCAL ONLY (#1 — the "architect → cloud model" use-case is
+> idea-only until cloud is revisited), ≥32k floor (#3), strict Docker isolation (#2).
+>
+> **Grounded in research (full notes + citations: [.plan/docs/dynamic-roles-skills-research.md](.plan/docs/dynamic-roles-skills-research.md)):**
+> Skills are an emerging first-class, composable unit (a behavioral spec + applicable-scenario relevance + needed
+> context/tools + output template — "Agent Skills for LLMs" survey 2602.12430; Claude Code exposes skills). **Skill
+> routing** picks the right skills per task at runtime (SkillRouter 2603.22455); **dynamic skill-context construction**
+> assembles only the context the active skills need (SkillsInjector 2605.29794) — exactly the JIT-prompt fix for the date
+> waste. Skill-routing co-travels with **model routing** (§5.AB). **Autonomy is a spectrum** (taxonomy 2310.03659) → the
+> dynamics levels; adaptive-vs-static routing measurably wins (+29% coverage / −74% revisions). Caveat ("skills are a
+> transitional layer") → **start small + hand-authored, don't over-architect**.
+>
+> **Architecture (the seam):** a small `Skill` registry (`id` · `relevance(task/role/context/history)` ·
+> **`contextFragments`** it needs · **`tools`** it needs · `preamble`). A **dynamic skill resolver** picks the active
+> skill set per task/message from task shape + role + history + the §5.AA `ModelBehaviorProfile` + prior failures (vary to
+> break stuck tasks) + the dynamics level. The active skills' **context fragments are assembled JUST-IN-TIME** (minimal,
+> relevant) → this is the *producer* of the parts that **§5.AD's smart-zone arrangement orders** and **§6.2 caps**: §5.AE
+> = *what's in* the prompt, §5.AD = *where it goes*, §6.2 = *never overflow*. Roles become default skill bundles; model
+> selection (§5.AB) is coupled via the dynamics level.
+- [x] **Research + durable notes (DONE 2026-06-26)** — web-researched agent skills / skill routing / dynamic skill-context
+      construction / capability decomposition / autonomy-level taxonomy; synthesized into
+      [.plan/docs/dynamic-roles-skills-research.md](.plan/docs/dynamic-roles-skills-research.md) with the skill-unit design,
+      the dynamics-level mapping table, and the JIT-composition plan. (This section is its actionable backlog.)
+- [~] **First concrete step — relevance-gate the temporal/date fragment (the JIT-composition seed).** The §5.AC date is
+      the first "context fragment" to stop blanket-injecting: a pure `isTemporalContextRelevant({text, role})` predicate
+      (temporal/freshness markers in the task/message — today/now/latest/recent/version/release/deprecated/a 20xx year/… —
+      OR a temporally-relevant role like retriever/researcher) gates the board + chat injection, so a plain coding task no
+      longer pays for the date block. Lean inclusive (a few false-positive tokens beats missing it where it helps; must NOT
+      regress the §5.Z 9/9 grounding proof for temporally-relevant prompts). Pure + tested. *(See the "DONE" sub-item below
+      once landed.)*
+- [ ] **`Skill` registry + the context-fragment catalog.** A small hand-authored set: each existing prompt block becomes a
+      named fragment (`temporal`, `repo_map`/orientation, `focus_chain`, `refinement_preamble`, `efficiency_rules`,
+      `freshness_rail`, `online_retrieval`), and each skill declares the fragments + tools it needs + its relevance. Pure +
+      tested; the fragments feed §5.AD arrangement + §6.3 budget.
+- [ ] **Dynamic skill resolver.** `resolveActiveSkills({role, taskText, history, modelProfile, priorFailures, dynamicsLevel})`
+      → the active skill set (and thus the fragments + tools) for this turn. Honors the dynamics level (below); on the
+      fully-dynamic default it may vary message-to-message; on stubborn failure it **varies the skill set** as a §5.AA/§5.AB
+      escalation rung. Pure + tested.
+- [ ] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
+      missing — a default skill bundle that includes the `temporal` + `freshness_rail` + `online_retrieval` fragments + the
+      `web_search`/`browse_url` tools (§5.AC/§5.M G6). Thread through the role enum (§5.M) + the resolver.
+- [ ] **Dynamics-level setting (BASIC control set — DEFAULT = fully dynamic).** A role-mode enum:
+      `fully_dynamic` (DEFAULT — skills auto + may vary per turn, model auto via §5.AB) · `static_skills_auto_model`
+      (fixed per-role skills, model auto) · `assigned_skills` (user-assigned skills) · `fully_static` (skills + model
+      pinned). Plus an **orthogonal per-role model-class cap** (small-only / any-local / +cloud-when-revisited — the
+      user's "only architect may use the big/cloud models" compute-control use-case; cloud stays #1-locked, idea-only).
+      Global + per-project (ties §5.W overrides). Keep it minimal now; grow the control surface as needed.
+- [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
+      → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
+      get *leaner, more relevant* prompts).
+- [ ] **Skill-variation as a stuck-task escalation rung (ties §5.AA/§5.AB).** When a task stubbornly fails, the resolver
+      tries a different skill set / preamble / fragment mix (e.g. add a `reasoning` or `retriever` skill) as one rung of the
+      §5.AA ladder, learned into the §5.AA profile (which skill mixes work for which model/task).
+- *(cross-links)* §5.AD (arranges the fragments §5.AE produces) · §5.AB (model routing — coupled via the dynamics level) ·
+      §5.AA (`ModelBehaviorProfile` — the shared learning substrate; skill-variation rung) · §5.AC (temporal + retriever
+      role + online retrieval fragments) · §5.M (the role catalog this extends) · §5.L (a skill's tools still pass the
+      capability-ruleset gate) · §6.3 (the fragments feed the context-budget breakdown) · §5.W (the dynamics-level + model-
+      class settings + their per-project overrides).
+
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
 - [-] **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
