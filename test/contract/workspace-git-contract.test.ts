@@ -28,6 +28,7 @@
  * Language-agnostic: assertions target raw JSON, not TypeScript types.
  */
 
+import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -745,5 +746,105 @@ describe.sequential("Suite 14 — workspace.notifyStateUpdated", () => {
 			expect(res.status).toBe(200);
 			expect(res.payload.ok).toBe(true);
 		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Suite 20 — workspace git ACTIONS: checkoutGitBranch + discardGitChanges
+// (deterministic on a seeded temp repo; the earlier pass deferred these as
+// "destructive" but they are safe + seam-testable here.)
+// ---------------------------------------------------------------------------
+
+describe.sequential("Suite 20 — workspace git actions (checkout + discard)", () => {
+	let server: BackendUnderTest;
+	let cwd: string;
+	let homeDir: string;
+	let workspaceId: string;
+
+	beforeAll(async () => {
+		cwd = makeTempDir("kanban-ws-git-actions-cwd-");
+		homeDir = makeTempDir("kanban-ws-git-actions-home-");
+		seedGitHistory(cwd);
+		// A second branch to switch to.
+		execSync("git branch feature-x", { cwd });
+		server = await startTsBackend({ cwd, homeDir });
+		workspaceId = await addSelfProject(server.baseUrl, cwd);
+	}, 30_000);
+
+	afterAll(async () => {
+		await server.stop();
+		cleanupDir(cwd);
+		cleanupDir(homeDir);
+	});
+
+	async function gitSummary(): Promise<{ currentBranch: string | null; changedFiles: number }> {
+		const res = await requestJson<{
+			ok: boolean;
+			summary: { currentBranch: string | null; changedFiles: number };
+		}>({
+			baseUrl: server.baseUrl,
+			procedure: "workspace.getGitSummary",
+			type: "query",
+			workspaceId,
+		});
+		return res.payload.summary;
+	}
+
+	it("checkoutGitBranch switches to an existing branch", async () => {
+		const res = await requestJson<{ ok: boolean; error?: string }>({
+			baseUrl: server.baseUrl,
+			procedure: "workspace.checkoutGitBranch",
+			type: "mutation",
+			workspaceId,
+			payload: { branch: "feature-x" },
+		});
+		expect(res.status).toBe(200);
+		expect(res.payload.ok).toBe(true);
+		expect((await gitSummary()).currentBranch).toBe("feature-x");
+	});
+
+	it("checkoutGitBranch on a non-existent branch returns ok=false (no crash)", async () => {
+		const res = await requestJson<{ ok: boolean; error?: string }>({
+			baseUrl: server.baseUrl,
+			procedure: "workspace.checkoutGitBranch",
+			type: "mutation",
+			workspaceId,
+			payload: { branch: "does-not-exist-zzz" },
+		});
+		expect(res.status).toBe(200);
+		expect(res.payload.ok).toBe(false);
+	});
+
+	it("discardGitChanges reverts uncommitted working-tree changes", async () => {
+		writeFileSync(join(cwd, "README.md"), "# Test repo\n\nUNCOMMITTED EDIT\n");
+		expect((await gitSummary()).changedFiles).toBeGreaterThan(0);
+
+		const res = await requestJson<{ ok: boolean }>({
+			baseUrl: server.baseUrl,
+			procedure: "workspace.discardGitChanges",
+			type: "mutation",
+			workspaceId,
+			// discardGitChanges is workspace-scoped and ignores this input; the schema (optional task-info)
+			// requires {taskId, baseRef} or null, so pass a schema-valid placeholder.
+			payload: { taskId: "noop", baseRef: "HEAD" },
+		});
+		expect(res.status).toBe(200);
+		expect(res.payload.ok).toBe(true);
+		expect((await gitSummary()).changedFiles).toBe(0);
+	});
+
+	it("discardGitChanges on a clean working copy is a no-op (ok=true)", async () => {
+		const res = await requestJson<{ ok: boolean }>({
+			baseUrl: server.baseUrl,
+			procedure: "workspace.discardGitChanges",
+			type: "mutation",
+			workspaceId,
+			// discardGitChanges is workspace-scoped and ignores this input; the schema (optional task-info)
+			// requires {taskId, baseRef} or null, so pass a schema-valid placeholder.
+			payload: { taskId: "noop", baseRef: "HEAD" },
+		});
+		expect(res.status).toBe(200);
+		expect(res.payload.ok).toBe(true);
+		expect((await gitSummary()).changedFiles).toBe(0);
 	});
 });
