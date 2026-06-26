@@ -45,4 +45,4 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) and [docs/architecture.md](./docs/archite
 
 ### License
 
-[Apache 2.0 © 2026 !Klein contributors](./LICENSE)
+[Apache 2.0 © 2026 !Klein contributors](./LICENSE) — a fork of Cline Kanban; see [NOTICE](./NOTICE) for upstream attribution.
