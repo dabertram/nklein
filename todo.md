@@ -483,8 +483,9 @@ deep analysis:
       (`awaiting_review`, guardrail `repeated_decomposition_failures`) with a message pointing at the proposed graph +
       validation errors. Regression-tested (varied-input failures still park).
 - **Planning/refinement lane for *every* card before In Progress** *(raised 2026-06-24, from the start-lane fix; umbrella
-      — Increments A/B/C below are all done, so the count tracks them not this label; OWNER: confirm this whole feature
-      can flip to `[x]`)* — the user's workflow idea: **all** started cards should pass through **Planning** first
+      — Increments A+B are `[x]`; Increment C is code-done but its **live-verify is still pending** (folded into the §5.V
+      Suite 10 sweep), so this feature is NOT yet fully `[x]` — it flips when C's live-verify lands)* — the user's
+      workflow idea: **all** started cards should pass through **Planning** first
       (rename the lane in spirit to "**Planning / Refinement**"), not just decompose/plan-mode cards. In that phase the
       agent **re-validates the
       card against the latest overall project state** before doing the work — a planning card spawns/updates child
@@ -669,17 +670,19 @@ deep analysis:
 - [x] **Embedding story decided + shipped** — `local_gguf` (nomic-embed-text-v1.5) in-process via the Python core,
       default in `runtimeCodeEmbeddingProviderSchema`, degrading to `local_lexical` when the core is off. (→ §5.I #1)
 - **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22; umbrella —
-      the children are the counted work, and all three are currently HELD per the §5.H callout: "HOLD the native-core-
-      default flip pending the §5.X port-direction decision … NOT started". OWNER: §5.X Phase 2 is now DROPPED (no Python
-      port) — confirm whether that releases this hold so the children flip back to `[ ]`)*:
+      the children are the counted work, all three HELD per the §5.H callout: native-core-default is a full agent-runtime
+      build that's "huge AND likely throwaway right before a possible Python backend port", so it's held pending the §5.X
+      port-direction decision. That decision is **still pending** — §5.X (line 2377) is "plan now, build after §5.V; final
+      port scope decided once §5.V is green", i.e. the port is NOT dropped — so the hold stands and the children below are
+      `[>]` blocked-on-task until §5.V lands + the port scope is called.)*:
   - [>] build the native-core → task-execution integration (sandboxed tools, session lifecycle) — the missing prereq *(gated on the §5.X port-direction decision — see the §5.H callout)*
   - [>] switch default selection; keep the SDK reachable on failure *(gated on the §5.X port-direction decision)*
   - [>] assert strict isolation still holds for native-core data-plane tools (thorough tests + clean fallback) *(gated on the §5.X port-direction decision)*
-- **Python core default-ON + Settings health** *(decided 2026-06-22; umbrella — the counted work is the children. NOTE
-      for OWNER: the §5.H callout says core-py default-on + auto-start are DONE 2026-06-25, which contradicts the open
-      "auto-start on launch" child below — only the "bundle" half is genuinely still owed; reconcile)*:
-  - [ ] bundle/package the `core-py` sidecar so auto-start is reliable
-  - [ ] auto-start on launch; keep auto-fallback when unreachable *(NOTE: the §5.H callout reports this DONE 2026-06-25 — likely stale-open; owner to confirm/flip)*
+- **Python core default-ON + Settings health** *(decided 2026-06-22; umbrella — the counted work is the children.
+      Default-on + auto-start + the Settings health line are DONE (2026-06-25, see the §5.H callout); only the "bundle"
+      half — ship a packaged Python env so it auto-starts in an installed build — remains open.)*:
+  - [ ] bundle/package the `core-py` sidecar so auto-start is reliable in a packaged install (today it no-ops gracefully when `core-py`/`uv` aren't on disk)
+  - [x] **auto-start on launch (2026-06-25)** — keep auto-fallback when unreachable. Runtime launches the sidecar on boot via [klein-core-sidecar.ts](src/server/klein-core-sidecar.ts) (`startKleinCorePySidecar`, wired in `cli.ts` fire-and-forget, stopped in `close`); non-fatal (missing `uv`/core-py / unhealthy → in-process fallback, never blocks boot). Verified: 6 unit tests + live boot (sidecar on :3585, runtime un-blocked). (See the §5.H callout.)
   - [x] **Settings health line (2026-06-24)** — `KleinCorePyHealthLine` under the !Klein model panel: enabled state,
         a live `GET /health` probe (running / not-reachable), the endpoint, and a hint to set `NKLEIN_CORE_PY=1` when
         disabled. (Shipped earlier this session; CHANGELOG'd.)
