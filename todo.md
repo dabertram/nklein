@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (13 domains, barrel 2614 → ~840, -68%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (14 domains, barrel 2614 → ~600, -77%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2379,19 +2379,20 @@ deep analysis:
             leaf); (12) `config-api-contract.ts` (agent definition + sandbox status + the full config response/save —
             imports config primitives from (2) + provider-settings from (9) + project-shortcut from (8)); (13)
             `plan-artifacts-api-contract.ts` (plan-artifact summary/list/apply/reject, record-plan-gap,
-            expand-plan-task — imports planGapKind + workspace-state-response). Modules
+            expand-plan-task — imports planGapKind + workspace-state-response); (14) `task-lifecycle-api-contract.ts`
+            (acceptance verify, worktree-merge, session start/stop, pause, swarm-stop, diagnostics, session-input —
+            imports acceptance-categories + config + task-session + board). Modules
             (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
-            **MILESTONE (2026-06-26): the monolith is HALVED — all 9 major cohesive domains extracted + holistically
-            verified (contract suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (the
-            ~1210-line long tail — smaller, more-interconnected endpoint contracts; fiddlier, best done deliberately):**
-            the **MCP** block (~L449+) + the **state-stream** messages both need
-            `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel ~L82, with team-progress) extracted into a
-            small shared module first, and state-stream also needs `runtimeTaskChatMessageSchema` (a `z.lazy` forward-ref
-            at L158) out first. Cleaner remaining leaves: command-run, context-import, open-file, debug/status,
-            acceptance, worktree-merge, task-lifecycle (start/stop/pause/swarm-stop),
-            diagnostics, session-input, terminal, git-history (imports task-scope from (8)).
+            **MILESTONE (2026-06-26): 14 domains extracted, barrel 2614 → ~600 (-77%), holistically verified (contract
+            suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (~600 lines):** the **MCP**
+            block + the **state-stream** messages both need `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel
+            ~L71, with team-progress) extracted into a small shared module first, and state-stream also needs
+            `runtimeTaskChatMessageSchema` (a `z.lazy` forward-ref) out first — extracting the **chat-messages** domain
+            (task-chat message/send/reload/abort/cancel + protected-test-approval) does that. Cleaner remaining leaves:
+            command-run, context-import, open-file, debug/status/run-update, terminal, git-history (imports task-scope
+            from (8)).
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
