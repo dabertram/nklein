@@ -206,6 +206,22 @@ describe("stripNarratedToolCallMarkup", () => {
 		expect(stripNarratedToolCallMarkup("Done. <function=read_file>{}</function>")).toBe("Done.");
 	});
 
+	it("strips a plain-prose `Tool call: name(args)` narration (gemma-e2b, §5.Z)", () => {
+		expect(stripNarratedToolCallMarkup('I created the file. Tool call: write_file({"path":"x"})')).toBe(
+			"I created the file.",
+		);
+		// The whole reply was the narration.
+		expect(stripNarratedToolCallMarkup('Tool call: read_file("a.txt")')).toBe("");
+		// Case/spacing tolerant.
+		expect(stripNarratedToolCallMarkup("Done.\nTOOL CALL : list_dir( . )")).toBe("Done.");
+	});
+
+	it("does NOT strip ordinary prose that merely mentions a tool call (no name+paren shape)", () => {
+		expect(stripNarratedToolCallMarkup("I made a tool call to read the file and it worked.")).toBe(
+			"I made a tool call to read the file and it worked.",
+		);
+	});
+
 	it("is a no-op for ordinary prose with no tool-call markup", () => {
 		expect(stripNarratedToolCallMarkup("The functions are add and subtract.")).toBe(
 			"The functions are add and subtract.",

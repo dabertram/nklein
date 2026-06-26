@@ -3075,8 +3075,12 @@ deep analysis:
       simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
       terminating with the best partial result. Wire into BOTH the chat path and the swarm session runtime at the
       shared model-call seam.
-- [ ] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`** (gemma-e2b leaked exactly that
-      into its final reply — carried over from §5.Z).
+- [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
+      leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
+      (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
+      structured-marker pre-check (its lead-in has a space, not the `tool_call` underscore), cutting from there to EOF.
+      Conservative: ordinary prose that merely mentions "a tool call" (no name+paren) is untouched. +2 tests
+      (strip the leak / don't strip a mention); the existing structured-marker strip + no-op cases stay green (28 total).
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.

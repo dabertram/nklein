@@ -70,6 +70,14 @@ const DEEPSEEK_TOOL_SEP = /<[｜|]\s*tool[▁_ ]sep\s*[｜|]>/i;
 /** Outer-or-inner DeepSeek call opener, for display-stripping a narrated call out of a final reply. */
 const DEEPSEEK_OPENER = /<[｜|]\s*tool[▁_ ]calls?[▁_ ]begin\s*[｜|]>/i;
 
+/**
+ * Plain-prose narrated call: `Tool call: name(args)` — no structured marker, just the model describing the call in
+ * words (observed live: gemma-4-e2b leaked exactly this into its final reply, §5.Z). Deliberately specific to avoid
+ * false positives: requires the `tool call:` lead-in **immediately** followed by an identifier and an opening paren
+ * (a function-call shape), so ordinary prose that merely mentions "a tool call" never matches.
+ */
+const PLAIN_PROSE_TOOL_CALL = /\btool\s+call\s*:\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\(/i;
+
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -184,24 +192,34 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
  * cleans display text; the caller substitutes a confirmation when nothing readable remains.
  */
 export function stripNarratedToolCallMarkup(text: string): string {
-	if (!text || !TOOL_CALL_MARKER.test(text)) {
+	if (!text) {
 		return text;
 	}
 	let cut = text.length;
-	TOOL_CALL_OPENER.lastIndex = 0;
-	const opener = TOOL_CALL_OPENER.exec(text);
-	if (opener) {
-		cut = Math.min(cut, opener.index);
+	// Structured family markers (Hermes/Qwen/Mistral/Phi/etc.) — gated behind the cheap pre-check.
+	if (TOOL_CALL_MARKER.test(text)) {
+		TOOL_CALL_OPENER.lastIndex = 0;
+		const opener = TOOL_CALL_OPENER.exec(text);
+		if (opener) {
+			cut = Math.min(cut, opener.index);
+		}
+		const named = /<function\s*=/i.exec(text);
+		if (named) {
+			cut = Math.min(cut, named.index);
+		}
+		const deepSeek = DEEPSEEK_OPENER.exec(text);
+		if (deepSeek) {
+			cut = Math.min(cut, deepSeek.index);
+		}
 	}
-	const named = /<function\s*=/i.exec(text);
-	if (named) {
-		cut = Math.min(cut, named.index);
+	// Plain-prose `Tool call: name(...)` narration (checked independently — its lead-in has a space, not the
+	// underscore the structured pre-check looks for).
+	const plainProse = PLAIN_PROSE_TOOL_CALL.exec(text);
+	if (plainProse) {
+		cut = Math.min(cut, plainProse.index);
 	}
-	const deepSeek = DEEPSEEK_OPENER.exec(text);
-	if (deepSeek) {
-		cut = Math.min(cut, deepSeek.index);
-	}
-	return text.slice(0, cut).trim();
+	// Preserve the exact no-op (return the original, untrimmed) when nothing matched.
+	return cut === text.length ? text : text.slice(0, cut).trim();
 }
 
 let recoveredToolCallSeq = 0;
