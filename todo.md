@@ -282,9 +282,15 @@ deep analysis:
           `runtime-api.ts`, procedures `chat.startAutonomousRun` (mutation) + `chat.autonomousRunStatus` (query) in
           `app-router.ts`. The run's turns persist to the transcript as it goes, so the existing chat UI already shows the
           conversation grow. 4 controller unit tests + contract (272) + runtime-api (87) green; tsc + biome green.
-    - [ ] **goal-intake UI + live-verify** — sidebar "work autonomously" affordance (goal field + Start/Stop + focus-chain
-          progress, mirroring the board swarm-pause UX), then a real small-model autonomous run on a dev-test project
-          (Playwright + the loop).
+    - [x] **goal-intake UI (DONE 2026-06-26)** — `useChatData` gained `autonomousStatus` + `startAutonomousRun(goal)`
+          (calls `chat.startAutonomousRun`, then a self-cancelling poll loop on `chat.autonomousRunStatus` that refreshes
+          the transcript as the agent works). `ChatPanel` gained an `AutonomousRunBar` above the composer: a goal field +
+          "Auto" button (disabled while running / no session) + a compact live status line (working · N/M steps, or the
+          final stop reason · turns). Render-verified: web:typecheck + web:build green (no chat component test exists to
+          extend). *(No Stop control yet — the run is budget-bounded; mid-run cancel would need a backend signal.)*
+    - [ ] **live-verify** — a real small-model autonomous run end-to-end (boot the app + LM Studio, start a run from the
+          sidebar, watch the focus chain + tool work + stop reason); plus a quick browser render-check of the new
+          AutonomousRunBar. Needs the live browser + a loaded model — a focused verification pass.
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and

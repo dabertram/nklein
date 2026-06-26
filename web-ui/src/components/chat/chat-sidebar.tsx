@@ -1,4 +1,4 @@
-import { MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
+import { Bot, MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -20,6 +20,8 @@ import { clampBetween } from "@/resize/resize-persistence";
 import { CHAT_SIDEBAR_WIDTH_BOUNDS, useChatSidebarLayout } from "@/resize/use-chat-sidebar-layout";
 import { useResizeDrag } from "@/resize/use-resize-drag";
 import type {
+	RuntimeChatAutonomousRunStatus,
+	RuntimeChatAutonomousStopReason,
 	RuntimeChatMessage,
 	RuntimeChatSession,
 	RuntimeChatSessionRole,
@@ -413,6 +415,88 @@ function MessageBubble({ message }: { message: RuntimeChatMessage }): React.Reac
  * bubble + a growing assistant bubble), then the persisted transcript replaces the placeholders. Styling follows
  * the design system (Tailwind tokens + UI primitives).
  */
+function formatAutonomousStopReason(reason: RuntimeChatAutonomousStopReason | null): string {
+	switch (reason) {
+		case "completed":
+			return "✓ Goal complete";
+		case "paused_needs_user":
+			return "⏸ Needs your input";
+		case "budget_turns_exhausted":
+			return "Turn budget reached";
+		case "budget_wall_time_exhausted":
+			return "Time budget reached";
+		case "stalled_no_progress":
+			return "Stopped — no progress";
+		default:
+			return "Stopped";
+	}
+}
+
+/**
+ * The "work autonomously" control (todo §5.0.1): a goal field + Start that kicks off a background autonomous run on the
+ * selected session, plus a compact live status line (working / step progress, or the final stop reason). The run's
+ * turns stream into the transcript above as the hook polls.
+ */
+function AutonomousRunBar({
+	status,
+	disabled,
+	onStart,
+}: {
+	status: RuntimeChatAutonomousRunStatus | null;
+	disabled: boolean;
+	onStart: (goal: string) => void;
+}): React.ReactElement {
+	const [goal, setGoal] = useState("");
+	const running = status?.running ?? false;
+	const steps =
+		status && status.planProgress.total > 0
+			? ` · ${status.planProgress.done}/${status.planProgress.total} steps`
+			: "";
+	const start = (): void => {
+		const trimmed = goal.trim();
+		if (trimmed && !running) {
+			onStart(trimmed);
+		}
+	};
+	return (
+		<div className="border-t border-border px-3 py-2 bg-surface-2 shrink-0 min-w-0 flex flex-col gap-1.5">
+			<div className="flex items-center gap-2 min-w-0">
+				<input
+					data-testid="chat-autonomous-goal"
+					className="flex-1 min-w-0 rounded-md border border-border bg-surface-1 px-2 py-1 text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus disabled:opacity-50"
+					placeholder="Goal for autonomous work…"
+					value={goal}
+					onChange={(event) => setGoal(event.target.value)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") {
+							event.preventDefault();
+							start();
+						}
+					}}
+					disabled={disabled || running}
+				/>
+				<Button
+					type="button"
+					size="sm"
+					icon={<Bot size={14} />}
+					data-testid="chat-autonomous-start"
+					onClick={start}
+					disabled={disabled || running || goal.trim().length === 0}
+				>
+					{running ? "Working…" : "Auto"}
+				</Button>
+			</div>
+			{status && (running || status.stopReason || status.finalText) ? (
+				<div data-testid="chat-autonomous-status" className="text-[11px] text-text-secondary truncate">
+					{running
+						? `Working autonomously${steps}…`
+						: `${formatAutonomousStopReason(status.stopReason)} · ${status.turns} turn${status.turns === 1 ? "" : "s"}${steps}`}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () => void }): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
@@ -558,6 +642,11 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 								) : null}
 								<div ref={transcriptEndRef} />
 							</div>
+							<AutonomousRunBar
+								status={chat.autonomousStatus}
+								disabled={!chat.selectedSessionId}
+								onStart={(goal) => void chat.startAutonomousRun(goal)}
+							/>
 							<form
 								onSubmit={handleSubmit}
 								className="border-t border-border p-3 flex items-end gap-2 bg-surface-1 shrink-0 min-w-0"

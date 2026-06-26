@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeChatAutonomousRunStatus,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
 	RuntimeChatSession,
@@ -33,6 +34,10 @@ export interface UseChatDataResult {
 	deleteSession: (id: string) => Promise<void>;
 	sendMessage: (message: string) => Promise<void>;
 	refetchSessions: () => Promise<unknown>;
+	/** The selected session's autonomous run (todo §5.0.1): null until one is started this mount. */
+	autonomousStatus: RuntimeChatAutonomousRunStatus | null;
+	/** Start an autonomous run toward `goal` on the selected session; polls status + refreshes the transcript until done. */
+	startAutonomousRun: (goal: string) => Promise<void>;
 }
 
 export function useChatData(enabled: boolean): UseChatDataResult {
@@ -42,6 +47,17 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [autonomousStatus, setAutonomousStatus] = useState<RuntimeChatAutonomousRunStatus | null>(null);
+	// A cancellation token for the active status-poll loop; flipped when a new run starts or the hook unmounts.
+	const autonomousPollRef = useRef<{ cancelled: boolean } | null>(null);
+	useEffect(
+		() => () => {
+			if (autonomousPollRef.current) {
+				autonomousPollRef.current.cancelled = true;
+			}
+		},
+		[],
+	);
 
 	const sessionsQuery = useTrpcQuery({
 		enabled,
@@ -145,6 +161,55 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		[client, selectedSessionId, transcriptQuery, sessionsQuery],
 	);
 
+	const startAutonomousRun = useCallback(
+		async (goal: string) => {
+			const trimmed = goal.trim();
+			if (!trimmed || !selectedSessionId) {
+				return;
+			}
+			setError(null);
+			const sessionId = selectedSessionId;
+			try {
+				const response = await client.chat.startAutonomousRun.mutate({ sessionId, goal: trimmed });
+				setAutonomousStatus(response.status);
+				// (Re)start the status-poll loop: refresh the transcript as the agent works, until the run stops.
+				if (autonomousPollRef.current) {
+					autonomousPollRef.current.cancelled = true;
+				}
+				const token = { cancelled: false };
+				autonomousPollRef.current = token;
+				const poll = async (): Promise<void> => {
+					await new Promise((resolve) => setTimeout(resolve, 2500));
+					if (token.cancelled) {
+						return;
+					}
+					try {
+						const status = await client.chat.autonomousRunStatus.query({ sessionId });
+						if (token.cancelled) {
+							return;
+						}
+						setAutonomousStatus(status);
+						await transcriptQuery.refetch();
+						if (status.running) {
+							void poll();
+						}
+					} catch {
+						// Transient query error — keep polling (the background run is still going).
+						if (!token.cancelled) {
+							void poll();
+						}
+					}
+				};
+				if (response.status.running) {
+					void poll();
+				}
+			} catch (caught) {
+				setError(caught instanceof Error ? caught.message : String(caught));
+			}
+		},
+		[client, selectedSessionId, transcriptQuery],
+	);
+
 	return {
 		sessions: sessionsQuery.data ?? [],
 		sessionsLoading: sessionsQuery.isLoading,
@@ -161,5 +226,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		deleteSession,
 		sendMessage,
 		refetchSessions: sessionsQuery.refetch,
+		autonomousStatus,
+		startAutonomousRun,
 	};
 }
