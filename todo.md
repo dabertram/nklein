@@ -730,6 +730,17 @@ deep analysis:
   - [ ] groove invariants + effect-guardrail sweeps
   - [ ] full UI control coverage
   - [ ] prototype-vs-real-VST docs
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §3/§4/fold-5.B):
+      a DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts.** For bug/repair work,
+      constrain the pipeline instead of giving the small model general agency: **`reproduce → localize → generate N patch
+      candidates → validate → rank → refine`** (reproduction test as a first-class fail-before/pass-after artifact;
+      AST/symbol/call-graph localization tools that **cannot edit**; rank candidates by repro-pass × regression-pass ×
+      typecheck/lint × diff-size × touched-file plausibility × reviewer evidence × learned priors; ledger the candidates
+      + validator results + ranking rationale). The hard orchestration lives in the harness; the model only does narrow
+      generative subtasks (the small-model thesis). **Enrich generated card specs** with `preconditions / inputs /
+      expectedOutputs / acceptanceChecks / nonGoals / dependencyOutputsConsumed / rollbackOrRepairHints /
+      downstreamInvalidationRules` so a card is executable node-locally, and add controller repair semantics (retry-node
+      / refine-spec / split-node / add-dependency / invalidate-downstream / re-review / global-re-decompose-only-as-last-resort).
 
 ### 5.C — Run summaries & timeout diagnostics
 - [x] **Timeout provenance + stats** — run summaries stamp `timeoutSource`
@@ -927,6 +938,19 @@ deep analysis:
         General settings section; the dialog already tracked `agentRulesets` state + threaded it through the save
         path (`updateRuntimeConfig`/`updateGlobalRuntimeConfig`). Component-tested (render + change + add/clear
         override) + dialog suite (35) green; live Playwright Settings render clean.
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §10/fold-5.L-security):
+      PROVENANCE/TAINT + a real EGRESS broker (assume prompt injection SUCCEEDS → protect the sinks).** Once online
+      retrieval (§5.AC), the browser (§5.M G6), and MCP are live, model-facing content is untrusted. Add a **capability
+      broker** between the model and every tool that decides `allow | deny | one-time-confirm | require-fresh-trusted-plan`
+      from `{ effective ruleset, role, source provenance, tool trust, current taint labels, requested action, target
+      path/domain/server, is-sink? }`. **Taint labels** (`repo_instruction / web / mcp / private_repo / secret_like /
+      user_trusted / runtime_policy`) with the rule: **repo/web/MCP content can guide STYLE but never modify
+      capabilities, approvals, network, secrets, git-delivery, or host access without a trusted plan + confirmation**
+      (remote MCP annotations are hints, not trust). **Egress broker:** DNS/SNI/domain allowlist, deny IP-literals + LAN
+      by default, network-attempt audit, per-action approvals. **Audit task-agent actions too** (sandbox bash, file
+      r/w, patch capture/apply, MCP calls, egress attempts, protected-path denials, approvals — not just chat host
+      actions). Folds into the §5.AF tool-capability manifest + the resolved §5.Y posture; harden tier (rootless Docker /
+      seccomp / pinned digest) is a later option.
 
 ### 5.M — Unified agentic coding chat + private messenger bridge *(raised + decided 2026-06-22/23)*
 > **Goal:** a board-independent strong coding agent (Claude/Codex/Cline-class) on small local models via good memory
@@ -1340,6 +1364,16 @@ deep analysis:
         Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
 - [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
       `"queue" | "steer"` delivery mode; wire through UI + bridge.
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §9/fold-5.M):
+      LAYERED memory as one projection over the §5.AF substrate.** The chat memory core is a good start; the long-horizon
+      story is four layers: **working** (active state + current step), **episodic** (the immutable §5.AF event/attempt
+      ledger), **semantic** (facts/preferences/project constraints extracted from episodes), **procedural** (the §5.AE
+      `ProceduralSkillBank`). Add a **turn-budget allocator** that explicitly apportions the window across system/
+      invariants · objective/focus-chain · current message · recent transcript · overflow summary · semantic memories ·
+      episodic evidence · procedural skills · tool defs (ties §5.AD smart-zone). Make the owed "access-all-loaded-projects
+      memory" a **namespaced scope**, not a shared boolean; add memory **governance** (provenance, scopes, deletion,
+      contradiction-replacement, recency/frequency/importance, reversible history) + **"why recalled"** surfacing.
+      Gate broadening memory scope on an internal LongMemEval-style task (§5.V).
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
 > Every agent drafts an ordered checklist at task start + works through it — keeps small models on-task, makes
@@ -1554,6 +1588,17 @@ deep analysis:
       Unit-tested: full workflow driven with only `"next"`, empty-cursor advance, plus the existing explicit-cursor
       suite. *(Re-running the whole pass when synthesis is still too large remains unaddressed — the workflow already
       parks/persists chunk context, so synthesis works from running notes; revisit only if a real case surfaces.)*
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §5/fold-tool-interface):
+      NARROW the tool interface for small models (tool count + ambiguity are major failure drivers).** Beyond parse-and-
+      recover, drive a **smaller offered tool set + better feedback** off the §5.AF tool-capability manifest: **two-phase
+      tool use** (first pick `none | one_tool | plan_needed` from short **tool cards** — name / one-line purpose /
+      use-when / do-not-use-when / example / common-recovery — then reveal ONLY the selected tool's schema); **typed
+      semantic error contracts** on every rejection (`{ code, field, expected, received, retryable, minimalValidExample,
+      suggestedNextAction }`) instead of a prose error; **result handles** (`result://search/42`) instead of dumping bulk
+      tool output into context; a typed **action-plan IR** for multi-step tool workflows; **grammar-constrained decoding**
+      for the internal action IR where the local runtime supports it; per-provider **schema profiles** (smallest safe
+      subset for LM Studio / llama.cpp grammar / OpenAI-compatible + JSON-repair fallback). This is the small-model-
+      optimization layer on top of §5.O's existing robustness work + the §5.AA tool-set-reduction rung.
 
 ### 5.Q — Model telemetry & performance-stats consistency ✅ COMPLETE → moved to [done.md](done.md#5q--model-telemetry--performance-stats-consistency-raised-2026-06-23)
 
@@ -2192,6 +2237,16 @@ deep analysis:
       Deferred (live UI/agent required): `runtime.saveNKleinProviderSettings` (OAuth/API-key, no observable config without live provider);
         isolation status/pool UI; project-settings menu wire-up.
 - [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §7/fold-5.B-5.V):
+      upgrade verification from pass/fail GATES to DIAGNOSTIC ORACLES + reliability measurement.** Add to the dev-test
+      fixtures (§5.O/§5.AI rail exercises these): **hidden test splits** (`fail_to_pass` for the requested behavior +
+      `pass_to_pass` for regressions, separate from the visible acceptance); **repeat-run reliability** (3–5 runs per
+      selected small-model task → `pass_all` / `pass_any` / flake rate / terminal-state failures, NOT one-off pass/fail);
+      **BFCL-style local tool probes** for BOTH chat + swarm paths (exact normalized args, no-call cases, irrelevant-tool
+      avoidance, malformed-format recovery); **failure injection** (flaky command, missing dep, bad URL, Docker restart,
+      model drop, final-answer-loop-after-success); **code-retrieval qrels** (precision@k/recall@k/MRR on expected
+      files/snippets) + **grounded citation scoring** (claims→evidence). These are the oracles the §5.AI rail + §5.Z
+      sweep run; mutation/metamorphic checks gate self-improvement (§5.AF M4) + any backend-level milestone.
 
 > **Test-oracle design (2026-06-25, read-only design pass) — the concrete, parallelizable build plan.** Maps the
 > port-resilient seams (tRPC/HTTP contract = ~88 procedures in [app-router.ts](src/trpc/app-router.ts); CLI; on-disk
@@ -2953,6 +3008,16 @@ deep analysis:
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §2/§4/fold-5.AA):
+      make the outer loop a FINITE-STATE CONTROLLER, not free-form ReAct.** Small models shouldn't own global process
+      transitions — the harness should. (a) An explicit run state machine (`intake → plan → validate_plan → localize →
+      execute_step → observe → evaluate → repair → retry_or_split → review → merge_or_escalate → done`) that selects
+      state-specific context + tools + per-state budgets and records every transition in the §5.AF ledger; ReAct stays a
+      **bounded inner loop inside a state**, never the global driver. (b) The retry ladder (above) becomes a **typed
+      controller strategy table** (each rung a named strategy with a guard) + a **failure-capsule** per attempt (what was
+      tried, evidence, why it failed) so the next rung doesn't rediscover state. (c) Add **auto split/decompose** as a
+      retry rung (local-repair-first; global re-decompose only when coherence can't be restored). Strengthens §5.AF/§5.AB,
+      not a new track.
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** !Klein should AUTOMATICALLY pick the best model per **role** and per **task** by
@@ -3017,6 +3082,15 @@ deep analysis:
       the escalation design already has the seam. Gated behind an explicit per-escalation user allow **and** the
       deliberate cloud-lockdown lift (a reviewed code change, never a feature toggle). Related idea to collect: a
       per-task "max local spend/time before offering cloud escalation" budget the user sets.
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §11/fold-5.AB):
+      make routing CONFIDENCE- and RESOURCE-aware.** (a) **Calibrated confidence from EVIDENCE, not model self-report** —
+      derive it from tool-call validity, tests/acceptance evidence, no-diff/loop signals, semantic/sample disagreement
+      (self-consistency), and the §5.K reviewer verdict, calibrated historically by model × role × task-shape ×
+      tool-set-size × endpoint × prompt-family. (b) **Local-resource cost is the real cost** — fold wall+queue time,
+      RAM/VRAM pressure, model-load time, endpoint occupancy into the fitness, so the scheduler **optimizes globally
+      across ALL queued cards** (hard cards reserve strong models; easy cards drain through fast small models — §5.AF
+      unified admission). (c) **BFCL-style per-model tool probes** feed the fitness table (ties §5.V below). Cross-model
+      debate/review (§5.AD) used selectively for low-confidence/high-risk outputs, preferring a different model family.
 
 ### 5.AC — Online knowledge retrieval + intrinsic temporal awareness (the "knows today" lighthouse) *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** two intertwined grounding features that make !Klein trustworthy where ChatGPT/other
@@ -3081,6 +3155,15 @@ deep analysis:
 - *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §8/fold-5.AC):
+      first-class `RetrievedEvidence` objects + citation verification.** Give retrieval a concrete data model — `{ url/
+      fileRef, title, sourceType, author/publisher?, published/updatedDate, fetchedAt, package/version?, contentHash,
+      trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags }` — and an **adaptive loop**
+      (`knowledgeDebt/task → query plan → local-repo vs online → retrieve → relevance/sufficiency/freshness judgment →
+      cite or search again`). **Citation verification:** every material claim maps to evidence spans; unsupported claims
+      lower confidence or force another retrieval; freshness conflicts prefer newer release notes (keep older as
+      historical). Record retrieval attempts / pruned distractors / citations / helped-or-hurt into the §5.AF ledger.
+      Provenance/taint flags tie to §5.L (prompt-injection: web/MCP content is untrusted).
 
 ### 5.AD — Context as a capability lever: "smart-zone" arrangement, learned quality-effective budget, enforced reasoning loops *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** **context SIZE is part of a model's capability + reasoning quality, in BOTH
@@ -3231,6 +3314,17 @@ deep analysis:
       role + online retrieval fragments) · §5.M (the role catalog this extends) · §5.L (a skill's tools still pass the
       capability-ruleset gate) · §6.3 (the fragments feed the context-budget breakdown) · §5.W (the dynamics-level + model-
       class settings + their per-project overrides).
+- [ ] **Research fold-in (2026-06-27, [memo](.plan/docs/small-llm-agent-optimization-research.md) §6/fold-5.AE):
+      skills are VALIDATED PROCEDURAL MEMORY, not just prompt fragments — a `ProceduralSkillBank`.** Distil skills from
+      the §5.AF ledger's successful + failed-then-repaired attempts: `{ id, version, status: candidate|quarantined|active|
+      deprecated, sourceAttemptIds, producerModel, validatedConsumerModels, roleScope, taskFingerprint, applicability,
+      activation/terminationConditions, representation: lesson|workflow|script|patch_template|program_function,
+      requiredTools, capabilityManifest, validationSuite, effectiveness + false-activation stats }`. Pipeline: `ledger
+      attempts → offline distillation → candidate → quarantine/eval → scoped activation → measure delta → promote/
+      deprecate`. **Rules: NEVER auto-activate a generated skill** (promote only after deterministic replay/dev-test/
+      protected-test validation + positive delta vs no-skill baseline); track **negative transfer** aggressively; prefer
+      executable helpers over text playbooks (weak models ignore prose); store **cross-model transfer** (a strong model's
+      procedure can lift a weaker one). This is the higher-leverage form of the skill-variation rung above + ties §5.AF M4 quarantine.
 
 ### 5.AF — Shared substrate: the Agent Attempt Ledger + durable scheduler + replay + tool-capability manifest *(2026-06-26, from the spec audit — the keystone; build BEFORE widening §5.AA–§5.AE)*
 > **The consolidation the audit identified.** Every new ambition (§5.AA model-behavior learning, §5.AB fitness/selection,
@@ -3346,6 +3440,63 @@ deep analysis:
         that, made first-class + user-drivable from chat.
   - *(cross-links)* §6.11 (self-improvement project — the beachhead) · §5.AF (M4 quarantine gates) · §5.X (the refactor it
         could help drive) · §5.M (chat scopes + host/confirm model) · §5.Y (security posture for self-modification).
+
+### 5.AI — Continuous parallel dev-test evaluation rail *(2026-06-27, user — ACTIVE)*
+> **Vision (user, 2026-06-27):** the lately-added dev-test-projects (the 45-folder registry, §5.O) should be **(1) fully
+> integrated** and **(2) used extensively + EARLY while we build features** — a **"parallel evaluation" rail that's
+> ALWAYS running** to challenge the current state of !Klein's implementation and surface *sleeping* issues. It runs in
+> the background **whenever the loaded LLMs aren't needed for the actual targeted feature test**, can run **multiple
+> projects in parallel** (the small models live on an **m5max / 128 GB** box — "a bit" of compute; a dedicated-LLM
+> machine can be added if it's not enough), and **auto-collects ALL resulting evidence — success AND failure** — which
+> **feeds directly back into these todos** (new bugs / shortcomings → items; and *ideas* that surface when the user or
+> the agent analyses the collected run evidence). Parallel UI + LLM testing is fine; **just don't run too-tight timeout
+> limits** (small local models need slack). Project selection on the idle rail = **user-chosen OR randomized OR
+> agent-selected**. **Invariants:** LOCAL ONLY (#1), strict Docker isolation (#2 — every dev-test agent runs sandboxed,
+> same as real tasks, §5.A), ≥32k floor (#3). **This is the operational, always-on instance of §5.V's e2e oracle +
+> §5.Z's cross-model sweep, powered by the §5.AF durable scheduler — NOT a parallel mechanism; reuse those seams.**
+- [ ] **Fully integrate the lately-added dev-test-projects.** Audit the 45-folder `dev-test-projects/` registry (§5.O)
+      end-to-end: every folder discovered + schema-valid, selectable in the UI (`DevTestRegistryPicker`) and CLI
+      (`nklein dev test-project`/`dev sweep`), scaffolds + runs through the **same** sandboxed `startTaskSession` path as
+      real tasks, and produces evidence. Fix any folder that doesn't run; confirm none reference `~/Desktop`. (Closes the
+      "lately-added projects fully integrated" ask before the rail leans on them.)
+- [ ] **The always-on evaluation rail (background, idle-aware).** A long-running background runner (the §5.AF **durable
+      lease scheduler** — checkpoints to the ledger, survives restart; do NOT build a fragile foreground `verify-*.mts`
+      loop) that, when the loaded models are **idle** (no targeted feature test claiming them), picks dev-test project(s)
+      and runs them sandboxed to terminal state. **Idle-aware admission:** it yields to interactive/targeted work
+      (§5.AF unified resource admission — board cap + sandbox pool + endpoint capacity + model-load + RAM/VRAM/disk +
+      **background-vs-interactive priority**), so it never starves a real run. **Generous timeouts** (the swarm guardrails
+      are configurable, §5.T — the rail uses a long-wall-time profile; small models on the m5max are slow but capable).
+      **Multiple projects in parallel** where endpoint capacity allows (§6.5 per-endpoint serialization + §5.W
+      per-provider/per-model concurrency gate it safely).
+  - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
+        registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
+  - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
+        no-diff tolerance) so a slow-but-progressing small-model run isn't parked prematurely.
+  - [ ] **(optional, later)** a dedicated-LLM-machine endpoint as a second provider the rail can target (config already
+        supports multiple endpoints; §5.W concurrency + §6.5 scheduler already multi-endpoint-aware).
+- [ ] **Auto-collect + auto-analyse ALL evidence (success AND failure) → feed the todos.** Every rail run captures its
+      evidence bundle (the existing `collect evidence` path + the §5.AF ledger projection) — **both** successes (proof
+      it still works on model M / project P) **and** failures (a sleeping bug / shortcoming). An analysis pass over the
+      collected evidence (agent-driven, user-reviewable) turns findings into **todo items** — bugs/shortcomings as
+      `[ ]`/§5.O-style hardening items, and *ideas* (from either the user or the agent reading the evidence) as new
+      spec bullets in the fitting §5 section. Ties §5.O (output-robustness findings → `local-llm-tests.md` + code
+      fixes), §5.Z (the cross-model matrix as a ledger query), and §5.AG (the operator "what happened" surface).
+- [ ] **"Collect evidence" buttons reference the specific card/project.** Verify (and fix if needed) that the existing
+      per-**card** "Create evidence" button stamps the evidence bundle with a **reference to that specific card** (so the
+      user can point the agent at it — "look at this card's evidence"), and the per-**project** evidence button scopes to
+      the project. The user wants to use these buttons to direct the agent at specific cards/projects; the card reference
+      must be present + unambiguous in the bundle. *(Confirm the card-id is carried; today's bundle is workspace-scoped —
+      may need to add the card ref.)*
+- [ ] **Live-run it (the fun part) + prove it surfaces real issues.** Once the rail is up, let it run dev-test projects
+      across the loaded models for a sustained window, then review the harvested evidence together — the goal is to
+      uncover dormant issues the targeted tests miss, and to enjoy watching the dev projects do their work. Each real
+      finding it produces becomes a tracked item (which then lands in `done.md` when fixed, per the §5 DONE rule).
+- *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
+      rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
+      coverage — the rail naturally rotates models) · §5.AF (durable lease scheduler + unified admission + the ledger
+      that stores the evidence) · §5.AG (operator board-health + "what was tried" surface reads the rail's evidence) ·
+      §5.T (configurable generous guardrail timeouts) · §5.W + §6.5 (concurrency + endpoint scheduling) · §6.11
+      (`collect evidence` infra this builds on).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
