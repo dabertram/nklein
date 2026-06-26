@@ -131,3 +131,43 @@ export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;
+
+/** The autonomous-run stop reasons (todo §5.0.1) — mirrors the driver's `AutonomousChatAgentStopReason` union. */
+export const runtimeChatAutonomousStopReasonSchema = z.enum([
+	"completed",
+	"paused_needs_user",
+	"budget_turns_exhausted",
+	"budget_wall_time_exhausted",
+	"stalled_no_progress",
+]);
+export type RuntimeChatAutonomousStopReason = z.infer<typeof runtimeChatAutonomousStopReasonSchema>;
+
+/** Snapshot of a session's autonomous run (todo §5.0.1): whether it's live + the last result. */
+export const runtimeChatAutonomousRunStatusSchema = z.object({
+	running: z.boolean(),
+	goal: z.string().nullable(),
+	stopReason: runtimeChatAutonomousStopReasonSchema.nullable(),
+	turns: z.number().int().nonnegative(),
+	finalText: z.string().nullable(),
+	planProgress: z.object({
+		total: z.number().int().nonnegative(),
+		done: z.number().int().nonnegative(),
+	}),
+});
+export type RuntimeChatAutonomousRunStatus = z.infer<typeof runtimeChatAutonomousRunStatusSchema>;
+
+export const runtimeChatStartAutonomousRequestSchema = z.object({
+	sessionId: z.string(),
+	goal: z.string().min(1),
+});
+export type RuntimeChatStartAutonomousRequest = z.infer<typeof runtimeChatStartAutonomousRequestSchema>;
+
+export const runtimeChatStartAutonomousResponseSchema = z.object({
+	/** False when a run is already active for the session (the existing status is returned unchanged). */
+	started: z.boolean(),
+	status: runtimeChatAutonomousRunStatusSchema,
+});
+export type RuntimeChatStartAutonomousResponse = z.infer<typeof runtimeChatStartAutonomousResponseSchema>;
+
+export const runtimeChatAutonomousStatusRequestSchema = z.object({ sessionId: z.string() });
+export type RuntimeChatAutonomousStatusRequest = z.infer<typeof runtimeChatAutonomousStatusRequestSchema>;

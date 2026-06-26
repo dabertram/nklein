@@ -288,15 +288,21 @@ import {
 	runtimeWorktreeDeleteResponseSchema,
 } from "../core/api-contract";
 import type {
+	RuntimeChatAutonomousRunStatus,
+	RuntimeChatAutonomousStatusRequest,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
 	RuntimeChatSendMessageRequest,
 	RuntimeChatSendMessageResponse,
 	RuntimeChatSession,
+	RuntimeChatStartAutonomousRequest,
+	RuntimeChatStartAutonomousResponse,
 	RuntimeChatStreamEvent,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract.js";
 import {
+	runtimeChatAutonomousRunStatusSchema,
+	runtimeChatAutonomousStatusRequestSchema,
 	runtimeChatCreateSessionRequestSchema,
 	runtimeChatDeleteSessionRequestSchema,
 	runtimeChatDeleteSessionResponseSchema,
@@ -304,6 +310,8 @@ import {
 	runtimeChatSendMessageResponseSchema,
 	runtimeChatSessionResponseSchema,
 	runtimeChatSessionsResponseSchema,
+	runtimeChatStartAutonomousRequestSchema,
+	runtimeChatStartAutonomousResponseSchema,
 	runtimeChatTranscriptRequestSchema,
 	runtimeChatTranscriptResponseSchema,
 	runtimeChatUpdateSessionRequestSchema,
@@ -540,6 +548,8 @@ export interface RuntimeTrpcContext {
 			input: RuntimeChatSendMessageRequest,
 			onToken?: (delta: string) => void,
 		) => Promise<RuntimeChatSendMessageResponse>;
+		startAutonomousChatRun: (input: RuntimeChatStartAutonomousRequest) => Promise<RuntimeChatStartAutonomousResponse>;
+		getAutonomousChatRunStatus: (input: RuntimeChatAutonomousStatusRequest) => RuntimeChatAutonomousRunStatus;
 	};
 	workspaceApi: {
 		loadGitSummary: (
@@ -1060,6 +1070,18 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeChatSendMessageResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.sendChatMessage(input);
+			}),
+		startAutonomousRun: t.procedure
+			.input(runtimeChatStartAutonomousRequestSchema)
+			.output(runtimeChatStartAutonomousResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.startAutonomousChatRun(input);
+			}),
+		autonomousRunStatus: t.procedure
+			.input(runtimeChatAutonomousStatusRequestSchema)
+			.output(runtimeChatAutonomousRunStatusSchema)
+			.query(({ ctx, input }) => {
+				return ctx.runtimeApi.getAutonomousChatRunStatus(input);
 			}),
 		streamMessage: t.procedure.input(runtimeChatSendMessageRequestSchema).subscription(async function* ({
 			ctx,

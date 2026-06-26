@@ -273,11 +273,15 @@ deep analysis:
           `runAgentTurn` = one `runChatAgentTurn`, `readPlanProgress` = the focus-chain summary) and drives
           `runAutonomousChatSession`. 2 integration tests through the real chat machinery (declare_goal_complete→completed,
           missing-session→null). So `chatService.runAutonomous(...)` runs a full autonomous loop end-to-end today.
-    - [ ] **tRPC start/status procedure + background drive** — the remaining backend-exposure: an in-memory per-session run
-          registry + a `startAutonomousChatRun({ sessionId, goal })` (kicks off `chatService.runAutonomous` in the background
-          with the resolved swarm-guardrail budget) + a `getAutonomousChatRunStatus` query (running? last stop reason /
-          turns / plan progress); contract schemas in `chat-api-contract.ts`; wired in `app-router.ts`. The run's turns
-          already persist to the transcript, so the existing chat UI shows progress.
+    - [x] **tRPC start/status procedure + background drive (DONE 2026-06-26)** — the agent is now **wire-reachable**.
+          `createAutonomousChatRunController` (`runtime-api/autonomous-chat-run.ts`): an in-memory per-session run registry
+          + `start` (kicks off `chatService.runAutonomous` in the background, bounded by the global `swarmGuardrails`
+          budget — one run per session, returns the in-flight status if already running; a failed run surfaces in
+          `finalText`) + `status` (running? last stop reason / turns / plan progress). Contract schemas added to
+          `chat-api-contract.ts` (`runtimeChatStartAutonomous*` + `runtimeChatAutonomousRunStatus`), handlers in
+          `runtime-api.ts`, procedures `chat.startAutonomousRun` (mutation) + `chat.autonomousRunStatus` (query) in
+          `app-router.ts`. The run's turns persist to the transcript as it goes, so the existing chat UI already shows the
+          conversation grow. 4 controller unit tests + contract (272) + runtime-api (87) green; tsc + biome green.
     - [ ] **goal-intake UI + live-verify** — sidebar "work autonomously" affordance (goal field + Start/Stop + focus-chain
           progress, mirroring the board swarm-pause UX), then a real small-model autonomous run on a dev-test project
           (Playwright + the loop).

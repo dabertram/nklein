@@ -109,6 +109,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
@@ -429,6 +430,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				isRemoteMode: deps.isRemoteMode ?? false,
 			}),
 		});
+	// Autonomous chat runs (todo §5.0.1): background driver + per-session status, bounded by the global swarm guardrails.
+	const autonomousChatRun = createAutonomousChatRunController({
+		chatService,
+		resolveGuardrails: async () => (await loadGlobalRuntimeConfig()).swarmGuardrails,
+	});
 
 	const buildConfigResponse = (runtimeConfig: RuntimeConfigState) =>
 		buildRuntimeConfigResponse(
@@ -1353,5 +1359,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			const result = await chatService.sendMessage(input, onToken);
 			return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
 		},
+		startAutonomousChatRun: (input) => autonomousChatRun.start(input),
+		getAutonomousChatRunStatus: (input) => autonomousChatRun.status(input),
 	};
 }
