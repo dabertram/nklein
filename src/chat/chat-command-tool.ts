@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import { stripInternalAuthTokenFromEnv } from "../security/passcode-manager";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { CommandSafetyResult } from "./chat-command-safety";
 import { classifyCommandSafety } from "./chat-command-safety";
@@ -71,7 +72,9 @@ const DEFAULT_MAX_OUTPUT_CHARS = 8_000;
 const DEFAULT_RUNNER: CommandRunnerDeps = {
 	run: ({ command, cwd, timeoutMs }) =>
 		new Promise<CommandRunResult>((resolveRun) => {
-			const child = spawn(command, { cwd, shell: true });
+			// Untrusted, model-driven command: strip the internal runtime-API auth token from its
+			// environment so a leaked token can't be replayed to impersonate a trusted CLI sub-process.
+			const child = spawn(command, { cwd, shell: true, env: stripInternalAuthTokenFromEnv() });
 			let stdout = "";
 			let stderr = "";
 			let timedOut = false;

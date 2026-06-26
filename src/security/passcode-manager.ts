@@ -243,6 +243,22 @@ export function getInternalToken(): string | null {
 }
 
 /**
+ * Return a shallow copy of `env` with the internal CLI auth token(s) removed.
+ * The token authenticates trusted CLI sub-processes against the runtime API, so
+ * it must NOT be inherited by untrusted children — model-driven chat commands,
+ * sandboxed agents, the local ML sidecar — where a leaked token could be read
+ * and replayed to impersonate a trusted caller. Trusted sub-processes that call
+ * the runtime API (`nklein task`, hooks) are spawned WITHOUT this scrub so they
+ * still inherit the token. No-op when no token is set (e.g. local loopback mode).
+ */
+export function stripInternalAuthTokenFromEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+	const scrubbed: NodeJS.ProcessEnv = { ...env };
+	delete scrubbed[INTERNAL_TOKEN_ENV];
+	delete scrubbed[LEGACY_INTERNAL_TOKEN_ENV];
+	return scrubbed;
+}
+
+/**
  * Validate an internal bearer token.  Uses timing-safe comparison.
  * Returns `true` if the submitted token matches the active internal token.
  */

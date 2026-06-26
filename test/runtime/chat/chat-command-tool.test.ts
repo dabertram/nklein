@@ -43,6 +43,31 @@ describe("createCommandRunTool — run_command", () => {
 		expect(out).toContain("Command timed out and was killed.");
 	});
 
+	it("strips the internal runtime-API auth token from the real spawned command's environment (§5.Y #6)", async () => {
+		const tokenKey = "NKLEIN_INTERNAL_AUTH_TOKEN";
+		const original = process.env[tokenKey];
+		process.env[tokenKey] = "super-secret-runtime-token";
+		try {
+			// No injected runner → exercises the real DEFAULT_RUNNER (actual child spawn).
+			const { tools } = createCommandRunTool(process.cwd());
+			const runCommand = tools.find((candidate) => candidate.name === "run_command");
+			if (!runCommand) {
+				throw new Error("run_command tool missing");
+			}
+			const out = await runCommand.run({
+				command: `node -e "process.stdout.write(process.env.${tokenKey} || 'ABSENT')"`,
+			});
+			expect(out).toContain("ABSENT");
+			expect(out).not.toContain("super-secret-runtime-token");
+		} finally {
+			if (original === undefined) {
+				delete process.env[tokenKey];
+			} else {
+				process.env[tokenKey] = original;
+			}
+		}
+	});
+
 	it("notes (no output) when the command is silent", async () => {
 		const out = await tool(async () => ok()).run({ command: "true" });
 		expect(out).toContain("(no output)");

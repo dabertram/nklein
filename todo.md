@@ -2222,9 +2222,15 @@ deep analysis:
 - [ ] **MED #5 — chat `browse_url` SSRF.** Only checks http/https → can fetch `127.0.0.1`/RFC1918/link-local/cloud-
       metadata. Block private/loopback/link-local/metadata ranges; re-check after redirects; disable in remote mode w/o
       opt-in.
-- [ ] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
+- [~] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
       sandbox, user commands inherit `NKLEIN_INTERNAL_AUTH_TOKEN`). Scrub it from spawned terminals/sidecars/sandbox/user
-      commands; pass only to the specific trusted subprocesses that need runtime-API access.
+      commands; pass only to the specific trusted subprocesses that need runtime-API access. **PARTIAL (2026-06-26):**
+      added the reusable `stripInternalAuthTokenFromEnv` helper (`src/security/passcode-manager.ts`) and applied it to the
+      **chat `run_command` spawn** (highest-value, model-driven RCE surface — pairs with CRITICAL #1), with unit +
+      real-spawn regression tests. **Remaining:** terminal sessions (careful — a user may run `nklein task`, which needs
+      the token, in a terminal → confirm the auth path first), the Docker sandbox env, and the core-py sidecar. Legit
+      consumers that MUST keep the token: the CLI runtime-API callers (`task-runtime-workspace`/`dev`/`cli`/
+      `runtime-endpoint` via `getRuntimeFetch`).
 - [ ] **MED #7 ⚠️ — remote mode can run plaintext HTTP + `--no-passcode`.** Require HTTPS for non-loopback binds by
       default; gate insecure HTTP behind an explicit `--insecure-remote-http`; rename `--no-passcode` for remote to
       something like `--dangerously-disable-remote-auth`. (Posture: do you use remote mode? sets priority for #7–#9.)
