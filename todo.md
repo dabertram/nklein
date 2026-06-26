@@ -2168,7 +2168,7 @@ deep analysis:
             persistence boundaries — shared `src/state/jsonl-store.ts` helper + zod schemas; all 6 stores repointed:
             `chat-memory-store`, `chat-host-action-audit-store`, `chat-transcript-store`, `chat-session-store`,
             `merge-history-store`, `task-run-summary-store`; schema-invalid records now skip+log instead of silently
-            trusted; 7 new tests; 1806 tests green; committed TODO_COMMIT_HASH); **architecture #3** (tRPC router
+            trusted; 7 new tests; 1806 tests green; `82e1c25f`); **architecture #3** (tRPC router
             composition) first slice DONE (update-status + runtime-stats procedures extracted to
             `src/trpc/runtime-api/update-status.ts`, `178963d4`, contract suite green); **architecture #13** CI
             boundary-drift fixed (`fe4e0343`). Still open: #2 the big extractions, anti-patterns #3 lint ratchet,
