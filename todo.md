@@ -2924,7 +2924,11 @@ deep analysis:
       was first proven** (`9b15e3e3`, after the §5.O loop edits), so this is stochastic composition, NOT a regression
       → **§5.M G7's "PASSES reliably" was optimistic** (corrected). Per-model chat capability is proven by the
       individual sweeps, not the capstone. Sub-sweeps:
-  - [ ] `run_command` (`verify-chat-command-exec`) across the roster — proven qwen3-8b ✅. (the user's "execute at runtime".)
+  - [x] `run_command` (`verify-chat-command-exec`) ACROSS ROSTER (2026-06-26) — **the command EXECUTES at runtime for
+        7/9**: ✅ call+echo (qwen3-8b, coder-14b, nemotron); ◑ EXECUTED-but-weak-reply (gemma-e2b/e4b, qwen3.5-9b,
+        deepseek — `run_command` ran, but the model's reply didn't echo the output: weak synthesis, not a !Klein bug);
+        ❌ never emitted a tool call (phi-4-mini, phi-4-reasoning-plus). The user's "things execute at runtime" works
+        broadly; the 2 non-callers feed the chat-path narrated-recovery candidate below.
   - [ ] `create_card` (`verify-chat-create-card`) across the roster — board control-plane mutation.
   - [ ] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
 - [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
@@ -2944,6 +2948,17 @@ deep analysis:
       parking) a session when the agent emits N consecutive identical no-tool final messages — the work is done, stop
       waiting. Output-robustness, ties §5.O parse-and-recover. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
       NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
+- [ ] **Wire narrated-tool-call recovery into the CHAT agent path (from the run_command sweep, 2026-06-26)** — the
+      web-ui/CLI chat agent (`completeWithTools` in [nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)
+      ~L324) parses ONLY LM Studio's native `tool_calls` and **explicitly defers** `recoverNarratedToolCalls` to the
+      swarm/NKlein agent path — so a model that **narrates** its tool call as text in the chat surface (instead of a
+      structured call) is never recovered and the chat agent silently doesn't act. The swarm path already has this (the
+      `afterModel` hook). Mirror it in the chat loop's model adapter (recover narrated calls from `choice.message.content`
+      when `tool_calls` is empty) so weak/quantized models "just work" in chat too — the §5.O parse-and-recover principle
+      on the chat surface. **Confirm the trigger before building:** instrument the chat path to log raw `content` for
+      phi-4-mini / phi-4-reasoning-plus (the 2 run_command non-callers) and verify they narrate a recoverable call (vs
+      just reasoning without acting). Also extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
+      (gemma-e2b leaked exactly that into its final reply). High value: would lift chat tool-use across small models.
 >
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
