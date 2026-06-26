@@ -648,3 +648,34 @@ The base spec asked for a factory. v2 made it *governable, deterministic, review
 
 The recursion is the proof and the point: **Dschinn uses !Klein to build products; !Klein's swarm builds Dschinn.** Building #36 is therefore not a simulation of the thesis — it *is* the thesis executing on itself. For a swarm of small local agents, this is the dream assignment: a spec where every powerful action is decomposed into a small, contract-bound, independently-verifiable card; where determinism makes a 30-day autonomous run a fast unit test; where governance means a weak model is *safe* even when it's wrong; and where the finished artifact is the strongest possible existence proof that small, sovereign, governed agents can build — and run — something genuinely magnificent. **Build the spine (E1–E3, E11, E14) first; wire !Klein in as the build step (V3, V11); earn the frontier (V4–V10) on top. Power, governed, is the only kind worth shipping.**
 
+---
+
+# v4 — Clarification: !Klein is one tool, and Dschinn continuously self-extends its whole toolset
+
+> Owner clarification (2026-06-26). Two corrections that keep the framing honest — they *generalize* v3, they do not retract it.
+
+## V14. !Klein is ONE tool the owner can use — not the center, and not Dschinn's only purpose
+
+The v3 `KleinAdapter` is correct, but Dschinn is **not** a !Klein wrapper, and the factory is **not** limited to building software. !Klein is one capability in Dschinn's tool gateway — the one the owner (or Dschinn) reaches for when the job is *build/ship software*. It sits **as a peer** alongside browser automation, the model fleet, the research pipeline, the finance/ops tools, media production, data analysis, and everything else. Many of Dschinn's jobs — market research, business operations, support, monitoring, negotiation, content, analysis — use *other* tools entirely, and most are not about code at all. So:
+
+- The owner can invoke !Klein directly as a tool ("build me X"), and Dschinn can choose it autonomously when a goal decomposes into a software deliverable — but a huge fraction of the factory's value flows through non-!Klein, non-software work.
+- The cockpit must present !Klein as **one entry in a tool catalog**, not as the product's spine. The "build engine" language of v3 describes !Klein's *role when software is the job*, nothing more.
+
+## V15. Dschinn's defining behavior: keep an eye on what's available and constantly improve itself **and the tools it uses**
+
+Generalize the v2/v3 model-intelligence crawler into a **capability- and tool-landscape crawler**, and generalize the self-improvement loop (E9 / V6) from "improve my own code" to "improve, swap, tune, or replace any tool in my fabric." Dschinn continuously:
+
+- **Discovers** new tools, models, services, libraries, APIs, and techniques through the same evidence-led research pipeline (which already mines GitHub/HN/X/Reddit/papers/changelogs in V0–V2) — a standing scan, not a one-off.
+- **Evaluates** each candidate on its own benchmark/eval harness against the workloads it actually runs (per-skill, per-tool — reusing the competence model V4).
+- **Adopts / upgrades / tunes / replaces** under governance: every change to the tool fabric — adding a tool, swapping a model, upgrading the `KleinAdapter`, tuning a tool's prompt or config, retiring a tool — goes through the **same evidence-gated, capability-token-scoped, audited, reversible pipeline** as a brain promotion or a self-code-change (V5/V6/E9). No tool enters or changes the fabric as an unaudited or irreversible side effect.
+
+The "two brains" therefore generalize into a continuously-curated, self-improving **tool + model fabric**, and !Klein is one first-class member of it — also continuously evaluated and improved (Dschinn may propose "use a newer !Klein," "drive !Klein with a stronger local model," "add a new tool that beats !Klein for this niche").
+
+**Testable additions (deterministic, fixture-driven):**
+- A **tool registry**: versioned adapters with capability metadata, benchmark scores, provenance, trust label, and an adopt → shadow → promote → (rollback) state machine that mirrors the brain-promotion gates.
+- Fixture **"a new tool/model appears"**: Dschinn discovers a candidate from the research fixtures, benchmarks it deterministically, and either adopts it (with audit + rollback plan) or rejects it with cited reasons — including the adversarial case where the "new tool" is a poisoned/over-permissioned plant (reuses the V7/E10 packs) and must be refused.
+- Fixture **"improve a tool I already use"**: a self-improvement proposal that tunes/upgrades a wired-in tool (the `KleinAdapter` included) is routed through the dogfood pipeline (V6) to the candidate fabric first, shadow-evaluated, and promoted only on gated evidence.
+- **Invariants:** tool-fabric mutation totality (every adopt/upgrade/tune/replace has one audit event with before/after versions + approval source + rollback ref) and tool-fabric safety-ratchet (no fabric change may *weaken* a capability/taint/budget gate). The KleinAdapter is subject to both, like every other tool.
+
+In short: v3 wired !Klein in as *a* powerful tool; v4 makes clear the factory's identity is **the governed, self-extending fabric around all its tools** — and !Klein is one proud, continuously-sharpened member of it, not its center.
+
