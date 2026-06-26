@@ -1871,6 +1871,17 @@ deep analysis:
 > be rewritten in lockstep, defeating the safety net. Treat contract/e2e/UI/CLI coverage as the **port-resilient
 > regression oracle**: the same suite must be runnable against the current TS backend AND a future Python backend and
 > assert identical externally-observable behavior. **Sequencing: complete §5.V first → then §5.X.**
+
+> **§5.V PROGRESS (2026-06-26 — this session).** **Contract layer (port-resilient HTTP-seam suites): 272 tests across
+> Suites 1–21**, covering ~55 of ~88 tRPC procedures — workspace state/git/git-actions, board/card mutations (+revision
+> conflict 409), settings/config (+per-project override no-leak), projects, chat sessions, runtime status/registry reads,
+> swarm-stop. Remaining contract gaps are mostly **LIVE-ONLY** procedures (need a model/session/remote — task
+> start/stop/pause/resume, streamMessage, runGitSyncAction, …) → those belong to the live-e2e layer, not more contract
+> suites. **Live e2e (qwen3-8b + Docker): the north-star CORE is PROVEN** — isolation healthy; **decompose works** (after
+> the `title`-recovery fix); **a card runs to `awaiting_review` with a correct, ready-to-merge result branch**. **Biggest
+> remaining §5.V piece:** a FULL-RUNTIME multi-card pipeline e2e (decompose → dependency-ordered/parallel runs → review →
+> merge → deliver) — needs the full server + board/lane orchestration (not the stripped in-memory harness), so it is a
+> focused arc best started on a fresh context.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
