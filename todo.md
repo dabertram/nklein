@@ -1724,9 +1724,11 @@ deep analysis:
       `runtime-settings-dialog.test.tsx` (the oracle) + `web:typecheck` + `web:build`. Verified green. **2 slices done:
       (1) MCP-suggestion parsing → `runtime-settings-mcp-parsing.ts` (+7-case test); (2) provider-catalog helpers
       (`normalizeProviderId` / `findProviderCatalogItem` / `formatProviderOptionLabel`) →
-      `runtime-settings-provider-helpers.ts`. dialog 4430 → 4341.** Next clean pure-helper groups: model-role
+      `runtime-settings-provider-helpers.ts`; (3) swarm-guardrail form conversion (`WALL_TIME_BOUNDS_HOURS`,
+      `SwarmGuardrailInputs`, `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails`/`isGuardrailInputOutOfRange`) →
+      `runtime-settings-swarm-guardrails.ts`. dialog 4430 → 4304.** Next clean pure-helper groups: model-role
       normalize/serialize (needs `MODEL_ROLE_IDS` — heavily shared, 7 refs — so co-move the const + `ModelRoleId` type),
-      swarm-guardrail input conversion, command-display + timeout-profile helpers; then the stateful section/hook work.
+      command-display + timeout-profile helpers; then the stateful section/hook work.
 - [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable

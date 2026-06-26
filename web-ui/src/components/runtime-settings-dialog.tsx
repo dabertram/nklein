@@ -12,7 +12,6 @@ import {
 	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
-	normalizeRuntimeSwarmGuardrails,
 	RUNTIME_SWARM_GUARDRAIL_BOUNDS,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
 } from "@runtime-contract";
@@ -62,6 +61,13 @@ import {
 	formatProviderOptionLabel,
 	normalizeProviderId,
 } from "@/components/runtime-settings-provider-helpers";
+import {
+	inputsToSwarmGuardrails,
+	isGuardrailInputOutOfRange,
+	type SwarmGuardrailInputs,
+	swarmGuardrailsToInputs,
+	WALL_TIME_BOUNDS_HOURS,
+} from "@/components/runtime-settings-swarm-guardrails";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import {
@@ -129,7 +135,6 @@ import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinSmokeEvalResponse,
 	RuntimeProjectShortcut,
-	RuntimeSwarmGuardrails,
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskNKleinSettings,
 } from "@/runtime/types";
@@ -214,48 +219,6 @@ export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["nklein", "claude", "codex", "droid", "kiro"];
 const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
-
-// The configurable per-task guardrails (todo §5.T) are edited as strings so the user can clear/type freely; the
-// wall-time is edited in hours but stored as ms. `swarmGuardrailsToInputs`/`inputsToSwarmGuardrails` convert between
-// the saved shape and the input strings; `inputsToSwarmGuardrails` clamps via the shared contract normalizer so a
-// typo can never persist an out-of-range value.
-const WALL_TIME_BOUNDS_HOURS = {
-	min: RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousWallTimeMs.min / (60 * 60 * 1000),
-	max: RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxAutonomousWallTimeMs.max / (60 * 60 * 1000),
-} as const;
-interface SwarmGuardrailInputs {
-	maxAutonomousTurnsPerTask: string;
-	maxAutonomousWallTimeHours: string;
-	maxRepeatedNoDiffCheckpoints: string;
-	maxRepeatedToolCallsPerTask: string;
-}
-function formatHoursInput(ms: number): string {
-	const hours = ms / (60 * 60 * 1000);
-	return Number.isInteger(hours) ? `${hours}` : `${Number(hours.toFixed(3))}`;
-}
-function swarmGuardrailsToInputs(guardrails: RuntimeSwarmGuardrails): SwarmGuardrailInputs {
-	return {
-		maxAutonomousTurnsPerTask: String(guardrails.maxAutonomousTurnsPerTask),
-		maxAutonomousWallTimeHours: formatHoursInput(guardrails.maxAutonomousWallTimeMs),
-		maxRepeatedNoDiffCheckpoints: String(guardrails.maxRepeatedNoDiffCheckpoints),
-		maxRepeatedToolCallsPerTask: String(guardrails.maxRepeatedToolCallsPerTask),
-	};
-}
-function inputsToSwarmGuardrails(inputs: SwarmGuardrailInputs): RuntimeSwarmGuardrails {
-	const wallTimeHours = Number.parseFloat(inputs.maxAutonomousWallTimeHours);
-	return normalizeRuntimeSwarmGuardrails({
-		maxAutonomousTurnsPerTask: Number.parseInt(inputs.maxAutonomousTurnsPerTask, 10),
-		maxAutonomousWallTimeMs: Number.isFinite(wallTimeHours) ? Math.round(wallTimeHours * 60 * 60 * 1000) : Number.NaN,
-		maxRepeatedNoDiffCheckpoints: Number.parseInt(inputs.maxRepeatedNoDiffCheckpoints, 10),
-		maxRepeatedToolCallsPerTask: Number.parseInt(inputs.maxRepeatedToolCallsPerTask, 10),
-	});
-}
-// True when the typed value is empty / not a number / outside its bound, so the row can flag that it will be
-// clamped (or filled with the default) on save.
-function isGuardrailInputOutOfRange(value: string, bounds: { min: number; max: number }): boolean {
-	const parsed = Number.parseFloat(value);
-	return !Number.isFinite(parsed) || parsed < bounds.min || parsed > bounds.max;
-}
 
 const LOCAL_SWARM_GUARDRAIL_ROWS = [
 	{
