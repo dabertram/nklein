@@ -3015,10 +3015,14 @@ deep analysis:
 > strategy from a ladder informed by the profile → bounded by the learned budget → always terminate with the best
 > partial result. **Build grounded-first; each increment re-verified by the §5.Z sweep across all 9 models.**
 - [x] **Chat-path narrated recovery (content + `reasoning_content`, +Phi `[TOOL_REQUEST]`) — DONE (2026-06-26, §5.Z).**
-- [ ] **Loop detection + salvage/park (grounded: qwen3.5-9b).** Detect a model that loops re-emitting an identical
-      no-tool final message (and, for streaming, a repeating delta window) → **cut off and salvage** the already-done
-      work (capture the result branch / return the partial reply) or park, instead of waiting out the wall-time guard.
-      Extends the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
+- [~] **Loop detection + salvage/park (grounded: qwen3.5-9b).** **Pure core DONE (2026-06-26):**
+      `detectResponseLoop` ([nklein-response-loop-detection.ts](src/nklein-sdk/nklein-response-loop-detection.ts)) finds
+      the smallest unit repeated `≥minRepeats` times at the tail of a model's output and returns the salvageable prefix
+      (loop collapsed to one occurrence) — pure + deterministic so it guards BOTH the chat stream and the swarm session
+      from one seam; 7 unit tests. **Still owed (wiring):** call it in the chat streaming accumulator (cut the stream +
+      keep the salvage when a delta window loops) and in the swarm session runtime / `AutonomyBudgetWatchdog` (when a
+      finished session loops its final message → finalize/salvage instead of waiting out the wall-time guard). Extends
+      the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
 - [ ] **Task-complexity ladder — tool-set reduction on retry (grounded: phi, highest-value next).** When a model
       returns no tool call with N tools offered, retry with a MINIMISED tool set (only the tools the task needs, e.g.
       6→1), then a single-step prompt, then a stripped system preamble. A pure `simplifyAttempt(level, request)` ladder
