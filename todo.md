@@ -2952,10 +2952,13 @@ deep analysis:
       the output-robustness sweep; §5.Z just tracks its all-models coverage.)
 - [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
       `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
-- [~] **Temporal-awareness lighthouse (§5.AC)** (`verify-temporal-awareness-live.mts`) — a real chat turn with the host
-      clock injected; asserts the model grounds in the injected "now" (places a current-year past month in the past, which
-      its ~2024 training prior would call the future). **3/9 PASS: gemma-4-e2b (2B), qwen3-8b, phi-4-mini-reasoning** (full
-      capability range). Remaining 6 are expected to pass (the date is in the prompt); sweep when convenient.
+- [x] **Temporal-awareness lighthouse (§5.AC) — ALL 9 PASS (2026-06-26)** (`verify-temporal-awareness-live.mts`) — a real
+      chat turn with the host clock injected; asserts the model grounds in the injected "now" (places a current-year past
+      month in the past, which its ~2024 training prior would call the future). **9/9 across the whole roster**: gemma-4-e2b
+      (2B), gemma-4-e4b, qwen3-8b, qwen2.5-coder-14b, qwen3.5-9b, nemotron-3-nano-4b, phi-4-mini-reasoning,
+      phi-4-reasoning-plus, **deepseek-r1** (no crash this run — replied *"According to the authoritative current date/time
+      (groundtruth), today is 2026-06-26 … in the past, as it occurred earlier this year"*, quoting the block verbatim).
+      The lighthouse is robust regardless of model.
 > **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
 - [ ] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
       finishes the work (write+read) then **loops re-emitting an identical no-tool "Done!" final message** is not
@@ -3189,9 +3192,10 @@ deep analysis:
       / session-service / chat-agent-turn suites stay green. **LIVE-PROVEN cross-model (2026-06-26,
       [scripts/verify-temporal-awareness-live.mts](scripts/verify-temporal-awareness-live.mts)):** a real chat turn with the
       host clock injected asks a model whether a current-year past month is past or future — the grounded answer needs the
-      injected "now", and a model on its ~2024 training prior would call it "the future". **3/3 across the capability range
-      PASS** (gemma-4-e2b 2B / qwen3-8b / phi-4-mini-reasoning), each replying e.g. *"The current year is 2026, and March
-      1st, 2026, is in the past relative to today's date of June 26th, 2026"* — the training prior is overridden. **Still
+      injected "now", and a model on its ~2024 training prior would call it "the future". **ALL 9 loaded models PASS**
+      (gemma-4-e2b 2B / gemma-4-e4b / qwen3-8b / qwen2.5-coder-14b / qwen3.5-9b / nemotron-3-nano-4b / phi-4-mini-reasoning
+      / phi-4-reasoning-plus / deepseek-r1), each replying e.g. *"The current year is 2026, and March 1st, 2026, is in the
+      past relative to today's date of June 26th, 2026"* — the training prior is overridden (full matrix in §5.Z). **Still
       owed:** a board-agent **mid-session re-anchor** (the system prompt is static per session; a `beforeModel` hook like
       the §5.N focus-chain re-anchor would refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a
       board-only long-run nicety).
