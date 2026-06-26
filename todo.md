@@ -335,6 +335,31 @@ deep analysis:
       [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
       *(blocked on the user: a joint review only they can do.)*
 
+### 5.0.2 — Milestone ladder + substrate-first sequencing *(2026-06-26, from an external spec audit — navigation aid, do NOT re-litigate)*
+> An external audit of this file (459 §5 items) made a correct structural point: the new ambition arcs (§5.AA adaptive
+> robustness, §5.AB role→model selection, §5.AC online+temporal, §5.AD context, §5.AE dynamic skills) are individually
+> strong but **all depend on the same missing substrate** — a per-attempt evidence stream — and the spec lacked a
+> machine-readable milestone/dependency structure, making task-selection expensive. The disciplined response (NOT more
+> feature sections): one substrate section (**[§5.AF](#5af)**), this milestone callout, an operator-UX section
+> (**[§5.AG](#5ag)**), and a **tiered** cross-model done-bar (§5.Z). Full reasoning + the system component map + the
+> Attempt-Ledger schema + the tool-capability-manifest facets live in
+> **[.plan/docs/substrate-and-milestones.md](.plan/docs/substrate-and-milestones.md)**.
+>
+> **Milestone ladder (the progress backbone):**
+> - **M0 — single-card reliable** — one card → implement → `awaiting_review` → correct result branch, across the roster.
+>   **DONE** (§5.Z verify-task-completion 8/9).
+> - **M1 — decompose → multi-card → merge, unattended** — a goal → DAG → cascade → all cards → review → merge, surviving
+>   restarts. Mechanism PROVEN (§5.V); the unattended/restart-survivable run needs the **§5.AF durable scheduler**.
+> - **M2 — all-model adaptive** — the §5.AA retry ladder + §5.AB selection driving every assignment off the **§5.AF
+>   ledger**; weak models lifted, no circles. Needs the ledger + profile persistence (the pure cores exist, unfed).
+> - **M3 — online freshness** — §5.AC temporal (DONE) + online retrieval + freshness cache in the research roles.
+> - **M4 — self-improving (quarantined)** — !Klein proposes patches to itself, gated by protected-tests + replay-eval +
+>   security review before landing (the §5.AF self-improvement quarantine).
+>
+> **Substrate-first rule:** M2/M3/M4 all sit on §5.AF. Build the **Agent Attempt Ledger** first → make
+> `ModelBehaviorProfile` (§5.AA) / MCSR (§6.4) / the §5.Z matrix / `ModelFitness` (§5.AB) **projections** of it → then the
+> ambition arcs have real data instead of being parallel dreams. Don't widen the ambition fronts before the substrate is real.
+
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
 > clarification; the per-section items below are annotated to match.
@@ -2478,6 +2503,31 @@ deep analysis:
       (replaces inline model-role JSX in the global NKlein section + the new override row); handlers updated to functional
       updates to avoid stale-closure batching. Saved to `modelRolesOverride`/`agentRulesetsOverride` in the payload.
       Remaining: UI for `codeEmbedding` override.
+- [ ] **Per-provider + per-model concurrency — global AND per-project configurable** *(2026-06-26, user)*. The user wants
+      the swarm's parallelism tunable at two grains and two scopes: **(a) per model PROVIDER** (e.g. lmstudio / ollama /
+      a custom local endpoint) and **(b) per MODEL**, each settable as a **global default** AND a **per-project override**.
+      **What exists to build on:** per-model concurrency is already a machine-local **registry constraint**
+      (`maxConcurrentRequests`, §5.T) the **endpoint scheduler** ([nklein-endpoint-scheduler.ts](src/nklein-sdk/nklein-endpoint-scheduler.ts),
+      §6.5) reads to allow N concurrent sessions on a shared endpoint; `maxConcurrentTasks` (board cap) already has the
+      global+project-override pattern (§5.W Phase 1). **What's NEW:** a per-PROVIDER cap, and expressing both as
+      global-default + project-override **config** (not just a registry constraint). Build:
+  - [ ] **config shape** — add `providerConcurrency: Record<providerId, number>` + `modelConcurrency: Record<canonicalModelId, number>`
+        to the global runtime config, each with a `…Override` per-project field (mirror the `codeEmbeddingOverride` /
+        `maxConcurrentTasksOverride` template + the change-detection-registry drift guard, §5.U). `effectiveProviderConcurrency`
+        / `effectiveModelConcurrency` = override ?? global (per key), with the existing per-model registry
+        `maxConcurrentRequests` as the lowest-precedence fallback so today's setting still applies.
+  - [ ] **scheduler enforcement** — extend `scheduleNKleinEndpointStart` to ALSO count running sessions **per provider**
+        and hold a start when the provider cap is reached (today it only counts per shared endpoint + the per-model cap);
+        source the per-model cap from `effectiveModelConcurrency` (fallback to the registry constraint). Unit-test:
+        provider-cap allows-N-then-blocks; model-cap unchanged; project override beats global.
+  - [ ] **contract + tRPC** — thread the two maps + overrides through `runtimeConfigResponseSchema` /
+        `runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`; `saveConfig` passes them generically.
+  - [ ] **Settings UI** — a "Concurrency" card (global) listing providers + (loaded/known) models with a per-row number
+        input, + the per-project `OverrideRow` pattern (Inherited / Overridden ×-revert). Pairs with the §5.W settings
+        regroup ("Guardrails & Limits" / Parallelism home).
+  - *(cross-links)* §5.T (the per-model registry constraint this generalizes) · §6.5 (endpoint scheduler — the
+        enforcement point) · §5.AB (parallel role→model balancing reads these caps) · §5.AF (resource governance +
+        the durable scheduler honor them) · §5.W (the global-vs-project override mechanism + settings regroup).
 - [x] **Project Settings discoverability (2026-06-25, subagent + verified)** — the active project row now shows a
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
@@ -2898,6 +2948,14 @@ deep analysis:
 > principle, NOT just a model failing) **· ⚠️ CANT** (the model genuinely isn't capable enough — a recorded capability-floor
 > data point, not a bug) **· 💥 DROPPED** (crashed mid-run) — then restore the user's selected model. **Priority:** fast
 > high-value flows first (decompose, single-card, chat tools); the long multi-card pipeline is sampled, not full-swept.
+>
+> **DONE-BAR TIERING (2026-06-26, from the spec audit — so "every flow × every model" doesn't dominate runtime):** the
+> requirement is **tiered**, not "full sweep every time". **SMOKE tier** = 1–2 representative models (the north-star
+> `qwen3-8b` + one weak model, e.g. `gemma-4-e2b` or `phi-4-mini`) — the routine done-bar a new/changed LLM-interactive
+> feature must pass before commit. **FULL tier** = all 9 models — run on a **cadence / at a milestone** (a §5.AF durable
+> scheduler job once it lands), not per-change. A task's done-bar is the SMOKE tier; the FULL matrix is a periodic
+> obligation tracked by the per-flow checkboxes here. The matrix itself should become a **§5.AF ledger projection** (a
+> query over recorded attempts) rather than a hand-maintained table.
 - [x] **Sweep driver + results matrix (DONE 2026-06-26)** — `scripts/verify-all-models.mts` iterates the loaded roster,
       pins each model via `NKLEIN_VERIFY_MODEL` (per run a fresh isolated HOME; user settings untouched), runs a named
       harness, applies the deepseek-drop caveat (gone from `/v1/models` → DROPPED + continue), and appends a per-model
@@ -3374,6 +3432,73 @@ deep analysis:
       role + online retrieval fragments) · §5.M (the role catalog this extends) · §5.L (a skill's tools still pass the
       capability-ruleset gate) · §6.3 (the fragments feed the context-budget breakdown) · §5.W (the dynamics-level + model-
       class settings + their per-project overrides).
+
+### 5.AF — Shared substrate: the Agent Attempt Ledger + durable scheduler + replay + tool-capability manifest *(2026-06-26, from the spec audit — the keystone; build BEFORE widening §5.AA–§5.AE)*
+> **The consolidation the audit identified.** Every new ambition (§5.AA model-behavior learning, §5.AB fitness/selection,
+> §5.AC retrieval, §5.AD context-quality, §5.Z cross-model matrix, retry budgets, loop salvage, deterministic
+> debugging) consumes/produces the SAME thing — a per-**attempt** outcome record — but today those outcomes evaporate
+> into per-domain stores that share no grain/key. Build ONE durable evidence stream and make the rest projections of it.
+> Full schema + the system component map + the milestone ladder live in
+> **[.plan/docs/substrate-and-milestones.md](.plan/docs/substrate-and-milestones.md)**. **Invariants:** LOCAL ONLY (#1),
+> strict isolation (#2), ≥32k floor (#3) — the ledger is host-side control-plane (it records agent attempts; it never
+> runs on the agent's behalf). **My adaptation of the audit:** consolidate, don't proliferate — fold its "flight
+> recorder / driving school / workload compiler / policy DSL / context profiler / freshness cache" framings into the
+> sections they already belong to (noted inline), not new sections.
+- [ ] **★ Agent Attempt Ledger (pure core + persisted store).** A per-attempt append-only record (attemptId/parent,
+      taskId/workspaceHash/role, canonical modelId+endpoint+endpointStrategy, promptStrategy+toolSet+simplificationLevel,
+      contextTokens+budgetTarget, difficulty, started/completed+ttft+tok/s, toolCalls, outcome [the §5.AA
+      `ModelOutcomeKind`], qualityScore/Ok, retriesBefore, salvage, artifacts). Reuse the validated
+      [src/state/jsonl-store.ts](src/state/jsonl-store.ts) boundary + a zod schema. Pure builder + writer first; **then
+      re-home the attempt-grain bits** currently scattered in `task-run-summary-store`, model-registry observations, and
+      knowledge-tool telemetry so they become projections/thin-writers — do NOT duplicate. *(This is the audit's "flight
+      recorder".)*
+- [ ] **Make `ModelBehaviorProfile`/MCSR/§5.Z/`ModelFitness` projections over the ledger.** Wire the §5.AA online update
+      (`recordModelBehaviorOutcome`, core DONE) + the §5.AB fitness records + the §5.Z matrix to READ/WRITE the ledger
+      stream — one evidence source, no parallel persistence. Unblocks M2.
+- [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
+      fixture → replay the live orchestration without a model. Turns the currently "live-only, deferred to e2e" §5.V
+      flows into deterministically-testable ones; debugs orchestration races without a GPU. `replayable` is a per-tool
+      manifest facet (below).
+- [ ] **Durable long-run job scheduler.** A background job runner that **checkpoints to the ledger** and **resumes** —
+      the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven: the 30-min
+      multi-card run died on one transient `fetch failed`). Seeds: the endpoint scheduler (§6.5) + per-model concurrency
+      (§5.T). Unblocks M1's unattended pipeline run.
+- [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
+      manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
+      workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
+      function of `(manifest, mode, ruleset)`, replacing the drifted trio (chat `chat-execution-mode` action-kinds + §5.L
+      rulesets + the NKlein tool-approval policy). The audit's **external-action policy** ("dark factory" network /
+      accounts / purchases / publishing / money) is just higher `networkLevel`/`approval` tiers on this manifest —
+      collect the seam, stay #1-locked.
+- [ ] **Resource governance (operational, NOT perf-benchmarking).** Model load/unload policy, VRAM/RAM/disk headroom
+      check before a sweep, endpoint-saturation backpressure (the scheduler already serializes per endpoint),
+      background-vs-interactive priority — so a local multi-model lab doesn't OOM/thrash/deadlock. **Distinct from** the
+      §5.O-deferred perf/efficiency *comparison* sweeps; this is "don't melt the machine," which is in-scope.
+- [ ] **Self-improvement quarantine (M4 safety).** !Klein-proposed patches to itself land only through stricter gates:
+      protected-tests (#1.5) + a replay-eval pass + a security review (§5.Y posture) before merge. Ties the existing
+      self-improvement project (§6.11) + the agent-write-guard.
+- *(cross-links)* §5.AA/§5.AB (read the ledger) · §6.4 MCSR (its observations become a ledger projection) · §5.Z (the
+      matrix becomes a ledger query) · §5.V (replay makes live-only flows testable) · §5.L + chat-execution-mode (unified
+      by the tool manifest) · §6.5 + §5.T (scheduler seeds) · §5.Y (quarantine security gates).
+
+### 5.AG — Operator UX milestones: healthy / stuck / risky / done *(2026-06-26, from the spec audit)*
+> The audit's fair point: the engine is deep, but the **daily operator workflow** needs its own hard spec — "what does
+> the user SEE when work is healthy, stuck, risky, or done?" The cockpit (§6.8) shows live per-card telemetry; this is
+> the **at-a-glance board-health story** on top of it, and the home for the §5.AB "why this model for this task" +
+> §5.AF "what was tried before escalating" surfaces. Keep it grounded — build the states that map to real signals we
+> already emit.
+- [ ] **Board-health summary (healthy / stuck / risky / done).** One glanceable status derived from existing signals:
+      healthy = cards progressing (focus-chain/diff advancing); stuck = parked/no-progress/loop-salvaged (§5.AA) or
+      a §5.S clarifying question pending; risky = a host/unsafe action awaiting ack (§5.M G3b) or a delivery gate held
+      (§5.L) or sandbox-unavailable (§5.A); done = merged/awaiting-review. Surface as a board-header rollup + per-lane.
+- [ ] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
+      resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
+      silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
+- [ ] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
+      (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
+      do I unblock this?" hunting.
+- *(cross-links)* §6.8 cockpit (the live per-card layer this summarizes) · §5.AF ledger (the escalation/attempt data) ·
+      §5.AB (selection reasoning) · §5.S (clarify inbox) · §5.M G3b (risk ack) · §5.L (delivery gate) · §5.A (isolation state).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
