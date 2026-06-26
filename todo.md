@@ -2375,8 +2375,12 @@ deep analysis:
       videos from external signed S3 URLs (`github.com/user-attachments` → `*.s3.amazonaws.com`) → removed rather than
       punch an S3 hole in the CSP (slides render title+description via a new `hasOnboardingMediaSource` guard).
       Regression tests in `test/runtime/security/remote-security-policy.test.ts`; web suite 712 green.
-      **Follow-up (rebranding/content):** !Klein needs its own self-hosted onboarding media (then no CSP change — `'self'`
-      covers it); worth a sweep for any other inherited-fork phone-home/branding artifacts.
+      **Fork-artifact sweep done (2026-06-26 — CLEAN):** Sentry was the *only* hardcoded phone-home endpoint (now
+      env-gated); PostHog is already env-gated (`isTelemetryEnabled()` requires a key → inert without one); the remaining
+      `telemetry.*` hits are LOCAL self-observation JSONL (evidence bundles / dogfood), not phone-home; branding is clean
+      (no `NKlein Bot Inc.`/`Bot Inc`/user-facing `NKlein Kanban` — the lone `LEGACY_KANBAN_INITIAL_COMMIT_MESSAGE` is a
+      deliberate git-history-matched back-compat string per AGENTS.md). **Remaining content follow-up:** !Klein needs its
+      own self-hosted onboarding media (then no CSP change — `'self'` covers it).
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
 > HTTPS-by-default + `--no-passcode` gating + HSTS), ✅ #12 (headers + CSP + Sentry-DSN env-gate + Cline onboarding-media
