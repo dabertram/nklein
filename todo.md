@@ -3073,10 +3073,15 @@ deep analysis:
 - [ ] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder.
-- [ ] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** The learning core: per-model profile in
-      the runtime home (like MCSR), updated online from every attempt outcome; the attempt loop reads it to choose the
-      best first approach + retry budget and to STOP retrying approaches known to fail for that model (no circles).
-      Track success RATE for stochastic issues + adapt the retry count to it. Surfaced in the Settings model-telemetry.
+- [~] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** **PURE LEARNING CORE DONE (2026-06-26):**
+      [src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts) — `recordModelBehaviorOutcome(profile,
+      outcome)` is the online update (EWMA success-rate + retries, per-kind failure counts, preferred tool-call format,
+      complexity ceiling, and the §5.AD quality-knee bounds), with the derived signals the attempt loop reads:
+      `learnedRetryBudget` (more retries for a flakier model, clamped), `learnedQualityEffectiveBudget` (§5.AD, never below
+      the ≥32k floor), `preferredToolCallFormat`, `dominantFailureMode`. Pure (never mutates input) + 13 unit tests; tsc +
+      biome green. **Still owed (wiring):** the thin JSON persistence layer in the runtime home (like MCSR) + read/update
+      hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
+      model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
 - [ ] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
       (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
       simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
