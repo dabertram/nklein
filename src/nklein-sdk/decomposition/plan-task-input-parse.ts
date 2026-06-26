@@ -27,13 +27,16 @@ export function slugifyTaskId(input: string): string {
 	return slug || "task";
 }
 
-const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "title", "spec", "plan", "tasks"] as const;
+// `title` is intentionally NOT required: small models routinely omit it while sending a perfectly good
+// `slug`, and the task graph already falls back to the slug as its title. We recover it rather than reject
+// (see recoverMissingDecomposeProjectTitle) — parse-and-recover, not re-prompt (AGENTS.md).
+const DECOMPOSE_PROJECT_REQUIRED_FIELDS = ["slug", "spec", "plan", "tasks"] as const;
 
 const DECOMPOSE_PROJECT_RECOVERY_HINT =
-	"Call decompose_project once with: slug (short string), title (string), spec (brief markdown), " +
-	"plan (brief markdown), and tasks (a JSON array of objects, each with id, title, prompt). Start small — " +
-	"3 to 6 top-level tasks is fine and you can expand later; keep spec and plan to a few sentences (longer " +
-	"text is truncated). Do not resend an empty or partial call.";
+	"Call decompose_project once with: slug (short string), spec (brief markdown), plan (brief markdown), " +
+	"and tasks (a JSON array of objects, each with id, title, prompt). title is optional — it defaults to the " +
+	"slug when omitted. Start small — 3 to 6 top-level tasks is fine and you can expand later; keep spec and " +
+	"plan to a few sentences (longer text is truncated). Do not resend an empty or partial call.";
 
 export function decomposeProjectFieldIsUsable(value: unknown): boolean {
 	if (typeof value === "string") {
@@ -68,6 +71,28 @@ export function assertUsableDecomposeProjectInput(input: unknown): void {
 	throw new Error(`${lead} ${DECOMPOSE_PROJECT_RECOVERY_HINT}`);
 }
 
+/**
+ * Small models routinely emit an otherwise-valid decompose_project call but omit `title` (they always send a
+ * `slug`). Rather than reject and force a retry the model may just fail again, recover the title from the slug —
+ * the task graph already uses the slug as its title fallback downstream. Parse-and-recover, not re-prompt
+ * (AGENTS.md). Returns the input unchanged when a usable title is already present (or there is no slug to
+ * derive from — that case is caught by assertUsableDecomposeProjectInput, which still requires slug).
+ */
+export function recoverMissingDecomposeProjectTitle(input: unknown): unknown {
+	if (typeof input !== "object" || input === null) {
+		return input;
+	}
+	const record = input as Record<string, unknown>;
+	if (decomposeProjectFieldIsUsable(record.title)) {
+		return input;
+	}
+	const slug = typeof record.slug === "string" ? record.slug.trim() : "";
+	if (!slug) {
+		return input;
+	}
+	return { ...record, title: slug };
+}
+
 export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string {
 	const issues = error.issues
 		.slice(0, limit)
@@ -79,7 +104,7 @@ export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string 
 
 export function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
 	assertUsableDecomposeProjectInput(input);
-	const result = decomposeProjectToolInputSchema.safeParse(input);
+	const result = decomposeProjectToolInputSchema.safeParse(recoverMissingDecomposeProjectTitle(input));
 	if (!result.success) {
 		throw new Error(
 			`decompose_project input failed validation — ${formatCompactSchemaIssues(result.error)}. ` +

@@ -231,6 +231,14 @@ async function main(): Promise<void> {
 	}
 	log(`Containers remaining after dispose: ${leftover.length === 0 ? "NONE ✓" : leftover.join(", ")}`);
 
+	// Diagnostic: dump what the agent actually emitted (set NKLEIN_VERIFY_DUMP_ACTIVITIES=1) so a "decompose
+	// not called" result can be triaged — reading loop vs. reasoning vs. a malformed/narrated tool call.
+	if (process.env.NKLEIN_VERIFY_DUMP_ACTIVITIES === "1") {
+		log("");
+		log("=== Agent activities (oldest→newest, deduped) ===");
+		emitted.forEach((line, index) => log(`  ${index + 1}. ${line.slice(0, 280)}`));
+	}
+
 	// The core assertion is the absence of host-path leaks. We also require the container appeared and no worktree.
 	const ok = leaks.length === 0 && observations.containerSeen && !hostWorktreeCreated && leftover.length === 0;
 	log("");

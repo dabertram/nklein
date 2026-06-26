@@ -2,6 +2,10 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+	normalizeDecomposeProjectToolInput,
+	recoverMissingDecomposeProjectTitle,
+} from "../../../src/nklein-sdk/decomposition/plan-task-input-parse";
 import { createNKleinDecompositionTools } from "../../../src/nklein-sdk/nklein-decomposition-tool";
 
 /**
@@ -183,6 +187,26 @@ describe("decompose_project malformed-call recovery", () => {
 
 	it("rejects blank-string required fields rather than treating them as present", async () => {
 		await expectShortRejection(basePayload({ slug: "   " }), /missing required fields[\s\S]*slug/i);
+	});
+
+	it("tolerates a missing title by recovering it from the slug (small models routinely omit it)", async () => {
+		const { title: _title, ...withoutTitle } = basePayload();
+		const result = await runDecompose(withoutTitle);
+		expect(result.ok).toBe(true);
+		expect(result.taskCount).toBe(2);
+	});
+
+	it("recovers the title as the slug at the parse layer and leaves a real title untouched", () => {
+		const { title: _title, ...withoutTitle } = basePayload({ slug: "habit-tracker" });
+		const recovered = recoverMissingDecomposeProjectTitle(withoutTitle) as Record<string, unknown>;
+		expect(recovered.title).toBe("habit-tracker");
+		const normalized = normalizeDecomposeProjectToolInput(withoutTitle);
+		expect(normalized.title).toBe("habit-tracker");
+		expect(normalized.taskGraph.title).toBe("habit-tracker");
+		// A present, usable title is left untouched.
+		expect(recoverMissingDecomposeProjectTitle(basePayload({ title: "Real Title" }))).toMatchObject({
+			title: "Real Title",
+		});
 	});
 });
 

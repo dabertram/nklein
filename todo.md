@@ -1878,12 +1878,17 @@ deep analysis:
       sandbox (`nklein-agent-sandbox-1`), the session advances, NO host worktree is created, NO host path leaks into agent
       output, containers clean up on dispose. The live task-execution + isolation path is healthy after this session's
       changes. **Two findings to chase (each its own focused investigation):**
-      - ⚠️ **NORTH-STAR — decompose completion:** qwen3-8b did NOT call `decompose_project` in 180s on the habit-tracker
-        spec (ran the full timeout; 10 activities = reads/reasoning, no tool call). Open: latency vs. ability; the stripped
-        in-memory harness path (`createInMemoryNKleinTaskSessionService`) vs. the FULL runtime flow (refinement lane +
-        `recoverNarratedToolCalls` + retries may carry a small model further); try a model stronger at tool-calling. This is
-        THE gating north-star proof — needs a decompose-completion test that asserts a valid task graph is produced on the
-        full runtime path (not just isolation).
+      - ✅ **NORTH-STAR — decompose completion: ROOT-CAUSED + FIXED (2026-06-26).** An activity dump
+        (`NKLEIN_VERIFY_DUMP_ACTIVITIES=1`, added to the harness) showed qwen3-8b actually decomposes fine —
+        repo_map → list_files → read `specification.md` → update_focus_chain → **calls `decompose_project`
+        (habit-tracker, 3 tasks, 2 questions)** — but the call was REJECTED for a missing required field `title`, forcing a
+        retry. (The first run's "no call in 180s" was just latency/variance — it hadn't reached the tool yet.) The model gave
+        a perfectly good `slug`; the tool was brittle. **Fix:** `decompose_project` now RECOVERS a missing title from the
+        slug (`recoverMissingDecomposeProjectTitle` in `plan-task-input-parse.ts`; title dropped from the required-field
+        assertion) — parse-and-recover, not re-prompt (AGENTS.md), matching the existing slug-as-title-fallback the task
+        graph already used + the boundary schema's stated intent ("an omitted `title`"). Unit + tool-level regression tests
+        added; 75 decomposition tests green. **Still owed (the broader §5.V proof):** a full-runtime decompose-completion
+        e2e that asserts a valid persisted task graph end-to-end (this fix removes the specific blocker that path hit).
       - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
         `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
         `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
