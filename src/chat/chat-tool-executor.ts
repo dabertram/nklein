@@ -1,4 +1,5 @@
 import type { ChatToolCall, ChatToolResult } from "./chat-agent-loop";
+import { buildAuditDetail } from "./chat-audit-detail";
 import { type ChatActionKind, type ChatExecutionMode, decideChatActionAccess } from "./chat-execution-mode";
 
 /**
@@ -73,7 +74,7 @@ export function createGatedChatToolExecutor(
 			decision: access.decision,
 			confirmed,
 			executed,
-			detail: tool.name,
+			detail: buildAuditDetail(tool.name, call.arguments),
 		});
 
 		return { callId: call.id, content };

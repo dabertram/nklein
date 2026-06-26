@@ -100,4 +100,116 @@ describe("createGatedChatToolExecutor", () => {
 		expect(result.content).toContain("Unknown tool");
 		expect(audit).toHaveLength(0);
 	});
+
+	// -------------------------------------------------------------------------
+	// Audit detail — records meaningful summaries, not just tool names
+	// -------------------------------------------------------------------------
+
+	it("audit detail: records the actual command for run_command, not just the tool name", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "run_command",
+					actionKind: "sandbox_read",
+					run: async () => "ok",
+				},
+			],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("run_command", { command: "npm test" }));
+		expect(audit[0].detail).toBe("npm test");
+		expect(audit[0].detail).not.toBe("run_command");
+	});
+
+	it("audit detail: records the URL for browse_url, not just the tool name", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "browse_url",
+					actionKind: "sandbox_read",
+					run: async () => "ok",
+				},
+			],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("browse_url", { url: "https://example.com/docs" }));
+		expect(audit[0].detail).toBe("https://example.com/docs");
+		expect(audit[0].detail).not.toBe("browse_url");
+	});
+
+	it("audit detail: records the workspace-relative path for write_file, not just the tool name", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "write_file",
+					actionKind: "sandbox_write",
+					run: async () => "ok",
+				},
+			],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("write_file", { path: "src/utils.ts", content: "export {}" }));
+		expect(audit[0].detail).toBe("write_file: src/utils.ts");
+		expect(audit[0].detail).not.toBe("write_file");
+	});
+
+	it("audit detail: redacts a secret in a run_command argument", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "run_command",
+					actionKind: "sandbox_read",
+					run: async () => "ok",
+				},
+			],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("run_command", { command: "deploy --token=supersecretvalue123 --env=prod" }));
+		expect(audit[0].detail).not.toContain("supersecretvalue123");
+		expect(audit[0].detail).toContain("--token=…");
+		// Non-secret flags are preserved
+		expect(audit[0].detail).toContain("--env=prod");
+	});
+
+	it("audit detail: does not leak a host-absolute path for write_file", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "write_file",
+					actionKind: "sandbox_write",
+					run: async () => "ok",
+				},
+			],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("write_file", { path: "/private/tmp/nklein-xyz/src/app.ts", content: "x" }));
+		// Falls back to tool name — never the host path
+		expect(audit[0].detail).toBe("write_file");
+		expect(audit[0].detail).not.toContain("/private");
+	});
 });
