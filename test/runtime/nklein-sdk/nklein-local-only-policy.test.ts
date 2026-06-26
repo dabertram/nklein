@@ -31,6 +31,10 @@ const CLOUD_LITERAL_ALLOWLIST = new Map<string, string>([
 		"The runtime API contract exposes the managed NKlein OAuth enum for saved settings compatibility.",
 	],
 	[
+		"src/core/nklein-provider-api-contract.ts",
+		"The NKlein account/provider/model-registry contract module (split from api-contract.ts, §5.X #2) exposes the managed NKlein OAuth enum for saved-settings compatibility.",
+	],
+	[
 		"src/nklein-sdk/nklein-advisor.ts",
 		"Advisor source URLs are user-triggered research references, not dispatch defaults.",
 	],

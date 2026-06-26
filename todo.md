@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (8 domains, barrel 2614 → ~1600):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (9 domains, barrel 2614 → ~1310, -50%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2369,8 +2369,10 @@ deep analysis:
             `workspace-projects-api-contract.ts` (workspace-state response/save/conflict/notify, project
             task-counts/health/summary, task/workspace metadata — imports board-data/git/task-session from extracted
             modules); (8) `projects-api-contract.ts` (projects / dev-test / directory / remove / migration / worktree +
-            the task-workspace-info **task-scope** + project shortcuts — imports board-card + project-summary).
-            Modules (2)/(3)/(5)/(7)/(8) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
+            the task-workspace-info **task-scope** + project shortcuts — imports board-card + project-summary); (9)
+            `nklein-provider-api-contract.ts` (the big middle, ~293 lines — oauth / provider-settings / account /
+            catalog / models / endpoint-discovery / model-registry / code-intel — imports code-embedding +
+            reasoning-effort from (2)). Modules (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next**: the
             NKlein account/provider/model-registry cluster (the big middle ~L409+), plan-artifacts, acceptance,
