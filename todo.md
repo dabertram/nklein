@@ -2916,9 +2916,17 @@ deep analysis:
       qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, gemma-4-e4b, phi-4-reasoning-plus, nemotron-3-nano.
 - [ ] **Strict Docker isolation on a real task** (`verify-strict-isolation.mts`) + **restart/resume isolation**
       (`verify-restart-resume-isolation.mts`) — proven: qwen3-8b. Remaining 8.
-- [ ] **Chat agent tool loop** (the `verify-chat-*` family: `run_command` exec, `create_card`, `browse_url`, the
-      `verify-chat-agent-e2e` capstone, read/write workspace tools, send, runtime) — proven: qwen3-8b
-      (command/create/browse/e2e/runtime) + qwen2.5-coder-14b (tools/write/send). Sweep each across the full roster.
+- [~] **Chat agent tool loop (`verify-chat-*` family) — sweeping per-capability (2026-06-26).** The **deterministic
+      single-tool** harnesses are the meaningful per-model proofs (sweeping below). **The 4-tools-in-one-turn
+      `verify-chat-agent-e2e` capstone is FLAKY even on qwen3-8b** (run 1: 1/4 tools, stopped after read_file; run 2:
+      3/4 tools — read+run_command+create_card with durable side effects holding [marker echoed + card persisted] —
+      but skipped update_focus_chain, which it only claimed in text). The agent loop is **unchanged since the capstone
+      was first proven** (`9b15e3e3`, after the §5.O loop edits), so this is stochastic composition, NOT a regression
+      → **§5.M G7's "PASSES reliably" was optimistic** (corrected). Per-model chat capability is proven by the
+      individual sweeps, not the capstone. Sub-sweeps:
+  - [ ] `run_command` (`verify-chat-command-exec`) across the roster — proven qwen3-8b ✅. (the user's "execute at runtime".)
+  - [ ] `create_card` (`verify-chat-create-card`) across the roster — board control-plane mutation.
+  - [ ] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
 - [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
       models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
