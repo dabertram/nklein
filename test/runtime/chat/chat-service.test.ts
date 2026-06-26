@@ -130,6 +130,67 @@ describe("createChatService", () => {
 		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
 	});
 
+	it("runs an autonomous session to completion when the agent declares the goal done (todo §5.0.1)", async () => {
+		const executed: string[] = [];
+		let modelCall = 0;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			// The merged tool set arrives in `extra` (the runtime-api resolver does this live). Build an executor that
+			// runs those control tools so a declare_goal_complete call fires the run-ending signal.
+			resolveAgentToolDeps: async (_session, extra) => {
+				const tools = extra?.tools ?? [];
+				return {
+					model: async () => {
+						modelCall += 1;
+						return modelCall === 1
+							? {
+									text: "",
+									toolCalls: [
+										{ id: "c1", name: "declare_goal_complete", arguments: { summary: "Shipped it." } },
+									],
+								}
+							: { text: "all done", toolCalls: [] };
+					},
+					executeTool: async (call) => {
+						executed.push(call.name);
+						const tool = tools.find((candidate) => candidate.name === call.name);
+						return { callId: call.id, content: tool ? await tool.run(call.arguments) : "unknown tool" };
+					},
+					appendToolExchange: (messages, _response, results) => [
+						...messages,
+						...results.map((result) => ({ role: "system" as const, content: result.content })),
+					],
+				};
+			},
+		});
+		const session = await service.createSession({ title: "Auto", scope: "chat_only", goal: "ship the thing" });
+
+		const result = await service.runAutonomous({
+			sessionId: session.id,
+			goal: "ship the thing",
+			budget: { maxTurns: 3, maxWallTimeMs: 1_000_000, maxNoProgressTurns: 3 },
+		});
+		// The control tool ran (proving the merged tool set reached the executor) and the driver stopped on completion.
+		expect(executed).toContain("declare_goal_complete");
+		expect(result?.stopReason).toBe("completed");
+		expect(result?.finalText).toBe("Shipped it.");
+		expect(result?.turns).toBe(1);
+	});
+
+	it("returns null from runAutonomous when the session does not exist", async () => {
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "x", summarize: async () => "" }),
+		});
+		const result = await service.runAutonomous({
+			sessionId: "missing",
+			goal: "x",
+			budget: { maxTurns: 1, maxWallTimeMs: 1_000, maxNoProgressTurns: 1 },
+		});
+		expect(result).toBeNull();
+	});
+
 	it("falls back to plain completion when resolveAgentToolDeps returns null (no active workspace)", async () => {
 		let plainCalls = 0;
 		const service = createChatService({

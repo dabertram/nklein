@@ -6,6 +6,9 @@ import type {
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
+import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
+import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
+import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { readChatMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
@@ -50,7 +53,7 @@ export interface ChatServiceOptions {
 	 *  through the tool-using agent loop (`runChatAgentTurn`) with those deps; null ⇒ the plain `runChatTurn` path.
 	 *  Mirrors the `resolveModelDeps` seam so the service never touches the tool infrastructure. Omitted ⇒ always
 	 *  plain (every session stays on `runChatTurn`). */
-	resolveAgentToolDeps?: (session: ChatSession) => Promise<ChatAgentToolDeps | null>;
+	resolveAgentToolDeps?: (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null>;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
 }
@@ -97,6 +100,16 @@ export interface ChatService {
 		},
 		onToken?: (delta: string) => void,
 	) => Promise<ChatSendResult | null>;
+	/** Drive an autonomous run (todo §5.0.1): the agent works the goal turn-by-turn (plan via the focus chain, use the
+	 *  gated tools + the control tools) until the goal is done, it needs the user, or a budget/stall guard trips.
+	 *  Returns null when the session doesn't exist; throws when no model is configured. Each turn persists to the
+	 *  transcript; meant to be driven in the background since it can run many turns. */
+	runAutonomous: (input: {
+		sessionId: string;
+		goal: string;
+		budget: AutonomousChatAgentBudget;
+		maxIterationsPerTurn?: number;
+	}) => Promise<AutonomousChatAgentResult | null>;
 }
 
 const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
@@ -215,6 +228,42 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				userMessage: toRuntimeChatMessage(result.userMessage),
 				assistantMessage: toRuntimeChatMessage(result.assistantMessage),
 			};
+		},
+		runAutonomous: async (input) => {
+			if (!options.resolveModelDeps) {
+				throw new Error("This chat service is read-only: no model is configured for autonomous runs.");
+			}
+			const session = await getChatSession(input.sessionId, sessionOptions);
+			if (!session) {
+				return null;
+			}
+			const modelDeps = await options.resolveModelDeps();
+			const tokenBudget = DEFAULT_CHAT_TOKEN_BUDGET;
+			const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
+			const storeDeps = {
+				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
+				readMemories: () => readChatMemories(memoryOptions),
+				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
+					appendChatMessage(sessionId, message, transcriptOptions),
+				estimateTokens,
+			};
+			const resolveAgentToolDeps = options.resolveAgentToolDeps;
+			return runAutonomousChatSession(input.goal, {
+				// Each turn re-resolves the gated tool deps WITH that turn's control tools merged in (the runtime-api
+				// resolver's `extra`); the agent thus gets the work tools + request_user_input / declare_goal_complete.
+				assembleTurnDeps: (extra) =>
+					resolveAgentToolDeps ? resolveAgentToolDeps(session, extra) : Promise.resolve(null),
+				runAgentTurn: async ({ userMessage, maxIterations }, agentToolDeps) => {
+					const turn = await runChatAgentTurn(
+						{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
+						{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+					);
+					return { finalText: turn.assistantMessage.content, steps: turn.steps };
+				},
+				readPlanProgress: () => readAutonomousChatPlanProgress(session.id),
+				budget: input.budget,
+				...(input.maxIterationsPerTurn ? { maxIterationsPerTurn: input.maxIterationsPerTurn } : {}),
+			});
 		},
 	};
 }

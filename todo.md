@@ -265,12 +265,19 @@ deep analysis:
           path instead of spinning the budget. 3 composition unit tests (unavailable→pause, declare_goal_complete→completed,
           multi-turn→plan-all-done); tsc+biome green. **So the entire autonomous-agent logic is now built + tested behind
           injected seams.**
-    - [ ] **runtime-api live provider + tRPC + background drive** — the only remaining backend wiring: provide
-          `assembleTurnDeps` (reuse the existing `buildChatAgentToolDepsResolver` chat assembly in `runtime-api.ts:284`,
-          adding the `extra` control tools to its `tools`/`definitions`) + `runAgentTurn` (`runChatAgentTurn` bound to the
-          session + token budget), then a tRPC procedure that drives `runAutonomousChatSession` in the background with the
-          resolved swarm-guardrail budget + streams the stop reason / focus-chain progress. *(Couples to the live runtime +
-          a new contract surface — a focused integration, do with fresh context.)*
+    - [x] **chat-service `runAutonomous` + resolver `extra` (DONE 2026-06-26)** — the agent is now **backend-runnable**.
+          `buildChatAgentToolDepsResolver` (`runtime-api.ts`) takes an optional `extra: ChatToolSet` merged into its
+          `tools`/`definitions` (interactive passes none; behavior-preserving — 477 chat+runtime-api tests green). `ChatService`
+          gained `runAutonomous({ sessionId, goal, budget, maxIterationsPerTurn? })`, which reuses `sendMessage`'s store-deps
+          machinery to build the `AutonomousChatSessionDeps` (`assembleTurnDeps` = `resolveAgentToolDeps(session, extra)`,
+          `runAgentTurn` = one `runChatAgentTurn`, `readPlanProgress` = the focus-chain summary) and drives
+          `runAutonomousChatSession`. 2 integration tests through the real chat machinery (declare_goal_complete→completed,
+          missing-session→null). So `chatService.runAutonomous(...)` runs a full autonomous loop end-to-end today.
+    - [ ] **tRPC start/status procedure + background drive** — the remaining backend-exposure: an in-memory per-session run
+          registry + a `startAutonomousChatRun({ sessionId, goal })` (kicks off `chatService.runAutonomous` in the background
+          with the resolved swarm-guardrail budget) + a `getAutonomousChatRunStatus` query (running? last stop reason /
+          turns / plan progress); contract schemas in `chat-api-contract.ts`; wired in `app-router.ts`. The run's turns
+          already persist to the transcript, so the existing chat UI shows progress.
     - [ ] **goal-intake UI + live-verify** — sidebar "work autonomously" affordance (goal field + Start/Stop + focus-chain
           progress, mirroring the board swarm-pause UX), then a real small-model autonomous run on a dev-test project
           (Playwright + the loop).

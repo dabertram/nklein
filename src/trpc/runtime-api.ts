@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import type { ChatAgentModelResponse } from "../chat/chat-agent-loop";
-import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
+import { type ChatToolSet, createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
 import { createBrowserTools } from "../chat/chat-browser-tool";
 import { classifyCommandSafety } from "../chat/chat-command-safety";
 import { createCommandRunTool } from "../chat/chat-command-tool";
@@ -286,8 +286,8 @@ function buildChatAgentToolDepsResolver(input: {
 	getLocalChatBaseUrl: () => string | null;
 	/** Forwarded to `createBrowserTools` for §5.Y #5 SSRF protection. */
 	isRemoteMode: boolean;
-}): (session: ChatSession) => Promise<ChatAgentToolDeps | null> {
-	return async (session) => {
+}): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
+	return async (session, extra) => {
 		const workspacePath = input.getActiveWorkspacePath();
 		if (!workspacePath) {
 			return null;
@@ -332,6 +332,9 @@ function buildChatAgentToolDepsResolver(input: {
 			...mutations.tools,
 			...commands.tools,
 			...browser.tools,
+			// Autonomous mode (todo §5.0.1) merges in the per-turn control tools (request_user_input /
+			// declare_goal_complete); interactive chat passes no extras.
+			...(extra?.tools ?? []),
 		];
 		const definitions = [
 			...read.definitions,
@@ -340,6 +343,7 @@ function buildChatAgentToolDepsResolver(input: {
 			...mutations.definitions,
 			...commands.definitions,
 			...browser.definitions,
+			...(extra?.definitions ?? []),
 		];
 
 		const executeTool = createGatedChatToolExecutor({
