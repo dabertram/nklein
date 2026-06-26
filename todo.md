@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (12 domains, barrel 2614 → ~970, -63%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (13 domains, barrel 2614 → ~840, -68%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2377,7 +2377,9 @@ deep analysis:
             (9) + reasoning-effort from (2); pure `export *`, not used downstream); (11) `nklein-ops-api-contract.ts`
             (misc backend-op leaves — core-py health, merge-history, advisor, dogfood, smoke-eval, task-evidence; a pure
             leaf); (12) `config-api-contract.ts` (agent definition + sandbox status + the full config response/save —
-            imports config primitives from (2) + provider-settings from (9) + project-shortcut from (8)). Modules
+            imports config primitives from (2) + provider-settings from (9) + project-shortcut from (8)); (13)
+            `plan-artifacts-api-contract.ts` (plan-artifact summary/list/apply/reject, record-plan-gap,
+            expand-plan-task — imports planGapKind + workspace-state-response). Modules
             (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
@@ -2388,7 +2390,7 @@ deep analysis:
             `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel ~L82, with team-progress) extracted into a
             small shared module first, and state-stream also needs `runtimeTaskChatMessageSchema` (a `z.lazy` forward-ref
             at L158) out first. Cleaner remaining leaves: command-run, context-import, open-file, debug/status,
-            plan-artifacts/gap/expand, acceptance, worktree-merge, task-lifecycle (start/stop/pause/swarm-stop),
+            acceptance, worktree-merge, task-lifecycle (start/stop/pause/swarm-stop),
             diagnostics, session-input, terminal, git-history (imports task-scope from (8)).
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
