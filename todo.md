@@ -3023,11 +3023,15 @@ deep analysis:
       keep the salvage when a delta window loops) and in the swarm session runtime / `AutonomyBudgetWatchdog` (when a
       finished session loops its final message → finalize/salvage instead of waiting out the wall-time guard). Extends
       the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
-- [ ] **Task-complexity ladder — tool-set reduction on retry (grounded: phi, highest-value next).** When a model
-      returns no tool call with N tools offered, retry with a MINIMISED tool set (only the tools the task needs, e.g.
-      6→1), then a single-step prompt, then a stripped system preamble. A pure `simplifyAttempt(level, request)` ladder
-      (full → reduced-tools → single-step → minimal) + retry wiring. Learn each model's complexity ceiling into the
-      profile so the *first* attempt for a known-weak model already starts simplified.
+- [~] **Task-complexity ladder — tool-set reduction on retry (grounded: phi, highest-value).** **Pure core DONE
+      (2026-06-26):** `selectToolsForAttempt` ([nklein-attempt-simplification.ts](src/nklein-sdk/nklein-attempt-simplification.ts))
+      narrows the offered tool set for attempt `level` — level 1 keeps only the tools the instruction references by name
+      (mention order), level 2 caps to the single first-referenced tool; a no-op when nothing is anchored. Pure +
+      generic; 7 unit tests. **Still owed (wiring + live proof):** in the chat adapter, when tools were offered but the
+      model returned no tool call AND the instruction names a tool it didn't call (a complexity-failure signal), retry
+      the call with the reduced set (level 1 → 2) — then live-verify phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command`
+      with NO regression for the 7 already-passing models. Then a single-step prompt + stripped preamble rung; learn each
+      model's complexity ceiling into the profile so a known-weak model starts simplified on attempt 0.
 - [ ] **Endpoint-iteration adapter — native `/api/v1/chat` fallback.** A `LocalModelEndpointStrategy`: try OpenAI-compat
       first; on a no-call/malformed outcome, retry via the **native `/api/v1/chat`** (parse its structured `tool_call.*`
       + `reasoning.*` events — catches calls the OpenAI path misses for phi/deepseek). Record the winning endpoint per
