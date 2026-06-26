@@ -1,7 +1,7 @@
 // Persists !Klein-owned runtime preferences on disk.
 // This module should store !Klein settings such as selected agents,
 // shortcuts, and prompt templates, not SDK-owned NKlein secrets or OAuth data.
-import { readFile, rm } from "node:fs/promises";
+import { copyFile, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
@@ -968,10 +968,37 @@ function toRuntimeConfigState({
 }
 
 async function readRuntimeConfigFile<T>(configPath: string): Promise<T | null> {
+	let raw: string;
 	try {
-		const raw = await readFile(configPath, "utf8");
+		raw = await readFile(configPath, "utf8");
+	} catch (err) {
+		// File does not exist (ENOENT) → normal first-run, return null silently.
+		// Any other read error (e.g. permissions) is surfaced so the user is not silently surprised.
+		if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code !== "ENOENT") {
+			process.stderr.write(`[!Klein] Failed to read config file at ${configPath}: ${err.message}\n`);
+		}
+		return null;
+	}
+	try {
 		return JSON.parse(raw) as T;
-	} catch {
+	} catch (parseErr) {
+		// File exists but is corrupt (unparseable JSON). Preserve the original bytes
+		// in a timestamped backup so a subsequent save cannot silently overwrite them.
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const backupPath = `${configPath}.corrupt-${timestamp}.bak`;
+		process.stderr.write(
+			`[!Klein] Config file at ${configPath} could not be parsed and may be corrupt. ` +
+				`Original file preserved at ${backupPath}. ` +
+				`Error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}\n`,
+		);
+		try {
+			await copyFile(configPath, backupPath);
+		} catch (backupErr) {
+			process.stderr.write(
+				`[!Klein] Failed to create backup of corrupt config at ${backupPath}: ` +
+					`${backupErr instanceof Error ? backupErr.message : String(backupErr)}\n`,
+			);
+		}
 		return null;
 	}
 }

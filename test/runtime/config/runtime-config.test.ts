@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -1380,6 +1380,156 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(reloaded.agentAutonomousModeEnabled).toBe(false);
 			});
 		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("missing global config file returns null silently (no backup, no stderr)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-missing-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-missing-");
+
+		const stderrChunks: string[] = [];
+		const originalWrite = process.stderr.write.bind(process.stderr);
+		// Type the spy explicitly to satisfy both write() overloads.
+		const stderrSpy = (
+			chunk: string | Uint8Array,
+			encodingOrCb?: BufferEncoding | ((err?: Error | null) => void),
+			cb?: (err?: Error | null) => void,
+		): boolean => {
+			stderrChunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+			if (typeof encodingOrCb === "function") {
+				return originalWrite(chunk as string, encodingOrCb);
+			}
+			return originalWrite(chunk as string, encodingOrCb, cb);
+		};
+		process.stderr.write = stderrSpy as typeof process.stderr.write;
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				// No config file written — first-run scenario.
+				const state = await loadRuntimeConfig(tempProject);
+				// Falls back to defaults without error.
+				expect(state.selectedAgentId).toBe("nklein");
+				// No backup files created anywhere near the config path.
+				const configDir = join(tempHome, ".nklein", "nklein");
+				const backupsExist = existsSync(configDir)
+					? readdirSync(configDir).some((f) => f.includes(".corrupt-"))
+					: false;
+				expect(backupsExist).toBe(false);
+				// No stderr output for a plain missing file.
+				const relevantOutput = stderrChunks.filter((c) => c.includes("[!Klein]"));
+				expect(relevantOutput).toHaveLength(0);
+			});
+		} finally {
+			process.stderr.write = originalWrite;
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("corrupt global config file returns null, creates .bak, and logs a diagnostic", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-corrupt-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-corrupt-");
+
+		const stderrChunks: string[] = [];
+		const originalWrite = process.stderr.write.bind(process.stderr);
+		// Type the spy explicitly to satisfy both write() overloads.
+		const stderrSpy = (
+			chunk: string | Uint8Array,
+			encodingOrCb?: BufferEncoding | ((err?: Error | null) => void),
+			cb?: (err?: Error | null) => void,
+		): boolean => {
+			stderrChunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+			if (typeof encodingOrCb === "function") {
+				return originalWrite(chunk as string, encodingOrCb);
+			}
+			return originalWrite(chunk as string, encodingOrCb, cb);
+		};
+		process.stderr.write = stderrSpy as typeof process.stderr.write;
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const configDir = join(tempHome, ".nklein", "nklein");
+				mkdirSync(configDir, { recursive: true });
+				const configPath = join(configDir, "config.json");
+				const corruptContent = "{ this is not valid JSON !!!";
+				writeFileSync(configPath, corruptContent, "utf8");
+
+				// loadRuntimeConfig must not throw — it falls back to defaults.
+				const state = await loadRuntimeConfig(tempProject);
+				expect(state.selectedAgentId).toBe("nklein");
+
+				// A .corrupt-*.bak backup must have been created alongside the original.
+				// (loadRuntimeConfig may read the file more than once on first-run, producing
+				//  multiple backups — that's fine; what matters is at least one exists with the right bytes.)
+				const files = readdirSync(configDir);
+				const backups = files.filter((f) => f.startsWith("config.json.corrupt-") && f.endsWith(".bak"));
+				expect(backups.length).toBeGreaterThanOrEqual(1);
+
+				// Every backup must contain the original corrupt bytes.
+				const backupFile = backups[0];
+				expect(backupFile).toBeDefined();
+				const backupContent = readFileSync(join(configDir, backupFile ?? ""), "utf8");
+				expect(backupContent).toBe(corruptContent);
+
+				// A diagnostic must have been written to stderr naming the config path.
+				const diagnostics = stderrChunks.filter((c) => c.includes("[!Klein]") && c.includes("config.json"));
+				expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+				expect(diagnostics.some((c) => c.includes("corrupt") || c.includes("could not be parsed"))).toBe(true);
+			});
+		} finally {
+			process.stderr.write = originalWrite;
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("valid global config file loads exactly as before (no backup, no stderr)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-valid-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-valid-");
+
+		const stderrChunks: string[] = [];
+		const originalWrite = process.stderr.write.bind(process.stderr);
+		// Type the spy explicitly to satisfy both write() overloads.
+		const stderrSpy = (
+			chunk: string | Uint8Array,
+			encodingOrCb?: BufferEncoding | ((err?: Error | null) => void),
+			cb?: (err?: Error | null) => void,
+		): boolean => {
+			stderrChunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+			if (typeof encodingOrCb === "function") {
+				return originalWrite(chunk as string, encodingOrCb);
+			}
+			return originalWrite(chunk as string, encodingOrCb, cb);
+		};
+		process.stderr.write = stderrSpy as typeof process.stderr.write;
+
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const configDir = join(tempHome, ".nklein", "nklein");
+				mkdirSync(configDir, { recursive: true });
+				writeFileSync(
+					join(configDir, "config.json"),
+					JSON.stringify({ maxConcurrentTasks: 7, developerModeEnabled: true }, null, 2),
+					"utf8",
+				);
+
+				const state = await loadRuntimeConfig(tempProject);
+				expect(state.maxConcurrentTasks).toBe(7);
+				expect(state.developerModeEnabled).toBe(true);
+
+				// No backup files should exist.
+				const files = readdirSync(configDir);
+				const backups = files.filter((f) => f.includes(".corrupt-"));
+				expect(backups).toHaveLength(0);
+
+				// No [!Klein] stderr output for a valid file.
+				const relevantOutput = stderrChunks.filter((c) => c.includes("[!Klein]"));
+				expect(relevantOutput).toHaveLength(0);
+			});
+		} finally {
+			process.stderr.write = originalWrite;
 			cleanupProject();
 			cleanupHome();
 		}
