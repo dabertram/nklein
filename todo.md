@@ -1961,6 +1961,21 @@ deep analysis:
         service vs the host-backed product service); this guard hardens the real long-lived server against ANY stray
         rejection regardless. *Deferred:* a source-level catch of `session_stop` in the SDK boundary (if it proves to be a
         real product path, not just the stripped harness).
+      - **Full-delivery background run (2026-06-26, 30-min budget): mechanism RE-CONFIRMED, full 5-card sweep NOT
+        reached — recorded honestly so the entry above is not read as an all-cards-delivered claim.** Trace: decompose →
+        `planning:4 completed:1` in ~45s (5 cards, seed completed), then one generated card
+        (`habit-insights-score-cap-impl`) auto-started and did ~8 min of real implementation (`update_focus_chain →
+        edit_file → read_files → run_commands`, dozens of cycles). The run then died at ~9 min (of 30) on a transient
+        `TypeError: fetch failed` — the harness's board poll lost the server under sustained LM Studio/Docker load. Only
+        1 of 4 generated cards had run (they serialize on the single-request endpoint), so the sweep was never going to
+        finish in 30 min anyway (~8 min/card × 4 ≈ 30+ min). **The PIECES are all proven (decompose ✓, cascade
+        auto-start ✓, a card implements ✓, single-card → `awaiting_review` with a correct result branch ✓ via
+        `verify-task-completion`), but a single unattended all-N-cards-to-review run is impractical/fragile in this dev
+        env (serialized + long).** **Harness hardened (same change):** the poll loop now tolerates a sustained window of
+        transient `fetch failed` (6 consecutive ≈ 30s before giving up) instead of letting one blip abort a 30-min
+        proof, and the FATAL handler now logs `error.cause`. **Not chased further now** (low north-star leverage — the
+        capability is demonstrated in pieces; the bound is local-endpoint throughput, not orchestration). A faster model
+        or a segmented run would close the full-sweep proof if it's ever wanted.
 - [~] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
       memory, the (later) autonomous-work mode.
       **Contract-seam session-CRUD coverage DONE (2026-06-26, 23 tests, Suite 18 — `test/contract/chat-session-contract.test.ts`).**

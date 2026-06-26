@@ -205,25 +205,44 @@ async function main(): Promise<void> {
 		let lastSummary = "";
 		let decomposed = false;
 		let allTerminal = false;
+		// A long live run (the cards serialize on a single-request LM Studio endpoint, so a full sweep is 20–30 min)
+		// can hit a transient `fetch failed` under LM Studio/Docker load. Tolerate a sustained window of poll failures
+		// rather than letting one blip abort the whole proof — only give up if the server is truly unreachable.
+		let consecutivePollErrors = 0;
+		const MAX_CONSECUTIVE_POLL_ERRORS = 6; // ~30s of unreachability
 		while (Date.now() < deadline) {
-			const stateRes = await requestJson<BoardState>({
-				baseUrl: server.baseUrl,
-				procedure: "workspace.getState",
-				type: "query",
-				workspaceId,
-			});
-			const columns = stateRes.payload.board?.columns ?? [];
-			const { summary, total, active, terminal } = summarizeColumns(columns);
-			if (summary !== lastSummary) {
-				log(`[${new Date().toISOString().slice(11, 19)}] ${summary}  (total=${total} active=${active} terminal=${terminal})`);
-				lastSummary = summary;
-			}
-			if (total > 1) {
-				decomposed = true;
-			}
-			if (decomposed && active === 0 && terminal > 0) {
-				allTerminal = true;
-				break;
+			try {
+				const stateRes = await requestJson<BoardState>({
+					baseUrl: server.baseUrl,
+					procedure: "workspace.getState",
+					type: "query",
+					workspaceId,
+				});
+				consecutivePollErrors = 0;
+				const columns = stateRes.payload.board?.columns ?? [];
+				const { summary, total, active, terminal } = summarizeColumns(columns);
+				if (summary !== lastSummary) {
+					log(`[${new Date().toISOString().slice(11, 19)}] ${summary}  (total=${total} active=${active} terminal=${terminal})`);
+					lastSummary = summary;
+				}
+				if (total > 1) {
+					decomposed = true;
+				}
+				if (decomposed && active === 0 && terminal > 0) {
+					allTerminal = true;
+					break;
+				}
+			} catch (error) {
+				consecutivePollErrors += 1;
+				const detail =
+					error instanceof Error
+						? `${error.message}${error.cause ? ` (cause: ${String(error.cause)})` : ""}`
+						: String(error);
+				log(`   [poll WARN ${consecutivePollErrors}/${MAX_CONSECUTIVE_POLL_ERRORS}] board poll failed: ${detail}`);
+				if (consecutivePollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+					log("   [poll] server unreachable for a sustained window — aborting the observation loop.");
+					break;
+				}
 			}
 			await new Promise((resolve) => setTimeout(resolve, 5000));
 		}
@@ -258,6 +277,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-	log(`FATAL: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+	const cause = error instanceof Error && error.cause ? `\nCaused by: ${String(error.cause)}` : "";
+	log(`FATAL: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}${cause}`);
 	process.exit(2);
 });
