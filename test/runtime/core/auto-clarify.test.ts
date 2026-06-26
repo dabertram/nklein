@@ -9,7 +9,7 @@ import {
 	resolveAutoClarifyRoundBudget,
 	runAutoClarifyLoop,
 } from "../../../src/core/auto-clarify";
-import type { NKleinPlanQuestion } from "../../../src/nklein-sdk/nklein-plan-artifacts";
+import type { NKleinPlanQuestion } from "../../../src/nklein-agent/nklein-plan-artifacts";
 
 function round(overrides: Partial<AutoClarifyRound> = {}): AutoClarifyRound {
 	return {

@@ -8,8 +8,8 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeNKleinProviderSettings,
 } from "../core/api-contract";
-import { DEFAULT_AGENT_SANDBOX_IMAGE } from "../nklein-sdk/nklein-agent-sandbox";
-import { CLOUD_ENABLED } from "../nklein-sdk/nklein-local-only-policy";
+import { DEFAULT_AGENT_SANDBOX_IMAGE } from "../nklein-agent/nklein-agent-sandbox";
+import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { isBinaryAvailableOnPath } from "./command-discovery";
 
 export interface ResolvedAgentCommand {

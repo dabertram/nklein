@@ -8,7 +8,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../../core/api-contract";
 import { parseTaskEvidenceRequest } from "../../core/api-validation";
-import type { NKleinTaskSessionService } from "../../nklein-sdk/nklein-task-session-service";
+import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState } from "../../state/workspace-state";
 import { createEvidenceBundle } from "../../telemetry/evidence-bundle";
 import { getWorkspaceChanges, getWorkspaceChangesBetweenRefs } from "../../workspace/get-workspace-changes";

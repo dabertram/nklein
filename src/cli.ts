@@ -33,7 +33,7 @@ import {
 	setKanbanRuntimeTls,
 } from "./core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
-import { disposeCliTelemetryService } from "./nklein-sdk/nklein-telemetry-service.js";
+import { disposeCliTelemetryService } from "./nklein-agent/nklein-telemetry-service.js";
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
 import { resolveRemoteSecurityPolicy } from "./security/remote-security-policy";
 import { terminateProcessForTimeout } from "./server/process-termination";

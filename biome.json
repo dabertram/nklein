@@ -45,7 +45,7 @@
 			"plugins": ["grit/no-console.grit", "grit/no-process-exit.grit"]
 		},
 		{
-			"includes": ["src/**/*.ts", "src/**/*.tsx", "!src/nklein-sdk/**/*.ts"],
+			"includes": ["src/**/*.ts", "src/**/*.tsx", "!src/nklein-agent/**/*.ts"],
 			"linter": {
 				"rules": {
 					"style": {
@@ -55,7 +55,7 @@
 								"patterns": [
 									{
 										"group": ["@nkleinbot/core", "@nkleinbot/core/**"],
-										"message": "Import NKlein SDK packages only through src/nklein-sdk/sdk-provider-boundary.ts or src/nklein-sdk/sdk-runtime-boundary.ts."
+										"message": "Import NKlein SDK packages only through src/nklein-agent/sdk-provider-boundary.ts or src/nklein-agent/sdk-runtime-boundary.ts."
 									},
 									{
 										"group": [
@@ -64,7 +64,7 @@
 											"@nkleinbot/llms",
 											"@nkleinbot/llms/**"
 										],
-										"message": "Import NKlein SDK packages only through src/nklein-sdk/ boundary files."
+										"message": "Import NKlein SDK packages only through src/nklein-agent/ boundary files."
 									}
 								]
 							}

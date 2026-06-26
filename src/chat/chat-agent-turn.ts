@@ -1,6 +1,6 @@
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { isTemporalContextRelevant } from "../core/temporal-awareness";
-import { stripNarratedToolCallMarkup } from "../nklein-sdk/nklein-narrated-tool-call";
+import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import {
 	type ChatAgentModelResponse,
 	type ChatAgentStep,

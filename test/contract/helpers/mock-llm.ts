@@ -7,7 +7,7 @@ import type { AddressInfo } from "node:net";
  * `baseUrl` at `server.baseUrl` and the runtime's `LocalLlmClient` (chat, structured ops) and OpenAI-compatible SDK
  * host (the task agent loop) both talk to this mock instead of LM Studio.
  *
- * It mirrors exactly what `LocalLlmClient` (src/nklein-sdk/nklein-local-llm-client.ts) calls:
+ * It mirrors exactly what `LocalLlmClient` (src/nklein-agent/nklein-local-llm-client.ts) calls:
  *  - `GET /models` (and `/v1/models`) → `{ data: [{ id }] }` so `discoverLoadedModelId` finds a "loaded" model.
  *  - `POST /chat/completions` (and `/v1/chat/completions`) → an OpenAI chat completion; SSE when `stream: true`.
  *

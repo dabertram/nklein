@@ -1,5 +1,5 @@
 import { type PlanGapKind, planGapKindSchema } from "../../core/plan-gap";
-import type { NKleinAcceptanceRepairAction } from "../../nklein-sdk/nklein-acceptance-repair";
+import type { NKleinAcceptanceRepairAction } from "../../nklein-agent/nklein-acceptance-repair";
 
 /**
  * Pure acceptance-failure → plan-gap classification for the `nklein task` CLI, extracted from the oversized `task.ts`

@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { chromium } from "playwright";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatTool } from "./chat-tool-executor";
 

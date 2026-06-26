@@ -9,7 +9,7 @@ import {
 } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
 import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
-import type { LocalLlmChatMessage, LocalLlmToolDefinition } from "../../../src/nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmChatMessage, LocalLlmToolDefinition } from "../../../src/nklein-agent/nklein-local-llm-client";
 
 function fakeClient(reply: string): { client: ChatCompletionClient; calls: LocalLlmChatMessage[][] } {
 	const calls: LocalLlmChatMessage[][] = [];

@@ -1,4 +1,4 @@
-import type { ResolvedNKleinLaunchConfig } from "../../nklein-sdk/nklein-provider-service";
+import type { ResolvedNKleinLaunchConfig } from "../../nklein-agent/nklein-provider-service";
 
 /**
  * Local advisor chat-completion for `createRuntimeApi`, extracted from the oversized `runtime-api.ts` (todo §5.U).

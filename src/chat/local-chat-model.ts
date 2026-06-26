@@ -1,4 +1,4 @@
-import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
+import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapter";
 
 /**

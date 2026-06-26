@@ -12,7 +12,7 @@ export function isNativeNKleinAgentSelected(agentId: RuntimeAgentId | null | und
 	return agentId === "nklein";
 }
 
-// Secondary UI screen only; the backend policy in src/nklein-sdk/nklein-local-only-policy.ts is authoritative.
+// Secondary UI screen only; the backend policy in src/nklein-agent/nklein-local-only-policy.ts is authoritative.
 const LOCAL_PROVIDER_IDS = new Set(["ollama", "lmstudio", "lm-studio"]);
 const KNOWN_CLOUD_PROVIDER_IDS = new Set([
 	"anthropic",

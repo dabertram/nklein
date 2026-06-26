@@ -20,7 +20,7 @@ import { createChatSession } from "../src/chat/chat-session-store";
 import { type ChatToolAuditRecord, createGatedChatToolExecutor } from "../src/chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../src/chat/chat-transcript-store";
 import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../src/chat/chat-workspace-tools";
-import { LocalLlmClient } from "../src/nklein-sdk/nklein-local-llm-client";
+import { LocalLlmClient } from "../src/nklein-agent/nklein-local-llm-client";
 
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "";

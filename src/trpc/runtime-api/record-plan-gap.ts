@@ -15,7 +15,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../../core/api-contract";
 import { recordPlanGap } from "../../core/plan-gap";
-import { appendNKleinPlanRevision } from "../../nklein-sdk/nklein-plan-artifacts";
+import { appendNKleinPlanRevision } from "../../nklein-agent/nklein-plan-artifacts";
 import { mutateWorkspaceState } from "../../state/workspace-state";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 

@@ -12,7 +12,7 @@ boundary for small/quantized local models — most importantly that the SDK's LL
 `temperature`/`max_tokens`/`stop` and cannot send grammar / JSON-schema constrained decoding or `min_p` /
 `top_k` / `repetition_penalty`. Rather than fork the SDK (which the upstream-clean invariant forbids), we
 decided to build **!Klein's own agent core** (`src/agent-core/`) on top of our own local model client
-(`src/nklein-sdk/nklein-local-llm-client.ts`), and to adopt the best implementations from the wider local-agent
+(`src/nklein-agent/nklein-local-llm-client.ts`), and to adopt the best implementations from the wider local-agent
 ecosystem directly into our codebase. The NKlein SDK remains supported as one runtime; it is no longer the only
 one.
 
@@ -35,7 +35,7 @@ How we adopt third-party work:
 ### aider — Apache-2.0
 - **Adopted (code re-implemented in TS):** the edit-block *fuzzy search/replace fallback ladder* — exact →
   whitespace-flexible (dedent/re-indent) → leading-blank tolerance → `...` elision → closest-window fuzzy match
-  (≥0.8 similarity). Our implementation: `src/nklein-sdk/nklein-fuzzy-edit.ts` (`edit_file` tool). Modeled on
+  (≥0.8 similarity). Our implementation: `src/nklein-agent/nklein-fuzzy-edit.ts` (`edit_file` tool). Modeled on
   aider's `aider/coders/editblock_coder.py`.
 - **Adopted (concepts):** plain-text edit formats beat function-call formats for weak models; reflection/retry
   with test-error feedback (already in !Klein's acceptance-repair loop).

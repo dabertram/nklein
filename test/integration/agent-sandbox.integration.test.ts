@@ -11,7 +11,7 @@ import {
 	createAgentSandboxContainerName,
 	createAgentSandboxVolumeName,
 	resolveAgentSandboxImageName,
-} from "../../src/nklein-sdk/nklein-agent-sandbox";
+} from "../../src/nklein-agent/nklein-agent-sandbox";
 import { createGitTestEnv } from "../utilities/git-env";
 import { createTempDir } from "../utilities/temp-dir";
 

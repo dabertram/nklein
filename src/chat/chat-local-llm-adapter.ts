@@ -1,19 +1,19 @@
-import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-sdk/nklein-attempt-simplification";
+import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import type {
 	LocalLlmChatMessage,
 	LocalLlmCompletion,
 	LocalLlmSamplingOptions,
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
-} from "../nklein-sdk/nklein-local-llm-client";
-import { detectResponseLoop } from "../nklein-sdk/nklein-response-loop-detection";
+} from "../nklein-agent/nklein-local-llm-client";
+import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
 import type { ChatPromptMessage } from "./chat-turn-context";
 
 /**
  * Adapter wiring the chat runtime (todo §5.M) to a local LLM client ([nklein-local-llm-client.ts]
- * (../nklein-sdk/nklein-local-llm-client.ts), which is fail-closed against cloud per invariant #1). It provides
+ * (../nklein-agent/nklein-local-llm-client.ts), which is fail-closed against cloud per invariant #1). It provides
  * the `complete` + `summarize` deps `runChatTurn` needs, mapping the rendered chat prompt to the client's
  * OpenAI-compatible messages and stripping any `<think>…</think>` a reasoning model leaves inline (observed live
  * with qwen3). The client is an interface so this is unit-testable with a fake; the live wiring passes a real

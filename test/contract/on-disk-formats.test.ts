@@ -22,7 +22,7 @@ vi.mock("../../src/telemetry/self-observation-sink.js", () => ({
 }));
 
 import { spawnSync } from "node:child_process";
-import { nkleinPlanTaskGraphSchema, readNKleinPlanArtifacts } from "../../src/nklein-sdk/nklein-plan-artifacts";
+import { nkleinPlanTaskGraphSchema, readNKleinPlanArtifacts } from "../../src/nklein-agent/nklein-plan-artifacts";
 import {
 	boardToPortableBoardCrdt,
 	CURRENT_PORTABLE_BOARD_SCHEMA_VERSION,

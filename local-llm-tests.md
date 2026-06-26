@@ -181,7 +181,7 @@ seam). Two tasks against a tiny 2-file workspace:
   parse it).
 
 **Finding 5 (output failure) → HARDENED.** Weak models narrate a tool call as text in their final answer instead of
-confirming. Added [`stripNarratedToolCallMarkup`](src/nklein-sdk/nklein-narrated-tool-call.ts) (reuses the existing
+confirming. Added [`stripNarratedToolCallMarkup`](src/nklein-agent/nklein-narrated-tool-call.ts) (reuses the existing
 narration-marker regexes: `<tool_call>`/`<|tool_call|>`/`<function_call>`/`<|python_tag|>`/`[TOOL_CALLS]`/
 `<function=…>`): it cuts from the first opener marker to end-of-text, keeping only the natural-language prose before
 it. `runChatAgentTurn` ([chat-agent-turn.ts](src/chat/chat-agent-turn.ts)) cleans the final reply with it and, when

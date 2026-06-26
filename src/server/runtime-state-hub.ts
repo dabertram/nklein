@@ -23,8 +23,8 @@ import type {
 } from "../core/api-contract";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
-import { runNKleinAcceptanceAutoRepair } from "../nklein-sdk/nklein-acceptance-auto-repair";
-import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
+import { runNKleinAcceptanceAutoRepair } from "../nklein-agent/nklein-acceptance-auto-repair";
+import type { NKleinTaskMessage, NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createWorkspaceMetadataMonitor } from "./workspace-metadata-monitor";
 import type { ResolvedWorkspaceStreamTarget, WorkspaceRegistry } from "./workspace-registry";

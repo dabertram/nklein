@@ -2,11 +2,11 @@ import { EventEmitter } from "node:events";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-sdk/nklein-acceptance-auto-repair";
-import type { NKleinTaskSessionService } from "../../../src/nklein-sdk/nklein-task-session-service";
+import { runNKleinAcceptanceAutoRepair } from "../../../src/nklein-agent/nklein-acceptance-auto-repair";
+import type { NKleinTaskSessionService } from "../../../src/nklein-agent/nklein-task-session-service";
 import { createRuntimeStateHub } from "../../../src/server/runtime-state-hub";
 
-vi.mock("../../../src/nklein-sdk/nklein-acceptance-auto-repair", () => ({
+vi.mock("../../../src/nklein-agent/nklein-acceptance-auto-repair", () => ({
 	runNKleinAcceptanceAutoRepair: vi.fn(async () => ({ type: "ready", reason: "human_review" })),
 }));
 

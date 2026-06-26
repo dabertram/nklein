@@ -41,7 +41,7 @@ If you remember nothing else, remember this:
                                 v                                v
 +-------------------------------+--+          +------------------+-------------------+
 | PTY Runtime                      |          | Native NKlein Integration             |
-| src/terminal/                    |          | src/nklein-sdk/                       |
+| src/terminal/                    |          | src/nklein-agent/                       |
 |                                  |          |                                      |
 | agent-registry.ts                |          | nklein-provider-service.ts            |
 | session-manager.ts               |          | nklein-task-session-service.ts        |
@@ -177,7 +177,7 @@ One of the biggest cleanup themes was making ownership clearer. The system is mu
 | NKlein provider settings and secrets | NKlein SDK | !Klein should not mirror these back into its own runtime config |
 | NKlein OAuth state and refresh | NKlein SDK | !Klein delegates through a provider service |
 | NKlein session persistence and history | NKlein SDK | !Klein hydrates from SDK artifacts instead of reinventing persistence |
-| mapping SDK sessions into !Klein task semantics | !Klein integration layer | this is what `src/nklein-sdk/` exists to do |
+| mapping SDK sessions into !Klein task semantics | !Klein integration layer | this is what `src/nklein-agent/` exists to do |
 | UI rendering state for detail view and sidebar | browser hooks and components | local UI state belongs in the frontend |
 | live state fanout to the browser | `runtime-state-hub.ts` | the browser should react to streamed state, not poll |
 
@@ -207,7 +207,7 @@ This is the path for Claude Code, Codex, Gemini, OpenCode, Droid, and any other 
 
 ### Native NKlein integration
 
-The `src/nklein-sdk/` area is an integration layer, not just a dump of SDK calls.
+The `src/nklein-agent/` area is an integration layer, not just a dump of SDK calls.
 
 Its job is to translate between !Klein concepts and SDK concepts:
 

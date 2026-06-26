@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { writeNKleinPlanArtifacts } from "../../src/nklein-sdk/nklein-plan-artifacts";
+import { writeNKleinPlanArtifacts } from "../../src/nklein-agent/nklein-plan-artifacts";
 import type { BackendUnderTest } from "./helpers";
 import { initGitRepository, requestJson, startTsBackend } from "./helpers";
 

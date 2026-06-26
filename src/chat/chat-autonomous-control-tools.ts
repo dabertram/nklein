@@ -1,4 +1,4 @@
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatAgentLoopResult } from "./chat-agent-loop";
 import type { AutonomousChatTurnOutcome } from "./chat-autonomous-loop";
 import type { ChatTool } from "./chat-tool-executor";

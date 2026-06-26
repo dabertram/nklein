@@ -2,9 +2,9 @@ import type { RuntimeTaskChatSendRequest, RuntimeTaskChatSendResponse } from "..
 import { parseTaskChatSendRequest } from "../../core/api-validation";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
-import type { createNKleinProviderService } from "../../nklein-sdk/nklein-provider-service";
-import { isNKleinClearSlashCommand } from "../../nklein-sdk/nklein-slash-commands";
-import type { NKleinTaskSessionService } from "../../nklein-sdk/nklein-task-session-service";
+import type { createNKleinProviderService } from "../../nklein-agent/nklein-provider-service";
+import { isNKleinClearSlashCommand } from "../../nklein-agent/nklein-slash-commands";
+import type { NKleinTaskSessionService } from "../../nklein-agent/nklein-task-session-service";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 /**

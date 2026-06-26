@@ -72,12 +72,12 @@ Recommendation:
 ### 4. NKlein file tools rely on caller sandboxing instead of enforcing workspace containment
 
 Evidence:
-- `write_file`/`write_files` accept absolute paths directly in `src/nklein-sdk/nklein-write-files-tool.ts:46`.
-- `edit_file` accepts absolute paths directly in `src/nklein-sdk/nklein-edit-file-tool.ts:85`.
-- `read_large_file` accepts absolute paths directly in `src/nklein-sdk/nklein-large-file-workflow.ts:481`.
-- The approval resolver uses the same absolute-path rule in `src/nklein-sdk/nklein-runtime-setup.ts:73`.
-- These tools are created with the agent-perceived cwd in `src/nklein-sdk/nklein-session-runtime.ts:868`.
-- Normal task sessions proxy these tools into Docker when a sandbox exists in `src/nklein-sdk/nklein-task-session-service.ts:2024` and `src/nklein-sdk/nklein-agent-sandbox-extra-tools.ts:46`, but home sessions are explicitly host-cwd sessions in `src/nklein-sdk/nklein-agent-sandbox.ts:917`.
+- `write_file`/`write_files` accept absolute paths directly in `src/nklein-agent/nklein-write-files-tool.ts:46`.
+- `edit_file` accepts absolute paths directly in `src/nklein-agent/nklein-edit-file-tool.ts:85`.
+- `read_large_file` accepts absolute paths directly in `src/nklein-agent/nklein-large-file-workflow.ts:481`.
+- The approval resolver uses the same absolute-path rule in `src/nklein-agent/nklein-runtime-setup.ts:73`.
+- These tools are created with the agent-perceived cwd in `src/nklein-agent/nklein-session-runtime.ts:868`.
+- Normal task sessions proxy these tools into Docker when a sandbox exists in `src/nklein-agent/nklein-task-session-service.ts:2024` and `src/nklein-agent/nklein-agent-sandbox-extra-tools.ts:46`, but home sessions are explicitly host-cwd sessions in `src/nklein-agent/nklein-agent-sandbox.ts:917`.
 
 Impact:
 - The current task path is protected only if the sandbox proxy is definitely present.

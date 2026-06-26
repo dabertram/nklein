@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import { stripInternalAuthTokenFromEnv } from "../security/passcode-manager";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { CommandSafetyResult } from "./chat-command-safety";

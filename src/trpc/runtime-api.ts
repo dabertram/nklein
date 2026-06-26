@@ -77,26 +77,26 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { findBoardCardWithColumn } from "../core/task-board-mutations";
-import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
-import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
-import { applyNKleinPlanTaskGraphToBoard } from "../nklein-sdk/nklein-decomposition-tool";
-import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
-import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
-import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
-import { assertLocalProviderAllowed } from "../nklein-sdk/nklein-local-only-policy";
-import { createNKleinMcpRuntimeService } from "../nklein-sdk/nklein-mcp-runtime-service";
-import { createNKleinMcpSettingsService } from "../nklein-sdk/nklein-mcp-settings-service";
-import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
+import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
+import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
+import { applyNKleinPlanTaskGraphToBoard } from "../nklein-agent/nklein-decomposition-tool";
+import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
+import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
+import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
+import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
+import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
+import { createNKleinMcpSettingsService } from "../nklein-agent/nklein-mcp-settings-service";
+import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import {
 	listNKleinPlanArtifactsForSourceTask,
 	type NKleinPlanArtifactSummary,
 	readNKleinPlanArtifactsByArtifactId,
 	summarizeNKleinPlanArtifacts,
 	updateNKleinPlanArtifactApplicationStatus,
-} from "../nklein-sdk/nklein-plan-artifacts";
-import { createNKleinProviderService } from "../nklein-sdk/nklein-provider-service";
-import { setNKleinLostHeartbeatPolicy } from "../nklein-sdk/nklein-session-state";
-import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
+} from "../nklein-agent/nklein-plan-artifacts";
+import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
+import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
+import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
 import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";

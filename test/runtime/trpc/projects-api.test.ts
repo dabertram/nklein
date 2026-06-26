@@ -9,8 +9,8 @@ import { AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS } from "../../../src/core/autonomous
 import {
 	AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO,
 	COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO,
-} from "../../../src/nklein-sdk/nklein-dev-test-project";
-import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
+} from "../../../src/nklein-agent/nklein-dev-test-project";
+import { writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
 	getTaskWorktreesHomePath,
 	getWorkspaceDirectoryPath,

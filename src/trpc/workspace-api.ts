@@ -10,7 +10,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { parseGitCheckoutRequest, parseWorktreeDeleteRequest } from "../core/api-validation";
-import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
+import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { saveWorkspaceState, WorkspaceStateConflictError } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import {

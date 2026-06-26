@@ -1,4 +1,4 @@
-import { computeNKleinToolInputFingerprint } from "../nklein-sdk/nklein-tool-call-fingerprint";
+import { computeNKleinToolInputFingerprint } from "../nklein-agent/nklein-tool-call-fingerprint";
 import type { ChatPromptMessage } from "./chat-turn-context";
 
 /**

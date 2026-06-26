@@ -2,8 +2,8 @@ import type {
 	LocalLlmChatMessage,
 	LocalLlmClient,
 	LocalLlmSamplingOptions,
-} from "../nklein-sdk/nklein-local-llm-client";
-import { resolveLocalSamplingOptions } from "../nklein-sdk/nklein-sampling-policy";
+} from "../nklein-agent/nklein-local-llm-client";
+import { resolveLocalSamplingOptions } from "../nklein-agent/nklein-sampling-policy";
 import type { AgentAction, AgentCoreTool, DecideAction, DecideActionInput } from "./agent-loop";
 
 /**

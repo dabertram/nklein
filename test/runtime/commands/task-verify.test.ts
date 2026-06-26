@@ -23,7 +23,7 @@ import {
 	type RuntimeTaskAcceptanceResult,
 	type RuntimeWorkspaceStateResponse,
 } from "../../../src/core/api-contract";
-import { writeNKleinPlanArtifacts } from "../../../src/nklein-sdk/nklein-plan-artifacts";
+import { writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 
 const COLUMN_IDS: RuntimeBoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
 

@@ -1,5 +1,5 @@
 import { type FocusChain, summarizeFocusChain } from "../core/focus-chain";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatAgentLoopResult, ChatAgentStep } from "./chat-agent-loop";
 import {
 	type AutonomousControlToolset,

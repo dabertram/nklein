@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatTool } from "./chat-tool-executor";
 
 /**

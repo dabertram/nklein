@@ -15,8 +15,8 @@ import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orche
 import {
 	type NKleinSecondOpinionReviewOutcome,
 	runNKleinSecondOpinionReview,
-} from "../nklein-sdk/nklein-second-opinion-review";
-import type { NKleinTaskSessionService } from "../nklein-sdk/nklein-task-session-service";
+} from "../nklein-agent/nklein-second-opinion-review";
+import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { getTaskResultBranchDiff } from "../workspace/task-result-branches";
 

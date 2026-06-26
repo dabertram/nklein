@@ -1,6 +1,6 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
 import { addTaskToColumn } from "../core/task-board-mutations";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import {
 	loadWorkspaceState,
 	mutateWorkspaceState,

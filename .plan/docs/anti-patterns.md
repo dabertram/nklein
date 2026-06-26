@@ -46,11 +46,11 @@ Suggested remediation:
 Evidence:
 
 - `web-ui/src/components/runtime-settings-dialog.tsx` is 4,430 lines. It contains UI rendering, provider/model loading, many local state fields (`:1782`), unsaved-change diffing (`:2139`), reset synchronization (`:2352`), async provider model orchestration (`:2479`), and direct DOM scroll querying (`:2577`).
-- `src/nklein-sdk/nklein-task-session-service.ts` is 3,531 lines. It owns mutable session maps and listeners (`:690`), constructor wiring for many dependencies (`:704`), and policy/guardrail logic such as repeated tool-call enforcement (`:2864`).
+- `src/nklein-agent/nklein-task-session-service.ts` is 3,531 lines. It owns mutable session maps and listeners (`:690`), constructor wiring for many dependencies (`:704`), and policy/guardrail logic such as repeated tool-call enforcement (`:2864`).
 - `src/core/api-contract.ts` is 2,593 lines and centralizes schemas, constants, derived helpers, and many wire types for unrelated runtime surfaces.
 - `src/trpc/runtime-api.ts` is 2,384 lines and acts as the main backend entry point for sessions, settings, git operations, chat, workspace actions, and runtime lifecycle.
 - `web-ui/src/App.tsx` is 1,359 lines despite its file comment saying it should stay focused on top-level wiring.
-- Very large tests mirror the same concentration: `test/runtime/trpc/runtime-api.test.ts` is 5,012 lines and `test/runtime/nklein-sdk/nklein-task-session-service.test.ts` is 4,618 lines.
+- Very large tests mirror the same concentration: `test/runtime/trpc/runtime-api.test.ts` is 5,012 lines and `test/runtime/nklein-agent/nklein-task-session-service.test.ts` is 4,618 lines.
 
 Why this matters:
 
@@ -74,7 +74,7 @@ Evidence:
 - `biome.json:92` disables React exhaustive dependency checking across `web-ui/**`.
 - `biome.json:95` disables `noDangerouslySetInnerHtml` across `web-ui/**`.
 - `biome.json:98` disables non-null assertion and array-index-key checks across `web-ui/**`.
-- Current explicit `any` usage in first-party code appears narrow, for example `test/runtime/nklein-sdk/nklein-decomposition-tool-fuzz.test.ts:196`.
+- Current explicit `any` usage in first-party code appears narrow, for example `test/runtime/nklein-agent/nklein-decomposition-tool-fuzz.test.ts:196`.
 - `dangerouslySetInnerHTML` is used in focused rendering modules such as `web-ui/src/components/shared/diff-renderer.tsx:514` and `web-ui/src/components/detail-panels/nklein-markdown-content.tsx:136`.
 
 Why this matters:
@@ -136,10 +136,10 @@ Suggested remediation:
 Evidence:
 
 - `src/core/api-contract.ts:103` exports `RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`.
-- `src/nklein-sdk/nklein-context-window-policy.ts:1` defines another `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`.
+- `src/nklein-agent/nklein-context-window-policy.ts:1` defines another `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`.
 - `web-ui/src/runtime/nklein-context-window-policy.ts:3` defines another `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`.
 - `web-ui/src/components/task-start-agent-onboarding-carousel.tsx:3` already imports `RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS` from `@runtime-contract`, showing the shared contract constant is available to the UI.
-- The 80,000-token fallback is also duplicated in `src/nklein-sdk/nklein-task-session-service.ts:124`, `src/nklein-sdk/nklein-session-runtime.ts:78`, `src/nklein-sdk/nklein-task-start-guard.ts:8`, and `web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx:161`.
+- The 80,000-token fallback is also duplicated in `src/nklein-agent/nklein-task-session-service.ts:124`, `src/nklein-agent/nklein-session-runtime.ts:78`, `src/nklein-agent/nklein-task-start-guard.ts:8`, and `web-ui/src/components/detail-panels/nklein-agent-chat-panel.tsx:161`.
 
 Why this matters:
 

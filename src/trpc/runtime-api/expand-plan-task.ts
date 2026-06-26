@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { inferNKleinPlanSlugForTask } from "../../commands/task.js";
 import type { RuntimeExpandNKleinPlanTaskRequest, RuntimeExpandNKleinPlanTaskResponse } from "../../core/api-contract";
-import { applyNKleinPlanTaskReplacementArtifacts } from "../../nklein-sdk/nklein-decomposition-tool";
-import { readNKleinPlanArtifacts } from "../../nklein-sdk/nklein-plan-artifacts";
+import { applyNKleinPlanTaskReplacementArtifacts } from "../../nklein-agent/nklein-decomposition-tool";
+import { readNKleinPlanArtifacts } from "../../nklein-agent/nklein-plan-artifacts";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 /**

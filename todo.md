@@ -60,7 +60,7 @@
 ## 1. Prime directives — never violate
 
 1. **LOCAL MODELS ONLY.** `CLOUD_ENABLED = false`
-   ([src/nklein-sdk/nklein-local-only-policy.ts](src/nklein-sdk/nklein-local-only-policy.ts)). No path, default,
+   ([src/nklein-agent/nklein-local-only-policy.ts](src/nklein-agent/nklein-local-only-policy.ts)). No path, default,
    setting, or UI may reach a paid/cloud LLM. Cloud providers don't render, can't be selected, and cloud-pinned
    cards hard-stop. Re-enabling cloud is a single deliberate reviewed code change — never a feature you add.
 2. **STRICT DOCKER AGENT ISOLATION IS MANDATORY, UNCONDITIONAL, FAIL-CLOSED.** Every agent shell command and
@@ -72,7 +72,7 @@
 3. **≥32k context minimum.** `NKLEIN_MIN_CONTEXT_WINDOW_TOKENS = 32_000`, enforced at every entry. No oversized
    prompt is ever sent — over-budget turns compact or the task stops. No hardcoded window/speed constants in
    routing/budget decisions.
-4. **UPSTREAM-CLEAN SDK BOUNDARY.** Every feature is a `src/nklein-sdk/` plug-in on an official SDK socket.
+4. **UPSTREAM-CLEAN SDK BOUNDARY.** Every feature is a `src/nklein-agent/` plug-in on an official SDK socket.
    `npm run check:nklein-boundary` must stay green. (See §11 for the note that the SDK itself is now vendored
    in-repo under `vendor/nklein-sdk/` — that is repo-owned and editable; the boundary rule is about not forking
    the SDK's *internal* contracts gratuitously.)
@@ -536,7 +536,7 @@ deep analysis:
           and issued `read_files`/`list_files` against host absolute paths. Found by a new **live decompose harness**
           ([scripts/verify-decompose-isolation.mts](scripts/verify-decompose-isolation.mts)) — not by unit tests/code
           reading. Fix: both the agent-core `config.cwd` AND the system-prompt cwd now derive from one shared
-          `resolveNKleinAgentPerceivedCwd(taskId, hostCwd)` ([src/nklein-sdk/nklein-agent-sandbox.ts](src/nklein-sdk/nklein-agent-sandbox.ts))
+          `resolveNKleinAgentPerceivedCwd(taskId, hostCwd)` ([src/nklein-agent/nklein-agent-sandbox.ts](src/nklein-agent/nklein-agent-sandbox.ts))
           so they can never drift again. **Live decompose PASS** (real LM Studio task, decompose_project called, zero
           host-path leaks in agent output, clean teardown) + regression test that builds the real SDK system prompt and
           asserts it carries the sandbox workdir, never the host mount.
@@ -551,7 +551,7 @@ deep analysis:
           `--project-path` arg is dropped, and `applied.message` is run through `redactWorkspacePathForAgent` before it
           enters the instruction. Host-side consumers (runtime-api / CLI / evidence) read absolute paths straight from
           the plan-artifact writer — unchanged. Regression test asserts no `*Path`/instruction contains the host
-          workspace path. ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
+          workspace path. ([src/nklein-agent/nklein-decomposition-tool.ts](src/nklein-agent/nklein-decomposition-tool.ts))
     - [x] **confirmed on a real decompose run that the agent emits only sandbox/relative paths (DONE 2026-06-24)** —
           `scripts/verify-decompose-isolation.mts` runs a real LM Studio decompose in a Docker sandbox and captures
           every agent-emitted activity (reasoning text, tool-input summaries, final message), asserting none contains
@@ -592,7 +592,7 @@ deep analysis:
         concurrency cap + sandbox-pool queue composing visibly in the card/header UI during a run.
 - [~] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
-      [src/nklein-sdk/nklein-task-session-service.ts](src/nklein-sdk/nklein-task-session-service.ts); reconcile
+      [src/nklein-agent/nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts); reconcile
       docs so the planning ("L3") story isn't overstated.
   - [x] **queued state surfaced** (the swarm-header "Queued N" list, above) and **sandbox-unavailable surfaced**
         (2026-06-24): the swarm header shows a red **"Sandbox unavailable"** chip (with the daemon/image failure
@@ -627,7 +627,7 @@ deep analysis:
       `src/timebase.ts`) was flagged a **test card** with an impossible "must depend on an implementation card" violation
       → the decomposer re-submitted against the contradiction until it stalled ("why did processing stall?"). Fix: classify
       test/docs by **title + touched-files** (the card's identity), not the prompt body. Regression-tested
-      ([nklein-decomposition-graph-quality.test.ts](test/runtime/nklein-sdk/nklein-decomposition-graph-quality.test.ts)).
+      ([nklein-decomposition-graph-quality.test.ts](test/runtime/nklein-agent/nklein-decomposition-graph-quality.test.ts)).
 - [x] **Render the decompose graph visually in chat (incl. on validation errors)** *(DONE 2026-06-24, user)* — the
       `decompose_project` tool message now renders the proposed task-graph DAG inline (nodes = cards, edges = `dependsOn`,
       layered by longest-path depth) via `detail-panels/decomposition-graph-view.tsx`, wired into `ToolMessageBlock`
@@ -659,7 +659,7 @@ deep analysis:
       plan, so a large replanning is on-purpose when warranted, not avoided.** Build the seam so the agent can choose
       lightweight→XXXL per what the task + current project state need (and skip fast when nothing changed).
   - [x] **Increment A — the `begin_implementation` promotion tool (2026-06-25)** — new self-gating trusted control-plane
-        tool ([nklein-promotion-tool.ts](src/nklein-sdk/nklein-promotion-tool.ts)) that moves a card Planning→In Progress
+        tool ([nklein-promotion-tool.ts](src/nklein-agent/nklein-promotion-tool.ts)) that moves a card Planning→In Progress
         via `mutateWorkspaceState`. **Self-gates on the card's own `startInPlanMode`**: refuses a planning/decompose card
         (→ "call decompose_project") so a misbehaving model can't shove a planning card into Implementation, and so the
         resume path needs no flag threading; idempotent no-op when already In Progress; refuses terminal/missing. Wired
@@ -680,10 +680,10 @@ deep analysis:
         session-service tests + a new prompt-selection suite; full fast suite green (1506).
   - [x] **Increment C (hardening) — auto-promote recovery: CODE DONE (2026-06-25), live-verify pending (folded into the
         Suite 10 sweep below).** Extracted `promoteCardToImplementation({workspacePath, taskId, onPromoted, refinementNotes})
-        → PromotionOutcome` from [nklein-promotion-tool.ts](src/nklein-sdk/nklein-promotion-tool.ts) (the shared mutator +
+        → PromotionOutcome` from [nklein-promotion-tool.ts](src/nklein-agent/nklein-promotion-tool.ts) (the shared mutator +
         `onPromoted` broadcast; `begin_implementation`'s `execute` now just delegates + maps the outcome to its instruction
         string). Hooked it into the `requestToolApproval` wrapper's **catch-all** `if (approval.approved &&
-        REPO_MAP_INVALIDATING_TOOL_NAMES.has(...))` block in [nklein-session-runtime.ts](src/nklein-sdk/nklein-session-runtime.ts):
+        REPO_MAP_INVALIDATING_TOOL_NAMES.has(...))` block in [nklein-session-runtime.ts](src/nklein-agent/nklein-session-runtime.ts):
         when a work-card session (one with `request.onCardPromoted` wired) gets its **first** approved repo-mutating tool
         (write_file/write_files/edit_file/apply_patch/bash/…), it auto-promotes Planning→In Progress before the write runs.
         Best-effort + one-shot (`autoPromoteSettled` guard so we mutate the board at most once/session; a board-lock hiccup
@@ -713,7 +713,7 @@ deep analysis:
 - [x] **`decompose_project` malformed/empty-call recovery** — relax the boundary `inputSchema` (drop `required`,
       allow extra props) so `execute` always runs; in-handler validation returns a compact directive (names missing
       fields, "don't resend empty"); `repairJsonStringValue` recovers stringified/typo'd payloads; fuzz-tested.
-      ([src/nklein-sdk/nklein-decomposition-tool.ts](src/nklein-sdk/nklein-decomposition-tool.ts))
+      ([src/nklein-agent/nklein-decomposition-tool.ts](src/nklein-agent/nklein-decomposition-tool.ts))
 - [x] **Open-question default auto-recovery (2026-06-24, real evidence)** — an `open` clarifying question with
       options but no `assumption`/`answer` used to throw "add an `assumption`"; weak models couldn't comply and
       re-sent the identical decompose call, looping until the guard paused the task. `deriveOpenQuestionDefaults`
@@ -849,8 +849,8 @@ deep analysis:
       quantized GGUF (`embedding=True`) on `/v1/embed`; host-side download manager streams it with progress +
       integrity check; `local_gguf` provider lazily ensures + degrades to `local_lexical`; default in the schema
       (dense active only when the core is on); Code-intelligence panel shows status.
-      ([src/nklein-sdk/nklein-code-embeddings.ts](src/nklein-sdk/nklein-code-embeddings.ts),
-      [src/nklein-sdk/nklein-embedding-model-manager.ts](src/nklein-sdk/nklein-embedding-model-manager.ts))
+      ([src/nklein-agent/nklein-code-embeddings.ts](src/nklein-agent/nklein-code-embeddings.ts),
+      [src/nklein-agent/nklein-embedding-model-manager.ts](src/nklein-agent/nklein-embedding-model-manager.ts))
   - [x] in-panel override = "Configure embedding model" link → Project Settings (single source of truth)
   - [x] host-side idle-unload timer (frees the resident model after ~2 min idle)
   - [x] verified `sha256` in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (download integrity check now runs)
@@ -1132,7 +1132,7 @@ deep analysis:
         `printf '…\n/exit\n' | nklein chat` held a real multi-turn conversation against `qwen3-8b`. (Across-invocation
         multi-turn also already works via `--session <id>`, which reloads the transcript + recalls memory each turn.)
   - [x] **token streaming (2026-06-24)** — `LocalLlmClient.completeStream`
-        ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) parses OpenAI SSE deltas; the chat
+        ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) parses OpenAI SSE deltas; the chat
         adapter's `complete(prompt, onToken)` streams via it when an `onToken` is given (else falls back to a
         non-streaming completion), and `runChatTurn`/`runChatConversation` thread `onToken` so the REPL prints tokens
         as they arrive (persisting the reasoning-stripped reply). Unit-tested (stream path + fallback); **live-verified**
@@ -1149,7 +1149,7 @@ deep analysis:
           (executed or not), with the tools' side effects + confirm prompt + audit sink injected. Unit-tested (allow/
           deny/confirm-both-ways/unknown-tool). The §5.M host-access invariant is now enforced at the tool boundary.
     - [x] **tools-aware local completion (2026-06-24)** — `LocalLlmClient.completeWithTools`
-          ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) offers OpenAI function `tools`
+          ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) offers OpenAI function `tools`
           (`tool_choice: auto`) and parses returned `tool_calls` (decoding the JSON-string args; malformed → `{}`,
           unnamed dropped); empty tools ⇒ a plain completion. Unit-tested (tools sent + parsed; no-tools plain path).
     - [x] **agent model/exchange adapter + `runChatAgentTurn` (2026-06-24)** — `createChatAgentModel` +
@@ -1408,7 +1408,7 @@ deep analysis:
       advancing calls was falsely paused as "3 repeated … with the same input" (hit twice: `read_large_file`'s
       cursor, then `decompose_project` resolving open questions — the latter paused the very call that *applied*
       the decomposition, the "paused yet completed" report). Now the guard keys on a **lossless full-input
-      fingerprint** ([src/nklein-sdk/nklein-tool-call-fingerprint.ts](src/nklein-sdk/nklein-tool-call-fingerprint.ts),
+      fingerprint** ([src/nklein-agent/nklein-tool-call-fingerprint.ts](src/nklein-agent/nklein-tool-call-fingerprint.ts),
       a key-order-independent hash of the entire parsed input, set on the `tool_call` hook activity in the event
       adapter), falling back to the summary only for back-compat. Two calls now collide **only** on genuinely
       identical input ⇒ every tool, **including future ones**, is immune by construction; a real identical-input
@@ -1434,7 +1434,7 @@ deep analysis:
         call + reply, no Docker/swarm needed; caveat: LM Studio normalizes tool calls, so it skips the swarm's
         raw-output `recoverNarratedToolCalls` seam). Read task: clean. **Write task surfaced Finding 5 → HARDENED:**
         the write executed but gemma's **final** reply was a **narrated tool call** leaking raw `<|tool_call>…` markup
-        to the user. Added [`stripNarratedToolCallMarkup`](src/nklein-sdk/nklein-narrated-tool-call.ts) (reuses the
+        to the user. Added [`stripNarratedToolCallMarkup`](src/nklein-agent/nklein-narrated-tool-call.ts) (reuses the
         narration-marker regexes; cuts from the first opener to EOF, keeping prose) and applied it in
         [runChatAgentTurn](src/chat/chat-agent-turn.ts) with a `Done. (used: …)` confirmation fallback. Unit-tested +
         **re-verified live** (the same write now replies `"Done. (used: write_file)"`; file still created). Logged in
@@ -1487,7 +1487,7 @@ deep analysis:
         HARD, resource-heavy, premature.
 - [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
   - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
-        ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
+        ([src/nklein-agent/nklein-dev-test-project.ts](src/nklein-agent/nklein-dev-test-project.ts)); unit-tested
   - [x] **dev-test fixture specs enriched (2026-06-26)** — rewrote the in-repo dev-test `specification.md` bodies
         (smoke, mid, complex-DAG, audio-VST, and all four fan-out presets) into better-specified mini-challenges
         with explicit typed entities, validation rules, and **property-based invariants** (bounded/clamped scores,
@@ -1499,7 +1499,7 @@ deep analysis:
         prompts/specs no longer live as string constants. Each project is now a self-contained folder under the
         repo-root [`dev-test-projects/<id>/`](dev-test-projects/) (`project.json` + `specification.md` +
         `user-prompt.txt`); registering a prepared project is "add a folder + it's discovered" (no code change).
-        New loader [src/nklein-sdk/dev-test-project-registry.ts](src/nklein-sdk/dev-test-project-registry.ts)
+        New loader [src/nklein-agent/dev-test-project-registry.ts](src/nklein-agent/dev-test-project-registry.ts)
         discovers the folders, validates each `project.json` with a strict zod schema
         (`devTestProjectConfigSchema`: `id/title/acceptanceCommand` + optional `agentId/fixtureTemplate/
         startInPlanMode/tier/tags/enabled/complexity/specificationPath/filesLikelyTouched`), reads the two text
@@ -1559,13 +1559,22 @@ deep analysis:
 
 ### 5.R — Dissolve the "internal SDK" separation; one unified codebase *(raised + clarified 2026-06-23)*
 > **Goal:** stop framing any runtime part as a separate "SDK" — nKlein is one product (no reusable core today).
-> Remove the `src/nklein-sdk/` boundary framing so it reads as one integrated whole. **Principle:** simple, working,
+> Remove the `src/nklein-agent/` boundary framing so it reads as one integrated whole. **Principle:** simple, working,
 > comprehensible — no fancy internals re-engineering now (the §5.P Python port supersedes the deep internals); target
 > the npm dev build only. **Priority: after §5.A, before §5.H/§5.M/§5.O.** **Decided:** Layer 1 (our readable TS
 > boundary) — fully inline; Layer 2 (vendored minified `@nklein/*` runtime) — keep working as an internal
 > dependency, do NOT de-package the minified bundles now (deferred to §5.P).
+- [x] **Honest naming — directory rename `nklein-sdk` → `nklein-agent` (2026-06-27, user: "we dont have an sdk .. lets
+      be honest about this in our naming structure").** Renamed the two Layer-1 dirs `src/nklein-sdk/` → `src/nklein-agent/`
+      and `test/runtime/nklein-sdk/` → `test/runtime/nklein-agent/` (`git mv`, history-preserving) + rewrote every
+      `nklein-sdk/` path reference (159 files, trailing-slash-targeted so it never touched the genuinely-vendored
+      `vendor/nklein-sdk/`, the `@nklein/*` aliases, `scripts/nklein-sdk-alias.mjs`, or the `sdk-*-boundary.ts` /
+      `nklein-sdk-event-readers.ts` filenames — those bridge to / parse the real vendored SDK and keep their names). Updated
+      biome.json's boundary-rule paths + the boundary-check-script comments + the AGENTS.md naming note (do-NOT-revert). Gates
+      green: tsc · web:typecheck · biome · check:nklein-boundary · test:fast (2045). This is the *naming* slice of §5.R; the
+      full layer-1 *inlining* below stays deferred.
 - [-] **Inventory + inline the layer-1 boundary** *(deferred by decision — §5.0.1 (2026-06-25, FINAL): "§5.R
-      SDK-boundary inlining stay deferred")* — catalog `src/nklein-sdk/`'s re-exports of `@nklein/*`, inline the
+      SDK-boundary inlining stay deferred")* — catalog `src/nklein-agent/`'s re-exports of `@nklein/*`, inline the
       pass-through shims (`sdk-runtime-boundary.ts`, `sdk-provider-boundary.ts`) into callers, reframe the `NKlein*`
       services/tools/event-adapter/session-runtime as plain runtime code (keep an `agent-runtime/` area), drop the
       `check:nklein-boundary` discipline. No behavior change; tests green.
@@ -1619,7 +1628,7 @@ deep analysis:
 > (local-only, strict Docker isolation, ≥32k floor, upstream-clean SDK boundary, protected tests) — flag, don't
 > violate. Don't churn for its own sake (§3): prefer changes that measurably improve navigability/clarity/perf, each
 > independently shippable + test-backed. Coordinate with the already-planned structural work so we don't duplicate:
-> §5.R (dissolve the `src/nklein-sdk/` boundary / one unified codebase), §5.P (eventual Python backend port), and the
+> §5.R (dissolve the `src/nklein-agent/` boundary / one unified codebase), §5.P (eventual Python backend port), and the
 > §5.A worktree-module shrink (plan.md §2.B) — note overlaps rather than re-deriving them.
 >
 > **SCOPE EXPANSION (2026-06-25, user — this is now explicitly part of §5.U, not just "no monoliths"):** the pass must
@@ -1639,7 +1648,7 @@ deep analysis:
 > The hard invariant on all of the above: **preserve the exact *wanted* behaviour the task workflows need** — simplify
 > structure and flow, never change the product semantics. Each improvement still ships independently + test-backed (§3).
 - [ ] **Run the review pass** — systematically read across the runtime (`src/`), the web-ui (`web-ui/src/`), the
-      vendored SDK boundary (`src/nklein-sdk/` + `vendor/`), the Python core (`core-py/`), state/telemetry, and the
+      vendored SDK boundary (`src/nklein-agent/` + `vendor/`), the Python core (`core-py/`), state/telemetry, and the
       tRPC/contract seam. For each area assess: module boundaries & separation of concerns; oversized/multi-purpose
       files (e.g. the large `nklein-task-session-service.ts`) worth decomposing; duplication / missing shared
       utilities (the `model-identity` extraction is the template); dead or back-compat-only code; data-flow and
@@ -1780,13 +1789,13 @@ deep analysis:
         **session-service 3907 → 3449 (−458).** Remaining named targets: sandbox-lifecycle, timeout-scheduler,
         prompt-assembly, message-repository (the interwoven orchestration core — no longer cleanly-separable guard seams).
   - [x] **first slice (2026-06-24):** extracted the 4 self-contained pure prompt parsers + `WORD_NUMBER_BY_TEXT` into
-        [nklein-task-prompt-parsing.ts](src/nklein-sdk/nklein-task-prompt-parsing.ts) (`parseRequestedMinimumTaskCount`,
+        [nklein-task-prompt-parsing.ts](src/nklein-agent/nklein-task-prompt-parsing.ts) (`parseRequestedMinimumTaskCount`,
         `parseAcceptanceCommand`, `isDecompositionPlanningPrompt`, `isExplicitDecompositionPrompt`) + a dedicated test.
         Behaviour identical (service suite 119 green). Chosen as the lowest-risk slice (zero in-file deps, compiler-
         verified). The bigger stateful extractions (sandbox-lifecycle, timeout-scheduler, guardrail-watchdogs) remain.
   - [x] **second slice (2026-06-24):** extracted the 3 pure SDK-event readers (`readSdkAgentEvent`,
         `readSdkSessionEvent`, `readAgentResultText`) into
-        [nklein-sdk-event-readers.ts](src/nklein-sdk/nklein-sdk-event-readers.ts) (importing the shared `asRecord`),
+        [nklein-sdk-event-readers.ts](src/nklein-agent/nklein-sdk-event-readers.ts) (importing the shared `asRecord`),
         with a dedicated test; this also made the service's local `asRecord` import dead (removed). Behaviour
         identical (service suite 109 + readers 6 green).
   - [ ] **remaining clusters are coupled (need the careful pass):** the context-budget/message-classification
@@ -1795,9 +1804,9 @@ deep analysis:
         helpers share `NKleinTaskRepeatedToolState` with the class. Extracting these needs the shared types moved/shared
         first (to avoid circular imports) — do in the focused decomposition pass with the stateful modules.
 - [x] **Consolidate the duplicated `asRecord` helper** *(DONE 2026-06-24)* — `asRecord` was re-defined locally in 5
-      `src/nklein-sdk/*` files (event-adapter, model-registry, session-runtime, task-session-service, team-progress).
+      `src/nklein-agent/*` files (event-adapter, model-registry, session-runtime, task-session-service, team-progress).
       Extracted the canonical strict version (non-null, non-array object) to
-      [nklein-value-guards.ts](src/nklein-sdk/nklein-value-guards.ts); all 5 now import it; removed the copies + the
+      [nklein-value-guards.ts](src/nklein-agent/nklein-value-guards.ts); all 5 now import it; removed the copies + the
       now-unused `JsonRecord` alias. The one behavioural reconciliation — the event-adapter copy had omitted the
       `!Array.isArray` guard — is safe (its inputs are JSON object shapes, not arrays) and locked by the full suite
       (1376 green). **`toErrorMessage` deliberately NOT consolidated:** its 3 copies have intentionally-different
@@ -1939,12 +1948,12 @@ deep analysis:
         - [ ] still TODO: the object-literal method grouping into factory modules (config/tasks/providers/chat) — the bigger,
               harder refactor (methods close over `createRuntimeApi`'s deps; deserves fresh context). Small leftover
               module-level helpers worth a later pass: the board-card lookups + git-commit resolution.
-  - **`src/nklein-sdk/nklein-provider-service.ts` (~1989 → 1744)** *(umbrella — slices below are the counted work; the
+  - **`src/nklein-agent/nklein-provider-service.ts` (~1989 → 1744)** *(umbrella — slices below are the counted work; the
         remaining slice is the open child)* — provider selection + OAuth (nklein/oca/codex) +
         MCP settings + local-provider discovery in one. Split per provider-family / concern. (Coordinate with §5.R.)
         - [x] **slice 1 (2026-06-24):** extracted the pure discovered-model parsing/normalization (LM Studio `/api/v0|v1`
               + generic OpenAI-style payloads → `RuntimeNKleinProviderModel[]`, context-window normalization, dedupe,
-              registry/fallback merges) into `nklein-sdk/nklein-provider-model-parsing.ts`. Pathnames passed as `string`
+              registry/fallback merges) into `nklein-agent/nklein-provider-model-parsing.ts`. Pathnames passed as `string`
               so the module stays decoupled from the service's pathname unions. provider-service 1989→1744 (−245/−12%).
         - [x] **slice 2 (2026-06-24):** consolidated the remaining pure model helpers (`toRuntimeProviderModel`,
               `sortDiscoveredProviderModels` + private `getDiscoveredModelSortRank`) into the same parsing module.
@@ -2215,7 +2224,7 @@ deep analysis:
       a tiny `node:http` OpenAI-compatible server: `GET /models` (so `discoverLoadedModelId` in
       [local-chat-model.ts](src/chat/local-chat-model.ts) finds a "loaded" model) + `POST /chat/completions`
       (non-streaming AND SSE streaming — match `LocalLlmClient` in
-      [nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts); read it for the exact request/response +
+      [nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts); read it for the exact request/response +
       stream-chunk shape). Make it **scriptable** (a per-test queue of canned responses: plain text for chat; tool-call
       JSON for the agent loop) so Suite 4 drives decompose_project→begin_implementation deterministically. Point the
       spawned server at it via the chat/provider `baseUrl` (saveNKleinProviderSettings/saveConfig over HTTP, or an env
@@ -2247,7 +2256,7 @@ deep analysis:
         `saveProviderSettings` *requires* the endpoint reachable with the model loaded
         (`assertProviderModelMeetsContextRequirement`, provider-service.ts:668) — the mock didn't fully satisfy that, so
         the lmstudio save didn't take and the chat fell through to the default. The fix itself is correct: a unit test
-        ([provider-local-chat-baseurl.test.ts](test/runtime/nklein-sdk/provider-local-chat-baseurl.test.ts)) saves a
+        ([provider-local-chat-baseurl.test.ts](test/runtime/nklein-agent/provider-local-chat-baseurl.test.ts)) saves a
         **custom local provider** (no live-only validation) and confirms `getLocalChatBaseUrl` returns its baseUrl → the
         chat/agent get the configured endpoint. lmstudio is honored the SAME way (its saved baseUrl flows) **when LM
         Studio is actually running** (covered by the live Suite 10, not unit). **→ Suite 5 send/stream + Suite 4 will
@@ -2449,7 +2458,7 @@ deep analysis:
       the swarm's parallelism tunable at two grains and two scopes: **(a) per model PROVIDER** (e.g. lmstudio / ollama /
       a custom local endpoint) and **(b) per MODEL**, each settable as a **global default** AND a **per-project override**.
       **What exists to build on:** per-model concurrency is already a machine-local **registry constraint**
-      (`maxConcurrentRequests`, §5.T) the **endpoint scheduler** ([nklein-endpoint-scheduler.ts](src/nklein-sdk/nklein-endpoint-scheduler.ts),
+      (`maxConcurrentRequests`, §5.T) the **endpoint scheduler** ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts),
       §6.5) reads to allow N concurrent sessions on a shared endpoint; `maxConcurrentTasks` (board cap) already has the
       global+project-override pattern (§5.W Phase 1). **What's NEW:** a per-PROVIDER cap, and expressing both as
       global-default + project-override **config** (not just a registry constraint). Build:
@@ -2526,9 +2535,9 @@ deep analysis:
 - [~] **Phase 1 — TS-internal deep refactor** (no language change): execute §5.U findings end-to-end — kill the
       monoliths (`nklein-task-session-service` ~3800, `runtime-server`, `nklein-decomposition-tool`, `workspace-state`,
       - [x] **Phase 1 PILOT (2026-06-26): `nklein-decomposition-tool.ts` (~1440 → 391 lines)** decomposed into 8
-            single-responsibility modules under `src/nklein-sdk/decomposition/` behind the existing barrel (pure moves,
+            single-responsibility modules under `src/nklein-agent/decomposition/` behind the existing barrel (pure moves,
             zero behavior change, all 6 importers untouched, all gates green: typecheck + lint + test:fast 1735/1735 +
-            contract suite 12/12 + workflow suite 1/1 + web:typecheck). See `src/nklein-sdk/decomposition/`.
+            contract suite 12/12 + workflow suite 1/1 + web:typecheck). See `src/nklein-agent/decomposition/`.
       - [x] **Phase 1 session-service guards (2026-06-26): 3 per-task guard collaborators extracted from
             `nklein-task-session-service.ts` (3907 → 3449, −458 / −12%).** M1 `DecompositionStallNudger`
             (decomposition stall/nudge timers, `85ffd63b`), M2 `RepeatedToolCallGuard` (repeated-identical-tool-call +
@@ -2816,7 +2825,7 @@ deep analysis:
       waiting. Output-robustness, ties §5.O parse-and-recover. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
       NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
 - [x] **Chat-path narrated-tool-call recovery — DONE (2026-06-26)** — `completeWithTools`
-      ([nklein-local-llm-client.ts](src/nklein-sdk/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
+      ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
       `tool_calls`; it now also runs `parseNarratedToolCalls` over the model's `content` **and** `reasoning_content`
       when tools were offered but no structured call came back — mirroring the swarm path's `afterModel` recovery so a
       model that narrates its call as text in the chat surface still gets dispatched. Added the **Microsoft Phi
@@ -2877,7 +2886,7 @@ deep analysis:
 > partial result. **Build grounded-first; each increment re-verified by the §5.Z sweep across all 9 models.**
 - [x] **Chat-path narrated recovery (content + `reasoning_content`, +Phi `[TOOL_REQUEST]`) — DONE (2026-06-26, §5.Z).**
 - [~] **Loop detection + salvage/park (grounded: qwen3.5-9b).** **Pure core DONE (2026-06-26):**
-      `detectResponseLoop` ([nklein-response-loop-detection.ts](src/nklein-sdk/nklein-response-loop-detection.ts)) finds
+      `detectResponseLoop` ([nklein-response-loop-detection.ts](src/nklein-agent/nklein-response-loop-detection.ts)) finds
       the smallest unit repeated `≥minRepeats` times at the tail of a model's output and returns the salvageable prefix
       (loop collapsed to one occurrence) — pure + deterministic so it guards BOTH the chat stream and the swarm session
       from one seam; 7 unit tests. **CHAT-PATH SALVAGE WIRED (2026-06-26):** `createChatModelDeps` + `createChatAgentModel`
@@ -2891,7 +2900,7 @@ deep analysis:
       repro; needs the session-runtime turn seam + a live re-verify). Extends the repeated-tool-call guard to
       repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
 - [x] **Task-complexity ladder — tool-set reduction on retry — WIRED + LIVE-PROVEN (2026-06-26).** `selectToolsForAttempt`
-      ([nklein-attempt-simplification.ts](src/nklein-sdk/nklein-attempt-simplification.ts)) narrows the offered tool set
+      ([nklein-attempt-simplification.ts](src/nklein-agent/nklein-attempt-simplification.ts)) narrows the offered tool set
       for attempt `level` (level 1 = only the tools the instruction references — name / spaced / distinctive last word, so
       "make a card" anchors `create_card`; level 2 = the single first-referenced; no-op when nothing is anchored).
       **Wired into `createChatAgentModel`** (`b4fc2522`): when several tools were offered but the model returned no call
@@ -3425,7 +3434,7 @@ deep analysis:
   vendored SDK remains one supported runtime, no longer the only one (§5.H, §6.10).
 - **SDK is now vendored & de-packaged in-repo** (§6.12) — the `@nkleinbot/*` "never patch node_modules" framing
   from the predecessor docs is updated: the SDK lives under `vendor/nklein-sdk/` and is ours to edit; the
-  boundary discipline (`check:nklein-boundary`, `src/nklein-sdk/` plug-ins) still holds for *integration*.
+  boundary discipline (`check:nklein-boundary`, `src/nklein-agent/` plug-ins) still holds for *integration*.
 - **Archival sources (folded in, then deleted):** `follow-up-1..4.md` + `findings-from-follow-up-work-4.md` were
   already declared archival by the iteration playbook — their open items live on as §5.A (isolation/worktree)
   and §5.A (UI verification); their shipped items are in §6. `follow-up-5.md`/`follow-up-6.md` open threads are

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SDK boundary guard. The agent SDK is vendored under vendor/nklein-sdk/ (aliased
-// @nklein/*) and must only be imported through src/nklein-sdk/ boundary modules
+// @nklein/*) and must only be imported through src/nklein-agent/ boundary modules
 // (that import rule is biome-enforced). This legacy check additionally flags ad-hoc
 // patches to the still-installed upstream @clinebot package in node_modules.
 // A proper boundary-policy update (matching current package names) is §5.X
@@ -17,6 +17,6 @@ if (diff.error) {
 }
 
 if (diff.status !== 0) {
-	console.error("SDK package changes detected in node_modules. Keep SDK changes behind src/nklein-sdk/ instead of patching node_modules.");
+	console.error("SDK package changes detected in node_modules. Keep SDK changes behind src/nklein-agent/ instead of patching node_modules.");
 	process.exit(diff.status ?? 1);
 }

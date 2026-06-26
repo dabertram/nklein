@@ -3,14 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { resolveKleinCorePyConfig } from "../../config/klein-core-config";
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import type { RuntimeNKleinCodeIntelligenceStatusResponse } from "../../core/api-contract";
-import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-sdk/nklein-code-embeddings";
-import { getNKleinCodeIndexStatus } from "../../nklein-sdk/nklein-code-index";
+import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
+import { getNKleinCodeIndexStatus } from "../../nklein-agent/nklein-code-index";
 import {
 	DEFAULT_EMBEDDING_MODEL_MANIFEST,
 	getEmbeddingModelPath,
 	isEmbeddingModelInstalled,
-} from "../../nklein-sdk/nklein-embedding-model-manager";
-import { buildNKleinRepoMap } from "../../nklein-sdk/nklein-repo-map";
+} from "../../nklein-agent/nklein-embedding-model-manager";
+import { buildNKleinRepoMap } from "../../nklein-agent/nklein-repo-map";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 /**

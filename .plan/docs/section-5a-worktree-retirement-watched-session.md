@@ -39,9 +39,9 @@ agents are gone, then can be removed in the final cleanup with an invariant test
 - **Terminal/CLI agent integration (~18 files, src/terminal/):** agent-registry, agent-session-adapters,
   claude/codex-workspace-trust, codex-hook-config, opencode-paths, command-discovery, hook-runtime-context,
   pty-session, session-state-machine, terminal-* , ws-server; plus `src/commands/hook-events/*` (codex/kiro/droid),
-  `src/commands/hooks.ts`, `src/prompts/append-system-prompt.ts`, `src/nklein-sdk/nklein-provider-service.ts`.
+  `src/commands/hooks.ts`, `src/prompts/append-system-prompt.ts`, `src/nklein-agent/nklein-provider-service.ts`.
 - **Worktree/shell consumers to rewire (~20):** `src/trpc/{workspace,projects,runtime,app-router}-api.ts`,
-  `src/server/runtime-server.ts`, `src/nklein-sdk/{nklein-acceptance-auto-repair,nklein-trusted-auto-merge}.ts`,
+  `src/server/runtime-server.ts`, `src/nklein-agent/{nklein-acceptance-auto-repair,nklein-trusted-auto-merge}.ts`,
   `src/workspace/project-health.ts`, `src/server/shutdown-coordinator.ts`, `src/server/workspace-metadata-monitor.ts`.
 - **web-ui:** `src/runtime/native-agent.ts` (the `isTaskAgentSetupSatisfied` fallback to other launch-supported
   agents — confirmed it breaks when launch-support is nklein-only; its `native-agent.test.ts` needs the nklein-only

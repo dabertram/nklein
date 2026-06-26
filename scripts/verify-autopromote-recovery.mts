@@ -23,9 +23,9 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { RuntimeBoardData } from "../src/core/api-contract";
-import type { NKleinCardPromotedEvent } from "../src/nklein-sdk/nklein-promotion-tool";
-import { AgentSandboxManager } from "../src/nklein-sdk/nklein-agent-sandbox";
-import { createInMemoryNKleinTaskSessionService } from "../src/nklein-sdk/nklein-task-session-service";
+import type { NKleinCardPromotedEvent } from "../src/nklein-agent/nklein-promotion-tool";
+import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
+import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, saveWorkspaceState } from "../src/state/workspace-state";
 
 const execFileAsync = promisify(execFile);

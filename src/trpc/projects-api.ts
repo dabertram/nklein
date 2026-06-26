@@ -29,12 +29,12 @@ import {
 import { withAutonomousNKleinTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import { loadDevTestProjectRegistry, loadDevTestProjectScenario } from "../nklein-sdk/dev-test-project-registry";
+import { loadDevTestProjectRegistry, loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
 import {
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	resolveNKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
-} from "../nklein-sdk/nklein-dev-test-project";
+} from "../nklein-agent/nklein-dev-test-project";
 import {
 	getCanonicalTaskWorktreesHomePath,
 	listWorkspaceIndexEntries,

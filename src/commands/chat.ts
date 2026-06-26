@@ -15,7 +15,7 @@ import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
 import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../chat/chat-workspace-tools";
 import { DEFAULT_LOCAL_CHAT_BASE_URL, discoverLoadedModelId } from "../chat/local-chat-model";
-import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
+import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 
 /**
  * `nklein chat` (todo §5.M) — a board-independent chat entry point that drives one turn of the unified chat

@@ -13,16 +13,19 @@ import {
 	parseNKleinModelMaxConcurrentRequestsRequest,
 	parseNKleinModelRegistryRemoveRequest,
 } from "../../core/api-validation";
-import { assertNKleinContextWindowPolicy } from "../../nklein-sdk/nklein-context-window-policy";
-import { isLocalProvider } from "../../nklein-sdk/nklein-local-only-policy";
+import { assertNKleinContextWindowPolicy } from "../../nklein-agent/nklein-context-window-policy";
+import { isLocalProvider } from "../../nklein-agent/nklein-local-only-policy";
 import {
 	buildNKleinModelRegistryKey,
 	createNKleinModelRegistryEntry,
 	getDefaultNKleinModelRegistry,
 	type NKleinModelRegistryEntry,
 	type NKleinModelRegistryKeyInput,
-} from "../../nklein-sdk/nklein-model-registry";
-import type { createNKleinProviderService, ResolvedNKleinLaunchConfig } from "../../nklein-sdk/nklein-provider-service";
+} from "../../nklein-agent/nklein-model-registry";
+import type {
+	createNKleinProviderService,
+	ResolvedNKleinLaunchConfig,
+} from "../../nklein-agent/nklein-provider-service";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 
 /**

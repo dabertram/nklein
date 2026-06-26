@@ -39,7 +39,7 @@
       `workspacePathHash`; locked by regression tests (same task id across two workspaces → two observations).
 - [x] **Near-valid tool-payload fuzz suite** — extended beyond `decompose_project` to
       `expand_task`/`write_file(s)`/discovery tools; fixed `expand_task` raw-`taskGraph` parse (now uses
-      `repairJsonStringValue`). ([test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts](test/runtime/nklein-sdk/nklein-tool-payload-fuzz.test.ts))
+      `repairJsonStringValue`). ([test/runtime/nklein-agent/nklein-tool-payload-fuzz.test.ts](test/runtime/nklein-agent/nklein-tool-payload-fuzz.test.ts))
 
 ### 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*
 > Every worker card gets a real reviewer-role second opinion (full loop, up to 20 rounds, stall + identical-loop
@@ -104,7 +104,7 @@
   - [x] **Backend (2026-06-24).** Added a per-model `maxConcurrentRequests` registry constraint (default null = 1) with
         `normalizeConstraints` + a `setMaxConcurrentRequests` registry setter, a `saveNKleinModelMaxConcurrentRequests`
         tRPC procedure (local-only guard, mirrors the context-window override) + contract request/response schemas +
-        parse helper. `scheduleNKleinEndpointStart` ([nklein-endpoint-scheduler.ts](src/nklein-sdk/nklein-endpoint-scheduler.ts))
+        parse helper. `scheduleNKleinEndpointStart` ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts))
         now counts running sessions on the shared endpoint and allows up to the model's limit before holding the next
         start (capacity note in the block reason). Default 1 = unchanged serialization. Unit-tested: scheduler
         allows-N-then-blocks + registry set/clamp/clear. tsc + biome + boundary + fast (1351) green.
@@ -170,7 +170,7 @@
       `read_large_file` accept absolute paths; protection is only the Docker proxy when present (home sessions are
       host-cwd). Enforce workspace containment inside each tool + the approval policy; reject host-absolute/`..`/symlink
       paths unless an explicit audited host session. (Ties to the "agents never see host" invariant.) **DONE
-      (2026-06-26):** added a single shared helper `src/nklein-sdk/nklein-tool-path-containment.ts` —
+      (2026-06-26):** added a single shared helper `src/nklein-agent/nklein-tool-path-containment.ts` —
       `confineToolPath(workspaceRoot, rawPath, {sandboxWorkdir?})` (load-bearing synchronous lexical confinement: a
       target is allowed iff it resolves within the root; absolute-within-root + workspace-relative allowed, host-
       absolute-outside + `..` rejected with a non-leaky message) plus `assertRealToolPathWithinRoot` (realpath/symlink-
@@ -342,7 +342,7 @@
 - [x] **Dependency-coherence validation + deep-domain aids** *(2026-06-21)*: graph-quality checks reject
       incoherent DAGs (free-floating test/docs cards), warn on sparse/isolated/reversed/UI-without-domain graphs;
       generated cards carry `knowledgeDebt`; the `kanban-decompose` workflow mandates a knowledge-acquisition +
-      "under-decomposed by 10x/100x?" scope-pressure pass. ([src/nklein-sdk/nklein-decomposition-graph-quality.ts](src/nklein-sdk/nklein-decomposition-graph-quality.ts))
+      "under-decomposed by 10x/100x?" scope-pressure pass. ([src/nklein-agent/nklein-decomposition-graph-quality.ts](src/nklein-agent/nklein-decomposition-graph-quality.ts))
 - [x] **Works under strict isolation** *(restored 2026-06-19)*: decomposition tools are trusted control-plane
       (mutate only `~/.nklein/nklein/` artifacts + the board, never the working tree), stay host-side during
       sandboxed planning, with the host workspace root forwarded so artifacts/board resolve to the owning

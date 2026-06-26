@@ -35,8 +35,8 @@ import {
 	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-} from "../nklein-sdk/nklein-agent-sandbox";
-import { CLOUD_ENABLED } from "../nklein-sdk/nklein-local-only-policy";
+} from "../nklein-agent/nklein-agent-sandbox";
+import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
 import {

@@ -28,22 +28,22 @@ import {
 	updateTask,
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
-import { buildNKleinAcceptanceRepairPlan } from "../nklein-sdk/nklein-acceptance-repair";
+import { buildNKleinAcceptanceRepairPlan } from "../nklein-agent/nklein-acceptance-repair";
 import {
 	applyNKleinPlanTaskGraphToBoard,
 	applyNKleinPlanTaskReplacementArtifacts,
-} from "../nklein-sdk/nklein-decomposition-tool";
-import { getDefaultNKleinModelRegistry } from "../nklein-sdk/nklein-model-registry";
+} from "../nklein-agent/nklein-decomposition-tool";
+import { getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import {
 	appendNKleinPlanRevision,
 	type NKleinPlanTask,
 	nkleinPlanTaskSchema,
 	readNKleinPlanArtifacts,
 	updateNKleinPlanArtifactApplicationStatus,
-} from "../nklein-sdk/nklein-plan-artifacts";
-import { createNKleinProviderService } from "../nklein-sdk/nklein-provider-service";
-import type { NKleinTaskRoutingCandidate } from "../nklein-sdk/nklein-task-router";
-import { buildNKleinStartGuardCandidate } from "../nklein-sdk/nklein-task-start-guard";
+} from "../nklein-agent/nklein-plan-artifacts";
+import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
+import type { NKleinTaskRoutingCandidate } from "../nklein-agent/nklein-task-router";
+import { buildNKleinStartGuardCandidate } from "../nklein-agent/nklein-task-start-guard";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {

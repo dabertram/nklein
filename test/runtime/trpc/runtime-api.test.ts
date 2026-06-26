@@ -8,7 +8,7 @@ import type { RuntimeBoardData, RuntimeTaskSessionSummary } from "../../../src/c
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS } from "../../../src/core/api-contract";
 import { readPausedTasks, setCardPaused } from "../../../src/core/card-pause";
 import { requestSwarmStop } from "../../../src/core/swarm-guardrails";
-import type { NKleinModelRegistryEntry } from "../../../src/nklein-sdk/nklein-model-registry";
+import type { NKleinModelRegistryEntry } from "../../../src/nklein-agent/nklein-model-registry";
 import { loadWorkspaceState, saveWorkspaceState } from "../../../src/state/workspace-state";
 
 const agentRegistryMocks = vi.hoisted(() => ({
@@ -153,7 +153,7 @@ vi.mock("../../../src/server/browser.js", () => ({
 	openInBrowser: browserMocks.openInBrowser,
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-model-registry.js", () => ({
+vi.mock("../../../src/nklein-agent/nklein-model-registry.js", () => ({
 	buildNKleinModelRegistryKey: (input: { providerId: string; modelId: string; endpoint?: string | null }) =>
 		`${input.providerId.trim().toLowerCase()}:${input.modelId.trim()}:${input.endpoint?.trim() || "default"}`,
 	createNKleinModelRegistryEntry: (input: { providerId: string; modelId: string; endpoint?: string | null }) => {
@@ -213,7 +213,7 @@ vi.mock("../../../src/nklein-sdk/nklein-model-registry.js", () => ({
 	}),
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-eval-harness.js", () => ({
+vi.mock("../../../src/nklein-agent/nklein-eval-harness.js", () => ({
 	runNKleinDevSmokeEval: evalHarnessMocks.runNKleinDevSmokeEval,
 }));
 

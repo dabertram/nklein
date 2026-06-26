@@ -43,16 +43,16 @@ import {
 	AgentSandboxManager,
 	type AgentSandboxPoolConfig,
 	resolveAgentSandboxImageName,
-} from "../nklein-sdk/nklein-agent-sandbox";
-import { configureNKleinAiSdkWarnings } from "../nklein-sdk/nklein-ai-sdk-warnings";
-import type { NKleinDecompositionAppliedEvent } from "../nklein-sdk/nklein-decomposition-tool";
-import { handleNKleinMcpOauthCallback } from "../nklein-sdk/nklein-mcp-runtime-service";
+} from "../nklein-agent/nklein-agent-sandbox";
+import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
+import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
+import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import {
 	createInMemoryNKleinTaskSessionService,
 	type NKleinTaskSessionService,
-} from "../nklein-sdk/nklein-task-session-service";
-import { isTrustedAutoMergeProtectedPath } from "../nklein-sdk/nklein-trusted-auto-merge";
-import { createNKleinWatcherRegistry } from "../nklein-sdk/nklein-watcher-registry";
+} from "../nklein-agent/nklein-task-session-service";
+import { isTrustedAutoMergeProtectedPath } from "../nklein-agent/nklein-trusted-auto-merge";
+import { createNKleinWatcherRegistry } from "../nklein-agent/nklein-watcher-registry";
 import {
 	buildSessionCookieHeader,
 	checkRateLimit,

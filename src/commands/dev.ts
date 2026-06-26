@@ -12,22 +12,22 @@ import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
-import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-sdk/nklein-advisor";
-import { runDevTestProject } from "../nklein-sdk/nklein-dev-test-harness";
+import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
+import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
 import {
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	type NKleinDevTestProjectPreset,
 	resolveNKleinDevTestProjectScenario,
-} from "../nklein-sdk/nklein-dev-test-project";
+} from "../nklein-agent/nklein-dev-test-project";
 import {
 	createDevTestStateReader,
 	type DevTestCleanupCandidate,
 	discoverDevTestCleanupEntries,
-} from "../nklein-sdk/nklein-dev-test-runner";
-import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
-import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
-import { assertLocalProviderAllowed } from "../nklein-sdk/nklein-local-only-policy";
-import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-sdk/nklein-model-research";
+} from "../nklein-agent/nklein-dev-test-runner";
+import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
+import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
+import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
+import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";

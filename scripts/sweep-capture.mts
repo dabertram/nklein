@@ -12,7 +12,7 @@
  * Run:  tsx scripts/sweep-capture.mts --model google/gemma-4-e2b-m5max --preset complex_dag
  */
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
-import { resolveNKleinDevTestProjectScenario } from "../src/nklein-sdk/nklein-dev-test-project";
+import { resolveNKleinDevTestProjectScenario } from "../src/nklein-agent/nklein-dev-test-project";
 import type { RuntimeAppRouter } from "../src/trpc/app-router";
 
 const URL_BASE = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:3484";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverLoadedModelId } from "../../src/chat/local-chat-model";
-import { LocalLlmClient } from "../../src/nklein-sdk/nklein-local-llm-client";
+import { LocalLlmClient } from "../../src/nklein-agent/nklein-local-llm-client";
 import { type MockLlmServer, startMockLlm } from "./helpers/mock-llm";
 
 /**

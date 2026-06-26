@@ -18,8 +18,8 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { AgentSandboxManager } from "../src/nklein-sdk/nklein-agent-sandbox";
-import { createInMemoryNKleinTaskSessionService } from "../src/nklein-sdk/nklein-task-session-service";
+import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
+import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
 
 const execFileAsync = promisify(execFile);

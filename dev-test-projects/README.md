@@ -4,8 +4,8 @@ This folder is the **registry of !Klein dev-test projects** — the decompositio
 build can scaffold into a throwaway workspace and run. Each project is a **self-contained folder**, so registering
 a prepared project is just "add a folder here", with no code change.
 
-The loader that discovers and validates these folders is `src/nklein-sdk/dev-test-project-registry.ts`; the
-scaffolding/runner that consumes them lives in `src/nklein-sdk/nklein-dev-test-project.ts` (+ harness/runner).
+The loader that discovers and validates these folders is `src/nklein-agent/dev-test-project-registry.ts`; the
+scaffolding/runner that consumes them lives in `src/nklein-agent/nklein-dev-test-project.ts` (+ harness/runner).
 
 ## To register a prepared project
 

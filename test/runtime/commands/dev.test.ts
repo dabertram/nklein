@@ -7,19 +7,19 @@ const evalHarnessMocks = vi.hoisted(() => ({
 	writeNKleinDogfoodBacklog: vi.fn(),
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-advisor", () => ({
+vi.mock("../../../src/nklein-agent/nklein-advisor", () => ({
 	buildNKleinAdvisorRequest: evalHarnessMocks.buildNKleinAdvisorRequest,
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-eval-harness", () => ({
+vi.mock("../../../src/nklein-agent/nklein-eval-harness", () => ({
 	runNKleinDevSmokeEval: evalHarnessMocks.runNKleinDevSmokeEval,
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-dogfood-engine", () => ({
+vi.mock("../../../src/nklein-agent/nklein-dogfood-engine", () => ({
 	writeNKleinDogfoodBacklog: evalHarnessMocks.writeNKleinDogfoodBacklog,
 }));
 
-vi.mock("../../../src/nklein-sdk/nklein-model-research", () => ({
+vi.mock("../../../src/nklein-agent/nklein-model-research", () => ({
 	buildNKleinModelFreshnessAdvisorRequest: evalHarnessMocks.buildNKleinModelFreshnessAdvisorRequest,
 }));
 

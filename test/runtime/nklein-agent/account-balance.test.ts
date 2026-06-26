@@ -1,0 +1,434 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const nkleinAccountMocks = vi.hoisted(() => ({
+	fetchMe: vi.fn(),
+	fetchBalance: vi.fn(),
+	fetchOrganizationBalance: vi.fn(),
+	switchAccount: vi.fn(),
+	fetchRemoteConfig: vi.fn(),
+	fetchOrganization: vi.fn(),
+	fetchFeaturebaseToken: vi.fn(),
+	constructedOptions: [] as Array<{ apiBaseUrl: string; getAuthToken: () => Promise<string | undefined | null> }>,
+}));
+
+const oauthMocks = vi.hoisted(() => ({
+	saveProviderSettings: vi.fn(),
+	getProviderSettings: vi.fn(),
+	getLastUsedProviderSettings: vi.fn(),
+}));
+
+const llmsModelMocks = vi.hoisted(() => ({
+	getAllProviders: vi.fn(),
+	getModelsForProvider: vi.fn(),
+}));
+
+const localProviderMocks = vi.hoisted(() => ({
+	getLocalProviderModels: vi.fn(),
+}));
+
+vi.mock("@nklein/core", () => ({
+	addLocalProvider: vi.fn(),
+	ensureCustomProvidersLoaded: vi.fn(),
+	getLocalProviderModels: localProviderMocks.getLocalProviderModels,
+	getValidNKleinCredentials: vi.fn(),
+	getValidOcaCredentials: vi.fn(),
+	getValidOpenAICodexCredentials: vi.fn(),
+	loginNKleinOAuth: vi.fn(),
+	loginOcaOAuth: vi.fn(),
+	loginOpenAICodex: vi.fn(),
+	resolveDefaultMcpSettingsPath: vi.fn(),
+	resolveNKleinDataDir: vi.fn(() => "/tmp/nklein"),
+	loadMcpSettingsFile: vi.fn(),
+	NKleinAccountService: class {
+		constructor(options: { apiBaseUrl: string; getAuthToken: () => Promise<string | undefined | null> }) {
+			nkleinAccountMocks.constructedOptions.push(options);
+		}
+		fetchMe = nkleinAccountMocks.fetchMe;
+		fetchBalance = nkleinAccountMocks.fetchBalance;
+		fetchOrganizationBalance = nkleinAccountMocks.fetchOrganizationBalance;
+		switchAccount = nkleinAccountMocks.switchAccount;
+		fetchRemoteConfig = nkleinAccountMocks.fetchRemoteConfig;
+		fetchOrganization = nkleinAccountMocks.fetchOrganization;
+		fetchFeaturebaseToken = nkleinAccountMocks.fetchFeaturebaseToken;
+	},
+	ProviderSettingsManager: class {
+		saveProviderSettings = oauthMocks.saveProviderSettings;
+		getProviderSettings = oauthMocks.getProviderSettings;
+		getLastUsedProviderSettings = oauthMocks.getLastUsedProviderSettings;
+		getProviderConfig = vi.fn((providerId: string) => {
+			const settings = oauthMocks.getProviderSettings(providerId);
+			if (!settings) {
+				return undefined;
+			}
+			return {
+				providerId: settings.provider,
+				apiKey: settings.apiKey,
+				modelId: settings.model,
+				baseUrl: settings.baseUrl,
+			};
+		});
+		getFilePath = vi.fn(() => "/tmp/provider-settings.json");
+		read = vi.fn(() => ({ providers: {} }));
+		write = vi.fn();
+	},
+	Llms: {
+		getAllProviders: llmsModelMocks.getAllProviders,
+		getModelsForProvider: llmsModelMocks.getModelsForProvider,
+	},
+	LlmsModels: {
+		NKLEIN_DEFAULT_MODEL: "anthropic/claude-sonnet-4.6",
+		getAllProviders: llmsModelMocks.getAllProviders,
+		getModelsForProvider: llmsModelMocks.getModelsForProvider,
+	},
+	LlmsProviders: {
+		supportsModelThinking: vi.fn(() => false),
+	},
+	InMemoryMcpManager: class {},
+	createMcpTools: vi.fn(async () => []),
+	DEFAULT_EXTERNAL_IDCS_CLIENT_ID: "",
+	DEFAULT_EXTERNAL_IDCS_SCOPES: "",
+	DEFAULT_EXTERNAL_IDCS_URL: "",
+	DEFAULT_INTERNAL_IDCS_CLIENT_ID: "",
+	DEFAULT_INTERNAL_IDCS_SCOPES: "",
+	DEFAULT_INTERNAL_IDCS_URL: "",
+}));
+
+vi.mock("../../../src/server/browser.js", () => ({
+	openInBrowser: vi.fn(),
+}));
+
+import { createNKleinProviderService } from "../../../src/nklein-agent/nklein-provider-service";
+
+const providerSelectionPath = join(tmpdir(), "kanban-account-balance-test-provider-selection.json");
+
+function setSelectedProviderSettings(
+	settings: {
+		provider: string;
+		model?: string;
+		baseUrl?: string;
+		apiKey?: string;
+		headers?: Record<string, string>;
+		timeout?: number;
+		auth?: {
+			accessToken?: string;
+			refreshToken?: string;
+			accountId?: string;
+			expiresAt?: number;
+		};
+	} | null,
+): void {
+	oauthMocks.getLastUsedProviderSettings.mockReturnValue(settings ?? undefined);
+	oauthMocks.getProviderSettings.mockImplementation((providerId: string) =>
+		settings && settings.provider === providerId ? settings : undefined,
+	);
+	rmSync(providerSelectionPath, { force: true });
+	if (settings) {
+		mkdirSync(dirname(providerSelectionPath), { recursive: true });
+		writeFileSync(providerSelectionPath, `${JSON.stringify({ providerId: settings.provider }, null, 2)}\n`, "utf8");
+	}
+}
+
+beforeEach(() => {
+	vi.stubEnv("KANBAN_NKLEIN_PROVIDER_SELECTION_PATH", providerSelectionPath);
+	rmSync(providerSelectionPath, { force: true });
+});
+
+afterEach(() => {
+	rmSync(providerSelectionPath, { force: true });
+	vi.unstubAllEnvs();
+});
+
+describe("getProviderModels", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		setSelectedProviderSettings({
+			provider: "litellm",
+			model: "gpt-5.4",
+			baseUrl: "http://127.0.0.1:4000/v1",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "litellm",
+			models: [{ id: "gpt-5.4", name: "gpt-5.4" }],
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("loads keyless LiteLLM model aliases from the saved Base URL models endpoint", async () => {
+		const fetchMock = vi.fn<typeof fetch>(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [{ id: "litellm-test-alpha" }, { id: "litellm-test-beta" }, { id: "litellm-test-gamma" }],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await createNKleinProviderService().getProviderModels("litellm");
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://127.0.0.1:4000/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: {},
+				signal: expect.any(AbortSignal),
+			}),
+		);
+		expect(result.models.map((model) => model.id)).toEqual([
+			"gpt-5.4",
+			"litellm-test-alpha",
+			"litellm-test-beta",
+			"litellm-test-gamma",
+		]);
+	});
+
+	it("uses LiteLLM model_name values from the model info endpoint", async () => {
+		const fetchMock = vi.fn<typeof fetch>(async (input) => {
+			const url = input.toString();
+			if (url.endsWith("/models")) {
+				return new Response(JSON.stringify({ data: [] }), { status: 200 });
+			}
+			return new Response(JSON.stringify({ data: [{ id: "internal-id", model_name: "litellm-test-alias" }] }), {
+				status: 200,
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await createNKleinProviderService().getProviderModels("litellm");
+
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"http://127.0.0.1:4000/v1/model/info",
+			expect.objectContaining({
+				method: "GET",
+				headers: {},
+				signal: expect.any(AbortSignal),
+			}),
+		);
+		expect(result.models.map((model) => model.id)).toEqual(["gpt-5.4", "litellm-test-alias"]);
+	});
+
+	it("passes configured LiteLLM headers and a bounded timeout signal to model list requests", async () => {
+		setSelectedProviderSettings({
+			provider: "litellm",
+			model: "gpt-5.4",
+			baseUrl: "http://127.0.0.1:4000/v1",
+			apiKey: "sk-test",
+			headers: { "X-Proxy-Token": "proxy-token" },
+			timeout: 30_000,
+		});
+		const fetchMock = vi.fn<typeof fetch>(async () => {
+			return new Response(JSON.stringify({ data: [{ id: "litellm-test-alpha" }] }), { status: 200 });
+		});
+		const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+		vi.stubGlobal("fetch", fetchMock);
+
+		await createNKleinProviderService().getProviderModels("litellm");
+
+		expect(timeoutSpy).toHaveBeenCalledWith(30_000);
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://127.0.0.1:4000/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: {
+					Authorization: "Bearer sk-test",
+					"X-Proxy-Token": "proxy-token",
+				},
+				signal: expect.any(AbortSignal),
+			}),
+		);
+		timeoutSpy.mockRestore();
+	});
+});
+
+describe("getNKleinAccountBalance", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		nkleinAccountMocks.constructedOptions = [];
+	});
+
+	it("returns all-null when no provider settings are configured", async () => {
+		setSelectedProviderSettings(null);
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+	});
+
+	it("returns all-null when provider is not nklein", async () => {
+		setSelectedProviderSettings({ provider: "anthropic", apiKey: "sk-test" });
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+	});
+
+	it("returns all-null when no access token is present", async () => {
+		setSelectedProviderSettings({ provider: "nklein", auth: {} });
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+	});
+
+	it("does not fetch personal cloud balance in local-only mode", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "test@example.com",
+			displayName: "Test User",
+			organizations: [],
+		});
+		nkleinAccountMocks.fetchBalance.mockResolvedValue({
+			balance: 5_000_000,
+			userId: "user-1",
+		});
+
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchBalance).not.toHaveBeenCalled();
+	});
+
+	it("does not fetch organization cloud balance in local-only mode", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "test@example.com",
+			displayName: "Test User",
+			organizations: [
+				{ organizationId: "org-1", name: "Test Org", active: true, roles: ["admin"], memberId: "m-1" },
+			],
+		});
+		nkleinAccountMocks.fetchOrganizationBalance.mockResolvedValue({
+			balance: 26_617_620,
+			organizationId: "org-1",
+		});
+
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+
+		expect(result).toEqual({ balance: null, activeAccountLabel: null, activeOrganizationId: null });
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
+		expect(nkleinAccountMocks.fetchOrganizationBalance).not.toHaveBeenCalled();
+	});
+
+	it("returns all-null without error when fetch fails and OAuth refresh is unavailable", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.fetchMe.mockRejectedValue(new Error("Network error"));
+
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountBalance();
+
+		// First call fails, OAuth refresh returns no settings, so service returns all-null (no error field).
+		expect(result.balance).toBeNull();
+		expect(result.activeAccountLabel).toBeNull();
+		expect(result.activeOrganizationId).toBeNull();
+	});
+});
+
+describe("getNKleinAccountOrganizations", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		nkleinAccountMocks.constructedOptions = [];
+	});
+
+	it("returns empty array when no provider settings", async () => {
+		setSelectedProviderSettings(null);
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountOrganizations();
+		expect(result).toEqual({ organizations: [] });
+	});
+
+	it("returns empty array for non-nklein provider", async () => {
+		setSelectedProviderSettings({ provider: "openai", apiKey: "sk-test" });
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountOrganizations();
+		expect(result).toEqual({ organizations: [] });
+	});
+
+	it("does not fetch cloud organizations in local-only mode", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "test@example.com",
+			displayName: "Test User",
+			organizations: [
+				{ organizationId: "org-1", name: "Org A", active: true, roles: ["owner"], memberId: "m-1" },
+				{ organizationId: "org-2", name: "Org B", active: false, roles: ["member"], memberId: "m-2" },
+			],
+		});
+
+		const service = createNKleinProviderService();
+		const result = await service.getNKleinAccountOrganizations();
+
+		expect(result).toEqual({ organizations: [] });
+		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
+	});
+});
+
+describe("switchNKleinAccount", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		nkleinAccountMocks.constructedOptions = [];
+	});
+
+	it("refuses cloud account switching in local-only mode", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.switchAccount.mockResolvedValue(undefined);
+
+		const service = createNKleinProviderService();
+		const result = await service.switchNKleinAccount("org-1");
+
+		expect(result).toEqual({ ok: false, error: "No provider settings configured." });
+		expect(nkleinAccountMocks.switchAccount).not.toHaveBeenCalled();
+	});
+
+	it("refuses switching to personal cloud account in local-only mode", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.switchAccount.mockResolvedValue(undefined);
+
+		const service = createNKleinProviderService();
+		const result = await service.switchNKleinAccount(null);
+
+		expect(result).toEqual({ ok: false, error: "No provider settings configured." });
+		expect(nkleinAccountMocks.switchAccount).not.toHaveBeenCalled();
+	});
+
+	it("returns error on failure", async () => {
+		setSelectedProviderSettings({
+			provider: "nklein",
+			auth: { accessToken: "test-token" },
+		});
+		nkleinAccountMocks.switchAccount.mockRejectedValue(new Error("Switch failed"));
+
+		const service = createNKleinProviderService();
+		const result = await service.switchNKleinAccount("org-1");
+
+		expect(result.ok).toBe(false);
+		expect(result.error).toBeDefined();
+	});
+});

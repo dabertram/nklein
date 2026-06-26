@@ -16,7 +16,7 @@ The implementation is partway through that transition:
 - The web UI imports selected runtime source files directly through `@runtime-*` aliases in `web-ui/tsconfig.json` and `web-ui/vite.config.ts`.
 - `src/core/api-contract.ts` is the primary shared contract file, but it has grown into a large mixed module.
 - `src/trpc/app-router.ts` and `src/trpc/runtime-api.ts` remain broad coordinators despite several good extracted helpers under `src/trpc/runtime-api/`.
-- `src/nklein-sdk/` contains many focused modules, but the true SDK boundary is not crisply enforced.
+- `src/nklein-agent/` contains many focused modules, but the true SDK boundary is not crisply enforced.
 - `web-ui/src/` is organized mostly by technical category (`components`, `hooks`, `runtime`, `state`) rather than product feature.
 - Root, web UI, and desktop are separate package installs rather than one coherent workspace-managed monorepo.
 
@@ -418,9 +418,9 @@ Incremental path:
 
 Observation:
 
-- The docs say SDK package details should stay behind `src/nklein-sdk/` boundary modules.
-- Direct `@nklein/core` and `@nklein/shared` imports exist across many files under `src/nklein-sdk/`.
-- `biome.json` restricts old `@nkleinbot/*` package names outside `src/nklein-sdk/**`, but the actual aliases in `tsconfig.json` are `@nklein/core`, `@nklein/agents`, `@nklein/llms`, and `@nklein/shared`.
+- The docs say SDK package details should stay behind `src/nklein-agent/` boundary modules.
+- Direct `@nklein/core` and `@nklein/shared` imports exist across many files under `src/nklein-agent/`.
+- `biome.json` restricts old `@nkleinbot/*` package names outside `src/nklein-agent/**`, but the actual aliases in `tsconfig.json` are `@nklein/core`, `@nklein/agents`, `@nklein/llms`, and `@nklein/shared`.
 - `.github/scripts/check-nklein-boundary.mjs` still checks `node_modules/@clinebot` and reports "Cline SDK" / `src/cline-sdk`.
 - `.github/workflows/test.yml` calls `npm run check:cline-boundary`, while `package.json` defines `check:nklein-boundary`.
 
@@ -428,7 +428,7 @@ Suggestion:
 
 - Decide the intended SDK import policy precisely:
   - strict: only boundary files import SDK packages, including shared tool types; or
-  - layered: any file inside `src/nklein-sdk/` may import SDK tool types, but only boundary files may import provider/session-host/runtime APIs.
+  - layered: any file inside `src/nklein-agent/` may import SDK tool types, but only boundary files may import provider/session-host/runtime APIs.
 - Encode that policy in Biome restricted imports or a custom boundary script.
 - Update the boundary script and CI command names to match the current NKlein package names.
 - Export local aliases for SDK tool types from a boundary module if strict isolation is preferred.

@@ -5,13 +5,16 @@ import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
-import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-sdk/nklein-code-embeddings";
-import { isNKleinContextWindowPolicyError } from "../../nklein-sdk/nklein-context-window-policy";
-import { scheduleNKleinEndpointStart } from "../../nklein-sdk/nklein-endpoint-scheduler";
-import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../../nklein-sdk/nklein-local-only-policy";
-import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../../nklein-sdk/nklein-model-registry";
-import type { createNKleinProviderService, ResolvedNKleinLaunchConfig } from "../../nklein-sdk/nklein-provider-service";
-import { routeNKleinTask } from "../../nklein-sdk/nklein-task-router";
+import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
+import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
+import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
+import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../../nklein-agent/nklein-local-only-policy";
+import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
+import type {
+	createNKleinProviderService,
+	ResolvedNKleinLaunchConfig,
+} from "../../nklein-agent/nklein-provider-service";
+import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
 	buildNKleinSandboxStartBlock,
 	buildNKleinStartGuardCandidate,
@@ -20,8 +23,8 @@ import {
 	estimateNKleinStartPromptTokens,
 	formatNKleinTaskRoutingBlockMessage,
 	type NKleinStartGuardCandidate,
-} from "../../nklein-sdk/nklein-task-start-guard";
-import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-sdk/nklein-timeout-scaling";
+} from "../../nklein-agent/nklein-task-start-guard";
+import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";

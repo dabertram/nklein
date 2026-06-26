@@ -9,7 +9,7 @@ import {
 	normalizeFocusChain,
 	summarizeFocusChain,
 } from "../core/focus-chain";
-import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatTool } from "./chat-tool-executor";
 

@@ -11,7 +11,7 @@
  * unit-testable; the wiring (§5.S "wire into the flow") drives the architect/reviewer turns and the real
  * embedder, and persists the resolved/remaining state onto the card/plan question (`applyAutoClarifyDecision`).
  */
-import type { NKleinPlanQuestion } from "../nklein-sdk/nklein-plan-artifacts";
+import type { NKleinPlanQuestion } from "../nklein-agent/nklein-plan-artifacts";
 
 export interface AutoClarifyRound {
 	/** The architect's proposed answer (or refined assumption) this round. */
