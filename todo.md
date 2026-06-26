@@ -3363,18 +3363,29 @@ deep analysis:
 > runs on the agent's behalf). **My adaptation of the audit:** consolidate, don't proliferate — fold its "flight
 > recorder / driving school / workload compiler / policy DSL / context profiler / freshness cache" framings into the
 > sections they already belong to (noted inline), not new sections.
-- [ ] **★ Agent Attempt Ledger (pure core + persisted store).** A per-attempt append-only record (attemptId/parent,
-      taskId/workspaceHash/role, canonical modelId+endpoint+endpointStrategy, promptStrategy+toolSet+simplificationLevel,
-      contextTokens+budgetTarget, difficulty, started/completed+ttft+tok/s, toolCalls, outcome [the §5.AA
-      `ModelOutcomeKind`], qualityScore/Ok, retriesBefore, salvage, artifacts). Reuse the validated
-      [src/state/jsonl-store.ts](src/state/jsonl-store.ts) boundary + a zod schema. Pure builder + writer first; **then
-      re-home the attempt-grain bits** currently scattered in `task-run-summary-store`, model-registry observations, and
-      knowledge-tool telemetry so they become projections/thin-writers — do NOT duplicate. *(This is the audit's "flight
-      recorder".)* **Small-LLM research addendum:** include workflow/controller fields too (`workflowId`/`jobId`/`leaseId`,
-      `runState`, `transition`, `transitionReason`, `controllerDecision`, `idempotencyKey`, `resumeCursor`) plus
-      admission/resource events (queued/dequeued, sandbox slot, endpoint slot, model-load request, queue depth,
-      backoff/heartbeat/reclaim, dependency-unblocked, merge/review joins). See
-      [small-llm-agent-optimization-research.md](.plan/docs/small-llm-agent-optimization-research.md).
+- [~] **★ Agent Attempt Ledger (pure core + persisted store) — PURE CORE + STORE DONE (2026-06-27).**
+      [src/core/agent-attempt-ledger.ts](src/core/agent-attempt-ledger.ts): a **discriminated-union event stream** (a
+      workflow event log, NOT just an attempt table — the small-LLM-research reframing) over a shared envelope
+      (`schemaVersion`/`eventId`/`recordedAt`/`workflowId`/`taskId`/`workspacePathHash`/`role`) with three extensible
+      event kinds — **`attempt`** (the rich per-model-invocation record: `attemptId`/`parentAttemptId`, canonical
+      `modelId`+`endpoint`+`endpointStrategy`, `promptStrategy`+`toolSetOffered`+`simplificationLevel`,
+      `contextTokens`+`contextBudgetTarget`, `difficulty`, started/completed+`ttftMs`+`tokensPerSec`,
+      `toolCalls[{name,fingerprint,outcome}]`, `outcome` [the §5.AA `ModelOutcomeKind`], `qualityScore`/`qualityOk`,
+      `retriesBefore`, `salvage`, `artifacts{resultBranch,patchRef,evidenceBundle}`); **`transition`** (controller
+      finite-state moves: `from`/`to`/`reason`/`controllerDecision` — the §5.AA finite-state controller); **`scheduler`**
+      (lease/lifecycle/admission events: `queued`/`dequeued`/`lease_acquired`/`heartbeat`/`lease_expired`/`reclaimed`/
+      `retry_backoff`/`cancelled`/`dependency_unblocked` + `leaseId`/`workerId`/`idempotencyKey`). Pure builders fill
+      defaults; **projections** (the keystone value — the §5.Z matrix + §5.AA profile + §5.AB fitness become QUERIES over
+      this, not parallel stores): `selectAttempts` / `selectAttemptsForModel` / `selectEventsForWorkflow` /
+      `latestRunState` (resume "exactly where it was" without re-asking a weak model) / `summarizeModelOutcomes`.
+      [src/state/agent-attempt-ledger-store.ts](src/state/agent-attempt-ledger-store.ts): a thin append-only per-workspace
+      JSONL wrapper (keyed by `workspacePathHash`, never the path — #2; best-effort; validated via `parseValidatedJsonl`
+      so a schema-invalid line is skipped+diagnosed, never trusted). Host-side control-plane, append-only, local-only.
+      14 unit tests; tsc+biome green. **Still owed (the rest of this item):** the remaining workflow fields the durable
+      scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom + merge/review-join events — add
+      as the scheduler lands), and **re-home the attempt-grain bits** currently scattered in `task-run-summary-store` /
+      model-registry observations / knowledge-tool telemetry so they become projections/thin-writers over this ONE
+      stream — do NOT duplicate (the next §5.AF item).
 - [ ] **Make `ModelBehaviorProfile`/MCSR/§5.Z/`ModelFitness` projections over the ledger.** Wire the §5.AA online update
       (`recordModelBehaviorOutcome`, core DONE) + the §5.AB fitness records + the §5.Z matrix to READ/WRITE the ledger
       stream — one evidence source, no parallel persistence. Unblocks M2.
